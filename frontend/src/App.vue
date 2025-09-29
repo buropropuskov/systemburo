@@ -1,0 +1,109 @@
+<template>
+  <div id="app">
+    <NavMenu 
+      v-if="isAuthenticated"
+      :is-buropropuskov="isBuropropuskov"
+      @logout="logout"
+    />
+    <div class="content">
+      <TheHeader class="theheader" v-if="isAuthenticated"/>
+       <router-view class="content__container" @login-success="handleSuccessfulLogin" /> 
+    </div>
+   
+  </div>
+</template>
+
+<script>
+import NavMenu from './components/NavMenu.vue';
+import TheHeader from './components/TheHeader.vue';
+
+export default {
+  name: "App",
+  components: {
+    NavMenu,
+    TheHeader
+  },
+  data() {
+    return {
+      isAuthenticated: false,
+      isBuropropuskov: false
+    };
+  },
+  methods: {
+    async checkAuthStatus() {
+      const token = localStorage.getItem("token");
+      console.log('Checking auth status, token exists:', !!token);
+      
+      this.isAuthenticated = !!token;
+      
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          console.log('Token payload:', payload);
+          this.isBuropropuskov = payload.type_id === 6;
+        } catch (e) {
+          console.error("Token decode error:", e);
+          this.isBuropropuskov = false;
+        }
+      } else {
+        this.isBuropropuskov = false;
+      }
+
+      console.log('Auth results:', {
+        isAuthenticated: this.isAuthenticated,
+        isBuropropuskov: this.isBuropropuskov
+      });
+    },
+    handleSuccessfulLogin(token) {
+      console.log('Login successful, token:', token);
+      localStorage.setItem("token", token);
+      this.checkAuthStatus();
+    },
+    logout() {
+      console.log('Logging out');
+      localStorage.removeItem("token");
+      this.checkAuthStatus();
+      this.$router.push("/");
+    }
+  },
+  created() {
+    this.checkAuthStatus();
+    this.$router.afterEach(() => {
+      this.checkAuthStatus();
+    });
+  },
+  watch: {
+    $route() {
+      this.checkAuthStatus();
+    }
+  }
+};
+</script>
+
+<style>
+* {
+    font-family: 'Montserrat', sans-serif;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+}
+
+/* Динамический отступ только для авторизованных пользователей */
+body.auth-active #app {
+  margin-left: 25px;
+}
+
+body:not(.auth-active) #app {
+  margin-left: 0;
+}
+
+.blue {
+  color: #4F5BDF;
+}
+
+</style>
