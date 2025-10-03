@@ -55,6 +55,9 @@
           <a href="#" class="link">Согласование</a>
         </li>
         <li class="navigation__link">
+          <a href="#" class="link">Разгрузка</a>
+        </li>
+        <li class="navigation__link">
           <a href="#" class="link">Уведомления</a>
         </li>
         <li class="navigation__link">
@@ -307,7 +310,7 @@ export default {
 }
 
 .settings__container {
-  min-width: 450px;
+  min-width: 400px;
   height: 50px;
   background-color: #4F5BDF;
   border-radius: 20px;
@@ -340,7 +343,7 @@ export default {
 }
 
 .link {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #939CFF;
   transition: .2s;
