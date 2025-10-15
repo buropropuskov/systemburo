@@ -3,7 +3,7 @@ use chrono::{Utc, Duration};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
 use rand::thread_rng;
-use crate::models::Claims;
+use crate::models::auth::Claims;
 
 pub fn create_token(username: &str, type_id: i32) -> String {
     let expiration = Utc::now() + Duration::hours(24);

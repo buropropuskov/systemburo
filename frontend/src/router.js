@@ -4,6 +4,7 @@ import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
 import CreateApplication from './components/CreateApplication.vue';
+import CarsView from './views/CarsView.vue';
 
 const routes = [
   { 
@@ -30,6 +31,12 @@ const routes = [
     component: AccountComponent,
     meta: { requiresAuth: true } 
   },
+  {
+    path: '/carsview',
+    name: 'CarsView',
+    component: CarsView,
+    meta: {requiresAuth: true}
+  }
 ];
 
 const router = createRouter({

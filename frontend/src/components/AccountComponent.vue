@@ -52,10 +52,10 @@
           <a href="#" class="link">Таблицы</a>
         </li>
         <li class="navigation__link">
-          <a href="#" class="link">Согласование</a>
+          <a href="#number" class="link">Авто-номера</a>
         </li>
         <li class="navigation__link">
-          <a href="#" class="link">Разгрузка</a>
+          <a href="#unload_place" class="link">Разгрузка</a>
         </li>
         <li class="navigation__link">
           <a href="#" class="link">Уведомления</a>
@@ -72,13 +72,12 @@
     </div>
 
     <!-- Вторая строка: управление пользователями (если доступно) -->
-    <div class="dashboard-row" v-if="isBuroPropuskov">
+    <div class="dashboard-row" id="users" v-if="isBuroPropuskov">
       <UserControl 
         :allUsers="allUsers"
         @fetch-users="fetchAllUsers"
         @user-updated="handleUserUpdated"
         class="dashboard-card dashboard-card-animated"
-        id="users"
       />
     </div>
 
@@ -88,6 +87,12 @@
     </div>
     <div class="dashboard-row" v-if="isBuroPropuskov">
       <CompaniesManagement class="dashboard-card dashboard-card-animated"/>
+    </div>
+    <div class="dashboard-row" v-if="isBuroPropuskov">
+      <UnloadPlacesContainer id="unload_place" class="dashboard-card dashboard-card-animated"/>
+    </div>
+    <div class="dashboard-row" id="number" v-if="isBuroPropuskov">
+      <NumberFormat class="dashboard-card dashboard-card-animated"/>
     </div>
   </div>
 </template>
@@ -99,6 +104,8 @@ import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotifications from './UserNotifications.vue';
 import OrganizationsManagement from './OrganizationsManagement.vue';
 import CompaniesManagement from './CompaniesManagement.vue';
+import UnloadPlacesContainer from './UnloadPlaces/UnloadPlacesContainer.vue';
+import NumberFormat from './NumberFormat.vue';
 
 export default {
   components: {
@@ -107,7 +114,9 @@ export default {
     UserProfileHeader,
     UserNotifications,
     OrganizationsManagement,
-    CompaniesManagement
+    CompaniesManagement,
+    UnloadPlacesContainer,
+    NumberFormat
   },
   data() {
     return {
@@ -261,7 +270,7 @@ export default {
 }
 
 .dashboard-row {
-  margin-bottom: 15px;
+ padding: 15px 0;
 }
 
 /* Стили для карточек */

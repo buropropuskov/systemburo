@@ -476,7 +476,8 @@ export default {
   border: 1px solid #e6e6e6;
   overflow: hidden;
   width: 65%;
-  height: 205px;
+  min-height: 222px;
+  max-height: 222px;
   box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
@@ -543,7 +544,7 @@ export default {
   font-weight: 500;
   color: #a2a2a2;
   text-align: left;
-  padding: 0 4px;
+  padding: 0 0px;
   font-size: 14px;
   display: flex;
   align-items: center;
@@ -551,6 +552,8 @@ export default {
   transition: .2s;
   cursor: pointer;
   user-select: none;
+  height: 20px;
+  box-sizing: border-box;
 }
 
 .header-col:hover {
@@ -580,14 +583,15 @@ export default {
   font-weight: 500 !important;
 }
 
-/* Колонки с фиксированной шириной - обновленные размеры */
+/* Колонки с фиксированной шириной - исправленные размеры */
 .checkbox-col {
   width: 4%;
   min-width: 25px;
+  justify-content: center;
 }
 
 .organization-col {
-  width: 33%;
+  width: 35%;
   min-width: 95px;
 }
 
@@ -614,69 +618,16 @@ export default {
 .actions-col {
   width: 2%;
   min-width: 40px;
+  justify-content: center;
 }
 
 /* Тело таблицы */
 .cars-body {
   overflow-y: auto;
   flex-grow: 1;
-  /* Добавляем отступ справа для скроллбара */
   padding-right: 4px;
   margin-right: 4px;
-  
-  /* Плавный скролл */
   scroll-behavior: smooth;
-  
-  /* Замедление скролла для WebKit браузеров */
-  scroll-timeline: auto;
-}
-
-/* Стилизация скроллбара - уменьшаем размер и делаем более плавным */
-.cars-body::-webkit-scrollbar {
-  width: 6px; /* Уменьшаем ширину скроллбара */
-}
-
-.cars-body::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 2px 0; /* Уменьшаем отступы */
-  border-radius: 3px;
-}
-
-.cars-body::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
-  border-radius: 3px;
-  border: 1px solid transparent; /* Уменьшаем границу */
-  background-clip: content-box;
-  transition: all 0.3s ease; /* Плавные переходы */
-}
-
-.cars-body::-webkit-scrollbar-thumb:hover {
-  background: #C5D1FF;
-  border: 1px solid transparent;
-  background-clip: content-box;
-  transform: scale(1.1); /* Легкое увеличение при наведении */
-}
-
-/* Для Firefox - более тонкий и плавный скролл */
-.cars-body {
-  scrollbar-width: thin;
-  scrollbar-color: #D9E2FF transparent;
-  scroll-behavior: smooth;
-}
-
-/* Дополнительные стили для замедления скролла */
-.cars-body {
-  /* Ограничиваем скорость скролла */
-  overscroll-behavior: contain;
-}
-
-/* Для браузеров, поддерживающих scroll-snap (опционально) */
-.cars-body {
-  scroll-snap-type: y proximity;
-}
-
-.car-item {
-  scroll-snap-align: start;
 }
 
 .car-item {
@@ -704,17 +655,28 @@ export default {
 .car-row {
   display: flex;
   width: 100%;
-  padding: 8px 16px;
+  padding: 10px 16px;
   align-items: center;
+  border-top: 1px solid #f0f0f0;
 }
 
 .car-col {
-  padding: 0 4px;
+  padding: 0 8px;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Выравнивание содержимого колонок */
+.checkbox-col .car-col,
+.actions-col .car-col {
+  justify-content: center;
 }
 
 .checkbox-input {
@@ -736,10 +698,12 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .delete-btn:hover {
-  background-color: transparent;
+  background-color: #f5f5f5;
 }
 
 .delete-icon {
@@ -763,6 +727,39 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Стилизация скроллбара */
+.cars-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cars-body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 2px 0;
+  border-radius: 3px;
+}
+
+.cars-body::-webkit-scrollbar-thumb {
+  background: #D9E2FF;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  transition: all 0.3s ease;
+}
+
+.cars-body::-webkit-scrollbar-thumb:hover {
+  background: #C5D1FF;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  transform: scale(1.1);
+}
+
+.cars-body {
+  scrollbar-width: thin;
+  scrollbar-color: #D9E2FF transparent;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
 }
 
 /* Анимация для списка */

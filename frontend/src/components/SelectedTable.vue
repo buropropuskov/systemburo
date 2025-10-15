@@ -804,7 +804,7 @@ export default {
   /* Добавляем отступ справа для скроллбара */
   padding-right: 4px;
   margin-right: 4px;
-  min-height: 100px;
+  min-height: 80px;
 
 }
 
@@ -837,8 +837,9 @@ export default {
 .car-row {
   display: flex;
   width: 100%;
-  padding: 8px 16px;
+  padding: 10px 16px;
   align-items: center;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 .car-col {

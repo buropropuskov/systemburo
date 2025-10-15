@@ -1,10 +1,10 @@
 <template>
-  <div class="organizations-management dashboard-card">
+  <div class="unload-places-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Управление организациями / отделами</h3>
+      <h3 class="management-title">Управление местами разгрузки</h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск организаций...'"
+          :title="'Поиск мест разгрузки...'"
           v-model="searchQuery"
         />
         <button @click="showAddModal = true" class="add-header-button">
@@ -15,8 +15,8 @@
     </div>
 
     <div class="content-container">
-      <!-- Левая часть - таблица организаций -->
-      <div class="table-section">
+      <!-- Левая часть - таблица мест разгрузки -->
+      <div class="table-section" :class="{'with-details': selectedPlace}">
         <div class="table-container">
           <div class="table-header">
             <div class="header-col id-col" @click="sortBy('id')">
@@ -41,133 +41,90 @@
                 }" 
               />
             </div>
-            <div class="header-col users-col" @click="sortBy('user_count')">
-              <p :class="{ 'active-sort': sortField === 'user_count' }">Пользователи</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'user_count',
-                  'desc': sortField === 'user_count' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
           </div>
 
           <div class="table-body">
             <div 
-              v-for="org in sortedOrganizations" 
-              :key="org.id" 
+              v-for="place in sortedUnloadPlaces" 
+              :key="place.id" 
               class="table-row"
-              :class="{'selected': selectedOrganization && selectedOrganization.id === org.id}"
-              @click="selectOrganization(org)"
+              :class="{'selected': selectedPlace && selectedPlace.id === place.id}"
+              @click="selectPlace(place)"
             >
               <div class="table-col id-col">
-                <span class="cell-content id-value">{{ org.id }}</span>
+                <span class="cell-content id-value">{{ place.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="org.name">
-                  {{ org.name }}
-                </span>
-              </div>
-              <div class="table-col users-col">
-                <span class="cell-content user-count">
-                  <span class="count-value">{{ org.user_count }}</span>
+                <span class="truncate-text" :title="place.name">
+                  {{ place.name }}
                 </span>
               </div>
             </div>
           </div>
 
           <div class="table-footer">
-            <span class="items-count">Всего организаций: {{ filteredOrganizations.length }}</span>
+            <span class="items-count">Всего мест разгрузки: {{ filteredUnloadPlaces.length }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Средняя часть - детали организации -->
-      <div v-if="selectedOrganization" class="details-section">
+      <!-- Правая часть - детали места разгрузки -->
+      <div v-if="selectedPlace" class="details-section">
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">{{ selectedOrganization.name }}</h3>
+              <h3 class="details-title">{{ selectedPlace.name }}</h3>
             </div>
             <div class="details-header-actions">
-              <button @click="confirmDeleteOrganization(selectedOrganization)" class="delete-icon-btn">
+              <button @click="confirmDeletePlace(selectedPlace)" class="delete-icon-btn">
                 <img src="@/assets/icons/delete.png" class="delete-icon" />
               </button>
             </div>
           </div>
           
           <div class="details-body">
-            <div class="details-grid-two-columns">
-              <!-- Левый столбец -->
-              <div class="details-column">
-                <div class="detail-group">
-                  <label class="detail-label">Наименование:</label>
-                  <input 
-                    v-model="selectedOrganization.name" 
-                    @change="updateOrganization(selectedOrganization)"
-                    class="form-input-sm"
-                    placeholder="Введите название организации"
-                    autocomplete="off"
-                  >
-                </div>
-              </div>
-              
-              <!-- Правый столбец -->
-              <div class="details-column">
-                <!-- Пустой столбец для выравнивания -->
-              </div>
+            <div class="detail-group">
+              <label class="detail-label">Наименование:</label>
+              <input 
+                v-model="selectedPlace.name" 
+                @change="updatePlace(selectedPlace)"
+                class="form-input-sm"
+                placeholder="Введите название места"
+                autocomplete="off"
+              >
             </div>
-
-            <!-- Компонент ответственных лиц -->
-            <ResponsibleUsersSection
-              :entity="selectedOrganization"
-              :entity-type="'organization'"
-              @users-updated="handleUsersUpdated"
-            />
-
-            <!-- Компонент мест разгрузки -->
-            <SelectUnloadPlaces
-              :entity="selectedOrganization"
-              :entity-type="'organization'"
-              @places-updated="handlePlacesUpdated"
-            />
           </div>
         </div>
       </div>
       
-      <!-- Правая часть - пустой блок -->
-      <div class="empty-section" :class="{'with-details': selectedOrganization}">
-        <div v-if="!selectedOrganization" class="no-selection-message">
-          <p>Выберите организацию для просмотра</p>
-        </div>
+      <div v-else class="no-selection-message">
+        <p>Выберите место разгрузки для просмотра</p>
       </div>
     </div>
 
-    <div v-if="filteredOrganizations.length === 0" class="no-results">
-      <div class="no-results-icon">🏢</div>
-      <p>Организации не найдены</p>
+    <div v-if="filteredUnloadPlaces.length === 0" class="no-results">
+      <div class="no-results-icon">📍</div>
+      <p>Места разгрузки не найдены</p>
     </div>
 
     <!-- Модальное окно добавления -->
     <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Добавить организацию</h3>
+          <h3>Добавить место разгрузки</h3>
           <button @click="showAddModal = false" class="modal-close">×</button>
         </div>
         <div class="modal-body">
           <input
-            v-model="newOrganizationName"
-            placeholder="Введите название организации"
+            v-model="newPlaceName"
+            placeholder="Введите название места разгрузки"
             class="modal-input"
-            @keyup.enter="addOrganization"
+            @keyup.enter="addPlace"
           >
         </div>
         <div class="modal-footer">
           <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="addOrganization" class="modal-confirm">Добавить</button>
+          <button @click="addPlace" class="modal-confirm">Добавить</button>
         </div>
       </div>
     </div>
@@ -175,46 +132,43 @@
 </template>
 
 <script>
-import RefreshButton from './RefreshButton.vue';
-import SearchComponent from './SearchComponent.vue';
-import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
-import SelectUnloadPlaces from './SelectUnloadPlaces.vue';
+import RefreshButton from '../RefreshButton.vue';
+import SearchComponent from '../SearchComponent.vue';
 
 export default {
   components: {
     SearchComponent,
-    RefreshButton,
-    ResponsibleUsersSection,
-    SelectUnloadPlaces
+    RefreshButton
   },
   data() {
     return {
       searchQuery: '',
-      newOrganizationName: '',
-      organizationsWithUsers: [],
+      newPlaceName: '',
+      unloadPlaces: [],
       showAddModal: false,
-      selectedOrganization: null,
+      selectedPlace: null,
       sortField: null,
       sortDirection: 'asc'
     };
   },
   computed: {
-    filteredOrganizations() {
-      if (!this.searchQuery) return this.organizationsWithUsers;
+    filteredUnloadPlaces() {
+      if (!this.searchQuery) return this.unloadPlaces;
       const query = this.searchQuery.toLowerCase();
-      return this.organizationsWithUsers.filter(org => 
-        org.name.toLowerCase().includes(query) || 
-        org.id.toString().includes(query)
+      return this.unloadPlaces.filter(place => 
+        place.name.toLowerCase().includes(query) || 
+        place.id.toString().includes(query)
       );
     },
-    sortedOrganizations() {
-      const organizations = [...this.filteredOrganizations];
+    sortedUnloadPlaces() {
+      const places = [...this.filteredUnloadPlaces];
       
       if (!this.sortField) {
-        return organizations.sort((a, b) => a.name.localeCompare(b.name));
+        // Изначально сортируем по наименованию
+        return places.sort((a, b) => a.name.localeCompare(b.name));
       }
       
-      return organizations.sort((a, b) => {
+      return places.sort((a, b) => {
         let valueA, valueB;
         
         switch (this.sortField) {
@@ -225,10 +179,6 @@ export default {
           case 'name':
             valueA = a.name;
             valueB = b.name;
-            break;
-          case 'user_count':
-            valueA = a.user_count;
-            valueB = b.user_count;
             break;
           default:
             return 0;
@@ -246,105 +196,97 @@ export default {
   },
   methods: {
     async refreshData() {
-      await this.fetchOrganizationsWithUsers();
+      await this.fetchUnloadPlaces();
     },
-    async fetchOrganizationsWithUsers() {
+    async fetchUnloadPlaces() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations/with-users-extended", {
+        const response = await fetch("http://localhost:8080/unload-places", {
           headers: {
             "Authorization": `Bearer ${token}`,
           },
         });
         if (response.ok) {
           const data = await response.json();
-          this.organizationsWithUsers = data.map(org => ({
-            ...org,
-            originalName: org.name
+          this.unloadPlaces = data.map(place => ({
+            ...place,
+            originalName: place.name
           }));
         }
       } catch (error) {
-        console.error("Error fetching organizations:", error);
-        this.showNotification("Ошибка при загрузке организаций", "error");
+        console.error("Error fetching unload places:", error);
+        this.showNotification("Ошибка при загрузке мест разгрузки", "error");
       }
     },
-    
-    async addOrganization() {
-      if (!this.newOrganizationName.trim()) {
-        this.showNotification("Введите название организации", "warning");
+    async addPlace() {
+      if (!this.newPlaceName.trim()) {
+        this.showNotification("Введите название места разгрузки", "warning");
         return;
       }
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations", {
+        const response = await fetch("http://localhost:8080/unload-places", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: this.newOrganizationName,
+            name: this.newPlaceName,
           }),
         });
         
         if (response.ok) {
-          this.newOrganizationName = '';
+          this.newPlaceName = '';
           this.showAddModal = false;
           await this.refreshData();
-          this.showNotification("Организация успешно добавлена", "success");
+          this.showNotification("Место разгрузки успешно добавлено", "success");
         } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при добавлении организации", "error");
+          const errorText = await response.text();
+          this.showNotification(errorText || "Ошибка при добавлении места разгрузки", "error");
         }
       } catch (error) {
-        console.error("Error adding organization:", error);
+        console.error("Error adding unload place:", error);
         this.showNotification("Ошибка сети", "error");
       }
     },
-
-    async updateOrganization(org) {
-      if (org.name === org.originalName) return;
+    async updatePlace(place) {
+      if (place.name === place.originalName) return;
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${org.id}`, {
+        const response = await fetch(`http://localhost:8080/unload-places/${place.id}`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: org.name,
+            name: place.name,
           }),
         });
         
         if (response.ok) {
-          org.originalName = org.name;
-          this.showNotification("Организация успешно обновлена", "success");
+          place.originalName = place.name;
+          this.showNotification("Место разгрузки успешно обновлено", "success");
         } else {
-          const error = await response.json();
-          org.name = org.originalName;
-          this.showNotification(error.message || "Ошибка при обновлении организации", "error");
+          const errorText = await response.text();
+          place.name = place.originalName;
+          this.showNotification(errorText || "Ошибка при обновлении места разгрузки", "error");
         }
       } catch (error) {
-        console.error("Error updating organization:", error);
-        org.name = org.originalName;
+        console.error("Error updating unload place:", error);
+        place.name = place.originalName;
         this.showNotification("Ошибка сети", "error");
       }
     },
-
-    async confirmDeleteOrganization(org) {
-      if (org.user_count > 0) {
-        this.showNotification("Нельзя удалить организацию с пользователями", "warning");
-        return;
-      }
-      
-      if (!confirm(`Вы уверены, что хотите удалить организацию "${org.name}"?`)) return;
+    async confirmDeletePlace(place) {
+      if (!confirm(`Вы уверены, что хотите удалить место разгрузки "${place.name}"?`)) return;
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${org.id}`, {
+        const response = await fetch(`http://localhost:8080/unload-places/${place.id}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -352,23 +294,25 @@ export default {
         });
         
         if (response.ok) {
-          this.selectedOrganization = null;
+          this.selectedPlace = null;
           await this.refreshData();
-          this.showNotification("Организация успешно удалена", "success");
+          this.showNotification("Место разгрузки успешно удалено", "success");
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении организации", "error");
+          if (error.message && error.message.includes("привязано")) {
+            this.showNotification(error.message, "warning");
+          } else {
+            this.showNotification(error.message || "Ошибка при удалении места разгрузки", "error");
+          }
         }
       } catch (error) {
-        console.error("Error deleting organization:", error);
+        console.error("Error deleting unload place:", error);
         this.showNotification("Ошибка сети", "error");
       }
     },
-
-    selectOrganization(org) {
-      this.selectedOrganization = { ...org };
+    selectPlace(place) {
+      this.selectedPlace = { ...place };
     },
-
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -377,17 +321,6 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-
-    handleUsersUpdated() {
-      // Обновляем данные организаций после изменения ответственных лиц
-      this.fetchOrganizationsWithUsers();
-    },
-
-    handlePlacesUpdated() {
-      // Обновляем данные организаций после изменения мест разгрузки
-      this.fetchOrganizationsWithUsers();
-    },
-
     showNotification(message, type = 'info') {
       const notification = document.createElement('div');
       notification.className = `notification ${type}`;
@@ -422,11 +355,12 @@ export default {
 </script>
 
 <style scoped>
-.organizations-management {
+.unload-places-container {
   background: #fff;
   border-radius: 16px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
+  width: 100%;
 }
 
 .management-header {
@@ -472,7 +406,7 @@ export default {
 
 .content-container {
   display: flex;
-  height: 400px;
+  height: 255px;
   width: 100%;
 }
 
@@ -482,6 +416,10 @@ export default {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e6e6e6;
+}
+
+.table-section.with-details {
+  width: 40%;
 }
 
 .table-container {
@@ -543,24 +481,19 @@ export default {
 }
 
 .id-col {
-  width: 15%;
-  min-width: 40px;
+  width: 20%;
+  min-width: 60px;
 }
 
 .name-col {
-  width: 55%;
-  min-width: 200px;
-}
-
-.users-col {
-  width: 30%;
-  min-width: 120px;
+  width: 80%;
+  min-width: 250px;
 }
 
 .table-body {
   flex: 1;
   overflow-y: auto;
-  max-height: 400px;
+  max-height: 255px;
 }
 
 .table-row {
@@ -600,17 +533,6 @@ export default {
   color: #000;
 }
 
-.user-count {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.count-value {
-  font-weight: 600;
-  color: #000;
-}
-
 .truncate-text {
   white-space: nowrap;
   overflow: hidden;
@@ -632,13 +554,12 @@ export default {
   font-weight: 500;
 }
 
-/* Средняя часть - детали */
+/* Правая часть - детали */
 .details-section {
-  width: fit-content;
+  width: 60%;
   padding: 15px;
   overflow-y: auto;
   background: #fafafa;
-  border-right: 1px solid #e6e6e6;
 }
 
 .details-content {
@@ -649,7 +570,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
 }
 
 .details-title-wrapper {
@@ -698,40 +619,28 @@ export default {
 .details-body {
   display: flex;
   flex-direction: column;
-  padding-bottom: 15px;
-}
-
-.details-grid-two-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.details-column {
-  display: flex;
-  flex-direction: column;
   gap: 16px;
 }
 
 .detail-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .detail-label {
   font-size: 0.85em;
   color: #a2a2a2;
-  font-weight: 400;
+  font-weight:400;
 }
 
 .form-input-sm {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
   border-radius: 8px;
-  font-size: 0.8em;
-  width: 100%;
-  height: 32px;
+  font-size: 0.95em;
+  width: 250px;
+  height: 35px;
   transition: border-color 0.2s ease;
   background: #fff;
 }
@@ -741,20 +650,14 @@ export default {
   outline: none;
 }
 
-/* Правая часть - пустой блок */
-.empty-section {
-  flex: 1;
-  background: #fff;
+.no-selection-message {
+  width: 60%;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.no-selection-message {
   color: #a2a2a2;
   font-weight: 400;
   font-size: 14px;
-  text-align: center;
 }
 
 .no-results {
@@ -894,22 +797,22 @@ export default {
   
   .table-section,
   .details-section,
-  .empty-section {
+  .no-selection-message {
     width: 100% !important;
   }
   
-  .table-section {
+  .table-section.with-details {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
     height: 255px;
   }
-  
-  .details-grid-two-columns {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 768px) {
+  .unload-places-container {
+    width: 100%;
+  }
+  
   .management-header {
     flex-direction: column;
     align-items: flex-start;
@@ -934,15 +837,11 @@ export default {
   }
   
   .id-col {
-    width: 20%;
+    width: 25%;
   }
   
   .name-col {
-    width: 50%;
-  }
-  
-  .users-col {
-    width: 30%;
+    width: 75%;
   }
   
   .details-section {

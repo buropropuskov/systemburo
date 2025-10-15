@@ -16,7 +16,7 @@
 
     <div class="content-container">
       <!-- Левая часть - таблица компаний -->
-      <div class="table-section" :class="{'with-details': selectedCompany}">
+      <div class="table-section">
         <div class="table-container">
           <div class="table-header">
             <div class="header-col id-col" @click="sortBy('id')">
@@ -84,13 +84,12 @@
         </div>
       </div>
 
-      <!-- Правая часть - детали компании -->
+      <!-- Средняя часть - детали компании -->
       <div v-if="selectedCompany" class="details-section">
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">Редактирование</h3>
-              <p class="details-subtitle">компании <strong>{{ selectedCompany.name }}</strong></p>
+              <h3 class="details-title">{{ selectedCompany.name }}</h3>
             </div>
             <div class="details-header-actions">
               <button @click="confirmDeleteCompany(selectedCompany)" class="delete-icon-btn">
@@ -113,28 +112,36 @@
                     autocomplete="off"
                   >
                 </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Место разгрузки:</label>
-                  <select 
-                    v-model="selectedCompany.default_unloading_point_id" 
-                    @change="updateCompanyUnloadingPoint(selectedCompany)"
-                    class="form-select-sm"
-                    autocomplete="off"
-                  >
-                    <option v-for="point in unloadingPoints" :key="point.id" :value="point.id">
-                      {{ point.name }}
-                    </option>
-                  </select>
-                </div>
+              </div>
+              
+              <!-- Правый столбец -->
+              <div class="details-column">
+                <!-- Пустой столбец для выравнивания -->
               </div>
             </div>
+
+            <!-- Компонент ответственных лиц -->
+            <ResponsibleUsersSection
+              :entity="selectedCompany"
+              :entity-type="'company'"
+              @users-updated="handleUsersUpdated"
+            />
+
+            <!-- Компонент мест разгрузки -->
+            <SelectUnloadPlaces
+              :entity="selectedCompany"
+              :entity-type="'company'"
+              @places-updated="handlePlacesUpdated"
+            />
           </div>
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
-        <p>Выберите компанию для просмотра</p>
+      <!-- Правая часть - пустой блок -->
+      <div class="empty-section" :class="{'with-details': selectedCompany}">
+        <div v-if="!selectedCompany" class="no-selection-message">
+          <p>Выберите компанию для просмотра</p>
+        </div>
       </div>
     </div>
 
@@ -170,11 +177,15 @@
 <script>
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
+import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
+import SelectUnloadPlaces from './SelectUnloadPlaces.vue';
 
 export default {
   components: {
     SearchComponent,
-    RefreshButton
+    RefreshButton,
+    ResponsibleUsersSection,
+    SelectUnloadPlaces
   },
   data() {
     return {
@@ -184,9 +195,7 @@ export default {
       showAddModal: false,
       selectedCompany: null,
       sortField: null,
-      sortDirection: 'asc',
-      responsibleUsers: [],
-      unloadingPoints: []
+      sortDirection: 'asc'
     };
   },
   computed: {
@@ -195,17 +204,13 @@ export default {
       const query = this.searchQuery.toLowerCase();
       return this.companiesWithUsers.filter(comp => 
         comp.name.toLowerCase().includes(query) || 
-        comp.id.toString().includes(query) ||
-        (comp.type && comp.type.toLowerCase().includes(query)) ||
-        (comp.responsible_person_name && comp.responsible_person_name.toLowerCase().includes(query)) ||
-        (comp.default_unloading_point_name && comp.default_unloading_point_name.toLowerCase().includes(query))
+        comp.id.toString().includes(query)
       );
     },
     sortedCompanies() {
       const companies = [...this.filteredCompanies];
       
       if (!this.sortField) {
-        // Изначально сортируем по наименованию
         return companies.sort((a, b) => a.name.localeCompare(b.name));
       }
       
@@ -241,16 +246,12 @@ export default {
   },
   methods: {
     async refreshData() {
-      await Promise.all([
-        this.fetchCompaniesWithUsers(),
-        this.fetchResponsibleUsers(),
-        this.fetchUnloadingPoints()
-      ]);
+      await this.fetchCompaniesWithUsers();
     },
     async fetchCompaniesWithUsers() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/companies/with-users", {
+        const response = await fetch("http://localhost:8080/companies/with-users-extended", {
           headers: {
             "Authorization": `Bearer ${token}`,
           },
@@ -259,48 +260,12 @@ export default {
           const data = await response.json();
           this.companiesWithUsers = data.map(comp => ({
             ...comp,
-            originalName: comp.name,
-            type: comp.type || 'арендатор',
-            responsible_person_id: comp.responsible_person_id || null,
-            default_unloading_point_id: comp.default_unloading_point_id || null
+            originalName: comp.name
           }));
         }
       } catch (error) {
         console.error("Error fetching companies:", error);
         this.showNotification("Ошибка при загрузке компаний", "error");
-      }
-    },
-    async fetchResponsibleUsers() {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/users", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-        if (response.ok) {
-          const users = await response.json();
-          this.responsibleUsers = users.filter(user => 
-            user.user_type === 'admin' || user.user_type === 'manager'
-          );
-        }
-      } catch (error) {
-        console.error("Error fetching responsible users:", error);
-      }
-    },
-    async fetchUnloadingPoints() {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/unloading-points", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-        if (response.ok) {
-          this.unloadingPoints = await response.json();
-        }
-      } catch (error) {
-        console.error("Error fetching unloading points:", error);
       }
     },
     async addCompany() {
@@ -366,87 +331,6 @@ export default {
         this.showNotification("Ошибка сети", "error");
       }
     },
-    async updateCompanyType(comp) {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}/type`, {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            type: comp.type,
-          }),
-        });
-        
-        if (!response.ok) {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении типа компании", "error");
-          await this.refreshData();
-        } else {
-          this.showNotification("Тип компании успешно обновлен", "success");
-        }
-      } catch (error) {
-        console.error("Error updating company type:", error);
-        this.showNotification("Ошибка сети", "error");
-        await this.refreshData();
-      }
-    },
-    async updateCompanyResponsible(comp) {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}/responsible`, {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            responsible_person_id: comp.responsible_person_id,
-          }),
-        });
-        
-        if (!response.ok) {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении ответственного", "error");
-          await this.refreshData();
-        } else {
-          this.showNotification("Ответственный успешно обновлен", "success");
-        }
-      } catch (error) {
-        console.error("Error updating responsible person:", error);
-        this.showNotification("Ошибка сети", "error");
-        await this.refreshData();
-      }
-    },
-    async updateCompanyUnloadingPoint(comp) {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}/unloading-point`, {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            default_unloading_point_id: comp.default_unloading_point_id,
-          }),
-        });
-        
-        if (!response.ok) {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении места разгрузки", "error");
-          await this.refreshData();
-        } else {
-          this.showNotification("Место разгрузки успешно обновлено", "success");
-        }
-      } catch (error) {
-        console.error("Error updating unloading point:", error);
-        this.showNotification("Ошибка сети", "error");
-        await this.refreshData();
-      }
-    },
     async confirmDeleteCompany(comp) {
       if (comp.user_count > 0) {
         this.showNotification("Нельзя удалить компанию с пользователями", "warning");
@@ -487,6 +371,14 @@ export default {
         this.sortField = field;
         this.sortDirection = 'asc';
       }
+    },
+    handleUsersUpdated() {
+      // Обновляем данные компаний после изменения ответственных лиц
+      this.fetchCompaniesWithUsers();
+    },
+    handlePlacesUpdated() {
+      // Обновляем данные компаний после изменения мест разгрузки
+      this.fetchCompaniesWithUsers();
     },
     showNotification(message, type = 'info') {
       const notification = document.createElement('div');
@@ -572,7 +464,7 @@ export default {
 
 .content-container {
   display: flex;
-  height: 255px;
+  height: 400px;
   width: 100%;
 }
 
@@ -582,10 +474,6 @@ export default {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e6e6e6;
-}
-
-.table-section.with-details {
-  width: 40%;
 }
 
 .table-container {
@@ -664,7 +552,7 @@ export default {
 .table-body {
   flex: 1;
   overflow-y: auto;
-  max-height: 255px;
+  max-height: 400px;
 }
 
 .table-row {
@@ -736,12 +624,13 @@ export default {
   font-weight: 500;
 }
 
-/* Правая часть - детали */
+/* Средняя часть - детали */
 .details-section {
-  width: 60%;
-  padding: 20px;
+  width: fit-content;
+  padding: 15px;
   overflow-y: auto;
   background: #fafafa;
+  border-right: 1px solid #e6e6e6;
 }
 
 .details-content {
@@ -752,9 +641,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #e6e6e6;
+  margin-bottom: 10px;
 }
 
 .details-title-wrapper {
@@ -768,12 +655,6 @@ export default {
   color: #000;
   font-size: 1.2em;
   font-weight: 600;
-}
-
-.details-subtitle {
-  margin: 0;
-  font-size: 10px;
-  color: #a2a2a2;
 }
 
 .details-header-actions {
@@ -809,7 +690,7 @@ export default {
 .details-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  padding-bottom: 15px;
 }
 
 .details-grid-two-columns {
@@ -827,22 +708,22 @@ export default {
 .detail-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .detail-label {
   font-size: 0.85em;
   color: #a2a2a2;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .form-input-sm {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
   border-radius: 8px;
-  font-size: 0.95em;
-  width: 210px;
-  height: 35px;
+  font-size: 0.8em;
+  width: 100%;
+  height: 32px;
   transition: border-color 0.2s ease;
   background: #fff;
 }
@@ -852,31 +733,20 @@ export default {
   outline: none;
 }
 
-.form-select-sm {
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  background-color: white;
-  font-size: 0.95em;
-  width: 210px;
-  height: 35px;
-  transition: border-color 0.2s ease;
-}
-
-.form-select-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.no-selection-message {
-  width: 60%;
+/* Правая часть - пустой блок */
+.empty-section {
+  flex: 1;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.no-selection-message {
   color: #a2a2a2;
   font-weight: 400;
   font-size: 14px;
-  background: #fafafa;
+  text-align: center;
 }
 
 .no-results {
@@ -1016,11 +886,11 @@ export default {
   
   .table-section,
   .details-section,
-  .no-selection-message {
+  .empty-section {
     width: 100% !important;
   }
   
-  .table-section.with-details {
+  .table-section {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
     height: 255px;
@@ -1079,11 +949,6 @@ export default {
   
   .details-header-actions {
     align-self: flex-end;
-  }
-  
-  .form-input-sm,
-  .form-select-sm {
-    width: 100%;
   }
 }
 </style>

@@ -15,10 +15,6 @@
           <span class="nav-text">Центр заявок</span>
         </div>
         <div class="nav-item">
-          <img src="@/assets/icons/document-approval.png" alt="Согласование" class="nav-icon">
-          <span class="nav-text">Согласование</span>
-        </div>
-        <div class="nav-item">
           <img src="@/assets/icons/archive.png" alt="Архив" class="nav-icon">
           <span class="nav-text">Архив</span>
         </div>
@@ -89,6 +85,10 @@
               <div class="dropdown-item disabled">Сотрудники компании</div>
             </div>
           </transition>
+        </div>
+        <div class="nav-item" @click="navigateToCarsView">
+          <img src="@/assets/icons/car.png" alt="Архив" class="nav-icon">
+          <span class="nav-text">Автомобили</span>
         </div>
       </div>
 
@@ -198,6 +198,9 @@ export default {
     },
     navigateToAccount() {
       this.$router.push('/personal-cabinet');
+    },
+    navigateToCarsView() {
+      this.$router.push('/carsview');
     },
     
     logout() {
@@ -388,6 +391,11 @@ export default {
 
 .dropdown-item:hover {
   background-color: #f8f9fa;
+}
+
+.disabled {
+     color: #95a5a6;
+  cursor: not-allowed;
 }
 
 .dropdown-item.disabled {

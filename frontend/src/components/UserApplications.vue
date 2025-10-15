@@ -459,6 +459,7 @@ export default {
   overflow: hidden;
   width: 100%;
   box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+  transition: height .2s;
 }
 
 .card-header {

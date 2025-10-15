@@ -230,7 +230,7 @@ h3 {
 }
 
 .appl-btn {
-  height:40px;
+  height: 40px;
   width: fit-content;
   padding: 0 20px;
   font-size: 16px;
@@ -240,7 +240,7 @@ h3 {
   outline: none;
   cursor: pointer;
   font-weight: 500;
-  border-radius: 50px;
+  border-radius: 10px;
   transition: .2s;
 }
 
@@ -254,6 +254,7 @@ h3 {
   right: 20px;
   z-index: 1000;
   animation: slideIn 0.3s ease;
+  border: 2px solid #e6e6e6;
 }
 
 @keyframes slideIn {

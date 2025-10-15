@@ -257,224 +257,14 @@
                 </div>
             </div>
             <div class="form__data">
-                <div class="data__completion">
-                    <div class="completion__header">
-                        <h3>Добавление Т/С</h3>
-                    </div>
-                    <div class="completion__format">
-                        <div class="format__header">
-                            <label class="format__label">Формат номеров</label>
-                            <button class="add-button" @click="addVehicle" :disabled="!canAddVehicle">
-                                Добавить
-                            </button>
-                        </div>
-                        <div class="format__dropdown">
-                            <button class="dropdown__button" @click="toggleDropdown">
-                                <div class="button__content">
-                                    <div class="content__country">
-                                        <img :src="selectedFormatFlag" class="button__flag" v-if="selectedFormat !== 'tractor'" />
-                                        <span class="button__text">{{ selectedFormatText }}</span>
-                                    </div>
-                                    <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isDropdownOpen }" />
-                                </div>
-                            </button>
-                            <div v-if="isDropdownOpen" class="dropdown__menu">
-                                <div class="dropdown__item" @click="selectFormat('russian')">
-                                    <img src="@/assets/icons/flag-russian.png" class="item__flag" />
-                                    <span class="item__text">Россия</span>
-                                </div>
-                                <div class="dropdown__item" @click="selectFormat('azerbaijan')">
-                                    <img src="@/assets/icons/flag-azer.png" class="item__flag" />
-                                    <span class="item__text">Азербайджан</span>
-                                </div>
-                                <div class="dropdown__item" @click="selectFormat('tractor')">
-                                    <span class="item__text">Трактор</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="completion__fields">
-                        <div class="completion__number">
-                            <div class="completion__number-header">
-                                <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                                <div class="number-fact">
-                                    <input 
-                                        class="fact-checkbox" 
-                                        type="checkbox" 
-                                        v-model="isNumberByFact"
-                                        @change="handleNumberByFactChange"
-                                    />
-                                    <p class="fact-text">по факту</p>
-                                </div>
-                            </div>
-                            <!-- Поле "по факту" -->
-                            <div class="number__field number__field--fact" v-if="isNumberByFact">
-                                <input 
-                                    class="number__input number__input--fact" 
-                                    value="По факту"
-                                    readonly
-                                />
-                            </div>
-                            
-                            <!-- Русский формат -->
-                            <div class="number__field" v-else-if="selectedFormat === 'russian'">
-                                <input 
-                                    class="number__input" 
-                                    placeholder="А"
-                                    v-model="numberParts[0]"
-                                    @input="validateRussianPart(0, $event)"
-                                    maxlength="1"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="777"
-                                    v-model="numberParts[1]"
-                                    @input="validateRussianPart(1, $event)"
-                                    @blur="formatRussianDigits(1)"
-                                    maxlength="3"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="АА"
-                                    v-model="numberParts[2]"
-                                    @input="validateRussianPart(2, $event)"
-                                    maxlength="2"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="777"
-                                    v-model="numberParts[3]"
-                                    @input="validateRussianPart(3, $event)"
-                                    @blur="formatRussianDigits(3)"
-                                    maxlength="3"
-                                />
-                            </div>
-                            
-                            <!-- Азербайджанский формат -->
-                            <div class="number__field" v-else-if="selectedFormat === 'azerbaijan'">
-                                <input 
-                                    class="number__input" 
-                                    placeholder="00"
-                                    v-model="numberParts[0]"
-                                    @input="validateAzerbaijanPart(0, $event)"
-                                    @blur="formatAzerbaijanDigits(0)"
-                                    maxlength="2"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="AA"
-                                    v-model="numberParts[1]"
-                                    @input="validateAzerbaijanPart(1, $event)"
-                                    maxlength="2"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="000"
-                                    v-model="numberParts[2]"
-                                    @input="validateAzerbaijanPart(2, $event)"
-                                    @blur="formatAzerbaijanDigits(2)"
-                                    maxlength="3"
-                                />
-                            </div>
-                            
-                            <!-- Трактор формат -->
-                            <div class="number__field" v-else-if="selectedFormat === 'tractor'">
-                                <input 
-                                    class="number__input" 
-                                    placeholder="0000"
-                                    v-model="numberParts[0]"
-                                    @input="validateTractorPart(0, $event)"
-                                    @blur="formatTractorDigits(0)"
-                                    maxlength="4"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="АА"
-                                    v-model="numberParts[1]"
-                                    @input="validateTractorPart(1, $event)"
-                                    maxlength="2"
-                                />
-                                <input 
-                                    class="number__input" 
-                                    placeholder="00"
-                                    v-model="numberParts[2]"
-                                    @input="validateTractorPart(2, $event)"
-                                    @blur="formatTractorDigits(2)"
-                                    maxlength="2"
-                                />
-                            </div>
-                        </div>
-                        
-                        <div class="completion__mark">
-                            <div class="completion__mark-header">
-                                <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                                <div class="mark-fact">
-                                    <input 
-                                        class="fact-checkbox" 
-                                        type="checkbox" 
-                                        v-model="isMarkByFact"
-                                        @change="handleMarkByFactChange"
-                                    />
-                                    <p class="fact-text">по факту</p>
-                                </div>
-                            </div>
-                            <div class="mark__field mark__field--fact" v-if="isMarkByFact">
-                                <input 
-                                    class="mark__input mark__input--fact" 
-                                    value="По факту"
-                                    readonly
-                                />
-                            </div>
-                            <div class="mark__field" v-else>
-                                <div class="mark__dropdown">
-                                    <button class="mark__dropdown-button" @click="toggleMarkDropdown">
-                                        <div class="mark__button-content">
-                                            <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                                            <img src="@/assets/icons/arrow.png" class="mark__button-arrow" :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }" />
-                                        </div>
-                                    </button>
-                                    <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
-                                        <div class="mark__search">
-                                            <input 
-                                                class="mark__search-input" 
-                                                placeholder="Поиск марки..."
-                                                v-model="markSearch"
-                                                @input="filterMarks"
-                                            />
-                                        </div>
-                                        <div class="mark__dropdown-list">
-                                            <div 
-                                                v-for="mark in filteredMarks" 
-                                                :key="mark"
-                                                class="mark__dropdown-item"
-                                                @click="selectMark(mark)"
-                                            >
-                                                <span class="mark__item-text">{{ mark }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Места разгрузки -->
-                    <div class="completion__unloading">
-                        <label class="input__label">Места разгрузки (выбор) <span class="required">*</span></label>
-                        <div class="unloading__grid">
-                            <div 
-                                v-for="place in unloadingPlaces" 
-                                :key="place.id"
-                                class="unloading__item"
-                                :class="{ 'unloading__item--active': selectedUnloadingPlaces.includes(place.id) }"
-                                @click="toggleUnloadingPlace(place.id)"
-                            >
-                                {{ place.name }}
-                            </div>
-                        </div>
-                        <div v-if="errors.unloadingPlaces" class="error-message">{{ errors.unloadingPlaces }}</div>
-                    </div>
-                </div>
+                <VehicleForm 
+                    :user-organization="organization"
+                    :user-organization-id="organizationId"
+                    :user-company="company"
+                    :user-company-id="companyId"
+                    :key="vehicleFormKey"
+                    @vehicle-added="handleVehicleAdded"
+                />
                 <div class="data__list">
                     <h4>Список транспортных средств ({{ vehicles.length }})</h4>
                     <div class="vehicles-table">
@@ -562,8 +352,13 @@
 </template>
 
 <script>
+import VehicleForm from '@/components/VehicleForm.vue'
+
 export default {
     name: 'CreateApplication',
+    components: {
+        VehicleForm
+    },
     data() {
         const today = new Date();
         return {
@@ -582,44 +377,10 @@ export default {
             endTime: '',
             consentGiven: false,
             applicationNumber: 1,
-            
-            // Number parts
-            numberParts: ['', '', '', ''],
-            isNumberByFact: false,
-            
-            // Mark data
-            isMarkByFact: false,
-            selectedMark: '',
-            isMarkDropdownOpen: false,
-            markSearch: '',
-            
-            // Available marks
-            marks: [
-                'ВАЗ', 'Мерседес', 'БМВ', 'Газель', 'ГАЗ', 'Вольво', 'Тойота', 'Митсубиси',
-                'Ауди', 'Фольксваген', 'Шевроле', 'Хендай', 'Киа', 'Ниссан', 'Рено', 'Пежо',
-                'Ситроен', 'Форд', 'Опель', 'Шкода', 'Лада', 'УАЗ'
-            ],
-            filteredMarks: [],
-            
-            // Unloading places
-            unloadingPlaces: [
-                { id: 1, name: 'Дебаркадер №1' },
-                { id: 2, name: 'Дебаркадер №2' },
-                { id: 3, name: 'Дебаркадер №3' },
-                { id: 4, name: 'Дебаркадер №4' },
-                { id: 5, name: 'Дебаркадер №5' },
-                { id: 6, name: 'Территория' },
-                { id: 7, name: 'Ворота Сочи' },
-                { id: 8, name: 'Ворота Маугли' },
-                { id: 9, name: 'Ворота Черепашки' },
-                { id: 10, name: 'ПОСТ № 21' },
-                { id: 11, name: 'ПОСТ № 27' },
-                { id: 12, name: 'Офис' },
-                { id: 13, name: 'Южный ЛП' },
-                { id: 14, name: 'Северный ЛП' },
-                { id: 15, name: 'Пост ЮГ' }
-            ],
-            selectedUnloadingPlaces: [],
+
+            // IDs
+            organizationId: null,
+            companyId: null,
             
             // Vehicles list
             vehicles: [],
@@ -650,12 +411,8 @@ export default {
             currentDate: today,
             weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
             
-            // Dropdown
-            isDropdownOpen: false,
-            selectedFormat: 'russian',
-            
-            allowedRussianLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
-            allowedAzerbaijanLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+            // Key for forcing VehicleForm re-render
+            vehicleFormKey: 0
         }
     },
     computed: {
@@ -711,73 +468,6 @@ export default {
             }
             
             return days;
-        },
-        selectedFormatText() {
-            const formats = {
-                'russian': 'Россия',
-                'azerbaijan': 'Азербайджан',
-                'tractor': 'Трактор'
-            };
-            return formats[this.selectedFormat];
-        },
-        selectedFormatFlag() {
-            const flags = {
-                'russian': require('@/assets/icons/flag-russian.png'),
-                'azerbaijan': require('@/assets/icons/flag-azer.png'),
-                'tractor': ''
-            };
-            return flags[this.selectedFormat];
-        },
-        canAddVehicle() {
-            if (this.isNumberByFact && this.isMarkByFact && this.selectedUnloadingPlaces.length > 0) {
-                return true;
-            }
-
-            if (!this.isNumberByFact) {
-                switch (this.selectedFormat) {
-                    case 'russian':
-                        if (!this.numberParts[0] || !this.numberParts[1] || !this.numberParts[2] || !this.numberParts[3]) {
-                            return false;
-                        }
-                        if (this.numberParts[0].length !== 1 || 
-                            this.numberParts[1].length !== 3 || 
-                            this.numberParts[2].length !== 2 || 
-                            (this.numberParts[3].length < 2 || this.numberParts[3].length > 3)) {
-                            return false;
-                        }
-                        break;
-                    case 'azerbaijan':
-                        if (!this.numberParts[0] || !this.numberParts[1] || !this.numberParts[2]) {
-                            return false;
-                        }
-                        if (this.numberParts[0].length !== 2 || 
-                            this.numberParts[1].length !== 2 || 
-                            this.numberParts[2].length !== 3) {
-                            return false;
-                        }
-                        break;
-                    case 'tractor':
-                        if (!this.numberParts[0] || !this.numberParts[1] || !this.numberParts[2]) {
-                            return false;
-                        }
-                        if (this.numberParts[0].length !== 4 || 
-                            this.numberParts[1].length !== 2 || 
-                            this.numberParts[2].length !== 2) {
-                            return false;
-                        }
-                        break;
-                }
-            }
-            
-            if (!this.isMarkByFact && !this.selectedMark) {
-                return false;
-            }
-            
-            if (this.selectedUnloadingPlaces.length === 0) {
-                return false;
-            }
-            
-            return true;
         },
         canSubmit() {
             // Проверка обязательных полей
@@ -836,6 +526,9 @@ export default {
             });
         }
     },
+    watch: {
+        // Убраны watch для organizationId и companyId чтобы избежать повторного обновления
+    },
     methods: {
         async loadUserData() {
             const token = localStorage.getItem("token");
@@ -858,6 +551,10 @@ export default {
                     this.organization = userData.organization || '';
                     this.company = userData.company || '';
                     
+                    // Сохраняем ID организации и компании если они есть в ответе
+                    this.organizationId = userData.organization_id || null;
+                    this.companyId = userData.company_id || null;
+                    
                     // Формирование ФИО
                     const lastName = userData.last_name || '';
                     const firstName = userData.first_name || '';
@@ -869,6 +566,9 @@ export default {
                     if (this.phoneNumber) {
                         this.formatPhoneNumberImmediately(this.phoneNumber);
                     }
+                    
+                    // Принудительно обновляем VehicleForm после загрузки данных пользователя
+                    this.vehicleFormKey += 1;
                     
                 } else {
                     console.error("Ошибка загрузки данных пользователя");
@@ -944,105 +644,11 @@ export default {
             }
         },
         
-        handleNumberByFactChange() {
-            if (this.isNumberByFact) {
-                this.numberParts = ['', '', '', ''];
-            }
-        },
-        
-        handleMarkByFactChange() {
-            if (this.isMarkByFact) {
-                this.selectedMark = '';
-            }
-        },
-        
-        toggleUnloadingPlace(placeId) {
-            const index = this.selectedUnloadingPlaces.indexOf(placeId);
-            if (index > -1) {
-                this.selectedUnloadingPlaces.splice(index, 1);
-            } else {
-                this.selectedUnloadingPlaces.push(placeId);
-            }
-            this.validateUnloadingPlaces();
-        },
-        
-        validateUnloadingPlaces() {
-            this.errors.unloadingPlaces = this.selectedUnloadingPlaces.length === 0 ? 'Выберите хотя бы одно место разгрузки' : '';
-        },
-        
-        formatUnloadingPlaces() {
-            if (this.selectedUnloadingPlaces.length === 0) return '';
-            
-            const placeNames = this.selectedUnloadingPlaces.map(placeId => {
-                const place = this.unloadingPlaces.find(p => p.id === placeId);
-                return place ? place.name : '';
-            }).filter(name => name);
-            
-            return placeNames.join(', ');
-        },
-        
-        addVehicle() {
-            if (!this.canAddVehicle) {
-                alert('Заполните все обязательные поля правильно');
-                return;
-            }
-            
-            let plateNumber = '';
-            if (this.isNumberByFact) {
-                plateNumber = 'По факту';
-            } else {
-                switch (this.selectedFormat) {
-                    case 'russian':
-                        plateNumber = `${this.numberParts[0]} ${this.numberParts[1]} ${this.numberParts[2]} ${this.numberParts[3]}`;
-                        break;
-                    case 'azerbaijan':
-                        plateNumber = `${this.numberParts[0]} ${this.numberParts[1]} ${this.numberParts[2]}`;
-                        break;
-                    case 'tractor':
-                        plateNumber = `${this.numberParts[0]} ${this.numberParts[1]} ${this.numberParts[2]}`;
-                        break;
-                }
-            }
-            
-            const mark = this.isMarkByFact ? 'По факту' : this.selectedMark;
-            const unloadingPlace = this.formatUnloadingPlaces();
-
-            const newVehicle = {
-                id: this.vehicleIdCounter++,
-                plateNumber: plateNumber,
-                mark: mark,
-                unloadingPlace: unloadingPlace,
-                unloadPlaces: [...this.selectedUnloadingPlaces] // Сохраняем ID мест разгрузки
-            };
-            
-            this.vehicles.push(newVehicle);
-            
-            // Очищаем только номер и марку, места разгрузки остаются выбранными
-            this.clearVehicleFormPartial();
-        },
-        
         deleteVehicle(vehicleId) {
             const index = this.vehicles.findIndex(vehicle => vehicle.id === vehicleId);
             if (index !== -1) {
                 this.vehicles.splice(index, 1);
             }
-        },
-        
-        clearVehicleFormPartial() {
-            // Очищаем только номер и марку, места разгрузки остаются выбранными
-            this.numberParts = ['', '', '', ''];
-            this.selectedMark = '';
-            this.isNumberByFact = false;
-            this.isMarkByFact = false;
-        },
-        
-        clearVehicleForm() {
-            this.numberParts = ['', '', '', ''];
-            this.selectedMark = '';
-            this.selectedUnloadingPlaces = [];
-            this.isNumberByFact = false;
-            this.isMarkByFact = false;
-            this.errors.unloadingPlaces = '';
         },
         
         validateField(field) {
@@ -1099,135 +705,6 @@ export default {
                     this.errors.endTime = 'Время окончания должно быть позже времени начала';
                 }
             }
-        },
-        
-        // Russian number validation
-        validateRussianPart(part, event) {
-            let value = event.target.value.toUpperCase();
-            
-            if (part === 0 || part === 2) {
-                value = value.replace(/[^АВЕКМНОРСТУХ]/g, '');
-            } else {
-                value = value.replace(/\D/g, '');
-                
-                if (part === 1 && value.length > 3) {
-                    value = value.slice(0, 3);
-                } else if (part === 3 && value.length > 3) {
-                    value = value.slice(0, 3);
-                }
-            }
-            
-            this.numberParts[part] = value;
-            event.target.value = value;
-        },
-        
-        formatRussianDigits(part) {
-            if (part === 1) {
-                if (this.numberParts[1].length === 1) {
-                    this.numberParts[1] = '00' + this.numberParts[1];
-                } else if (this.numberParts[1].length === 2) {
-                    this.numberParts[1] = '0' + this.numberParts[1];
-                }
-            } else if (part === 3) {
-                if (this.numberParts[3].length === 1) {
-                    this.numberParts[3] = '0' + this.numberParts[3];
-                }
-            }
-        },
-        
-        // Azerbaijan number validation
-        validateAzerbaijanPart(part, event) {
-            let value = event.target.value.toUpperCase();
-            
-            if (part === 1) {
-                value = value.replace(/[^A-Z]/g, '');
-            } else {
-                value = value.replace(/\D/g, '');
-                
-                if (part === 0 && value.length > 2) {
-                    value = value.slice(0, 2);
-                } else if (part === 2 && value.length > 3) {
-                    value = value.slice(0, 3);
-                }
-            }
-            
-            this.numberParts[part] = value;
-            event.target.value = value;
-        },
-        
-        formatAzerbaijanDigits(part) {
-            if (part === 0) {
-                if (this.numberParts[0].length === 1) {
-                    this.numberParts[0] = '0' + this.numberParts[0];
-                }
-            } else if (part === 2) {
-                if (this.numberParts[2].length === 1) {
-                    this.numberParts[2] = '00' + this.numberParts[2];
-                } else if (this.numberParts[2].length === 2) {
-                    this.numberParts[2] = '0' + this.numberParts[2];
-                }
-            }
-        },
-        
-        // Tractor number validation
-        validateTractorPart(part, event) {
-            let value = event.target.value.toUpperCase();
-            
-            if (part === 1) {
-                value = value.replace(/[^АВЕКМНОРСТУХ]/g, '');
-            } else {
-                value = value.replace(/\D/g, '');
-                
-                if (part === 0 && value.length > 4) {
-                    value = value.slice(0, 4);
-                } else if (part === 2 && value.length > 2) {
-                    value = value.slice(0, 2);
-                }
-            }
-            
-            this.numberParts[part] = value;
-            event.target.value = value;
-        },
-        
-        formatTractorDigits(part) {
-            if (part === 0) {
-                if (this.numberParts[0].length === 1) {
-                    this.numberParts[0] = '000' + this.numberParts[0];
-                } else if (this.numberParts[0].length === 2) {
-                    this.numberParts[0] = '00' + this.numberParts[0];
-                } else if (this.numberParts[0].length === 3) {
-                    this.numberParts[0] = '0' + this.numberParts[0];
-                }
-            } else if (part === 2) {
-                if (this.numberParts[2].length === 1) {
-                    this.numberParts[2] = '0' + this.numberParts[2];
-                }
-            }
-        },
-        
-        // Mark dropdown methods
-        toggleMarkDropdown() {
-            this.isMarkDropdownOpen = !this.isMarkDropdownOpen;
-            if (this.isMarkDropdownOpen) {
-                this.filterMarks();
-            }
-        },
-        
-        filterMarks() {
-            if (!this.markSearch) {
-                this.filteredMarks = this.marks;
-            } else {
-                const searchTerm = this.markSearch.toLowerCase();
-                this.filteredMarks = this.marks.filter(mark => 
-                    mark.toLowerCase().includes(searchTerm)
-                );
-            }
-        },
-        
-        selectMark(mark) {
-            this.selectedMark = mark;
-            this.isMarkDropdownOpen = false;
-            this.markSearch = '';
         },
         
         // Datepicker methods
@@ -1295,16 +772,13 @@ export default {
         nextMonth() {
             this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
         },
-        
-        // Dropdown methods
-        toggleDropdown() {
-            this.isDropdownOpen = !this.isDropdownOpen;
-        },
-        
-        selectFormat(format) {
-            this.selectedFormat = format;
-            this.numberParts = ['', '', '', ''];
-            this.isDropdownOpen = false;
+
+        handleVehicleAdded(newVehicle) {
+            const vehicleWithId = {
+                ...newVehicle,
+                id: this.vehicleIdCounter++
+            };
+            this.vehicles.push(vehicleWithId);
         },
         
         // Sorting methods
@@ -1429,8 +903,14 @@ export default {
             this.endTime = '';
             this.consentGiven = false;
             this.vehicles = [];
-            this.selectedUnloadingPlaces = []; // Сбрасываем места разгрузки
             this.applicationNumber++;
+
+            // Сбрасываем ID
+            this.organizationId = null;
+            this.companyId = null;
+            
+            // Увеличиваем ключ для принудительного пересоздания VehicleForm
+            this.vehicleFormKey += 1;
             
             // Перезагрузка данных пользователя
             this.loadUserData();
@@ -1438,21 +918,12 @@ export default {
     },
     mounted() {
         this.loadUserData();
-        this.filteredMarks = this.marks;
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.datepicker-wrapper')) {
                 this.showStartDatepicker = false;
                 this.showEndDatepicker = false;
                 this.showSingleDatepicker = false;
-            }
-            
-            if (!e.target.closest('.format__dropdown')) {
-                this.isDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.mark__dropdown')) {
-                this.isMarkDropdownOpen = false;
             }
         });
     }

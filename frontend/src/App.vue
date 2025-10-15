@@ -15,7 +15,7 @@
 
 <script>
 import NavMenu from './components/NavMenu.vue';
-import TheHeader from './components/TheHeader.vue';
+import TheHeader from './components/TheHeader/TheHeader.vue';
 
 export default {
   name: "App",

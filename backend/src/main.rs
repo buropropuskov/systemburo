@@ -15,11 +15,19 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Cors::default().allow_any_origin().allow_any_method().allow_any_header())
+            // CORS политика (разрешаем все — для разработки)
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header()
+            )
+            // доступ к базе через actix-web Data
             .app_data(actix_web::web::Data::new(pool.clone()))
+            // подключаем все маршруты из routes.rs
             .configure(routes::config)
     })
-    .bind("127.0.0.1:8080")?
+    .bind(("127.0.0.1", 8080))?  // слушаем на localhost:8080
     .run()
     .await
 }
