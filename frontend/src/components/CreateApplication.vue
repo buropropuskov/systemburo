@@ -262,8 +262,13 @@
                     :user-organization-id="organizationId"
                     :user-company="company"
                     :user-company-id="companyId"
+                    :existing-vehicles="vehicles"
                     :key="vehicleFormKey"
                     @vehicle-added="handleVehicleAdded"
+                    @vehicles-added="handleVehiclesAdded"
+                    @vehicle-updated="handleVehicleUpdated"
+                    @edit-cancelled="handleEditCancelled"
+                    ref="vehicleForm"
                 />
                 <div class="data__list">
                     <h4>Список транспортных средств ({{ vehicles.length }})</h4>
@@ -329,6 +334,17 @@
                                 <div class="table-col place-col">{{ vehicle.unloadingPlace }}</div>
                                 <div class="table-col actions-col">
                                     <button 
+                                        class="edit-btn"
+                                        @click="editVehicle(vehicle)"
+                                        title="Редактировать"
+                                    >
+                                        <img 
+                                            src="@/assets/icons/edit.png" 
+                                            alt="Редактировать" 
+                                            class="edit-icon"
+                                        />
+                                    </button>
+                                    <button 
                                         class="delete-btn"
                                         @click="deleteVehicle(vehicle.id)"
                                     >
@@ -344,6 +360,90 @@
                                 Нет добавленных транспортных средств
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно привязки новых машин -->
+        <div v-if="showBindingModal" class="modal-overlay" @click="closeBindingModal">
+            <div class="modal-content" @click.stop>
+                <div class="modal-header">
+                    <div class="modal-header__top">
+                        <h3>Привязка новых автомобилей</h3>
+                    </div>
+                    <button class="modal-close" @click="closeBindingModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="binding-info">
+                        <p class="binding-description">
+                            Все добавленные автомобили ниже <strong>автоматически привязываются</strong> к вашему аккаунту.
+                            Вы можете выбрать и привязать автомобили к организации и/или компании для использования <strong>другими сотрудниками</strong>:
+                        </p>
+                        
+                        <div class="cars-list-section">
+                            <p class="section-title">Список новых автомобилей:</p>
+                            <div class="cars-list">
+                                <div 
+                                    v-for="car in newCarsToBind" 
+                                    :key="car.plateNumber"
+                                    class="car-item"
+                                    :class="{ 'car-item--shared': car.bindToEntity }"
+                                    @click="toggleCarBinding(car)"
+                                >
+                                    <div class="car-selector">
+                                        <div class="selector-checkbox">
+                                            <div class="checkbox" :class="{ 'checkbox--checked': car.bindToEntity }"></div>
+                                        </div>
+                                        <div class="car-info">
+                                            <span class="car-number">{{ car.plateNumber }}</span>
+                                            <span class="car-mark">{{ car.mark }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="car-binding-status">
+                                        <span v-if="car.bindToEntity" class="status-shared">
+                                            Будет доступна
+                                        </span>
+                                        <span v-else class="status-private">
+                                            Привязка только к вам
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="binding-options-section">
+                            <p class="section-title">Привязать выбранные автомобили к:</p>
+                            <div class="binding-options">
+                                <label class="binding-option" v-if="hasOrganization">
+                                    <input 
+                                        type="checkbox" 
+                                        v-model="bindToOrganization"
+                                        :disabled="bindToCompany"
+                                    />
+                                    <span class="option-text">К организации "{{ organization }}"</span>
+                                </label>
+                                <label class="binding-option" v-if="hasCompany">
+                                    <input 
+                                        type="checkbox" 
+                                        v-model="bindToCompany"
+                                        :disabled="bindToOrganization"
+                                    />
+                                    <span class="option-text">К компании "{{ company }}"</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="warning-section">
+                            <p class="warning-text">
+                                <strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button class="cancel-btn" @click="skipBinding">Пропустить</button>
+                        <button class="confirm-btn" @click="confirmBinding">Привязать и отправить</button>
                     </div>
                 </div>
             </div>
@@ -412,7 +512,18 @@ export default {
             weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
             
             // Key for forcing VehicleForm re-render
-            vehicleFormKey: 0
+            vehicleFormKey: 0,
+
+            // Привязка новых машин
+            showBindingModal: false,
+            newCarsToBind: [],
+            bindToOrganization: false,
+            bindToCompany: false,
+            hasOrganization: false,
+            hasCompany: false,
+            
+            // Флаг для отслеживания процесса привязки
+            bindingInProgress: false
         }
     },
     computed: {
@@ -527,7 +638,17 @@ export default {
         }
     },
     watch: {
-        // Убраны watch для organizationId и companyId чтобы избежать повторного обновления
+        bindToOrganization(newVal) {
+            if (newVal) {
+                this.bindToCompany = false;
+            }
+        },
+        
+        bindToCompany(newVal) {
+            if (newVal) {
+                this.bindToOrganization = false;
+            }
+        }
     },
     methods: {
         async loadUserData() {
@@ -554,6 +675,10 @@ export default {
                     // Сохраняем ID организации и компании если они есть в ответе
                     this.organizationId = userData.organization_id || null;
                     this.companyId = userData.company_id || null;
+                    
+                    // Проверяем наличие организации и компании
+                    this.hasOrganization = !!this.organizationId;
+                    this.hasCompany = !!this.companyId;
                     
                     // Формирование ФИО
                     const lastName = userData.last_name || '';
@@ -650,6 +775,15 @@ export default {
                 this.vehicles.splice(index, 1);
             }
         },
+
+        editVehicle(vehicle) {
+            this.$refs.vehicleForm.editVehicle(vehicle);
+        },
+
+        handleEditCancelled() {
+            // Обработка отмены редактирования
+            this.vehicleFormKey += 1;
+        },
         
         validateField(field) {
             let phoneRegex;
@@ -695,6 +829,8 @@ export default {
                 const end = new Date(this.endDate.split('.').reverse().join('-'));
                 if (start > end) {
                     this.errors.endDate = 'Дата окончания не может быть раньше даты начала';
+                } else {
+                    this.errors.endDate = '';
                 }
             }
         },
@@ -703,6 +839,8 @@ export default {
             if (this.startTime && this.endTime) {
                 if (this.startTime >= this.endTime) {
                     this.errors.endTime = 'Время окончания должно быть позже времени начала';
+                } else {
+                    this.errors.endTime = '';
                 }
             }
         },
@@ -780,6 +918,23 @@ export default {
             };
             this.vehicles.push(vehicleWithId);
         },
+
+        handleVehiclesAdded(vehicles) {
+            vehicles.forEach(vehicle => {
+                const vehicleWithId = {
+                    ...vehicle,
+                    id: this.vehicleIdCounter++
+                };
+                this.vehicles.push(vehicleWithId);
+            });
+        },
+
+        handleVehicleUpdated(updatedVehicle) {
+            const index = this.vehicles.findIndex(v => v.id === updatedVehicle.id);
+            if (index !== -1) {
+                this.vehicles.splice(index, 1, updatedVehicle);
+            }
+        },
         
         // Sorting methods
         sortBy(field) {
@@ -793,6 +948,14 @@ export default {
 
         // Submit application
         async submitApplication() {
+            // Проверяем, не идет ли уже процесс привязки
+            if (this.bindingInProgress) {
+                return;
+            }
+
+            // Валидируем все поля перед отправкой
+            this.validateAllFields();
+            
             if (!this.canSubmit) {
                 alert('Заполните все обязательные поля и добавьте хотя бы одно транспортное средство');
                 return;
@@ -814,6 +977,117 @@ export default {
                 return;
             }
 
+            // Определяем новые машины для добавления в unique_cars
+            // Исключаем машины "по факту" и существующие машины
+            const newCars = this.vehicles.filter(vehicle => 
+                !vehicle.isExisting && 
+                vehicle.plateNumber !== 'По факту' && 
+                vehicle.mark !== 'По факту'
+            );
+            
+            // Сначала создаем уникальные машины если есть новые
+            if (newCars.length > 0) {
+                await this.createUniqueCars(newCars);
+            } else {
+                // Если нет новых машин для привязки, сразу отправляем заявку
+                await this.sendApplication();
+            }
+        },
+
+        validateAllFields() {
+            this.validateField('organization');
+            this.validateField('company');
+            this.validateField('responsiblePerson');
+            this.validateField('phone');
+            this.validateField('startDate');
+            this.validateField('endDate');
+            this.validateField('singleDate');
+            this.validateField('startTime');
+            this.validateField('endTime');
+            this.validateDateRange();
+            this.validateTimeRange();
+        },
+
+        async createUniqueCars(newCars) {
+            try {
+                const token = localStorage.getItem("token");
+                
+                // Создаем массив промисов для создания машин
+                const createPromises = newCars.map(car => {
+                    const carData = {
+                        number: car.plateNumber,
+                        mark: car.mark,
+                        format_id: car.formatId,
+                        user_id: null, // Будет установлен на сервере автоматически
+                        organization_id: null,
+                        company_id: null
+                    };
+
+                    return fetch("http://localhost:8080/unique-cars", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(carData)
+                    });
+                });
+
+                // Ждем завершения всех запросов
+                const responses = await Promise.all(createPromises);
+                
+                // Проверяем результаты
+                const results = await Promise.all(responses.map(async (response, index) => {
+                    if (response.ok) {
+                        const createdCar = await response.json();
+                        return { 
+                            success: true, 
+                            car: newCars[index], 
+                            createdCar,
+                            carId: createdCar.id // Сохраняем ID
+                        };
+                    } else {
+                        const error = await response.json();
+                        return { success: false, car: newCars[index], error };
+                    }
+                }));
+
+                // Разделяем успешные и неуспешные создания
+                const successfulCreations = results.filter(result => result.success);
+                const failedCreations = results.filter(result => !result.success);
+
+                // Показываем ошибки если есть неуспешные создания
+                if (failedCreations.length > 0) {
+                    console.error('Ошибки при создании машин:', failedCreations);
+                    // Продолжаем с успешными созданиями
+                }
+
+                // Сохраняем успешно созданные машины с их ID и флагом привязки
+                this.newCarsToBind = successfulCreations.map(result => ({
+                    plateNumber: result.car.plateNumber,
+                    mark: result.car.mark,
+                    formatId: result.car.formatId,
+                    carId: result.carId, // Сохраняем ID для обновления
+                    bindToEntity: true // По умолчанию все машины будут привязаны
+                }));
+
+                // Показываем модальное окно привязки если есть успешно созданные машины
+                if (this.newCarsToBind.length > 0) {
+                    this.bindingInProgress = true;
+                    this.showBindingModal = true;
+                } else {
+                    // Если нет машин для привязки, отправляем заявку
+                    await this.sendApplication();
+                }
+
+            } catch (error) {
+                console.error('Ошибка при создании уникальных машин:', error);
+                // Продолжаем отправку заявки даже при ошибке
+                await this.sendApplication();
+            }
+        },
+
+        async sendApplication() {
             // Подготовка данных для отправки
             const applicationData = {
                 message: this.message || null,
@@ -881,6 +1155,73 @@ export default {
             }
         },
 
+        // Переключение привязки для конкретной машины
+        toggleCarBinding(car) {
+            car.bindToEntity = !car.bindToEntity;
+        },
+
+        // Метод для привязки машин
+        async confirmBinding() {
+            try {
+                const token = localStorage.getItem("token");
+                
+                // Обновляем привязку для каждой машины по ID
+                const updatePromises = this.newCarsToBind.map(car => {
+                    const updateData = {
+                        number: car.plateNumber,
+                        mark: car.mark,
+                        format_id: car.formatId,
+                        organization_id: car.bindToEntity && this.bindToOrganization ? this.organizationId : null,
+                        company_id: car.bindToEntity && this.bindToCompany ? this.companyId : null,
+                        user_id: null // Привязываем к пользователю (будет установлен на сервере автоматически)
+                    };
+
+                    // Используем обычный эндпоинт обновления по ID
+                    return fetch(`http://localhost:8080/unique-cars/${car.carId}`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+                });
+
+                const results = await Promise.allSettled(updatePromises);
+                
+                // Проверяем результаты
+                const successfulUpdates = results.filter(result => result.status === 'fulfilled');
+                const failedUpdates = results.filter(result => result.status === 'rejected');
+                
+                if (failedUpdates.length > 0) {
+                    console.error('Ошибки при обновлении машин:', failedUpdates);
+                }
+
+                console.log(`Успешно обновлено ${successfulUpdates.length} из ${results.length} машин`);
+
+                this.closeBindingModal();
+                await this.sendApplication();
+
+            } catch (error) {
+                console.error('Ошибка при привязке машин:', error);
+                this.closeBindingModal();
+                await this.sendApplication();
+            }
+        },
+
+        skipBinding() {
+            this.closeBindingModal();
+            this.sendApplication();
+        },
+
+        closeBindingModal() {
+            this.showBindingModal = false;
+            this.newCarsToBind = [];
+            this.bindToOrganization = false;
+            this.bindToCompany = false;
+            this.bindingInProgress = false;
+        },
+
         // Добавьте этот вспомогательный метод для форматирования даты
         formatDateForAPI(dateStr) {
             if (!dateStr) return null;
@@ -908,6 +1249,20 @@ export default {
             // Сбрасываем ID
             this.organizationId = null;
             this.companyId = null;
+            
+            // Сбрасываем ошибки
+            this.errors = {
+                organization: '',
+                company: '',
+                responsiblePerson: '',
+                phone: '',
+                startDate: '',
+                endDate: '',
+                singleDate: '',
+                startTime: '',
+                endTime: '',
+                unloadingPlaces: ''
+            };
             
             // Увеличиваем ключ для принудительного пересоздания VehicleForm
             this.vehicleFormKey += 1;
@@ -991,7 +1346,7 @@ export default {
     }
 
     .form__textarea {
-        width: 55%; /* Ширина 60% */
+        width: 55%;
         border: 1px solid #e6e6e6;
         outline: none;
         border-radius: 15px;
@@ -1008,7 +1363,7 @@ export default {
     }
 
     .consent-section {
-        display: flex; /* Flex контейнер */
+        display: flex;
         align-items: center;
         gap: 20px;
         height: 100%;
@@ -1017,7 +1372,7 @@ export default {
     .consent-checkbox {
         display: flex;
         gap: 10px;
-        max-width: 350px; /* Максимальная ширина текста */
+        max-width: 350px;
     }
 
     .consent-checkbox input[type="checkbox"] {
@@ -1323,418 +1678,6 @@ export default {
         border-right: 1px solid #e6e6e6;
     }
 
-    .completion__format {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-        position: relative;
-        padding-bottom: 10px;
-    }
-
-    .format__header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .format__label {
-        font-size: 13px;
-        color: #a2a2a2;
-    }
-
-    .add-button {
-        background: #4F5BDF;
-        color: white;
-        border: none;
-        border-radius: 15px;
-        padding: 8px 15px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-        margin-top: 0; /* Опущена на уровень dropdown button */
-    }
-
-    .add-button:hover:not(:disabled) {
-        background: #3a45c0;
-    }
-
-    .add-button:disabled {
-        background: #a2a2a2;
-        cursor: not-allowed;
-        opacity: 0.6;
-    }
-
-    .format__dropdown {
-        position: relative;
-    }
-
-    .dropdown__button {
-        width: 200px;
-        height: 30px;
-        border: 1px solid #e6e6e6;
-        background-color: #FFF;
-        border-radius: 50px;
-        outline: none;
-        cursor: pointer;
-        padding: 0 15px;
-        transition: border-color 0.2s;
-    }
-
-    .dropdown__button:hover {
-        border-color: #4F5BDF;
-    }
-
-    .button__content {
-        display: flex;
-        align-items: center;
-        width: 100%;
-        height: 100%;
-        justify-content: space-between;
-    }
-
-    .completion__header {
-        padding-bottom: 15px;
-    }
-
-    .content__country {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-    }
-
-    .button__flag {
-        width: 16px;
-        height: 12px;
-    }
-
-    .button__text {
-        font-size: 14px;
-        color: #000;
-        font-weight: 500;
-    }
-
-    .button__arrow {
-        width: 10px;
-        height: 10px;
-        transition: transform 0.2s;
-        transform: rotate(90deg);
-    }
-
-    .button__arrow--open {
-        transform: rotate(-90deg);
-    }
-
-    .dropdown__menu {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        width: 150px;
-        background: #FFF;
-        border: 1px solid #e6e6e6;
-        border-radius: 10px;
-        margin-top: 5px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-        z-index: 1000;
-    }
-
-    .dropdown__item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 15px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-
-    .dropdown__item:hover {
-        background-color: #f5f5f5;
-    }
-
-    .dropdown__item:first-child {
-        border-radius: 10px 10px 0 0;
-    }
-
-    .dropdown__item:last-child {
-        border-radius: 0 0 10px 10px;
-    }
-
-    .item__flag {
-        width: 16px;
-        height: 12px;
-    }
-
-    .item__text {
-        font-size: 13px;
-        color: #333;
-    }
-
-    .completion__fields {
-        display: flex;
-        gap: 20px;
-        align-items: flex-start;
-        margin-bottom: 15px;
-    }
-
-    .completion__number,
-    .completion__mark {
-        flex: 1;
-    }
-
-    .completion__number-header,
-    .completion__mark-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-bottom: 5px;
-    }
-
-    .number-fact,
-    .mark-fact {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-
-    .fact-checkbox {
-        width: 12px;
-        height: 12px;
-        cursor: pointer;
-    }
-
-    .fact-text {
-        font-size: 13px;
-    }
-
-    .number__field {
-        width: 100%;
-        height: 40px;
-        display: flex;
-        border: 1px solid #e6e6e6;
-        border-radius: 15px;
-        overflow: hidden;
-        background: #FFF;
-    }
-
-    .number__field--fact {
-        display: block;
-    }
-
-    .number__input {
-        border: none;
-        height: 100%;
-        outline: none;
-        text-align: center;
-        font-size: 14px;
-        background: transparent;
-    }
-
-    .number__input--fact {
-        width: 100%;
-        text-align: left;
-        padding: 0 15px;
-        color: #a2a2a2;
-    }
-
-    /* Стили для российского формата (4 клетки) */
-    .number__field:has(.number__input:nth-child(4)) .number__input {
-        width: 25%;
-    }
-
-    /* Стили для азербайджанского формата (3 клетки) */
-    .number__field:has(.number__input:nth-child(3)) .number__input {
-        width: 33.33%;
-    }
-
-    .number__input:not(:last-child) {
-        border-right: 1px solid #e6e6e6;
-    }
-
-    .number__input:first-child {
-        border-radius: 15px 0 0 15px;
-    }
-
-    .number__input:last-child {
-        border-radius: 0 15px 15px 0;
-    }
-
-    .number__input::placeholder {
-        color: #a2a2a2;
-        font-size: 12px;
-    }
-
-    .number__input:focus {
-        background-color: #f8f8f8;
-    }
-
-    /* Mark dropdown styles */
-    .mark__field {
-        width: 100%;
-        height: 40px;
-        position: relative;
-    }
-
-    .mark__field--fact {
-        border: 1px solid #e6e6e6;
-        border-radius: 15px;
-        overflow: hidden;
-    }
-
-    .mark__dropdown {
-        width: 100%;
-        height: 100%;
-    }
-
-    .mark__dropdown-button {
-        width: 100%;
-        height: 100%;
-        border: 1px solid #e6e6e6;
-        background-color: #FFF;
-        border-radius: 15px;
-        outline: none;
-        cursor: pointer;
-        padding: 0 15px;
-        transition: border-color 0.2s;
-    }
-
-    .mark__dropdown-button:hover {
-        border-color: #4F5BDF;
-    }
-
-    .mark__button-content {
-        display: flex;
-        align-items: center;
-        width: 100%;
-        height: 100%;
-        justify-content: space-between;
-    }
-
-    .mark__button-text {
-        font-size: 14px;
-        color: #000;
-    }
-
-    .mark__button-arrow {
-        width: 10px;
-        height: 10px;
-        transition: transform 0.2s;
-        transform: rotate(90deg);
-    }
-
-    .mark__button-arrow--open {
-        transform: rotate(-90deg);
-    }
-
-    .mark__dropdown-menu {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        width: 100%;
-        background: #FFF;
-        border: 1px solid #e6e6e6;
-        border-radius: 10px;
-        margin-top: 5px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-        z-index: 1000;
-        max-height: 200px;
-        overflow: hidden;
-    }
-
-    .mark__search {
-        padding: 10px;
-        border-bottom: 1px solid #e6e6e6;
-    }
-
-    .mark__search-input {
-        width: 100%;
-        border: 1px solid #e6e6e6;
-        border-radius: 5px;
-        padding: 5px 10px;
-        outline: none;
-        font-size: 14px;
-    }
-
-    .mark__dropdown-list {
-        max-height: 150px;
-        overflow-y: auto;
-    }
-
-    .mark__dropdown-item {
-        padding: 8px 15px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-        border-bottom: 1px solid #f5f5f5;
-    }
-
-    .mark__dropdown-item:hover {
-        background-color: #f5f5f5;
-    }
-
-    .mark__dropdown-item:last-child {
-        border-bottom: none;
-    }
-
-    .mark__item-text {
-        font-size: 14px;
-        color: #333;
-    }
-
-    .mark__input {
-        width: 100%;
-        height: 100%;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 0 15px;
-        font-size: 14px;
-        color: #a2a2a2;
-    }
-
-    .mark__input--fact::placeholder {
-        color: #a2a2a2;
-        font-size: 12px;
-    }
-
-    /* Unloading places styles */
-    .completion__unloading {
-        margin-top: 15px;
-    }
-
-    .unloading__grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-        row-gap: 5px;
-        max-width: 425px;
-        margin-top: 5px;
-    }
-
-    .unloading__item {
-        height: 35px;
-        background: #F2F2F2;
-        color: #a2a2a2;
-        border-radius: 50px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        padding: 0 10px;
-        text-align: center;
-        border: 1px solid transparent;
-    }
-
-    .unloading__item:hover:not(.unloading__item--active) {
-        background: #e8e8e8;
-    }
-
-    .unloading__item--active {
-        background: #4F5BDF;
-        color: #fff;
-        border-color: #4F5BDF;
-    }
-
     /* Vehicles table styles */
     .vehicles-table {
         width: 100%;
@@ -1799,7 +1742,7 @@ export default {
         padding: 10px 15px;
         border-bottom: 1px solid #f0f0f0;
         align-items: center;
-        font-size: 15px; /* Увеличен шрифт до 15px */
+        font-size: 15px;
     }
 
     .table-row:last-child {
@@ -1834,9 +1777,12 @@ export default {
     .actions-col {
         width: 10%;
         text-align: center;
+        display: flex;
+        justify-content: center;
+        gap: 5px;
     }
 
-    .delete-btn {
+    .edit-btn, .delete-btn {
         background: none;
         border: none;
         cursor: pointer;
@@ -1846,17 +1792,18 @@ export default {
         justify-content: center;
     }
 
-    .delete-btn:hover {
+    .edit-btn:hover, .delete-btn:hover {
         background: #f0f0f0;
         border-radius: 5px;
     }
 
-    .delete-icon {
+    .edit-icon, .delete-icon {
         width: 16px;
         height: 16px;
         opacity: 0.7;
     }
 
+    .edit-btn:hover .edit-icon,
     .delete-btn:hover .delete-icon {
         opacity: 1;
     }
@@ -1866,5 +1813,317 @@ export default {
         padding: 20px;
         color: #a2a2a2;
         font-size: 14px;
+    }
+
+       /* Модальное окно привязки - супер минималистичный дизайн */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 20px;
+        padding: 0;
+        width: 500px;
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 15px;
+        border-bottom: 1px solid #e6e6e6;
+    }
+
+    .modal-header__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: 1;
+        height: 25px;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: #333;
+        font-size: 18px;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #a2a2a2;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 10px;
+    }
+
+    .modal-close:hover {
+        color: #333;
+    }
+
+    .modal-body {
+        padding: 20px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .binding-info {
+        margin-bottom: 20px;
+    }
+
+    .binding-description {
+        font-size: 14px;
+        line-height: 1.5;
+        color: #666;
+        margin-bottom: 20px;
+        text-align: left;
+    }
+
+    .section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .cars-list-section {
+        margin-bottom: 25px;
+    }
+
+    .cars-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .car-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 15px;
+        border: 1px solid #e6e6e6;
+        border-radius: 10px;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .car-item:hover {
+        border-color: #4F5BDF;
+    }
+
+    .car-item--shared {
+        background: #f8f9ff;
+        border-color: #4F5BDF;
+    }
+
+    .car-selector {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .selector-checkbox {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .checkbox {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #e6e6e6;
+        border-radius: 4px;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .checkbox--checked {
+        background: #4F5BDF;
+        border-color: #4F5BDF;
+    }
+
+    .checkbox--checked::after {
+        content: "✓";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .car-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .car-number {
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+    }
+
+    .car-mark {
+        color: #666;
+        font-size: 13px;
+    }
+
+    .car-binding-status {
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-shared {
+        color: #4F5BDF;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .status-private {
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .status-icon {
+        font-size: 14px;
+    }
+
+    .binding-options-section {
+        margin-bottom: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #e6e6e6;
+    }
+
+    .binding-options {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .binding-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 5px 0;
+    }
+
+    .binding-option input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+    }
+
+    .option-text {
+        color: #333;
+    }
+
+    .warning-section {
+     
+    }
+
+    .warning-text {
+        font-size: 11px;
+        line-height: 1.5;
+        color: #666;
+        margin: 0;
+        text-align: left;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding-top: 20px;
+        border-top: 1px solid #e6e6e6;
+    }
+
+    .cancel-btn {
+        background: white;
+        color: #666;
+        border: 1px solid #e6e6e6;
+        border-radius: 12px;
+        padding: 10px 20px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .cancel-btn:hover {
+        background: #f5f5f5;
+        border-color: #ccc;
+    }
+
+    .confirm-btn {
+        background: #4F5BDF;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 10px 20px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .confirm-btn:hover {
+        background: #3a45c0;
+    }
+
+    .blue {
+        color: #4F5BDF;
+    }
+
+    
+
+    @media (max-width: 768px) {
+        .modal-content {
+            width: 95vw;
+            margin: 10px;
+        }
+        
+        .modal-actions {
+            flex-direction: column;
+        }
+        
+        .cancel-btn,
+        .confirm-btn {
+            width: 100%;
+        }
+        
+        .car-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        
+        .car-selector {
+            width: 100%;
+            justify-content: space-between;
+        }
     }
 </style>

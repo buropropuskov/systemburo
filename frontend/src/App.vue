@@ -32,14 +32,12 @@ export default {
   methods: {
     async checkAuthStatus() {
       const token = localStorage.getItem("token");
-      console.log('Checking auth status, token exists:', !!token);
       
       this.isAuthenticated = !!token;
       
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
-          console.log('Token payload:', payload);
           this.isBuropropuskov = payload.type_id === 6;
         } catch (e) {
           console.error("Token decode error:", e);
@@ -48,19 +46,12 @@ export default {
       } else {
         this.isBuropropuskov = false;
       }
-
-      console.log('Auth results:', {
-        isAuthenticated: this.isAuthenticated,
-        isBuropropuskov: this.isBuropropuskov
-      });
     },
     handleSuccessfulLogin(token) {
-      console.log('Login successful, token:', token);
       localStorage.setItem("token", token);
       this.checkAuthStatus();
     },
     logout() {
-      console.log('Logging out');
       localStorage.removeItem("token");
       this.checkAuthStatus();
       this.$router.push("/");
@@ -104,6 +95,10 @@ body:not(.auth-active) #app {
 
 .blue {
   color: #4F5BDF;
+}
+
+.red {
+  color: rgb(241, 76, 76);
 }
 
 </style>

@@ -6,3 +6,4 @@ pub mod organizations;
 pub mod companies;
 pub mod unload_places;
 pub mod number_format;
+pub mod unique_cars;

@@ -5,6 +5,7 @@ import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
 import CreateApplication from './components/CreateApplication.vue';
 import CarsView from './views/CarsView.vue';
+import ApplicationsCenter from './views/ApplicationsCenter.vue';
 
 const routes = [
   { 
@@ -36,6 +37,12 @@ const routes = [
     name: 'CarsView',
     component: CarsView,
     meta: {requiresAuth: true}
+  },
+  {
+    path: '/center',
+    name: 'ApplicationsCenter',
+    component: ApplicationsCenter,
+    meta: {requiresAuth: true}
   }
 ];
 
@@ -46,7 +53,6 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const isAuthenticated = !!localStorage.getItem('token');
-  console.log('Auth check - isAuthenticated:', isAuthenticated);
   
   let userType = null;
   const token = localStorage.getItem('token');

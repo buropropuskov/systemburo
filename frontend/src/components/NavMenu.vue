@@ -10,7 +10,7 @@
       <!-- ЗАЯВКИ -->
       <div class="nav-section">
         <div class="section-title">ЗАЯВКИ</div>
-        <div class="nav-item">
+        <div class="nav-item" @click="navigateToCenter"> 
           <img src="@/assets/icons/envelope.png" alt="Центр заявок" class="nav-icon">
           <span class="nav-text">Центр заявок</span>
         </div>
@@ -118,7 +118,7 @@
         </div>
         <div class="nav-item" @click="logout">
           <img src="@/assets/icons/logout.png" alt="Выйти" class="nav-icon">
-          <span class="nav-text">Выйти</span>
+          <span class="nav-text exit">Выйти</span>
         </div>
       </div>
     </div>
@@ -194,6 +194,10 @@ export default {
     },
     navigateToTable() {
       this.$router.push('/table');
+      this.closeAllDropdowns();
+    },
+    navigateToCenter() {
+      this.$router.push('/center');
       this.closeAllDropdowns();
     },
     navigateToAccount() {
@@ -294,6 +298,10 @@ export default {
   min-height: 35px;
   justify-content: flex-start;
   width: 187px;
+}
+
+.nav-item:hover .exit {
+  color: red;
 }
 
 .nav-item.has-dropdown {

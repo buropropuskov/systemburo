@@ -1,3 +1,4 @@
+// routes.rs
 use actix_web::web;
 use crate::handlers::auth::*;
 use crate::handlers::applications::*;
@@ -7,6 +8,7 @@ use crate::handlers::organizations::*;
 use crate::handlers::users::*;
 use crate::handlers::unload_places::*;
 use crate::handlers::number_format::*;
+use crate::handlers::unique_cars::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -35,6 +37,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route(web::put().to(update_car))
                 .route(web::delete().to(delete_car))
         )
+
+        // Уникальные машины
+        .service(
+            web::scope("/unique-cars")
+                .route("", web::get().to(get_unique_cars))
+                .route("", web::post().to(create_unique_car))
+                .route("/batch", web::post().to(create_unique_cars_batch))
+                .route("/{id}", web::put().to(update_unique_car))
+                .route("/{id}", web::delete().to(delete_unique_car))
+                .route("/ownership-info", web::get().to(get_car_ownership_info))
+        )
+        // Добавляем отдельный ресурс для by-number
+        .service(web::resource("/unique-cars/by-number").route(web::put().to(update_unique_car_by_number)))
 
         // Места разгрузки
         .service(
@@ -97,11 +112,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(web::resource("/users/{username}").route(web::delete().to(delete_user))
         )
         .service(
-    web::scope("/license-plate-formats")
-            .route("", web::get().to(get_license_plate_formats))
-            .route("", web::post().to(create_license_plate_format))
-            .route("/{id}", web::put().to(update_license_plate_format))
-            .route("/{id}", web::delete().to(delete_license_plate_format))
+            web::scope("/license-plate-formats")
+                .route("", web::get().to(get_license_plate_formats))
+                .route("", web::post().to(create_license_plate_format))
+                .route("/{id}", web::put().to(update_license_plate_format))
+                .route("/{id}", web::delete().to(delete_license_plate_format))
         );
-
 }

@@ -2,117 +2,148 @@
     <div class="data__completion">
         <div class="completion__header">
             <h3>Добавление Т/С</h3>
+            <button class="completion__button" @click="openExistingCarsModal">
+                Добавить существующую(-ие)
+            </button>
         </div>
-        <div class="completion__format">
-            <div class="format__header">
-                <label class="format__label">Формат номеров</label>
-                <button class="add-button" @click="addVehicle" :disabled="!canAddVehicle">
-                    Добавить
-                </button>
+
+        <!-- Отображение количества выбранных существующих машин -->
+        <div v-if="selectedExistingCars.length > 0" class="existing-cars-info">
+            <div class="existing-cars-header">
+                <span class="existing-cars-count">Машин добавлено: {{ selectedExistingCars.length }}</span>
+                <div class="existing-cars-actions">
+                    <button class="view-cars-btn" @click="openExistingCarsModal">Просмотреть</button>
+                    <button class="add-existing-btn" @click="addExistingCars" :disabled="!canAddExistingCars">
+                        Добавить
+                    </button>
+                </div>
             </div>
-            <div class="format__dropdown">
-                <button class="dropdown__button" @click="toggleDropdown">
-                    <div class="button__content">
-                        <span class="button__text">{{ selectedFormatText }}</span>
-                        <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isDropdownOpen }" />
+        </div>
+
+        <!-- Форма для добавления новой машины -->
+        <div v-else>
+            <div class="completion__format">
+                <div class="format__header">
+                    <label class="format__label">Формат номеров</label>
+                    <div class="format-actions">
+                        <button class="cancel-edit-btn" @click="cancelEdit" v-if="editingVehicle">
+                            Отменить
+                        </button>
+                        <button class="add-button" @click="addVehicle">
+                            {{ editingVehicle ? 'Применить' : 'Добавить' }}
+                        </button>
                     </div>
-                </button>
-                <div v-if="isDropdownOpen" class="dropdown__menu">
-                    <div 
-                        v-for="format in availableFormats" 
-                        :key="format.format.id"
-                        class="dropdown__item" 
-                        @click="selectFormat(format)"
+                </div>
+                <div class="format__dropdown">
+                    <button 
+                        class="dropdown__button" 
+                        @click="toggleDropdown"
+                        :disabled="editingVehicle && editingVehicle.isExisting"
                     >
-                        <span class="item__text">{{ format.format.name }}</span>
+                        <div class="button__content">
+                            <span class="button__text">{{ selectedFormatText }}</span>
+                            <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isDropdownOpen }" />
+                        </div>
+                    </button>
+                    <div v-if="isDropdownOpen" class="dropdown__menu">
+                        <div 
+                            v-for="format in availableFormats" 
+                            :key="format.format.id"
+                            class="dropdown__item" 
+                            @click="selectFormat(format)"
+                        >
+                            <span class="item__text">{{ format.format.name }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="completion__fields">
-            <div class="completion__number">
-                <div class="completion__number-header">
-                    <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                    <div class="number-fact">
-                        <input 
-                            class="fact-checkbox" 
-                            type="checkbox" 
-                            v-model="isNumberByFact"
-                            @change="handleNumberByFactChange"
-                        />
-                        <p class="fact-text">по факту</p>
+            <div class="completion__fields">
+                <div class="completion__number">
+                    <div class="completion__number-header">
+                        <label class="input__label">Номер Т/C <span class="required">*</span></label>
+                        <div class="number-fact">
+                            <input 
+                                class="fact-checkbox" 
+                                type="checkbox" 
+                                v-model="isNumberByFact"
+                                @change="handleNumberByFactChange"
+                                :disabled="editingVehicle && editingVehicle.isExisting"
+                            />
+                            <p class="fact-text">по факту</p>
+                        </div>
                     </div>
-                </div>
-                <!-- Поле "по факту" -->
-                <div class="number__field number__field--fact" v-if="isNumberByFact">
-                    <input 
-                        class="number__input number__input--fact" 
-                        value="По факту"
-                        readonly
-                    />
+                    <!-- Поле "по факту" -->
+                    <div class="number__field number__field--fact" v-if="isNumberByFact">
+                        <input 
+                            class="number__input number__input--fact" 
+                            value="По факту"
+                            readonly
+                        />
+                    </div>
+                    
+                    <!-- Динамический формат из базы данных -->
+                    <div class="number__field" v-else-if="selectedFormat">
+                        <input 
+                            v-for="(cell, index) in selectedFormat.cells" 
+                            :key="index"
+                            class="number__input" 
+                            :placeholder="getPlaceholder(cell)"
+                            v-model="numberParts[index]"
+                            @input="validatePart(index, $event, cell)"
+                            @blur="formatPart(index, cell)"
+                            :maxlength="cell.max_length"
+                            :style="{ width: getInputWidth(cell) }"
+                            :disabled="editingVehicle && editingVehicle.isExisting"
+                        />
+                    </div>
                 </div>
                 
-                <!-- Динамический формат из базы данных -->
-                <div class="number__field" v-else-if="selectedFormat">
-                    <input 
-                        v-for="(cell, index) in selectedFormat.cells" 
-                        :key="index"
-                        class="number__input" 
-                        :placeholder="getPlaceholder(cell)"
-                        v-model="numberParts[index]"
-                        @input="validatePart(index, $event, cell)"
-                        @blur="formatPart(index, cell)"
-                        :maxlength="cell.max_length"
-                        :style="{ width: getInputWidth(cell) }"
-                    />
-                </div>
-            </div>
-            
-            <div class="completion__mark">
-                <div class="completion__mark-header">
-                    <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                    <div class="mark-fact">
-                        <input 
-                            class="fact-checkbox" 
-                            type="checkbox" 
-                            v-model="isMarkByFact"
-                            @change="handleMarkByFactChange"
-                        />
-                        <p class="fact-text">по факту</p>
+                <div class="completion__mark">
+                    <div class="completion__mark-header">
+                        <label class="input__label">Марка Т/С <span class="required">*</span></label>
+                        <div class="mark-fact">
+                            <input 
+                                class="fact-checkbox" 
+                                type="checkbox" 
+                                v-model="isMarkByFact"
+                                @change="handleMarkByFactChange"
+                            />
+                            <p class="fact-text">по факту</p>
+                        </div>
                     </div>
-                </div>
-                <div class="mark__field mark__field--fact" v-if="isMarkByFact">
-                    <input 
-                        class="mark__input mark__input--fact" 
-                        value="По факту"
-                        readonly
-                    />
-                </div>
-                <div class="mark__field" v-else>
-                    <div class="mark__dropdown">
-                        <button class="mark__dropdown-button" @click="toggleMarkDropdown">
-                            <div class="mark__button-content">
-                                <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                                <img src="@/assets/icons/arrow.png" class="mark__button-arrow" :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }" />
-                            </div>
-                        </button>
-                        <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
-                            <div class="mark__search">
-                                <input 
-                                    class="mark__search-input" 
-                                    placeholder="Поиск марки..."
-                                    v-model="markSearch"
-                                    @input="filterMarks"
-                                />
-                            </div>
-                            <div class="mark__dropdown-list">
-                                <div 
-                                    v-for="mark in filteredMarks" 
-                                    :key="mark"
-                                    class="mark__dropdown-item"
-                                    @click="selectMark(mark)"
-                                >
-                                    <span class="mark__item-text">{{ mark }}</span>
+                    <div class="mark__field mark__field--fact" v-if="isMarkByFact">
+                        <input 
+                            class="mark__input mark__input--fact" 
+                            value="По факту"
+                            readonly
+                        />
+                    </div>
+                    <div class="mark__field" v-else>
+                        <div class="mark__dropdown">
+                            <button class="mark__dropdown-button" @click="toggleMarkDropdown">
+                                <div class="mark__button-content">
+                                    <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                                    <img src="@/assets/icons/arrow.png" class="mark__button-arrow" :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }" />
+                                </div>
+                            </button>
+                            <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
+                                <div class="mark__search">
+                                    <input 
+                                        class="mark__search-input" 
+                                        placeholder="Поиск марки..."
+                                        v-model="markSearch"
+                                        @input="filterMarks"
+                                    />
+                                </div>
+                                <div class="mark__dropdown-list">
+                                    <div 
+                                        v-for="mark in filteredMarks" 
+                                        :key="mark"
+                                        class="mark__dropdown-item"
+                                        @click="selectMark(mark)"
+                                    >
+                                        <span class="mark__item-text">{{ mark }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -146,6 +177,100 @@
             </div>
             <div v-if="errors.unloadingPlaces" class="error-message">{{ errors.unloadingPlaces }}</div>
         </div>
+
+        <!-- Модальное окно выбора существующих машин -->
+        <div v-if="showExistingCarsModal" class="modal-overlay" @click="closeExistingCarsModal">
+            <div class="modal-content" @click.stop>
+                <div class="modal-header">
+                    <div class="modal-header__top">
+                        <h3>Выбор существующих автомобилей</h3>
+                        <div class="selected-count-badge" v-if="tempSelectedCars.length > 0">
+                            Выбрано: {{ tempSelectedCars.length }}
+                        </div>
+                    </div>
+                    <button class="modal-close" @click="closeExistingCarsModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Вкладки фильтров -->
+                    <div class="filter-tabs">
+                        <button 
+                            v-for="tab in filterTabs" 
+                            :key="tab.value"
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': currentFilter === tab.value }"
+                            @click="switchFilter(tab.value)"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
+
+                    <!-- Список машин -->
+                    <div class="cars-list">
+                        <div class="cars-header">
+                            <div class="header-row">
+                                <div class="header-col select-col">
+                                    <!-- Убрана кнопка "Выбрать всё" -->
+                                </div>
+                                <div class="header-col number-col">№</div>
+                                <div class="header-col plate-col">Номер</div>
+                                <div class="header-col mark-col">Марка</div>
+                                <div class="header-col format-col">Формат</div>
+                                <div class="header-col status-col">Статус</div>
+                            </div>
+                        </div>
+                        <div class="cars-body">
+                            <div 
+                                v-for="car in filteredCars" 
+                                :key="car.id"
+                                class="car-item"
+                                :class="{ 
+                                    'car-item--disabled': isCarDisabled(car),
+                                    'car-item--selected': isCarSelected(car)
+                                }"
+                                @click="toggleCarSelection(car)"
+                            >
+                                <div class="car-row">
+                                    <div class="car-col select-col">
+                                        <input 
+                                            type="checkbox" 
+                                            :checked="isCarSelected(car)"
+                                            @change="toggleCarSelection(car)"
+                                            :disabled="isCarDisabled(car)"
+                                            @click.stop
+                                        />
+                                    </div>
+                                    <div class="car-col number-col">{{ car.id }}</div>
+                                    <div class="car-col plate-col">{{ car.number }}</div>
+                                    <div class="car-col mark-col">{{ car.mark }}</div>
+                                    <div class="car-col format-col">{{ car.format_name || 'Не указан' }}</div>
+                                    <div class="car-col status-col">
+                                        <span 
+                                            class="status-badge"
+                                            :class="{
+                                                'status-active': car.status,
+                                                'status-inactive': !car.status
+                                            }"
+                                        >
+                                            {{ car.status ? 'Активна' : 'Неактивна' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="filteredCars.length === 0" class="no-cars-message">
+                                Нет доступных автомобилей
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="cancel-btn" @click="closeExistingCarsModal">Отмена</button>
+                        <button class="select-btn" @click="confirmExistingCarsSelection">
+                            {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -168,6 +293,10 @@ export default {
         userCompanyId: {
             type: Number,
             default: null
+        },
+        existingVehicles: {
+            type: Array,
+            default: () => []
         }
     },
     data() {
@@ -210,7 +339,23 @@ export default {
             
             // Character sets
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
-            allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+            allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
+
+            // Существующие машины
+            showExistingCarsModal: false,
+            allCars: [],
+            tempSelectedCars: [],
+            selectedExistingCars: [],
+            currentFilter: 'all',
+            filterTabs: [
+                { label: 'Все машины', value: 'all' },
+                { label: 'Машины организации', value: 'organization' },
+                { label: 'Машины компании', value: 'company' },
+                { label: 'Мои машины', value: 'user' }
+            ],
+
+            // Редактирование
+            editingVehicle: null
         }
     },
     computed: {
@@ -218,6 +363,12 @@ export default {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
         },
         canAddVehicle() {
+            // Если выбраны существующие машины
+            if (this.selectedExistingCars.length > 0) {
+                return this.selectedUnloadingPlaces.length > 0;
+            }
+
+            // Если добавляется новая машина
             if (this.isNumberByFact && this.isMarkByFact && this.selectedUnloadingPlaces.length > 0) {
                 return true;
             }
@@ -251,31 +402,53 @@ export default {
         attachedPlacesIds() {
             return this.attachedUnloadingPlaces.map(place => place.id);
         },
+        filteredCars() {
+            if (this.currentFilter === 'all') {
+                return this.allCars;
+            } else if (this.currentFilter === 'organization') {
+                return this.allCars.filter(car => car.organization_id !== null);
+            } else if (this.currentFilter === 'company') {
+                return this.allCars.filter(car => car.company_id !== null);
+            } else if (this.currentFilter === 'user') {
+                // Мои машины - все машины, где user_id не null (даже если они также привязаны к организации/компании)
+                return this.allCars.filter(car => car.user_id !== null);
+            }
+            return this.allCars;
+        },
+        allSelected() {
+            if (this.filteredCars.length === 0) return false;
+            return this.filteredCars.every(car => 
+                this.isCarDisabled(car) || this.isCarSelected(car)
+            );
+        },
+        canAddExistingCars() {
+            return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0;
+        }
     },
     methods: {
         async loadLicensePlateFormats() {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await fetch("http://localhost:8080/license-plate-formats", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    });
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/license-plate-formats", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
 
-    if (response.ok) {
-      this.availableFormats = await response.json();
-      // Выбираем формат по умолчанию или первый формат
-      const defaultFormat = this.availableFormats.find(f => f.format.is_default);
-      this.selectedFormat = defaultFormat || this.availableFormats[0];
-      this.initializeNumberParts();
-    } else {
-      console.error("Ошибка при загрузке форматов номеров");
-    }
-  } catch (error) {
-    console.error("Ошибка при загрузке форматов номеров:", error);
-  }
-},
+                if (response.ok) {
+                    this.availableFormats = await response.json();
+                    // Выбираем формат по умолчанию или первый формат
+                    const defaultFormat = this.availableFormats.find(f => f.format.is_default);
+                    this.selectedFormat = defaultFormat || this.availableFormats[0];
+                    this.initializeNumberParts();
+                } else {
+                    console.error("Ошибка при загрузке форматов номеров");
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке форматов номеров:", error);
+            }
+        },
 
         async loadUnloadingPlaces() {
             this.loadingUnloadingPlaces = true;
@@ -342,6 +515,26 @@ export default {
                 this.attachedUnloadingPlaces = [];
             } finally {
                 this.loadingUnloadingPlaces = false;
+            }
+        },
+
+        async loadExistingCars() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/unique-cars?filter_type=all", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    this.allCars = await response.json();
+                } else {
+                    console.error("Ошибка при загрузке существующих машин");
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке существующих машин:", error);
             }
         },
 
@@ -507,7 +700,11 @@ export default {
                 return place ? place.name : '';
             }).filter(name => name);
             
-            return placeNames.join(', ');
+            if (placeNames.length > 1) {
+                return placeNames[0] + ' и др.';
+            }
+            
+            return placeNames[0] || '';
         },
         
         addVehicle() {
@@ -516,6 +713,13 @@ export default {
                 return;
             }
             
+            // Если выбраны существующие машины
+            if (this.selectedExistingCars.length > 0) {
+                this.addExistingCars();
+                return;
+            }
+            
+            // Если добавляется новая машина
             let plateNumber = '';
             if (this.isNumberByFact) {
                 plateNumber = 'По факту';
@@ -524,20 +728,24 @@ export default {
             }
             
             const mark = this.isMarkByFact ? 'По факту' : this.selectedMark;
-            const unloadingPlace = this.formatUnloadingPlaces();
 
             const newVehicle = {
                 plateNumber: plateNumber,
                 mark: mark,
-                unloadingPlace: unloadingPlace,
+                unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
-                formatId: this.selectedFormat ? this.selectedFormat.format.id : null
+                formatId: this.selectedFormat ? this.selectedFormat.format.id : null,
+                isExisting: false
             };
             
-            this.$emit('vehicle-added', newVehicle);
-            
-            // Очищаем только номер и марку, места разгрузки остаются выбранными
-            this.clearVehicleFormPartial();
+            if (this.editingVehicle) {
+                newVehicle.id = this.editingVehicle.id;
+                this.$emit('vehicle-updated', newVehicle);
+                this.cancelEdit();
+            } else {
+                this.$emit('vehicle-added', newVehicle);
+                this.clearVehicleFormPartial();
+            }
         },
         
         clearVehicleFormPartial() {
@@ -555,6 +763,135 @@ export default {
             this.isNumberByFact = false;
             this.isMarkByFact = false;
             this.errors.unloadingPlaces = '';
+            this.selectedExistingCars = [];
+            this.editingVehicle = null;
+        },
+
+        // Методы для существующих машин
+        openExistingCarsModal() {
+            this.showExistingCarsModal = true;
+            this.tempSelectedCars = [...this.selectedExistingCars];
+            this.loadExistingCars();
+        },
+
+        closeExistingCarsModal() {
+            this.showExistingCarsModal = false;
+            this.tempSelectedCars = [];
+        },
+
+        switchFilter(filter) {
+            this.currentFilter = filter;
+        },
+
+        isCarSelected(car) {
+            return this.tempSelectedCars.some(selectedCar => selectedCar.id === car.id);
+        },
+
+        isCarDisabled(car) {
+            // Проверяем, не добавлена ли уже машина в список транспортных средств
+            // Сравниваем по номеру и марке для всех типов машин
+            return this.existingVehicles.some(vehicle => 
+                (vehicle.isExisting && vehicle.existingCarId === car.id) ||
+                (!vehicle.isExisting && vehicle.plateNumber === car.number && vehicle.mark === car.mark)
+            );
+        },
+
+        toggleCarSelection(car) {
+            if (this.isCarDisabled(car)) return;
+
+            const index = this.tempSelectedCars.findIndex(selectedCar => selectedCar.id === car.id);
+            if (index > -1) {
+                this.tempSelectedCars.splice(index, 1);
+            } else {
+                this.tempSelectedCars.push(car);
+            }
+        },
+
+        confirmExistingCarsSelection() {
+            this.selectedExistingCars = [...this.tempSelectedCars];
+            this.closeExistingCarsModal();
+            // Очищаем форму новой машины
+            this.clearVehicleFormPartial();
+        },
+
+        // Метод для добавления выбранных существующих машин
+        addExistingCars() {
+            if (this.selectedExistingCars.length === 0) {
+                alert('Выберите машины для добавления');
+                return;
+            }
+
+            if (this.selectedUnloadingPlaces.length === 0) {
+                alert('Выберите места разгрузки');
+                return;
+            }
+
+            const vehicles = this.selectedExistingCars.map(car => ({
+                plateNumber: car.number,
+                mark: car.mark,
+                unloadingPlace: this.formatUnloadingPlaces(),
+                unloadPlaces: [...this.selectedUnloadingPlaces],
+                formatId: car.format_id,
+                isExisting: true,
+                existingCarId: car.id
+            }));
+            
+            this.$emit('vehicles-added', vehicles);
+            this.clearExistingCarsSelection();
+        },
+
+        clearExistingCarsSelection() {
+            this.selectedExistingCars = [];
+        },
+
+        // Методы редактирования
+        editVehicle(vehicle) {
+            this.editingVehicle = vehicle;
+            this.selectedExistingCars = [];
+            
+            if (vehicle.isExisting) {
+                // Загружаем данные существующей машины
+                this.selectedMark = vehicle.mark;
+                this.isMarkByFact = vehicle.mark === 'По факту';
+                this.isNumberByFact = vehicle.plateNumber === 'По факту';
+                this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
+                
+                // Для существующих машин находим формат
+                if (vehicle.formatId) {
+                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
+                    if (format) {
+                        this.selectedFormat = format;
+                    }
+                }
+            } else {
+                // Загружаем данные новой машины
+                if (vehicle.plateNumber === 'По факту') {
+                    this.isNumberByFact = true;
+                } else {
+                    this.isNumberByFact = false;
+                    // Находим формат и разбиваем номер
+                    const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
+                    if (format) {
+                        this.selectedFormat = format;
+                        this.numberParts = vehicle.plateNumber.split(' ');
+                    }
+                }
+                
+                if (vehicle.mark === 'По факту') {
+                    this.isMarkByFact = true;
+                } else {
+                    this.isMarkByFact = false;
+                    this.selectedMark = vehicle.mark;
+                }
+                
+                this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
+            }
+        },
+
+        cancelEdit() {
+            this.$emit('edit-cancelled');
+            this.editingVehicle = null;
+            this.clearVehicleForm();
         },
         
         // Mark dropdown methods
@@ -650,6 +987,27 @@ export default {
     color: #a2a2a2;
 }
 
+.format-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.cancel-edit-btn {
+    background: #f8f8f8;
+    color: #333;
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    padding: 8px 15px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.cancel-edit-btn:hover {
+    background: #e8e8e8;
+}
+
 .add-button {
     background: #4F5BDF;
     color: white;
@@ -688,8 +1046,14 @@ export default {
     transition: border-color 0.2s;
 }
 
-.dropdown__button:hover {
+.dropdown__button:hover:not(:disabled) {
     border-color: #4F5BDF;
+}
+
+.dropdown__button:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .button__content {
@@ -702,6 +1066,8 @@ export default {
 
 .completion__header {
     padding-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
 }
 
 .button__text {
@@ -795,6 +1161,11 @@ export default {
     cursor: pointer;
 }
 
+.fact-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .fact-text {
     font-size: 13px;
 }
@@ -823,6 +1194,11 @@ export default {
     background: transparent;
     flex: 1;
     min-width: 0;
+}
+
+.number__input:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
 }
 
 .number__input--fact {
@@ -1079,5 +1455,345 @@ export default {
     background: #fff5f5;
     border-radius: 8px;
     margin-top: 10px;
+}
+
+.completion__button {
+    width: fit-content;
+    height: 25px;
+    padding: 0 15px;
+    border-radius: 50px;
+    background: #FFF;
+    border: 1px solid #e6e6e6;
+    outline: none;
+    font-size: 11px;
+    color: #4F5BDF;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.completion__button:hover {
+    background-color: #f5f5f5;
+}
+
+/* Стили для существующих машин */
+.existing-cars-info {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 1px solid #e6e6e6;
+}
+
+.existing-cars-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.existing-cars-count {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.existing-cars-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.view-cars-btn {
+    background: white;
+    color: #4F5BDF;
+    border: 1px solid #4F5BDF;
+    border-radius: 15px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.view-cars-btn:hover {
+    background: #f0f2ff;
+}
+
+.add-existing-btn {
+    background: #4F5BDF;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.add-existing-btn:hover:not(:disabled) {
+    background: #3a45c0;
+}
+
+.add-existing-btn:disabled {
+    background: #a2a2a2;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Модальное окно */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 20px;
+    padding: 0;
+    width: 800px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e6e6e6;
+}
+
+.modal-header__top {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 18px;
+}
+
+.selected-count-badge {
+    background: #4F5BDF;
+    color: white;
+    border-radius: 50px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #a2a2a2;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* Вкладки фильтров */
+.filter-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #e6e6e6;
+    padding-bottom: 10px;
+}
+
+.filter-tab {
+    padding: 8px 16px;
+    border: 1px solid #e6e6e6;
+    background: white;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.filter-tab:hover {
+    border-color: #4F5BDF;
+}
+
+.filter-tab--active {
+    background: #4F5BDF;
+    color: white;
+    border-color: #4F5BDF;
+}
+
+/* Список машин */
+.cars-list {
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.cars-header {
+    background: #f8f8f8;
+    border-bottom: 1px solid #e6e6e6;
+    padding: 12px 15px;
+}
+
+.header-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    font-weight: 500;
+    color: #a2a2a2;
+    font-size: 14px;
+}
+
+.header-col {
+    padding: 0 5px;
+}
+
+.select-col {
+    width: 5%;
+    text-align: center;
+}
+
+.number-col {
+    width: 10%;
+}
+
+.plate-col {
+    width: 25%;
+}
+
+.mark-col {
+    width: 25%;
+}
+
+.format-col {
+    width: 20%;
+}
+
+.status-col {
+    width: 15%;
+}
+
+.cars-body {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.car-item {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.car-item:hover {
+    background-color: #fafafa;
+}
+
+.car-item--disabled {
+    background-color: #f5f5f5;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.car-item--disabled:hover {
+    background-color: #f5f5f5;
+}
+
+.car-item--selected {
+    background-color: #f0f9ff;
+}
+
+.car-item--selected:hover {
+    background-color: #e0f2fe;
+}
+
+.car-row {
+    display: flex;
+    padding: 10px 15px;
+    align-items: center;
+}
+
+.car-col {
+    padding: 0 5px;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.status-active {
+    background-color: #f0f9ff;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.status-inactive {
+    background-color: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.no-cars-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #a2a2a2;
+    font-size: 14px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.cancel-btn {
+    background: white;
+    color: #333;
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    padding: 8px 16px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.cancel-btn:hover {
+    background: #f5f5f5;
+}
+
+.select-btn {
+    background: #4F5BDF;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    padding: 8px 16px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.select-btn:hover {
+    background: #3a45c0;
 }
 </style>
