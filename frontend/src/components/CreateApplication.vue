@@ -7,357 +7,360 @@
                 <p class="instruction__text">Инструкция</p>
             </button>
         </div>
-        <div class="create__form">
-            <div class="form__header">
-                <div class="header__content">
-                    <textarea 
-                        placeholder="Введите сопроводительное письмо / сообщение" 
-                        class="form__textarea"
-                        v-model="message"
-                    ></textarea>
-                    <div class="header__right">
-                        <div class="consent-section">
-                            <div class="consent-checkbox">
+        <div class="create__container">
+            <BlankSelector />
+            <div class="create__form">
+                <div class="form__header">
+                    <div class="header__content">
+                        <textarea 
+                            placeholder="Введите сопроводительное письмо / сообщение" 
+                            class="form__textarea"
+                            v-model="message"
+                        ></textarea>
+                        <div class="header__right">
+                            <div class="consent-section">
+                                <div class="consent-checkbox">
+                                    <input 
+                                        type="checkbox" 
+                                        id="consent"
+                                        v-model="consentGiven"
+                                        required
+                                    />
+                                    <label for="consent">
+                                        Даю <span class="blue">согласие</span> на обработку, хранение, передачу
+                                        персональных данных, изложенных в заявке
+                                    </label>
+                                </div>
+                                <button class="send-all-btn" @click="submitApplication" :disabled="!canSubmit">
+                                    Отправить заявку
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form__info">
+                    <h4>Автозаявка №{{ applicationNumber }}</h4>
+                    <div class="info__user">
+                        <div class="user__input">
+                            <label class="input__label">Организация / Отдел <span class="required">*</span></label>
+                            <input 
+                                class="input" 
+                                placeholder="Введите организацию" 
+                                v-model="organization"
+                                @blur="validateField('organization')"
+                                :class="{ 'input--error': errors.organization }"
+                            />
+                            <div v-if="errors.organization" class="error-message">{{ errors.organization }}</div>
+                        </div>
+                        <div class="user__input">
+                            <label class="input__label">Компания <span class="required">*</span></label>
+                            <input 
+                                class="input" 
+                                placeholder="Введите компанию" 
+                                v-model="company"
+                                @blur="validateField('company')"
+                                :class="{ 'input--error': errors.company }"
+                            />
+                            <div v-if="errors.company" class="error-message">{{ errors.company }}</div>
+                        </div>
+                        <div class="user__input responsible">
+                            <label class="input__label responsible">Ответственное лицо <span class="required">*</span></label>
+                            <div class="input contacts" :class="{ 'input--error': errors.responsiblePerson || errors.phone }">
+                                <input 
+                                    class="contact-input" 
+                                    placeholder="Введите ФИО" 
+                                    v-model="responsiblePerson"
+                                    @blur="validateField('responsiblePerson')"
+                                />
+                                <input 
+                                    class="contact-input phone" 
+                                    placeholder="Номер телефона"
+                                    v-model="phoneNumber"
+                                    @blur="formatPhoneNumber"
+                                    @focus="clearPhoneFormat"
+                                    @input="validateField('phone')"
+                                />
+                            </div>
+                            <div v-if="errors.responsiblePerson" class="error-message">{{ errors.responsiblePerson }}</div>
+                            <div v-if="errors.phone" class="error-message">{{ errors.phone }}</div>
+                        </div>
+                    </div>
+                    <div class="form__date">
+                        <div class="date__input">
+                            <label class="input__label">Дата действия <span class="required">*</span></label>
+                            <div class="date-container">
+                                <div class="date" v-if="!isOneDay">
+                                    <p class="date__text">с</p>
+                                    <div class="datepicker-wrapper">
+                                        <input 
+                                            class="input__date" 
+                                            placeholder="дд.мм.гг" 
+                                            v-model="startDate"
+                                            @focus="openDatepicker('start')"
+                                            @blur="validateDateRange"
+                                            :class="{ 'input--error': errors.startDate }"
+                                            readonly
+                                        />
+                                        <div v-if="showStartDatepicker" class="datepicker">
+                                            <div class="datepicker__header">
+                                                <button @click="prevMonth" class="datepicker__nav">
+                                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
+                                                </button>
+                                                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                                                <button @click="nextMonth" class="datepicker__nav">
+                                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
+                                                </button>
+                                            </div>
+                                            <div class="datepicker__weekdays">
+                                                <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
+                                            </div>
+                                            <div class="datepicker__days">
+                                                <div 
+                                                    v-for="day in calendarDays" 
+                                                    :key="day.date"
+                                                    class="datepicker__day"
+                                                    :class="{
+                                                        'datepicker__day--selected': isSelectedDate(day.date),
+                                                        'datepicker__day--other-month': !day.isCurrentMonth,
+                                                        'datepicker__day--today': isToday(day.date)
+                                                    }"
+                                                    @click="selectStartDate(day.date)"
+                                                >
+                                                    {{ day.day }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="date__text">по</p>
+                                    <div class="datepicker-wrapper">
+                                        <input 
+                                            class="input__date" 
+                                            placeholder="дд.мм.гг" 
+                                            v-model="endDate"
+                                            @focus="openDatepicker('end')"
+                                            @blur="validateDateRange"
+                                            :class="{ 'input--error': errors.endDate }"
+                                            readonly
+                                        />
+                                        <div v-if="showEndDatepicker" class="datepicker">
+                                            <div class="datepicker__header">
+                                                <button @click="prevMonth" class="datepicker__nav">
+                                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
+                                                </button>
+                                                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                                                <button @click="nextMonth" class="datepicker__nav">
+                                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
+                                                </button>
+                                            </div>
+                                            <div class="datepicker__weekdays">
+                                                <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
+                                            </div>
+                                            <div class="datepicker__days">
+                                                <div 
+                                                    v-for="day in calendarDays" 
+                                                    :key="day.date"
+                                                    class="datepicker__day"
+                                                    :class="{
+                                                        'datepicker__day--selected': isSelectedDate(day.date),
+                                                        'datepicker__day--other-month': !day.isCurrentMonth,
+                                                        'datepicker__day--today': isToday(day.date)
+                                                    }"
+                                                    @click="selectEndDate(day.date)"
+                                                >
+                                                    {{ day.day }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else class="single-date">
+                                    <div class="datepicker-wrapper">
+                                        <input 
+                                            class="input__date" 
+                                            placeholder="дд.мм.гг" 
+                                            v-model="singleDate"
+                                            @focus="openDatepicker('single')"
+                                            @blur="validateField('singleDate')"
+                                            :class="{ 'input--error': errors.singleDate }"
+                                            readonly
+                                        />
+                                        <div v-if="showSingleDatepicker" class="datepicker">
+                                            <div class="datepicker__header">
+                                                <button @click="prevMonth" class="datepicker__nav">
+                                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
+                                                </button>
+                                                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                                                <button @click="nextMonth" class="datepicker__nav">
+                                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
+                                                </button>
+                                            </div>
+                                            <div class="datepicker__weekdays">
+                                                <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
+                                            </div>
+                                            <div class="datepicker__days">
+                                                <div 
+                                                    v-for="day in calendarDays" 
+                                                    :key="day.date"
+                                                    class="datepicker__day"
+                                                    :class="{
+                                                        'datepicker__day--selected': isSelectedDate(day.date),
+                                                        'datepicker__day--other-month': !day.isCurrentMonth,
+                                                        'datepicker__day--today': isToday(day.date)
+                                                    }"
+                                                    @click="selectSingleDate(day.date)"
+                                                >
+                                                    {{ day.day }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="errors.startDate || errors.endDate || errors.singleDate" class="error-message">
+                                    {{ errors.startDate || errors.endDate || errors.singleDate }}
+                                </div>
+                            </div>
+                            <div class="one-day">
                                 <input 
                                     type="checkbox" 
-                                    id="consent"
-                                    v-model="consentGiven"
-                                    required
+                                    class="one-day__checkbox" 
+                                    v-model="isOneDay"
+                                    @change="handleOneDayChange"
                                 />
-                                <label for="consent">
-                                    Даю <span class="blue">согласие</span> на обработку, хранение, передачу
-                                    персональных данных, изложенных в заявке
-                                </label>
+                                <p>однодневная заявка</p>
                             </div>
-                            <button class="send-all-btn" @click="submitApplication" :disabled="!canSubmit">
-                                Отправить заявку
-                            </button>
                         </div>
-                    </div>
-                </div>
-            </div>
-            <div class="form__info">
-                <h4>Автозаявка №{{ applicationNumber }}</h4>
-                <div class="info__user">
-                    <div class="user__input">
-                        <label class="input__label">Организация / Отдел <span class="required">*</span></label>
-                        <input 
-                            class="input" 
-                            placeholder="Введите организацию" 
-                            v-model="organization"
-                            @blur="validateField('organization')"
-                            :class="{ 'input--error': errors.organization }"
-                        />
-                        <div v-if="errors.organization" class="error-message">{{ errors.organization }}</div>
-                    </div>
-                    <div class="user__input">
-                        <label class="input__label">Компания <span class="required">*</span></label>
-                        <input 
-                            class="input" 
-                            placeholder="Введите компанию" 
-                            v-model="company"
-                            @blur="validateField('company')"
-                            :class="{ 'input--error': errors.company }"
-                        />
-                        <div v-if="errors.company" class="error-message">{{ errors.company }}</div>
-                    </div>
-                    <div class="user__input responsible">
-                        <label class="input__label responsible">Ответственное лицо <span class="required">*</span></label>
-                        <div class="input contacts" :class="{ 'input--error': errors.responsiblePerson || errors.phone }">
-                            <input 
-                                class="contact-input" 
-                                placeholder="Введите ФИО" 
-                                v-model="responsiblePerson"
-                                @blur="validateField('responsiblePerson')"
-                            />
-                            <input 
-                                class="contact-input phone" 
-                                placeholder="Номер телефона"
-                                v-model="phoneNumber"
-                                @blur="formatPhoneNumber"
-                                @focus="clearPhoneFormat"
-                                @input="validateField('phone')"
-                            />
-                        </div>
-                        <div v-if="errors.responsiblePerson" class="error-message">{{ errors.responsiblePerson }}</div>
-                        <div v-if="errors.phone" class="error-message">{{ errors.phone }}</div>
-                    </div>
-                </div>
-                <div class="form__date">
-                    <div class="date__input">
-                        <label class="input__label">Дата действия <span class="required">*</span></label>
-                        <div class="date-container">
-                            <div class="date" v-if="!isOneDay">
+                        <div class="date__input">
+                            <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+                            <div class="date">
                                 <p class="date__text">с</p>
-                                <div class="datepicker-wrapper">
-                                    <input 
-                                        class="input__date" 
-                                        placeholder="дд.мм.гг" 
-                                        v-model="startDate"
-                                        @focus="openDatepicker('start')"
-                                        @blur="validateDateRange"
-                                        :class="{ 'input--error': errors.startDate }"
-                                        readonly
-                                    />
-                                    <div v-if="showStartDatepicker" class="datepicker">
-                                        <div class="datepicker__header">
-                                            <button @click="prevMonth" class="datepicker__nav">
-                                                <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
-                                            </button>
-                                            <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                            <button @click="nextMonth" class="datepicker__nav">
-                                                <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
-                                            </button>
-                                        </div>
-                                        <div class="datepicker__weekdays">
-                                            <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                                        </div>
-                                        <div class="datepicker__days">
-                                            <div 
-                                                v-for="day in calendarDays" 
-                                                :key="day.date"
-                                                class="datepicker__day"
-                                                :class="{
-                                                    'datepicker__day--selected': isSelectedDate(day.date),
-                                                    'datepicker__day--other-month': !day.isCurrentMonth,
-                                                    'datepicker__day--today': isToday(day.date)
-                                                }"
-                                                @click="selectStartDate(day.date)"
-                                            >
-                                                {{ day.day }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <input 
+                                    class="input__date" 
+                                    placeholder="00:00" 
+                                    v-model="startTime"
+                                    @blur="validateTimeRange"
+                                    :class="{ 'input--error': errors.startTime }"
+                                    type="time"
+                                />
                                 <p class="date__text">по</p>
-                                <div class="datepicker-wrapper">
-                                    <input 
-                                        class="input__date" 
-                                        placeholder="дд.мм.гг" 
-                                        v-model="endDate"
-                                        @focus="openDatepicker('end')"
-                                        @blur="validateDateRange"
-                                        :class="{ 'input--error': errors.endDate }"
-                                        readonly
-                                    />
-                                    <div v-if="showEndDatepicker" class="datepicker">
-                                        <div class="datepicker__header">
-                                            <button @click="prevMonth" class="datepicker__nav">
-                                                <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
-                                            </button>
-                                            <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                            <button @click="nextMonth" class="datepicker__nav">
-                                                <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
-                                            </button>
-                                        </div>
-                                        <div class="datepicker__weekdays">
-                                            <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                                        </div>
-                                        <div class="datepicker__days">
-                                            <div 
-                                                v-for="day in calendarDays" 
-                                                :key="day.date"
-                                                class="datepicker__day"
-                                                :class="{
-                                                    'datepicker__day--selected': isSelectedDate(day.date),
-                                                    'datepicker__day--other-month': !day.isCurrentMonth,
-                                                    'datepicker__day--today': isToday(day.date)
-                                                }"
-                                                @click="selectEndDate(day.date)"
-                                            >
-                                                {{ day.day }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <input 
+                                    class="input__date" 
+                                    placeholder="00:00" 
+                                    v-model="endTime"
+                                    @blur="validateTimeRange"
+                                    :class="{ 'input--error': errors.endTime }"
+                                    type="time"
+                                />
                             </div>
-                            <div v-else class="single-date">
-                                <div class="datepicker-wrapper">
-                                    <input 
-                                        class="input__date" 
-                                        placeholder="дд.мм.гг" 
-                                        v-model="singleDate"
-                                        @focus="openDatepicker('single')"
-                                        @blur="validateField('singleDate')"
-                                        :class="{ 'input--error': errors.singleDate }"
-                                        readonly
-                                    />
-                                    <div v-if="showSingleDatepicker" class="datepicker">
-                                        <div class="datepicker__header">
-                                            <button @click="prevMonth" class="datepicker__nav">
-                                                <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
-                                            </button>
-                                            <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                            <button @click="nextMonth" class="datepicker__nav">
-                                                <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
-                                            </button>
-                                        </div>
-                                        <div class="datepicker__weekdays">
-                                            <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                                        </div>
-                                        <div class="datepicker__days">
-                                            <div 
-                                                v-for="day in calendarDays" 
-                                                :key="day.date"
-                                                class="datepicker__day"
-                                                :class="{
-                                                    'datepicker__day--selected': isSelectedDate(day.date),
-                                                    'datepicker__day--other-month': !day.isCurrentMonth,
-                                                    'datepicker__day--today': isToday(day.date)
-                                                }"
-                                                @click="selectSingleDate(day.date)"
-                                            >
-                                                {{ day.day }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                            <p class="time-message">Укажите время, в которое должна будет действовать заявка и будет разрешен въезд</p>
+                            <div v-if="errors.startTime || errors.endTime" class="error-message">
+                                {{ errors.startTime || errors.endTime }}
                             </div>
-                            <div v-if="errors.startDate || errors.endDate || errors.singleDate" class="error-message">
-                                {{ errors.startDate || errors.endDate || errors.singleDate }}
-                            </div>
-                        </div>
-                        <div class="one-day">
-                            <input 
-                                type="checkbox" 
-                                class="one-day__checkbox" 
-                                v-model="isOneDay"
-                                @change="handleOneDayChange"
-                            />
-                            <p>однодневная заявка</p>
-                        </div>
-                    </div>
-                    <div class="date__input">
-                        <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
-                        <div class="date">
-                            <p class="date__text">с</p>
-                            <input 
-                                class="input__date" 
-                                placeholder="00:00" 
-                                v-model="startTime"
-                                @blur="validateTimeRange"
-                                :class="{ 'input--error': errors.startTime }"
-                                type="time"
-                            />
-                            <p class="date__text">по</p>
-                            <input 
-                                class="input__date" 
-                                placeholder="00:00" 
-                                v-model="endTime"
-                                @blur="validateTimeRange"
-                                :class="{ 'input--error': errors.endTime }"
-                                type="time"
-                            />
-                        </div>
-                        <p class="time-message">Укажите время, в которое должна будет действовать заявка и будет разрешен въезд</p>
-                        <div v-if="errors.startTime || errors.endTime" class="error-message">
-                            {{ errors.startTime || errors.endTime }}
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="form__data">
-                <VehicleForm 
-                    :user-organization="organization"
-                    :user-organization-id="organizationId"
-                    :user-company="company"
-                    :user-company-id="companyId"
-                    :existing-vehicles="vehicles"
-                    :key="vehicleFormKey"
-                    @vehicle-added="handleVehicleAdded"
-                    @vehicles-added="handleVehiclesAdded"
-                    @vehicle-updated="handleVehicleUpdated"
-                    @edit-cancelled="handleEditCancelled"
-                    ref="vehicleForm"
-                />
-                <div class="data__list">
-                    <h4>Список транспортных средств ({{ vehicles.length }})</h4>
-                    <div class="vehicles-table">
-                        <div class="table-header">
-                            <div class="header-col number-col" @click="sortBy('number')">
-                                <p :class="{ 'active-sort': sortField === 'number' }">№</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'number',
-                                        'desc': sortField === 'number' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col plate-col" @click="sortBy('plate')">
-                                <p :class="{ 'active-sort': sortField === 'plate' }">Номер</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'plate',
-                                        'desc': sortField === 'plate' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col mark-col" @click="sortBy('mark')">
-                                <p :class="{ 'active-sort': sortField === 'mark' }">Марка</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'mark',
-                                        'desc': sortField === 'mark' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col place-col" @click="sortBy('place')">
-                                <p :class="{ 'active-sort': sortField === 'place' }">Место разгрузки</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'place',
-                                        'desc': sortField === 'place' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col actions-col">
-                                <!-- Убрано слово "Действие" -->
-                            </div>
-                        </div>
-                        <div class="table-body">
-                            <div 
-                                v-for="(vehicle, index) in sortedVehicles" 
-                                :key="vehicle.id"
-                                class="table-row"
-                            >
-                                <div class="table-col number-col">{{ index + 1 }}</div>
-                                <div class="table-col plate-col">{{ vehicle.plateNumber }}</div>
-                                <div class="table-col mark-col">{{ vehicle.mark }}</div>
-                                <div class="table-col place-col">{{ vehicle.unloadingPlace }}</div>
-                                <div class="table-col actions-col">
-                                    <button 
-                                        class="edit-btn"
-                                        @click="editVehicle(vehicle)"
-                                        title="Редактировать"
-                                    >
-                                        <img 
-                                            src="@/assets/icons/edit.png" 
-                                            alt="Редактировать" 
-                                            class="edit-icon"
-                                        />
-                                    </button>
-                                    <button 
-                                        class="delete-btn"
-                                        @click="deleteVehicle(vehicle.id)"
-                                    >
-                                        <img 
-                                            src="@/assets/icons/trashcan.png" 
-                                            alt="Удалить" 
-                                            class="delete-icon"
-                                        />
-                                    </button>
+                <div class="form__data">
+                    <VehicleForm 
+                        :user-organization="organization"
+                        :user-organization-id="organizationId"
+                        :user-company="company"
+                        :user-company-id="companyId"
+                        :existing-vehicles="vehicles"
+                        :key="vehicleFormKey"
+                        @vehicle-added="handleVehicleAdded"
+                        @vehicles-added="handleVehiclesAdded"
+                        @vehicle-updated="handleVehicleUpdated"
+                        @edit-cancelled="handleEditCancelled"
+                        ref="vehicleForm"
+                    />
+                    <div class="data__list">
+                        <h4>Список транспортных средств ({{ vehicles.length }})</h4>
+                        <div class="vehicles-table">
+                            <div class="table-header">
+                                <div class="header-col number-col" @click="sortBy('number')">
+                                    <p :class="{ 'active-sort': sortField === 'number' }">№</p>
+                                    <img 
+                                        src="@/assets/icons/sort.png" 
+                                        class="sort-icon" 
+                                        :class="{ 
+                                            'sorted': sortField === 'number',
+                                            'desc': sortField === 'number' && sortDirection === 'desc'
+                                        }" 
+                                    />
+                                </div>
+                                <div class="header-col plate-col" @click="sortBy('plate')">
+                                    <p :class="{ 'active-sort': sortField === 'plate' }">Номер</p>
+                                    <img 
+                                        src="@/assets/icons/sort.png" 
+                                        class="sort-icon" 
+                                        :class="{ 
+                                            'sorted': sortField === 'plate',
+                                            'desc': sortField === 'plate' && sortDirection === 'desc'
+                                        }" 
+                                    />
+                                </div>
+                                <div class="header-col mark-col" @click="sortBy('mark')">
+                                    <p :class="{ 'active-sort': sortField === 'mark' }">Марка</p>
+                                    <img 
+                                        src="@/assets/icons/sort.png" 
+                                        class="sort-icon" 
+                                        :class="{ 
+                                            'sorted': sortField === 'mark',
+                                            'desc': sortField === 'mark' && sortDirection === 'desc'
+                                        }" 
+                                    />
+                                </div>
+                                <div class="header-col place-col" @click="sortBy('place')">
+                                    <p :class="{ 'active-sort': sortField === 'place' }">Место разгрузки</p>
+                                    <img 
+                                        src="@/assets/icons/sort.png" 
+                                        class="sort-icon" 
+                                        :class="{ 
+                                            'sorted': sortField === 'place',
+                                            'desc': sortField === 'place' && sortDirection === 'desc'
+                                        }" 
+                                    />
+                                </div>
+                                <div class="header-col actions-col">
+                                    <!-- Убрано слово "Действие" -->
                                 </div>
                             </div>
-                            <div v-if="vehicles.length === 0" class="no-vehicles">
-                                Нет добавленных транспортных средств
+                            <div class="table-body">
+                                <div 
+                                    v-for="(vehicle, index) in sortedVehicles" 
+                                    :key="vehicle.id"
+                                    class="table-row"
+                                >
+                                    <div class="table-col number-col">{{ index + 1 }}</div>
+                                    <div class="table-col plate-col">{{ vehicle.plateNumber }}</div>
+                                    <div class="table-col mark-col">{{ vehicle.mark }}</div>
+                                    <div class="table-col place-col">{{ vehicle.unloadingPlace }}</div>
+                                    <div class="table-col actions-col">
+                                        <button 
+                                            class="edit-btn"
+                                            @click="editVehicle(vehicle)"
+                                            title="Редактировать"
+                                        >
+                                            <img 
+                                                src="@/assets/icons/edit.png" 
+                                                alt="Редактировать" 
+                                                class="edit-icon"
+                                            />
+                                        </button>
+                                        <button 
+                                            class="delete-btn"
+                                            @click="deleteVehicle(vehicle.id)"
+                                        >
+                                            <img 
+                                                src="@/assets/icons/trashcan.png" 
+                                                alt="Удалить" 
+                                                class="delete-icon"
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div v-if="vehicles.length === 0" class="no-vehicles">
+                                    Нет добавленных транспортных средств
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -453,11 +456,13 @@
 
 <script>
 import VehicleForm from '@/components/VehicleForm.vue'
+import BlankSelector from './BlankSelector.vue';
 
 export default {
     name: 'CreateApplication',
     components: {
-        VehicleForm
+        VehicleForm,
+        BlankSelector
     },
     data() {
         const today = new Date();
@@ -1294,6 +1299,11 @@ export default {
         display: flex;
         gap: 10px;
         padding-bottom: 15px;
+    }
+
+    .create__container {
+        display: flex;
+        gap: 15px;
     }
 
     .tables__instruction {
