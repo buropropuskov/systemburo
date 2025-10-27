@@ -289,72 +289,74 @@
             
             <div class="table-body">
                 <div v-if="filteredApplications.length > 0" class="applications-list">
-                    <transition-group name="application-item" tag="div">
-                        <div 
-                            v-for="(application, index) in sortedApplications" 
-                            :key="application.id" 
-                            class="application-item"
-                            :class="{ 'unread': application.unread }"
-                            @click="openApplication(application)"
-                            :style="{ 'animation-delay': `${index * 0.05}s` }"
-                        >
-                            <div class="application-row">
-                                <div class="application-col confirmation-col">
+                    <div 
+                        v-for="(application, index) in sortedApplications" 
+                        :key="application.id" 
+                        class="application-item"
+                        :class="{ 
+                            'unread': application.unread,
+                            'initial-load': isInitialLoad,
+                            'filtered': !isInitialLoad
+                        }"
+                        @click="openApplication(application)"
+                        :style="isInitialLoad ? { 'animation-delay': `${index * 0.05}s` } : {}"
+                    >
+                        <div class="application-row">
+                            <div class="application-col confirmation-col">
+                                <span 
+                                    class="confirmation-badge"
+                                    :class="getConfirmationClass(application.confirmation)"
+                                >
+                                    {{ getConfirmationText(application.confirmation) }}
+                                </span>
+                            </div>
+                            <div class="application-col number-col">
+                                <span class="application-number">{{ application.number }}</span>
+                            </div>
+                            <div class="application-col date-col">
+                                {{ application.date }}
+                            </div>
+                            <div class="application-col organization-col">
+                                {{ application.organization }}
+                            </div>
+                            <div class="application-col sender-col">
+                                {{ application.sender }}
+                            </div>
+                            <div class="application-col tags-col">
+                                <div class="tags-container">
                                     <span 
-                                        class="confirmation-badge"
-                                        :class="getConfirmationClass(application.confirmation)"
+                                        v-for="tag in application.tags" 
+                                        :key="tag" 
+                                        class="tag-badge"
+                                        :class="getTagClass(tag)"
                                     >
-                                        {{ getConfirmationText(application.confirmation) }}
+                                        {{ tag }}
                                     </span>
-                                </div>
-                                <div class="application-col number-col">
-                                    <span class="application-number">{{ application.number }}</span>
-                                </div>
-                                <div class="application-col date-col">
-                                    {{ application.date }}
-                                </div>
-                                <div class="application-col organization-col">
-                                    {{ application.organization }}
-                                </div>
-                                <div class="application-col sender-col">
-                                    {{ application.sender }}
-                                </div>
-                                <div class="application-col tags-col">
-                                    <div class="tags-container">
-                                        <span 
-                                            v-for="tag in application.tags" 
-                                            :key="tag" 
-                                            class="tag-badge"
-                                            :class="getTagClass(tag)"
-                                        >
-                                            {{ tag }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="application-col status-col">
-                                    <span 
-                                        class="status-badge"
-                                        :class="getStatusClass(application.status)"
-                                    >
-                                        {{ application.status }}
-                                    </span>
-                                </div>
-                                <div class="application-col actions-col">
-                                    <button 
-                                        @click.stop="downloadApplication(application)" 
-                                        class="download-btn"
-                                        title="Скачать"
-                                    >
-                                        <img 
-                                            src="@/assets/icons/download.png" 
-                                            alt="Скачать" 
-                                            class="download-icon"
-                                        />
-                                    </button>
                                 </div>
                             </div>
+                            <div class="application-col status-col">
+                                <span 
+                                    class="status-badge"
+                                    :class="getStatusClass(application.status)"
+                                >
+                                    {{ application.status }}
+                                </span>
+                            </div>
+                            <div class="application-col actions-col">
+                                <button 
+                                    @click.stop="downloadApplication(application)" 
+                                    class="download-btn"
+                                    title="Скачать"
+                                >
+                                    <img 
+                                        src="@/assets/icons/download.png" 
+                                        alt="Скачать" 
+                                        class="download-icon"
+                                    />
+                                </button>
+                            </div>
                         </div>
-                    </transition-group>
+                    </div>
                 </div>
                 <p v-else class="no-data-message">
                     {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
@@ -397,6 +399,7 @@ export default {
             sortDirection: 'desc',
             shouldShake: false,
             shakeInterval: null,
+            isInitialLoad: true,
             
             // Дата
             showDatePicker: false,
@@ -786,6 +789,7 @@ export default {
             this.dateRangeEnd = null;
             this.dateRangeStartInput = '';
             this.dateRangeEndInput = '';
+            this.isInitialLoad = false;
         },
         
         // Дата методы
@@ -950,6 +954,7 @@ export default {
                 this.sortField = field;
                 this.sortDirection = 'desc';
             }
+            this.isInitialLoad = false;
         },
 
         // Сброс сортировки
@@ -960,16 +965,13 @@ export default {
         
         // Фильтры
         applyFilters() {
-            // Фильтры применяются автоматически через computed свойства
+            this.isInitialLoad = false;
         },
         
         // Обновление данных
         refreshData() {
             console.log('Обновление данных заявок...');
-            // При обновлении данных также запускаем анимацию появления заявок
-            this.$nextTick(() => {
-                // Анимация будет применена автоматически через CSS классы
-            });
+            this.isInitialLoad = false;
         },
 
         // Скачивание
@@ -1007,6 +1009,11 @@ export default {
         });
 
         this.startShakeAnimation();
+        
+        // Отключаем анимацию начальной загрузки через 1 секунду после монтирования
+        setTimeout(() => {
+            this.isInitialLoad = false;
+        }, 1000);
     },
     beforeUnmount() {
         if (this.shakeInterval) {
@@ -1215,7 +1222,7 @@ export default {
     gap: 6px;
 }
 
-.more-filters-btn:hover {
+.more-filters-btn:hover:not(.more-filters-btn--active) {
     background: #f5f5f5;
 }
 
@@ -1223,6 +1230,11 @@ export default {
     background: #4F5BDF;
     color: white;
     border-color: #4F5BDF;
+}
+
+.more-filters-btn--active:hover {
+    background: #3a45c0;
+    border-color: #3a45c0;
 }
 
 .more-filters-icon {
@@ -1236,42 +1248,28 @@ export default {
 }
 
 /* More Filters Panel */
+.more-filters-enter-active,
+.more-filters-leave-active {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.more-filters-enter-from,
+.more-filters-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+}
+
+.more-filters-enter-to,
+.more-filters-leave-from {
+    opacity: 1;
+    max-height: 200px;
+    transform: translateY(0);
+}
+
 .more-filters {
     padding: 10px 0;
-}
-
-.more-filters-enter-active {
-    animation: slideDown 0.3s ease-out;
-}
-
-.more-filters-leave-active {
-    animation: slideUp 0.2s ease-in;
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        max-height: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        max-height: 200px;
-        transform: translateY(0);
-    }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 1;
-        max-height: 200px;
-        transform: translateY(0);
-    }
-    to {
-        opacity: 0;
-        max-height: 0;
-        transform: translateY(-10px);
-    }
 }
 
 .tags-buttons {
@@ -1689,9 +1687,18 @@ export default {
 .application-item {
     transition: background-color 0.2s ease;
     cursor: pointer;
+}
+
+.application-item.initial-load {
     animation: slideInFromTop 0.4s ease-out forwards;
     opacity: 0;
     transform: translateY(-20px);
+}
+
+.application-item.filtered {
+    animation: none;
+    opacity: 1;
+    transform: none;
 }
 
 @keyframes slideInFromTop {
@@ -1971,4 +1978,5 @@ export default {
     scrollbar-width: thin;
     scrollbar-color: #D9E2FF transparent;
 }
+
 </style>
