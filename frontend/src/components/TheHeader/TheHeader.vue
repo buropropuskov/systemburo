@@ -19,9 +19,12 @@
         <img src="@/assets/icons/notifications.png" class="notifications__icon" alt="Уведомления" />
          <img src="@/assets/icons/messages.png" class="notifications__icon" alt="Уведомления" />
       </div>
-      <button class="appl-btn" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
-        + Новая заявка
-      </button>
+      <div class="appl-btn__container">
+        <button class="appl-btn" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
+          Подать заявку
+        </button>
+      </div>
+      
     </div>
   </header>
 </template>
@@ -229,32 +232,38 @@ h3 {
   filter: contrast(0.01);
 }
 
+.appl-btn__container {
+  width: 155px;
+  height: 30px;
+  border-radius: 50px;
+  background-color: #f2f2f2;
+}
+
 .appl-btn {
-  height: 40px;
+  position: fixed;
+  height: 30px;
   width: fit-content;
   padding: 0 20px;
-  font-size: 16px;
-  color: #FFF;
-  background-color: #4F5BDF;
-  border: none;
+  font-size: 15px;
+  color: #000;
+  background-color: #fff;
+ border: 1px solid #4F5BDF;
   outline: none;
   cursor: pointer;
-  font-weight: 500;
-  border-radius: 10px;
+  font-weight: 400;
+  border-radius: 15px;
   transition: .2s;
+   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
+
 }
 
 .appl-btn:hover {
-  background-color: #7580fc;
+  background-color: #e6e6e6;
 }
 
 .appl-btn--fixed {
   position: fixed;
-  top: 10px;
-  right: 20px;
   z-index: 1000;
-  animation: slideIn 0.3s ease;
-  border: 2px solid #e6e6e6;
 }
 
 @keyframes slideIn {

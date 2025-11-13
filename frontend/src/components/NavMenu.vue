@@ -14,9 +14,9 @@
           <img src="@/assets/icons/envelope.png" alt="Центр заявок" class="nav-icon">
           <span class="nav-text">Центр заявок</span>
         </div>
-        <div class="nav-item">
+        <div class="nav-item disabled">
           <img src="@/assets/icons/archive.png" alt="Архив" class="nav-icon">
-          <span class="nav-text">Архив</span>
+          <span class="nav-text disabled">Архив</span>
         </div>
       </div>
 
@@ -46,14 +46,14 @@
               @mouseenter="keepDropdownOpen('tables')"
               @mouseleave="closeDropdown('tables')"
             >
-              <div class="dropdown-item" @click="navigateToTable">КПП №4</div>
-              <div class="dropdown-item disabled">СЕВЕР + 72 ПОСТ</div>
-              <div class="dropdown-item disabled">ПОСТ №21</div>
-              <div class="dropdown-item disabled">ПОСТ №27</div>
-              <div class="dropdown-item disabled">DREAM BEACH CLUB</div>
-              <div class="dropdown-item disabled">КИНО-КОНЦЕРТНЫЙ ЗАЛ</div>
-              <div class="dropdown-item disabled">СТРОЙКА</div>
-              <div class="dropdown-item disabled">СВОДНЫЕ ДАННЫЕ</div>
+              <div 
+                v-for="table in systemTables" 
+                :key="table.id"
+                class="dropdown-item" 
+                @click="navigateToTable(table.name)"
+              >
+                {{ table.display_name }}
+              </div>
             </div>
           </transition>
         </div>
@@ -95,22 +95,22 @@
       <!-- АНАЛИТИКА -->
       <div class="nav-section">
         <div class="section-title">АНАЛИТИКА</div>
-        <div class="nav-item">
+        <div class="nav-item disabled">
           <img src="@/assets/icons/stats.png" alt="Статистика" class="nav-icon">
-          <span class="nav-text">Статистика</span>
+          <span class="nav-text disabled ">Статистика</span>
         </div>
-        <div class="nav-item">
+        <div class="nav-item disabled">
           <img src="@/assets/icons/clipboard.png" alt="Отчёты" class="nav-icon">
-          <span class="nav-text">Отчёты</span>
+          <span class="nav-text disabled">Отчёты</span>
         </div>
       </div>
 
       <!-- ПОЛЬЗОВАТЕЛЬ (в нижней части) -->
       <div class="nav-section user-section">
         <div class="section-title">ПОЛЬЗОВАТЕЛЬ</div>
-        <div class="nav-item">
+        <div class="nav-item disabled">
           <img src="@/assets/icons/newspaper.png" alt="Новости" class="nav-icon">
-          <span class="nav-text">Обзор и новости</span>
+          <span class="nav-text disabled">Обзор и новости</span>
         </div>
         <div class="nav-item" @click="navigateToAccount">
           <img src="@/assets/icons/user.png" alt="Личный кабинет" class="nav-icon">
@@ -137,7 +137,8 @@ export default {
       },
       hoverTimeout: null,
       dropdownTimeout: null,
-      dropdownLeaveTimeout: null
+      dropdownLeaveTimeout: null,
+      systemTables: []
     };
   },
   methods: {
@@ -192,8 +193,16 @@ export default {
         this.dropdowns[key] = false;
       });
     },
-    navigateToTable() {
-      this.$router.push('/table');
+    navigateToTable(tableName) {
+      this.$router.push(`/table/${tableName}`);
+      this.closeAllDropdowns();
+    },
+    navigateToTableConstructor() {
+      this.$router.push('/table-constructor');
+      this.closeAllDropdowns();
+    },
+    navigateToNumberFormat() {
+      this.$router.push('/number-format');
       this.closeAllDropdowns();
     },
     navigateToCenter() {
@@ -207,12 +216,30 @@ export default {
       this.$router.push('/carsview');
     },
     
+    async fetchSystemTables() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/system-tables", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          this.systemTables = data.filter(table => table.is_active);
+        }
+      } catch (error) {
+        console.error("Error fetching system tables:", error);
+      }
+    },
+    
     logout() {
       this.$emit('logout');
     }
   },
-  mounted() {
+  async mounted() {
     document.body.classList.add('auth-active');
+    await this.fetchSystemTables();
   },
   beforeUnmount() {
     document.body.classList.remove('auth-active');
@@ -314,8 +341,8 @@ export default {
   min-width: 0;
 }
 
-.nav-item:hover {
-  background-color: #f8f9fa;
+.nav-item:hover:not(.disabled) {
+  background-color: #e6e6e6;
 }
 
 .nav-icon {
@@ -402,8 +429,12 @@ export default {
 }
 
 .disabled {
-     color: #95a5a6;
+  color: #95a5a6;
   cursor: not-allowed;
+}
+
+.disabled img {
+  filter:opacity(0.3)
 }
 
 .dropdown-item.disabled {
@@ -448,5 +479,18 @@ export default {
 .nav-item {
   position: relative;
   overflow: hidden;
+}
+
+.dropdown-item-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  opacity: 0.7;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: #e6e6e6;
+  margin: 4px 0;
 }
 </style>

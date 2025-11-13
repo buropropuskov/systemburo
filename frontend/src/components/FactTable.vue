@@ -1,99 +1,21 @@
 <template>
-  <div class="selected-table-card">
-    <!-- Уведомление об удалении -->
-    <transition name="slide-down">
-      <div v-if="notification.message" class="notification">
-        <span>{{ notification.message }}</span>
-        <button @click="undoDelete">Отменить</button>
-        <div class="progress-bar" :style="{ width: `${progress}%` }"></div>
-      </div>
-    </transition>
-
+  <div class="fact-table-card">
     <div class="card-header">
       <div class="card-header__title">
-        <h3 class="card-title">
-          <span class="blue">{{ tableType === 'cars' ? 'Номера автомобилей' : 'Люди' }}</span> по заявке
-        </h3>
+        <h3 class="card-title">{{ tableType === 'cars' ? 'Автомобили' : 'Люди' }} <span class="highlight-text">по факту</span></h3>
       </div>
       <div class="card-header__settings">
-        <span class="items-count">
-          {{ tableType === 'cars' ? 'Машин' : 'Людей' }} на территории: {{ activeItemsCount }}
-        </span>
         <RefreshButton @refresh="fetchData" />
       </div>
     </div>
     
     <div class="card-content">
-      <!-- Заголовок таблицы всегда отображается -->
-      <div class="items-header">
+      <!-- Заголовок таблицы -->
+      <div class="fact-header">
         <div class="header-row">
-          <div class="header-col checkbox-col">
+          <div class="header-col checkbox-col" v-if="tableType === 'cars'">
             <!-- Пустой заголовок для чекбокса -->
           </div>
-          
-          <!-- Поля для машин -->
-          <template v-if="tableType === 'cars'">
-            <div class="header-col number-col" @click="sortBy('car_number')">
-              <p :class="{ 'active-sort': sortField === 'car_number' }">Номер машины</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'car_number',
-                  'desc': sortField === 'car_number' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col brand-col" @click="sortBy('car_brand')">
-              <p :class="{ 'active-sort': sortField === 'car_brand' }">Марка</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'car_brand',
-                  'desc': sortField === 'car_brand' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-          </template>
-          
-          <!-- Поля для людей -->
-          <template v-else>
-            <div class="header-col name-col" @click="sortBy('last_name')">
-              <p :class="{ 'active-sort': sortField === 'last_name' }">Фамилия</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'last_name',
-                  'desc': sortField === 'last_name' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col name-col" @click="sortBy('first_name')">
-              <p :class="{ 'active-sort': sortField === 'first_name' }">Имя</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'first_name',
-                  'desc': sortField === 'first_name' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col name-col" @click="sortBy('middle_name')">
-              <p :class="{ 'active-sort': sortField === 'middle_name' }">Отчество</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'middle_name',
-                  'desc': sortField === 'middle_name' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-          </template>
-
           <div class="header-col organization-col" @click="sortBy('organization')">
             <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
             <img 
@@ -105,7 +27,6 @@
               }" 
             />
           </div>
-          
           <div class="header-col place-col" @click="sortBy('unload_place')" v-if="tableType === 'cars'">
             <p :class="{ 'active-sort': sortField === 'unload_place' }">Место разгрузки</p>
             <img 
@@ -117,7 +38,6 @@
               }" 
             />
           </div>
-          
           <div class="header-col date-col" @click="sortBy('entry_date_to')">
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
             <img 
@@ -129,11 +49,8 @@
               }" 
             />
           </div>
-          
           <div class="header-col time-col" @click="sortBy('entry_time')">
-            <p :class="{ 'active-sort': sortField === 'entry_time' }">
-              {{ tableType === 'cars' ? 'Время' : 'Время прохода' }}
-            </p>
+            <p :class="{ 'active-sort': sortField === 'entry_time' }">{{ tableType === 'cars' ? 'Время' : 'Время прохода' }}</p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -143,7 +60,6 @@
               }" 
             />
           </div>
-          
           <div class="header-col status-col" @click="sortBy('status')">
             <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
             <img 
@@ -155,7 +71,6 @@
               }" 
             />
           </div>
-          
           <div class="header-col actions-col">
             <!-- Пустой заголовок для действий -->
           </div>
@@ -163,76 +78,46 @@
       </div>
       
       <!-- Тело таблицы -->
-      <div class="items-container">
-        <div v-if="filteredItems.length > 0" class="items-body">
+      <div class="fact-container">
+        <div v-if="filteredData.length > 0" class="fact-body">
           <transition-group name="fade-list" tag="div">
             <div 
-              v-for="(item, index) in sortedItems" 
-              :key="item.id || index" 
-              class="item-row"
+              v-for="(item, index) in sortedData" 
+              :key="item.id" 
+              class="fact-item"
               :style="{ animationDelay: `${index * 0.1}s` }"
             >
-              <div class="item-data">
-                <div class="item-col checkbox-col">
+              <div class="fact-row">
+                <div class="fact-col checkbox-col" v-if="tableType === 'cars'">
                   <input 
                     type="checkbox" 
                     v-model="item.checked"
                     class="checkbox-input"
-                    @change="updateActiveItemsCount"
                   />
                 </div>
-                
-                <!-- Данные для машин -->
-                <template v-if="tableType === 'cars'">
-                  <div class="item-col number-col">
-                    {{ item.car_number }}
-                  </div>
-                  <div class="item-col brand-col">
-                    {{ item.car_brand }}
-                  </div>
-                </template>
-                
-                <!-- Данные для людей -->
-                <template v-else>
-                  <div class="item-col name-col">
-                    {{ item.last_name }}
-                  </div>
-                  <div class="item-col name-col">
-                    {{ item.first_name }}
-                  </div>
-                  <div class="item-col name-col">
-                    {{ item.middle_name || '-' }}
-                  </div>
-                </template>
-
-                <div class="item-col organization-col">
+                <div class="fact-col organization-col">
                   {{ item.organization }}
                 </div>
-                
-                <div class="item-col place-col" v-if="tableType === 'cars'">
+                <div class="fact-col place-col" v-if="tableType === 'cars'">
                   {{ formatUnloadPlaces(item.unload_places) }}
                 </div>
-                
-                <div class="item-col date-col">
+                <div class="fact-col date-col">
                   {{ formatDate(item.entry_date_to) }}
                 </div>
-                
-                <div class="item-col time-col">
+                <div class="fact-col time-col">
                   {{ tableType === 'cars' 
                     ? formatTimeRange(item.entry_time_from, item.entry_time_to)
                     : formatPassTime(item.pass_time)
                   }}
                 </div>
-                
-                <div class="item-col status-col">
+                <div class="fact-col status-col">
                   <span class="status-text">
                     {{ item.status }}
                   </span>
                 </div>
-                
-                <div class="item-col actions-col">
+                <div class="fact-col actions-col">
                   <button 
-                    @click="removeItemWithNotification(item)" 
+                    @click="deleteItem(item)" 
                     class="delete-btn"
                   >
                     <img 
@@ -247,10 +132,7 @@
           </transition-group>
         </div>
         <p v-else class="no-data-message">
-          {{ hasActiveFilters 
-            ? 'Нет данных по выбранным фильтрам' 
-            : `Нет заявок на ${tableType === 'cars' ? 'автомобили' : 'людей'}` 
-          }}
+          {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : `Заявок ${tableType === 'cars' ? 'на машины' : 'на людей'} по факту нет` }}
         </p>
       </div>
     </div>
@@ -269,10 +151,6 @@ export default {
       type: String,
       default: 'cars',
       validator: (value) => ['cars', 'people'].includes(value)
-    },
-    tableName: {
-      type: String,
-      default: ''
     },
     searchQuery: {
       type: String,
@@ -303,49 +181,27 @@ export default {
     return {
       sortField: null,
       sortDirection: 'desc',
-      itemsData: [],
-      notification: { message: null, item: null },
-      progress: 100,
-      progressInterval: null,
-      activeItemsCount: 0,
+      factData: [],
       unloadingPlacesMap: new Map()
     };
   },
   computed: {
-    filteredItems() {
-      let filtered = [...this.itemsData];
+    filteredData() {
+      let filtered = [...this.factData];
 
       // Поиск по всем полям
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
-        filtered = filtered.filter(item => {
-          const searchFields = [
-            item.organization,
-            this.formatDate(item.entry_date_to),
-            item.status,
-            this.tableType === 'cars' 
-              ? this.formatTimeRange(item.entry_time_from, item.entry_time_to)
-              : this.formatPassTime(item.pass_time)
-          ];
-
-          if (this.tableType === 'cars') {
-            searchFields.push(
-              item.car_number,
-              item.car_brand,
-              this.formatUnloadPlaces(item.unload_places)
-            );
-          } else {
-            searchFields.push(
-              item.last_name,
-              item.first_name,
-              item.middle_name
-            );
-          }
-
-          return searchFields.some(field => 
-            field?.toLowerCase().includes(query)
-          );
-        });
+        filtered = filtered.filter(item => 
+          item.organization.toLowerCase().includes(query) ||
+          (this.tableType === 'cars' && this.formatUnloadPlaces(item.unload_places).toLowerCase().includes(query)) ||
+          item.status.toLowerCase().includes(query) ||
+          (this.tableType === 'cars' 
+            ? this.formatTimeRange(item.entry_time_from, item.entry_time_to).toLowerCase().includes(query)
+            : this.formatPassTime(item.pass_time).toLowerCase().includes(query)
+          ) ||
+          this.formatDate(item.entry_date_to).toLowerCase().includes(query)
+        );
       }
 
       // Фильтр по организации
@@ -377,24 +233,19 @@ export default {
       return filtered;
     },
 
-    sortedItems() {
-      const items = [...this.filteredItems];
+    sortedData() {
+      const data = [...this.filteredData];
       
       if (!this.sortField) {
-        return items;
+        return data;
       }
       
-      return items.sort((a, b) => {
+      return data.sort((a, b) => {
         let valueA, valueB;
         
         switch (this.sortField) {
-          case 'car_number':
-          case 'car_brand':
           case 'organization':
           case 'status':
-          case 'last_name':
-          case 'first_name':
-          case 'middle_name':
             valueA = a[this.sortField]?.toLowerCase() || '';
             valueB = b[this.sortField]?.toLowerCase() || '';
             break;
@@ -464,10 +315,8 @@ export default {
         } else {
           await this.fetchPeopleData();
         }
-        
-        this.updateActiveItemsCount();
       } catch (error) {
-        console.error(`Ошибка при загрузке данных (${this.tableType}):`, error);
+        console.error(`Ошибка при загрузке данных по факту (${this.tableType}):`, error);
       }
     },
 
@@ -479,17 +328,16 @@ export default {
         await this.fetchUnloadingPlaces();
       }
       
-      const allCars = applications.flatMap(application => 
+      // Получаем все машины с номером "По факту"
+      const factCars = applications.flatMap(application => 
         application.cars
           .filter(car => car.status !== 0)
           .filter(car => {
             const carNumber = car.car_number?.toLowerCase().trim();
-            return carNumber !== 'по факту';
+            return carNumber === 'по факту';
           })
           .map(car => ({
             id: car.id,
-            car_number: car.car_number,
-            car_brand: car.car_brand,
             organization: application.organization,
             unload_places: car.unload_places || [],
             entry_date_from: application.entry_date_from,
@@ -502,43 +350,47 @@ export default {
           }))
       );
 
-      // Фильтруем машины по сроку действия
+      // Фильтруем по сроку действия
       const now = new Date();
-      const validCars = allCars.filter(car => {
+      const validCars = factCars.filter(car => {
         const startDate = new Date(car.entry_date_from);
         const endDate = new Date(car.entry_date_to);
         endDate.setHours(23, 59, 59, 999);
         return startDate <= now && now <= endDate;
       });
 
-      this.itemsData = validCars;
+      // Группируем по организации
+      const uniqueOrganizations = new Map();
+      validCars.forEach(car => {
+        if (!uniqueOrganizations.has(car.organization)) {
+          uniqueOrganizations.set(car.organization, car);
+        } else {
+          const existingCar = uniqueOrganizations.get(car.organization);
+          const combinedPlaces = [...new Set([...existingCar.unload_places, ...car.unload_places])];
+          existingCar.unload_places = combinedPlaces;
+        }
+      });
+
+      this.factData = Array.from(uniqueOrganizations.values());
     },
 
     async fetchPeopleData() {
       // Заглушка для данных о людях
-      // В реальном приложении здесь будет запрос к API
-      this.itemsData = [
+      // В реальном приложении здесь будет запрос к API для получения данных о людях
+      this.factData = [
         {
           id: 1,
-          last_name: 'Иванов',
-          first_name: 'Иван',
-          middle_name: 'Иванович',
           organization: 'ООО "Ромашка"',
           entry_date_to: '2024-12-31',
           pass_time: '08:00-17:00',
-          status: 'Активен',
-          checked: false
+          status: 'Активен'
         },
         {
           id: 2,
-          last_name: 'Петров',
-          first_name: 'Петр',
-          middle_name: 'Петрович',
           organization: 'ИП Иванов',
           entry_date_to: '2024-11-30',
           pass_time: '09:00-18:00',
-          status: 'Активен',
-          checked: false
+          status: 'Активен'
         }
       ];
     },
@@ -596,81 +448,8 @@ export default {
       
       return `${placeNames[0]} и др.`;
     },
-
-    sortBy(field) {
-      if (this.sortField === field) {
-        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        this.sortField = field;
-        this.sortDirection = 'desc';
-      }
-    },
-
-    extractStartTime(timeString) {
-      if (!timeString || timeString === '-') return 0;
-      
-      const timeWithoutSeconds = timeString.split(':').slice(0, 2).join(':');
-      const [hours, minutes] = timeWithoutSeconds.split(':').map(Number);
-      return hours * 60 + minutes;
-    },
-
-    extractPassTime(passTime) {
-      if (!passTime || passTime === '-') return 0;
-      
-      const startTime = passTime.split('-')[0];
-      const [hours, minutes] = startTime.split(':').map(Number);
-      return hours * 60 + minutes;
-    },
-
-    async removeItemWithNotification(item) {
-      const originalItem = { ...item };
-      
-      this.notification = { 
-        message: `${this.tableType === 'cars' ? 'Машина' : 'Человек'} ${this.tableType === 'cars' ? item.car_number : item.last_name} удален.`, 
-        item,
-        originalStatus: item.status,
-        undoFunction: async () => {
-          try {
-            item.status = originalItem.status;
-            if (this.tableType === 'cars') {
-              const response = await fetch(`http://localhost:8080/applications/${item.applicationId}/cars/${item.id}`, {
-                method: "PUT",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ 
-                  car: { ...item, status: originalItem.status },
-                  unload_places: item.unload_places || []
-                })
-              });
-              
-              if (!response.ok) throw new Error("Ошибка восстановления");
-            }
-            this.fetchData();
-          } catch (error) {
-            console.error("Ошибка при отмене удаления:", error);
-          }
-        }
-      };
-
-      item.status = 0;
-
-      this.progress = 100;
-      clearInterval(this.progressInterval);
-      this.progressInterval = setInterval(() => {
-        this.progress -= 10;
-        if (this.progress <= 0) {
-          clearInterval(this.progressInterval);
-          this.actuallyDeleteItem(item);
-          if (this.notification.item?.id === item.id) {
-            this.notification = { message: null, item: null };
-          }
-        }
-      }, 100);
-    },
-
-    async actuallyDeleteItem(item) {
+    
+    async deleteItem(item) {
       try {
         if (this.tableType === 'cars') {
           const response = await fetch(`http://localhost:8080/applications/${item.applicationId}/cars/${item.id}`, {
@@ -688,31 +467,44 @@ export default {
             })
           });
           
-          if (!response.ok) {
-            console.error("Ошибка при удалении");
-            item.status = this.notification.originalStatus;
+          if (response.ok) {
+            this.fetchData();
           }
         } else {
           // Логика удаления для людей
-          this.itemsData = this.itemsData.filter(i => i.id !== item.id);
+          this.factData = this.factData.filter(i => i.id !== item.id);
         }
-        this.fetchData();
       } catch (error) {
-        console.error("Ошибка сети при удалении:", error);
-        item.status = this.notification.originalStatus;
+        console.error("Ошибка при удалении:", error);
       }
     },
-
-    undoDelete() {
-      clearInterval(this.progressInterval);
-      if (this.notification.undoFunction) {
-        this.notification.undoFunction();
+    
+    sortBy(field) {
+      if (this.sortField === field) {
+        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortField = field;
+        this.sortDirection = 'desc';
       }
-      this.notification = { message: null, item: null };
+    },
+    
+    extractStartTime(timeString) {
+      if (!timeString || timeString === '-') return 0;
+      
+      const timeWithoutSeconds = timeString.split(':').slice(0, 2).join(':');
+      const [hours, minutes] = timeWithoutSeconds.split(':').map(Number);
+      
+      return hours * 60 + minutes;
     },
 
-    updateActiveItemsCount() {
-      this.activeItemsCount = this.itemsData.filter(item => item.checked).length;
+    extractPassTime(passTime) {
+      if (!passTime || passTime === '-') return 0;
+      
+      // Извлекаем начальное время из диапазона
+      const startTime = passTime.split('-')[0];
+      const [hours, minutes] = startTime.split(':').map(Number);
+      
+      return hours * 60 + minutes;
     }
   },
   mounted() {
@@ -723,6 +515,12 @@ export default {
     } else {
       this.fetchData();
     }
+    
+    setTimeout(() => {
+      document.querySelectorAll('.fact-item').forEach(item => {
+        item.classList.add('animate-in');
+      });
+    }, 100);
   },
   watch: {
     tableType: {
@@ -736,16 +534,15 @@ export default {
 </script>
 
 <style scoped>
-.selected-table-card {
+.fact-table-card {
   background-color: #fff;
   border-radius: 30px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
   width: 100%;
-  max-height: 575px;
+  min-height: 222px;
+  max-height: 222px;
   box-shadow: 0 3px 10px rgba(0,0,0,0.05);
-  display: flex;
-  flex-direction: column;
 }
 
 .card-header {
@@ -754,19 +551,18 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0px 20px;
-  height: 50px;
-  flex-shrink: 0;
+  height: 40px;
 }
 
 .card-header__title {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .card-header__settings {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -777,32 +573,26 @@ export default {
   font-size: 1.1em;
 }
 
-.blue {
+.highlight-text {
   color: #4F5BDF;
-}
-
-.items-count {
-  color: #4F5BDF;
-  font-weight: 500;
-  font-size: 0.9em;
 }
 
 .card-content {
   padding: 0;
-  flex-grow: 1;
+  height: calc(100% - 40px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
-.items-container {
+.fact-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
-.items-header {
+/* Заголовок таблицы */
+.fact-header {
   border-bottom: 1px solid #e6e6e6;
   padding: 12px 16px;
   flex-shrink: 0;
@@ -818,7 +608,7 @@ export default {
   font-weight: 500;
   color: #a2a2a2;
   text-align: left;
-  padding: 0 4px;
+  padding: 0 0px;
   font-size: 14px;
   display: flex;
   align-items: center;
@@ -826,6 +616,8 @@ export default {
   transition: .2s;
   cursor: pointer;
   user-select: none;
+  height: 20px;
+  box-sizing: border-box;
 }
 
 .header-col:hover {
@@ -857,65 +649,52 @@ export default {
 
 /* Колонки с фиксированной шириной */
 .checkbox-col {
-  width: 3%;
+  width: 4%;
   min-width: 25px;
-}
-
-.number-col {
-  width: 18%;
-  min-width: 90px;
-}
-
-.brand-col {
-  width: 12%;
-  min-width: 80px;
-}
-
-.name-col {
-  width: 12%;
-  min-width: 80px;
+  justify-content: center;
 }
 
 .organization-col {
-  width: 25%;
-  min-width: 100px;
+  width: 35%;
+  min-width: 95px;
 }
 
 .place-col {
-  width: 20%;
-  min-width: 110px;
+  width: 30%;
+  min-width: 115px;
 }
 
 .date-col {
-  width: 15%;
+  width: 22%;
   min-width: 90px;
 }
 
 .time-col {
-  width: 15%;
+  width: 18%;
   min-width: 90px;
 }
 
 .status-col {
-  width: 12%;
+  width: 15%;
   min-width: 90px;
 }
 
 .actions-col {
-  width: 9%;
+  width: 2%;
   min-width: 40px;
+  justify-content: center;
 }
 
 /* Тело таблицы */
-.items-body {
+.fact-body {
   overflow-y: auto;
   flex-grow: 1;
   padding-right: 4px;
   margin-right: 4px;
-  min-height: 80px;
+  scroll-behavior: smooth;
 }
 
-.item-row {
+.fact-item {
   transition: background-color 0.2s ease;
   opacity: 0;
   transform: translateY(10px);
@@ -933,25 +712,35 @@ export default {
   }
 }
 
-.item-row:hover {
+.fact-item:hover {
   background-color: #fafafa;
 }
 
-.item-data {
+.fact-row {
   display: flex;
   width: 100%;
   padding: 10px 16px;
   align-items: center;
-  border-bottom: 1px solid #e6e6e6;
+  border-top: 1px solid #f0f0f0;
 }
 
-.item-col {
-  padding: 0 4px;
+.fact-col {
+  padding: 0 8px;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Выравнивание содержимого колонок */
+.checkbox-col .fact-col,
+.actions-col .fact-col {
+  justify-content: center;
 }
 
 .checkbox-input {
@@ -973,10 +762,12 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .delete-btn:hover {
-  background-color: transparent;
+  background-color: #f5f5f5;
 }
 
 .delete-icon {
@@ -1002,6 +793,39 @@ export default {
   justify-content: center;
 }
 
+/* Стилизация скроллбара */
+.fact-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fact-body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 2px 0;
+  border-radius: 3px;
+}
+
+.fact-body::-webkit-scrollbar-thumb {
+  background: #D9E2FF;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  transition: all 0.3s ease;
+}
+
+.fact-body::-webkit-scrollbar-thumb:hover {
+  background: #C5D1FF;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  transform: scale(1.1);
+}
+
+.fact-body {
+  scrollbar-width: thin;
+  scrollbar-color: #D9E2FF transparent;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
 /* Анимация для списка */
 .fade-list-enter-active,
 .fade-list-leave-active {
@@ -1018,67 +842,19 @@ export default {
   transition: transform 0.5s ease;
 }
 
-/* Стили для уведомления */
-.notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  padding: 12px 16px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-  z-index: 1000;
-  min-width: 250px;
-}
-
-.notification button {
-  margin-left: 10px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: #4F5BDF;
-  transition: width 0.1s linear;
-}
-
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-down-enter-from {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-
-.slide-down-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-
 @media (max-width: 768px) {
-  .selected-table-card {
-    max-height: none;
+  .fact-table-card {
+    width: 100%;
     height: auto;
   }
   
   .header-row,
-  .item-data {
+  .fact-row {
     flex-wrap: wrap;
   }
   
   .header-col,
-  .item-col {
+  .fact-col {
     width: 50% !important;
     margin-bottom: 4px;
   }
@@ -1094,12 +870,6 @@ export default {
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
-  }
-  
-  .notification {
-    left: 20px;
-    right: 20px;
-    min-width: auto;
   }
 }
 </style>

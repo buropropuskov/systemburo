@@ -6,6 +6,8 @@ import AccountComponent from './components/AccountComponent.vue';
 import CreateApplication from './components/CreateApplication.vue';
 import CarsView from './views/CarsView.vue';
 import ApplicationsCenter from './views/ApplicationsCenter.vue';
+import TableConstructor from './components/TableConstructor.vue';
+import NumberFormat from './components/NumberFormat.vue';
 
 const routes = [
   { 
@@ -27,6 +29,12 @@ const routes = [
     meta: { requiresAuth: true, requiresBuro: true } 
   },
   { 
+    path: '/table/:tableName', 
+    name: 'DynamicTable', 
+    component: TablesComponent,
+    meta: { requiresAuth: true, requiresBuro: true } 
+  },
+  { 
     path: '/personal-cabinet', 
     name: 'Account', 
     component: AccountComponent,
@@ -36,13 +44,25 @@ const routes = [
     path: '/carsview',
     name: 'CarsView',
     component: CarsView,
-    meta: {requiresAuth: true}
+    meta: { requiresAuth: true }
   },
   {
     path: '/center',
     name: 'ApplicationsCenter',
     component: ApplicationsCenter,
-    meta: {requiresAuth: true}
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/table-constructor',
+    name: 'TableConstructor',
+    component: TableConstructor,
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/number-format',
+    name: 'NumberFormat',
+    component: NumberFormat,
+    meta: { requiresAuth: true, requiresBuro: true }
   }
 ];
 

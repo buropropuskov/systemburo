@@ -787,7 +787,7 @@ export default {
 .users-container {
   display: flex;
   height: fit-content;
-  max-height: 400px;
+  max-height: 258px;
   width: 100%;
 }
 
@@ -867,8 +867,8 @@ export default {
 .users-body {
   overflow-y: auto;
   flex-grow: 1;
-  height: 357px;
-  max-height: 357px;
+  height: 258px;
+  max-height: 258px;
 }
 
 .user-item {
@@ -935,10 +935,12 @@ export default {
 }
 
 .details-content {
+  position: relative;
   height: 100%;
 }
 
 .details-header {
+
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1054,7 +1056,7 @@ export default {
 .details-column {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .full-width-groups {

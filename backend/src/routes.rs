@@ -9,6 +9,7 @@ use crate::handlers::users::*;
 use crate::handlers::unload_places::*;
 use crate::handlers::number_format::*;
 use crate::handlers::unique_cars::*;
+use crate::handlers::table_constructor::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -111,11 +112,23 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         .service(web::resource("/users/{username}").route(web::delete().to(delete_user))
         )
+
+        // Форматы номеров
         .service(
             web::scope("/license-plate-formats")
                 .route("", web::get().to(get_license_plate_formats))
                 .route("", web::post().to(create_license_plate_format))
                 .route("/{id}", web::put().to(update_license_plate_format))
                 .route("/{id}", web::delete().to(delete_license_plate_format))
+        )
+
+        // Конструктор таблиц
+        .service(
+            web::scope("/system-tables")
+                .route("", web::get().to(get_system_tables))
+                .route("", web::post().to(create_system_table))
+                .route("/{id}", web::put().to(update_system_table))
+                .route("/{id}", web::delete().to(delete_system_table))
+                .route("/name/{name}", web::get().to(get_system_table_by_name))
         );
 }
