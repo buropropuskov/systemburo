@@ -6,6 +6,7 @@ use crate::handlers::cars::*;
 use crate::handlers::companies::*;
 use crate::handlers::organizations::*;
 use crate::handlers::users::*;
+use crate::handlers::user_types::*;
 use crate::handlers::unload_places::*;
 use crate::handlers::number_format::*;
 use crate::handlers::unique_cars::*;
@@ -18,10 +19,15 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(web::resource("/login").route(web::post().to(login)))
         .service(web::resource("/user-data").route(web::get().to(get_current_user_data)))
         .service(web::resource("/users/me").route(web::get().to(get_current_user)))
-        .service(web::resource("/user-types").route(web::get().to(get_user_types)))
+        .service(web::resource("/user-types").route(web::get().to(get_user_types))) // Для регистрации
+
+        // Управление типами пользователей (CRUD)
         .service(
-            web::resource("/users/{username}/type")
-                .route(web::put().to(update_user_type))
+            web::scope("/user-types-management")
+                .route("", web::get().to(get_user_types_with_count))
+                .route("", web::post().to(create_user_type))
+                .route("/{id}", web::put().to(update_user_type_by_id))
+                .route("/{id}", web::delete().to(delete_user_type))
         )
 
         // Заявки
@@ -94,6 +100,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 
         // Пользователи (CRUD)
         .service(web::resource("/users/all").route(web::get().to(get_all_users)))
+        .service(
+            web::resource("/users/{username}/type")
+                .route(web::put().to(update_user_type))
+        )
         .service(
             web::resource("/users/{username}/password")
                 .route(web::put().to(update_user_password))

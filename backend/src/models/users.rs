@@ -1,3 +1,4 @@
+// models/users.rs
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -43,13 +44,6 @@ pub struct UserData {
     pub first_name: Option<String>,
     pub middle_name: Option<String>,
     pub phone: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserType {
-    pub id: i32,
-    pub name: String,
-    pub code: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

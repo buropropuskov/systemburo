@@ -1,13 +1,15 @@
+// handlers/auth.rs
 use actix_web::{web, HttpResponse, Responder, HttpRequest, error, Error};
 use sqlx::PgPool;
 use serde_json::json;
 use log;
 
 use crate::models::auth::{UserLogin, LoginResponse};
-use crate::models::users::{UserType, UserInfo, UserData};
 use crate::models::users::UserRegister;
+use crate::models::user_types::UserType;
 use crate::auth::{hash_password, verify_password, create_token, decode_token};
 
+/// Регистрация нового пользователя
 pub async fn register(pool: web::Data<PgPool>, form: web::Json<UserRegister>) -> impl Responder {
     let hashed_password = hash_password(&form.password);
     let result = sqlx::query!(
@@ -43,6 +45,7 @@ pub async fn register(pool: web::Data<PgPool>, form: web::Json<UserRegister>) ->
     }
 }
 
+/// Аутентификация пользователя
 pub async fn login(pool: web::Data<PgPool>, form: web::Json<UserLogin>) -> impl Responder {
     let user = sqlx::query!(
         r#"SELECT u.username, u.password, o.name as organization, 
@@ -79,6 +82,7 @@ pub async fn login(pool: web::Data<PgPool>, form: web::Json<UserLogin>) -> impl 
     }
 }
 
+/// Получение всех типов пользователей (для регистрации)
 pub async fn get_user_types(pool: web::Data<PgPool>) -> impl Responder {
     match sqlx::query_as!(
         UserType,
@@ -94,6 +98,7 @@ pub async fn get_user_types(pool: web::Data<PgPool>) -> impl Responder {
     }
 }
 
+/// Получение информации о текущем пользователе
 pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
@@ -105,30 +110,29 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
     let claims = decode_token(token)
         .map_err(|e| error::ErrorUnauthorized(format!("Invalid token: {}", e)))?;
 
-    let user = sqlx::query_as!(
-         UserInfo,
-    r#"
-    SELECT 
-        u.username, 
-        o.name as organization, 
-        u.organization_id, 
-        c.name as company,
-        u.company_id,
-        u.type_id,
-        ut.name as user_type,
-        u.last_name,
-        u.first_name,
-        u.middle_name,
-        u.position,
-        u.email,
-        u.phone
-    FROM users u 
-    JOIN organizations o ON u.organization_id = o.id
-    JOIN companies c ON u.company_id = c.id
-    JOIN user_types ut ON u.type_id = ut.id
-    WHERE u.username = $1
-    "#,
-    claims.sub
+    let user = sqlx::query!(
+        r#"
+        SELECT 
+            u.username, 
+            o.name as organization, 
+            u.organization_id, 
+            c.name as company,
+            u.company_id,
+            u.type_id,
+            ut.name as user_type,
+            u.last_name,
+            u.first_name,
+            u.middle_name,
+            u.position,
+            u.email,
+            u.phone
+        FROM users u 
+        JOIN organizations o ON u.organization_id = o.id
+        JOIN companies c ON u.company_id = c.id
+        JOIN user_types ut ON u.type_id = ut.id
+        WHERE u.username = $1
+        "#,
+        claims.sub
     )
     .fetch_one(pool.get_ref())
     .await
@@ -137,9 +141,24 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
         error::ErrorInternalServerError("Error fetching user")
     })?;
 
-    Ok(HttpResponse::Ok().json(user))
+    Ok(HttpResponse::Ok().json(json!({
+        "username": user.username,
+        "organization": user.organization,
+        "organization_id": user.organization_id,
+        "company": user.company,
+        "company_id": user.company_id,
+        "type_id": user.type_id,
+        "user_type": user.user_type,
+        "last_name": user.last_name,
+        "first_name": user.first_name,
+        "middle_name": user.middle_name,
+        "position": user.position,
+        "email": user.email,
+        "phone": user.phone
+    })))
 }
 
+/// Получение основных данных текущего пользователя
 pub async fn get_current_user_data(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
@@ -151,8 +170,7 @@ pub async fn get_current_user_data(pool: web::Data<PgPool>, req: HttpRequest) ->
     let claims = decode_token(token)
         .map_err(|e| error::ErrorUnauthorized(format!("Invalid token: {}", e)))?;
 
-    let user = sqlx::query_as!(
-        UserData,
+    let user = sqlx::query!(
         r#"
         SELECT 
             u.username,
@@ -178,5 +196,15 @@ pub async fn get_current_user_data(pool: web::Data<PgPool>, req: HttpRequest) ->
         error::ErrorInternalServerError("Error fetching user data")
     })?;
 
-    Ok(HttpResponse::Ok().json(user))
+    Ok(HttpResponse::Ok().json(json!({
+        "username": user.username,
+        "organization": user.organization,
+        "organization_id": user.organization_id,
+        "company": user.company,
+        "company_id": user.company_id,
+        "last_name": user.last_name,
+        "first_name": user.first_name,
+        "middle_name": user.middle_name,
+        "phone": user.phone
+    })))
 }

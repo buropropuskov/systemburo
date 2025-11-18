@@ -8,3 +8,4 @@ pub mod companies;
 pub mod number_format;
 pub mod unique_cars;
 pub mod table_constructor;
+pub mod user_types;

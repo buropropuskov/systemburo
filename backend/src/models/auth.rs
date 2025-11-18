@@ -1,3 +1,4 @@
+// models/auth.rs
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,5 +22,5 @@ pub struct LoginResponse {
     pub company: String,
     pub company_id: i32,
     pub type_id: i32,
-    pub user_type: String, 
+    pub user_type: String,
 }
