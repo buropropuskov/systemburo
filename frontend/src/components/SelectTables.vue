@@ -1,19 +1,19 @@
 <template>
-  <div class="unload-places-section">
+  <div class="select-tables-section">
     <div class="detail-group">
-      <div class="unload-places__header">
-        <label class="detail-label">Места разгрузки (по умолчанию):</label>
-        <div v-if="hasSelectedPlaces" class="places-actions">
+      <div class="select-tables__header">
+        <label class="detail-label">Целевые таблицы (по умолчанию):</label>
+        <div v-if="hasSelectedTables" class="tables-actions">
           <button 
-            @click="saveUnloadPlaces" 
-            class="save-places-btn"
+            @click="saveOrganizationTables" 
+            class="save-tables-btn"
             :disabled="isSaving"
           >
             {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
           </button>
           <button 
-            @click="cancelUnloadPlacesChanges" 
-            class="cancel-places-btn"
+            @click="cancelTablesChanges" 
+            class="cancel-tables-btn"
             :disabled="isSaving"
           >
             Отмена
@@ -21,24 +21,23 @@
         </div>
       </div>
       
-      <div class="unload-places-container">
-        <div class="unload-places-grid">
+      <div class="select-tables-container">
+        <div class="tables-grid">
           <div 
-            v-for="place in allUnloadPlaces" 
-            :key="place.id"
-            class="place-item"
+            v-for="table in allTables" 
+            :key="table.id"
+            class="table-item"
             :class="{
-              'selected': isPlaceSelected(place.id),
-              'disabled': !place.is_active
+              'selected': isTableSelected(table.id)
             }"
-            @click="toggleUnloadPlace(place)"
+            @click="toggleTable(table)"
           >
-            {{ place.name }}
+            {{ table.display_name }}
           </div>
         </div>
 
-        <div v-if="allUnloadPlaces.length === 0" class="no-places-message">
-          <p>Нет доступных мест разгрузки</p>
+        <div v-if="allTables.length === 0" class="no-tables-message">
+          <p>Нет доступных таблиц</p>
         </div>
       </div>
     </div>
@@ -47,7 +46,7 @@
 
 <script>
 export default {
-  name: 'SelectUnloadPlaces',
+  name: 'SelectTables',
   props: {
     entity: {
       type: Object,
@@ -61,16 +60,16 @@ export default {
   },
   data() {
     return {
-      allUnloadPlaces: [],
-      selectedUnloadPlaces: [],
-      originalSelectedPlaces: [],
+      allTables: [],
+      selectedTables: [],
+      originalSelectedTables: [],
       isSaving: false
     };
   },
   computed: {
-    hasSelectedPlaces() {
-      return JSON.stringify(this.selectedUnloadPlaces.map(p => p.id).sort()) !== 
-             JSON.stringify(this.originalSelectedPlaces.map(p => p.id).sort());
+    hasSelectedTables() {
+      return JSON.stringify(this.selectedTables.map(t => t.id).sort()) !== 
+             JSON.stringify(this.originalSelectedTables.map(t => t.id).sort());
     }
   },
   watch: {
@@ -78,34 +77,35 @@ export default {
       immediate: true,
       handler(newEntity) {
         if (newEntity && newEntity.id) {
-          this.fetchEntityUnloadPlaces(newEntity.id);
+          this.fetchEntityTables(newEntity.id);
         }
       }
     }
   },
   methods: {
-    async fetchAllUnloadPlaces() {
+    async fetchAllTables() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/unload-places", {
+        const response = await fetch("http://localhost:8080/system-tables", {
           headers: {
             "Authorization": `Bearer ${token}`,
           },
         });
         if (response.ok) {
-          this.allUnloadPlaces = await response.json();
+          this.allTables = await response.json();
         }
       } catch (error) {
-        console.error("Error fetching unload places:", error);
+        console.error("Error fetching tables:", error);
+        this.showNotification("Ошибка при загрузке таблиц", "error");
       }
     },
 
-    async fetchEntityUnloadPlaces(entityId) {
+    async fetchEntityTables(entityId) {
       try {
         const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization' 
-          ? `http://localhost:8080/organizations/${entityId}/unload-places`
-          : `http://localhost:8080/companies/${entityId}/unload-places`;
+          ? `http://localhost:8080/organizations/${entityId}/tables`
+          : `http://localhost:8080/companies/${entityId}/tables`;
         
         const response = await fetch(endpoint, {
           headers: {
@@ -113,29 +113,29 @@ export default {
           },
         });
         if (response.ok) {
-          const places = await response.json();
-          this.selectedUnloadPlaces = places;
-          this.originalSelectedPlaces = [...places];
+          const tables = await response.json();
+          this.selectedTables = tables;
+          this.originalSelectedTables = [...tables];
         } else {
-          this.selectedUnloadPlaces = [];
-          this.originalSelectedPlaces = [];
+          this.selectedTables = [];
+          this.originalSelectedTables = [];
         }
       } catch (error) {
-        console.error(`Error fetching ${this.entityType} unload places:`, error);
-        this.selectedUnloadPlaces = [];
-        this.originalSelectedPlaces = [];
+        console.error(`Error fetching ${this.entityType} tables:`, error);
+        this.selectedTables = [];
+        this.originalSelectedTables = [];
       }
     },
 
-    async saveUnloadPlaces() {
+    async saveOrganizationTables() {
       if (!this.entity) return;
       
       this.isSaving = true;
       try {
         const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization'
-          ? `http://localhost:8080/organizations/${this.entity.id}/unload-places`
-          : `http://localhost:8080/companies/${this.entity.id}/unload-places`;
+          ? `http://localhost:8080/organizations/${this.entity.id}/tables`
+          : `http://localhost:8080/companies/${this.entity.id}/tables`;
         
         const response = await fetch(endpoint, {
           method: "PUT",
@@ -144,45 +144,43 @@ export default {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            unload_place_ids: this.selectedUnloadPlaces.map(p => p.id),
+            table_ids: this.selectedTables.map(t => t.id),
           }),
         });
         
         if (response.ok) {
-          this.originalSelectedPlaces = [...this.selectedUnloadPlaces];
-          this.showNotification("Места разгрузки успешно обновлены", "success");
-          this.$emit('places-updated');
+          this.originalSelectedTables = [...this.selectedTables];
+          this.showNotification("Таблицы по умолчанию успешно обновлены", "success");
+          this.$emit('tables-updated');
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении мест разгрузки", "error");
-          await this.fetchEntityUnloadPlaces(this.entity.id);
+          this.showNotification(error.message || "Ошибка при обновлении таблиц", "error");
+          await this.fetchEntityTables(this.entity.id);
         }
       } catch (error) {
-        console.error("Error updating unload places:", error);
+        console.error("Error updating organization tables:", error);
         this.showNotification("Ошибка сети", "error");
-        await this.fetchEntityUnloadPlaces(this.entity.id);
+        await this.fetchEntityTables(this.entity.id);
       } finally {
         this.isSaving = false;
       }
     },
 
-    cancelUnloadPlacesChanges() {
-      this.selectedUnloadPlaces = [...this.originalSelectedPlaces];
+    cancelTablesChanges() {
+      this.selectedTables = [...this.originalSelectedTables];
     },
 
-    toggleUnloadPlace(place) {
-      if (!place.is_active) return;
-      
-      const index = this.selectedUnloadPlaces.findIndex(p => p.id === place.id);
+    toggleTable(table) {
+      const index = this.selectedTables.findIndex(t => t.id === table.id);
       if (index > -1) {
-        this.selectedUnloadPlaces.splice(index, 1);
+        this.selectedTables.splice(index, 1);
       } else {
-        this.selectedUnloadPlaces.push(place);
+        this.selectedTables.push(table);
       }
     },
 
-    isPlaceSelected(placeId) {
-      return this.selectedUnloadPlaces.some(p => p.id === placeId);
+    isTableSelected(tableId) {
+      return this.selectedTables.some(t => t.id === tableId);
     },
 
     showNotification(message, type = 'info') {
@@ -213,28 +211,28 @@ export default {
     }
   },
   async mounted() {
-    await this.fetchAllUnloadPlaces();
+    await this.fetchAllTables();
     
     if (this.entity && this.entity.id) {
-      await this.fetchEntityUnloadPlaces(this.entity.id);
+      await this.fetchEntityTables(this.entity.id);
     }
   },
 };
 </script>
 
 <style scoped>
-.unload-places-section {
+.select-tables-section {
   margin-top: 5px;
 }
 
-.unload-places__header {
+.select-tables__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   height: 35px;
 }
 
-.unload-places-container {
+.select-tables-container {
   width: fit-content;
   background: #FFF;
   border-radius: 15px;
@@ -242,14 +240,14 @@ export default {
   padding: 12px;
 }
 
-.unload-places-grid {
+.tables-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
   row-gap: 5px;
 }
 
-.place-item {
+.table-item {
   height: 30px;
   border-radius: 50px;
   background: #f2f2f2;
@@ -266,39 +264,31 @@ export default {
   transition: all 0.2s ease;
   white-space: nowrap;
   user-select: none;
+  text-align: center;
 }
 
-.place-item:hover {
+.table-item:hover {
   background: #e8e8e8;
 }
 
-.place-item.selected {
+.table-item.selected {
   background: #4F5BDF;
   color: #FFF;
 }
 
-.place-item.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.place-item.disabled:hover {
-  background: #f2f2f2;
-}
-
-.no-places-message {
+.no-tables-message {
   text-align: center;
   padding: 20px;
   color: #6b7280;
   font-style: italic;
 }
 
-.places-actions {
+.tables-actions {
   display: flex;
-  gap: 8px; 
+  gap: 8px;
 }
 
-.save-places-btn {
+.save-tables-btn {
   padding: 0px 8px;
   background: #4F5BDF;
   color: white;
@@ -311,16 +301,16 @@ export default {
   height: 20px;
 }
 
-.save-places-btn:hover:not(:disabled) {
+.save-tables-btn:hover:not(:disabled) {
   background: #3a45b2;
 }
 
-.save-places-btn:disabled {
+.save-tables-btn:disabled {
   background: #9ca3af;
   cursor: not-allowed;
 }
 
-.cancel-places-btn {
+.cancel-tables-btn {
   padding: 0px 8px;
   font-weight: 600;
   background: #6b7280;
@@ -333,11 +323,11 @@ export default {
   height: 20px;
 }
 
-.cancel-places-btn:hover:not(:disabled) {
+.cancel-tables-btn:hover:not(:disabled) {
   background: #4b5563;
 }
 
-.cancel-places-btn:disabled {
+.cancel-tables-btn:disabled {
   background: #9ca3af;
   cursor: not-allowed;
 }
@@ -349,11 +339,11 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .unload-places-grid {
+  .tables-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .places-actions {
+  .tables-actions {
     flex-direction: column;
   }
 }

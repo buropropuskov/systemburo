@@ -40,18 +40,16 @@
         </div>
 
         <!-- Modal for delete confirmation -->
-        <div v-if="showDeleteModal" class="modal-overlay">
-            <div class="modal">
-                <div class="modal-header">Подтверждение удаления</div>
-                <div class="modal-content">
-                    Вы точно хотите удалить "{{ attachmentToDelete?.name }}"?
-                </div>
-                <div class="modal-actions">
-                    <button class="cancel-btn" @click="cancelDelete">Отмена</button>
-                    <button class="confirm-btn" @click="deleteAttachment">Удалить</button>
-                </div>
-            </div>
-        </div>
+        <ConfirmationModal
+            :show="showDeleteModal"
+            title="Подтверждение удаления"
+            :message="deleteMessage"
+            confirm-text="Удалить"
+            cancel-text="Отмена"
+            :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+            @confirm="deleteAttachment"
+            @cancel="cancelDelete"
+        />
 
         <!-- Tooltip -->
         <div 
@@ -65,8 +63,13 @@
 </template>
 
 <script>
+import ConfirmationModal from './ConfirmationModal.vue';
+
 export default {
     name: 'AttachmentsSelector',
+    components: {
+        ConfirmationModal
+    },
     data() {
         return {
             categories: [
@@ -85,6 +88,11 @@ export default {
             tooltipText: '',
             tooltipStyle: {},
             tooltipTimeout: null
+        }
+    },
+    computed: {
+        deleteMessage() {
+            return `Вы точно хотите удалить "${this.attachmentToDelete?.name}"?`;
         }
     },
     methods: {
@@ -311,74 +319,6 @@ export default {
 
 .delete-btn:hover {
     background-color: rgba(255, 68, 68, 0.1);
-}
-
-/* Modal styles */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.modal {
-    background: white;
-    border-radius: 15px;
-    padding: 20px;
-    width: 300px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.modal-header {
-    font-size: 14px;
-    font-weight: bold;
-    margin-bottom: 10px;
-    color: #333;
-}
-
-.modal-content {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 20px;
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.cancel-btn, .confirm-btn {
-    padding: 8px 16px;
-    border: 1px solid #e6e6e6;
-    border-radius: 8px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.cancel-btn {
-    background: white;
-    color: #666;
-}
-
-.cancel-btn:hover {
-    background: #f5f5f5;
-}
-
-.confirm-btn {
-    background: #ff4444;
-    color: white;
-}
-
-.confirm-btn:hover {
-    background: #cc0000;
 }
 
 /* Tooltip styles */

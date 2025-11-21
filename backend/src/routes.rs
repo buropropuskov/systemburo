@@ -80,6 +80,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/unload-places", web::put().to(update_organization_unload_places))
                 .route("/{id}/users", web::get().to(get_organization_users))
                 .route("/{id}/users", web::put().to(update_organization_users))
+                .route("/{id}/tables", web::get().to(get_organization_tables))
+                .route("/{id}/tables", web::put().to(update_organization_tables))
         )
         .service(web::resource("/get-organization").route(web::get().to(get_organization)))
 
@@ -96,6 +98,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/unload-places", web::put().to(update_company_unload_places))
                 .route("/{id}/users", web::get().to(get_company_users))
                 .route("/{id}/users", web::put().to(update_company_users))
+                .route("/{id}/tables", web::get().to(get_company_tables))
+                .route("/{id}/tables", web::put().to(update_company_tables))
         )
 
         // Пользователи (CRUD)

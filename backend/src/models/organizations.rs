@@ -26,9 +26,18 @@ pub struct OrganizationUnloadPlace {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct OrganizationTable {
+    pub id: i32,
+    pub name: String,
+    pub display_name: String,
+    pub table_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OrganizationWithUsersExtended {
     pub id: i32,
     pub name: String,
     pub user_count: i64,
     pub unload_places: Vec<OrganizationUnloadPlace>,
+    pub tables: Vec<OrganizationTable>,
 }

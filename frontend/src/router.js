@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
-import CreateApplication from './components/CreateApplication.vue';
+import CreateApplication from './components/CreateApplication/CreateApplication.vue';
 import CarsView from './views/CarsView.vue';
 import ApplicationsCenter from './views/ApplicationsCenter.vue';
 import TableConstructor from './components/TableConstructor.vue';

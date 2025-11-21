@@ -120,26 +120,33 @@
               </div>
             </div>
 
-            <!-- Компонент ответственных лиц -->
-            <ResponsibleUsersSection
-              :entity="selectedOrganization"
-              :entity-type="'organization'"
-              @users-updated="handleUsersUpdated"
-            />
-
             <!-- Компонент мест разгрузки -->
             <SelectUnloadPlaces
               :entity="selectedOrganization"
               :entity-type="'organization'"
               @places-updated="handlePlacesUpdated"
             />
+
+            <!-- Компонент таблиц по умолчанию -->
+            <SelectTables
+              :entity="selectedOrganization"
+              :entity-type="'organization'"
+              @tables-updated="handleTablesUpdated"
+            />
           </div>
         </div>
       </div>
       
-      <!-- Правая часть - пустой блок -->
-      <div class="empty-section" :class="{'with-details': selectedOrganization}">
-        <div v-if="!selectedOrganization" class="no-selection-message">
+      <!-- Правая часть - ответственные лица -->
+      <div class="responsible-section" :class="{'with-details': selectedOrganization}">
+        <div v-if="selectedOrganization" class="responsible-content">
+          <ResponsibleUsersSection
+            :entity="selectedOrganization"
+            :entity-type="'organization'"
+            @users-updated="handleUsersUpdated"
+          />
+        </div>
+        <div v-else class="no-selection-message">
           <p>Выберите организацию для просмотра</p>
         </div>
       </div>
@@ -151,26 +158,58 @@
     </div>
 
     <!-- Модальное окно добавления -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Добавить организацию</h3>
-          <button @click="showAddModal = false" class="modal-close">×</button>
-        </div>
-        <div class="modal-body">
-          <input
-            v-model="newOrganizationName"
-            placeholder="Введите название организации"
-            class="modal-input"
-            @keyup.enter="addOrganization"
-          >
-        </div>
-        <div class="modal-footer">
-          <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="addOrganization" class="modal-confirm">Добавить</button>
+    <transition name="modal-fade">
+      <div v-if="showAddModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">Добавить организацию</h3>
+            <button @click="closeModal" class="modal-close">
+              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="modal-body">
+            <div class="input-group">
+              <label class="input-label">Название организации</label>
+              <input
+                v-model="newOrganizationName"
+                placeholder="Введите название организации"
+                class="modal-input"
+                @keyup.enter="addOrganization"
+                ref="nameInput"
+              >
+              <div class="input-hint">Обязательное поле</div>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button @click="closeModal" class="modal-btn modal-btn--cancel">Отмена</button>
+            <button 
+              @click="addOrganization" 
+              class="modal-btn modal-btn--confirm"
+              :disabled="!newOrganizationName.trim()"
+              :class="{'modal-btn--disabled': !newOrganizationName.trim()}"
+            >
+              Создать
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
+
+    <!-- Модальное окно подтверждения удаления -->
+    <ConfirmationModal
+    :show="showDeleteModal"
+    title="Подтверждение удаления"
+    :message="deleteMessage"
+    confirm-text="Удалить"
+    cancel-text="Отмена"
+    :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+    @confirm="deleteOrganization"
+    @cancel="cancelDelete"
+/>
   </div>
 </template>
 
@@ -179,13 +218,17 @@ import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
 import SelectUnloadPlaces from './SelectUnloadPlaces.vue';
+import SelectTables from './SelectTables.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
     ResponsibleUsersSection,
-    SelectUnloadPlaces
+    SelectUnloadPlaces,
+    SelectTables,
+    ConfirmationModal
   },
   data() {
     return {
@@ -193,9 +236,12 @@ export default {
       newOrganizationName: '',
       organizationsWithUsers: [],
       showAddModal: false,
+      showDeleteModal: false,
       selectedOrganization: null,
+      organizationToDelete: null,
       sortField: null,
-      sortDirection: 'asc'
+      sortDirection: 'asc',
+      isLoading: false
     };
   },
   computed: {
@@ -242,6 +288,9 @@ export default {
         }
         return 0;
       });
+    },
+    deleteMessage() {
+      return `Вы точно хотите удалить организацию "${this.organizationToDelete?.name}"?`;
     }
   },
   methods: {
@@ -275,6 +324,10 @@ export default {
         return;
       }
       
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
+      
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/organizations", {
@@ -284,22 +337,32 @@ export default {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: this.newOrganizationName,
+            name: this.newOrganizationName.trim(),
           }),
         });
         
         if (response.ok) {
+          const newOrg = await response.json();
           this.newOrganizationName = '';
           this.showAddModal = false;
           await this.refreshData();
-          this.showNotification("Организация успешно добавлена", "success");
+          
+          // Автоматически выбираем новую организацию
+          const createdOrg = this.organizationsWithUsers.find(org => org.id === newOrg.id);
+          if (createdOrg) {
+            this.selectedOrganization = { ...createdOrg };
+          }
+          
+          this.showNotification("Организация успешно создана", "success");
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при добавлении организации", "error");
+          this.showNotification(error.message || "Ошибка при создании организации", "error");
         }
       } catch (error) {
         console.error("Error adding organization:", error);
         this.showNotification("Ошибка сети", "error");
+      } finally {
+        this.isLoading = false;
       }
     },
 
@@ -334,17 +397,27 @@ export default {
       }
     },
 
-    async confirmDeleteOrganization(org) {
+    confirmDeleteOrganization(org) {
       if (org.user_count > 0) {
         this.showNotification("Нельзя удалить организацию с пользователями", "warning");
         return;
       }
       
-      if (!confirm(`Вы уверены, что хотите удалить организацию "${org.name}"?`)) return;
+      this.organizationToDelete = org;
+      this.showDeleteModal = true;
+    },
+    
+    cancelDelete() {
+      this.showDeleteModal = false;
+      this.organizationToDelete = null;
+    },
+
+    async deleteOrganization() {
+      if (!this.organizationToDelete) return;
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${org.id}`, {
+        const response = await fetch(`http://localhost:8080/organizations/${this.organizationToDelete.id}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -353,6 +426,8 @@ export default {
         
         if (response.ok) {
           this.selectedOrganization = null;
+          this.showDeleteModal = false;
+          this.organizationToDelete = null;
           await this.refreshData();
           this.showNotification("Организация успешно удалена", "success");
         } else {
@@ -379,13 +454,20 @@ export default {
     },
 
     handleUsersUpdated() {
-      // Обновляем данные организаций после изменения ответственных лиц
       this.fetchOrganizationsWithUsers();
     },
 
     handlePlacesUpdated() {
-      // Обновляем данные организаций после изменения мест разгрузки
       this.fetchOrganizationsWithUsers();
+    },
+
+    handleTablesUpdated() {
+      this.fetchOrganizationsWithUsers();
+    },
+
+    closeModal() {
+      this.showAddModal = false;
+      this.newOrganizationName = '';
     },
 
     showNotification(message, type = 'info') {
@@ -418,6 +500,15 @@ export default {
   mounted() {
     this.refreshData();
   },
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          this.$refs.nameInput?.focus();
+        });
+      }
+    }
+  }
 };
 </script>
 
@@ -476,7 +567,6 @@ export default {
   width: 100%;
 }
 
-/* Левая часть - таблица */
 .table-section {
   width: 40%;
   display: flex;
@@ -579,7 +669,7 @@ export default {
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: #f0f2ff;
 }
 
 .table-row:last-child {
@@ -632,7 +722,6 @@ export default {
   font-weight: 500;
 }
 
-/* Средняя часть - детали */
 .details-section {
   width: fit-content;
   padding: 15px;
@@ -728,7 +817,7 @@ export default {
 .form-input-sm {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.8em;
   width: 100%;
   height: 32px;
@@ -741,13 +830,16 @@ export default {
   outline: none;
 }
 
-/* Правая часть - пустой блок */
-.empty-section {
+.responsible-section {
   flex: 1;
   background: #fff;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+}
+
+.responsible-content {
+  padding: 10px;
+  height: 100%;
 }
 
 .no-selection-message {
@@ -755,6 +847,10 @@ export default {
   font-weight: 400;
   font-size: 14px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 
 .no-results {
@@ -775,115 +871,208 @@ export default {
   font-size: 1.1em;
 }
 
-/* Модальное окно */
+/* Анимации для модального окна */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active .modal-overlay,
+.modal-fade-leave-active .modal-overlay {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from .modal-overlay,
+.modal-fade-leave-to .modal-overlay {
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+}
+
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.8) translateY(-20px);
+}
+
+/* Стили для улучшенного модального окна */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(1px);
+  animation: overlayAppear 0.3s ease-out;
+}
+
+@keyframes overlayAppear {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(1px);
+  }
 }
 
 .modal-content {
   background: #fff;
   border-radius: 12px;
   padding: 0;
-  width: 400px;
-  max-width: 90%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e6e6e6;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.modal-header h3 {
+.modal-title {
   margin: 0;
-  font-size: 1.2em;
+  font-size: 1.1em;
   font-weight: 600;
+  color: #1a1a1a;
 }
 
 .modal-close {
   background: none;
   border: none;
-  font-size: 24px;
   cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 30px;
-  height: 30px;
+  padding: 6px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .modal-close:hover {
-  color: #333;
+  background-color: #f5f5f5;
+  transform: rotate(90deg);
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 20px 24px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-label {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 2px;
 }
 
 .modal-input {
   width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #e6e6e6;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
-  font-size: 1em;
-  transition: border-color 0.2s ease;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+  background: #fff;
 }
 
 .modal-input:focus {
   border-color: #4F5BDF;
   outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+.modal-input::placeholder {
+  color: #aaa;
+}
+
+.input-hint {
+  font-size: 0.75em;
+  color: #888;
+  margin-top: 2px;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 20px;
-  border-top: 1px solid #e6e6e6;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.modal-cancel {
-  padding: 10px 20px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.modal-cancel:hover {
-  background: #e9ecef;
-}
-
-.modal-confirm {
-  padding: 10px 20px;
-  background: #4F5BDF;
-  color: white;
+.modal-btn {
+  padding: 8px 20px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
+  font-size: 0.85em;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  min-width: 80px;
 }
 
-.modal-confirm:hover {
+.modal-btn--cancel {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.modal-btn--cancel:hover {
+  background: #e9ecef;
+  border-color: #ccc;
+}
+
+.modal-btn--confirm {
+  background: #4F5BDF;
+  color: white;
+}
+
+.modal-btn--confirm:hover:not(.modal-btn--disabled) {
   background: #3a45b2;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 91, 223, 0.3);
+}
+
+.modal-btn--disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 @media (max-width: 968px) {
@@ -894,7 +1083,7 @@ export default {
   
   .table-section,
   .details-section,
-  .empty-section {
+  .responsible-section {
     width: 100% !important;
   }
   
@@ -945,7 +1134,8 @@ export default {
     width: 30%;
   }
   
-  .details-section {
+  .details-section,
+  .responsible-content {
     padding: 16px;
   }
   
@@ -957,6 +1147,29 @@ export default {
   
   .details-header-actions {
     align-self: flex-end;
+  }
+  
+  .modal-content {
+    width: 95vw;
+    margin: 20px;
+  }
+  
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  
+  @keyframes modalAppear {
+    from {
+      opacity: 0;
+      transform: scale(0.9) translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
   }
 }
 </style>

@@ -26,11 +26,20 @@ pub struct CompanyUnloadPlace {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct CompanyTable {
+    pub id: i32,
+    pub name: String,
+    pub display_name: String,
+    pub table_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CompanyWithUsersExtended {
     pub id: i32,
     pub name: String,
     pub user_count: i64,
     pub unload_places: Vec<CompanyUnloadPlace>,
+    pub tables: Vec<CompanyTable>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,4 +60,9 @@ pub struct UpdateCompanyUsersRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateCompanyUnloadPlacesRequest {
     pub unload_place_ids: Vec<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateCompanyTablesRequest {
+    pub table_ids: Vec<i32>,
 }

@@ -28,6 +28,97 @@ pub struct UpdateOrganizationUsersRequest {
     pub user_ids: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateOrganizationUnloadPlacesRequest {
+    pub unload_place_ids: Vec<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateOrganizationTablesRequest {
+    pub table_ids: Vec<i32>,
+}
+
+/// Получение таблиц организации
+pub async fn get_organization_tables(
+    pool: web::Data<PgPool>,
+    path: web::Path<i32>,
+) -> impl Responder {
+    let org_id = path.into_inner();
+    
+    match sqlx::query_as!(
+        OrganizationTable,
+        r#"
+        SELECT st.id, st.name, st.display_name, st.table_type
+        FROM system_tables st
+        JOIN organization_tables ot ON st.id = ot.table_id
+        WHERE ot.organization_id = $1 AND st.is_active = true
+        ORDER BY st.display_name
+        "#,
+        org_id
+    )
+    .fetch_all(pool.get_ref())
+    .await {
+        Ok(tables) => HttpResponse::Ok().json(tables),
+        Err(e) => {
+            log::error!("Failed to fetch organization tables: {}", e);
+            HttpResponse::InternalServerError().json("Error fetching organization tables")
+        }
+    }
+}
+
+/// Обновление таблиц организации
+pub async fn update_organization_tables(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<UpdateOrganizationTablesRequest>,
+) -> Result<HttpResponse, Error> {
+    check_admin_permissions(&req, &pool).await?;
+    
+    let org_id = path.into_inner();
+    
+    // Начинаем транзакцию
+    let mut tx = pool.begin().await.map_err(|e| {
+        log::error!("Failed to begin transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+    
+    // Удаляем старые связи
+    sqlx::query!(
+        "DELETE FROM organization_tables WHERE organization_id = $1",
+        org_id
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to delete old organization tables: {}", e);
+        error::ErrorInternalServerError("Error updating organization tables")
+    })?;
+    
+    // Добавляем новые связи
+    for table_id in &form.table_ids {
+        sqlx::query!(
+            "INSERT INTO organization_tables (organization_id, table_id) VALUES ($1, $2)",
+            org_id,
+            table_id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to insert organization table: {}", e);
+            error::ErrorInternalServerError("Error updating organization tables")
+        })?;
+    }
+    
+    // Коммитим транзакцию
+    tx.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+    
+    Ok(HttpResponse::Ok().json(json!({"message": "Organization tables updated successfully"})))
+}
+
 /// Получение ответственных пользователей организации
 pub async fn get_organization_users(
     pool: web::Data<PgPool>,
@@ -164,11 +255,6 @@ pub async fn update_organization_users(
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct UpdateOrganizationUnloadPlacesRequest {
-    pub unload_place_ids: Vec<i32>,
-}
-
 pub async fn get_organization_unload_places(
     pool: web::Data<PgPool>,
     path: web::Path<i32>,
@@ -219,7 +305,6 @@ pub async fn get_organizations_with_users_extended(pool: web::Data<PgPool>) -> i
             let mut result = Vec::new();
             
             for org in orgs {
-                // Для каждой организации получаем места разгрузки
                 // Для каждой организации получаем места разгрузки
                 let places = sqlx::query_as!(
                     OrganizationUnloadPlace,

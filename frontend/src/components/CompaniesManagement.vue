@@ -120,26 +120,33 @@
               </div>
             </div>
 
-            <!-- Компонент ответственных лиц -->
-            <ResponsibleUsersSection
-              :entity="selectedCompany"
-              :entity-type="'company'"
-              @users-updated="handleUsersUpdated"
-            />
-
             <!-- Компонент мест разгрузки -->
             <SelectUnloadPlaces
               :entity="selectedCompany"
               :entity-type="'company'"
               @places-updated="handlePlacesUpdated"
             />
+
+            <!-- Компонент таблиц по умолчанию -->
+            <SelectTables
+              :entity="selectedCompany"
+              :entity-type="'company'"
+              @tables-updated="handleTablesUpdated"
+            />
           </div>
         </div>
       </div>
       
-      <!-- Правая часть - пустой блок -->
-      <div class="empty-section" :class="{'with-details': selectedCompany}">
-        <div v-if="!selectedCompany" class="no-selection-message">
+      <!-- Правая часть - ответственные лица -->
+      <div class="responsible-section" :class="{'with-details': selectedCompany}">
+        <div v-if="selectedCompany" class="responsible-content">
+          <ResponsibleUsersSection
+            :entity="selectedCompany"
+            :entity-type="'company'"
+            @users-updated="handleUsersUpdated"
+          />
+        </div>
+        <div v-else class="no-selection-message">
           <p>Выберите компанию для просмотра</p>
         </div>
       </div>
@@ -171,6 +178,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Модальное окно подтверждения удаления -->
+     <ConfirmationModal
+      :show="showDeleteModal"
+      title="Подтверждение удаления"
+      :message="deleteMessage"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+      @confirm="deleteCompany"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -179,13 +198,17 @@ import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
 import SelectUnloadPlaces from './SelectUnloadPlaces.vue';
+import SelectTables from './SelectTables.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
     ResponsibleUsersSection,
-    SelectUnloadPlaces
+    SelectUnloadPlaces,
+    SelectTables,
+    ConfirmationModal
   },
   data() {
     return {
@@ -193,9 +216,12 @@ export default {
       newCompanyName: '',
       companiesWithUsers: [],
       showAddModal: false,
+      showDeleteModal: false,
       selectedCompany: null,
+      companyToDelete: null,
       sortField: null,
-      sortDirection: 'asc'
+      sortDirection: 'asc',
+      isLoading: false
     };
   },
   computed: {
@@ -242,6 +268,9 @@ export default {
         }
         return 0;
       });
+    },
+    deleteMessage() {
+      return `Вы точно хотите удалить компанию "${this.companyToDelete?.name}"?`;
     }
   },
   methods: {
@@ -274,6 +303,10 @@ export default {
         return;
       }
       
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
+      
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/companies", {
@@ -283,22 +316,32 @@ export default {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: this.newCompanyName,
+            name: this.newCompanyName.trim(),
           }),
         });
         
         if (response.ok) {
+          const newComp = await response.json();
           this.newCompanyName = '';
           this.showAddModal = false;
           await this.refreshData();
-          this.showNotification("Компания успешно добавлена", "success");
+          
+          // Автоматически выбираем новую компанию
+          const createdComp = this.companiesWithUsers.find(comp => comp.id === newComp.id);
+          if (createdComp) {
+            this.selectedCompany = { ...createdComp };
+          }
+          
+          this.showNotification("Компания успешно создана", "success");
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при добавлении компании", "error");
+          this.showNotification(error.message || "Ошибка при создании компании", "error");
         }
       } catch (error) {
         console.error("Error adding company:", error);
         this.showNotification("Ошибка сети", "error");
+      } finally {
+        this.isLoading = false;
       }
     },
     async updateCompany(comp) {
@@ -331,17 +374,27 @@ export default {
         this.showNotification("Ошибка сети", "error");
       }
     },
-    async confirmDeleteCompany(comp) {
+    confirmDeleteCompany(comp) {
       if (comp.user_count > 0) {
         this.showNotification("Нельзя удалить компанию с пользователями", "warning");
         return;
       }
       
-      if (!confirm(`Вы уверены, что хотите удалить компанию "${comp.name}"?`)) return;
+      this.companyToDelete = comp;
+      this.showDeleteModal = true;
+    },
+    
+    cancelDelete() {
+      this.showDeleteModal = false;
+      this.companyToDelete = null;
+    },
+
+    async deleteCompany() {
+      if (!this.companyToDelete) return;
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}`, {
+        const response = await fetch(`http://localhost:8080/companies/${this.companyToDelete.id}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -350,6 +403,8 @@ export default {
         
         if (response.ok) {
           this.selectedCompany = null;
+          this.showDeleteModal = false;
+          this.companyToDelete = null;
           await this.refreshData();
           this.showNotification("Компания успешно удалена", "success");
         } else {
@@ -373,11 +428,12 @@ export default {
       }
     },
     handleUsersUpdated() {
-      // Обновляем данные компаний после изменения ответственных лиц
       this.fetchCompaniesWithUsers();
     },
     handlePlacesUpdated() {
-      // Обновляем данные компаний после изменения мест разгрузки
+      this.fetchCompaniesWithUsers();
+    },
+    handleTablesUpdated() {
       this.fetchCompaniesWithUsers();
     },
     showNotification(message, type = 'info') {
@@ -410,6 +466,15 @@ export default {
   mounted() {
     this.refreshData();
   },
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          this.$refs.nameInput?.focus();
+        });
+      }
+    }
+  }
 };
 </script>
 
@@ -468,7 +533,6 @@ export default {
   width: 100%;
 }
 
-/* Левая часть - таблица */
 .table-section {
   width: 40%;
   display: flex;
@@ -571,7 +635,7 @@ export default {
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: #f0f2ff;;
 }
 
 .table-row:last-child {
@@ -624,7 +688,6 @@ export default {
   font-weight: 500;
 }
 
-/* Средняя часть - детали */
 .details-section {
   width: fit-content;
   padding: 15px;
@@ -720,7 +783,7 @@ export default {
 .form-input-sm {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.8em;
   width: 100%;
   height: 32px;
@@ -733,13 +796,16 @@ export default {
   outline: none;
 }
 
-/* Правая часть - пустой блок */
-.empty-section {
+.responsible-section {
   flex: 1;
   background: #fff;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+}
+
+.responsible-content {
+  padding: 10px;
+  height: 100%;
 }
 
 .no-selection-message {
@@ -747,6 +813,10 @@ export default {
   font-weight: 400;
   font-size: 14px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 
 .no-results {
@@ -767,14 +837,13 @@ export default {
   font-size: 1.1em;
 }
 
-/* Модальное окно */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -886,7 +955,7 @@ export default {
   
   .table-section,
   .details-section,
-  .empty-section {
+  .responsible-section {
     width: 100% !important;
   }
   
@@ -937,7 +1006,8 @@ export default {
     width: 30%;
   }
   
-  .details-section {
+  .details-section,
+  .responsible-content {
     padding: 16px;
   }
   

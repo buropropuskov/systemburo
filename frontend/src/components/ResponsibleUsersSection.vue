@@ -2,22 +2,24 @@
   <div class="responsible-users-section">
     <div class="detail-group">
       <div class="responsible-users__header">
-        <label class="detail-label">Ответственные за согласование:</label>
-        <div v-if="hasSelectedUsers" class="users-actions">
-          <button 
-            @click="saveResponsibleUsers" 
-            class="save-users-btn"
-            :disabled="isSavingUsers"
-          >
-            {{ isSavingUsers ? 'Сохранение...' : 'Сохранить' }}
-          </button>
-          <button 
-            @click="cancelResponsibleUsersChanges" 
-            class="cancel-users-btn"
-            :disabled="isSavingUsers"
-          >
-            Отмена
-          </button>
+        <div class="header-content">
+          <label class="detail-label">Ответственные:</label>
+          <div v-if="hasSelectedUsers" class="users-actions">
+            <button 
+              @click="saveResponsibleUsers" 
+              class="save-users-btn"
+              :disabled="isSavingUsers"
+            >
+              {{ isSavingUsers ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+            <button 
+              @click="cancelResponsibleUsersChanges" 
+              class="cancel-users-btn"
+              :disabled="isSavingUsers"
+            >
+              Отмена
+            </button>
+          </div>
         </div>
       </div>
       
@@ -34,7 +36,7 @@
           />
           <div v-if="showUserDropdown" class="user-dropdown">
             <div 
-              v-for="user in filteredUsers" 
+              v-for="user in sortedAvailableUsers" 
               :key="user.username"
               class="user-dropdown-item"
               @mousedown="addResponsibleUser(user)"
@@ -51,7 +53,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="filteredUsers.length === 0" class="no-users-dropdown">
+            <div v-if="sortedAvailableUsers.length === 0" class="no-users-dropdown">
               Пользователи не найдены
             </div>
           </div>
@@ -83,7 +85,7 @@
             </button>
           </div>
           <div v-if="selectedUsers.length === 0" class="no-selected-users">
-            <p>Нет выбранных ответственных лиц</p>
+            <p>Не выбрано ни одного ответственного лица для согласования.</p>
           </div>
         </div>
       </div>
@@ -139,6 +141,35 @@ export default {
                organization.includes(query) ||
                company.includes(query) ||
                phone.includes(query);
+      });
+    },
+    filteredAvailableUsers() {
+      // Фильтруем пользователей, исключая уже выбранных
+      return this.filteredUsers.filter(user => 
+        !this.selectedUsers.some(selected => selected.username === user.username)
+      );
+    },
+    sortedAvailableUsers() {
+      // Сортируем пользователей по компании, организации и фамилии
+      return [...this.filteredAvailableUsers].sort((a, b) => {
+        // Сравнение по компании
+        const companyA = (a.company || '').toLowerCase();
+        const companyB = (b.company || '').toLowerCase();
+        if (companyA !== companyB) {
+          return companyA.localeCompare(companyB);
+        }
+        
+        // Сравнение по организации
+        const orgA = (a.organization || '').toLowerCase();
+        const orgB = (b.organization || '').toLowerCase();
+        if (orgA !== orgB) {
+          return orgA.localeCompare(orgB);
+        }
+        
+        // Сравнение по фамилии
+        const lastNameA = (a.last_name || '').toLowerCase();
+        const lastNameB = (b.last_name || '').toLowerCase();
+        return lastNameA.localeCompare(lastNameB);
       });
     }
   },
@@ -364,41 +395,54 @@ export default {
 
 <style scoped>
 .detail-label {
-  font-size: 0.85em;
+  font-size: 0.75em;
   color: #a2a2a2;
   font-weight: 400;
+  margin-bottom: 0;
 }
 .responsible-users-section {
-  margin-top: 5px;
+  width: 100%;
 }
 
 .responsible-users__header {
+  margin-bottom: 5px;
+}
+
+.header-content {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
-  height: 35px;
+  justify-content: space-between;
+  gap: 10px;
+  height: 18px;
+  padding-bottom: 5px;
+}
+
+.users-actions {
+  display: flex;
+  height: 18px;
+  width: 118px;
+  gap: 6px;
 }
 
 .responsible-users-container {
   width: 100%;
   background: #FFF;
-  border-radius: 15px;
-  border: 1px solid #e6e6e6;
-  padding: 12px;
+  border-radius: 12px;
 }
 
 /* Поиск пользователей */
 .user-search-container {
   position: relative;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
 }
 
 .user-search-input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 6px 10px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  font-size: 0.9em;
+  border-radius: 8px;
+  font-size: 0.7em;
   transition: border-color 0.2s ease;
   background: #fff;
 }
@@ -415,16 +459,16 @@ export default {
   right: 0;
   background: white;
   border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  max-height: 300px;
+  border-radius: 12px;
+  max-height: 200px;
   overflow-y: auto;
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .user-dropdown-item {
-  padding: 12px;
+  padding: 8px;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -441,38 +485,38 @@ export default {
 .user-dropdown-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .user-main-info {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 3px;
 }
 
 .user-name {
   font-weight: 600;
-  font-size: 0.9em;
+  font-size: 0.7em;
   color: #000;
 }
 
 .user-username {
-  font-size: 0.8em;
+  font-size: 0.65em;
   color: #6b7280;
 }
 
 .user-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .user-position,
 .user-organization,
 .user-company,
 .user-phone {
-  font-size: 0.8em;
+  font-size: 0.7em;
   color: #6b7280;
 }
 
@@ -482,26 +526,28 @@ export default {
 }
 
 .no-users-dropdown {
-  padding: 12px;
+  padding: 8px;
   text-align: center;
   color: #6b7280;
   font-style: italic;
+  font-size: 0.7em;
 }
 
 /* Выбранные пользователи */
 .selected-users-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .selected-user-item {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 10px;
-  
-  border-radius: 8px;
+  padding: 8px;
+  border-radius: 6px;
   border: 1px solid #e6e6e6;
 }
 
@@ -509,44 +555,42 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .selected-user-main {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .selected-user-name {
   font-weight: 600;
-  font-size: 0.9em;
+  font-size: 0.7em;
   color: #000;
 }
 
 .selected-user-username {
-  font-size: 0.8em;
+  font-size: 0.65em;
   color: #6b7280;
 }
 
 .selected-user-details {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-  max-width: 375px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 5px; /* +1px от исходного */
 }
 
 .selected-user-position,
 .selected-user-organization,
 .selected-user-company {
-  font-size: 0.75em;
-  color: #6b7280;
-  background: #e6e6e6;
-  padding: 2px 6px;
-  border-radius: 6px;
+  font-size: 0.7em;
+  padding: 1px 6px;
+  border-radius: 50px; /* border radius 50px */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
 }
 
 .selected-user-position {
@@ -569,13 +613,13 @@ export default {
   background: none;
   border: none;
   color: #ef4444;
-  font-size: 1.2em;
+  font-size: 1em;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
   transition: background-color 0.2s ease;
   flex-shrink: 0;
-  margin-left: 8px;
+  margin-left: 6px;
 }
 
 .remove-user-btn:hover {
@@ -585,33 +629,28 @@ export default {
 .no-selected-users {
   text-align: center;
   color: #6b7280;
-  font-size: 14px;
-
+  font-size: 0.7em;
 }
 
 .no-users-message {
   text-align: center;
-  padding: 20px;
+  padding: 15px;
   color: #6b7280;
   font-style: italic;
-}
-
-.users-actions {
-  display: flex;
-  gap: 8px;
+  font-size: 0.7em;
 }
 
 .save-users-btn {
-  padding: 0px 8px;
+  padding: 2px 6px;
   background: #4F5BDF;
   color: white;
   border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
+  border-radius: 12px;
+  font-size: 0.55em;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  height: 20px;
+  height: 18px;
 }
 
 .save-users-btn:hover:not(:disabled) {
@@ -624,16 +663,16 @@ export default {
 }
 
 .cancel-users-btn {
-  padding: 0px 8px;
+  padding: 2px 6px;
   font-weight: 600;
   background: #6b7280;
   color: white;
   border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
+  border-radius: 12px;
+  font-size: 0.55em;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  height: 20px;
+  height: 18px;
 }
 
 .cancel-users-btn:hover:not(:disabled) {
@@ -646,24 +685,38 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .users-actions {
+  .responsible-users-section {
+    width: 100%;
+  }
+  
+  .header-content {
     flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .users-actions {
+    justify-content: center;
   }
   
   .selected-user-details {
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     align-items: flex-start;
   }
   
   .selected-user-item {
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
   
   .remove-user-btn {
     align-self: flex-end;
     margin-left: 0;
+  }
+  
+  .detail-label {
+    text-align: center;
   }
 }
 </style>
