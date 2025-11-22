@@ -139,44 +139,71 @@
     </div>
 
     <!-- Модальное окно создания типа -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Создать новый тип пользователя</h3>
-          <button @click="showAddModal = false" class="modal-close">×</button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Наименование типа *</label>
-            <input
-              v-model="newType.name"
-              placeholder="Менеджер"
-              class="form-input"
-              style="width: 300px;"
-            >
+    <transition name="modal-fade">
+      <div v-if="showAddModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">Создать новый тип пользователя</h3>
+            <button @click="closeModal" class="modal-close">
+              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
           </div>
           
-          <div class="form-group">
-            <label class="form-label">Системное имя *</label>
-            <input
-              v-model="newType.code"
-              @input="validateSystemName"
-              placeholder="manager"
-              class="form-input"
-              style="width: 300px;"
+          <div class="modal-body">
+            <div class="input-group">
+              <label class="input-label">Наименование типа *</label>
+              <input
+                v-model="newType.name"
+                placeholder="Менеджер"
+                class="modal-input"
+                @keyup.enter="createType"
+                ref="nameInput"
+              >
+              <div class="input-hint">Обязательное поле</div>
+            </div>
+            
+            <div class="input-group">
+              <label class="input-label">Системное имя *</label>
+              <input
+                v-model="newType.code"
+                @input="validateSystemName"
+                placeholder="manager"
+                class="modal-input"
+                @keyup.enter="createType"
+              >
+              <div class="input-hint">Латинские буквы, цифры и подчеркивания</div>
+              <span v-if="nameError" class="form-error">{{ nameError }}</span>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button @click="closeModal" class="modal-btn modal-btn--cancel">Отмена</button>
+            <button 
+              @click="createType" 
+              class="modal-btn modal-btn--confirm"
+              :disabled="!isFormValid"
+              :class="{'modal-btn--disabled': !isFormValid}"
             >
-            <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-            <span v-if="nameError" class="form-error">{{ nameError }}</span>
+              Создать
+            </button>
           </div>
         </div>
-        
-        <div class="modal-footer">
-          <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="createType" class="modal-confirm">Создать</button>
-        </div>
       </div>
-    </div>
+    </transition>
+
+    <!-- Модальное окно подтверждения удаления -->
+    <ConfirmationModal
+      :show="showDeleteModal"
+      title="Подтверждение удаления"
+      :message="deleteMessage"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+      @confirm="deleteType"
+      @cancel="cancelDelete"
+    />
 
     <!-- Уведомления -->
     <div v-if="notification.show" class="notification" :class="notification.type">
@@ -188,11 +215,13 @@
 <script>
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
   components: {
     SearchComponent,
-    RefreshButton
+    RefreshButton,
+    ConfirmationModal
   },
   data() {
     return {
@@ -203,7 +232,9 @@ export default {
       },
       types: [],
       showAddModal: false,
+      showDeleteModal: false,
       selectedType: null,
+      typeToDelete: null,
       sortField: null,
       sortDirection: 'asc',
       nameError: '',
@@ -211,7 +242,8 @@ export default {
         show: false,
         message: '',
         type: 'info'
-      }
+      },
+      isLoading: false
     };
   },
   computed: {
@@ -259,6 +291,15 @@ export default {
         }
         return 0;
       });
+    },
+    deleteMessage() {
+      return `Вы точно хотите удалить тип пользователя "${this.typeToDelete?.name}"?`;
+    },
+    isFormValid() {
+      return this.newType.name.trim() && 
+             this.newType.code.trim() && 
+             !this.nameError &&
+             !this.isLoading;
     }
   },
   methods: {
@@ -291,17 +332,14 @@ export default {
       }
     },
     async createType() {
-      if (!this.newType.name.trim() || !this.newType.code.trim()) {
-        this.showNotification("Заполните все обязательные поля", "warning");
+      if (!this.isFormValid) {
+        this.showNotification("Заполните все обязательные поля корректно", "warning");
         return;
       }
       
-      // Валидация системного имени
-      const nameRegex = /^[a-z0-9_]+$/;
-      if (!nameRegex.test(this.newType.code)) {
-        this.showNotification("Системное имя может содержать только латинские буквы, цифры и подчеркивания", "warning");
-        return;
-      }
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
       
       try {
         const token = localStorage.getItem("token");
@@ -329,6 +367,8 @@ export default {
       } catch (error) {
         console.error("Error creating user type:", error);
         this.showNotification("Ошибка сети", "error");
+      } finally {
+        this.isLoading = false;
       }
     },
     async updateTypeName() {
@@ -363,17 +403,27 @@ export default {
         this.showNotification("Ошибка сети", "error");
       }
     },
-    async confirmDeleteType(type) {
+    confirmDeleteType(type) {
       if (type.users_count > 0) {
         this.showNotification("Нельзя удалить тип, к которому привязаны пользователи", "warning");
         return;
       }
       
-      if (!confirm(`Вы уверены, что хотите удалить тип "${type.name}"?`)) return;
+      this.typeToDelete = type;
+      this.showDeleteModal = true;
+    },
+    
+    cancelDelete() {
+      this.showDeleteModal = false;
+      this.typeToDelete = null;
+    },
+
+    async deleteType() {
+      if (!this.typeToDelete) return;
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/user-types-management/${type.id}`, {
+        const response = await fetch(`http://localhost:8080/user-types-management/${this.typeToDelete.id}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -382,6 +432,8 @@ export default {
         
         if (response.ok) {
           this.selectedType = null;
+          this.showDeleteModal = false;
+          this.typeToDelete = null;
           await this.refreshData();
           this.showNotification("Тип пользователя успешно удален", "success");
         } else {
@@ -404,6 +456,14 @@ export default {
         this.sortDirection = 'asc';
       }
     },
+    closeModal() {
+      this.showAddModal = false;
+      this.newType = {
+        name: '',
+        code: ''
+      };
+      this.nameError = '';
+    },
     showNotification(message, type = 'info') {
       this.notification = {
         show: true,
@@ -423,6 +483,15 @@ export default {
   mounted() {
     this.refreshData();
   },
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          this.$refs.nameInput?.focus();
+        });
+      }
+    }
+  }
 };
 </script>
 
@@ -433,7 +502,7 @@ export default {
   border: 1px solid #e6e6e6;
   overflow: hidden;
   width: 100%;
-  height: 300px;
+  height: 450px;
   position: relative;
 }
 
@@ -480,7 +549,7 @@ export default {
 
 .content-container {
   display: flex;
-  height: 250px;
+  height: 400px;
   width: 100%;
 }
 
@@ -571,7 +640,7 @@ export default {
 .table-body {
   flex: 1;
   overflow-y: auto;
-  max-height: 207px;
+  max-height: 357px;
 }
 
 .table-row {
@@ -810,145 +879,209 @@ export default {
   font-size: 1.1em;
 }
 
-/* Модальные окна */
+/* Стили для улучшенного модального окна */
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  z-index: 1000;
+  backdrop-filter: blur(1px);
+  animation: overlayAppear 0.3s ease-out;
+}
+
+@keyframes overlayAppear {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(1px);
+  }
 }
 
 .modal-content {
-  width: 500px;
-  max-width: 500px;
-  display: flex;
-  flex-direction: column;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
+  padding: 0;
+  width: 420px;
+  max-width: 90vw;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.modal-header h3 {
+.modal-title {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: #1a1a1a;
 }
 
 .modal-close {
   background: none;
   border: none;
-  font-size: 20px;
   cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  padding: 6px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s;
-  border-radius: 50%;
+  transition: all 0.2s ease;
 }
 
 .modal-close:hover {
-  background: #f5f5f5;
-  color: #000;
+  background-color: #f5f5f5;
+  transform: rotate(90deg);
 }
 
 .modal-body {
-  flex: 1;
-  padding: 16px;
-  overflow-y: auto;
+  padding: 20px 24px;
 }
 
-.form-group {
+.input-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
-.form-label {
+.input-label {
   font-size: 0.85em;
-  color: #000;
   font-weight: 500;
+  color: #555;
+  margin-bottom: 2px;
 }
 
-.form-input {
+.modal-input {
+  width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
-  font-size: 0.85em;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
   background: #fff;
-  transition: border-color 0.2s;
-  width: 300px;
 }
 
-.form-input:focus {
+.modal-input:focus {
   border-color: #4F5BDF;
   outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+.modal-input::placeholder {
+  color: #aaa;
+}
+
+.input-hint {
+  font-size: 0.75em;
+  color: #888;
+  margin-top: 2px;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.modal-cancel {
-  padding: 8px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
+.modal-btn {
+  padding: 8px 20px;
+  border: none;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.85em;
   font-weight: 500;
   transition: all 0.2s ease;
+  min-width: 80px;
 }
 
-.modal-cancel:hover {
+.modal-btn--cancel {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.modal-btn--cancel:hover {
   background: #e9ecef;
+  border-color: #ccc;
 }
 
-.modal-confirm {
-  padding: 8px 16px;
+.modal-btn--confirm {
   background: #4F5BDF;
   color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
 }
 
-.modal-confirm:hover {
+.modal-btn--confirm:hover:not(.modal-btn--disabled) {
   background: #3a45b2;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 91, 223, 0.3);
+}
+
+.modal-btn--disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Анимации для модального окна */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active .modal-overlay,
+.modal-fade-leave-active .modal-overlay {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from .modal-overlay,
+.modal-fade-leave-to .modal-overlay {
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+}
+
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.8) translateY(-20px);
 }
 
 /* Стили для уведомлений */

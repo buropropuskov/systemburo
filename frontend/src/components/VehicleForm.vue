@@ -29,32 +29,46 @@
                         <button class="cancel-edit-btn" @click="cancelEdit" v-if="editingVehicle">
                             Отменить
                         </button>
-                        <button class="add-button" @click="addVehicle">
+                        <button 
+                            class="add-button" 
+                            @click="addVehicle"
+                            :disabled="!canAddVehicle"
+                            @mouseenter="showTooltip = true"
+                            @mouseleave="showTooltip = false"
+                        >
                             {{ editingVehicle ? 'Применить' : 'Добавить' }}
                         </button>
+                        <!-- Подсказка для кнопки -->
+                        <div v-if="showTooltip && !canAddVehicle" class="tooltip">
+                            <div class="tooltip-content">
+                                {{ getTooltipMessage }}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="format__dropdown">
                     <button 
                         class="dropdown__button" 
-                        @click="toggleDropdown"
+                        @click="toggleFormatDropdown"
                         :disabled="editingVehicle && editingVehicle.isExisting"
                     >
                         <div class="button__content">
                             <span class="button__text">{{ selectedFormatText }}</span>
-                            <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isDropdownOpen }" />
+                            <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isFormatDropdownOpen }" />
                         </div>
                     </button>
-                    <div v-if="isDropdownOpen" class="dropdown__menu">
-                        <div 
-                            v-for="format in availableFormats" 
-                            :key="format.format.id"
-                            class="dropdown__item" 
-                            @click="selectFormat(format)"
-                        >
-                            <span class="item__text">{{ format.format.name }}</span>
+                    <transition name="dropdown">
+                        <div v-if="isFormatDropdownOpen" class="dropdown__menu">
+                            <div 
+                                v-for="format in availableFormats" 
+                                :key="format.format.id"
+                                class="dropdown__item" 
+                                @click="selectFormat(format)"
+                            >
+                                <span class="item__text">{{ format.format.name }}</span>
+                            </div>
                         </div>
-                    </div>
+                    </transition>
                 </div>
             </div>
             <div class="completion__fields">
@@ -96,6 +110,9 @@
                             :disabled="editingVehicle && editingVehicle.isExisting"
                         />
                     </div>
+                    <div v-else class="no-format-message">
+                        Выберите формат номера
+                    </div>
                 </div>
                 
                 <div class="completion__mark">
@@ -126,26 +143,28 @@
                                     <img src="@/assets/icons/arrow.png" class="mark__button-arrow" :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }" />
                                 </div>
                             </button>
-                            <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
-                                <div class="mark__search">
-                                    <input 
-                                        class="mark__search-input" 
-                                        placeholder="Поиск марки..."
-                                        v-model="markSearch"
-                                        @input="filterMarks"
-                                    />
-                                </div>
-                                <div class="mark__dropdown-list">
-                                    <div 
-                                        v-for="mark in filteredMarks" 
-                                        :key="mark"
-                                        class="mark__dropdown-item"
-                                        @click="selectMark(mark)"
-                                    >
-                                        <span class="mark__item-text">{{ mark }}</span>
+                            <transition name="dropdown">
+                                <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
+                                    <div class="mark__search">
+                                        <input 
+                                            class="mark__search-input" 
+                                            placeholder="Поиск марки..."
+                                            v-model="markSearch"
+                                            @input="filterMarks"
+                                        />
+                                    </div>
+                                    <div class="mark__dropdown-list">
+                                        <div 
+                                            v-for="mark in filteredMarks" 
+                                            :key="mark"
+                                            class="mark__dropdown-item"
+                                            @click="selectMark(mark)"
+                                        >
+                                            <span class="mark__item-text">{{ mark }}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            </transition>
                         </div>
                     </div>
                 </div>
@@ -308,6 +327,7 @@ export default {
             // Format data
             availableFormats: [],
             selectedFormat: null,
+            isFormatDropdownOpen: false,
             
             // Mark data
             isMarkByFact: false,
@@ -334,9 +354,6 @@ export default {
                 unloadingPlaces: ''
             },
             
-            // Dropdown
-            isDropdownOpen: false,
-            
             // Character sets
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
@@ -355,7 +372,10 @@ export default {
             ],
 
             // Редактирование
-            editingVehicle: null
+            editingVehicle: null,
+
+            // Tooltip
+            showTooltip: false
         }
     },
     computed: {
@@ -423,6 +443,36 @@ export default {
         },
         canAddExistingCars() {
             return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0;
+        },
+        getTooltipMessage() {
+            const missingFields = [];
+            
+            if (this.selectedExistingCars.length === 0) {
+                if (!this.isNumberByFact) {
+                    if (!this.selectedFormat) {
+                        missingFields.push('формат номера');
+                    } else if (!this.numberParts.every((part, index) => {
+                        const cell = this.selectedFormat.cells[index];
+                        return part && part.length >= cell.min_length && part.length <= cell.max_length;
+                    })) {
+                        missingFields.push('номер Т/С');
+                    }
+                }
+                
+                if (!this.isMarkByFact && !this.selectedMark) {
+                    missingFields.push('марка Т/С');
+                }
+            }
+            
+            if (this.selectedUnloadingPlaces.length === 0) {
+                missingFields.push('хотя бы одно место разгрузки');
+            }
+            
+            if (missingFields.length === 0) {
+                return '';
+            }
+            
+            return `Заполните: ${missingFields.join(', ')}`;
         }
     },
     methods: {
@@ -685,11 +735,10 @@ export default {
             } else {
                 this.selectedUnloadingPlaces.push(placeId);
             }
-            this.validateUnloadingPlaces();
         },
         
         validateUnloadingPlaces() {
-            this.errors.unloadingPlaces = this.selectedUnloadingPlaces.length === 0 ? 'Выберите хотя бы одно место разгрузки' : '';
+            this.errors.unloadingPlaces = this.selectedUnloadingPlaces.length === 0 ? '' : '';
         },
         
         formatUnloadingPlaces() {
@@ -709,7 +758,6 @@ export default {
         
         addVehicle() {
             if (!this.canAddVehicle) {
-                alert('Заполните все обязательные поля правильно');
                 return;
             }
             
@@ -919,15 +967,15 @@ export default {
             this.markSearch = '';
         },
         
-        // Dropdown methods
-        toggleDropdown() {
-            this.isDropdownOpen = !this.isDropdownOpen;
+        // Format dropdown methods
+        toggleFormatDropdown() {
+            this.isFormatDropdownOpen = !this.isFormatDropdownOpen;
         },
         
         selectFormat(format) {
             this.selectedFormat = format;
             this.initializeNumberParts();
-            this.isDropdownOpen = false;
+            this.isFormatDropdownOpen = false;
         }
     },
     async mounted() {
@@ -941,7 +989,7 @@ export default {
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.format__dropdown')) {
-                this.isDropdownOpen = false;
+                this.isFormatDropdownOpen = false;
             }
             
             if (!e.target.closest('.mark__dropdown')) {
@@ -971,15 +1019,15 @@ export default {
 .completion__format {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 10px;
     position: relative;
-    padding-bottom: 10px;
+    padding-bottom: 15px;
 }
 
 .format__header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: end;
 }
 
 .format__label {
@@ -991,6 +1039,7 @@ export default {
     display: flex;
     gap: 10px;
     align-items: center;
+    position: relative;
 }
 
 .cancel-edit-btn {
@@ -1018,6 +1067,7 @@ export default {
     cursor: pointer;
     transition: background-color 0.2s;
     margin-top: 0;
+    position: relative;
 }
 
 .add-button:hover:not(:disabled) {
@@ -1030,12 +1080,41 @@ export default {
     opacity: 0.6;
 }
 
+/* Tooltip styles */
+.tooltip {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    z-index: 1000;
+}
+
+.tooltip-content {
+    background: #333;
+    color: white;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 500px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.tooltip-content::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    right: 40px;
+    border: 5px solid transparent;
+    border-bottom-color: #333;
+}
+
 .format__dropdown {
     position: relative;
 }
 
 .dropdown__button {
-    width: 200px;
+    width: 100%;
     height: 30px;
     border: 1px solid #e6e6e6;
     background-color: #FFF;
@@ -1074,6 +1153,11 @@ export default {
     font-size: 14px;
     color: #000;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    display: block;
 }
 
 .button__arrow {
@@ -1081,6 +1165,7 @@ export default {
     height: 10px;
     transition: transform 0.2s;
     transform: rotate(90deg);
+    flex-shrink: 0;
 }
 
 .button__arrow--open {
@@ -1091,10 +1176,10 @@ export default {
     position: absolute;
     top: 100%;
     left: 0;
-    width: 200px;
+    width: 100%;
     background: #FFF;
     border: 1px solid #e6e6e6;
-    border-radius: 10px;
+    border-radius: 20px;
     margin-top: 5px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.1);
     z-index: 1000;
@@ -1106,7 +1191,7 @@ export default {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 15px;
+    padding: 10px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
 }
@@ -1126,6 +1211,9 @@ export default {
 .item__text {
     font-size: 13px;
     color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .completion__fields {
@@ -1229,6 +1317,16 @@ export default {
     background-color: #f8f8f8;
 }
 
+.no-format-message {
+    font-size: 12px;
+    color: #a2a2a2;
+    text-align: center;
+    padding: 10px;
+    background: #f8f8f8;
+    border-radius: 10px;
+    border: 1px solid #e6e6e6;
+}
+
 /* Mark dropdown styles */
 .mark__field {
     width: 100%;
@@ -1274,6 +1372,11 @@ export default {
 .mark__button-text {
     font-size: 14px;
     color: #000;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+    display: block;
 }
 
 .mark__button-arrow {
@@ -1281,6 +1384,7 @@ export default {
     height: 10px;
     transition: transform 0.2s;
     transform: rotate(90deg);
+    flex-shrink: 0;
 }
 
 .mark__button-arrow--open {
@@ -1294,11 +1398,11 @@ export default {
     width: 100%;
     background: #FFF;
     border: 1px solid #e6e6e6;
-    border-radius: 10px;
+    border-radius: 20px;
     margin-top: 5px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.1);
     z-index: 1000;
-    max-height: 200px;
+    max-height: 220px;
     overflow: hidden;
 }
 
@@ -1310,14 +1414,14 @@ export default {
 .mark__search-input {
     width: 100%;
     border: 1px solid #e6e6e6;
-    border-radius: 5px;
+    border-radius: 15px;
     padding: 5px 10px;
     outline: none;
     font-size: 14px;
 }
 
 .mark__dropdown-list {
-    max-height: 150px;
+    max-height: 144px;
     overflow-y: auto;
 }
 
@@ -1339,6 +1443,9 @@ export default {
 .mark__item-text {
     font-size: 14px;
     color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .mark__input {
@@ -1407,7 +1514,7 @@ export default {
 }
 
 .unloading__item {
-    height: 35px;
+    height: 30px;
     background: #F2F2F2;
     color: #a2a2a2;
     border-radius: 50px;
@@ -1422,6 +1529,9 @@ export default {
     text-align: center;
     border: 1px solid transparent;
     position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .unloading__item:hover:not(.unloading__item--active) {
@@ -1629,6 +1739,7 @@ export default {
     cursor: pointer;
     font-size: 12px;
     transition: all 0.2s;
+    white-space: nowrap;
 }
 
 .filter-tab:hover {
@@ -1795,5 +1906,17 @@ export default {
 
 .select-btn:hover {
     background: #3a45c0;
+}
+
+/* Анимации для dropdown */
+.dropdown-enter-active,
+.dropdown-leave-active {
+    transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
 }
 </style>

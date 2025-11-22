@@ -93,6 +93,10 @@ body:not(.auth-active) #app {
   margin-left: 0;
 }
 
+.form-input-sm {
+  border-radius: 10px !important;
+}
+
 .blue {
   color: #4F5BDF;
 }

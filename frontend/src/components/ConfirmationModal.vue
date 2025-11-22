@@ -88,16 +88,6 @@ export default {
   animation: overlayAppear 0.3s ease-out;
 }
 
-@keyframes overlayAppear {
-  from {
-    background: rgba(0, 0, 0, 0);
-    backdrop-filter: blur(0px);
-  }
-  to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
-  }
-}
 
 .modal {
     background: white;
@@ -196,5 +186,17 @@ export default {
 .modal-fade-leave-from .modal {
     opacity: 1;
     transform: scale(1) translateY(0);
+}
+
+
+@keyframes overlayAppear {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(1px);
+  }
 }
 </style>

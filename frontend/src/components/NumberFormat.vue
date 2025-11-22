@@ -1168,7 +1168,7 @@ export default {
 .form-input-sm {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.95em;
   height: 35px;
   transition: border-color 0.2s ease;
@@ -1188,7 +1188,7 @@ export default {
   gap: 6px;
   padding: 6px 12px;
   background: #f8f9ff;
-  border-radius: 8px;
+  border-radius: 15px;
   border: 1px solid #e6e6e6;
 }
 
@@ -1228,13 +1228,14 @@ export default {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  padding-bottom: 15px;
 }
 
 .cell-horizontal-card {
   background: #fff;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 20px;
+  padding: 10px;
   transition: all 0.2s ease;
   cursor: pointer;
   min-width: 230px;

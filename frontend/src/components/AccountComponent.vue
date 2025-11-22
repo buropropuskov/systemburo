@@ -60,12 +60,16 @@
     <div class="dashboard-row" id="number" v-if="isBuroPropuskov">
       <NumberFormat class="dashboard-card dashboard-card-animated"/>
     </div>
+    <div class="dashboard-row" v-if="isBuroPropuskov">
+      <CitizenshipManagement class="dashboard-card dashboard-card-animated" />
+    </div>
     <div class="dashboard-row" id="tables" v-if="isBuroPropuskov">
       <TableConstructor class="dashboard-card dashboard-card-animated" />
     </div>
      <div class="dashboard-row" id="user_types" v-if="isBuroPropuskov">
       <UserTypes class="dashboard-card dashboard-card-animated" />
     </div>
+    
   </div>
 </template>
 
@@ -81,6 +85,7 @@ import NumberFormat from './NumberFormat.vue';
 import TableConstructor from './TableConstructor.vue';
 import UserTypes from './UserTypes.vue';
 import AccountSettings from './AccountSettings.vue';
+import CitizenshipManagement from './CitizenshipManagement.vue';
 
 export default {
   components: {
@@ -94,7 +99,8 @@ export default {
     NumberFormat,
     TableConstructor,
     UserTypes,
-    AccountSettings
+    AccountSettings,
+    CitizenshipManagement
   },
   data() {
     return {

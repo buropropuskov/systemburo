@@ -11,6 +11,7 @@ use crate::handlers::unload_places::*;
 use crate::handlers::number_format::*;
 use crate::handlers::unique_cars::*;
 use crate::handlers::table_constructor::*;
+use crate::handlers::citizenship::*; // Добавляем импорт
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -134,6 +135,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("", web::post().to(create_license_plate_format))
                 .route("/{id}", web::put().to(update_license_plate_format))
                 .route("/{id}", web::delete().to(delete_license_plate_format))
+        )
+
+        // Гражданства
+        .service(
+            web::scope("/citizenships")
+                .route("", web::get().to(get_citizenships))
+                .route("", web::post().to(create_citizenship))
+                .route("/{id}", web::put().to(update_citizenship))
+                .route("/{id}", web::delete().to(delete_citizenship))
+                .route("/clear-default", web::post().to(clear_default_citizenships))
         )
 
         // Конструктор таблиц
