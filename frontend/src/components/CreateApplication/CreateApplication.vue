@@ -8,7 +8,7 @@
                     <p class="instruction__text">Инструкция</p>
                 </button>
             </div>
-            <h4>Автозаявка №{{ applicationNumber }}</h4>
+            <h4>Заявка на проведение работ №{{ applicationNumber }}</h4>
         </div>
         <div class="create__container">
             <BlankSelector />
@@ -81,42 +81,42 @@
                     />
                 </div>
 
-                <!-- 4 ряд: VehicleForm и Список транспортных средств -->
+                <!-- 4 ряд: EmployeeForm и Список сотрудников -->
                 <div class="form__data">
-                    <VehicleForm 
+                    <EmployeeForm 
                         :user-organization="organization"
                         :user-organization-id="organizationId"
                         :user-company="company"
                         :user-company-id="companyId"
-                        :existing-vehicles="vehicles"
-                        :key="vehicleFormKey"
-                        @vehicle-added="handleVehicleAdded"
-                        @vehicles-added="handleVehiclesAdded"
-                        @vehicle-updated="handleVehicleUpdated"
+                        :existing-employees="employees"
+                        :key="employeeFormKey"
+                        @employee-added="handleEmployeeAdded"
+                        @employees-added="handleEmployeesAdded"
+                        @employee-updated="handleEmployeeUpdated"
                         @edit-cancelled="handleEditCancelled"
-                        ref="vehicleForm"
+                        ref="employeeForm"
                     />
-                    <VehiclesList 
-                        :vehicles="sortedVehicles"
+                    <EmployeesList 
+                        :employees="sortedEmployees"
                         :sort-field="sortField"
                         :sort-direction="sortDirection"
                         @sort="sortBy"
-                        @edit-vehicle="editVehicle"
-                        @delete-vehicle="deleteVehicle"
+                        @edit-employee="editEmployee"
+                        @delete-employee="deleteEmployee"
                     />
                 </div>
             </div>
         </div>
 
-        <!-- Модальное окно привязки новых машин -->
-        <BindingModal
+        <!-- Модальное окно привязки новых сотрудников -->
+        <EmployeeBindingModal
             v-if="showBindingModal"
-            :new-cars-to-bind="newCarsToBind"
+            :new-employees-to-bind="newEmployeesToBind"
             :organization="organization"
             :company="company"
             :has-organization="hasOrganization"
             :has-company="hasCompany"
-            @toggle-car-binding="toggleCarBinding"
+            @toggle-employee-binding="toggleEmployeeBinding"
             @confirm-binding="confirmBinding"
             @skip-binding="skipBinding"
             @close="closeBindingModal"
@@ -125,22 +125,26 @@
 </template>
 
 <script>
-import VehicleForm from '@/components/VehicleForm.vue'
+// import VehicleForm from '@/components/VehicleForm.vue'
+// import VehiclesList from './VehiclesList.vue';
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
-import VehiclesList from './VehiclesList.vue';
-import BindingModal from './BindingModal.vue';
+import EmployeeForm from './EmployeeForm.vue';
+import EmployeesList from './EmployeesList.vue';
+import EmployeeBindingModal from './EmployeeBindingModal.vue';
 
 export default {
     name: 'CreateApplication',
     components: {
-        VehicleForm,
+        // VehicleForm,
+        // VehiclesList,
         BlankSelector,
         UserInfoRow,
         DateRangeSection,
-        VehiclesList,
-        BindingModal
+        EmployeeForm,
+        EmployeesList,
+        EmployeeBindingModal
     },
     data() {
         return {
@@ -164,9 +168,9 @@ export default {
             organizationId: null,
             companyId: null,
             
-            // Vehicles list
-            vehicles: [],
-            vehicleIdCounter: 1,
+            // Employees list
+            employees: [],
+            employeeIdCounter: 1,
             
             // Sorting
             sortField: null,
@@ -183,15 +187,15 @@ export default {
                 singleDate: '',
                 startTime: '',
                 endTime: '',
-                unloadingPlaces: ''
+                passageTables: ''
             },
             
-            // Key for forcing VehicleForm re-render
-            vehicleFormKey: 0,
+            // Key for forcing EmployeeForm re-render
+            employeeFormKey: 0,
 
-            // Привязка новых машин
+            // Привязка новых сотрудников
             showBindingModal: false,
-            newCarsToBind: [],
+            newEmployeesToBind: [],
             bindToOrganization: false,
             bindToCompany: false,
             hasOrganization: false,
@@ -209,7 +213,7 @@ export default {
                 this.company && 
                 this.responsiblePerson && 
                 this.phoneNumber &&
-                this.vehicles.length > 0 &&
+                this.employees.length > 0 &&
                 this.consentGiven;
 
             // Проверка дат в зависимости от типа заявки
@@ -222,28 +226,28 @@ export default {
 
             return hasRequiredFields && hasValidDates && hasValidTime;
         },
-        sortedVehicles() {
+        sortedEmployees() {
             if (!this.sortField) {
-                return this.vehicles;
+                return this.employees;
             }
             
-            return [...this.vehicles].sort((a, b) => {
+            return [...this.employees].sort((a, b) => {
                 let valueA, valueB;
                 
                 switch (this.sortField) {
                     case 'number':
                         return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
-                    case 'plate':
-                        valueA = a.plateNumber.toLowerCase();
-                        valueB = b.plateNumber.toLowerCase();
+                    case 'name':
+                        valueA = this.formatFullName(a).toLowerCase();
+                        valueB = this.formatFullName(b).toLowerCase();
                         break;
-                    case 'mark':
-                        valueA = a.mark.toLowerCase();
-                        valueB = b.mark.toLowerCase();
+                    case 'position':
+                        valueA = a.position.toLowerCase();
+                        valueB = b.position.toLowerCase();
                         break;
-                    case 'place':
-                        valueA = a.unloadingPlace.toLowerCase();
-                        valueB = b.unloadingPlace.toLowerCase();
+                    case 'tables':
+                        valueA = a.passageTables.toLowerCase();
+                        valueB = b.passageTables.toLowerCase();
                         break;
                     default:
                         return 0;
@@ -314,8 +318,8 @@ export default {
                         this.formatPhoneNumberImmediately(this.phoneNumber);
                     }
                     
-                    // Принудительно обновляем VehicleForm после загрузки данных пользователя
-                    this.vehicleFormKey += 1;
+                    // Принудительно обновляем EmployeeForm после загрузки данных пользователя
+                    this.employeeFormKey += 1;
                     
                 } else {
                     console.error("Ошибка загрузки данных пользователя");
@@ -391,20 +395,20 @@ export default {
             }
         },
         
-        deleteVehicle(vehicleId) {
-            const index = this.vehicles.findIndex(vehicle => vehicle.id === vehicleId);
+        deleteEmployee(employeeId) {
+            const index = this.employees.findIndex(employee => employee.id === employeeId);
             if (index !== -1) {
-                this.vehicles.splice(index, 1);
+                this.employees.splice(index, 1);
             }
         },
 
-        editVehicle(vehicle) {
-            this.$refs.vehicleForm.editVehicle(vehicle);
+        editEmployee(employee) {
+            this.$refs.employeeForm.editEmployee(employee);
         },
 
         handleEditCancelled() {
             // Обработка отмены редактирования
-            this.vehicleFormKey += 1;
+            this.employeeFormKey += 1;
         },
         
         validateField(field) {
@@ -467,28 +471,28 @@ export default {
             }
         },
 
-        handleVehicleAdded(newVehicle) {
-            const vehicleWithId = {
-                ...newVehicle,
-                id: this.vehicleIdCounter++
+        handleEmployeeAdded(newEmployee) {
+            const employeeWithId = {
+                ...newEmployee,
+                id: this.employeeIdCounter++
             };
-            this.vehicles.push(vehicleWithId);
+            this.employees.push(employeeWithId);
         },
 
-        handleVehiclesAdded(vehicles) {
-            vehicles.forEach(vehicle => {
-                const vehicleWithId = {
-                    ...vehicle,
-                    id: this.vehicleIdCounter++
+        handleEmployeesAdded(employees) {
+            employees.forEach(employee => {
+                const employeeWithId = {
+                    ...employee,
+                    id: this.employeeIdCounter++
                 };
-                this.vehicles.push(vehicleWithId);
+                this.employees.push(employeeWithId);
             });
         },
 
-        handleVehicleUpdated(updatedVehicle) {
-            const index = this.vehicles.findIndex(v => v.id === updatedVehicle.id);
+        handleEmployeeUpdated(updatedEmployee) {
+            const index = this.employees.findIndex(e => e.id === updatedEmployee.id);
             if (index !== -1) {
-                this.vehicles.splice(index, 1, updatedVehicle);
+                this.employees.splice(index, 1, updatedEmployee);
             }
         },
         
@@ -502,6 +506,14 @@ export default {
             }
         },
 
+        formatFullName(employee) {
+            const parts = [];
+            if (employee.lastName) parts.push(employee.lastName);
+            if (employee.firstName) parts.push(employee.firstName);
+            if (employee.middleName) parts.push(employee.middleName);
+            return parts.join(' ') || 'Не указано';
+        },
+
         // Submit application
         async submitApplication() {
             // Проверяем, не идет ли уже процесс привязки
@@ -513,7 +525,7 @@ export default {
             this.validateAllFields();
             
             if (!this.canSubmit) {
-                alert('Заполните все обязательные поля и добавьте хотя бы одно транспортное средство');
+                alert('Заполните все обязательные поля и добавьте хотя бы одного сотрудника');
                 return;
             }
 
@@ -533,19 +545,14 @@ export default {
                 return;
             }
 
-            // Определяем новые машины для добавления в unique_cars
-            // Исключаем машины "по факту" и существующие машины
-            const newCars = this.vehicles.filter(vehicle => 
-                !vehicle.isExisting && 
-                vehicle.plateNumber !== 'По факту' && 
-                vehicle.mark !== 'По факту'
-            );
+            // Определяем новых сотрудников для добавления в unique_employees
+            const newEmployees = this.employees.filter(employee => !employee.isExisting);
             
-            // Сначала создаем уникальные машины если есть новые
-            if (newCars.length > 0) {
-                await this.createUniqueCars(newCars);
+            // Сначала создаем уникальных сотрудников если есть новые
+            if (newEmployees.length > 0) {
+                await this.createUniqueEmployees(newEmployees);
             } else {
-                // Если нет новых машин для привязки, сразу отправляем заявку
+                // Если нет новых сотрудников для привязки, сразу отправляем заявку
                 await this.sendApplication();
             }
         },
@@ -564,28 +571,33 @@ export default {
             this.validateTimeRange();
         },
 
-        async createUniqueCars(newCars) {
+        async createUniqueEmployees(newEmployees) {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Создаем массив промисов для создания машин
-                const createPromises = newCars.map(car => {
-                    const carData = {
-                        number: car.plateNumber,
-                        mark: car.mark,
-                        format_id: car.formatId,
+                // Создаем массив промисов для создания сотрудников
+                const createPromises = newEmployees.map(employee => {
+                    const employeeData = {
+                        last_name: employee.lastName,
+                        first_name: employee.firstName,
+                        middle_name: employee.middleName,
+                        position: employee.position,
+                        citizenship_id: employee.citizenshipId,
+                        passport_series_number: employee.passportSeriesNumber,
+                        patent_number: employee.patentNumber,
+                        other_permission: employee.otherPermission,
                         user_id: null, // Будет установлен на сервере автоматически
                         organization_id: null,
                         company_id: null
                     };
 
-                    return fetch("http://localhost:8080/unique-cars", {
+                    return fetch("http://localhost:8080/unique-employees", {
                         method: "POST",
                         headers: {
                             "Authorization": `Bearer ${token}`,
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify(carData)
+                        body: JSON.stringify(employeeData)
                     });
                 });
 
@@ -595,16 +607,16 @@ export default {
                 // Проверяем результаты
                 const results = await Promise.all(responses.map(async (response, index) => {
                     if (response.ok) {
-                        const createdCar = await response.json();
+                        const createdEmployee = await response.json();
                         return { 
                             success: true, 
-                            car: newCars[index], 
-                            createdCar,
-                            carId: createdCar.id // Сохраняем ID
+                            employee: newEmployees[index], 
+                            createdEmployee,
+                            employeeId: createdEmployee.id // Сохраняем ID
                         };
                     } else {
                         const error = await response.json();
-                        return { success: false, car: newCars[index], error };
+                        return { success: false, employee: newEmployees[index], error };
                     }
                 }));
 
@@ -614,30 +626,35 @@ export default {
 
                 // Показываем ошибки если есть неуспешные создания
                 if (failedCreations.length > 0) {
-                    console.error('Ошибки при создании машин:', failedCreations);
+                    console.error('Ошибки при создании сотрудников:', failedCreations);
                     // Продолжаем с успешными созданиями
                 }
 
-                // Сохраняем успешно созданные машины с их ID и флагом привязки
-                this.newCarsToBind = successfulCreations.map(result => ({
-                    plateNumber: result.car.plateNumber,
-                    mark: result.car.mark,
-                    formatId: result.car.formatId,
-                    carId: result.carId, // Сохраняем ID для обновления
-                    bindToEntity: true // По умолчанию все машины будут привязаны
+                // Сохраняем успешно созданных сотрудников с их ID и флагом привязки
+                this.newEmployeesToBind = successfulCreations.map(result => ({
+                    lastName: result.employee.lastName,
+                    firstName: result.employee.firstName,
+                    middleName: result.employee.middleName,
+                    position: result.employee.position,
+                    citizenshipId: result.employee.citizenshipId,
+                    passportSeriesNumber: result.employee.passportSeriesNumber,
+                    patentNumber: result.employee.patentNumber,
+                    otherPermission: result.employee.otherPermission,
+                    employeeId: result.employeeId, // Сохраняем ID для обновления
+                    bindToEntity: true // По умолчанию все сотрудники будут привязаны
                 }));
 
-                // Показываем модальное окно привязки если есть успешно созданные машины
-                if (this.newCarsToBind.length > 0) {
+                // Показываем модальное окно привязки если есть успешно созданные сотрудники
+                if (this.newEmployeesToBind.length > 0) {
                     this.bindingInProgress = true;
                     this.showBindingModal = true;
                 } else {
-                    // Если нет машин для привязки, отправляем заявку
+                    // Если нет сотрудников для привязки, отправляем заявку
                     await this.sendApplication();
                 }
 
             } catch (error) {
-                console.error('Ошибка при создании уникальных машин:', error);
+                console.error('Ошибка при создании уникальных сотрудников:', error);
                 // Продолжаем отправку заявки даже при ошибке
                 await this.sendApplication();
             }
@@ -656,16 +673,20 @@ export default {
                     entry_time_from: this.startTime + ":00", // Добавляем секунды
                     entry_time_to: this.endTime + ":00"      // Добавляем секунды
                 },
-                cars: this.vehicles.map(vehicle => ({
-                    car: {
-                        car_number: vehicle.plateNumber,
-                        car_brand: vehicle.mark
+                employees: this.employees.map(employee => ({
+                    employee: {
+                        last_name: employee.lastName,
+                        first_name: employee.firstName,
+                        middle_name: employee.middleName,
+                        position: employee.position,
+                        citizenship_id: employee.citizenshipId,
+                        passport_series_number: employee.passportSeriesNumber,
+                        patent_number: employee.patentNumber,
+                        other_permission: employee.otherPermission
                     },
-                    unload_places: vehicle.unloadPlaces ? vehicle.unloadPlaces.map((placeId, index) => ({
-                        unload_place_id: placeId,
-                        order_index: index + 1,
-                        planned_time: null,
-                        notes: null
+                    target_tables: employee.targetTables ? employee.targetTables.map((tableId, index) => ({
+                        table_id: tableId,
+                        order_index: index + 1
                     })) : []
                 }))
             };
@@ -679,7 +700,7 @@ export default {
                     return;
                 }
 
-                const response = await fetch("http://localhost:8080/submit-v2", {
+                const response = await fetch("http://localhost:8080/submit-employee-application", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -711,29 +732,34 @@ export default {
             }
         },
 
-        // Переключение привязки для конкретной машины
-        toggleCarBinding(car) {
-            car.bindToEntity = !car.bindToEntity;
+        // Переключение привязки для конкретного сотрудника
+        toggleEmployeeBinding(employee) {
+            employee.bindToEntity = !employee.bindToEntity;
         },
 
-        // Метод для привязки машин
+        // Метод для привязки сотрудников
         async confirmBinding() {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Обновляем привязку для каждой машины по ID
-                const updatePromises = this.newCarsToBind.map(car => {
+                // Обновляем привязку для каждого сотрудника по ID
+                const updatePromises = this.newEmployeesToBind.map(employee => {
                     const updateData = {
-                        number: car.plateNumber,
-                        mark: car.mark,
-                        format_id: car.formatId,
-                        organization_id: car.bindToEntity && this.bindToOrganization ? this.organizationId : null,
-                        company_id: car.bindToEntity && this.bindToCompany ? this.companyId : null,
+                        last_name: employee.lastName,
+                        first_name: employee.firstName,
+                        middle_name: employee.middleName,
+                        position: employee.position,
+                        citizenship_id: employee.citizenshipId,
+                        passport_series_number: employee.passportSeriesNumber,
+                        patent_number: employee.patentNumber,
+                        other_permission: employee.otherPermission,
+                        organization_id: employee.bindToEntity && this.bindToOrganization ? this.organizationId : null,
+                        company_id: employee.bindToEntity && this.bindToCompany ? this.companyId : null,
                         user_id: null // Привязываем к пользователю (будет установлен на сервере автоматически)
                     };
 
                     // Используем обычный эндпоинт обновления по ID
-                    return fetch(`http://localhost:8080/unique-cars/${car.carId}`, {
+                    return fetch(`http://localhost:8080/unique-employees/${employee.employeeId}`, {
                         method: "PUT",
                         headers: {
                             "Authorization": `Bearer ${token}`,
@@ -750,16 +776,16 @@ export default {
                 const failedUpdates = results.filter(result => result.status === 'rejected');
                 
                 if (failedUpdates.length > 0) {
-                    console.error('Ошибки при обновлении машин:', failedUpdates);
+                    console.error('Ошибки при обновлении сотрудников:', failedUpdates);
                 }
 
-                console.log(`Успешно обновлено ${successfulUpdates.length} из ${results.length} машин`);
+                console.log(`Успешно обновлено ${successfulUpdates.length} из ${results.length} сотрудников`);
 
                 this.closeBindingModal();
                 await this.sendApplication();
 
             } catch (error) {
-                console.error('Ошибка при привязке машин:', error);
+                console.error('Ошибка при привязке сотрудников:', error);
                 this.closeBindingModal();
                 await this.sendApplication();
             }
@@ -772,7 +798,7 @@ export default {
 
         closeBindingModal() {
             this.showBindingModal = false;
-            this.newCarsToBind = [];
+            this.newEmployeesToBind = [];
             this.bindToOrganization = false;
             this.bindToCompany = false;
             this.bindingInProgress = false;
@@ -799,7 +825,7 @@ export default {
             this.startTime = '';
             this.endTime = '';
             this.consentGiven = false;
-            this.vehicles = [];
+            this.employees = [];
             this.applicationNumber++;
 
             // Сбрасываем ID
@@ -817,11 +843,11 @@ export default {
                 singleDate: '',
                 startTime: '',
                 endTime: '',
-                unloadingPlaces: ''
+                passageTables: ''
             };
             
-            // Увеличиваем ключ для принудительного пересоздания VehicleForm
-            this.vehicleFormKey += 1;
+            // Увеличиваем ключ для принудительного пересоздания EmployeeForm
+            this.employeeFormKey += 1;
             
             // Перезагрузка данных пользователя
             this.loadUserData();

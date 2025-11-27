@@ -10,8 +10,9 @@ use crate::handlers::user_types::*;
 use crate::handlers::unload_places::*;
 use crate::handlers::number_format::*;
 use crate::handlers::unique_cars::*;
+use crate::handlers::unique_employees::*; // Добавляем импорт для сотрудников
 use crate::handlers::table_constructor::*;
-use crate::handlers::citizenship::*; // Добавляем импорт
+use crate::handlers::citizenship::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -20,7 +21,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(web::resource("/login").route(web::post().to(login)))
         .service(web::resource("/user-data").route(web::get().to(get_current_user_data)))
         .service(web::resource("/users/me").route(web::get().to(get_current_user)))
-        .service(web::resource("/user-types").route(web::get().to(get_user_types))) // Для регистрации
+        .service(web::resource("/user-types").route(web::get().to(get_user_types)))
 
         // Управление типами пользователей (CRUD)
         .service(
@@ -34,6 +35,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // Заявки
         .service(web::resource("/submit").route(web::post().to(submit_application)))
         .service(web::resource("/submit-v2").route(web::post().to(submit_application_v2)))
+        .service(web::resource("/submit-employee-application").route(web::post().to(submit_employee_application))) // Новая ручка для сотрудников
         .service(web::resource("/applications/all-cars").route(web::get().to(get_all_cars_for_account)))
         .service(web::resource("/applications/active-cars").route(web::get().to(get_active_cars_for_table)))
         .service(
@@ -56,8 +58,17 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::delete().to(delete_unique_car))
                 .route("/ownership-info", web::get().to(get_car_ownership_info))
         )
-        // Добавляем отдельный ресурс для by-number
         .service(web::resource("/unique-cars/by-number").route(web::put().to(update_unique_car_by_number)))
+
+        // Уникальные сотрудники
+        .service(
+            web::scope("/unique-employees")
+                .route("", web::get().to(get_unique_employees))
+                .route("", web::post().to(create_unique_employee))
+                .route("/{id}", web::put().to(update_unique_employee))
+                .route("/{id}", web::delete().to(delete_unique_employee))
+                .route("/ownership-info", web::get().to(get_employee_ownership_info))
+        )
 
         // Места разгрузки
         .service(

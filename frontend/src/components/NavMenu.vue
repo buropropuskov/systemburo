@@ -59,32 +59,9 @@
         </div>
 
         <!-- Элемент с выпадающим списком сотрудников -->
-        <div class="nav-item-container">
-          <div 
-            class="nav-item has-dropdown" 
-            @mouseenter="openDropdown('employees')"
-            @mouseleave="handleDropdownLeave('employees')"
-          >
-            <div class="nav-item-content">
-              <img src="@/assets/icons/employees.png" alt="Сотрудники" class="nav-icon">
-              <span class="nav-text">Сотрудники</span>
-            </div>
-            <img src="@/assets/icons/arrow.png" alt="▼" class="dropdown-arrow" :class="{ rotated: dropdowns.employees }">
-          </div>
-          
-          <!-- Выпадающий список сотрудников (справа от меню) -->
-          <transition name="dropdown-fade">
-            <div 
-              v-show="dropdowns.employees" 
-              class="dropdown-list dropdown-right"
-              @mouseenter="keepDropdownOpen('employees')"
-              @mouseleave="closeDropdown('employees')"
-            >
-              <div class="dropdown-item disabled">Арендаторы</div>
-              <div class="dropdown-item disabled">Подрядчики</div>
-              <div class="dropdown-item disabled">Сотрудники компании</div>
-            </div>
-          </transition>
+       <div class="nav-item" @click="navigateToEmployeesView">
+          <img src="@/assets/icons/employees.png" alt="Архив" class="nav-icon">
+          <span class="nav-text">Сотрудники</span>
         </div>
         <div class="nav-item" @click="navigateToCarsView">
           <img src="@/assets/icons/car.png" alt="Архив" class="nav-icon">
@@ -214,6 +191,9 @@ export default {
     },
     navigateToCarsView() {
       this.$router.push('/carsview');
+    },
+     navigateToEmployeesView() {
+      this.$router.push('/employeesview');
     },
     
     async fetchSystemTables() {

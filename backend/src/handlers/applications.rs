@@ -2,12 +2,222 @@ use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::PgPool;
 use serde_json::json;
 use log;
+use serde::Deserialize;
 
 use crate::models::applications::{Application, ApplicationWithCars, ApplicationSubmitRequest};
 use crate::models::cars::{CarWithUnloadPlaces, Car};
 use crate::models::unload_places::CarUnloadPlace;
-
 use crate::auth::decode_token;
+
+/// Получение информации о пользователе
+async fn get_user_info(
+    pool: &web::Data<PgPool>,
+    username: &str,
+) -> Result<UserInfo, Error> {
+    let user_info = sqlx::query!(
+        r#"
+        SELECT id as user_id, organization_id, company_id
+        FROM users 
+        WHERE username = $1
+        "#,
+        username
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch user info: {}", e);
+        error::ErrorInternalServerError("Error fetching user info")
+    })?;
+
+    Ok(UserInfo {
+        user_id: user_info.user_id,
+        organization_id: Some(user_info.organization_id),
+        company_id: Some(user_info.company_id),
+    })
+}
+
+#[derive(Debug)]
+struct UserInfo {
+    user_id: i32,
+    organization_id: Option<i32>,
+    company_id: Option<i32>,
+}
+
+/// Структуры для заявок сотрудников
+#[derive(Debug, Deserialize)]
+pub struct EmployeeApplicationData {
+    pub message: Option<String>,
+    pub application: ApplicationData,
+    pub employees: Vec<EmployeeApplication>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EmployeeApplication {
+    pub employee: EmployeeData,
+    pub target_tables: Vec<TargetTableData>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EmployeeData {
+    pub last_name: String,
+    pub first_name: String,
+    pub middle_name: Option<String>,
+    pub position: String,
+    pub citizenship_id: i32,
+    pub passport_series_number: String,
+    pub patent_number: Option<String>,
+    pub other_permission: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TargetTableData {
+    pub table_id: i32,
+    pub order_index: i32,
+}
+
+use chrono::{NaiveDate, NaiveTime};
+
+#[derive(Debug, Deserialize)]
+pub struct ApplicationData {
+    pub organization: String,
+    pub responsible_person: String,
+    pub contact_phone: String,
+    pub entry_date_from: NaiveDate,
+    pub entry_date_to: NaiveDate,
+    pub entry_time_from: NaiveTime,
+    pub entry_time_to: NaiveTime,
+}
+
+/// Отправка заявки для сотрудников
+pub async fn submit_employee_application(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    form: web::Json<EmployeeApplicationData>,
+) -> Result<HttpResponse, Error> {
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                match decode_token(&token) {
+                    Ok(claims) => {
+                        let user_info = get_user_info(&pool, &claims.sub).await?;
+
+                        log::info!("Submitting employee application for user: {}", user_info.user_id);
+
+                        // Начинаем транзакцию
+                        let mut transaction = pool.begin().await.map_err(|e| {
+                            log::error!("Failed to begin transaction: {}", e);
+                            error::ErrorInternalServerError("Database error")
+                        })?;
+
+                        // Создаем заявку
+                        let application_result = sqlx::query!(
+                            r#"
+                            INSERT INTO applications (
+                                organization, responsible_person, contact_phone,
+                                entry_date_from, entry_date_to, entry_time_from, entry_time_to,
+                                message, user_id, application_type
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'employee')
+                            RETURNING id
+                            "#,
+                            form.application.organization,
+                            form.application.responsible_person,
+                            form.application.contact_phone,
+                            form.application.entry_date_from,
+                            form.application.entry_date_to,
+                            form.application.entry_time_from,
+                            form.application.entry_time_to,
+                            form.message,
+                            user_info.user_id
+                        )
+                        .fetch_one(&mut *transaction)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to create application: {}", e);
+                            error::ErrorInternalServerError("Error creating application")
+                        })?;
+
+                        let application_id = application_result.id;
+
+                        // Добавляем сотрудников в заявку
+                        for (index, employee_app) in form.employees.iter().enumerate() {
+                            let employee_result = sqlx::query!(
+                                r#"
+                                INSERT INTO application_employees (
+                                    application_id, last_name, first_name, middle_name, position,
+                                    citizenship_id, passport_series_number, patent_number, other_permission,
+                                    order_index
+                                )
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                                RETURNING id
+                                "#,
+                                application_id,
+                                employee_app.employee.last_name,
+                                employee_app.employee.first_name,
+                                employee_app.employee.middle_name,
+                                employee_app.employee.position,
+                                employee_app.employee.citizenship_id,
+                                employee_app.employee.passport_series_number,
+                                employee_app.employee.patent_number,
+                                employee_app.employee.other_permission,
+                                index as i32
+                            )
+                            .fetch_one(&mut *transaction)
+                            .await
+                            .map_err(|e| {
+                                log::error!("Failed to create application employee: {}", e);
+                                error::ErrorInternalServerError("Error creating application employee")
+                            })?;
+
+                            let application_employee_id = employee_result.id;
+
+                            // Добавляем целевые таблицы для сотрудника
+                            for target_table in &employee_app.target_tables {
+                                sqlx::query!(
+                                    r#"
+                                    INSERT INTO employee_target_tables (
+                                        application_employee_id, table_id, order_index
+                                    )
+                                    VALUES ($1, $2, $3)
+                                    "#,
+                                    application_employee_id,
+                                    target_table.table_id,
+                                    target_table.order_index
+                                )
+                                .execute(&mut *transaction)
+                                .await
+                                .map_err(|e| {
+                                    log::error!("Failed to create employee target table: {}", e);
+                                    error::ErrorInternalServerError("Error creating employee target table")
+                                })?;
+                            }
+                        }
+
+                        // Коммитим транзакцию
+                        transaction.commit().await.map_err(|e| {
+                            log::error!("Failed to commit transaction: {}", e);
+                            error::ErrorInternalServerError("Database error")
+                        })?;
+
+                        log::info!("Successfully submitted employee application with ID: {}", application_id);
+
+                        Ok(HttpResponse::Ok().json(json!({
+                            "message": "Employee application submitted successfully",
+                            "application_id": application_id
+                        })))
+                    }
+                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
+                }
+            } else {
+                Err(error::ErrorUnauthorized("Invalid or missing token"))
+            }
+        } else {
+            Err(error::ErrorUnauthorized("Invalid or missing token"))
+        }
+    } else {
+        Err(error::ErrorUnauthorized("Missing Authorization header"))
+    }
+}
 
 /// Обновленный обработчик отправки заявки (v2)
 pub async fn submit_application_v2(
@@ -25,6 +235,8 @@ pub async fn submit_application_v2(
 
     let claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let user_info = get_user_info(&pool, &claims.sub).await?;
 
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
@@ -48,15 +260,17 @@ pub async fn submit_application_v2(
     // вставка заявки
     let application_id = sqlx::query!(
         "INSERT INTO applications (organization, responsible_person, contact_phone, 
-         entry_date_from, entry_date_to, entry_time_from, entry_time_to) 
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+         entry_date_from, entry_date_to, entry_time_from, entry_time_to, message, user_id, application_type) 
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'vehicle') RETURNING id",
         form.application.organization.as_ref().unwrap(),
         form.application.responsible_person.as_ref().unwrap(),
         form.application.contact_phone.as_ref().unwrap(),
-        form.application.entry_date_from.unwrap(),
-        form.application.entry_date_to.unwrap(),
-        form.application.entry_time_from.unwrap(),
-        form.application.entry_time_to.unwrap()
+        form.application.entry_date_from.as_ref().unwrap(),
+        form.application.entry_date_to.as_ref().unwrap(),
+        form.application.entry_time_from.as_ref().unwrap(),
+        form.application.entry_time_to.as_ref().unwrap(),
+        form.message,
+        user_info.user_id
     )
     .fetch_one(&mut *transaction)
     .await
@@ -83,10 +297,10 @@ pub async fn submit_application_v2(
             application_id,
             car.car_number.as_ref().unwrap(),
             car.car_brand.as_ref().unwrap(),
-            form.application.entry_date_from.unwrap(),
-            form.application.entry_date_to.unwrap(),
-            form.application.entry_time_from.unwrap(),
-            form.application.entry_time_to.unwrap()
+            form.application.entry_date_from.as_ref().unwrap(),
+            form.application.entry_date_to.as_ref().unwrap(),
+            form.application.entry_time_from.as_ref().unwrap(),
+            form.application.entry_time_to.as_ref().unwrap()
         )
         .fetch_one(&mut *transaction)
         .await
@@ -140,8 +354,10 @@ pub async fn submit_application(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let _claims = decode_token(token)
+    let claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let user_info = get_user_info(&pool, &claims.sub).await?;
 
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
@@ -161,15 +377,16 @@ pub async fn submit_application(
 
     let application_id = sqlx::query!(
         "INSERT INTO applications (organization, responsible_person, contact_phone, 
-         entry_date_from, entry_date_to, entry_time_from, entry_time_to) 
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+         entry_date_from, entry_date_to, entry_time_from, entry_time_to, user_id, application_type) 
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'vehicle') RETURNING id",
         form.application.organization.as_ref().unwrap(),
         form.application.responsible_person.as_ref().unwrap(),
         form.application.contact_phone.as_ref().unwrap(),
-        form.application.entry_date_from.unwrap(),
-        form.application.entry_date_to.unwrap(),
-        form.application.entry_time_from.unwrap(),
-        form.application.entry_time_to.unwrap()
+        form.application.entry_date_from.as_ref().unwrap(),
+        form.application.entry_date_to.as_ref().unwrap(),
+        form.application.entry_time_from.as_ref().unwrap(),
+        form.application.entry_time_to.as_ref().unwrap(),
+        user_info.user_id
     )
     .fetch_one(&mut *transaction)
     .await
@@ -193,10 +410,10 @@ pub async fn submit_application(
             application_id,
             car.car_number.as_ref().unwrap(),
             car.car_brand.as_ref().unwrap(),
-            form.application.entry_date_from.unwrap(),
-            form.application.entry_date_to.unwrap(),
-            form.application.entry_time_from.unwrap(),
-            form.application.entry_time_to.unwrap()
+            form.application.entry_date_from.as_ref().unwrap(),
+            form.application.entry_date_to.as_ref().unwrap(),
+            form.application.entry_time_from.as_ref().unwrap(),
+            form.application.entry_time_to.as_ref().unwrap()
         )
         .fetch_one(&mut *transaction)
         .await
@@ -232,7 +449,8 @@ pub async fn submit_application(
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
-        "message": "Application submitted successfully"
+        "message": "Application submitted successfully",
+        "application_id": application_id
     })))
 }
 
@@ -260,3 +478,5 @@ pub async fn update_application(
 
     Ok(HttpResponse::Ok().json("Application updated successfully"))
 }
+
+

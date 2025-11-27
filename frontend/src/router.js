@@ -8,6 +8,7 @@ import CarsView from './views/CarsView.vue';
 import ApplicationsCenter from './views/ApplicationsCenter.vue';
 import TableConstructor from './components/TableConstructor.vue';
 import NumberFormat from './components/NumberFormat.vue';
+import EmployeeView from './components/EmployeeView.vue';
 
 const routes = [
   { 
@@ -63,6 +64,12 @@ const routes = [
     name: 'NumberFormat',
     component: NumberFormat,
     meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/employeesview',
+    name: 'EmployeeView',
+    component: EmployeeView,
+    meta: { requiresAuth: true }
   }
 ];
 

@@ -10,3 +10,4 @@ pub mod unique_cars;
 pub mod table_constructor;
 pub mod user_types;
 pub mod citizenship;
+pub mod unique_employees;
