@@ -36,3 +36,23 @@ pub struct ApplicationSubmitRequest {
     pub application: Application,
     pub cars: Vec<CarWithUnloadPlaces>,
 }
+
+// Добавьте эти структуры в models/applications.rs
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApplicationItem {
+    pub id: Option<i32>,
+    pub application_id: Option<i32>,
+    pub item_name: String,
+    pub quantity: i32,
+    pub description: Option<String>,
+    pub order_index: i32,
+    pub created_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ItemApplicationSubmitRequest {
+    pub message: Option<String>,
+    pub application: Application,
+    pub items: Vec<ApplicationItem>,
+}

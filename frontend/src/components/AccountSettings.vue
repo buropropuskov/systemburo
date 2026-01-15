@@ -30,7 +30,7 @@
         <a href="#" class="link disabled">Уведомления</a>
       </li>
       <li class="navigation__link">
-        <a href="#" class="link disabled">Шаблоны</a>
+        <a href="#attachments" class="link">Бланки</a>
       </li>
        <li class="navigation__link">
         <a href="#" class="link disabled">Карта</a>

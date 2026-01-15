@@ -10,15 +10,18 @@ use crate::handlers::user_types::*;
 use crate::handlers::unload_places::*;
 use crate::handlers::number_format::*;
 use crate::handlers::unique_cars::*;
-use crate::handlers::unique_employees::*; // Добавляем импорт для сотрудников
+use crate::handlers::unique_employees::*;
 use crate::handlers::table_constructor::*;
 use crate::handlers::citizenship::*;
+use crate::handlers::attachments::*; // Добавляем новый модуль
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
         // Авторизация и регистрация
         .service(web::resource("/register").route(web::post().to(register)))
         .service(web::resource("/login").route(web::post().to(login)))
+        .service(web::resource("/refresh-token").route(web::post().to(refresh_token)))
+        .service(web::resource("/logout").route(web::post().to(logout)))
         .service(web::resource("/user-data").route(web::get().to(get_current_user_data)))
         .service(web::resource("/users/me").route(web::get().to(get_current_user)))
         .service(web::resource("/user-types").route(web::get().to(get_user_types)))
@@ -35,7 +38,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // Заявки
         .service(web::resource("/submit").route(web::post().to(submit_application)))
         .service(web::resource("/submit-v2").route(web::post().to(submit_application_v2)))
-        .service(web::resource("/submit-employee-application").route(web::post().to(submit_employee_application))) // Новая ручка для сотрудников
+        .service(web::resource("/submit-employee-application").route(web::post().to(submit_employee_application)))
         .service(web::resource("/applications/all-cars").route(web::get().to(get_all_cars_for_account)))
         .service(web::resource("/applications/active-cars").route(web::get().to(get_active_cars_for_table)))
         .service(
@@ -158,6 +161,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/clear-default", web::post().to(clear_default_citizenships))
         )
 
+        // ТМЦ
+        .service(web::resource("/submit-item-application").route(web::post().to(submit_item_application)))
+
         // Конструктор таблиц
         .service(
             web::scope("/system-tables")
@@ -166,5 +172,17 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::put().to(update_system_table))
                 .route("/{id}", web::delete().to(delete_system_table))
                 .route("/name/{name}", web::get().to(get_system_table_by_name))
+        )
+
+        // Управление вложениями (бланками заявок)
+        .service(
+    web::scope("/attachments")
+        .route("", web::get().to(get_attachments)) // Только активные
+        .route("/all", web::get().to(get_all_attachments)) // Все (активные + архивные)
+        .route("", web::post().to(create_attachment))
+        .route("/{id}", web::put().to(update_attachment))
+        .route("/{id}", web::delete().to(delete_attachment))
+        .route("/{id}/restore", web::put().to(restore_attachment))
+        .route("/{id}", web::get().to(get_attachment_by_id))
         );
 }

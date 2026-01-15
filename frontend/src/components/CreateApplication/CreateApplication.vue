@@ -81,70 +81,46 @@
                     />
                 </div>
 
-                <!-- 4 ряд: EmployeeForm и Список сотрудников -->
+                <!-- 4 ряд: ItemsForm и Список ТМЦ -->
                 <div class="form__data">
-                    <EmployeeForm 
-                        :user-organization="organization"
-                        :user-organization-id="organizationId"
-                        :user-company="company"
-                        :user-company-id="companyId"
-                        :existing-employees="employees"
-                        :key="employeeFormKey"
-                        @employee-added="handleEmployeeAdded"
-                        @employees-added="handleEmployeesAdded"
-                        @employee-updated="handleEmployeeUpdated"
+                    <ItemsForm 
+                        :existing-items="items"
+                        :key="itemsFormKey"
+                        @item-added="handleItemAdded"
+                        @items-added="handleItemsAdded"
+                        @item-updated="handleItemUpdated"
                         @edit-cancelled="handleEditCancelled"
-                        ref="employeeForm"
+                        ref="itemsForm"
                     />
-                    <EmployeesList 
-                        :employees="sortedEmployees"
+                    <ItemsList 
+                        :items="sortedItems"
                         :sort-field="sortField"
                         :sort-direction="sortDirection"
                         @sort="sortBy"
-                        @edit-employee="editEmployee"
-                        @delete-employee="deleteEmployee"
+                        @edit-item="editItem"
+                        @delete-item="deleteItem"
                     />
                 </div>
             </div>
         </div>
-
-        <!-- Модальное окно привязки новых сотрудников -->
-        <EmployeeBindingModal
-            v-if="showBindingModal"
-            :new-employees-to-bind="newEmployeesToBind"
-            :organization="organization"
-            :company="company"
-            :has-organization="hasOrganization"
-            :has-company="hasCompany"
-            @toggle-employee-binding="toggleEmployeeBinding"
-            @confirm-binding="confirmBinding"
-            @skip-binding="skipBinding"
-            @close="closeBindingModal"
-        />
     </div>
 </template>
 
 <script>
-// import VehicleForm from '@/components/VehicleForm.vue'
-// import VehiclesList from './VehiclesList.vue';
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
-import EmployeeForm from './EmployeeForm.vue';
-import EmployeesList from './EmployeesList.vue';
-import EmployeeBindingModal from './EmployeeBindingModal.vue';
+import ItemsForm from './ItemsForm.vue';
+import ItemsList from './ItemsList.vue';
 
 export default {
     name: 'CreateApplication',
     components: {
-        // VehicleForm,
-        // VehiclesList,
         BlankSelector,
         UserInfoRow,
         DateRangeSection,
-        EmployeeForm,
-        EmployeesList,
-        EmployeeBindingModal
+        ItemsForm,
+        ItemsList
     },
     data() {
         return {
@@ -168,9 +144,9 @@ export default {
             organizationId: null,
             companyId: null,
             
-            // Employees list
-            employees: [],
-            employeeIdCounter: 1,
+            // Items list
+            items: [],
+            itemIdCounter: 1,
             
             // Sorting
             sortField: null,
@@ -186,23 +162,11 @@ export default {
                 endDate: '',
                 singleDate: '',
                 startTime: '',
-                endTime: '',
-                passageTables: ''
+                endTime: ''
             },
             
-            // Key for forcing EmployeeForm re-render
-            employeeFormKey: 0,
-
-            // Привязка новых сотрудников
-            showBindingModal: false,
-            newEmployeesToBind: [],
-            bindToOrganization: false,
-            bindToCompany: false,
-            hasOrganization: false,
-            hasCompany: false,
-            
-            // Флаг для отслеживания процесса привязки
-            bindingInProgress: false
+            // Key for forcing ItemsForm re-render
+            itemsFormKey: 0
         }
     },
     computed: {
@@ -213,7 +177,7 @@ export default {
                 this.company && 
                 this.responsiblePerson && 
                 this.phoneNumber &&
-                this.employees.length > 0 &&
+                this.items.length > 0 &&
                 this.consentGiven;
 
             // Проверка дат в зависимости от типа заявки
@@ -226,29 +190,23 @@ export default {
 
             return hasRequiredFields && hasValidDates && hasValidTime;
         },
-        sortedEmployees() {
+        sortedItems() {
             if (!this.sortField) {
-                return this.employees;
+                return this.items;
             }
             
-            return [...this.employees].sort((a, b) => {
+            return [...this.items].sort((a, b) => {
                 let valueA, valueB;
                 
                 switch (this.sortField) {
                     case 'number':
                         return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
                     case 'name':
-                        valueA = this.formatFullName(a).toLowerCase();
-                        valueB = this.formatFullName(b).toLowerCase();
+                        valueA = a.itemName.toLowerCase();
+                        valueB = b.itemName.toLowerCase();
                         break;
-                    case 'position':
-                        valueA = a.position.toLowerCase();
-                        valueB = b.position.toLowerCase();
-                        break;
-                    case 'tables':
-                        valueA = a.passageTables.toLowerCase();
-                        valueB = b.passageTables.toLowerCase();
-                        break;
+                    case 'quantity':
+                        return this.sortDirection === 'asc' ? a.quantity - b.quantity : b.quantity - a.quantity;
                     default:
                         return 0;
                 }
@@ -261,19 +219,6 @@ export default {
                 }
                 return 0;
             });
-        }
-    },
-    watch: {
-        bindToOrganization(newVal) {
-            if (newVal) {
-                this.bindToCompany = false;
-            }
-        },
-        
-        bindToCompany(newVal) {
-            if (newVal) {
-                this.bindToOrganization = false;
-            }
         }
     },
     methods: {
@@ -302,10 +247,6 @@ export default {
                     this.organizationId = userData.organization_id || null;
                     this.companyId = userData.company_id || null;
                     
-                    // Проверяем наличие организации и компании
-                    this.hasOrganization = !!this.organizationId;
-                    this.hasCompany = !!this.companyId;
-                    
                     // Формирование ФИО
                     const lastName = userData.last_name || '';
                     const firstName = userData.first_name || '';
@@ -318,8 +259,8 @@ export default {
                         this.formatPhoneNumberImmediately(this.phoneNumber);
                     }
                     
-                    // Принудительно обновляем EmployeeForm после загрузки данных пользователя
-                    this.employeeFormKey += 1;
+                    // Принудительно обновляем ItemsForm после загрузки данных пользователя
+                    this.itemsFormKey += 1;
                     
                 } else {
                     console.error("Ошибка загрузки данных пользователя");
@@ -395,20 +336,19 @@ export default {
             }
         },
         
-        deleteEmployee(employeeId) {
-            const index = this.employees.findIndex(employee => employee.id === employeeId);
+        deleteItem(itemId) {
+            const index = this.items.findIndex(item => item.id === itemId);
             if (index !== -1) {
-                this.employees.splice(index, 1);
+                this.items.splice(index, 1);
             }
         },
 
-        editEmployee(employee) {
-            this.$refs.employeeForm.editEmployee(employee);
+        editItem(item) {
+            this.$refs.itemsForm.editItem(item);
         },
 
         handleEditCancelled() {
-            // Обработка отмены редактирования
-            this.employeeFormKey += 1;
+
         },
         
         validateField(field) {
@@ -471,28 +411,28 @@ export default {
             }
         },
 
-        handleEmployeeAdded(newEmployee) {
-            const employeeWithId = {
-                ...newEmployee,
-                id: this.employeeIdCounter++
+        handleItemAdded(newItem) {
+            const itemWithId = {
+                ...newItem,
+                id: this.itemIdCounter++
             };
-            this.employees.push(employeeWithId);
+            this.items.push(itemWithId);
         },
 
-        handleEmployeesAdded(employees) {
-            employees.forEach(employee => {
-                const employeeWithId = {
-                    ...employee,
-                    id: this.employeeIdCounter++
+        handleItemsAdded(items) {
+            items.forEach(item => {
+                const itemWithId = {
+                    ...item,
+                    id: this.itemIdCounter++
                 };
-                this.employees.push(employeeWithId);
+                this.items.push(itemWithId);
             });
         },
 
-        handleEmployeeUpdated(updatedEmployee) {
-            const index = this.employees.findIndex(e => e.id === updatedEmployee.id);
+        handleItemUpdated(updatedItem) {
+            const index = this.items.findIndex(e => e.id === updatedItem.id);
             if (index !== -1) {
-                this.employees.splice(index, 1, updatedEmployee);
+                this.items.splice(index, 1, updatedItem);
             }
         },
         
@@ -506,26 +446,13 @@ export default {
             }
         },
 
-        formatFullName(employee) {
-            const parts = [];
-            if (employee.lastName) parts.push(employee.lastName);
-            if (employee.firstName) parts.push(employee.firstName);
-            if (employee.middleName) parts.push(employee.middleName);
-            return parts.join(' ') || 'Не указано';
-        },
-
         // Submit application
         async submitApplication() {
-            // Проверяем, не идет ли уже процесс привязки
-            if (this.bindingInProgress) {
-                return;
-            }
-
             // Валидируем все поля перед отправкой
             this.validateAllFields();
             
             if (!this.canSubmit) {
-                alert('Заполните все обязательные поля и добавьте хотя бы одного сотрудника');
+                alert('Заполните все обязательные поля и добавьте хотя бы одну ТМЦ');
                 return;
             }
 
@@ -545,16 +472,8 @@ export default {
                 return;
             }
 
-            // Определяем новых сотрудников для добавления в unique_employees
-            const newEmployees = this.employees.filter(employee => !employee.isExisting);
-            
-            // Сначала создаем уникальных сотрудников если есть новые
-            if (newEmployees.length > 0) {
-                await this.createUniqueEmployees(newEmployees);
-            } else {
-                // Если нет новых сотрудников для привязки, сразу отправляем заявку
-                await this.sendApplication();
-            }
+            // Отправляем заявку
+            await this.sendApplication();
         },
 
         validateAllFields() {
@@ -571,95 +490,6 @@ export default {
             this.validateTimeRange();
         },
 
-        async createUniqueEmployees(newEmployees) {
-            try {
-                const token = localStorage.getItem("token");
-                
-                // Создаем массив промисов для создания сотрудников
-                const createPromises = newEmployees.map(employee => {
-                    const employeeData = {
-                        last_name: employee.lastName,
-                        first_name: employee.firstName,
-                        middle_name: employee.middleName,
-                        position: employee.position,
-                        citizenship_id: employee.citizenshipId,
-                        passport_series_number: employee.passportSeriesNumber,
-                        patent_number: employee.patentNumber,
-                        other_permission: employee.otherPermission,
-                        user_id: null, // Будет установлен на сервере автоматически
-                        organization_id: null,
-                        company_id: null
-                    };
-
-                    return fetch("http://localhost:8080/unique-employees", {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify(employeeData)
-                    });
-                });
-
-                // Ждем завершения всех запросов
-                const responses = await Promise.all(createPromises);
-                
-                // Проверяем результаты
-                const results = await Promise.all(responses.map(async (response, index) => {
-                    if (response.ok) {
-                        const createdEmployee = await response.json();
-                        return { 
-                            success: true, 
-                            employee: newEmployees[index], 
-                            createdEmployee,
-                            employeeId: createdEmployee.id // Сохраняем ID
-                        };
-                    } else {
-                        const error = await response.json();
-                        return { success: false, employee: newEmployees[index], error };
-                    }
-                }));
-
-                // Разделяем успешные и неуспешные создания
-                const successfulCreations = results.filter(result => result.success);
-                const failedCreations = results.filter(result => !result.success);
-
-                // Показываем ошибки если есть неуспешные создания
-                if (failedCreations.length > 0) {
-                    console.error('Ошибки при создании сотрудников:', failedCreations);
-                    // Продолжаем с успешными созданиями
-                }
-
-                // Сохраняем успешно созданных сотрудников с их ID и флагом привязки
-                this.newEmployeesToBind = successfulCreations.map(result => ({
-                    lastName: result.employee.lastName,
-                    firstName: result.employee.firstName,
-                    middleName: result.employee.middleName,
-                    position: result.employee.position,
-                    citizenshipId: result.employee.citizenshipId,
-                    passportSeriesNumber: result.employee.passportSeriesNumber,
-                    patentNumber: result.employee.patentNumber,
-                    otherPermission: result.employee.otherPermission,
-                    employeeId: result.employeeId, // Сохраняем ID для обновления
-                    bindToEntity: true // По умолчанию все сотрудники будут привязаны
-                }));
-
-                // Показываем модальное окно привязки если есть успешно созданные сотрудники
-                if (this.newEmployeesToBind.length > 0) {
-                    this.bindingInProgress = true;
-                    this.showBindingModal = true;
-                } else {
-                    // Если нет сотрудников для привязки, отправляем заявку
-                    await this.sendApplication();
-                }
-
-            } catch (error) {
-                console.error('Ошибка при создании уникальных сотрудников:', error);
-                // Продолжаем отправку заявки даже при ошибке
-                await this.sendApplication();
-            }
-        },
-
         async sendApplication() {
             // Подготовка данных для отправки
             const applicationData = {
@@ -673,21 +503,11 @@ export default {
                     entry_time_from: this.startTime + ":00", // Добавляем секунды
                     entry_time_to: this.endTime + ":00"      // Добавляем секунды
                 },
-                employees: this.employees.map(employee => ({
-                    employee: {
-                        last_name: employee.lastName,
-                        first_name: employee.firstName,
-                        middle_name: employee.middleName,
-                        position: employee.position,
-                        citizenship_id: employee.citizenshipId,
-                        passport_series_number: employee.passportSeriesNumber,
-                        patent_number: employee.patentNumber,
-                        other_permission: employee.otherPermission
-                    },
-                    target_tables: employee.targetTables ? employee.targetTables.map((tableId, index) => ({
-                        table_id: tableId,
-                        order_index: index + 1
-                    })) : []
+                items: this.items.map((item, index) => ({
+                    item_name: item.itemName,
+                    quantity: item.quantity,
+                    description: item.description || null,
+                    order_index: index + 1
                 }))
             };
 
@@ -700,7 +520,7 @@ export default {
                     return;
                 }
 
-                const response = await fetch("http://localhost:8080/submit-employee-application", {
+                const response = await fetch("http://localhost:8080/submit-item-application", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -732,78 +552,6 @@ export default {
             }
         },
 
-        // Переключение привязки для конкретного сотрудника
-        toggleEmployeeBinding(employee) {
-            employee.bindToEntity = !employee.bindToEntity;
-        },
-
-        // Метод для привязки сотрудников
-        async confirmBinding() {
-            try {
-                const token = localStorage.getItem("token");
-                
-                // Обновляем привязку для каждого сотрудника по ID
-                const updatePromises = this.newEmployeesToBind.map(employee => {
-                    const updateData = {
-                        last_name: employee.lastName,
-                        first_name: employee.firstName,
-                        middle_name: employee.middleName,
-                        position: employee.position,
-                        citizenship_id: employee.citizenshipId,
-                        passport_series_number: employee.passportSeriesNumber,
-                        patent_number: employee.patentNumber,
-                        other_permission: employee.otherPermission,
-                        organization_id: employee.bindToEntity && this.bindToOrganization ? this.organizationId : null,
-                        company_id: employee.bindToEntity && this.bindToCompany ? this.companyId : null,
-                        user_id: null // Привязываем к пользователю (будет установлен на сервере автоматически)
-                    };
-
-                    // Используем обычный эндпоинт обновления по ID
-                    return fetch(`http://localhost:8080/unique-employees/${employee.employeeId}`, {
-                        method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify(updateData)
-                    });
-                });
-
-                const results = await Promise.allSettled(updatePromises);
-                
-                // Проверяем результаты
-                const successfulUpdates = results.filter(result => result.status === 'fulfilled');
-                const failedUpdates = results.filter(result => result.status === 'rejected');
-                
-                if (failedUpdates.length > 0) {
-                    console.error('Ошибки при обновлении сотрудников:', failedUpdates);
-                }
-
-                console.log(`Успешно обновлено ${successfulUpdates.length} из ${results.length} сотрудников`);
-
-                this.closeBindingModal();
-                await this.sendApplication();
-
-            } catch (error) {
-                console.error('Ошибка при привязке сотрудников:', error);
-                this.closeBindingModal();
-                await this.sendApplication();
-            }
-        },
-
-        skipBinding() {
-            this.closeBindingModal();
-            this.sendApplication();
-        },
-
-        closeBindingModal() {
-            this.showBindingModal = false;
-            this.newEmployeesToBind = [];
-            this.bindToOrganization = false;
-            this.bindToCompany = false;
-            this.bindingInProgress = false;
-        },
-
         // Добавьте этот вспомогательный метод для форматирования даты
         formatDateForAPI(dateStr) {
             if (!dateStr) return null;
@@ -825,7 +573,7 @@ export default {
             this.startTime = '';
             this.endTime = '';
             this.consentGiven = false;
-            this.employees = [];
+            this.items = [];
             this.applicationNumber++;
 
             // Сбрасываем ID
@@ -842,12 +590,11 @@ export default {
                 endDate: '',
                 singleDate: '',
                 startTime: '',
-                endTime: '',
-                passageTables: ''
+                endTime: ''
             };
             
-            // Увеличиваем ключ для принудительного пересоздания EmployeeForm
-            this.employeeFormKey += 1;
+            // Увеличиваем ключ для принудительного пересоздания ItemsForm
+            this.itemsFormKey += 1;
             
             // Перезагрузка данных пользователя
             this.loadUserData();

@@ -43,7 +43,6 @@
                     <a href="#" class="remember-password" :style="linkStyle">Забыли пароль?</a>
                     
                     <div class="login__footer" :style="footerStyle">
-                        <!-- Контейнер для ошибки с фиксированной высотой -->
                         <div class="error-container">
                             <transition name="fade">
                                 <div v-if="showError" class="error-message">
@@ -123,7 +122,6 @@ export default {
             return 'Войти';
         },
         parallaxStyle() {
-            // Эффект параллакса для 3D фона
             const moveX = (this.mouseX - window.innerWidth / 8) / 25;
             const moveY = (this.mouseY - window.innerHeight / 8) / 25;
             
@@ -131,7 +129,6 @@ export default {
                 transform: `translate3d(${moveX}px, ${moveY}px, 0) scale(1.1)`
             };
         },
-        // Стили для анимации появления элементов
         titleStyle() {
             return {
                 opacity: this.elementsVisible ? 1 : 0,
@@ -189,7 +186,6 @@ export default {
         }
     },
     mounted() {
-        // Активируем анимации появления после монтирования компонента
         setTimeout(() => {
             this.elementsVisible = true;
         }, 100);
@@ -200,13 +196,11 @@ export default {
             this.mouseY = e.clientY;
         },
         resetAnimations() {
-            // Очищаем предыдущие таймауты
             if (this.animationTimeout) {
                 clearTimeout(this.animationTimeout);
                 this.animationTimeout = null;
             }
             
-            // Полностью сбрасываем все анимационные состояния
             this.showError = false;
             this.isLoading = false;
             this.isSuccess = false;
@@ -215,14 +209,11 @@ export default {
         },
         
         async handleSubmit() {
-            // Сбрасываем все состояния анимаций
             this.resetAnimations();
             this.errors.general = '';
             
-            // Ждем небольшой промежуток для полного сброса анимаций
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            // Простая валидация
             if (!this.formData.username || !this.formData.password) {
                 this.errors.general = 'Необходимо заполнить все поля';
                 await this.showErrorWithDelay();
@@ -243,14 +234,19 @@ export default {
 
                 if (response.ok) {
                     const data = await response.json();
-                    localStorage.setItem("token", data.token);
                     
-                    // Показываем анимацию успеха
+                    localStorage.setItem("token", data.token);
+                    localStorage.setItem("refreshToken", data.refreshToken);
+                    
                     this.isLoading = false;
                     this.isSuccess = true;
                     
-                    // Ждем 1 секунду анимации кнопки и замочка
                     await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    this.$emit('login-success', {
+                        token: data.token,
+                        refreshToken: data.refreshToken
+                    });
                     
                     this.$root.$forceUpdate(); 
                     this.$router.push('/personal-cabinet');
@@ -270,7 +266,6 @@ export default {
         },
         
         async showErrorWithDelay() {
-            // Ждем небольшую паузу перед показом ошибки
             await new Promise(resolve => setTimeout(resolve, 100));
             this.showError = true;
             this.showErrorAnimation();
@@ -280,16 +275,13 @@ export default {
             this.hasError = true;
             this.isShaking = true;
             
-            // Останавливаем тряску через 0.6 секунды
             this.animationTimeout = setTimeout(() => {
                 this.isShaking = false;
             }, 600);
             
-            // Возвращаем замок в обычное состояние через 1.6 секунды (0.6 + 1)
             this.animationTimeout = setTimeout(() => {
                 this.hasError = false;
                 
-                // Полностью сбрасываем состояние кнопки через дополнительное время
                 this.animationTimeout = setTimeout(() => {
                     this.resetAnimations();
                 }, 300);
@@ -297,7 +289,6 @@ export default {
         },
     },
     beforeUnmount() {
-        // Очищаем таймауты при уничтожении компонента
         if (this.animationTimeout) {
             clearTimeout(this.animationTimeout);
         }
@@ -306,7 +297,6 @@ export default {
 </script>
 
 <style scoped>
-    /* Остальные стили остаются без изменений */
     .login {
         width: 100%;
         height: 100vh;
@@ -315,7 +305,7 @@ export default {
         display: flex;
         position: relative;
         overflow: hidden;
-        perspective: 1000px; /* Добавляем перспективу для 3D эффекта */
+        perspective: 1000px;
     }
 
     .login-background {
@@ -339,8 +329,8 @@ export default {
         background-repeat: no-repeat;
         opacity: 0.35;
         z-index: 1;
-        transition: transform 0.1s ease-out; /* Плавное движение фона */
-        will-change: transform; /* Оптимизация для анимации */
+        transition: transform 0.1s ease-out;
+        will-change: transform;
     }
 
     .floating-shape {
@@ -551,7 +541,6 @@ export default {
         background-color: transparent;
     }
 
-    /* Убираем браузерные стили автозаполнения */
     .input:-webkit-autofill,
     .input:-webkit-autofill:hover, 
     .input:-webkit-autofill:focus, 
@@ -596,7 +585,7 @@ export default {
     }
 
     .error-container {
-        height: 50px; /* Фиксированная высота для контейнера ошибки */
+        height: 50px;
         display: flex;
         align-items: center;
         margin-bottom: 15px;
@@ -750,12 +739,10 @@ export default {
         transition: all 0.3s;
     }
 
-    /* Анимация поднятия/опускания замка во время загрузки */
     .login__button.loading ~ .custom-lock .lock-arc {
         animation: lockBounce .5s ease-in-out infinite;
     }
 
-    /* Анимация успеха для замка */
     .custom-lock.success .lock-arc {
         border-color: #63ee59;
         animation: lockSuccess 1s ease-in-out;
@@ -810,7 +797,6 @@ export default {
         top: -3px;
     }
 
-    /* Стили для замка с ошибкой */
     .custom-lock.error .lock-body,
     .custom-lock.error .lock-arc {
         border-color: #ff4d4d;
@@ -820,7 +806,6 @@ export default {
         background-color: #ff4d4d;
     }
 
-    /* Анимация тряски для замка с ошибкой */
     .custom-lock.shaking {
         animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
     }
@@ -832,7 +817,6 @@ export default {
         40%, 60% { transform: translateX(6px); }
     }
 
-    /* Анимации */
     .fade-enter-active, .fade-leave-active {
         transition: opacity 0.3s;
     }

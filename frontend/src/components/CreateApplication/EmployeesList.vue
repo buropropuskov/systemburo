@@ -16,33 +16,33 @@
                         }" 
                     />
                 </div>
-                <div class="header-col name-col" @click="$emit('sort', 'name')">
-                    <p :class="{ 'active-sort': sortField === 'name' }">ФИО</p>
+                <div class="header-col lastName-col" @click="$emit('sort', 'lastName')">
+                    <p :class="{ 'active-sort': sortField === 'lastName' }">Фамилия</p>
                     <img 
                         src="@/assets/icons/sort.png" 
                         class="sort-icon" 
                         :class="{ 
-                            'desc': sortField === 'name' && sortDirection === 'desc'
+                            'desc': sortField === 'lastName' && sortDirection === 'desc'
                         }" 
                     />
                 </div>
-                <div class="header-col position-col" @click="$emit('sort', 'position')">
-                    <p :class="{ 'active-sort': sortField === 'position' }">Должность</p>
+                <div class="header-col firstName-col" @click="$emit('sort', 'firstName')">
+                    <p :class="{ 'active-sort': sortField === 'firstName' }">Имя</p>
                     <img 
                         src="@/assets/icons/sort.png" 
                         class="sort-icon" 
                         :class="{ 
-                            'desc': sortField === 'position' && sortDirection === 'desc'
+                            'desc': sortField === 'firstName' && sortDirection === 'desc'
                         }" 
                     />
                 </div>
-                <div class="header-col tables-col" @click="$emit('sort', 'tables')">
-                    <p :class="{ 'active-sort': sortField === 'tables' }">Места прохода</p>
+                <div class="header-col middleName-col" @click="$emit('sort', 'middleName')">
+                    <p :class="{ 'active-sort': sortField === 'middleName' }">Отчество</p>
                     <img 
                         src="@/assets/icons/sort.png" 
                         class="sort-icon" 
                         :class="{ 
-                            'desc': sortField === 'tables' && sortDirection === 'desc'
+                            'desc': sortField === 'middleName' && sortDirection === 'desc'
                         }" 
                     />
                 </div>
@@ -57,12 +57,15 @@
                     class="table-row"
                 >
                     <div class="table-col number-col">{{ index + 1 }}</div>
-                    <div class="table-col name-col">
-                        {{ formatFullName(employee) }}
-                        <span v-if="employee.patentNumber" class="patent-indicator" title="Есть патент">📄</span>
+                    <div class="table-col lastName-col">
+                        {{ employee.lastName || 'Не указано' }}
                     </div>
-                    <div class="table-col position-col">{{ employee.position }}</div>
-                    <div class="table-col tables-col">{{ employee.passageTables }}</div>
+                    <div class="table-col firstName-col">
+                        {{ employee.firstName || 'Не указано' }}
+                    </div>
+                    <div class="table-col middleName-col">
+                        {{ employee.middleName || 'Не указано' }}
+                    </div>
                     <div class="table-col actions-col">
                         <button 
                             class="details-btn"
@@ -105,79 +108,117 @@
         </div>
 
         <!-- Модальное окно деталей сотрудника -->
-        <div v-if="showDetailsModal" class="modal-overlay" @click="closeDetailsModal">
-            <div class="modal-content" @click.stop>
-                <div class="modal-header">
-                    <div class="modal-header__top">
-                        <h3>Детальная информация о сотруднике</h3>
+        <transition name="modal-fade">
+            <div v-if="showDetailsModal" class="modal-overlay" @click.self="closeDetailsModal">
+                <div class="modal-content compact-modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title">Детальная информация о сотруднике</h3>
+                        <button @click="closeDetailsModal" class="modal-close">
+                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </button>
                     </div>
-                    <button class="modal-close" @click="closeDetailsModal">×</button>
-                </div>
-                <div class="modal-body">
-                    <div class="employee-details" v-if="selectedEmployee">
-                        <div class="details-section">
-                            <h4>Основная информация</h4>
-                            <div class="details-grid">
-                                <div class="detail-item">
-                                    <label class="detail-label">Фамилия:</label>
-                                    <span class="detail-value">{{ selectedEmployee.lastName || 'Не указано' }}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label class="detail-label">Имя:</label>
-                                    <span class="detail-value">{{ selectedEmployee.firstName || 'Не указано' }}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label class="detail-label">Отчество:</label>
-                                    <span class="detail-value">{{ selectedEmployee.middleName || 'Не указано' }}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label class="detail-label">Должность:</label>
-                                    <span class="detail-value">{{ selectedEmployee.position || 'Не указана' }}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <label class="detail-label">Гражданство:</label>
-                                    <span class="detail-value">{{ selectedEmployee.citizenshipName || 'Не указано' }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="details-section">
-                            <h4>Документы</h4>
-                            <div class="details-grid">
-                                <div class="detail-item">
-                                    <label class="detail-label">Серия и номер паспорта:</label>
-                                    <span class="detail-value">{{ selectedEmployee.passportSeriesNumber || 'Не указан' }}</span>
-                                </div>
-                                <div v-if="selectedEmployee.patentNumber" class="detail-item">
-                                    <label class="detail-label">Номер патента:</label>
-                                    <span class="detail-value">{{ selectedEmployee.patentNumber }}</span>
-                                </div>
-                                <div v-if="selectedEmployee.otherPermission" class="detail-item">
-                                    <label class="detail-label">Иное разрешение:</label>
-                                    <span class="detail-value">{{ selectedEmployee.otherPermission }}</span>
+                    
+                    <div class="modal-body">
+                        <div class="employee-details" v-if="selectedEmployee">
+                            <div class="details-section">
+                                <h4 class="section-title">Основная информация</h4>
+                                <div class="details-grid two-columns">
+                                    <div class="detail-item">
+                                        <label class="detail-label">Фамилия:</label>
+                                        <span class="detail-value">{{ selectedEmployee.lastName || 'Не указано' }}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label class="detail-label">Имя:</label>
+                                        <span class="detail-value">{{ selectedEmployee.firstName || 'Не указано' }}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label class="detail-label">Отчество:</label>
+                                        <span class="detail-value">{{ selectedEmployee.middleName || 'Не указано' }}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label class="detail-label">Должность:</label>
+                                        <span class="detail-value">{{ selectedEmployee.position || 'Не указана' }}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label class="detail-label">Гражданство:</label>
+                                        <span class="detail-value">{{ selectedEmployee.citizenshipName || 'Не указано' }}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="details-section">
-                            <h4>Места прохода</h4>
-                            <div class="tables-list">
-                                <span class="tables-value">{{ selectedEmployee.passageTables || 'Не указаны' }}</span>
+                            <div class="details-section">
+                                <h4 class="section-title">Документы</h4>
+                                <div class="details-grid two-columns">
+                                    <div class="detail-item">
+                                        <label class="detail-label">Серия и номер паспорта:</label>
+                                        <div class="sensitive-data">
+                                            <span 
+                                                class="data-text"
+                                                :class="{ 'hidden-data': !showFullPassport }"
+                                            >
+                                                {{ selectedEmployee.passportSeriesNumber || 'Не указан' }}
+                                            </span>
+                                            <button 
+                                                v-if="selectedEmployee.passportSeriesNumber"
+                                                @click="togglePassportVisibility"
+                                                class="show-more-btn"
+                                                :class="{ 'active': showFullPassport }"
+                                            >
+                                                {{ showFullPassport ? 'Скрыть' : 'Показать' }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div v-if="selectedEmployee.patentNumber" class="detail-item">
+                                        <label class="detail-label">Номер патента:</label>
+                                        <div class="sensitive-data">
+                                            <span 
+                                                class="data-text"
+                                                :class="{ 'hidden-data': !showFullPatent }"
+                                            >
+                                                {{ selectedEmployee.patentNumber }}
+                                            </span>
+                                            <button 
+                                                @click="togglePatentVisibility"
+                                                class="show-more-btn"
+                                                :class="{ 'active': showFullPatent }"
+                                            >
+                                                {{ showFullPatent ? 'Скрыть' : 'Показать' }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div v-if="selectedEmployee.otherPermission" class="detail-item full-width">
+                                        <label class="detail-label">Иное разрешение:</label>
+                                        <span class="detail-value">{{ selectedEmployee.otherPermission }}</span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        <div v-if="selectedEmployee.isExisting" class="details-section">
-                            <div class="existing-badge">
+                            <div class="details-section">
+                                <h4 class="section-title">Места прохода</h4>
+                                <div class="passage-tables-list">
+                                    <div 
+                                        v-for="table in getAllPassageTables(selectedEmployee)" 
+                                        :key="table"
+                                        class="passage-table-item"
+                                    >
+                                        {{ table }}
+                                    </div>
+                                    <div v-if="getAllPassageTables(selectedEmployee).length === 0" class="no-tables">
+                                        Не указаны
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="selectedEmployee.isExisting" class="existing-badge">
                                 <span class="badge-text">Существующий сотрудник</span>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-actions">
-                    <button class="close-btn" @click="closeDetailsModal">Закрыть</button>
-                </div>
             </div>
-        </div>
+        </transition>
     </div>
 </template>
 
@@ -193,26 +234,50 @@ export default {
     data() {
         return {
             showDetailsModal: false,
-            selectedEmployee: null
+            selectedEmployee: null,
+            showFullPassport: false,
+            showFullPatent: false
         }
     },
     methods: {
-        formatFullName(employee) {
-            const parts = [];
-            if (employee.lastName) parts.push(employee.lastName);
-            if (employee.firstName) parts.push(employee.firstName);
-            if (employee.middleName) parts.push(employee.middleName);
-            return parts.join(' ') || 'Не указано';
+        togglePassportVisibility() {
+            this.showFullPassport = !this.showFullPassport;
+        },
+
+        togglePatentVisibility() {
+            this.showFullPatent = !this.showFullPatent;
         },
 
         showEmployeeDetails(employee) {
             this.selectedEmployee = employee;
+            this.showFullPassport = false;
+            this.showFullPatent = false;
             this.showDetailsModal = true;
         },
 
         closeDetailsModal() {
             this.showDetailsModal = false;
             this.selectedEmployee = null;
+            this.showFullPassport = false;
+            this.showFullPatent = false;
+        },
+
+        getAllPassageTables(employee) {
+            if (!employee || !employee.passageTables) {
+                return [];
+            }
+            
+            // Если passageTables - это строка, разбиваем ее по запятым
+            if (typeof employee.passageTables === 'string') {
+                return employee.passageTables.split(',').map(table => table.trim()).filter(table => table);
+            }
+            
+            // Если passageTables - это массив, возвращаем его
+            if (Array.isArray(employee.passageTables)) {
+                return employee.passageTables;
+            }
+            
+            return [];
         }
     }
 }
@@ -326,32 +391,24 @@ export default {
     text-align: center;
 }
 
-.name-col {
-    width: 25%;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.position-col {
+.lastName-col {
     width: 22%;
 }
 
-.tables-col {
-    width: 30%;
+.firstName-col {
+    width: 22%;
+}
+
+.middleName-col {
+    width: 22%;
 }
 
 .actions-col {
-    width: 15%;
+    width: 26%;
     text-align: center;
     display: flex;
     justify-content: center;
     gap: 4px;
-}
-
-.patent-indicator {
-    font-size: 12px;
-    opacity: 0.7;
 }
 
 .details-btn, .edit-btn, .delete-btn {
@@ -430,89 +487,127 @@ h4 {
     background: #a8a8a8;
 }
 
-/* Модальное окно деталей */
+/* Стили для улучшенного модального окна */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    backdrop-filter: blur(1px);
+    animation: overlayAppear 0.3s ease-out;
+}
+
+@keyframes overlayAppear {
+    from {
+        background: rgba(0, 0, 0, 0);
+        backdrop-filter: blur(0px);
+    }
+    to {
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(1px);
+    }
 }
 
 .modal-content {
-    background: white;
-    border-radius: 20px;
+    background: #fff;
+    border-radius: 50px;
     padding: 0;
+    padding-bottom: 15px;
     width: 500px;
     max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalAppear 0.3s ease-out;
+}
+
+.modal-content.compact-modal {
+    width: 520px;
     max-height: 80vh;
-    overflow: hidden;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.8) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid #e6e6e6;
+    padding: 20px 30px 16px;
+    border-bottom: 1px solid #f0f0f0;
 }
 
-.modal-header h3 {
+.modal-title {
     margin: 0;
-    color: #333;
-    font-size: 18px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
 }
 
 .modal-close {
     background: none;
     border: none;
-    font-size: 24px;
     cursor: pointer;
-    color: #a2a2a2;
-    padding: 0;
-    width: 30px;
-    height: 30px;
+    padding: 6px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.2s ease;
 }
 
 .modal-close:hover {
-    color: #333;
+    background-color: #f5f5f5;
+    transform: rotate(90deg);
 }
 
-.modal-body {
-    padding: 20px;
-    max-height: 60vh;
+.modal-body {   
+    padding: 20px 30px;
+    max-height: 65vh;
     overflow-y: auto;
 }
 
+.modal-body.no-scroll {
+    max-height: none;
+    overflow-y: visible;
+}
+
+/* Стили для деталей сотрудника */
 .employee-details {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
 }
 
 .details-section {
     border: 1px solid #e6e6e6;
-    border-radius: 12px;
-    padding: 15px;
+    border-radius: 20px;
+    padding: 20px;
+    background: #fafafa;
 }
 
-.details-section h4 {
-    margin: 0 0 15px 0;
-    font-size: 16px;
+.section-title {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
     color: #333;
-    border-bottom: 1px solid #e6e6e6;
     padding-bottom: 8px;
+    border-bottom: 1px solid #e6e6e6;
 }
 
-.details-grid {
+.details-grid.two-columns {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
@@ -521,7 +616,11 @@ h4 {
 .detail-item {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+}
+
+.detail-item.full-width {
+    grid-column: 1 / -1;
 }
 
 .detail-label {
@@ -531,58 +630,162 @@ h4 {
 }
 
 .detail-value {
-    font-size: 14px;
+    font-size: 13px;
     color: #333;
     font-weight: 500;
 }
 
-.tables-list {
-    padding: 8px 0;
+/* Стили для чувствительных данных */
+.sensitive-data {
+    display: flex;
+    align-items: center;
+    gap: 15px;
 }
 
-.tables-value {
-    font-size: 14px;
+.data-text {
+    font-size: 13px;
     color: #333;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    word-break: break-all;
+}
+
+.data-text.hidden-data {
+    filter: blur(4px);
+    user-select: none;
+}
+
+.show-more-btn {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    color: #4F5BDF;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 15px;
+    transition: all 0.2s;
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: 75px;
+    text-align: center;
+}
+
+.show-more-btn:hover {
+    background: #4F5BDF;
+    color: white;
+    border-color: #4F5BDF;
+}
+
+.show-more-btn.active {
+    background: #4F5BDF;
+    color: white;
+    border-color: #4F5BDF;
+    min-width: 75px;
+}
+
+/* Стили для списка мест прохода */
+.passage-tables-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.passage-table-item {
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.passage-table-item:hover {
+    background: #f8f9fa;
+    border-color: #4F5BDF;
+}
+
+.no-tables {
+    text-align: center;
+    padding: 12px;
+    color: #666;
+    font-size: 13px;
+    font-style: italic;
 }
 
 .existing-badge {
     display: flex;
     justify-content: center;
+    margin-top: 8px;
 }
 
 .badge-text {
     background: #e3f2fd;
     color: #1976d2;
     padding: 6px 12px;
-    border-radius: 20px;
+    border-radius: 16px;
     font-size: 12px;
     font-weight: 500;
 }
 
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    padding: 15px 20px;
-    border-top: 1px solid #e6e6e6;
+/* Анимации для модального окна */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+    transition: all 0.3s ease;
 }
 
-.close-btn {
-    background: #4F5BDF;
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 10px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
 }
 
-.close-btn:hover {
-    background: #3a45c0;
+.modal-fade-enter-active .modal-overlay,
+.modal-fade-leave-active .modal-overlay {
+    transition: all 0.3s ease;
+}
+
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+    transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from .modal-overlay,
+.modal-fade-leave-to .modal-overlay {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+}
+
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+}
+
+/* Стили для скроллбара в списке мест прохода */
+.passage-tables-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.passage-tables-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 2px;
+}
+
+.passage-tables-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 2px;
+}
+
+.passage-tables-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
 }
 
 @media (max-width: 768px) {
-    .details-grid {
+    .details-grid.two-columns {
         grid-template-columns: 1fr;
     }
     
@@ -598,6 +801,72 @@ h4 {
     .actions-col {
         width: 100%;
         justify-content: flex-end;
+    }
+    
+    .lastName-col,
+    .firstName-col,
+    .middleName-col {
+        width: 30% !important;
+    }
+    
+    .modal-content.compact-modal {
+        width: 95%;
+        margin: 20px;
+        border-radius: 30px;
+    }
+    
+    .modal-body {
+        padding: 16px 20px;
+    }
+    
+    .modal-header {
+        padding: 16px 20px;
+    }
+    
+    .details-section {
+        padding: 16px;
+        border-radius: 16px;
+    }
+    
+    .sensitive-data {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    
+    .show-more-btn {
+        align-self: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-header {
+        padding: 12px 16px;
+    }
+    
+    .modal-title {
+        font-size: 14px;
+    }
+    
+    .section-title {
+        font-size: 13px;
+    }
+    
+    .detail-label {
+        font-size: 11px;
+    }
+    
+    .detail-value {
+        font-size: 12px;
+    }
+    
+    .modal-content.compact-modal {
+        border-radius: 20px;
+    }
+    
+    .details-section {
+        border-radius: 12px;
+        padding: 12px;
     }
 }
 </style>

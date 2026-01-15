@@ -480,3 +480,118 @@ pub async fn update_application(
 }
 
 
+/// Структуры для заявок ТМЦ
+#[derive(Debug, Deserialize)]
+pub struct ItemApplicationData {
+    pub message: Option<String>,
+    pub application: ApplicationData,
+    pub items: Vec<ItemData>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ItemData {
+    pub item_name: String,
+    pub quantity: i32,
+    pub description: Option<String>,
+    pub order_index: i32,
+}
+
+/// Отправка заявки для ТМЦ
+pub async fn submit_item_application(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    form: web::Json<ItemApplicationData>,
+) -> Result<HttpResponse, Error> {
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                match decode_token(&token) {
+                    Ok(claims) => {
+                        let user_info = get_user_info(&pool, &claims.sub).await?;
+
+                        log::info!("Submitting item application for user: {}", user_info.user_id);
+
+                        // Начинаем транзакцию
+                        let mut transaction = pool.begin().await.map_err(|e| {
+                            log::error!("Failed to begin transaction: {}", e);
+                            error::ErrorInternalServerError("Database error")
+                        })?;
+
+                        // Создаем заявку
+                        let application_result = sqlx::query!(
+                            r#"
+                            INSERT INTO applications (
+                                organization, responsible_person, contact_phone,
+                                entry_date_from, entry_date_to, entry_time_from, entry_time_to,
+                                message, user_id, application_type
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'items')
+                            RETURNING id
+                            "#,
+                            form.application.organization,
+                            form.application.responsible_person,
+                            form.application.contact_phone,
+                            form.application.entry_date_from,
+                            form.application.entry_date_to,
+                            form.application.entry_time_from,
+                            form.application.entry_time_to,
+                            form.message,
+                            user_info.user_id
+                        )
+                        .fetch_one(&mut *transaction)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to create application: {}", e);
+                            error::ErrorInternalServerError("Error creating application")
+                        })?;
+
+                        let application_id = application_result.id;
+
+                        // Добавляем ТМЦ в заявку
+                        for item in &form.items {
+                            sqlx::query!(
+                                r#"
+                                INSERT INTO application_items (
+                                    application_id, item_name, quantity, description, order_index
+                                )
+                                VALUES ($1, $2, $3, $4, $5)
+                                "#,
+                                application_id,
+                                item.item_name,
+                                item.quantity,
+                                item.description,
+                                item.order_index
+                            )
+                            .execute(&mut *transaction)
+                            .await
+                            .map_err(|e| {
+                                log::error!("Failed to create application item: {}", e);
+                                error::ErrorInternalServerError("Error creating application item")
+                            })?;
+                        }
+
+                        // Коммитим транзакцию
+                        transaction.commit().await.map_err(|e| {
+                            log::error!("Failed to commit transaction: {}", e);
+                            error::ErrorInternalServerError("Database error")
+                        })?;
+
+                        log::info!("Successfully submitted item application with ID: {}", application_id);
+
+                        Ok(HttpResponse::Ok().json(json!({
+                            "message": "Item application submitted successfully",
+                            "application_id": application_id
+                        })))
+                    }
+                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
+                }
+            } else {
+                Err(error::ErrorUnauthorized("Invalid or missing token"))
+            }
+        } else {
+            Err(error::ErrorUnauthorized("Invalid or missing token"))
+        }
+    } else {
+        Err(error::ErrorUnauthorized("Missing Authorization header"))
+    }
+}

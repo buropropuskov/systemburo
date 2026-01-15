@@ -1,17 +1,17 @@
 <template>
     <div class="selector">
         <div 
-            v-for="category in categories" 
-            :key="category.id"
+            v-for="category in uniqueCategories" 
+            :key="category"
             class="category"
         >
             <div class="category-header">
-                <div class="category-title">{{ category.title }}</div>
+                <div class="category-title">{{ category }}</div>
             </div>
             
             <div class="attachments-list">
                 <div
-                    v-for="attachment in getCategoryAttachments(category.id)"
+                    v-for="attachment in getCategoryAttachments(category)"
                     :key="attachment.id"
                     class="attachment"
                     :class="{ selected: selectedAttachment?.id === attachment.id }"
@@ -19,7 +19,7 @@
                     @mouseenter="handleMouseEnter(attachment, $event)"
                     @mouseleave="handleMouseLeave"
                 >
-                    <span class="attachment-name">{{ attachment.name }}</span>
+                    <span class="attachment-name">{{ attachment.display_name }}</span>
                     
                     <button 
                         v-if="hoveredAttachment === attachment.id"
@@ -66,20 +66,14 @@
 import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
-    name: 'AttachmentsSelector',
+    name: 'BlankSelector',
     components: {
         ConfirmationModal
     },
     data() {
         return {
-            categories: [
-                { id: 1, title: 'АВТОЗАЯВКИ', template: 'Автозаявка №' },
-                { id: 2, title: 'ВВОЗ', template: 'Заявка на ввоз №' },
-                { id: 3, title: 'ВЫВОЗ', template: 'Заявка на вывоз №' },
-                { id: 4, title: 'ПРОВЕДЕНИЕ РАБОТ', template: 'Заявка на работы №' },
-                { id: 5, title: 'РАЗОВЫЕ СПИСКИ', template: 'Разовый пропуск №' }
-            ],
-            attachments: [],
+            attachments: [], // Здесь будут храниться все вложения, созданные в этой заявке
+            allTemplates: [], // Здесь будут шаблоны вложений из системы
             selectedAttachment: null,
             hoveredAttachment: null,
             showDeleteModal: false,
@@ -92,32 +86,75 @@ export default {
     },
     computed: {
         deleteMessage() {
-            return `Вы точно хотите удалить "${this.attachmentToDelete?.name}"?`;
+            return `Вы точно хотите удалить "${this.attachmentToDelete?.display_name}"?`;
+        },
+        uniqueCategories() {
+            const categories = new Set();
+            this.allTemplates.forEach(template => {
+                if (template.title) {
+                    categories.add(template.title);
+                }
+            });
+            return Array.from(categories);
         }
     },
     methods: {
-        getCategoryAttachments(categoryId) {
-            return this.attachments.filter(attachment => attachment.categoryId === categoryId);
+        getCategoryAttachments(category) {
+            // Возвращаем вложения этой категории, которые созданы в заявке
+            return this.attachments.filter(attachment => attachment.title === category);
         },
         
-        getNextAttachmentNumber(categoryId) {
-            const categoryAttachments = this.getCategoryAttachments(categoryId);
+        getNextAttachmentNumber(category) {
+            const categoryAttachments = this.getCategoryAttachments(category);
             return categoryAttachments.length + 1;
         },
         
+        async fetchTemplates() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/attachments", {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.allTemplates = data;
+                }
+            } catch (error) {
+                console.error("Error fetching attachment templates:", error);
+            }
+        },
+        
         addAttachment(category) {
-            const nextNumber = this.getNextAttachmentNumber(category.id);
+            // Находим шаблон для этой категории
+            const template = this.allTemplates.find(t => t.title === category);
+            
+            if (!template) {
+                console.warn(`No template found for category: ${category}`);
+                return;
+            }
+            
+            const nextNumber = this.getNextAttachmentNumber(category);
             const newAttachment = {
-                id: Date.now() + Math.random(),
-                categoryId: category.id,
-                name: `${category.template}${nextNumber}`,
-                type: category.title.toLowerCase()
+                id: Date.now() + Math.random(), // Временный уникальный ID
+                template_id: template.id, // ID шаблона из системы
+                title: category,
+                name: `${template.name}_copy_${nextNumber}`,
+                display_name: `${template.display_name} №${nextNumber}`,
+                attachment_type: template.attachment_type,
+                instruction: template.instruction,
+                created_at: new Date().toISOString(),
+                is_active: true
             };
             
             this.attachments.push(newAttachment);
             
             // Auto-select the newly created attachment
             this.selectAttachment(newAttachment);
+            
+            // Сообщаем родительскому компоненту о новом вложении
+            this.$emit('attachment-added', newAttachment);
         },
         
         selectAttachment(attachment) {
@@ -138,7 +175,7 @@ export default {
         
         deleteAttachment() {
             if (this.attachmentToDelete) {
-                // Remove attachment from array
+                // Remove attachment from local array
                 this.attachments = this.attachments.filter(
                     attachment => attachment.id !== this.attachmentToDelete.id
                 );
@@ -149,6 +186,9 @@ export default {
                     this.$emit('attachment-selected', null);
                 }
                 
+                // Сообщаем родительскому компоненту об удалении
+                this.$emit('attachment-removed', this.attachmentToDelete);
+                
                 this.showDeleteModal = false;
                 this.attachmentToDelete = null;
             }
@@ -157,17 +197,15 @@ export default {
         handleMouseEnter(attachment, event) {
             this.hoveredAttachment = attachment.id;
             
-            // Очищаем предыдущий таймаут
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
             }
             
-            // Устанавливаем новый таймаут для показа тултипа
             this.tooltipTimeout = setTimeout(() => {
                 this.showTooltip = true;
-                this.tooltipText = attachment.name;
+                this.tooltipText = attachment.display_name;
                 this.updateTooltipPosition(event);
-            }, 800); // 800ms задержка перед показом тултипа
+            }, 800);
         },
 
         handleMouseLeave() {
@@ -190,7 +228,22 @@ export default {
                     transform: 'translateX(-50%)'
                 };
             }
+        },
+        
+        // Метод для загрузки существующих вложений заявки
+        loadAttachments(existingAttachments) {
+            this.attachments = existingAttachments || [];
+        },
+        
+        // Метод для очистки всех вложений
+        clearAttachments() {
+            this.attachments = [];
+            this.selectedAttachment = null;
+            this.$emit('attachment-selected', null);
         }
+    },
+    mounted() {
+        this.fetchTemplates();
     }
 }
 </script>
@@ -198,7 +251,7 @@ export default {
 <style scoped>
 .selector {
     width: 200px;
-    height: 500px;
+    height: 490px;
     border-radius: 30px;
     border: 1px solid #e6e6e6;
     padding: 15px;

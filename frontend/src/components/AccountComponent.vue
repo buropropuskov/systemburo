@@ -69,6 +69,9 @@
      <div class="dashboard-row" id="user_types" v-if="isBuroPropuskov">
       <UserTypes class="dashboard-card dashboard-card-animated" />
     </div>
+    <div class="dashboard-row" id="attachments" v-if="isBuroPropuskov">
+      <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
+    </div>
     
   </div>
 </template>
@@ -86,6 +89,7 @@ import TableConstructor from './TableConstructor.vue';
 import UserTypes from './UserTypes.vue';
 import AccountSettings from './AccountSettings.vue';
 import CitizenshipManagement from './CitizenshipManagement.vue';
+import AttachmentsManagement from './AttachmentsManagement.vue';
 
 export default {
   components: {
@@ -100,7 +104,8 @@ export default {
     TableConstructor,
     UserTypes,
     AccountSettings,
-    CitizenshipManagement
+    CitizenshipManagement,
+    AttachmentsManagement
   },
   data() {
     return {

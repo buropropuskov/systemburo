@@ -96,28 +96,6 @@
                                     }" 
                                 />
                             </div>
-                            <div class="header-col citizenship-col" @click="sortBy('citizenship_name')">
-                                <p :class="{ 'active-sort': sortField === 'citizenship_name' }">Гражданство</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'citizenship_name',
-                                        'desc': sortField === 'citizenship_name' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col passport-col" @click="sortBy('passport_series_number')">
-                                <p :class="{ 'active-sort': sortField === 'passport_series_number' }">Паспорт</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'passport_series_number',
-                                        'desc': sortField === 'passport_series_number' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
                             <div class="header-col status-col" @click="sortBy('status')">
                                 <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
                                 <img 
@@ -147,17 +125,11 @@
                                     <div class="employee-col number-col">
                                         {{ employee.id }}
                                     </div>
-                                    <div class="employee-col name-col">
-                                        {{ formatFullName(employee) }}
+                                    <div class="employee-col name-col" :title="formatFullName(employee)">
+                                        {{ truncateText(formatFullName(employee), 20) }}
                                     </div>
-                                    <div class="employee-col position-col">
-                                        {{ employee.position || 'Не указана' }}
-                                    </div>
-                                    <div class="employee-col citizenship-col">
-                                        {{ employee.citizenship_name || 'Не указано' }}
-                                    </div>
-                                    <div class="employee-col passport-col">
-                                        {{ employee.passport_series_number || 'Не указан' }}
+                                    <div class="employee-col position-col" :title="employee.position || 'Не указана'">
+                                        {{ truncateText(employee.position || 'Не указана', 20) }}
                                     </div>
                                     <div class="employee-col status-col">
                                         <span 
@@ -232,7 +204,7 @@
                     <div class="data__completion">
                         <div class="completion__citizenship">
                             <div class="citizenship__header">
-                                <label class="citizenship__label">Гражданство</label>
+                                <label class="citizenship__label">Гражданство <span class="required">*</span></label>
                                 <button class="add-button" @click="saveEmployee" :disabled="!canSaveEmployee">
                                     {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
                                 </button>
@@ -265,7 +237,7 @@
                             <div class="completion__name-row">
                                 <div class="completion__last-name">
                                     <div class="completion__last-name-header">
-                                        <label class="input__label">Фамилия</label>
+                                        <label class="input__label">Фамилия <span class="required">*</span></label>
                                     </div>
                                     <input 
                                         class="name__input" 
@@ -275,7 +247,7 @@
                                 </div>
                                 <div class="completion__first-name">
                                     <div class="completion__first-name-header">
-                                        <label class="input__label">Имя</label>
+                                        <label class="input__label">Имя <span class="required">*</span></label>
                                     </div>
                                     <input 
                                         class="name__input" 
@@ -299,7 +271,7 @@
                                 </div>
                                 <div class="completion__position">
                                     <div class="completion__position-header">
-                                        <label class="input__label">Должность</label>
+                                        <label class="input__label">Должность <span class="required">*</span></label>
                                     </div>
                                     <input 
                                         class="name__input" 
@@ -313,7 +285,7 @@
                             <div class="completion__name-row">
                                 <div class="completion__passport">
                                     <div class="completion__passport-header">
-                                        <label class="input__label">Серия и номер паспорта</label>
+                                        <label class="input__label">Серия и номер паспорта <span class="required">*</span></label>
                                     </div>
                                     <input 
                                         class="name__input" 
@@ -322,7 +294,7 @@
                                         @input="formatPassport"
                                     />
                                 </div>
-                                <div class="completion__patent">
+                                <div class="completion__patent" :class="{ 'disabled-field': !isPatentRequired }">
                                     <div class="completion__patent-header">
                                         <label class="input__label">Номер патента</label>
                                     </div>
@@ -330,20 +302,21 @@
                                         class="name__input" 
                                         placeholder="Введите номер патента"
                                         v-model="patentNumber"
-                                        :disabled="!isPatentRequired"
+                                        :disabled="!isPatentRequired || selectedPermission !== 'Не выбрано'"
+                                        @input="handlePatentInput"
                                     />
                                 </div>
                             </div>
                             
                             <!-- Четвертая строка: Иное разрешение -->
-                            <div class="completion__permission">
+                            <div class="completion__permission" :class="{ 'disabled-field': !isPatentRequired }">
                                 <div class="completion__permission-header">
                                     <label class="input__label">Иное разрешение на работы</label>
                                 </div>
                                 <div class="permission__dropdown">
-                                    <button class="permission__dropdown-button" @click="togglePermissionDropdown" :disabled="!isPatentRequired">
+                                    <button class="permission__dropdown-button" @click="togglePermissionDropdown" :disabled="!isPatentRequired || patentNumber.trim() !== ''">
                                         <div class="permission__button-content">
-                                            <span class="permission__button-text">{{ selectedPermission || 'Выберите разрешение' }}</span>
+                                            <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
                                             <img src="@/assets/icons/arrow.png" class="permission__button-arrow" :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }" />
                                         </div>
                                     </button>
@@ -382,7 +355,7 @@
                                 </div>
                                 <div v-if="uploadedFiles.length > 0" class="uploaded-files">
                                     <div v-for="(file, index) in uploadedFiles" :key="index" class="uploaded-file">
-                                        <span class="file-name">{{ file.name }}</span>
+                                        <span class="file-name">{{ truncateText(file.name, 30) }}</span>
                                         <button @click="removeFile(index)" class="remove-file-btn">×</button>
                                     </div>
                                 </div>
@@ -403,7 +376,6 @@
                                     <input 
                                         type="checkbox" 
                                         v-model="bindToOrganization"
-                                        :disabled="bindToCompany"
                                     />
                                     <span>Привязать к организации</span>
                                 </label>
@@ -411,7 +383,6 @@
                                     <input 
                                         type="checkbox" 
                                         v-model="bindToCompany"
-                                        :disabled="bindToOrganization"
                                     />
                                     <span>Привязать к компании</span>
                                 </label>
@@ -461,9 +432,10 @@ export default {
             patentNumber: '',
             
             // Разрешения
-            selectedPermission: '',
+            selectedPermission: 'Не выбрано',
             isPermissionDropdownOpen: false,
             availablePermissions: [
+                'Не выбрано',
                 'Разрешение на работу временного проживания',
                 'Разрешение на работу вида на жительство', 
                 'Свидетельство участника Госпрограммы',
@@ -501,8 +473,6 @@ export default {
                 const fullName = this.formatFullName(employee).toLowerCase();
                 return fullName.includes(query) ||
                        (employee.position && employee.position.toLowerCase().includes(query)) ||
-                       (employee.citizenship_name && employee.citizenship_name.toLowerCase().includes(query)) ||
-                       (employee.passport_series_number && employee.passport_series_number.toLowerCase().includes(query)) ||
                        (employee.status ? 'активен' : 'неактивен').includes(query)
             });
         },
@@ -531,16 +501,6 @@ export default {
                     case 'position':
                         valueA = a.position?.toLowerCase() || '';
                         valueB = b.position?.toLowerCase() || '';
-                        break;
-                        
-                    case 'citizenship_name':
-                        valueA = a.citizenship_name?.toLowerCase() || '';
-                        valueB = b.citizenship_name?.toLowerCase() || '';
-                        break;
-                        
-                    case 'passport_series_number':
-                        valueA = a.passport_series_number?.toLowerCase() || '';
-                        valueB = b.passport_series_number?.toLowerCase() || '';
                         break;
                         
                     case 'status':
@@ -590,9 +550,15 @@ export default {
                 return false;
             }
             
+            // Проверяем должность
+            if (!this.position.trim()) {
+                return false;
+            }
+            
             // Если требуется патент, проверяем дополнительные поля
             if (this.isPatentRequired) {
-                if (!this.patentNumber.trim() || !this.selectedPermission) {
+                // Проверяем, что заполнен хотя бы один вариант: патент ИЛИ разрешение (кроме "Не выбрано")
+                if (!this.patentNumber.trim() && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
                     return false;
                 }
             }
@@ -608,24 +574,26 @@ export default {
             }, 50);
         },
         
-        bindToOrganization(newVal) {
-            if (newVal) {
-                this.bindToCompany = false;
-            }
-        },
-        
-        bindToCompany(newVal) {
-            if (newVal) {
-                this.bindToOrganization = false;
-            }
-        },
-        
         isPatentRequired(newVal) {
             if (!newVal) {
                 // Если патент не требуется, очищаем связанные поля
                 this.patentNumber = '';
-                this.selectedPermission = '';
+                this.selectedPermission = 'Не выбрано';
                 this.uploadedFiles = [];
+            }
+        },
+
+        patentNumber(newVal) {
+            // Если введен номер патента, сбрасываем выбор разрешения
+            if (newVal.trim() !== '') {
+                this.selectedPermission = 'Не выбрано';
+            }
+        },
+
+        selectedPermission(newVal) {
+            // Если выбрано разрешение (кроме "Не выбрано"), очищаем поле патента
+            if (newVal !== 'Не выбрано' && newVal !== '') {
+                this.patentNumber = '';
             }
         }
     },
@@ -751,7 +719,7 @@ export default {
             this.position = employee.position || '';
             this.passportSeriesNumber = employee.passport_series_number || '';
             this.patentNumber = employee.patent_number || '';
-            this.selectedPermission = employee.other_permission || '';
+            this.selectedPermission = employee.other_permission || 'Не выбрано';
             
             // Находим гражданство по citizenship_id
             if (employee.citizenship_id) {
@@ -761,7 +729,7 @@ export default {
                 }
             }
             
-            // Устанавливаем привязки
+            // Устанавливаем привязки (можно привязать и к организации и к компании вместе)
             this.bindToOrganization = !!employee.organization_id;
             this.bindToCompany = !!employee.company_id;
             
@@ -842,7 +810,7 @@ export default {
             this.position = '';
             this.passportSeriesNumber = '';
             this.patentNumber = '';
-            this.selectedPermission = '';
+            this.selectedPermission = 'Не выбрано';
             this.uploadedFiles = [];
             this.bindToOrganization = false;
             this.bindToCompany = false;
@@ -856,7 +824,7 @@ export default {
             this.position = '';
             this.passportSeriesNumber = '';
             this.patentNumber = '';
-            this.selectedPermission = '';
+            this.selectedPermission = 'Не выбрано';
             this.uploadedFiles = [];
             
             // Если это добавление нового сотрудника (не редактирование), сбрасываем чекбоксы
@@ -892,6 +860,13 @@ export default {
             return parts.join(' ') || 'Не указано';
         },
 
+        // Обрезка текста с добавлением точек
+        truncateText(text, maxLength) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        },
+
         // Форматирование паспорта
         formatPassport(event) {
             let value = event.target.value.replace(/\D/g, '');
@@ -908,6 +883,14 @@ export default {
             event.target.value = value;
         },
 
+        // Обработка ввода патента
+        handlePatentInput() {
+            // Если введен патент, автоматически устанавливаем "Не выбрано" в разрешении
+            if (this.patentNumber.trim() !== '') {
+                this.selectedPermission = 'Не выбрано';
+            }
+        },
+
         // Dropdown методы
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
@@ -916,6 +899,12 @@ export default {
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
+            // Если патент не требуется, очищаем связанные поля
+            if (!citizenship.patent_required) {
+                this.patentNumber = '';
+                this.selectedPermission = 'Не выбрано';
+                this.uploadedFiles = [];
+            }
         },
 
         togglePermissionDropdown() {
@@ -925,6 +914,10 @@ export default {
         selectPermission(permission) {
             this.selectedPermission = permission;
             this.isPermissionDropdownOpen = false;
+            // Если выбрано разрешение (кроме "Не выбрано"), очищаем поле патента
+            if (permission !== 'Не выбрано') {
+                this.patentNumber = '';
+            }
         },
 
         // Загрузка файлов
@@ -980,8 +973,8 @@ export default {
                     position: this.position.trim(),
                     citizenship_id: this.selectedCitizenship.id,
                     passport_series_number: this.passportSeriesNumber.trim(),
-                    patent_number: this.isPatentRequired ? this.patentNumber.trim() : null,
-                    other_permission: this.isPatentRequired ? this.selectedPermission : null,
+                    patent_number: this.isPatentRequired && this.patentNumber.trim() ? this.patentNumber.trim() : null,
+                    other_permission: this.isPatentRequired && this.selectedPermission !== 'Не выбрано' ? this.selectedPermission : null,
                     user_id: this.ownershipInfo.user_id,
                     organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
                     company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
@@ -1313,33 +1306,23 @@ export default {
 }
 
 .name-col {
-    width: 20%;
-    min-width: 150px;
+    width: 35%;
+    min-width: 200px;
 }
 
 .position-col {
-    width: 20%;
-    min-width: 120px;
-}
-
-.citizenship-col {
-    width: 15%;
-    min-width: 100px;
-}
-
-.passport-col {
-    width: 15%;
-    min-width: 100px;
+    width: 25%;
+    min-width: 150px;
 }
 
 .status-col {
-    width: 12%;
-    min-width: 80px;
+    width: 17%;
+    min-width: 100px;
 }
 
 .actions-col {
-    width: 10%;
-    min-width: 80px;
+    width: 15%;
+    min-width: 100px;
     justify-content: center;
 }
 
@@ -1785,6 +1768,17 @@ export default {
     cursor: not-allowed;
 }
 
+/* Disabled field styles */
+.disabled-field {
+    opacity: 0.5;
+}
+
+.disabled-field .name__input,
+.disabled-field .permission__dropdown-button {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+}
+
 /* Permission dropdown styles */
 .completion__permission {
     width: 100%;
@@ -1927,6 +1921,10 @@ export default {
 .file-name {
     font-size: 12px;
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 85%;
 }
 
 .remove-file-btn {

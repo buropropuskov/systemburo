@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-// import SubmitForm from './components/SubmitForm.vue';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -78,35 +77,79 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach((to, from, next) => {
-  const isAuthenticated = !!localStorage.getItem('token');
+// Функция для проверки валидности токена
+const isTokenValid = (token) => {
+  if (!token) return false;
   
-  let userType = null;
-  const token = localStorage.getItem('token');
-  
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      console.log('Token payload:', payload);
-      userType = payload.type_id;
-    } catch (e) {
-      console.error("Token decode error:", e);
-    }
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Math.floor(Date.now() / 1000);
+    const isValid = payload.exp > currentTime;
+    
+    const timeUntilExpiry = payload.exp - currentTime;
+    
+    console.log('🔐 Token validation:', {
+      timeUntilExpiry: timeUntilExpiry + ' seconds',
+      isValid: isValid ? '✅ Valid' : '❌ Expired'
+    });
+    
+    return isValid;
+  } catch (e) {
+    console.error("❌ Token validation error:", e);
+    return false;
   }
+};
 
+// Функция для получения типа пользователя
+const getUserType = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.type_id;
+  } catch (e) {
+    console.error("❌ Token decode error:", e);
+    return null;
+  }
+};
+
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token');
+  const refreshToken = localStorage.getItem('refreshToken');
+  
+  // Проверяем наличие ОБОИХ токенов и валидность access token
+  const isAuthenticated = token && refreshToken && isTokenValid(token);
+  
+  const userType = getUserType();
   const isBuroPropuskov = userType === 6;
-  console.log('User type:', userType, 'isBuroPropuskov:', isBuroPropuskov);
+
+  console.log('🛡️ Router auth check:', {
+    route: to.path,
+    hasToken: token ? '✅' : '❌',
+    hasRefreshToken: refreshToken ? '✅' : '❌',
+    isTokenValid: isTokenValid(token) ? '✅' : '❌',
+    isAuthenticated: isAuthenticated ? '✅' : '❌'
+  });
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    console.log('Redirect to login: requires auth');
+    console.log('🚫 Redirect to login: requires auth');
+    
+    // Очищаем невалидные токены
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    
     next('/');
-  } else if (to.meta.requiresBuro && !isBuroPropuskov) {
-    console.log('Redirect to cabinet: requires buro');
+  } 
+  else if (to.meta.requiresBuro && !isBuroPropuskov) {
+    console.log('🔒 Redirect to cabinet: requires buro');
     next('/personal-cabinet');
-  } else if (to.path === '/' && isAuthenticated) {
-    console.log('Redirect from login to cabinet');
+  } 
+  else if (to.path === '/' && isAuthenticated) {
+    console.log('🔄 Redirect from login to cabinet');
     next('/personal-cabinet');
-  } else {
+  } 
+  else {
     next();
   }
 });

@@ -309,11 +309,13 @@ dependencies = [
  "argon2",
  "chrono",
  "dotenv",
+ "hex",
  "jsonwebtoken",
  "log",
  "rand",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "tokio",
 ]

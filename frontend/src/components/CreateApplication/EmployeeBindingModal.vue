@@ -10,59 +10,42 @@
             <div class="modal-body">
                 <div class="binding-info">
                     <p class="binding-description">
-                        Все добавленные сотрудники ниже <strong>автоматически привязываются</strong> к вашему аккаунту.
-                        Вы можете выбрать и привязать сотрудников к организации и/или компании для использования <strong>другими сотрудниками</strong>:
+                        Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
+                        Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
                     </p>
                     
                     <div class="employees-list-section">
-                        <p class="section-title">Список новых сотрудников:</p>
+                        <p class="section-title">Новые сотрудники ({{ newEmployeesToBind.length }}):</p>
                         <div class="employees-list">
                             <div 
                                 v-for="employee in newEmployeesToBind" 
                                 :key="employee.passportSeriesNumber"
                                 class="employee-item"
-                                :class="{ 'employee-item--shared': employee.bindToEntity }"
-                                @click="$emit('toggle-employee-binding', employee)"
                             >
-                                <div class="employee-selector">
-                                    <div class="selector-checkbox">
-                                        <div class="checkbox" :class="{ 'checkbox--checked': employee.bindToEntity }"></div>
-                                    </div>
-                                    <div class="employee-info">
-                                        <span class="employee-name">{{ formatFullName(employee) }}</span>
-                                        <span class="employee-position">{{ employee.position }}</span>
-                                    </div>
-                                </div>
-                                <div class="employee-binding-status">
-                                    <span v-if="employee.bindToEntity" class="status-shared">
-                                        Будет доступен
-                                    </span>
-                                    <span v-else class="status-private">
-                                        Привязка только к вам
-                                    </span>
+                                <div class="employee-info">
+                                    <span class="employee-name">{{ formatFullName(employee) }}</span>
+                                    <span class="employee-position">{{ employee.position }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="binding-options-section">
-                        <p class="section-title">Привязать выбранных сотрудников к:</p>
+                        <p class="section-title">Привязать всех сотрудников к:</p>
                         <div class="binding-options">
                             <label class="binding-option" v-if="hasOrganization">
                                 <input 
                                     type="checkbox" 
                                     v-model="bindToOrganization"
-                                    :disabled="bindToCompany"
                                 />
-                                <span class="option-text">К организации "{{ organization }}"</span>
+                                <span class="option-text">Организации "{{ organization }}"</span>
                             </label>
                             <label class="binding-option" v-if="hasCompany">
                                 <input 
                                     type="checkbox" 
                                     v-model="bindToCompany"
-                                    :disabled="bindToOrganization"
                                 />
-                                <span class="option-text">К компании "{{ company }}"</span>
+                                <span class="option-text">Компании "{{ company }}"</span>
                             </label>
                         </div>
                     </div>
@@ -75,8 +58,9 @@
                 </div>
                 
                 <div class="modal-actions">
-                    <button class="cancel-btn" @click="$emit('skip-binding')">Пропустить</button>
-                    <button class="confirm-btn" @click="$emit('confirm-binding')">Привязать и отправить</button>
+                    <button class="confirm-btn" @click="handleConfirm">
+                        {{ buttonText }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -93,23 +77,19 @@ export default {
         hasOrganization: Boolean,
         hasCompany: Boolean
     },
-    emits: ['toggle-employee-binding', 'confirm-binding', 'skip-binding', 'close'],
+    emits: ['confirm-binding', 'skip-binding', 'close'],
     data() {
         return {
             bindToOrganization: false,
             bindToCompany: false
         }
     },
-    watch: {
-        bindToOrganization(newVal) {
-            if (newVal) {
-                this.bindToCompany = false;
-            }
-        },
-        
-        bindToCompany(newVal) {
-            if (newVal) {
-                this.bindToOrganization = false;
+    computed: {
+        buttonText() {
+            if (this.bindToOrganization || this.bindToCompany) {
+                return 'Привязать и отправить';
+            } else {
+                return 'Отправить';
             }
         }
     },
@@ -120,6 +100,14 @@ export default {
             if (employee.firstName) parts.push(employee.firstName);
             if (employee.middleName) parts.push(employee.middleName);
             return parts.join(' ') || 'Не указано';
+        },
+        
+        handleConfirm() {
+            // Отправляем данные о привязке
+            this.$emit('confirm-binding', {
+                bindToOrganization: this.bindToOrganization,
+                bindToCompany: this.bindToCompany
+            });
         }
     }
 }
@@ -146,7 +134,7 @@ export default {
     padding: 0;
     width: 500px;
     max-width: 90vw;
-    max-height: 80vh;
+    max-height: 600px;
     overflow: hidden;
 }
 
@@ -193,7 +181,7 @@ export default {
 
 .modal-body {
     padding: 20px;
-    max-height: 60vh;
+    max-height: 550px;
     overflow-y: auto;
 }
 
@@ -224,69 +212,22 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding-right: 5px;
 }
 
 .employee-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 15px;
+    padding: 10px 12px;
     border: 1px solid #e6e6e6;
-    border-radius: 10px;
-    transition: all 0.2s;
-    cursor: pointer;
-}
-
-.employee-item:hover {
-    border-color: #4F5BDF;
-}
-
-.employee-item--shared {
-    background: #f8f9ff;
-    border-color: #4F5BDF;
-}
-
-.employee-selector {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.selector-checkbox {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.checkbox {
-    width: 18px;
-    height: 18px;
-    border: 2px solid #e6e6e6;
-    border-radius: 4px;
-    transition: all 0.2s;
-    position: relative;
-}
-
-.checkbox--checked {
-    background: #4F5BDF;
-    border-color: #4F5BDF;
-}
-
-.checkbox--checked::after {
-    content: "✓";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
+    border-radius: 15px;
+    background: #f8f9fa;
 }
 
 .employee-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 }
 
 .employee-name {
@@ -300,25 +241,6 @@ export default {
     font-size: 12px;
 }
 
-.employee-binding-status {
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.status-shared {
-    color: #4F5BDF;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.status-private {
-    color: #666;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
 .binding-options-section {
     margin-bottom: 20px;
     padding-top: 20px;
@@ -328,7 +250,7 @@ export default {
 .binding-options {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0;
 }
 
 .binding-option {
@@ -337,12 +259,12 @@ export default {
     gap: 10px;
     cursor: pointer;
     font-size: 14px;
-    padding: 5px 0;
+    padding: 8px 0;
 }
 
 .binding-option input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
 }
 
@@ -352,10 +274,14 @@ export default {
 
 .warning-section {
     margin-top: 15px;
+    padding: 12px;
+    background: #fff5f5;
+    border-radius: 8px;
+    border: 1px solid #ffcccc;
 }
 
 .warning-text {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.5;
     color: #666;
     margin: 0;
@@ -365,25 +291,9 @@ export default {
 .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
     padding-top: 20px;
     border-top: 1px solid #e6e6e6;
-}
-
-.cancel-btn {
-    background: white;
-    color: #666;
-    border: 1px solid #e6e6e6;
-    border-radius: 12px;
-    padding: 10px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.cancel-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
 }
 
 .confirm-btn {
@@ -391,10 +301,11 @@ export default {
     color: white;
     border: none;
     border-radius: 12px;
-    padding: 10px 20px;
+    padding: 12px 30px;
     font-size: 14px;
     cursor: pointer;
     transition: background-color 0.2s;
+    min-width: 180px;
 }
 
 .confirm-btn:hover {
@@ -413,26 +324,16 @@ export default {
     .modal-content {
         width: 95vw;
         margin: 10px;
+        max-height: 400px;
     }
     
-    .modal-actions {
-        flex-direction: column;
+    .modal-body {
+        max-height: 350px;
     }
     
-    .cancel-btn,
     .confirm-btn {
         width: 100%;
-    }
-    
-    .employee-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-    }
-    
-    .employee-selector {
-        width: 100%;
-        justify-content: space-between;
+        min-width: auto;
     }
 }
 </style>
