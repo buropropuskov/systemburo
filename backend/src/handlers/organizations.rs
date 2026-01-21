@@ -13,21 +13,6 @@ pub struct UpdateOrganizationResponsibleRequest {
     pub responsible_person_id: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrganizationUser {
-    pub id: i32,
-    pub username: String,
-    pub last_name: Option<String>,
-    pub first_name: Option<String>,
-    pub middle_name: Option<String>,
-    pub position: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UpdateOrganizationUsersRequest {
-    pub user_ids: Vec<String>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct UpdateOrganizationUnloadPlacesRequest {
     pub unload_place_ids: Vec<i32>,
@@ -141,11 +126,12 @@ pub async fn get_organization_users(
                                 u.last_name,
                                 u.first_name,
                                 u.middle_name,
-                                u.position
+                                u.position,
+                                ou.is_primary as "is_primary?"
                             FROM users u
                             INNER JOIN organization_users ou ON u.id = ou.user_id
                             WHERE ou.organization_id = $1
-                            ORDER BY u.last_name, u.first_name
+                            ORDER BY ou.is_primary DESC, u.last_name, u.first_name
                             "#,
                             org_id
                         )
@@ -185,6 +171,17 @@ pub async fn update_organization_users(
                     Ok(_claims) => {
                         let org_id = path.into_inner();
 
+                        // Проверяем, что только один пользователь назначен главным
+                        let primary_users_count = form.users.iter()
+                            .filter(|user| user.is_primary.unwrap_or(false))
+                            .count();
+                        
+                        if primary_users_count > 1 {
+                            return Err(error::ErrorBadRequest(
+                                "Только один пользователь может быть главным ответственным"
+                            ));
+                        }
+
                         // Начинаем транзакцию
                         let mut transaction = pool.begin().await.map_err(|e| {
                             log::error!("Failed to begin transaction: {}", e);
@@ -203,12 +200,12 @@ pub async fn update_organization_users(
                             error::ErrorInternalServerError("Error updating organization users")
                         })?;
 
-                        // Добавляем новых пользователей - сначала получаем ID по username
-                        for username in &form.user_ids {
+                        // Добавляем новых пользователей с указанием главного
+                        for user_request in &form.users {
                             // Получаем ID пользователя по username
                             let user_result = sqlx::query!(
                                 "SELECT id FROM users WHERE username = $1",
-                                username
+                                user_request.username
                             )
                             .fetch_optional(&mut *transaction)
                             .await
@@ -219,9 +216,10 @@ pub async fn update_organization_users(
 
                             if let Some(user) = user_result {
                                 sqlx::query!(
-                                    "INSERT INTO organization_users (organization_id, user_id) VALUES ($1, $2)",
+                                    "INSERT INTO organization_users (organization_id, user_id, is_primary) VALUES ($1, $2, $3)",
                                     org_id,
-                                    user.id
+                                    user.id,
+                                    user_request.is_primary.unwrap_or(false)
                                 )
                                 .execute(&mut *transaction)
                                 .await
@@ -230,7 +228,7 @@ pub async fn update_organization_users(
                                     error::ErrorInternalServerError("Error updating organization users")
                                 })?;
                             } else {
-                                log::warn!("User with username {} not found", username);
+                                log::warn!("User with username {} not found", user_request.username);
                             }
                         }
 

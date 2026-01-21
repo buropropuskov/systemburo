@@ -8,6 +8,7 @@ import ApplicationsCenter from './views/ApplicationsCenter.vue';
 import TableConstructor from './components/TableConstructor.vue';
 import NumberFormat from './components/NumberFormat.vue';
 import EmployeeView from './components/EmployeeView.vue';
+import NewsAndReview from './views/NewsAndReview.vue';
 
 const routes = [
   { 
@@ -69,6 +70,12 @@ const routes = [
     name: 'EmployeeView',
     component: EmployeeView,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/news',
+    name: 'NewsAndReview',
+    component: NewsAndReview,
+    meta: {requiresAuth: true}
   }
 ];
 
@@ -86,16 +93,16 @@ const isTokenValid = (token) => {
     const currentTime = Math.floor(Date.now() / 1000);
     const isValid = payload.exp > currentTime;
     
-    const timeUntilExpiry = payload.exp - currentTime;
+    // const timeUntilExpiry = payload.exp - currentTime;
     
-    console.log('🔐 Token validation:', {
+    /* console.log('🔐 Token validation:', {
       timeUntilExpiry: timeUntilExpiry + ' seconds',
       isValid: isValid ? '✅ Valid' : '❌ Expired'
-    });
+    }); */
     
     return isValid;
   } catch (e) {
-    console.error("❌ Token validation error:", e);
+    /* console.error("❌ Token validation error:", e); */
     return false;
   }
 };
@@ -109,7 +116,7 @@ const getUserType = () => {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return payload.type_id;
   } catch (e) {
-    console.error("❌ Token decode error:", e);
+    /* console.error("❌ Token decode error:", e); */
     return null;
   }
 };
@@ -124,13 +131,13 @@ router.beforeEach((to, from, next) => {
   const userType = getUserType();
   const isBuroPropuskov = userType === 6;
 
-  console.log('🛡️ Router auth check:', {
+  /* console.log('🛡️ Router auth check:', {
     route: to.path,
     hasToken: token ? '✅' : '❌',
     hasRefreshToken: refreshToken ? '✅' : '❌',
     isTokenValid: isTokenValid(token) ? '✅' : '❌',
     isAuthenticated: isAuthenticated ? '✅' : '❌'
-  });
+  }); */
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     console.log('🚫 Redirect to login: requires auth');

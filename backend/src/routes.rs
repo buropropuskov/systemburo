@@ -2,7 +2,6 @@
 use actix_web::web;
 use crate::handlers::auth::*;
 use crate::handlers::applications::*;
-use crate::handlers::cars::*;
 use crate::handlers::companies::*;
 use crate::handlers::organizations::*;
 use crate::handlers::users::*;
@@ -13,7 +12,7 @@ use crate::handlers::unique_cars::*;
 use crate::handlers::unique_employees::*;
 use crate::handlers::table_constructor::*;
 use crate::handlers::citizenship::*;
-use crate::handlers::attachments::*; // Добавляем новый модуль
+use crate::handlers::unique_attachments::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -23,7 +22,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(web::resource("/refresh-token").route(web::post().to(refresh_token)))
         .service(web::resource("/logout").route(web::post().to(logout)))
         .service(web::resource("/user-data").route(web::get().to(get_current_user_data)))
-        .service(web::resource("/users/me").route(web::get().to(get_current_user)))
+        .service(web::resource("/users/me").route(web::get().to(get_this_user)))
         .service(web::resource("/user-types").route(web::get().to(get_user_types)))
 
         // Управление типами пользователей (CRUD)
@@ -36,19 +35,17 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
 
         // Заявки
-        .service(web::resource("/submit").route(web::post().to(submit_application)))
-        .service(web::resource("/submit-v2").route(web::post().to(submit_application_v2)))
-        .service(web::resource("/submit-employee-application").route(web::post().to(submit_employee_application)))
-        .service(web::resource("/applications/all-cars").route(web::get().to(get_all_cars_for_account)))
-        .service(web::resource("/applications/active-cars").route(web::get().to(get_active_cars_for_table)))
         .service(
-            web::resource("/applications/{application_id}")
-                .route(web::put().to(update_application))
-        )
-        .service(
-            web::resource("/applications/{application_id}/cars/{car_id}")
-                .route(web::put().to(update_car))
-                .route(web::delete().to(delete_car))
+            web::scope("/applications")
+                .route("", web::get().to(get_applications))
+                .route("", web::post().to(create_application))
+                .route("/submit-complete-application", web::post().to(submit_complete_application))
+                .route("/user", web::get().to(get_user_applications))
+                .route("/{id}", web::get().to(get_application_by_id))
+                .route("/{id}", web::put().to(update_application))
+                .route("/{id}/responsible-users", web::get().to(get_application_responsible_users))
+                .route("/{id}/details", web::get().to(get_application_details))
+                .route("/{id}/attachments", web::get().to(get_application_attachments))
         )
 
         // Уникальные машины
@@ -141,6 +138,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         .service(web::resource("/users/{username}").route(web::delete().to(delete_user))
         )
+        // Получение текущего пользователя - исправлено, используем существующий эндпоинт
+        .service(web::resource("/users/current").route(web::get().to(get_current_user)))
 
         // Форматы номеров
         .service(
@@ -161,9 +160,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/clear-default", web::post().to(clear_default_citizenships))
         )
 
-        // ТМЦ
-        .service(web::resource("/submit-item-application").route(web::post().to(submit_item_application)))
-
         // Конструктор таблиц
         .service(
             web::scope("/system-tables")
@@ -176,13 +172,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 
         // Управление вложениями (бланками заявок)
         .service(
-    web::scope("/attachments")
-        .route("", web::get().to(get_attachments)) // Только активные
-        .route("/all", web::get().to(get_all_attachments)) // Все (активные + архивные)
-        .route("", web::post().to(create_attachment))
-        .route("/{id}", web::put().to(update_attachment))
-        .route("/{id}", web::delete().to(delete_attachment))
-        .route("/{id}/restore", web::put().to(restore_attachment))
-        .route("/{id}", web::get().to(get_attachment_by_id))
+            web::scope("/attachments")
+                .route("", web::get().to(get_attachments)) // Только активные
+                .route("/all", web::get().to(get_all_attachments)) // Все (активные + архивные)
+                .route("", web::post().to(create_attachment))
+                .route("/{id}", web::put().to(update_attachment))
+                .route("/{id}", web::delete().to(delete_attachment))
+                .route("/{id}/restore", web::put().to(restore_attachment))
+                .route("/{id}", web::get().to(get_attachment_by_id))
+                .route("/{id}/cars", web::get().to(get_attachment_cars))
+                .route("/{id}/employees", web::get().to(get_attachment_employees))
+                .route("/{id}/items", web::get().to(get_attachment_items))
         );
 }

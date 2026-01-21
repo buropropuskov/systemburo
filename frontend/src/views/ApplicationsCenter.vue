@@ -27,7 +27,7 @@
                     
                     <!-- Организация -->
                     <div class="field field--select" @click="toggleDropdown('organization')">
-                        <span class="select-text">{{ selectedOrganization || 'Организация' }}</span>
+                        <span class="select-text">{{ selectedOrganizationName || 'Организация' }}</span>
                         <img src="@/assets/icons/arrow.png" class="select-icon" :class="{ 'select-icon--rotated': showOrganizationDropdown }" />
                         <div class="custom-dropdown" v-if="showOrganizationDropdown" :class="{ 'dropdown-enter-active': showOrganizationDropdown }">
                             <div class="dropdown-search">
@@ -39,15 +39,15 @@
                                     class="dropdown-search__input"
                                 />
                             </div>
-                            <div class="dropdown-item" @click.stop="selectOrganization('')">Все организации</div>
+                            <div class="dropdown-item" @click.stop="selectOrganization(null, 'Все организации')">Все организации</div>
                             <div 
                                 class="dropdown-item" 
                                 v-for="org in filteredOrganizations" 
-                                :key="org" 
-                                @click.stop="selectOrganization(org)"
-                                :class="{ 'dropdown-item--selected': org === selectedOrganization }"
+                                :key="org.id" 
+                                @click.stop="selectOrganization(org.id, org.name)"
+                                :class="{ 'dropdown-item--selected': org.id === selectedOrganizationId }"
                             >
-                                {{ org }}
+                                {{ org.name }}
                             </div>
                             <div class="dropdown-no-results" v-if="filteredOrganizations.length === 0">
                                 Организации не найдены
@@ -180,36 +180,14 @@
 
                     <!-- Кнопка обновить -->
                     <div class="filter-section filter-section--refresh">
-                        <RefreshButton @refresh="refreshData" />
+                        <RefreshButton @refresh="fetchApplications" />
                     </div>
                 </div>
-
-                <!-- Дополнительные фильтры -->
-                <transition name="more-filters">
-                    <div class="more-filters" v-if="showMoreFilters">
-                        <div class="filter-section">
-                            <div class="filter-section__header">
-                                <span class="filter-label">Теги</span>
-                            </div>
-                            <div class="tags-buttons">
-                                <button 
-                                    v-for="tag in availableTags" 
-                                    :key="tag"
-                                    class="tag-btn"
-                                    :class="{ 'tag-btn--active': selectedTags.includes(tag) }"
-                                    @click="toggleTag(tag)"
-                                >
-                                    {{ tag }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </transition>
             </div>
         </div>
 
         <!-- Таблица заявок -->
-        <div class="applications-table">
+        <div class="applications-table" :class="{ 'with-details': selectedApplication }">
             <div class="table-header">
                 <div class="header-row">
                     <div class="header-col confirmation-col" @click="sortBy('confirmation')">
@@ -267,9 +245,6 @@
                             }" 
                         />
                     </div>
-                    <div class="header-col tags-col">
-                        <p>Теги</p>
-                    </div>
                     <div class="header-col status-col" @click="sortBy('status')">
                         <p :class="{ 'active-sort': sortField === 'status' }">Статус заявки</p>
                         <img 
@@ -294,7 +269,7 @@
                         :key="application.id" 
                         class="application-item"
                         :class="{ 
-                            'unread': application.unread,
+                            'unread': application.status === 'Непрочитано',
                             'initial-load': isInitialLoad,
                             'filtered': !isInitialLoad
                         }"
@@ -307,32 +282,20 @@
                                     class="confirmation-badge"
                                     :class="getConfirmationClass(application.confirmation)"
                                 >
-                                    {{ getConfirmationText(application.confirmation) }}
+                                    {{ application.confirmation }}
                                 </span>
                             </div>
                             <div class="application-col number-col">
-                                <span class="application-number">{{ application.number }}</span>
+                                <span class="application-number">{{ application.application_number }}</span>
                             </div>
                             <div class="application-col date-col">
-                                {{ application.date }}
+                                {{ formatDateTime(application.sending_datetime) }}
                             </div>
                             <div class="application-col organization-col">
-                                {{ application.organization }}
+                                {{ getOrganizationName(application) }}
                             </div>
-                            <div class="application-col sender-col">
-                                {{ application.sender }}
-                            </div>
-                            <div class="application-col tags-col">
-                                <div class="tags-container">
-                                    <span 
-                                        v-for="tag in application.tags" 
-                                        :key="tag" 
-                                        class="tag-badge"
-                                        :class="getTagClass(tag)"
-                                    >
-                                        {{ tag }}
-                                    </span>
-                                </div>
+                            <div class="application-col sender-col" :title="getFullNameTooltip(application.sender_name)">
+                                {{ getSenderName(application.sender_name) }}
                             </div>
                             <div class="application-col status-col">
                                 <span 
@@ -363,36 +326,226 @@
                 </p>
             </div>
         </div>
+
+        <!-- Детальное представление заявки -->
+        <div v-if="selectedApplication" class="application-detail-overlay" @click.self="closeApplicationDetail">
+            <div class="application-detail">
+                <!-- Заголовок и кнопки -->
+                <div class="detail-header">
+                    <div class="detail-header-left">
+                        <div class="detail-title-row">
+                            <h3 class="detail-title">Заявка {{ selectedApplication.application_number }}</h3>
+                            <div class="detail-datetime">{{ formatDateTime(selectedApplication.sending_datetime) }}</div>
+                        </div>
+                    </div>
+                    <div class="detail-header-right">
+                        <!-- Кнопки согласования для ответственных -->
+                        <div v-if="isResponsibleUser && selectedApplication.confirmation === 'Согласование'" class="confirmation-buttons">
+                            <button 
+                                class="confirm-btn" 
+                                @click="updateConfirmation('Согласовано')"
+                                :disabled="updatingConfirmation"
+                            >
+                                Согласовать
+                            </button>
+                            <button 
+                                class="reject-btn" 
+                                @click="updateConfirmation('Не согласовано')"
+                                :disabled="updatingConfirmation"
+                            >
+                                Отказать
+                            </button>
+                        </div>
+                        <button class="close-detail-btn" @click="closeApplicationDetail">×</button>
+                    </div>
+                </div>
+
+                <div class="detail-content">
+                    <!-- Левая колонка - вложения -->
+                    <div class="detail-left-column">
+                        <ApplicationAttachments 
+                            :application-id="selectedApplication.id"
+                            :attachments="applicationAttachments"
+                            @attachment-selected="selectAttachment"
+                        />
+                    </div>
+
+                    <!-- Центральная колонка - детали -->
+                    <div class="detail-main-column">
+                        <!-- Сообщение заявки -->
+                        <div class="message-section">
+                            <h4>Сообщение к заявке {{ selectedApplication.application_number }}</h4>
+                            <div class="message-content">
+                                {{ selectedApplication.message || 'Сообщение отсутствует' }}
+                            </div>
+                        </div>
+
+                        <!-- Детали выбранного вложения -->
+                        <div v-if="selectedAttachment" class="attachment-details">
+                            <h4>{{ selectedAttachment.attachment_display_name }}</h4>
+                            
+                            <!-- Даты действия -->
+                            <div v-if="selectedAttachment.entry_date_from || selectedAttachment.entry_date_to" class="date-range">
+                                <span class="date-label">Срок действия:</span>
+                                <span class="date-value">
+                                    {{ formatDate(selectedAttachment.entry_date_from) }}
+                                    <span v-if="selectedAttachment.entry_date_to"> - {{ formatDate(selectedAttachment.entry_date_to) }}</span>
+                                </span>
+                            </div>
+
+                            <!-- Время действия -->
+                            <div v-if="selectedAttachment.entry_time_from || selectedAttachment.entry_time_to" class="time-range">
+                                <span class="time-label">Время:</span>
+                                <span class="time-value">
+                                    {{ selectedAttachment.entry_time_from }}
+                                    <span v-if="selectedAttachment.entry_time_to"> - {{ selectedAttachment.entry_time_to }}</span>
+                                </span>
+                            </div>
+
+                            <!-- Данные вложения в зависимости от типа -->
+                            <div class="attachment-data">
+                                <!-- Автомобили -->
+                                <div v-if="selectedAttachment.attachment_type === 'cars' && attachmentCars.length > 0" class="cars-section">
+                                    <h5>Автомобили</h5>
+                                    <div class="cars-list">
+                                        <div v-for="car in attachmentCars" :key="car.id" class="car-item">
+                                            <div class="car-info">
+                                                <span class="car-number">{{ car.car_number }}</span>
+                                                <span class="car-brand">{{ car.car_brand }}</span>
+                                            </div>
+                                            <!-- Места разгрузки -->
+                                            <div v-if="car.unload_places && car.unload_places.length > 0" class="unload-places">
+                                                <span class="places-label">Места разгрузки:</span>
+                                                <span class="places-list">
+                                                    {{ car.unload_places.map(p => p.name).join(', ') }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Сотрудники -->
+                                <div v-if="selectedAttachment.attachment_type === 'people' && attachmentEmployees.length > 0" class="employees-section">
+                                    <h5>Сотрудники</h5>
+                                    <div class="employees-list">
+                                        <div v-for="employee in attachmentEmployees" :key="employee.id" class="employee-item">
+                                            <div class="employee-info">
+                                                <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
+                                                <span class="employee-position">{{ employee.position }}</span>
+                                            </div>
+                                            <!-- Целевые таблицы -->
+                                            <div v-if="employee.target_tables && employee.target_tables.length > 0" class="target-tables">
+                                                <span class="tables-label">Целевые таблицы:</span>
+                                                <span class="tables-list">
+                                                    {{ employee.target_tables.map(t => t.display_name).join(', ') }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ТМЦ -->
+                                <div v-if="selectedAttachment.attachment_type === 'items' && attachmentItems.length > 0" class="items-section">
+                                    <h5>Товарно-материальные ценности</h5>
+                                    <div class="items-list">
+                                        <div v-for="item in attachmentItems" :key="item.id" class="item-item">
+                                            <span class="item-name">{{ item.name }}</span>
+                                            <span class="item-count">Количество: {{ item.count }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Правая колонка - информация о заявке и согласовании -->
+                    <div class="detail-right-column">
+                        <!-- Основная информация -->
+                        <div class="basic-info-section">
+                            <h4>Основная информация</h4>
+                            <div class="info-grid">
+                                <div class="info-row">
+                                    <span class="info-label">Организация:</span>
+                                    <span class="info-value">{{ selectedApplication.organization_name }}</span>
+                                </div>
+                                <div v-if="selectedApplication.company_name" class="info-row">
+                                    <span class="info-label">Компания:</span>
+                                    <span class="info-value">{{ selectedApplication.company_name }}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Отправитель:</span>
+                                    <span class="info-value">{{ selectedApplication.sender_full_name || selectedApplication.sender_name }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Статус согласования -->
+                        <div class="confirmation-section">
+                            <h4>Согласование заявки</h4>
+                            <div class="confirmation-info">
+                                <div class="info-row">
+                                    <span class="info-label">Статус:</span>
+                                    <span class="info-value" :class="getConfirmationClass(selectedApplication.confirmation)">
+                                        {{ selectedApplication.confirmation }}
+                                    </span>
+                                </div>
+                                <div v-if="selectedApplication.responsible_name" class="info-row">
+                                    <span class="info-label">Ответственный:</span>
+                                    <span class="info-value">{{ selectedApplication.responsible_name }}</span>
+                                </div>
+                                <div v-if="selectedApplication.confirmation_datetime" class="info-row">
+                                    <span class="info-label">Дата согласования:</span>
+                                    <span class="info-value">{{ formatDateTime(selectedApplication.confirmation_datetime) }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Ответственные пользователи -->
+                            <div v-if="responsibleUsers.length > 0" class="responsible-users-section">
+                                <h5>Ответственные за согласование</h5>
+                                <div class="users-list">
+                                    <div v-for="user in responsibleUsers" :key="user.id" class="user-item">
+                                        <div class="user-info">
+                                            <span class="user-name">{{ user.last_name }} {{ user.first_name }} {{ user.middle_name || '' }}</span>
+                                            <span v-if="user.position" class="user-position">{{ user.position }}</span>
+                                        </div>
+                                        <span v-if="user.is_primary" class="primary-badge">Основной</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Комментарий ответственного -->
+                        <div v-if="selectedApplication.responsible_comment" class="comment-section">
+                            <h4>Комментарий ответственного</h4>
+                            <div class="comment-content">
+                                {{ selectedApplication.responsible_comment }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 </template>
 
 <script>
 import RefreshButton from '../components/RefreshButton.vue'
+import ApplicationAttachments from '../components/ApplicationAttachments.vue'
 
 export default {
     components: {
-        RefreshButton
+        RefreshButton,
+        ApplicationAttachments
     },
     data() {
         return {
             searchQuery: '',
-            selectedOrganization: '',
+            selectedOrganizationId: null,
+            selectedOrganizationName: '',
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
-            selectedTags: [],
             showMoreFilters: false,
-            organizations: [
-                'р-н Мегобари',
-                'ООО "Ромашка"',
-                'ИП Иванов',
-                'ЗАО "Весна"',
-                'ОАО "Технопром"',
-                'ТОО "Стройсервис"',
-                'ООО "Нефтегаз"',
-                'ИП Петров',
-                'ЗАО "Металлург"',
-                'ОАО "Строймаш"'
-            ],
+            organizations: [],
             showOrganizationDropdown: false,
             organizationSearch: '',
             sortField: null,
@@ -410,9 +563,9 @@ export default {
             
             // Конфигурации
             confirmations: [
-                { value: 'approved', label: 'Согласовано' },
-                { value: 'rejected', label: 'Не согласовано' },
-                { value: 'pending', label: 'На согласовании' }
+                { value: 'Согласовано', label: 'Согласовано' },
+                { value: 'Не согласовано', label: 'Не согласовано' },
+                { value: 'Согласование', label: 'На согласовании' }
             ],
             applicationStatuses: [
                 { value: 'Непрочитано', label: 'Непрочитано' },
@@ -423,118 +576,19 @@ export default {
             ],
             
             // Данные заявок
-            applications: [
-    {
-        id: 1,
-        confirmation: 'approved',
-        number: '№ 20250609/001',
-        date: '09.06.2025 21:07',
-        organization: 'р-н Мегобари',
-        sender: 'Мякотных С.М.',
-        tags: ['Крыша'],
-        status: 'В работе',
-        unread: false
-    },
-    {
-        id: 2,
-        confirmation: 'pending',
-        number: '№ 20250609/002',
-        date: '09.06.2025 18:30',
-        organization: 'р-н Мегобари',
-        sender: 'Мякотных С.М.',
-        tags: [],
-        status: 'В обработке',
-        unread: false
-    },
-    {
-        id: 3,
-        confirmation: 'rejected',
-        number: '№ 20250609/003',
-        date: '09.06.2025 15:45',
-        organization: 'р-н Мегобари',
-        sender: 'Мякотных С.М.',
-        tags: [],
-        status: 'Отказано',
-        unread: false
-    },
-    {
-        id: 4,
-        confirmation: 'approved',
-        number: '№ 20250610/001',
-        date: '10.06.2025 14:20',
-        organization: 'ООО "Ромашка"',
-        sender: 'Иванов А.П.',
-        tags: ['Срочно', 'VIP'],
-        status: 'Завершено',
-        unread: false
-    },
-    {
-        id: 5,
-        confirmation: 'pending',
-        number: '№ 20250610/002',
-        date: '10.06.2025 12:15',
-        organization: 'ИП Иванов',
-        sender: 'Петров В.С.',
-        tags: ['Ночная'],
-        status: 'В обработке',
-        unread: false
-    },
-    {
-        id: 6,
-        confirmation: 'approved',
-        number: '№ 20250611/001',
-        date: '11.06.2025 09:30',
-        organization: 'ЗАО "Весна"',
-        sender: 'Сидорова М.К.',
-        tags: ['Склад'],
-        status: 'В работе',
-        unread: false
-    },
-    {
-        id: 7,
-        confirmation: 'rejected',
-        number: '№ 20250611/002',
-        date: '11.06.2025 08:00',
-        organization: 'ОАО "Технопром"',
-        sender: 'Козлов Д.В.',
-        tags: [],
-        status: 'Отказано',
-        unread: false
-    },
-    {
-        id: 8,
-        confirmation: 'pending',
-        number: '№ 20250612/001',
-        date: '12.06.2025 16:45',
-        organization: 'ТОО "Стройсервис"',
-        sender: 'Николаев П.С.',
-        tags: ['Важно'],
-        status: 'Непрочитано',
-        unread: true
-    },
-    {
-        id: 9,
-        confirmation: 'approved',
-        number: '№ 20250612/002',
-        date: '12.06.2025 11:20',
-        organization: 'ООО "Нефтегаз"',
-        sender: 'Волков А.А.',
-        tags: ['Терминал'],
-        status: 'Завершено',
-        unread: false
-    },
-    {
-        id: 10,
-        confirmation: 'pending',
-        number: '№ 20250613/001',
-        date: '13.06.2025 22:10',
-        organization: 'ИП Петров',
-        sender: 'Семенов К.Д.',
-        tags: ['Выезд'],
-        status: 'Непрочитано',
-        unread: true
-    }
-            ]
+            applications: [],
+            
+            // Детали заявки
+            selectedApplication: null,
+            applicationAttachments: [],
+            selectedAttachment: null,
+            attachmentCars: [],
+            attachmentEmployees: [],
+            attachmentItems: [],
+            responsibleUsers: [],
+            currentUserId: null,
+            currentUserName: '',
+            updatingConfirmation: false
         }
     },
     computed: {
@@ -542,7 +596,7 @@ export default {
             if (!this.organizationSearch) return this.organizations;
             const searchTerm = this.organizationSearch.toLowerCase();
             return this.organizations.filter(org => 
-                org.toLowerCase().includes(searchTerm)
+                org.name.toLowerCase().includes(searchTerm)
             );
         },
         
@@ -555,11 +609,6 @@ export default {
             return 'Выберите дату';
         },
         
-        availableTags() {
-            const allTags = this.applications.flatMap(app => app.tags);
-            return [...new Set(allTags)].sort();
-        },
-        
         filteredApplications() {
             let filtered = this.applications;
 
@@ -568,11 +617,11 @@ export default {
                 const query = this.normalizeSearch(this.searchQuery.trim());
                 filtered = filtered.filter(app => {
                     const searchFields = [
-                        app.number,
-                        app.organization,
-                        app.sender,
+                        app.application_number,
+                        this.getOrganizationName(app),
+                        app.sender_name,
                         app.status,
-                        ...app.tags
+                        app.confirmation
                     ];
                     
                     return searchFields.some(field => {
@@ -584,9 +633,9 @@ export default {
             }
 
             // Фильтр по организации
-            if (this.selectedOrganization) {
+            if (this.selectedOrganizationId) {
                 filtered = filtered.filter(app => 
-                    app.organization === this.selectedOrganization
+                    app.organization_id === this.selectedOrganizationId
                 );
             }
 
@@ -604,17 +653,10 @@ export default {
                 );
             }
 
-            // Фильтр по тегам
-            if (this.selectedTags.length > 0) {
-                filtered = filtered.filter(app => 
-                    this.selectedTags.some(tag => app.tags.includes(tag))
-                );
-            }
-
             // Фильтр по дате
             if (this.dateRangeStart && this.dateRangeEnd) {
                 filtered = filtered.filter(app => {
-                    const appDate = this.parseDateTime(app.date);
+                    const appDate = new Date(app.sending_datetime);
                     const startOfDay = new Date(this.dateRangeStart);
                     startOfDay.setHours(0, 0, 0, 0);
                     const endOfDay = new Date(this.dateRangeEnd);
@@ -631,8 +673,8 @@ export default {
             
             if (!this.sortField) {
                 return applications.sort((a, b) => {
-                    const dateA = this.parseDateTime(a.date);
-                    const dateB = this.parseDateTime(b.date);
+                    const dateA = new Date(a.sending_datetime);
+                    const dateB = new Date(b.sending_datetime);
                     return dateB - dateA;
                 });
             }
@@ -646,20 +688,20 @@ export default {
                         valueB = b.confirmation;
                         break;
                     case 'number':
-                        valueA = a.number;
-                        valueB = b.number;
+                        valueA = a.application_number;
+                        valueB = b.application_number;
                         break;
                     case 'date':
-                        valueA = this.parseDateTime(a.date);
-                        valueB = this.parseDateTime(b.date);
+                        valueA = new Date(a.sending_datetime);
+                        valueB = new Date(b.sending_datetime);
                         break;
                     case 'organization':
-                        valueA = a.organization?.toLowerCase() || '';
-                        valueB = b.organization?.toLowerCase() || '';
+                        valueA = this.getOrganizationName(a).toLowerCase();
+                        valueB = this.getOrganizationName(b).toLowerCase();
                         break;
                     case 'sender':
-                        valueA = a.sender?.toLowerCase() || '';
-                        valueB = b.sender?.toLowerCase() || '';
+                        valueA = a.sender_name?.toLowerCase() || '';
+                        valueB = b.sender_name?.toLowerCase() || '';
                         break;
                     case 'status':
                         valueA = a.status?.toLowerCase() || '';
@@ -681,19 +723,43 @@ export default {
         
         hasActiveFilters() {
             return !!this.searchQuery.trim() || 
-                   !!this.selectedOrganization || 
+                   !!this.selectedOrganizationId || 
                    this.selectedConfirmations.length > 0 || 
                    this.selectedApplicationStatuses.length > 0 ||
-                   this.selectedTags.length > 0 ||
                    (this.dateRangeStart && this.dateRangeEnd);
         },
 
         unreadCount() {
-            return this.applications.filter(app => app.unread).length;
+            return this.applications.filter(app => app.status === 'Непрочитано').length;
+        },
+
+        isResponsibleUser() {
+            if (!this.currentUserId || !this.responsibleUsers.length) return false;
+            
+            return this.responsibleUsers.some(user => user.id === this.currentUserId);
         }
     },
     methods: {
-        // Нормализация поискового запроса
+        getOrganizationName(application) {
+            if (application.organization_name && application.organization_name.trim()) {
+                return application.organization_name;
+            }
+            else if (application.company_name && application.company_name.trim()) {
+                return application.company_name;
+            }
+            return 'Не указана';
+        },
+        
+        getSenderName(fullName) {
+            if (!fullName) return '';
+            return fullName;
+        },
+        
+        getFullNameTooltip(fullName) {
+            if (!fullName) return '';
+            return fullName.replace(/\./g, '').trim();
+        },
+        
         normalizeSearch(text) {
             if (!text) return '';
             
@@ -723,12 +789,10 @@ export default {
             return normalized;
         },
         
-        // Переключение дополнительных фильтров
         toggleMoreFilters() {
             this.showMoreFilters = !this.showMoreFilters;
         },
         
-        // Dropdown методы
         toggleDropdown(type) {
             if (type === 'organization') {
                 this.showOrganizationDropdown = !this.showOrganizationDropdown;
@@ -739,14 +803,14 @@ export default {
             }
         },
         
-        selectOrganization(org) {
-            this.selectedOrganization = org;
+        selectOrganization(id, name) {
+            this.selectedOrganizationId = id;
+            this.selectedOrganizationName = name;
             this.showOrganizationDropdown = false;
             this.organizationSearch = '';
             this.applyFilters();
         },
         
-        // Фильтры подтверждения
         toggleConfirmation(status) {
             const index = this.selectedConfirmations.indexOf(status);
             if (index > -1) {
@@ -757,7 +821,6 @@ export default {
             this.applyFilters();
         },
         
-        // Фильтры статуса заявки
         toggleApplicationStatus(status) {
             const index = this.selectedApplicationStatuses.indexOf(status);
             if (index > -1) {
@@ -768,31 +831,20 @@ export default {
             this.applyFilters();
         },
         
-        // Фильтры тегов
-        toggleTag(tag) {
-            const index = this.selectedTags.indexOf(tag);
-            if (index > -1) {
-                this.selectedTags.splice(index, 1);
-            } else {
-                this.selectedTags.push(tag);
-            }
-            this.applyFilters();
-        },
-        
-        // Сброс фильтров
         resetFilters() {
-            this.selectedOrganization = '';
+            this.selectedOrganizationId = null;
+            this.selectedOrganizationName = '';
             this.selectedConfirmations = [];
             this.selectedApplicationStatuses = [];
-            this.selectedTags = [];
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
             this.dateRangeStartInput = '';
             this.dateRangeEndInput = '';
+            this.searchQuery = '';
             this.isInitialLoad = false;
+            this.fetchApplications();
         },
         
-        // Дата методы
         toggleDatePicker() {
             this.showDatePicker = !this.showDatePicker;
             this.showOrganizationDropdown = false;
@@ -804,6 +856,9 @@ export default {
         
         formatDate(date) {
             if (!date) return '';
+            if (typeof date === 'string') {
+                date = new Date(date);
+            }
             return date.toLocaleDateString('ru-RU', {
                 day: '2-digit',
                 month: '2-digit',
@@ -811,11 +866,16 @@ export default {
             });
         },
         
-        parseDateTime(dateTimeString) {
-            const [datePart, timePart] = dateTimeString.split(' ');
-            const [day, month, year] = datePart.split('.');
-            const [hours, minutes] = timePart.split(':');
-            return new Date(year, month - 1, day, hours, minutes);
+        formatDateTime(dateTimeString) {
+            if (!dateTimeString) return '';
+            const date = new Date(dateTimeString);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         },
         
         setQuickDate(period) {
@@ -908,31 +968,13 @@ export default {
             this.applyFilters();
         },
         
-        getConfirmationText(confirmation) {
-            const texts = {
-                'approved': 'Согласовано',
-                'pending': 'Согласование',
-                'rejected': 'Не согласовано'
-            };
-            return texts[confirmation] || '';
-        },
-
         getConfirmationClass(confirmation) {
-            return `confirmation-${confirmation}`;
-        },
-
-        getTagClass(tag) {
-            const tagColors = {
-                'Крыша': 'tag-roof',
-                'Срочно': 'tag-urgent',
-                'VIP': 'tag-vip',
-                'Ночная': 'tag-night',
-                'Склад': 'tag-warehouse',
-                'Важно': 'tag-important',
-                'Терминал': 'tag-terminal',
-                'Выезд': 'tag-departure'
+            const classes = {
+                'Согласовано': 'confirmation-approved',
+                'Согласование': 'confirmation-pending',
+                'Не согласовано': 'confirmation-rejected'
             };
-            return tagColors[tag] || 'tag-default';
+            return classes[confirmation] || 'confirmation-default';
         },
 
         getStatusClass(status) {
@@ -946,7 +988,6 @@ export default {
             return statusClasses[status] || 'status-default';
         },
         
-        // Сортировка
         sortBy(field) {
             if (this.sortField === field) {
                 this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -957,38 +998,323 @@ export default {
             this.isInitialLoad = false;
         },
 
-        // Сброс сортировки
         resetSort() {
             this.sortField = null;
             this.sortDirection = 'desc';
         },
         
-        // Фильтры
         applyFilters() {
             this.isInitialLoad = false;
         },
         
-        // Обновление данных
-        refreshData() {
-            console.log('Обновление данных заявок...');
-            this.isInitialLoad = false;
-        },
+        async fetchApplications() {
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) {
+                    console.error("Пользователь не авторизован.");
+                    return;
+                }
 
-        // Скачивание
-        downloadApplication(application) {
-            console.log('Скачивание заявки:', application.number);
-        },
+                let url = "http://localhost:8080/applications";
+                const params = new URLSearchParams();
+                
+                if (this.searchQuery) {
+                    params.append('search_query', this.searchQuery);
+                }
+                if (this.selectedOrganizationId) {
+                    params.append('organization_id', this.selectedOrganizationId);
+                }
+                if (this.selectedConfirmations.length > 0) {
+                    params.append('confirmation', this.selectedConfirmations[0]);
+                }
+                if (this.selectedApplicationStatuses.length > 0) {
+                    params.append('status', this.selectedApplicationStatuses[0]);
+                }
+                if (this.dateRangeStart) {
+                    params.append('date_from', this.dateRangeStart.toISOString().split('T')[0]);
+                }
+                if (this.dateRangeEnd) {
+                    params.append('date_to', this.dateRangeEnd.toISOString().split('T')[0]);
+                }
 
-        // Открытие заявки
-        openApplication(application) {
-            console.log('Открытие заявки:', application.number);
-            if (application.status === 'Непрочитано') {
-                application.status = 'В обработке';
-                application.unread = false;
+                const queryString = params.toString();
+                if (queryString) {
+                    url += '?' + queryString;
+                }
+
+                const response = await fetch(url, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.applications = data;
+                } else {
+                    console.error("Ошибка при загрузке заявок:", await response.text());
+                }
+            } catch (error) {
+                console.error("Ошибка сети при загрузке заявок:", error);
             }
         },
 
-        // Анимация тряски для бейджа
+        async fetchOrganizations() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/organizations", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.organizations = data;
+                } else {
+                    console.error("Ошибка при загрузке организаций");
+                }
+            } catch (error) {
+                console.error("Ошибка сети при загрузке организаций:", error);
+            }
+        },
+
+        downloadApplication(application) {
+            console.log('Скачивание заявки:', application.application_number);
+        },
+
+        async openApplication(application) {
+            console.log('Открытие заявки:', application.application_number);
+            
+            if (application.status === 'Непрочитано') {
+                try {
+                    const token = localStorage.getItem("token");
+                    const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            status: "В обработке"
+                        })
+                    });
+
+                    if (response.ok) {
+                        application.status = 'В обработке';
+                        this.fetchApplications();
+                    } else {
+                        const errorText = await response.text();
+                        console.error("Ошибка при обновлении статуса заявки:", errorText);
+                    }
+                } catch (error) {
+                    console.error("Ошибка сети при обновлении статуса заявки:", error);
+                }
+            }
+
+            await this.loadApplicationDetails(application);
+        },
+
+        async loadApplicationDetails(application) {
+            try {
+                const token = localStorage.getItem("token");
+                
+                const appResponse = await fetch(`http://localhost:8080/applications/${application.id}/details`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                });
+
+                if (appResponse.ok) {
+                    const appData = await appResponse.json();
+                    this.selectedApplication = appData;
+                    
+                    if (appData.responsible_users) {
+                        this.responsibleUsers = appData.responsible_users;
+                    }
+                }
+
+                const attachmentsResponse = await fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                });
+
+                if (attachmentsResponse.ok) {
+                    this.applicationAttachments = await attachmentsResponse.json();
+                    if (this.applicationAttachments.length > 0) {
+                        this.selectedAttachment = this.applicationAttachments[0];
+                        await this.loadAttachmentDetails(this.selectedAttachment.id);
+                    }
+                }
+
+            } catch (error) {
+                console.error("Ошибка при загрузке деталей заявки:", error);
+            }
+        },
+
+        async loadAttachmentDetails(attachmentId) {
+            if (!attachmentId) return;
+
+            try {
+                const token = localStorage.getItem("token");
+                
+                this.attachmentCars = [];
+                this.attachmentEmployees = [];
+                this.attachmentItems = [];
+
+                const attachment = this.applicationAttachments.find(a => a.id === attachmentId);
+                if (!attachment) return;
+
+                let carsResponse, employeesResponse, itemsResponse;
+                
+                switch (attachment.attachment_type) {
+                    case 'cars':
+                        carsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/cars`, {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${token}`,
+                            },
+                        });
+                        if (carsResponse.ok) {
+                            this.attachmentCars = await carsResponse.json();
+                        }
+                        break;
+                    
+                    case 'people':
+                        employeesResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/employees`, {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${token}`,
+                            },
+                        });
+                        if (employeesResponse.ok) {
+                            this.attachmentEmployees = await employeesResponse.json();
+                        }
+                        break;
+                    
+                    case 'items':
+                        itemsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/items`, {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${token}`,
+                            },
+                        });
+                        if (itemsResponse.ok) {
+                            this.attachmentItems = await itemsResponse.json();
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке деталей вложения:", error);
+            }
+        },
+
+        selectAttachment(attachment) {
+            this.selectedAttachment = attachment;
+            this.loadAttachmentDetails(attachment.id);
+        },
+
+        closeApplicationDetail() {
+            this.selectedApplication = null;
+            this.selectedAttachment = null;
+            this.applicationAttachments = [];
+            this.attachmentCars = [];
+            this.attachmentEmployees = [];
+            this.attachmentItems = [];
+            this.responsibleUsers = [];
+        },
+
+        async updateConfirmation(confirmation) {
+            if (!this.selectedApplication || !this.isResponsibleUser) return;
+
+            this.updatingConfirmation = true;
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`http://localhost:8080/applications/${this.selectedApplication.id}`, {
+                    method: "PUT",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        confirmation: confirmation,
+                        responsible_comment: confirmation === 'Согласовано' ? 
+                            `Заявка согласована пользователем ${this.currentUserName}` : 
+                            `Заявка отклонена пользователем ${this.currentUserName}`,
+                        status: confirmation === 'Согласовано' ? 'В работе' : 'Отказано'
+                    })
+                });
+
+                if (response.ok) {
+                    // const result = await response.json();
+                    
+                    // Мгновенное обновление в интерфейсе
+                    this.selectedApplication.confirmation = confirmation;
+                    this.selectedApplication.confirmation_datetime = new Date().toISOString();
+                    this.selectedApplication.status = confirmation === 'Согласовано' ? 'В работе' : 'Отказано';
+                    this.selectedApplication.responsible_name = this.currentUserName;
+                    
+                    // Обновляем информацию о текущем пользователе как ответственного
+                    this.selectedApplication.responsible_comment = confirmation === 'Согласовано' ? 
+                        `Заявка согласована пользователем ${this.currentUserName}` : 
+                        `Заявка отклонена пользователем ${this.currentUserName}`;
+                    
+                    // Обновляем статус в основной таблице
+                    const appIndex = this.applications.findIndex(app => app.id === this.selectedApplication.id);
+                    if (appIndex !== -1) {
+                        this.applications[appIndex].confirmation = confirmation;
+                        this.applications[appIndex].status = confirmation === 'Согласовано' ? 'В работе' : 'Отказано';
+                    }
+                    
+                    // Показываем уведомление
+                    const message = confirmation === 'Согласовано' ? 
+                        'Заявка успешно согласована!' : 
+                        'Заявка отклонена!';
+                    alert(message);
+                } else {
+                    const errorText = await response.text();
+                    console.error("Ошибка при обновлении подтверждения:", errorText);
+                    alert(`Ошибка: ${errorText}`);
+                }
+            } catch (error) {
+                console.error("Ошибка сети при обновлении подтверждения:", error);
+                alert("Ошибка сети при обновлении статуса");
+            } finally {
+                this.updatingConfirmation = false;
+            }
+        },
+
+        async getCurrentUser() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/users/me", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    this.currentUserId = userData.id;
+                    this.currentUserName = `${userData.last_name} ${userData.first_name}`;
+                    console.log('Текущий пользователь:', this.currentUserName, 'ID:', this.currentUserId);
+                } else {
+                    console.error("Ошибка при получении текущего пользователя:", await response.text());
+                }
+            } catch (error) {
+                console.error("Ошибка сети при получении текущего пользователя:", error);
+            }
+        },
+
         startShakeAnimation() {
             this.shakeInterval = setInterval(() => {
                 if (this.unreadCount > 0) {
@@ -997,7 +1323,7 @@ export default {
                         this.shouldShake = false;
                     }, 600);
                 }
-            }, 60000); // 60 секунд
+            }, 60000);
         }
     },
     mounted() {
@@ -1010,7 +1336,10 @@ export default {
 
         this.startShakeAnimation();
         
-        // Отключаем анимацию начальной загрузки через 1 секунду после монтирования
+        this.fetchOrganizations();
+        this.fetchApplications();
+        this.getCurrentUser();
+        
         setTimeout(() => {
             this.isInitialLoad = false;
         }, 1000);
@@ -1024,8 +1353,487 @@ export default {
 </script>
 
 <style scoped>
+/* Остальные стили остаются такими же, изменяем только стили для application-detail */
+
+/* Детальное представление заявки */
+.application-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.application-detail {
+    background: white;
+    border-radius: 30px;
+    width: 1400px;
+    max-width: 90%;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #e6e6e6;
+    background: #fafafa;
+    min-height: 80px;
+}
+
+.detail-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+}
+
+.detail-title-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 5px;
+}
+
+.detail-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #000;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.detail-datetime {
+    font-size: 16px;
+    color: #a2a2a2;
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+.detail-header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.confirmation-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.confirm-btn, .reject-btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
+}
+
+.confirm-btn {
+    background: #57c785;
+    color: white;
+}
+
+.confirm-btn:hover:not(:disabled) {
+    background: #45b371;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(87, 199, 133, 0.3);
+}
+
+.reject-btn {
+    background: #FF6668;
+    color: white;
+}
+
+.reject-btn:hover:not(:disabled) {
+    background: #ff4d4f;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 102, 104, 0.3);
+}
+
+.confirm-btn:disabled,
+.reject-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.close-detail-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #a2a2a2;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-detail-btn:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.detail-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.detail-left-column {
+    width: 240px;
+    border-right: 1px solid #e6e6e6;
+    overflow-y: auto;
+    background: #fafafa;
+    padding: 20px;
+}
+
+.detail-main-column {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.detail-right-column {
+    width: 320px;
+    border-left: 1px solid #e6e6e6;
+    overflow-y: auto;
+    padding: 25px;
+    background: #fafafa;
+}
+
+.message-section {
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.message-section h4 {
+    font-size: 14px;
+    color: #a2a2a2;
+    padding-bottom: 5px;
+    font-weight: 400;
+}
+
+.message-content {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
+    white-space: pre-wrap;
+}
+
+.attachment-details {
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.attachment-details h4 {
+    font-size: 18px;
+    color: #4F5BDF;
+    padding-bottom: 20px;
+    font-weight: 700;
+}
+
+.date-range, .time-range {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.date-label, .time-label {
+    color: #a2a2a2;
+    font-weight: 400;
+    min-width: 110px;
+    font-size: 14px;
+}
+
+.date-value, .time-value {
+    color: #000;
+    font-weight: 400;
+    font-size: 16px;
+}
+
+.attachment-data {
+    margin-top: 25px;
+}
+
+.attachment-data h5 {
+    font-size: 16px;
+    color: #333;
+    margin: 0 0 15px 0;
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #4F5BDF;
+}
+
+.cars-list, .employees-list, .items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.car-item, .employee-item, .item-item {
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 15px;
+    border: 1px solid #e6e6e6;
+    transition: all 0.2s ease;
+}
+
+.car-item:hover, .employee-item:hover, .item-item:hover {
+    border-color: #4F5BDF;
+    background: #f8f9ff;
+}
+
+.car-info, .employee-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.car-number, .employee-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 15px;
+}
+
+.car-brand, .car-unload-place, .employee-position {
+    color: #666;
+    font-size: 14px;
+}
+
+.unload-places, .target-tables {
+    display: flex;
+    gap: 8px;
+    font-size: 13px;
+    align-items: flex-start;
+    padding-top: 6px;
+    border-top: 1px dashed #e6e6e6;
+}
+
+.places-label, .tables-label {
+    color: #666;
+    font-weight: 600;
+    min-width: 140px;
+}
+
+.places-list, .tables-list {
+    color: #333;
+    flex: 1;
+    line-height: 1.4;
+}
+
+.item-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.item-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 15px;
+}
+
+.item-count {
+    color: #4F5BDF;
+    font-size: 14px;
+    font-weight: 600;
+    background: rgba(79, 91, 223, 0.1);
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+/* Основная информация */
+.basic-info-section,
+.confirmation-section,
+.comment-section {
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.basic-info-section h4,
+.confirmation-section h4,
+.comment-section h4 {
+    font-size: 18px;
+    color: #4F5BDF;
+    margin: 0 0 20px 0;
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #4F5BDF;
+}
+
+.confirmation-section h5 {
+    font-size: 16px;
+    color: #666;
+    margin: 25px 0 15px 0;
+    font-weight: 700;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e6e6e6;
+}
+
+.info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    color: #666;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 140px;
+    text-align: left;
+}
+
+.info-value {
+    color: #333;
+    font-size: 14px;
+    text-align: left;
+    flex: 1;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 10px;
+    border: 1px solid #e6e6e6;
+    transition: all 0.2s ease;
+}
+
+.user-item:hover {
+    border-color: #4F5BDF;
+    background: #f8f9ff;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.user-position {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+}
+
+.primary-badge {
+    background: #4F5BDF;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 10px;
+    white-space: nowrap;
+}
+
+.comment-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+    white-space: pre-wrap;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 10px;
+    border: 1px solid #e6e6e6;
+    margin-top: 10px;
+}
+
+/* Стили для статусов согласования */
+.confirmation-approved {
+    color: #059669;
+    background: #f0f9ff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.confirmation-pending {
+    color: #d97706;
+    background: #fffbeb;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.confirmation-rejected {
+    color: #dc2626;
+    background: #fef2f2;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+/* Остальные стили остаются без изменений */
 .center {
     padding: 20px;
+    position: relative;
 }
 
 .center__header {
@@ -1171,7 +1979,6 @@ export default {
     transform: rotate(-90deg);
 }
 
-/* Status Buttons */
 .status-buttons {
     display: flex;
     gap: 6px;
@@ -1206,7 +2013,6 @@ export default {
     border-color: #3a45c0;
 }
 
-/* More Filters Button */
 .more-filters-btn {
     padding: 6px 12px;
     border: 1px solid #e6e6e6;
@@ -1247,64 +2053,6 @@ export default {
     transform: rotate(-90deg);
 }
 
-/* More Filters Panel */
-.more-filters-enter-active,
-.more-filters-leave-active {
-    transition: all 0.3s ease;
-    overflow: hidden;
-}
-
-.more-filters-enter-from,
-.more-filters-leave-to {
-    opacity: 0;
-    max-height: 0;
-    transform: translateY(-10px);
-}
-
-.more-filters-enter-to,
-.more-filters-leave-from {
-    opacity: 1;
-    max-height: 200px;
-    transform: translateY(0);
-}
-
-.more-filters {
-    padding: 10px 0;
-}
-
-.tags-buttons {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.tag-btn {
-    padding: 4px 8px;
-    border: 1px solid #e6e6e6;
-    background: white;
-    border-radius: 12px;
-    cursor: pointer;
-    font-size: 11px;
-    transition: all 0.2s;
-    color: #333;
-}
-
-.tag-btn:hover:not(.tag-btn--active) {
-    background: #f5f5f5;
-}
-
-.tag-btn--active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
-}
-
-.tag-btn--active:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
-}
-
-/* Reset Buttons */
 .reset-sort-btn,
 .reset-filters-btn {
     padding: 6px 12px;
@@ -1340,7 +2088,6 @@ export default {
     background: #fed7d7;
 }
 
-/* Date Picker */
 .date-picker {
     position: absolute;
     top: calc(100% + 5px);
@@ -1489,7 +2236,6 @@ export default {
     background: #e5e5e5;
 }
 
-/* Custom Dropdown */
 .custom-dropdown {
     position: absolute;
     top: calc(100% + 5px);
@@ -1564,7 +2310,6 @@ export default {
     font-style: italic;
 }
 
-/* Таблица */
 .applications-table {
     background-color: #fff;
     border-radius: 30px;
@@ -1574,6 +2319,11 @@ export default {
     height: 500px;
     display: flex;
     flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.applications-table.with-details {
+    height: 500px;
 }
 
 .table-header {
@@ -1631,7 +2381,6 @@ export default {
     font-weight: 500 !important;
 }
 
-/* Ширины колонок */
 .confirmation-col {
     width: 13%;
     min-width: 130px;
@@ -1648,22 +2397,40 @@ export default {
 }
 
 .organization-col {
-    width: 15%;
+    width: 17%;
     min-width: 130px;
 }
 
 .sender-col {
-    width: 14%;
+    width: 16%;
     min-width: 130px;
+    position: relative;
 }
 
-.tags-col {
-    width: 14%;
-    min-width: 110px;
+.sender-col:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.sender-col:hover::after {
+    opacity: 1;
 }
 
 .status-col {
-    width: 14%;
+    width: 16%;
     min-width: 110px;
 }
 
@@ -1673,7 +2440,6 @@ export default {
     justify-content: center;
 }
 
-/* Тело таблицы */
 .table-body {
     flex-grow: 1;
     overflow-y: auto;
@@ -1740,7 +2506,6 @@ export default {
     height: 100%;
 }
 
-/* Бейджи подтверждения */
 .confirmation-badge {
     padding: 4px 8px;
     border-radius: 12px;
@@ -1767,81 +2532,16 @@ export default {
     border: 1px solid #fecaca;
 }
 
-/* Номер заявки */
+.confirmation-default {
+    background-color: #f5f5f5;
+    color: #616161;
+    border: 1px solid #e0e0e0;
+}
+
 .application-number {
     color: #a2a2a2;
 }
 
-/* Теги */
-.tags-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.tag-badge {
-    padding: 2px 6px;
-    border-radius: 8px;
-    font-size: 10px;
-    font-weight: 500;
-    border: 1px solid;
-}
-
-.tag-roof {
-    background-color: #e0f2fe;
-    color: #0369a1;
-    border-color: #bae6fd;
-}
-
-.tag-urgent {
-    background-color: #fef2f2;
-    color: #dc2626;
-    border-color: #fecaca;
-}
-
-.tag-vip {
-    background-color: #fef7cd;
-    color: #854d0e;
-    border-color: #fde68a;
-}
-
-.tag-night {
-    background-color: #f3e8ff;
-    color: #7c3aed;
-    border-color: #ddd6fe;
-}
-
-.tag-warehouse {
-    background-color: #dcfce7;
-    color: #166534;
-    border-color: #bbf7d0;
-}
-
-.tag-important {
-    background-color: #ffedd5;
-    color: #9a3412;
-    border-color: #fed7aa;
-}
-
-.tag-terminal {
-    background-color: #e0e7ff;
-    color: #3730a3;
-    border-color: #c7d2fe;
-}
-
-.tag-departure {
-    background-color: #fce7f3;
-    color: #be185d;
-    border-color: #fbcfe8;
-}
-
-.tag-default {
-    background-color: #f3f4f6;
-    color: #374151;
-    border-color: #e5e7eb;
-}
-
-/* Бейджи статуса заявки */
 .status-badge {
     padding: 4px 8px;
     border-radius: 8px;
@@ -1887,7 +2587,6 @@ export default {
     border-color: #e0e0e0;
 }
 
-/* Кнопка скачивания */
 .download-btn {
     background: none;
     border: none;
@@ -1927,7 +2626,6 @@ export default {
     justify-content: center;
 }
 
-/* Стилизация скроллбара */
 .table-body::-webkit-scrollbar {
     width: 6px;
 }
@@ -1978,5 +2676,4 @@ export default {
     scrollbar-width: thin;
     scrollbar-color: #D9E2FF transparent;
 }
-
 </style>

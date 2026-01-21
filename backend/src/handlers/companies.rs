@@ -208,11 +208,12 @@ pub async fn get_company_users(
                                 u.last_name,
                                 u.first_name,
                                 u.middle_name,
-                                u.position
+                                u.position,
+                                cu.is_primary as "is_primary?"
                             FROM users u
                             INNER JOIN companies_users cu ON u.id = cu.user_id
                             WHERE cu.company_id = $1
-                            ORDER BY u.last_name, u.first_name
+                            ORDER BY cu.is_primary DESC, u.last_name, u.first_name
                             "#,
                             company_id
                         )
@@ -252,6 +253,17 @@ pub async fn update_company_users(
                     Ok(_claims) => {
                         let company_id = path.into_inner();
 
+                        // Проверяем, что только один пользователь назначен главным
+                        let primary_users_count = form.users.iter()
+                            .filter(|user| user.is_primary.unwrap_or(false))
+                            .count();
+                        
+                        if primary_users_count > 1 {
+                            return Err(error::ErrorBadRequest(
+                                "Только один пользователь может быть главным ответственным"
+                            ));
+                        }
+
                         // Начинаем транзакцию
                         let mut transaction = pool.begin().await.map_err(|e| {
                             log::error!("Failed to begin transaction: {}", e);
@@ -270,12 +282,12 @@ pub async fn update_company_users(
                             error::ErrorInternalServerError("Error updating company users")
                         })?;
 
-                        // Добавляем новых пользователей - сначала получаем ID по username
-                        for username in &form.user_ids {
+                        // Добавляем новых пользователей с указанием главного
+                        for user_request in &form.users {
                             // Получаем ID пользователя по username
                             let user_result = sqlx::query!(
                                 "SELECT id FROM users WHERE username = $1",
-                                username
+                                user_request.username
                             )
                             .fetch_optional(&mut *transaction)
                             .await
@@ -286,9 +298,10 @@ pub async fn update_company_users(
 
                             if let Some(user) = user_result {
                                 sqlx::query!(
-                                    "INSERT INTO companies_users (company_id, user_id) VALUES ($1, $2)",
+                                    "INSERT INTO companies_users (company_id, user_id, is_primary) VALUES ($1, $2, $3)",
                                     company_id,
-                                    user.id
+                                    user.id,
+                                    user_request.is_primary.unwrap_or(false)
                                 )
                                 .execute(&mut *transaction)
                                 .await
@@ -297,7 +310,7 @@ pub async fn update_company_users(
                                     error::ErrorInternalServerError("Error updating company users")
                                 })?;
                             } else {
-                                log::warn!("User with username {} not found", username);
+                                log::warn!("User with username {} not found", user_request.username);
                             }
                         }
 

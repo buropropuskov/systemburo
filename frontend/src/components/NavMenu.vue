@@ -85,9 +85,9 @@
       <!-- ПОЛЬЗОВАТЕЛЬ (в нижней части) -->
       <div class="nav-section user-section">
         <div class="section-title">ПОЛЬЗОВАТЕЛЬ</div>
-        <div class="nav-item disabled">
+        <div class="nav-item" @click="navigateToNews">
           <img src="@/assets/icons/newspaper.png" alt="Новости" class="nav-icon">
-          <span class="nav-text disabled">Обзор и новости</span>
+          <span class="nav-text">Обзор и новости</span>
         </div>
         <div class="nav-item" @click="navigateToAccount">
           <img src="@/assets/icons/user.png" alt="Личный кабинет" class="nav-icon">
@@ -188,6 +188,9 @@ export default {
     },
     navigateToAccount() {
       this.$router.push('/personal-cabinet');
+    },
+    navigateToNews() {
+      this.$router.push('/news');
     },
     navigateToCarsView() {
       this.$router.push('/carsview');

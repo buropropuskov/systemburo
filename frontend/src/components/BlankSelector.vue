@@ -70,10 +70,16 @@ export default {
     components: {
         ConfirmationModal
     },
+    props: {
+        currentApplicationData: {
+            type: Object,
+            default: () => ({})
+        }
+    },
     data() {
         return {
-            attachments: [], // Здесь будут храниться все вложения, созданные в этой заявке
-            allTemplates: [], // Здесь будут шаблоны вложений из системы
+            attachments: [],
+            allTemplates: [],
             selectedAttachment: null,
             hoveredAttachment: null,
             showDeleteModal: false,
@@ -81,7 +87,9 @@ export default {
             showTooltip: false,
             tooltipText: '',
             tooltipStyle: {},
-            tooltipTimeout: null
+            tooltipTimeout: null,
+            // Для хранения данных форм вложений
+            attachmentData: {}
         }
     },
     computed: {
@@ -100,7 +108,6 @@ export default {
     },
     methods: {
         getCategoryAttachments(category) {
-            // Возвращаем вложения этой категории, которые созданы в заявке
             return this.attachments.filter(attachment => attachment.title === category);
         },
         
@@ -120,6 +127,9 @@ export default {
                 if (response.ok) {
                     const data = await response.json();
                     this.allTemplates = data;
+                    
+                    // После загрузки шаблонов пытаемся восстановить данные из localStorage
+                    this.restoreFromLocalStorage();
                 }
             } catch (error) {
                 console.error("Error fetching attachment templates:", error);
@@ -127,7 +137,6 @@ export default {
         },
         
         addAttachment(category) {
-            // Находим шаблон для этой категории
             const template = this.allTemplates.find(t => t.title === category);
             
             if (!template) {
@@ -137,8 +146,8 @@ export default {
             
             const nextNumber = this.getNextAttachmentNumber(category);
             const newAttachment = {
-                id: Date.now() + Math.random(), // Временный уникальный ID
-                template_id: template.id, // ID шаблона из системы
+                id: Date.now() + Math.random(),
+                template_id: template.id,
                 title: category,
                 name: `${template.name}_copy_${nextNumber}`,
                 display_name: `${template.display_name} №${nextNumber}`,
@@ -149,17 +158,15 @@ export default {
             };
             
             this.attachments.push(newAttachment);
-            
-            // Auto-select the newly created attachment
             this.selectAttachment(newAttachment);
-            
-            // Сообщаем родительскому компоненту о новом вложении
             this.$emit('attachment-added', newAttachment);
+            
+            // Сохраняем в localStorage
+            this.saveToLocalStorage();
         },
         
         selectAttachment(attachment) {
             this.selectedAttachment = attachment;
-            // Emit event for parent component
             this.$emit('attachment-selected', attachment);
         },
         
@@ -174,25 +181,61 @@ export default {
         },
         
         deleteAttachment() {
-            if (this.attachmentToDelete) {
-                // Remove attachment from local array
-                this.attachments = this.attachments.filter(
-                    attachment => attachment.id !== this.attachmentToDelete.id
-                );
+    if (this.attachmentToDelete) {
+        // Удаляем данные вложения из хранилища
+        if (this.attachmentData[this.attachmentToDelete.id]) {
+            delete this.attachmentData[this.attachmentToDelete.id];
+        }
+        
+        // Удаляем данные вложения из общего localStorage
+        try {
+            const savedData = localStorage.getItem('draftApplicationState');
+            if (savedData) {
+                const parsedData = JSON.parse(savedData);
                 
-                // Clear selection if deleted attachment was selected
-                if (this.selectedAttachment?.id === this.attachmentToDelete.id) {
-                    this.selectedAttachment = null;
-                    this.$emit('attachment-selected', null);
+                // Удаляем данные этого вложения из vehiclesByAttachment
+                if (parsedData.vehiclesByAttachment && parsedData.vehiclesByAttachment[this.attachmentToDelete.id]) {
+                    delete parsedData.vehiclesByAttachment[this.attachmentToDelete.id];
                 }
                 
-                // Сообщаем родительскому компоненту об удалении
-                this.$emit('attachment-removed', this.attachmentToDelete);
+                // Удаляем данные этого вложения из employeesByAttachment
+                if (parsedData.employeesByAttachment && parsedData.employeesByAttachment[this.attachmentToDelete.id]) {
+                    delete parsedData.employeesByAttachment[this.attachmentToDelete.id];
+                }
                 
-                this.showDeleteModal = false;
-                this.attachmentToDelete = null;
+                // Удаляем данные этого вложения из itemsByAttachment
+                if (parsedData.itemsByAttachment && parsedData.itemsByAttachment[this.attachmentToDelete.id]) {
+                    delete parsedData.itemsByAttachment[this.attachmentToDelete.id];
+                }
+                
+                // Сохраняем обновленные данные
+                localStorage.setItem('draftApplicationState', JSON.stringify(parsedData));
             }
-        },
+        } catch (error) {
+            console.error('Ошибка при удалении данных вложения из localStorage:', error);
+        }
+        
+        // Remove attachment from local array
+        this.attachments = this.attachments.filter(
+            attachment => attachment.id !== this.attachmentToDelete.id
+        );
+        
+        // Clear selection if deleted attachment was selected
+        if (this.selectedAttachment?.id === this.attachmentToDelete.id) {
+            // Если это было последнее вложение, отправляем null
+            this.selectedAttachment = null;
+            this.$emit('attachment-selected', null);
+        }
+        
+        this.$emit('attachment-removed', this.attachmentToDelete);
+        this.showDeleteModal = false;
+        this.attachmentToDelete = null;
+        
+        // Сохраняем в localStorage
+        this.saveToLocalStorage();
+    }
+},
+
 
         handleMouseEnter(attachment, event) {
             this.hoveredAttachment = attachment.id;
@@ -230,16 +273,106 @@ export default {
             }
         },
         
+        // Методы для работы с данными вложений
+        saveAttachmentData(attachmentId, data) {
+            this.attachmentData[attachmentId] = {
+                ...data,
+                savedAt: new Date().toISOString()
+            };
+            this.saveToLocalStorage();
+        },
+        
+        getAttachmentData(attachmentId) {
+            return this.attachmentData[attachmentId] || null;
+        },
+        
+        clearAttachmentData(attachmentId) {
+            if (this.attachmentData[attachmentId]) {
+                delete this.attachmentData[attachmentId];
+                this.saveToLocalStorage();
+            }
+        },
+        
+        // Сохранение в localStorage
+        saveToLocalStorage() {
+            try {
+                const savedData = {
+                    attachments: this.attachments,
+                    attachmentData: this.attachmentData,
+                    selectedAttachment: this.selectedAttachment,
+                    savedAt: new Date().toISOString()
+                };
+                localStorage.setItem('draftApplication', JSON.stringify(savedData));
+            } catch (error) {
+                console.error('Ошибка сохранения в localStorage:', error);
+            }
+        },
+        
+        // Восстановление из localStorage
+        restoreFromLocalStorage() {
+            try {
+                const savedData = localStorage.getItem('draftApplication');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    
+                    // Восстанавливаем вложения
+                    if (parsedData.attachments && Array.isArray(parsedData.attachments)) {
+                        this.attachments = parsedData.attachments;
+                    }
+                    
+                    // Восстанавливаем данные вложений
+                    if (parsedData.attachmentData) {
+                        this.attachmentData = parsedData.attachmentData;
+                    }
+                    
+                    // Восстанавливаем выбранное вложение
+                    if (parsedData.selectedAttachment && this.attachments.length > 0) {
+                        const foundAttachment = this.attachments.find(
+                            a => a.id === parsedData.selectedAttachment.id
+                        );
+                        if (foundAttachment) {
+                            this.selectedAttachment = foundAttachment;
+                            this.$emit('attachment-selected', foundAttachment);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка восстановления из localStorage:', error);
+            }
+        },
+        
         // Метод для загрузки существующих вложений заявки
         loadAttachments(existingAttachments) {
             this.attachments = existingAttachments || [];
+            if (this.attachments.length > 0) {
+                this.selectedAttachment = this.attachments[0];
+                this.$emit('attachment-selected', this.selectedAttachment);
+            }
+            this.saveToLocalStorage();
         },
         
         // Метод для очистки всех вложений
         clearAttachments() {
             this.attachments = [];
             this.selectedAttachment = null;
+            this.attachmentData = {};
             this.$emit('attachment-selected', null);
+            localStorage.removeItem('draftApplication');
+        },
+        
+        // Получить текущее выбранное вложение
+        getSelectedAttachment() {
+            return this.selectedAttachment;
+        },
+        
+        // Получить все вложения
+        getAllAttachments() {
+            return this.attachments;
+        },
+        
+        // Получить данные всех вложений
+        getAllAttachmentData() {
+            return this.attachmentData;
         }
     },
     mounted() {

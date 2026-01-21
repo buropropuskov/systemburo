@@ -11,4 +11,6 @@ pub mod table_constructor;
 pub mod user_types;
 pub mod citizenship;
 pub mod unique_employees;
-pub mod attachments;
+pub mod unique_attachments;
+pub mod employees;
+pub mod items;

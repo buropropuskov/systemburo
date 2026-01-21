@@ -2,16 +2,45 @@
   <div class="applications-card">
     <div class="card-header">
       <div class="card-header__title">
-        <h3 class="card-title">Заявки организации / отдела</h3>
-        <p class="card-organization">{{ organization }}</p>
+        <h3 class="card-title">Мои заявки</h3>
+        <p class="card-organization" v-if="userOrganization || userCompany">
+          {{ userOrganization || userCompany }}
+        </p>
       </div>
       <div class="card-header__settings">
         <SearchComponent
           :title="'Поиск заявок..'"
           v-model="searchQuery"
         />
-        <RefreshButton @refresh="$emit('refresh-applications')" />
+        <RefreshButton @refresh="fetchUserApplications" />
       </div>
+    </div>
+
+    <!-- Кнопки фильтров -->
+    <div class="filter-tabs">
+      <button 
+        class="filter-tab"
+        :class="{ 'filter-tab--active': currentFilter === 'my' }"
+        @click="setFilter('my')"
+      >
+        Мои заявки
+      </button>
+      <button 
+        v-if="userOrganizationId"
+        class="filter-tab"
+        :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+        @click="setFilter('organization')"
+      >
+        Заявки организации (отдела)
+      </button>
+      <button 
+        v-if="userCompanyId"
+        class="filter-tab"
+        :class="{ 'filter-tab--active': currentFilter === 'company' }"
+        @click="setFilter('company')"
+      >
+        Заявки компании
+      </button>
     </div>
     
     <div class="card-content">
@@ -21,36 +50,36 @@
           <!-- Заголовок таблицы -->
           <div class="applications-header">
             <div class="header-row">
-              <div class="header-col id-col" @click="sortBy('id')">
-                <p :class="{ 'active-sort': sortField === 'id' }">Номер заявки</p>
+              <div class="header-col id-col" @click="sortBy('application_number')">
+                <p :class="{ 'active-sort': sortField === 'application_number' }">Номер заявки</p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
                   :class="{ 
-                    'sorted': sortField === 'id',
-                    'desc': sortField === 'id' && sortDirection === 'desc'
+                    'sorted': sortField === 'application_number',
+                    'desc': sortField === 'application_number' && sortDirection === 'desc'
                   }" 
                 />
               </div>
-              <div class="header-col date-col" @click="sortBy('submission_datetime')">
-                <p :class="{ 'active-sort': sortField === 'submission_datetime' }">Дата подачи</p>
+              <div class="header-col date-col" @click="sortBy('sending_datetime')">
+                <p :class="{ 'active-sort': sortField === 'sending_datetime' }">Дата подачи</p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
                   :class="{ 
-                    'sorted': sortField === 'submission_datetime',
-                    'desc': sortField === 'submission_datetime' && sortDirection === 'desc'
+                    'sorted': sortField === 'sending_datetime',
+                    'desc': sortField === 'sending_datetime' && sortDirection === 'desc'
                   }" 
                 />
               </div>
-              <div class="header-col period-col" @click="sortBy('entry_date_to')">
-                <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
+              <div class="header-col confirmation-col" @click="sortBy('confirmation')">
+                <p :class="{ 'active-sort': sortField === 'confirmation' }">Подтверждение</p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
                   :class="{ 
-                    'sorted': sortField === 'entry_date_to',
-                    'desc': sortField === 'entry_date_to' && sortDirection === 'desc'
+                    'sorted': sortField === 'confirmation',
+                    'desc': sortField === 'confirmation' && sortDirection === 'desc'
                   }" 
                 />
               </div>
@@ -79,20 +108,25 @@
             >
               <div class="application-row">
                 <div class="application-col id-col">
-                  <span class="application-id">№ {{ formatApplicationNumber(application.id, application.submission_datetime) }}</span>
+                  <span class="application-id">{{ application.application_number }}</span>
                 </div>
                 <div class="application-col date-col">
-                  {{ formatDate(application.submission_datetime) }}
+                  {{ formatDateTime(application.sending_datetime) }}
                 </div>
-                <div class="application-col period-col">
-                  {{ formatEntryDate(application.entry_date_to) || '-' }}
+                <div class="application-col confirmation-col">
+                  <span 
+                    class="confirmation-badge"
+                    :class="getConfirmationClass(application.confirmation)"
+                  >
+                    {{ application.confirmation }}
+                  </span>
                 </div>
                 <div class="application-col status-col">
                   <span 
-                    class="status-badge" 
-                    :class="{'active': isApplicationActive(application), 'inactive': !isApplicationActive(application)}"
+                    class="status-badge"
+                    :class="getStatusClass(application.status)"
                   >
-                    {{ isApplicationActive(application) ? 'Активна' : 'Неактивна' }}
+                    {{ application.status }}
                   </span>
                 </div>
               </div>
@@ -105,12 +139,12 @@
           <div class="details-content">
             <div class="details-header">
               <div class="details-title-wrapper">
-                <h3 class="details-title">Заявка № {{ formatApplicationNumber(selectedApplication.id, selectedApplication.submission_datetime) }}</h3>
+                <h3 class="details-title">Заявка {{ selectedApplication.application_number }}</h3>
                 <span 
-                  class="status-badge-lg" 
-                  :class="{'active': isApplicationActive(selectedApplication), 'inactive': !isApplicationActive(selectedApplication)}"
+                  class="status-badge-lg"
+                  :class="getStatusClass(selectedApplication.status)"
                 >
-                  {{ isApplicationActive(selectedApplication) ? 'Активна' : 'Неактивна' }}
+                  {{ selectedApplication.status }}
                 </span>
               </div>
               <button @click="closeDetails" class="close-btn">×</button>
@@ -119,57 +153,75 @@
             <div class="details-section">
               <div class="details-grid">
                 <div class="detail-item">
+                  <span class="detail-label">Номер заявки:</span>
+                  <span class="detail-value">{{ selectedApplication.application_number }}</span>
+                </div>
+                <div class="detail-item" v-if="selectedApplication.organization_name">
                   <span class="detail-label">Организация:</span>
-                  <span class="detail-value">{{ selectedApplication.organization }}</span>
+                  <span class="detail-value">{{ selectedApplication.organization_name }}</span>
+                </div>
+                <div class="detail-item" v-if="selectedApplication.company_name">
+                  <span class="detail-label">Компания:</span>
+                  <span class="detail-value">{{ selectedApplication.company_name }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">Ответственное лицо:</span>
-                  <span class="detail-value">{{ selectedApplication.responsible_person }}</span>
+                  <span class="detail-label">Отправитель:</span>
+                  <span class="detail-value">{{ selectedApplication.sender_full_name || selectedApplication.sender_name }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">Контактный телефон:</span>
-                  <span class="detail-value">{{ selectedApplication.contact_phone }}</span>
+                  <span class="detail-label">Дата и время отправки:</span>
+                  <span class="detail-value">{{ formatDateTime(selectedApplication.sending_datetime) }}</span>
+                </div>
+                <div class="detail-item" v-if="selectedApplication.reading_datetime">
+                  <span class="detail-label">Дата прочтения:</span>
+                  <span class="detail-value">{{ formatDateTime(selectedApplication.reading_datetime) }}</span>
+                </div>
+                <div class="detail-item" v-if="selectedApplication.confirmation_datetime">
+                  <span class="detail-label">Дата подтверждения:</span>
+                  <span class="detail-value">{{ formatDateTime(selectedApplication.confirmation_datetime) }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">Дата подачи:</span>
-                  <span class="detail-value">{{ formatDateTime(selectedApplication.submission_datetime) }}</span>
+                  <span class="detail-label">Подтверждение:</span>
+                  <span class="detail-value">
+                    <span 
+                      class="confirmation-badge"
+                      :class="getConfirmationClass(selectedApplication.confirmation)"
+                    >
+                      {{ selectedApplication.confirmation }}
+                    </span>
+                  </span>
                 </div>
-                <div class="detail-item" v-if="selectedApplication.entry_date_to">
-                  <span class="detail-label">Действует до:</span>
-                  <span class="detail-value">{{ formatEntryDate(selectedApplication.entry_date_to) }}</span>
+                <div class="detail-item" v-if="selectedApplication.message">
+                  <span class="detail-label">Сообщение:</span>
+                  <span class="detail-value">{{ selectedApplication.message }}</span>
                 </div>
-                <div class="detail-item" v-if="selectedApplication.entry_time_from || selectedApplication.entry_time_to">
-                  <span class="detail-label">Время:</span>
-                  <span class="detail-value">{{ formatTimeRange(selectedApplication.entry_time_from, selectedApplication.entry_time_to) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="cars-section">
-              <h4 class="section-subtitle">Автомобили</h4>
-              <div class="cars-table">
-                <div class="cars-header">
-                  <div class="car-col car-number">Номер</div>
-                  <div class="car-col car-brand">Марка</div>
-                  <div class="car-col unload-place">Место разгрузки</div>
-                  <div class="car-col car-status">Статус</div>
-                </div>
-                <div class="cars-body">
-                  <div 
-                    v-for="car in selectedApplication.cars" 
-                    :key="car.id" 
-                    class="car-row"
-                    :class="{ 'inactive-row': car.status === 0 }"
-                  >
-                    <div class="car-col car-number">{{ car.car_number }}</div>
-                    <div class="car-col car-brand">{{ car.car_brand }}</div>
-                    <div class="car-col unload-place">{{ formatUnloadPlaces(car.unload_places) }}</div>
-                    <div class="car-col car-status">
-                      <span class="status-badge" :class="car.status === 1 ? 'active' : 'inactive'">
-                        {{ car.status === 1 ? 'Активен' : 'Неактивен' }}
+                
+                <!-- Блок с ответственными -->
+                <div class="detail-item" v-if="responsibleUsers.length > 0">
+                  <span class="detail-label">Ответственные:</span>
+                  <div class="responsible-users-list">
+                    <div 
+                      v-for="user in responsibleUsers" 
+                      :key="user.id"
+                      class="responsible-user-item"
+                      :class="{ 'primary-responsible': user.is_primary }"
+                    >
+                      <span class="user-name">
+                        {{ formatUserName(user) }}
+                        <span v-if="user.is_primary" class="primary-badge">★</span>
                       </span>
+                      <span v-if="user.position" class="user-position">{{ user.position }}</span>
                     </div>
                   </div>
+                </div>
+                
+                <div class="detail-item" v-if="selectedApplication.responsible_comment">
+                  <span class="detail-label">Комментарий ответственного:</span>
+                  <span class="detail-value">{{ selectedApplication.responsible_comment }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Согласие на обработку данных:</span>
+                  <span class="detail-value">{{ selectedApplication.data_approval ? 'Да' : 'Нет' }}</span>
                 </div>
               </div>
             </div>
@@ -180,9 +232,16 @@
           <p>Выберите заявку для просмотра</p>
         </div>
       </div>
-      <p v-else class="no-data-message">
-        {{ searchQuery ? 'Заявки не найдены' : 'Организация / отдел ещё не делала заявки' }}
-      </p>
+      <div v-else class="no-data-message">
+        <p>{{ searchQuery ? 'Заявки не найдены' : 'Заявок нет' }}</p>
+        <p class="hint" v-if="!searchQuery && !isLoading">
+          {{ getNoDataHint() }}
+        </p>
+      </div>
+      
+      <div v-if="isLoading" class="loading-message">
+        <p>Загрузка заявок...</p>
+      </div>
     </div>
   </div>
 </template>
@@ -197,73 +256,69 @@ export default {
     SearchComponent
   },
   props: {
-    applications: {
-      type: Array,
-      required: true
+    userOrganizationId: {
+      type: Number,
+      default: null
     },
-    organization: {
+    userCompanyId: {
+      type: Number,
+      default: null
+    },
+    userId: {
+      type: Number,
+      default: null
+    },
+    userOrganization: {
       type: String,
-      required: true
+      default: ""
+    },
+    userCompany: {
+      type: String,
+      default: ""
     }
   },
-  emits: ['refresh-applications'],
   data() {
     return {
+      applications: [],
       selectedApplication: null,
+      responsibleUsers: [], // Новое поле для хранения ответственных
       searchQuery: '',
       sortField: null,
       sortDirection: 'desc',
-      unloadingPlacesMap: new Map()
+      isLoading: false,
+      currentFilter: 'my' // 'my', 'organization', 'company'
     };
   },
   computed: {
-    userApplications() {
-      return this.applications
-        .filter(application => application.organization === this.organization);
-    },
     filteredApplications() {
-      if (!this.searchQuery) return this.userApplications;
+      if (!this.searchQuery) return this.applications;
       
       const searchTerm = this.searchQuery.toLowerCase();
-      return this.userApplications.filter(application => {
-        // Проверяем все основные поля заявки
-        const mainFieldsMatch = 
-          application.organization?.toLowerCase().includes(searchTerm) ||
-          application.responsible_person?.toLowerCase().includes(searchTerm) ||
-          application.contact_phone?.toLowerCase().includes(searchTerm) ||
-          application.submission_datetime?.toLowerCase().includes(searchTerm) ||
-          application.entry_date_to?.toLowerCase().includes(searchTerm) ||
-          application.entry_time_from?.toLowerCase().includes(searchTerm) ||
-          application.entry_time_to?.toLowerCase().includes(searchTerm) ||
-          this.formatApplicationNumber(application.id, application.submission_datetime).toLowerCase().includes(searchTerm);
-        
-        // Проверяем все поля автомобилей
-        const carsMatch = application.cars?.some(car => 
-          car.car_number?.toLowerCase().includes(searchTerm) ||
-          car.car_brand?.toLowerCase().includes(searchTerm) ||
-          this.formatUnloadPlaces(car.unload_places)?.toLowerCase().includes(searchTerm) ||
-          (car.status === 1 ? 'активен' : 'неактивен').includes(searchTerm)
+      return this.applications.filter(application => {
+        return (
+          application.application_number?.toLowerCase().includes(searchTerm) ||
+          application.organization_name?.toLowerCase().includes(searchTerm) ||
+          application.company_name?.toLowerCase().includes(searchTerm) ||
+          application.sender_name?.toLowerCase().includes(searchTerm) ||
+          application.sender_full_name?.toLowerCase().includes(searchTerm) ||
+          application.confirmation?.toLowerCase().includes(searchTerm) ||
+          application.status?.toLowerCase().includes(searchTerm) ||
+          application.message?.toLowerCase().includes(searchTerm) ||
+          application.responsible_name?.toLowerCase().includes(searchTerm) ||
+          application.responsible_full_name?.toLowerCase().includes(searchTerm) ||
+          application.responsible_comment?.toLowerCase().includes(searchTerm)
         );
-        
-        return mainFieldsMatch || carsMatch;
       });
     },
+    
     sortedApplications() {
       const applications = [...this.filteredApplications];
       
-      // Если сортировка не выбрана, возвращаем отсортированные по номеру заявки (по умолчанию)
       if (!this.sortField) {
         return applications.sort((a, b) => {
-          const numA = this.parseApplicationNumber(a.id, a.submission_datetime);
-          const numB = this.parseApplicationNumber(b.id, b.submission_datetime);
-          
-          // Сначала сравниваем даты (по убыванию - от новых к старым)
-          if (numA.date !== numB.date) {
-            return numB.date - numA.date;
-          } else {
-            // Если даты одинаковые, сравниваем номера (по убыванию)
-            return numB.number - numA.number;
-          }
+          const dateA = new Date(a.sending_datetime);
+          const dateB = new Date(b.sending_datetime);
+          return dateB - dateA;
         });
       }
       
@@ -271,187 +326,328 @@ export default {
         let valueA, valueB;
         
         switch (this.sortField) {
-          case 'id': {
-            // Специальная логика для сортировки по номеру заявки
-            const numA = this.parseApplicationNumber(a.id, a.submission_datetime);
-            const numB = this.parseApplicationNumber(b.id, b.submission_datetime);
-            
-            // Сначала сравниваем даты
-            if (numA.date !== numB.date) {
-              valueA = numA.date;
-              valueB = numB.date;
-            } else {
-              // Если даты одинаковые, сравниваем номера
-              valueA = numA.number;
-              valueB = numB.number;
-            }
+          case 'application_number':
+            valueA = a.application_number;
+            valueB = b.application_number;
             break;
-          }
             
-          case 'submission_datetime': {
-            valueA = new Date(a.submission_datetime);
-            valueB = new Date(b.submission_datetime);
+          case 'sending_datetime':
+            valueA = new Date(a.sending_datetime);
+            valueB = new Date(b.sending_datetime);
             break;
-          }
             
-          case 'entry_date_to': {
-            valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
-            valueB = b.entry_date_to ? new Date(b.entry_date_to) : new Date(0);
+          case 'confirmation':
+            valueA = a.confirmation;
+            valueB = b.confirmation;
             break;
-          }
             
-          case 'status': {
-            valueA = this.isApplicationActive(a) ? 1 : 0;
-            valueB = this.isApplicationActive(b) ? 1 : 0;
+          case 'status':
+            valueA = a.status;
+            valueB = b.status;
             break;
-          }
             
           default:
             return 0;
         }
         
-        // ИНВЕРТИРОВАННАЯ ЛОГИКА: теперь сортировка соответствует отображению иконки
         if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
+          return this.sortDirection === 'asc' ? -1 : 1;
         }
         if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
+          return this.sortDirection === 'asc' ? 1 : -1;
         }
         return 0;
       });
     }
   },
   methods: {
-    async fetchUnloadingPlaces() {
+    async fetchUserApplications() {
       try {
-        const response = await fetch("http://localhost:8080/unload-places");
-        const places = await response.json();
+        this.isLoading = true;
+        const token = localStorage.getItem("token");
+        if (!token) {
+          console.error("Пользователь не авторизован.");
+          this.isLoading = false;
+          return;
+        }
+
+        let url = "http://localhost:8080/applications/user";
+        const params = new URLSearchParams();
         
-        places.forEach(place => {
-          this.unloadingPlacesMap.set(place.id, place.name);
+        // Добавляем search_query если есть
+        if (this.searchQuery) {
+          params.append('search_query', this.searchQuery);
+        }
+
+        const queryString = params.toString();
+        if (queryString) {
+          url += '?' + queryString;
+        }
+
+        console.log("Fetching applications from:", url);
+        console.log("Current user data:", {
+          userId: this.userId,
+          userCompanyId: this.userCompanyId,
+          userOrganizationId: this.userOrganizationId,
+          currentFilter: this.currentFilter
         });
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+          },
+        });
+
+        console.log("Response status:", response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Total applications loaded:", data.length);
+          
+          // Фильтруем заявки в зависимости от выбранной вкладки
+          this.applications = data.filter(app => {
+            console.log(`App ${app.application_number}:`, {
+              appCompanyId: app.company_id,
+              userCompanyId: this.userCompanyId,
+              appOrganizationId: app.organization_id,
+              userOrganizationId: this.userOrganizationId,
+              appSenderId: app.sender_user_id,
+              userId: this.userId
+            });
+            
+            switch (this.currentFilter) {
+              case 'my':
+                return app.sender_user_id === this.userId;
+              case 'organization':
+                // Для заявок организации проверяем и organization_id
+                return app.organization_id === this.userOrganizationId;
+              case 'company':
+                // Для заявок компании проверяем company_id
+                // Обрабатываем случай, когда company_id может быть null
+                if (app.company_id && this.userCompanyId) {
+                  return app.company_id === this.userCompanyId;
+                }
+                return false;
+              default:
+                return true;
+            }
+          });
+          
+          console.log("Filtered applications:", this.applications.length);
+          if (this.applications.length === 0) {
+            console.log("No applications after filtering. Check your IDs!");
+          }
+        } else {
+          const errorText = await response.text();
+          console.error("Ошибка при загрузке заявок:", response.status, errorText);
+        }
       } catch (error) {
-        console.error("Ошибка при загрузке мест разгрузки:", error);
+        console.error("Ошибка сети при загрузке заявок:", error);
+      } finally {
+        this.isLoading = false;
       }
     },
 
-    isApplicationActive(application) {
-      if (!application.entry_date_to) return false;
-      
-      const now = new Date();
-      const endDate = new Date(application.entry_date_to);
-      endDate.setHours(23, 59, 59, 999); // Устанавливаем конец дня
-      
-      return now <= endDate;
-    },
+    async fetchResponsibleUsers(applicationId) {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
 
-    formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('ru-RU');
-    },
+        const response = await fetch(`http://localhost:8080/applications/${applicationId}/responsible-users`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+          },
+        });
 
-    formatDateTime(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleString('ru-RU');
-    },
-
-    formatEntryDate(dateString) {
-      if (!dateString) return '';
-      const [year, month, day] = dateString.split('-');
-      const date = new Date(year, month - 1, day);
-      return date.toLocaleDateString('ru-RU');
-    },
-
-    formatTimeRange(timeFrom, timeTo) {
-      if (!timeFrom && !timeTo) return '-';
-      
-      // Форматируем время, убирая секунды
-      const formatTime = (timeStr) => {
-        if (!timeStr) return '';
-        // Если время в формате чч:мм:сс, обрезаем секунды
-        if (timeStr.includes(':') && timeStr.split(':').length === 3) {
-          return timeStr.substring(0, 5); // Берем только чч:мм
+        if (response.ok) {
+          this.responsibleUsers = await response.json();
+          console.log("Responsible users loaded:", this.responsibleUsers);
+        } else {
+          console.error("Failed to fetch responsible users:", response.status);
+          this.responsibleUsers = [];
         }
-        return timeStr;
+      } catch (error) {
+        console.error("Error fetching responsible users:", error);
+        this.responsibleUsers = [];
+      }
+    },
+
+    formatDateTime(dateTimeString) {
+      if (!dateTimeString) return '';
+      const date = new Date(dateTimeString);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    },
+
+    formatUserName(user) {
+      const parts = [];
+      if (user.last_name) parts.push(user.last_name);
+      if (user.first_name) parts.push(user.first_name);
+      if (user.middle_name) parts.push(user.middle_name);
+      return parts.join(' ') || user.username;
+    },
+
+    getConfirmationClass(confirmation) {
+      const classes = {
+        'Согласовано': 'confirmation-approved',
+        'Согласование': 'confirmation-pending',
+        'Не согласовано': 'confirmation-rejected'
       };
-
-      const formattedTimeFrom = formatTime(timeFrom);
-      const formattedTimeTo = formatTime(timeTo);
-      
-      if (!formattedTimeTo) return formattedTimeFrom;
-      if (!formattedTimeFrom) return formattedTimeTo;
-      return `${formattedTimeFrom} - ${formattedTimeTo}`;
+      return classes[confirmation] || 'confirmation-default';
     },
 
-    formatUnloadPlaces(unloadPlaces) {
-      if (!unloadPlaces || unloadPlaces.length === 0) return '-';
-      
-      // Получаем названия мест разгрузки
-      const placeNames = unloadPlaces
-        .map(place => {
-          if (typeof place === 'object' && place.unload_place_name) {
-            return place.unload_place_name;
-          }
-          // Если это ID, пытаемся найти название в кэше
-          if (this.unloadingPlacesMap.has(place)) {
-            return this.unloadingPlacesMap.get(place);
-          }
-          if (typeof place === 'object' && place.unload_place_id) {
-            return this.unloadingPlacesMap.get(place.unload_place_id) || `Место ${place.unload_place_id}`;
-          }
-          return null;
-        })
-        .filter(name => name);
-      
-      if (placeNames.length === 0) return '-';
-      if (placeNames.length === 1) return placeNames[0];
-      
-      return `${placeNames[0]} и др.`;
-    },
-
-    formatApplicationNumber(id, submissionDate) {
-      const date = new Date(submissionDate);
-      const datePart = date.toISOString().slice(0, 10).replace(/-/g, '');
-      const numberPart = id.toString().padStart(3, '0');
-      return `${datePart}/${numberPart}`;
-    },
-
-    parseApplicationNumber(id, submissionDate) {
-      const date = new Date(submissionDate);
-      return {
-        date: date.getTime(),
-        number: id
+    getStatusClass(status) {
+      const statusClasses = {
+        'Непрочитано': 'status-unread',
+        'В обработке': 'status-processing',
+        'В работе': 'status-in-progress',
+        'Завершено': 'status-completed',
+        'Отказано': 'status-rejected'
       };
+      return statusClasses[status] || 'status-default';
     },
 
-    selectApplication(application) {
+    getNoDataHint() {
+      switch (this.currentFilter) {
+        case 'my':
+          return 'У вас ещё нет отправленных заявок';
+        case 'organization':
+          return 'Ваша организация ещё не отправляла заявки';
+        case 'company':
+          return 'Ваша компания ещё не отправляла заявки';
+        default:
+          return 'Заявок нет';
+      }
+    },
+
+    async selectApplication(application) {
       this.selectedApplication = application;
+      await this.fetchResponsibleUsers(application.id);
     },
 
     closeDetails() {
       this.selectedApplication = null;
+      this.responsibleUsers = [];
     },
 
     sortBy(field) {
       if (this.sortField === field) {
-        // Если уже сортируем по этому полю, меняем направление
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
       } else {
-        // Если новое поле, устанавливаем его и направление по умолчанию (desc)
         this.sortField = field;
         this.sortDirection = 'desc';
       }
+    },
+
+    setFilter(filter) {
+      this.currentFilter = filter;
+      this.selectedApplication = null;
+      this.responsibleUsers = [];
+      this.fetchUserApplications();
     }
   },
   mounted() {
-    this.fetchUnloadingPlaces();
+    this.fetchUserApplications();
+  },
+  watch: {
+    searchQuery() {
+      this.fetchUserApplications();
+    },
+    userId() {
+      this.fetchUserApplications();
+    }
   }
 };
 </script>
 
 <style scoped>
+/* Добавить стили для вкладок фильтров */
+.filter-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background-color: #fafafa;
+}
+
+.filter-tab {
+  padding: 8px 16px;
+  border: 1px solid #e6e6e6;
+  background: white;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  color: #333;
+  white-space: nowrap;
+}
+
+.filter-tab:hover:not(.filter-tab--active) {
+  background: #f5f5f5;
+  border-color: #d9d9d9;
+}
+
+.filter-tab--active {
+  background: #4F5BDF;
+  color: white;
+  border-color: #4F5BDF;
+}
+
+.filter-tab--active:hover {
+  background: #3a45c0;
+  border-color: #3a45c0;
+}
+
+/* Стили для списка ответственных */
+.responsible-users-list {
+  margin-top: 5px;
+}
+
+.responsible-user-item {
+  padding: 8px 12px;
+  background: #f8f9ff;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border-left: 3px solid #4F5BDF;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.responsible-user-item.primary-responsible {
+  background: #fff7ed;
+  border-left-color: #ea580c;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.primary-badge {
+  color: #ea580c;
+  font-size: 14px;
+}
+
+.user-position {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Остальные стили остаются как в предыдущей версии */
 .applications-card {
   background-color: #fff;
   border-radius: 30px;
@@ -509,7 +705,7 @@ export default {
 
 /* Левая часть - таблица заявок */
 .applications-list {
-  width: 100%;
+  width: 55%; /* Изменено с 100% на 55% */
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
@@ -517,7 +713,7 @@ export default {
 }
 
 .applications-list.with-details {
-  width: 50%;
+  width: 55%; /* Изменено с 50% на 55% */
 }
 
 /* Заголовок таблицы */
@@ -575,23 +771,23 @@ export default {
 
 /* Колонки с фиксированной шириной */
 .id-col {
-  width: 30%;
-  min-width: 100px;
+  width: 35%; /* Увеличено для компенсации */
+  min-width: 150px;
 }
 
 .date-col {
-  width: 25%;
-  min-width: 100px;
+  width: 25%; /* Уменьшено с 30% на 20% */
+  min-width: 150px; /* Уменьшено с 150px */
 }
 
-.period-col {
-  width: 25%;
-  min-width: 100px;
+.confirmation-col {
+  width: 30%; /* Немного увеличено */
+  min-width: 150px;
 }
 
 .status-col {
-  width: 20%;
-  min-width: 90px;
+  width: 23%; /* Немного увеличено */
+  min-width: 100px;
 }
 
 /* Тело таблицы */
@@ -635,6 +831,40 @@ export default {
   font-weight: 600;
 }
 
+/* Бейджи подтверждения */
+.confirmation-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.confirmation-approved {
+  background-color: #f0f9ff;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.confirmation-pending {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+
+.confirmation-rejected {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.confirmation-default {
+  background-color: #f5f5f5;
+  color: #616161;
+  border: 1px solid #e0e0e0;
+}
+
+/* Бейджи статуса */
 .status-badge {
   display: inline-block;
   padding: 4px 8px;
@@ -643,18 +873,6 @@ export default {
   font-weight: 500;
   min-width: 70px;
   text-align: center;
-}
-
-.status-badge.active {
-  background-color: #f0f9ff;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
-}
-
-.status-badge.inactive {
-  background-color: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
 }
 
 .status-badge-lg {
@@ -668,21 +886,82 @@ export default {
   margin-left: 12px;
 }
 
-.status-badge-lg.active {
-  background-color: #f0f9ff;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
+/* Статусы */
+.status-unread {
+  background-color: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
 }
 
-.status-badge-lg.inactive {
-  background-color: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+.status-processing {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border: 1px solid #ffe0b2;
+}
+
+.status-in-progress {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #bbdefb;
+}
+
+.status-completed {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.status-rejected {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.status-default {
+  background-color: #f5f5f5;
+  color: #616161;
+  border: 1px solid #e0e0e0;
+}
+
+.status-unread-lg {
+  background-color: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+
+.status-processing-lg {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border: 1px solid #ffe0b2;
+}
+
+.status-in-progress-lg {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #bbdefb;
+}
+
+.status-completed-lg {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.status-rejected-lg {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.status-default-lg {
+  background-color: #f5f5f5;
+  color: #616161;
+  border: 1px solid #e0e0e0;
 }
 
 /* Правая часть - детали заявки */
 .application-details-panel {
-  width: 50%;
+  width: 45%; /* Изменено с 50% на 45% */
   padding: 20px;
   overflow-y: auto;
   flex-shrink: 0;
@@ -690,7 +969,7 @@ export default {
 }
 
 .no-selection-message {
-  width: 50%;
+  width: 45%; /* Изменено с 50% на 45% */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -753,13 +1032,6 @@ export default {
   margin-bottom: 24px;
 }
 
-.section-subtitle {
-  margin: 0 0 16px 0;
-  font-size: 1em;
-  color: #4F5BDF;
-  font-weight: 600;
-}
-
 .details-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -784,87 +1056,23 @@ export default {
   font-weight: 500;
 }
 
-/* Таблица автомобилей */
-.cars-section {
-  margin-top: 24px;
-  padding-bottom: 20px;
-}
-
-.cars-table {
-  width: 100%;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: #fff;
-}
-
-.cars-header {
-  display: flex;
-  background-color: #fafafa;
-  padding: 12px 16px;
-  font-weight: 600;
-  color: #666;
-  border-bottom: 1px solid #e6e6e6;
-  font-size: 13px;
-}
-
-.cars-body {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.car-row {
-  display: flex;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
-  align-items: center;
-  transition: background-color 0.2s ease;
-}
-
-.car-row:hover {
-  background-color: #fafafa;
-}
-
-.car-row:last-child {
-  border-bottom: none;
-}
-
-.car-col {
-  padding: 0 4px;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-}
-
-.car-number {
-  width: 25%;
-}
-
-.car-brand {
-  width: 25%;
-}
-
-.unload-place {
-  width: 30%;
-}
-
-.car-status {
-  width: 20%;
-}
-
-.inactive-row {
-  opacity: 0.6;
-}
-
-.inactive-row .status-badge {
-  opacity: 0.7;
-}
-
 .no-data-message {
   text-align: center;
   color: #a2a2a2;
+  padding: 40px 20px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+}
+
+.loading-message {
+  text-align: center;
+  color: #4F5BDF;
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -909,16 +1117,6 @@ export default {
     margin-left: 0;
   }
   
-  .cars-header,
-  .car-row {
-    flex-wrap: wrap;
-  }
-  
-  .car-col {
-    width: 50% !important;
-    margin-bottom: 4px;
-  }
-  
   .card-header {
     flex-direction: column;
     align-items: flex-start;
@@ -930,6 +1128,15 @@ export default {
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
+  }
+  
+  .filter-tabs {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .responsible-user-item {
+    padding: 6px 8px;
   }
 }
 </style>

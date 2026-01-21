@@ -1,3 +1,4 @@
+// models/companies.rs
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,11 +51,19 @@ pub struct CompanyUser {
     pub first_name: Option<String>,
     pub middle_name: Option<String>,
     pub position: Option<String>,
+    pub is_primary: Option<bool>, // Добавлено новое поле
+}
+
+// ИЗМЕНЕНИЕ: Обновляем существующую структуру
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateCompanyUsersRequest {
+    pub users: Vec<CompanyUserRequest>, // Изменено с user_ids на users
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct UpdateCompanyUsersRequest {
-    pub user_ids: Vec<String>,
+pub struct CompanyUserRequest {
+    pub username: String,
+    pub is_primary: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -24,9 +24,11 @@
       <!-- Блок заявок -->
       <div class="applications-wrapper">
         <UserApplications 
-          :applications="applications"
-          :organization="organization"
-          @refresh-applications="fetchApplications"
+          :user-organization-id="userOrganizationId"
+          :user-company-id="userCompanyId"
+          :user-id="userId"
+          :user-organization="organization"
+          :user-company="company"
           class="dashboard-card-animated"
         />
       </div>
@@ -109,13 +111,15 @@ export default {
   },
   data() {
     return {
-      applications: [],
       allUsers: [],
       organization: "",
       company: "",
       username: "",
       type_id: 1,
       user_type: "user",
+      userId: null,
+      userOrganizationId: null,
+      userCompanyId: null,
       
       // Поля пользователя
       lastName: "",
@@ -163,6 +167,9 @@ export default {
       this.username = userData.username || "";
       this.type_id = userData.type_id || 1;
       this.user_type = userData.user_type || "user";
+      this.userId = userData.id || null;
+      this.userOrganizationId = userData.organization_id || null;
+      this.userCompanyId = userData.company_id || null;
       
       // Дополнительные поля
       this.lastName = userData.last_name || "";
@@ -171,31 +178,9 @@ export default {
       this.position = userData.position || "";
       this.email = userData.email || "";
       this.phone = userData.phone || "";
-    },
-    async fetchApplications() {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          alert("Пользователь не авторизован.");
-          return;
-        }
 
-        const response = await fetch("http://localhost:8080/applications/all-cars", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          this.applications = data;
-        } else {
-          alert("Ошибка при загрузке заявок.");
-        }
-      } catch (error) {
-        console.error("Ошибка сети при загрузке заявок:", error);
-      }
+      console.log("userCompanyId set to:", this.userCompanyId);
+    console.log("userOrganizationId set to:", this.userOrganizationId);
     },
     async fetchAllUsers() {
       try {
@@ -236,7 +221,6 @@ export default {
   },
   mounted() {
     this.fetchUserData();
-    this.fetchApplications();
     if (this.isBuroPropuskov) {
       this.fetchAllUsers();
     }

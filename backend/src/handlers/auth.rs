@@ -310,6 +310,7 @@ pub async fn get_user_types(pool: web::Data<PgPool>) -> impl Responder {
 }
 
 /// Получение информации о текущем пользователе
+// В методе get_current_user
 pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
@@ -324,6 +325,7 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
     let user = sqlx::query!(
         r#"
         SELECT 
+            u.id,
             u.username, 
             o.name as organization, 
             u.organization_id, 
@@ -331,6 +333,7 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
             u.company_id,
             u.type_id,
             ut.name as user_type,
+            ut.code as user_type_code,
             u.last_name,
             u.first_name,
             u.middle_name,
@@ -353,6 +356,7 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
     })?;
 
     Ok(HttpResponse::Ok().json(json!({
+        "id": user.id,
         "username": user.username,
         "organization": user.organization,
         "organization_id": user.organization_id,
@@ -360,6 +364,7 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
         "company_id": user.company_id,
         "type_id": user.type_id,
         "user_type": user.user_type,
+        "user_type_code": user.user_type_code,
         "last_name": user.last_name,
         "first_name": user.first_name,
         "middle_name": user.middle_name,
@@ -367,7 +372,7 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
         "email": user.email,
         "phone": user.phone
     })))
-}
+} 
 
 /// Получение основных данных текущего пользователя
 pub async fn get_current_user_data(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {

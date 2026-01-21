@@ -24,14 +24,68 @@
       </div>
       
       <div class="responsible-users-container">
-        <!-- Поисковая строка -->
+        <!-- Главный ответственный -->
+        <div v-if="primaryUser" class="primary-responsible-section">
+          <div class="section-title">
+            <span class="title-text">Главный ответственный</span>
+            <span class="primary-badge">ГЛАВНЫЙ</span>
+          </div>
+          <div class="primary-user-card">
+            <div class="primary-user-info">
+              <div class="primary-user-main">
+                <span class="primary-user-name">{{ getUserDisplayName(primaryUser) }}</span>
+                <span class="primary-user-username">@{{ primaryUser.username }}</span>
+              </div>
+              <div class="primary-user-details">
+                <span v-if="primaryUser.position" class="primary-user-position">{{ primaryUser.position }}</span>
+                <span v-if="primaryUser.organization" class="primary-user-organization">{{ primaryUser.organization }}</span>
+                <span v-if="primaryUser.company" class="primary-user-company">{{ primaryUser.company }}</span>
+              </div>
+            </div>
+            <div class="primary-user-actions">
+              <button 
+                @click="removePrimaryUser"
+                class="remove-primary-btn"
+                title="Убрать как главного"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <div class="section-hint">
+            Только один пользователь может быть главным ответственным
+          </div>
+        </div>
+
+        <!-- Выбор нового главного ответственного -->
+        <div v-if="!primaryUser && selectedUsers.length > 0" class="set-primary-section">
+          <div class="section-title">
+            <span class="title-text">Назначить главного ответственного</span>
+          </div>
+          <select 
+            v-model="newPrimaryUserUsername"
+            class="primary-select"
+            @change="setNewPrimaryUser"
+          >
+            <option value="">Выберите пользователя...</option>
+            <option 
+              v-for="user in availableForPrimaryUsers" 
+              :key="user.username"
+              :value="user.username"
+            >
+              {{ getUserDisplayName(user) }} (@{{ user.username }})
+            </option>
+          </select>
+        </div>
+
+        <!-- Поисковая строка для добавления пользователей -->
         <div class="user-search-container">
           <input
             v-model="userSearchQuery"
             @focus="showUserDropdown = true"
             @blur="onUserSearchBlur"
             class="user-search-input"
-            placeholder="Поиск пользователей..."
+            placeholder="Добавить ответственного пользователя..."
             type="text"
           />
           <div v-if="showUserDropdown" class="user-dropdown">
@@ -59,34 +113,52 @@
           </div>
         </div>
 
-        <!-- Список выбранных пользователей -->
-        <div class="selected-users-list">
-          <div 
-            v-for="user in selectedUsers" 
-            :key="user.username"
-            class="selected-user-item"
-          >
-            <div class="selected-user-info">
-              <div class="selected-user-main">
-                <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
-                <span class="selected-user-username">@{{ user.username }}</span>
+        <!-- Список обычных ответственных -->
+        <div v-if="regularUsers.length > 0" class="regular-users-section">
+          <div class="section-title">
+            <span class="title-text">Обычные ответственные</span>
+            <span class="count-badge">{{ regularUsers.length }}</span>
+          </div>
+          <div class="selected-users-list">
+            <div 
+              v-for="user in regularUsers" 
+              :key="user.username"
+              class="selected-user-item"
+            >
+              <div class="selected-user-info">
+                <div class="selected-user-main">
+                  <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
+                  <span class="selected-user-username">@{{ user.username }}</span>
+                </div>
+                <div class="selected-user-details">
+                  <span v-if="user.position" class="selected-user-position">{{ user.position }}</span>
+                  <span v-if="user.organization" class="selected-user-organization">{{ user.organization }}</span>
+                  <span v-if="user.company" class="selected-user-company">{{ user.company }}</span>
+                </div>
               </div>
-              <div class="selected-user-details">
-                <span v-if="user.position" class="selected-user-position">{{ user.position }}</span>
-                <span v-if="user.organization" class="selected-user-organization">{{ user.organization }}</span>
-                <span v-if="user.company" class="selected-user-company">{{ user.company }}</span>
+              <div class="selected-user-actions">
+                <button 
+                  v-if="!primaryUser"
+                  @click="setAsPrimary(user)"
+                  class="set-primary-btn"
+                  title="Сделать главным"
+                >
+                  ↑
+                </button>
+                <button 
+                  @click="removeResponsibleUser(user)"
+                  class="remove-user-btn"
+                  title="Удалить"
+                >
+                  ×
+                </button>
               </div>
             </div>
-            <button 
-              @click="removeResponsibleUser(user)"
-              class="remove-user-btn"
-            >
-              ×
-            </button>
           </div>
-          <div v-if="selectedUsers.length === 0" class="no-selected-users">
-            <p>Не выбрано ни одного ответственного лица для согласования.</p>
-          </div>
+        </div>
+
+        <div v-if="selectedUsers.length === 0" class="no-selected-users">
+          <p>Не выбрано ни одного ответственного лица для согласования.</p>
         </div>
       </div>
     </div>
@@ -115,14 +187,34 @@ export default {
       isSavingUsers: false,
       userSearchQuery: '',
       showUserDropdown: false,
-      isLoading: false
+      isLoading: false,
+      newPrimaryUserUsername: ''
     };
   },
   computed: {
     hasSelectedUsers() {
-      return JSON.stringify(this.selectedUsers.map(u => u.username).sort()) !== 
-             JSON.stringify(this.originalSelectedUsers.map(u => u.username).sort());
+      return JSON.stringify(this.selectedUsers.map(u => ({
+        username: u.username,
+        is_primary: u.is_primary
+      })).sort()) !== 
+             JSON.stringify(this.originalSelectedUsers.map(u => ({
+               username: u.username,
+               is_primary: u.is_primary
+             })).sort());
     },
+    
+    primaryUser() {
+      return this.selectedUsers.find(user => user.is_primary === true);
+    },
+    
+    regularUsers() {
+      return this.selectedUsers.filter(user => !user.is_primary);
+    },
+    
+    availableForPrimaryUsers() {
+      return this.regularUsers.filter(user => !user.is_primary);
+    },
+    
     filteredUsers() {
       if (!this.userSearchQuery) return this.allUsers;
       
@@ -143,30 +235,28 @@ export default {
                phone.includes(query);
       });
     },
+    
     filteredAvailableUsers() {
       // Фильтруем пользователей, исключая уже выбранных
       return this.filteredUsers.filter(user => 
         !this.selectedUsers.some(selected => selected.username === user.username)
       );
     },
+    
     sortedAvailableUsers() {
-      // Сортируем пользователей по компании, организации и фамилии
       return [...this.filteredAvailableUsers].sort((a, b) => {
-        // Сравнение по компании
         const companyA = (a.company || '').toLowerCase();
         const companyB = (b.company || '').toLowerCase();
         if (companyA !== companyB) {
           return companyA.localeCompare(companyB);
         }
         
-        // Сравнение по организации
         const orgA = (a.organization || '').toLowerCase();
         const orgB = (b.organization || '').toLowerCase();
         if (orgA !== orgB) {
           return orgA.localeCompare(orgB);
         }
         
-        // Сравнение по фамилии
         const lastNameA = (a.last_name || '').toLowerCase();
         const lastNameB = (b.last_name || '').toLowerCase();
         return lastNameA.localeCompare(lastNameB);
@@ -207,7 +297,6 @@ export default {
       
       this.isLoading = true;
       try {
-        // Убедимся, что allUsers загружены перед обработкой
         if (this.allUsers.length === 0) {
           await this.fetchAllUsers();
         }
@@ -225,15 +314,14 @@ export default {
         if (response.ok) {
           const users = await response.json();
           
-          // Обогащаем данные пользователей полной информацией из allUsers
+          // Обрабатываем данные с учетом нового поля is_primary
           this.selectedUsers = users.map(entityUser => {
-            // Находим полные данные пользователя в allUsers
             const fullUserData = this.allUsers.find(u => u.username === entityUser.username);
             
             if (fullUserData) {
-              // Объединяем данные: базовые из entityUser и полные из allUsers
               return {
                 ...entityUser,
+                is_primary: entityUser.is_primary || false,
                 position: entityUser.position || fullUserData.position || '',
                 organization: fullUserData.organization || '',
                 company: fullUserData.company || '',
@@ -244,9 +332,9 @@ export default {
                 middle_name: entityUser.middle_name || fullUserData.middle_name
               };
             } else {
-              // Если не нашли в allUsers, используем только базовые данные
               return {
                 ...entityUser,
+                is_primary: entityUser.is_primary || false,
                 position: entityUser.position || '',
                 organization: '',
                 company: ''
@@ -269,65 +357,70 @@ export default {
     },
 
     async saveResponsibleUsers() {
-      if (!this.entity) return;
+  if (!this.entity) return;
+  
+  this.isSavingUsers = true;
+  try {
+    const token = localStorage.getItem("token");
+    const endpoint = this.entityType === 'organization'
+      ? `http://localhost:8080/organizations/${this.entity.id}/users`
+      : `http://localhost:8080/companies/${this.entity.id}/users`;
+    
+    // Подготавливаем данные в новом формате
+    const usersData = this.selectedUsers.map(user => ({
+      username: user.username,
+      is_primary: user.is_primary || false
+    }));
+    
+    const response = await fetch(endpoint, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        users: usersData
+      }),
+    });
+    
+    if (response.ok) {
+      this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
+      this.showNotification("Ответственные лица успешно обновлены", "success");
+      this.$emit('users-updated');
+    } else {
+      const errorText = await response.text();
+      let errorMessage = "Ошибка при обновлении ответственных лиц";
       
-      this.isSavingUsers = true;
       try {
-        const token = localStorage.getItem("token");
-        const endpoint = this.entityType === 'organization'
-          ? `http://localhost:8080/organizations/${this.entity.id}/users`
-          : `http://localhost:8080/companies/${this.entity.id}/users`;
-        
-        const response = await fetch(endpoint, {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_ids: this.selectedUsers.map(u => u.username),
-          }),
-        });
-        
-        if (response.ok) {
-          this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
-          this.showNotification("Ответственные лица успешно обновлены", "success");
-          this.$emit('users-updated');
-        } else {
-          const errorText = await response.text();
-          let errorMessage = "Ошибка при обновлении ответственных лиц";
-          
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.message || errorMessage;
-          } catch {
-            errorMessage = errorText || errorMessage;
-          }
-          
-          this.showNotification(errorMessage, "error");
-          // Перезагружаем данные в случае ошибки
-          await this.fetchEntityUsers(this.entity.id);
-        } 
-      } catch (error) {
-        console.error("Error updating responsible users:", error);
-        this.showNotification("Ошибка сети", "error");
-        // Перезагружаем данные в случае ошибки
-        await this.fetchEntityUsers(this.entity.id);
-      } finally {
-        this.isSavingUsers = false;
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
       }
-    },
+      
+      this.showNotification(errorMessage, "error");
+      await this.fetchEntityUsers(this.entity.id);
+    } 
+  } catch (error) {
+    console.error("Error updating responsible users:", error);
+    this.showNotification("Ошибка сети", "error");
+    await this.fetchEntityUsers(this.entity.id);
+  } finally {
+    this.isSavingUsers = false;
+  }
+},
 
     cancelResponsibleUsersChanges() {
       this.selectedUsers = JSON.parse(JSON.stringify(this.originalSelectedUsers));
+      this.newPrimaryUserUsername = '';
     },
 
     addResponsibleUser(user) {
       const isAlreadySelected = this.selectedUsers.some(u => u.username === user.username);
       if (!isAlreadySelected) {
-        // Используем полные данные пользователя
         const userWithDetails = {
           ...user,
+          is_primary: false,
           position: user.position || '',
           organization: user.organization || '',
           company: user.company || ''
@@ -341,9 +434,34 @@ export default {
     removeResponsibleUser(user) {
       this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
     },
+    
+    removePrimaryUser() {
+      if (this.primaryUser) {
+        this.primaryUser.is_primary = false;
+      }
+    },
+    
+    setAsPrimary(user) {
+      // Сбрасываем всех остальных
+      this.selectedUsers.forEach(u => {
+        u.is_primary = false;
+      });
+      
+      // Устанавливаем выбранного как главного
+      user.is_primary = true;
+    },
+    
+    setNewPrimaryUser() {
+      if (!this.newPrimaryUserUsername) return;
+      
+      const user = this.selectedUsers.find(u => u.username === this.newPrimaryUserUsername);
+      if (user) {
+        this.setAsPrimary(user);
+        this.newPrimaryUserUsername = '';
+      }
+    },
 
     onUserSearchBlur() {
-      // Небольшая задержка чтобы клик по элементу dropdown успел обработаться
       setTimeout(() => {
         this.showUserDropdown = false;
       }, 200);
@@ -382,10 +500,8 @@ export default {
     }
   },
   async mounted() {
-    // Сначала загружаем всех пользователей
     await this.fetchAllUsers();
     
-    // Если сущность уже выбрана, загружаем ее пользователей
     if (this.entity && this.entity.id) {
       await this.fetchEntityUsers(this.entity.id);
     }
@@ -394,12 +510,6 @@ export default {
 </script>
 
 <style scoped>
-.detail-label {
-  font-size: 0.75em;
-  color: #a2a2a2;
-  font-weight: 400;
-  margin-bottom: 0;
-}
 .responsible-users-section {
   width: 100%;
 }
@@ -429,6 +539,166 @@ export default {
   width: 100%;
   background: #FFF;
   border-radius: 12px;
+}
+
+/* Секции */
+.primary-responsible-section,
+.regular-users-section,
+.set-primary-section {
+  margin-bottom: 15px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.title-text {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #333;
+}
+
+.primary-badge {
+  font-size: 0.6em;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #ff6b6b, #ff4757);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.count-badge {
+  font-size: 0.65em;
+  font-weight: 600;
+  color: #fff;
+  background: #4F5BDF;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.section-hint {
+  font-size: 0.65em;
+  color: #888;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+/* Карточка главного ответственного */
+.primary-user-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff9e6, #fff0cc);
+  border: 2px solid #ffd700;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.1);
+}
+
+.primary-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.primary-user-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.primary-user-name {
+  font-weight: 700;
+  font-size: 0.8em;
+  color: #333;
+}
+
+.primary-user-username {
+  font-size: 0.65em;
+  color: #666;
+  font-weight: 500;
+}
+
+.primary-user-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.primary-user-position,
+.primary-user-organization,
+.primary-user-company {
+  font-size: 0.65em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.primary-user-position {
+  background: #4F5BDF;
+  color: white;
+  font-weight: 600;
+}
+
+.primary-user-organization {
+  background: #10b981;
+  color: white;
+}
+
+.primary-user-company {
+  background: #8b5cf6;
+  color: white;
+}
+
+.primary-user-actions {
+  display: flex;
+  align-items: center;
+}
+
+.remove-primary-btn {
+  background: none;
+  border: none;
+  color: #ff4444;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.remove-primary-btn:hover {
+  background-color: rgba(255, 68, 68, 0.1);
+}
+
+/* Выбор главного ответственного */
+.primary-select {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  font-size: 0.7em;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.primary-select:focus {
+  border-color: #4F5BDF;
+  outline: none;
+}
+
+.primary-select option {
+  font-size: 0.7em;
+  padding: 4px;
 }
 
 /* Поиск пользователей */
@@ -533,12 +803,12 @@ export default {
   font-size: 0.7em;
 }
 
-/* Выбранные пользователи */
+/* Обычные ответственные */
 .selected-users-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 300px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -549,6 +819,13 @@ export default {
   padding: 8px;
   border-radius: 6px;
   border: 1px solid #e6e6e6;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.selected-user-item:hover {
+  border-color: #4F5BDF;
+  box-shadow: 0 2px 4px rgba(79, 91, 223, 0.1);
 }
 
 .selected-user-info {
@@ -578,7 +855,7 @@ export default {
 .selected-user-details {
   display: flex;
   flex-direction: column;
-  gap: 5px; /* +1px от исходного */
+  gap: 5px;
 }
 
 .selected-user-position,
@@ -586,7 +863,7 @@ export default {
 .selected-user-company {
   font-size: 0.7em;
   padding: 1px 6px;
-  border-radius: 50px; /* border radius 50px */
+  border-radius: 50px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -609,6 +886,29 @@ export default {
   color: #666;
 }
 
+.selected-user-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.set-primary-btn {
+  background: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  color: #0ea5e9;
+  font-size: 0.8em;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.set-primary-btn:hover {
+  background: #0ea5e9;
+  color: white;
+}
+
 .remove-user-btn {
   background: none;
   border: none;
@@ -618,8 +918,6 @@ export default {
   padding: 2px 6px;
   border-radius: 3px;
   transition: background-color 0.2s ease;
-  flex-shrink: 0;
-  margin-left: 6px;
 }
 
 .remove-user-btn:hover {
@@ -628,18 +926,15 @@ export default {
 
 .no-selected-users {
   text-align: center;
-  color: #6b7280;
-  font-size: 0.7em;
-}
-
-.no-users-message {
-  text-align: center;
   padding: 15px;
   color: #6b7280;
-  font-style: italic;
   font-size: 0.7em;
+  border: 1px dashed #e6e6e6;
+  border-radius: 8px;
+  background: #fafafa;
 }
 
+/* Кнопки сохранения/отмены */
 .save-users-btn {
   padding: 2px 6px;
   background: #4F5BDF;
@@ -684,6 +979,13 @@ export default {
   cursor: not-allowed;
 }
 
+.detail-label {
+  font-size: 0.75em;
+  color: #a2a2a2;
+  font-weight: 400;
+  margin-bottom: 0;
+}
+
 @media (max-width: 768px) {
   .responsible-users-section {
     width: 100%;
@@ -699,24 +1001,22 @@ export default {
     justify-content: center;
   }
   
-  .selected-user-details {
-    flex-direction: column;
-    gap: 3px;
-    align-items: flex-start;
-  }
-  
   .selected-user-item {
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
   
-  .remove-user-btn {
+  .selected-user-actions {
     align-self: flex-end;
-    margin-left: 0;
   }
   
-  .detail-label {
-    text-align: center;
+  .primary-user-card {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .primary-user-actions {
+    align-self: flex-end;
   }
 }
 </style>

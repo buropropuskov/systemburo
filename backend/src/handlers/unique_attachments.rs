@@ -3,7 +3,7 @@ use actix_web::{web, HttpResponse, Responder};
 use sqlx::PgPool;
 use log;
 
-use crate::models::attachments::{
+use crate::models::unique_attachments::{
     UniqueAttachment, CreateAttachmentRequest, UpdateAttachmentRequest
 };
 

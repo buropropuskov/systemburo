@@ -18,11 +18,12 @@ pub struct UserRegister {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserInfo {
+    pub id: i32,
     pub username: String,
-    pub organization: String,
-    pub organization_id: i32,
-    pub company: String,
-    pub company_id: i32,
+    pub organization: Option<String>,
+    pub organization_id: Option<i32>, // Изменено на Option
+    pub company: Option<String>,
+    pub company_id: Option<i32>, // Изменено на Option
     pub type_id: i32,
     pub user_type: String,
     pub last_name: Option<String>,

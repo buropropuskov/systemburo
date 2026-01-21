@@ -103,6 +103,7 @@ pub async fn get_all_users(pool: web::Data<PgPool>, req: HttpRequest) -> Result<
                             UserInfo,
                             r#"
                             SELECT 
+                                u.id,
                                 u.username, 
                                 o.name as organization, 
                                 u.organization_id, 
@@ -117,9 +118,9 @@ pub async fn get_all_users(pool: web::Data<PgPool>, req: HttpRequest) -> Result<
                                 u.email,
                                 u.phone
                             FROM users u 
-                            JOIN organizations o ON u.organization_id = o.id
-                            JOIN companies c ON u.company_id = c.id
-                            JOIN user_types ut ON u.type_id = ut.id
+                            LEFT JOIN organizations o ON u.organization_id = o.id
+                            LEFT JOIN companies c ON u.company_id = c.id
+                            LEFT JOIN user_types ut ON u.type_id = ut.id
                             ORDER BY u.username
                             "#
                         )
@@ -406,6 +407,68 @@ pub async fn delete_user(pool: web::Data<PgPool>, path: web::Path<String>, req: 
                         })?;
 
                         Ok(HttpResponse::Ok().json(json!({"message": "User deleted successfully"})))
+                    }
+                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
+                }
+            } else {
+                Err(error::ErrorUnauthorized("Invalid or missing token"))
+            }
+        } else {
+            Err(error::ErrorUnauthorized("Invalid or missing token"))
+        }
+    } else {
+        Err(error::ErrorUnauthorized("Missing Authorization header"))
+    }
+}
+
+/// Получение данных текущего пользователя
+/// Получение данных текущего пользователя
+pub async fn get_this_user(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, Error> {
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                match decode_token(&token) {
+                    Ok(claims) => {
+                        let user = sqlx::query_as!(
+                            UserInfo,
+                            r#"
+                            SELECT 
+                                u.id,
+                                u.username, 
+                                COALESCE(o.name::text, '') as organization, 
+                                u.organization_id, 
+                                COALESCE(c.name::text, '') as company,
+                                u.company_id,
+                                u.type_id,
+                                ut.name as user_type,
+                                u.last_name,
+                                u.first_name,
+                                u.middle_name,
+                                u.position,
+                                u.email,
+                                u.phone
+                            FROM users u 
+                            LEFT JOIN organizations o ON u.organization_id = o.id
+                            LEFT JOIN companies c ON u.company_id = c.id
+                            LEFT JOIN user_types ut ON u.type_id = ut.id
+                            WHERE u.username = $1
+                            "#,
+                            claims.sub
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to fetch current user: {}, error: {}", claims.sub, e);
+                            error::ErrorInternalServerError("Error fetching user data")
+                        })?;
+
+                        log::info!("User data fetched for {}: company_id={:?}, organization_id={:?}", 
+                                  user.username, user.company_id, user.organization_id);
+                        
+                        Ok(HttpResponse::Ok().json(user))
                     }
                     Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
                 }

@@ -62,11 +62,11 @@ export default {
           const currentTime = Math.floor(Date.now() / 1000);
           const timeUntilExpiry = payload.exp - currentTime;
           
-          console.log('Token expiry check:', {
+          /* console.log('Token expiry check:', {
               timeUntilExpiry: timeUntilExpiry + ' seconds',
               isExpired: timeUntilExpiry <= 0,
               willExpireSoon: timeUntilExpiry <= 300
-          });
+          }); */
           
           // Если токен уже истек - сразу выходим
           if (timeUntilExpiry <= 0) {
@@ -92,7 +92,7 @@ export default {
     startExpirationTimer(timeUntilExpiry) {
       this.stopExpirationTimer();
       
-      console.log('Starting expiration timer:', timeUntilExpiry + ' seconds');
+      // console.log('Starting expiration timer:', timeUntilExpiry + ' seconds');
       
       // Если до истечения меньше или равно 30 секунд - показываем модалку
       if (timeUntilExpiry <= 300) {
@@ -120,7 +120,7 @@ export default {
       } else {
         // Запускаем таймер, который покажет модалку когда останется 30 секунд
         const delayToModal = (timeUntilExpiry - 300) * 1000;
-        console.log('Will show modal in:', delayToModal + ' ms');
+        // console.log('Will show modal in:', delayToModal + ' ms');
         
         this.expirationTimer = setTimeout(() => {
           this.checkAuthStatus(); // Перепроверим статус
