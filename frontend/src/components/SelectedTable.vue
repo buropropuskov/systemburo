@@ -164,6 +164,11 @@
       
       <!-- Тело таблицы -->
       <div class="items-container">
+        <div v-if="isLoading && itemsData.length === 0" class="loading-message">
+            <div class="loader"></div>
+            <p>Загрузка данных...</p>
+          </div>
+          <div v-else-if="filteredItems.length > 0" class="items-body">
         <div v-if="filteredItems.length > 0" class="items-body">
           <transition-group name="fade-list" tag="div">
             <div 
@@ -210,7 +215,8 @@
                 </div>
                 
                 <div class="item-col place-col" v-if="tableType === 'cars'">
-                  {{ formatUnloadPlaces(item.unload_places) }}
+                  <!-- Используем unload_place вместо formatUnloadPlaces -->
+                  {{ item.unload_place || formatUnloadPlaces(item) }}
                 </div>
                 
                 <div class="item-col date-col">
@@ -245,6 +251,7 @@
               </div>
             </div>
           </transition-group>
+        </div>
         </div>
         <p v-else class="no-data-message">
           {{ hasActiveFilters 
@@ -308,7 +315,9 @@ export default {
       progress: 100,
       progressInterval: null,
       activeItemsCount: 0,
-      unloadingPlacesMap: new Map()
+      unloadingPlacesMap: new Map(),
+      isLoading: false, // Добавляем флаг загрузки
+      isInitialLoad: true // Флаг первой загрузки
     };
   },
   computed: {
@@ -332,7 +341,8 @@ export default {
             searchFields.push(
               item.car_number,
               item.car_brand,
-              this.formatUnloadPlaces(item.unload_places)
+              // Используем unload_place вместо formatUnloadPlaces
+              item.unload_place || ''
             );
           } else {
             searchFields.push(
@@ -358,8 +368,9 @@ export default {
       // Фильтр по месту разгрузки (только для машин)
       if (this.selectedUnloadingPlace && this.tableType === 'cars') {
         filtered = filtered.filter(item => {
-          const places = this.formatUnloadPlaces(item.unload_places);
-          return places.includes(this.selectedUnloadingPlace);
+          // Используем поле unload_place для фильтрации
+          const place = item.unload_place || '';
+          return place.toLowerCase().includes(this.selectedUnloadingPlace.toLowerCase());
         });
       }
 
@@ -400,8 +411,9 @@ export default {
             break;
             
           case 'unload_place':
-            valueA = this.formatUnloadPlaces(a.unload_places)?.toLowerCase() || '';
-            valueB = this.formatUnloadPlaces(b.unload_places)?.toLowerCase() || '';
+            // Используем поле unload_place для сортировки
+            valueA = a.unload_place?.toLowerCase() || '';
+            valueB = b.unload_place?.toLowerCase() || '';
             break;
             
           case 'entry_date_to':
@@ -458,90 +470,161 @@ export default {
     },
 
     async fetchData() {
-      try {
-        if (this.tableType === 'cars') {
-          await this.fetchCarsData();
-        } else {
-          await this.fetchPeopleData();
-        }
-        
-        this.updateActiveItemsCount();
-      } catch (error) {
-        console.error(`Ошибка при загрузке данных (${this.tableType}):`, error);
-      }
-    },
+  // Если загрузка уже идет, не начинаем новую
+  if (this.isLoading) return;
+  
+  // Если это таблица людей и нет имени таблицы - не загружаем
+  if (this.tableType === 'people' && !this.tableName) {
+    console.warn('Table name is required for people table');
+    this.itemsData = [];
+    this.isLoading = false;
+    return;
+  }
+  
+  this.isLoading = true;
+  
+  // Сначала сбрасываем данные, чтобы не показывать старые данные другого типа
+  this.itemsData = [];
+  
+  try {
+    // Сохраняем текущий тип таблицы для проверки после загрузки
+    const currentTableType = this.tableType;
+    
+    let newData = [];
+    
+    if (currentTableType === 'cars') {
+      newData = await this.fetchCarsData();
+    } else if (currentTableType === 'people') {
+      newData = await this.fetchPeopleData();
+    } else {
+      console.warn(`Unknown table type: ${currentTableType}`);
+      newData = [];
+    }
+    
+    // Проверяем, не изменился ли тип таблицы во время загрузки
+    if (this.tableType !== currentTableType) {
+      console.log('Тип таблицы изменился во время загрузки, игнорируем результат');
+      this.itemsData = [];
+    } else {
+      // Устанавливаем данные только если тип таблицы не изменился
+      this.itemsData = newData;
+    }
+    
+    this.updateActiveItemsCount();
+  } catch (error) {
+    console.error(`Ошибка при загрузке данных (${this.tableType}):`, error);
+    this.itemsData = [];
+  } finally {
+    this.isLoading = false;
+    this.isInitialLoad = false;
+  }
+},
 
     async fetchCarsData() {
-      const response = await fetch("http://localhost:8080/applications/active-cars");
-      const applications = await response.json();
-      
-      if (this.unloadingPlacesMap.size === 0) {
-        await this.fetchUnloadingPlaces();
-      }
-      
-      const allCars = applications.flatMap(application => 
-        application.cars
-          .filter(car => car.status !== 0)
-          .filter(car => {
-            const carNumber = car.car_number?.toLowerCase().trim();
-            return carNumber !== 'по факту';
-          })
-          .map(car => ({
-            id: car.id,
-            car_number: car.car_number,
-            car_brand: car.car_brand,
-            organization: application.organization,
-            unload_places: car.unload_places || [],
-            entry_date_from: application.entry_date_from,
-            entry_date_to: application.entry_date_to,
-            entry_time_from: application.entry_time_from,
-            entry_time_to: application.entry_time_to,
-            status: 'В работе',
-            checked: false,
-            applicationId: application.id
-          }))
-      );
-
-      // Фильтруем машины по сроку действия
-      const now = new Date();
-      const validCars = allCars.filter(car => {
-        const startDate = new Date(car.entry_date_from);
-        const endDate = new Date(car.entry_date_to);
-        endDate.setHours(23, 59, 59, 999);
-        return startDate <= now && now <= endDate;
-      });
-
-      this.itemsData = validCars;
-    },
+  try {
+    const token = localStorage.getItem("token");
+    
+    console.log('Загрузка машин для таблицы с типом cars...');
+    
+    const response = await fetch("http://localhost:8080/cars/active-for-tables", {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+        },
+    });
+    
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const cars = await response.json();
+    console.log('Получены все активные машины:', cars.length, 'шт.');
+    
+    // Фильтруем машины
+    const regularCars = cars.filter(car => {
+        if (car.status !== 1) {
+            return false;
+        }
+        
+        const carNumber = car.car_number?.toLowerCase().trim();
+        return carNumber !== 'по факту';
+    });
+    
+    console.log('Машины для отображения в таблице:', regularCars.length, 'шт.');
+    
+    // Возвращаем отформатированные данные
+    return regularCars.map(car => ({
+        id: car.id,
+        car_number: car.car_number || '',
+        car_brand: car.car_brand || '',
+        organization: car.organization || 'Не указана',
+        unload_place: car.unload_place || '-',
+        unload_places: car.unload_places || [],
+        entry_date_to: car.entry_date_to || '',
+        entry_time_from: car.entry_time_from || '',
+        entry_time_to: car.entry_time_to || '',
+        status: 'В работе',
+        checked: false
+    }));
+    
+  } catch (error) {
+    console.error("Ошибка при загрузке данных машин:", error);
+    return [];
+  }
+},
 
     async fetchPeopleData() {
-      // Заглушка для данных о людях
-      // В реальном приложении здесь будет запрос к API
-      this.itemsData = [
-        {
-          id: 1,
-          last_name: 'Иванов',
-          first_name: 'Иван',
-          middle_name: 'Иванович',
-          organization: 'ООО "Ромашка"',
-          entry_date_to: '2024-12-31',
-          pass_time: '08:00-17:00',
-          status: 'Активен',
-          checked: false
+  try {
+    const token = localStorage.getItem("token");
+    
+    if (!this.tableName) {
+        console.error("Table name is required for fetching people data");
+        return [];
+    }
+    
+    const tableResponse = await fetch(`http://localhost:8080/system-tables/name/${this.tableName}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
         },
-        {
-          id: 2,
-          last_name: 'Петров',
-          first_name: 'Петр',
-          middle_name: 'Петрович',
-          organization: 'ИП Иванов',
-          entry_date_to: '2024-11-30',
-          pass_time: '09:00-18:00',
-          status: 'Активен',
-          checked: false
-        }
-      ];
-    },
+    });
+    
+    if (!tableResponse.ok) {
+        throw new Error(`Failed to get table: ${tableResponse.status}`);
+    }
+    
+    const table = await tableResponse.json();
+    
+    const response = await fetch(`http://localhost:8080/employees/active-for-table/${table.id}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+        },
+    });
+    
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const employees = await response.json();
+    
+    return employees.map(emp => ({
+        id: emp.id,
+        last_name: emp.last_name || '',
+        first_name: emp.first_name || '',
+        middle_name: emp.middle_name || '',
+        organization: emp.organization || 'Не указана',
+        entry_date_to: emp.entry_date_to || '',
+        pass_time: emp.pass_time || '',
+        status: 'Активен',
+        checked: false
+    }));
+    
+  } catch (error) {
+    console.error("Ошибка при загрузке данных сотрудников:", error);
+    return [];
+  }
+},
 
     formatDate(dateString) {
       if (!dateString) return '';
@@ -573,28 +656,36 @@ export default {
       return passTime || '-';
     },
 
-    formatUnloadPlaces(unloadPlaces) {
-      if (!unloadPlaces || unloadPlaces.length === 0) return '-';
+    // Обновляем функцию formatUnloadPlaces для использования unload_place
+    formatUnloadPlaces(item) {
+      // Используем поле unload_place из данных
+      if (item.unload_place) {
+        return item.unload_place;
+      }
       
-      const placeNames = unloadPlaces
-        .map(place => {
-          if (typeof place === 'object' && place.unload_place_name) {
-            return place.unload_place_name;
-          }
-          if (this.unloadingPlacesMap.has(place)) {
-            return this.unloadingPlacesMap.get(place);
-          }
-          if (typeof place === 'object' && place.unload_place_id) {
-            return this.unloadingPlacesMap.get(place.unload_place_id) || `Место ${place.unload_place_id}`;
-          }
-          return null;
-        })
-        .filter(name => name);
+      // Для обратной совместимости с массивом unload_places
+      if (item.unload_places && item.unload_places.length > 0) {
+        const placeNames = item.unload_places
+          .map(place => {
+            if (typeof place === 'object' && place.unload_place_name) {
+              return place.unload_place_name;
+            }
+            if (this.unloadingPlacesMap.has(place)) {
+              return this.unloadingPlacesMap.get(place);
+            }
+            if (typeof place === 'object' && place.unload_place_id) {
+              return this.unloadingPlacesMap.get(place.unload_place_id) || `Место ${place.unload_place_id}`;
+            }
+            return null;
+          })
+          .filter(name => name);
+        
+        if (placeNames.length === 0) return '-';
+        if (placeNames.length === 1) return placeNames[0];
+        return `${placeNames[0]} и др.`;
+      }
       
-      if (placeNames.length === 0) return '-';
-      if (placeNames.length === 1) return placeNames[0];
-      
-      return `${placeNames[0]} и др.`;
+      return '-';
     },
 
     sortBy(field) {
@@ -716,22 +807,50 @@ export default {
     }
   },
   mounted() {
-    if (this.tableType === 'cars') {
-      this.fetchUnloadingPlaces().then(() => {
-        this.fetchData();
-      });
-    } else {
+  // Загружаем данные только если указан tableType
+  if (this.tableType === 'cars') {
+    this.fetchUnloadingPlaces().then(() => {
+      this.fetchData();
+    });
+  } else if (this.tableType === 'people' && this.tableName) {
+    // Для людей ждем, пока tableName будет установлен
+    this.fetchData();
+  }
+  },
+  watch: {
+  tableType: {
+    handler(newVal, oldVal) {
+      console.log('Тип таблицы изменился:', oldVal, '->', newVal);
+      console.log('Имя таблицы:', this.tableName);
+      
+      // Сбрасываем данные при смене типа таблицы
+      this.itemsData = [];
+      this.isInitialLoad = true;
+      
+      // Отменяем предыдущие уведомления
+      if (this.notification.message) {
+        clearInterval(this.progressInterval);
+        this.notification = { message: null, item: null };
+      }
+      
+      // Загружаем данные для нового типа
       this.fetchData();
     }
   },
-  watch: {
-    tableType: {
-      handler() {
+  tableName: {
+    handler(newVal, oldVal) {
+      if (newVal && this.tableType === 'people') {
+        console.log('Имя таблицы изменилось:', oldVal, '->', newVal);
+        
+        // Сбрасываем данные при смене имени таблицы
+        this.itemsData = [];
+        this.isInitialLoad = true;
+        
         this.fetchData();
-      },
-      immediate: true
+      }
     }
   }
+},
 };
 </script>
 

@@ -1012,6 +1012,7 @@ pub async fn get_application_responsible_users(
 }
 
 /// Обновление заявки (подтверждение, статус и т.д.)
+/// Обновление заявки (подтверждение, статус и т.д.)
 pub async fn update_application(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1068,15 +1069,6 @@ pub async fn update_application(
             query_parts.push(format!("confirmation_datetime = ${}", param_counter));
             param_counter += 1;
         }
-        
-        // Обновляем статус в зависимости от подтверждения
-        if confirmation == "Согласовано" {
-            query_parts.push(format!("status = ${}", param_counter));
-            param_counter += 1;
-        } else if confirmation == "Не согласовано" {
-            query_parts.push(format!("status = ${}", param_counter));
-            param_counter += 1;
-        }
     }
 
     if let Some(ref status) = update_data.status {
@@ -1117,14 +1109,6 @@ pub async fn update_application(
         
         if confirmation == "Согласовано" || confirmation == "Не согласовано" {
             query_builder = query_builder.bind(now_utc);
-            param_index += 1;
-        }
-        
-        if confirmation == "Согласовано" {
-            query_builder = query_builder.bind("В работе");
-            param_index += 1;
-        } else if confirmation == "Не согласовано" {
-            query_builder = query_builder.bind("Отказано");
             param_index += 1;
         }
     }
@@ -2130,3 +2114,198 @@ pub async fn get_application_details(
     Ok(HttpResponse::Ok().json(application))
 }
 
+
+
+// Структура для обновления статуса машины
+#[derive(Debug, Deserialize)]
+pub struct UpdateCarStatusRequest {
+    pub status: i32,
+}
+
+// Структура для обновления статуса сотрудника
+#[derive(Debug, Deserialize)]
+pub struct UpdateEmployeeStatusRequest {
+    pub status: i32,
+}
+
+/// Обновление статуса машины
+pub async fn update_car_status(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    update_data: web::Json<UpdateCarStatusRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let car_id = path.into_inner();
+
+    log::info!("Updating car {} status to {}", car_id, update_data.status);
+
+    match sqlx::query!(
+        "UPDATE cars SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        update_data.status,
+        car_id
+    )
+    .execute(pool.get_ref())
+    .await {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                Ok(HttpResponse::Ok().json(json!({
+                    "success": true,
+                    "message": "Car status updated successfully"
+                })))
+            } else {
+                Ok(HttpResponse::NotFound().json(json!({
+                    "success": false,
+                    "message": "Car not found"
+                })))
+            }
+        },
+        Err(e) => {
+            log::error!("Failed to update car status: {}", e);
+            Err(error::ErrorInternalServerError("Error updating car status"))
+        }
+    }
+}
+
+/// Обновление статуса сотрудника
+pub async fn update_employee_status(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    update_data: web::Json<UpdateEmployeeStatusRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let employee_id = path.into_inner();
+
+    log::info!("Updating employee {} status to {}", employee_id, update_data.status);
+
+    match sqlx::query!(
+        "UPDATE employees SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        update_data.status,
+        employee_id
+    )
+    .execute(pool.get_ref())
+    .await {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                Ok(HttpResponse::Ok().json(json!({
+                    "success": true,
+                    "message": "Employee status updated successfully"
+                })))
+            } else {
+                Ok(HttpResponse::NotFound().json(json!({
+                    "success": false,
+                    "message": "Employee not found"
+                })))
+            }
+        },
+        Err(e) => {
+            log::error!("Failed to update employee status: {}", e);
+            Err(error::ErrorInternalServerError("Error updating employee status"))
+        }
+    }
+}
+
+/// Обновление статусов всех машин и сотрудников в заявке
+pub async fn update_application_items_status(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let application_id = path.into_inner();
+
+    log::info!("Updating statuses for all items in application {}", application_id);
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Получаем все вложения заявки
+    let attachments = sqlx::query!(
+        "SELECT id, attachment_type FROM attachments WHERE application_id = $1",
+        application_id
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch attachments: {}", e);
+        error::ErrorInternalServerError("Error fetching attachments")
+    })?;
+
+    for attachment in attachments {
+        match attachment.attachment_type.as_str() {
+            "cars" => {
+                // Обновляем статусы машин
+                match sqlx::query!(
+                    "UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = $1",
+                    attachment.id
+                )
+                .execute(&mut *transaction)
+                .await {
+                    Ok(result) => {
+                        log::info!("Updated {} cars for attachment {}", result.rows_affected(), attachment.id);
+                    },
+                    Err(e) => {
+                        log::error!("Failed to update cars status: {}", e);
+                    }
+                }
+            },
+            "people" => {
+                // Обновляем статусы сотрудников
+                match sqlx::query!(
+                    "UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = $1",
+                    attachment.id
+                )
+                .execute(&mut *transaction)
+                .await {
+                    Ok(result) => {
+                        log::info!("Updated {} employees for attachment {}", result.rows_affected(), attachment.id);
+                    },
+                    Err(e) => {
+                        log::error!("Failed to update employees status: {}", e);
+                    }
+                }
+            },
+            _ => {} // Для других типов вложений ничего не делаем
+        }
+    }
+
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "All items statuses updated successfully"
+    })))
+}

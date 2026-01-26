@@ -3,6 +3,7 @@ use sqlx::{PgPool, Row};
 use serde_json::json;
 use log;
 use serde::{Deserialize, Serialize};
+use chrono::NaiveDate;
 
 use crate::auth::decode_token;
 
@@ -55,7 +56,7 @@ pub async fn create_employee(
             other_permission,
             status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)
         RETURNING id
         "#,
         employee_data.last_name,
@@ -105,4 +106,90 @@ pub async fn create_employee(
         "message": "Employee created successfully",
         "employee_id": employee_id
     })))
+}
+
+/// Получение активных сотрудников для конкретной таблицы
+/// Получение активных сотрудников для конкретной таблицы
+pub async fn get_active_employees_for_table(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let table_id = path.into_inner();
+
+    log::info!("Getting active employees for table {}", table_id);
+
+    #[derive(Debug, serde::Serialize)]
+    struct TableEmployee {
+        id: i32,
+        last_name: String,
+        first_name: String,
+        middle_name: Option<String>,
+        organization: Option<String>,
+        entry_date_to: Option<NaiveDate>,
+        pass_time: Option<String>,
+        status: i32,
+    }
+
+    // Используем query! вместо query_as! для большей гибкости
+    let rows = sqlx::query!(
+        r#"
+        SELECT 
+            e.id,
+            e.last_name,
+            e.first_name,
+            e.middle_name,
+            COALESCE(o.name, co.name) as organization,
+            a.entry_date_to,
+            CONCAT(a.entry_time_from, ' - ', a.entry_time_to) as pass_time,
+            e.status
+        FROM employees e
+        JOIN employee_target_tables ett ON e.id = ett.employee_id
+        JOIN attachments a ON e.attachment_id = a.id
+        JOIN applications app ON a.application_id = app.id
+        LEFT JOIN organizations o ON app.organization_id = o.id
+        LEFT JOIN companies co ON app.company_id = co.id
+        WHERE ett.table_id = $1
+        AND e.status = 1
+        AND app.confirmation = 'Согласовано'
+        AND app.status IN ('В работе', 'Завершено')
+        AND CURRENT_DATE BETWEEN a.entry_date_from AND a.entry_date_to
+        GROUP BY e.id, e.last_name, e.first_name, e.middle_name, 
+                 o.name, co.name, a.entry_date_to, a.entry_time_from, 
+                 a.entry_time_to, e.status
+        ORDER BY e.last_name, e.first_name
+        "#,
+        table_id
+    )
+    .fetch_all(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch active employees: {}", e);
+        error::ErrorInternalServerError("Error fetching active employees")
+    })?;
+
+    let employees: Vec<TableEmployee> = rows.iter().map(|row| {
+        TableEmployee {
+            id: row.id,
+            last_name: row.last_name.clone(),
+            first_name: row.first_name.clone(),
+            middle_name: row.middle_name.clone(),
+            organization: row.organization.clone(),
+            entry_date_to: row.entry_date_to,
+            pass_time: row.pass_time.clone(),
+            status: row.status.unwrap_or(0),
+        }
+    }).collect();
+
+    Ok(HttpResponse::Ok().json(employees))
 }

@@ -99,7 +99,7 @@
                   {{ item.organization }}
                 </div>
                 <div class="fact-col place-col" v-if="tableType === 'cars'">
-                  {{ formatUnloadPlaces(item.unload_places) }}
+                  {{ item.unload_place || '-' }}
                 </div>
                 <div class="fact-col date-col">
                   {{ formatDate(item.entry_date_to) }}
@@ -194,7 +194,7 @@ export default {
         const query = this.searchQuery.toLowerCase();
         filtered = filtered.filter(item => 
           item.organization.toLowerCase().includes(query) ||
-          (this.tableType === 'cars' && this.formatUnloadPlaces(item.unload_places).toLowerCase().includes(query)) ||
+          (this.tableType === 'cars' && (item.unload_place || '-').toLowerCase().includes(query)) ||
           item.status.toLowerCase().includes(query) ||
           (this.tableType === 'cars' 
             ? this.formatTimeRange(item.entry_time_from, item.entry_time_to).toLowerCase().includes(query)
@@ -214,8 +214,8 @@ export default {
       // Фильтр по месту разгрузки (только для машин)
       if (this.selectedUnloadingPlace && this.tableType === 'cars') {
         filtered = filtered.filter(item => {
-          const places = this.formatUnloadPlaces(item.unload_places);
-          return places.includes(this.selectedUnloadingPlace);
+          const place = item.unload_place || '-';
+          return place.toLowerCase().includes(this.selectedUnloadingPlace.toLowerCase());
         });
       }
 
@@ -251,8 +251,8 @@ export default {
             break;
             
           case 'unload_place':
-            valueA = this.formatUnloadPlaces(a.unload_places)?.toLowerCase() || '';
-            valueB = this.formatUnloadPlaces(b.unload_places)?.toLowerCase() || '';
+            valueA = a.unload_place?.toLowerCase() || '';
+            valueB = b.unload_place?.toLowerCase() || '';
             break;
             
           case 'entry_date_to':
@@ -295,18 +295,8 @@ export default {
     }
   },
   methods: {
-    async fetchUnloadingPlaces() {
-      try {
-        const response = await fetch("http://localhost:8080/unload-places");
-        const places = await response.json();
-        
-        places.forEach(place => {
-          this.unloadingPlacesMap.set(place.id, place.name);
-        });
-      } catch (error) {
-        console.error("Ошибка при загрузке мест разгрузки:", error);
-      }
-    },
+    // Убираем загрузку unloadingPlacesMap, так как она больше не нужна
+    // (у нас есть прямое поле unload_place)
 
     async fetchData() {
       try {
@@ -321,62 +311,166 @@ export default {
     },
 
     async fetchCarsData() {
-      const response = await fetch("http://localhost:8080/applications/active-cars");
-      const applications = await response.json();
-      
-      if (this.unloadingPlacesMap.size === 0) {
-        await this.fetchUnloadingPlaces();
-      }
-      
-      // Получаем все машины с номером "По факту"
-      const factCars = applications.flatMap(application => 
-        application.cars
-          .filter(car => car.status !== 0)
-          .filter(car => {
-            const carNumber = car.car_number?.toLowerCase().trim();
-            return carNumber === 'по факту';
-          })
-          .map(car => ({
-            id: car.id,
-            organization: application.organization,
-            unload_places: car.unload_places || [],
-            entry_date_from: application.entry_date_from,
-            entry_date_to: application.entry_date_to,
-            entry_time_from: application.entry_time_from,
-            entry_time_to: application.entry_time_to,
-            status: 'В работе',
-            checked: false,
-            applicationId: application.id
-          }))
-      );
-
-      // Фильтруем по сроку действия
-      const now = new Date();
-      const validCars = factCars.filter(car => {
-        const startDate = new Date(car.entry_date_from);
-        const endDate = new Date(car.entry_date_to);
-        endDate.setHours(23, 59, 59, 999);
-        return startDate <= now && now <= endDate;
-      });
-
-      // Группируем по организации
-      const uniqueOrganizations = new Map();
-      validCars.forEach(car => {
-        if (!uniqueOrganizations.has(car.organization)) {
-          uniqueOrganizations.set(car.organization, car);
-        } else {
-          const existingCar = uniqueOrganizations.get(car.organization);
-          const combinedPlaces = [...new Set([...existingCar.unload_places, ...car.unload_places])];
-          existingCar.unload_places = combinedPlaces;
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/cars/active-for-tables", {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-      });
+        
+        const allCars = await response.json();
+        console.log('Получены все активные машины для FactTable:', allCars);
+        
+        // Фильтруем ТОЛЬКО машины с номером или маркой "по факту"
+        const factCars = allCars.filter(car => {
+            // Проверяем статус
+            if (car.status !== 1) {
+                console.log(`Машина ${car.id} не активна, статус: ${car.status}`);
+                return false;
+            }
+            
+            // Проверяем номер и марку машины (игнорируем регистр)
+            const carNumber = car.car_number?.toLowerCase().trim();
+            const carBrand = car.car_brand?.toLowerCase().trim();
+            
+            // Включаем ТОЛЬКО машины "по факту"
+            return carNumber === 'по факту' || carBrand === 'по факту';
+        });
+        
+        console.log('Машины "по факту" найдены:', factCars.length);
+        
+        // Фильтруем по сроку действия
+        const now = new Date();
+        const currentDateStr = now.toISOString().split('T')[0];
+        
+        const activeFactCars = factCars.filter(car => {
+            // Проверяем даты
+            if (car.entry_date_to) {
+                const entryDateTo = new Date(car.entry_date_to);
+                const today = new Date(currentDateStr);
+                
+                if (entryDateTo < today) {
+                    console.log(`Машина по факту ${car.id} просрочена: ${car.entry_date_to} < ${currentDateStr}`);
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+        
+        console.log('Активные машины по факту после фильтрации:', activeFactCars.length);
+        
+        // Группируем по организации
+        const uniqueOrganizations = new Map();
+        activeFactCars.forEach(car => {
+            const org = car.organization || 'Не указана';
+            if (!uniqueOrganizations.has(org)) {
+                // Первая машина этой организации
+                uniqueOrganizations.set(org, {
+                    ...car,
+                    // Для отладки: сохраняем также оригинальный номер
+                    original_car_number: car.car_number
+                });
+            } else {
+                // Если организация уже есть, можно объединить данные
+                // Например, добавить информацию о местах разгрузки, если они разные
+                const existingCar = uniqueOrganizations.get(org);
+                const currentPlace = car.unload_place || '-';
+                const existingPlace = existingCar.unload_place || '-';
+                
+                // Если места разгрузки разные и оба не пустые
+                if (currentPlace !== '-' && existingPlace !== '-' && currentPlace !== existingPlace) {
+                    // Объединяем места через запятую
+                    existingCar.unload_place = `${existingPlace}, ${currentPlace}`;
+                }
+            }
+        });
 
-      this.factData = Array.from(uniqueOrganizations.values());
+        this.factData = Array.from(uniqueOrganizations.values()).map(car => ({
+            id: car.id,
+            organization: car.organization || 'Не указана',
+            unload_place: car.unload_place || '-',
+            entry_date_to: car.entry_date_to || '',
+            entry_time_from: car.entry_time_from || '',
+            entry_time_to: car.entry_time_to || '',
+            status: 'В работе',
+            checked: false
+        }));
+        
+        console.log('Данные для отображения в FactTable:', this.factData);
+        
+      } catch (error) {
+        console.error("Ошибка при загрузке данных по факту:", error);
+        // Fallback на старый метод
+        await this.fetchCarsDataLegacy();
+      }
+    },
+    
+    async fetchCarsDataLegacy() {
+      try {
+        const response = await fetch("http://localhost:8080/applications/active-cars");
+        const applications = await response.json();
+        
+        // Получаем все машины с номером "По факту"
+        const factCars = applications.flatMap(application => 
+            application.cars
+                .filter(car => car.status === 1) // Только активные
+                .filter(car => {
+                    const carNumber = car.car_number?.toLowerCase().trim();
+                    return carNumber === 'по факту'; // Только машины "по факту"
+                })
+                .map(car => ({
+                    id: car.id,
+                    organization: application.organization,
+                    unload_place: car.unload_place || '-',
+                    entry_date_from: application.entry_date_from,
+                    entry_date_to: application.entry_date_to,
+                    entry_time_from: application.entry_time_from,
+                    entry_time_to: application.entry_time_to,
+                    status: 'В работе',
+                    checked: false,
+                    applicationId: application.id
+                }))
+        );
+
+        // Фильтруем по сроку действия
+        const now = new Date();
+        const validCars = factCars.filter(car => {
+            const startDate = new Date(car.entry_date_from);
+            const endDate = new Date(car.entry_date_to);
+            endDate.setHours(23, 59, 59, 999);
+            return startDate <= now && now <= endDate;
+        });
+
+        // Группируем по организации
+        const uniqueOrganizations = new Map();
+        validCars.forEach(car => {
+            if (!uniqueOrganizations.has(car.organization)) {
+                uniqueOrganizations.set(car.organization, car);
+            } else {
+                const existingCar = uniqueOrganizations.get(car.organization);
+                // Объединяем места разгрузки
+                if (car.unload_place && car.unload_place !== '-' && 
+                    existingCar.unload_place !== car.unload_place) {
+                    existingCar.unload_place = `${existingCar.unload_place}, ${car.unload_place}`;
+                }
+            }
+        });
+
+        this.factData = Array.from(uniqueOrganizations.values());
+      } catch (error) {
+        console.error("Ошибка при загрузке legacy данных:", error);
+      }
     },
 
     async fetchPeopleData() {
       // Заглушка для данных о людях
-      // В реальном приложении здесь будет запрос к API для получения данных о людях
       this.factData = [
         {
           id: 1,
@@ -423,30 +517,6 @@ export default {
 
     formatPassTime(passTime) {
       return passTime || '-';
-    },
-
-    formatUnloadPlaces(unloadPlaces) {
-      if (!unloadPlaces || unloadPlaces.length === 0) return '-';
-      
-      const placeNames = unloadPlaces
-        .map(place => {
-          if (typeof place === 'object' && place.unload_place_name) {
-            return place.unload_place_name;
-          }
-          if (this.unloadingPlacesMap.has(place)) {
-            return this.unloadingPlacesMap.get(place);
-          }
-          if (typeof place === 'object' && place.unload_place_id) {
-            return this.unloadingPlacesMap.get(place.unload_place_id) || `Место ${place.unload_place_id}`;
-          }
-          return null;
-        })
-        .filter(name => name);
-      
-      if (placeNames.length === 0) return '-';
-      if (placeNames.length === 1) return placeNames[0];
-      
-      return `${placeNames[0]} и др.`;
     },
     
     async deleteItem(item) {
@@ -505,16 +575,27 @@ export default {
       const [hours, minutes] = startTime.split(':').map(Number);
       
       return hours * 60 + minutes;
+    },
+    
+    // Вспомогательная функция для проверки "по факту"
+    isFactCar(car) {
+      if (!car) return false;
+      
+      const carNumber = car.car_number?.toLowerCase().trim();
+      const carBrand = car.car_brand?.toLowerCase().trim();
+      
+      // Проверяем разные варианты написания
+      const factVariants = ['по факту', 'по факту.', 'пофакту', 'факт'];
+      
+      return factVariants.some(variant => 
+          carNumber === variant || carBrand === variant ||
+          (carNumber && carNumber.includes(variant)) ||
+          (carBrand && carBrand.includes(variant))
+      );
     }
   },
   mounted() {
-    if (this.tableType === 'cars') {
-      this.fetchUnloadingPlaces().then(() => {
-        this.fetchData();
-      });
-    } else {
-      this.fetchData();
-    }
+    this.fetchData();
     
     setTimeout(() => {
       document.querySelectorAll('.fact-item').forEach(item => {
@@ -534,6 +615,7 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются без изменений */
 .fact-table-card {
   background-color: #fff;
   border-radius: 30px;

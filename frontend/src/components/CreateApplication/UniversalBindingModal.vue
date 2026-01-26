@@ -2,11 +2,10 @@
     <div class="modal-overlay" @click="$emit('close')">
         <div class="modal-content" @click.stop>
             <div class="modal-header">
-                <div class="modal-header__top">
-                    <h3>Привязка новых данных</h3>
-                </div>
+                <h3>Привязка новых данных</h3>
                 <button class="modal-close" @click="$emit('close')">×</button>
             </div>
+            
             <div class="modal-body">
                 <div class="binding-info">
                     <p class="binding-description">
@@ -17,19 +16,19 @@
                     <!-- Секция для новых автомобилей -->
                     <div v-if="newVehiclesToBind.length > 0" class="data-section vehicles-section">
                         <div class="section-header">
-                            <h4 class="section-title">Новые автомобили ({{ newVehiclesToBind.length }})</h4>
+                            <h4>Новые автомобили ({{ newVehiclesToBind.length }})</h4>
                         </div>
                         
-                        <div class="vehicles-list">
+                        <div class="items-list">
                             <div 
                                 v-for="vehicle in newVehiclesToBind" 
                                 :key="vehicle.id"
-                                class="vehicle-item"
-                                :class="{ 'vehicle-item--fact': isVehicleByFact(vehicle) }"
+                                class="item vehicle-item"
+                                :class="{ 'item-fact': isVehicleByFact(vehicle) }"
                             >
-                                <div class="vehicle-info">
-                                    <span class="vehicle-number">{{ vehicle.plateNumber }}</span>
-                                    <span class="vehicle-mark">{{ vehicle.mark }}</span>
+                                <div class="item-info">
+                                    <span class="item-number">{{ vehicle.plateNumber }}</span>
+                                    <span class="item-detail">{{ vehicle.mark }}</span>
                                     <span v-if="isVehicleByFact(vehicle)" class="fact-badge">По факту</span>
                                 </div>
                             </div>
@@ -42,41 +41,39 @@
                                     <input 
                                         type="checkbox" 
                                         v-model="vehiclesBindToOrganization"
-                                        :disabled="!hasVehiclesForBinding"
                                     />
-                                    <span class="option-text">Организации "{{ organization }}"</span>
+                                    <span>Организации "{{ organization }}"</span>
                                 </label>
                                 <label class="binding-option" v-if="hasCompany">
                                     <input 
                                         type="checkbox" 
                                         v-model="vehiclesBindToCompany"
-                                        :disabled="!hasVehiclesForBinding"
                                     />
-                                    <span class="option-text">Компании "{{ company }}"</span>
+                                    <span>Компании "{{ company }}"</span>
                                 </label>
                             </div>
-                            <div v-if="!hasVehiclesForBinding" class="no-binding-message">
-                                Автомобили "По факту" не требуют привязки к организации/компании
-                            </div>
+                        </div>
+                        <div v-else class="no-binding-message">
+                            Автомобили "По факту" не требуют привязки к организации/компании
                         </div>
                     </div>
                     
                     <!-- Секция для новых сотрудников -->
                     <div v-if="newEmployeesToBind.length > 0" class="data-section employees-section">
                         <div class="section-header">
-                            <h4 class="section-title">Новые сотрудники ({{ newEmployeesToBind.length }})</h4>
+                            <h4>Новые сотрудники ({{ newEmployeesToBind.length }})</h4>
                         </div>
                         
-                        <div class="employees-list">
+                        <div class="items-list">
                             <div 
                                 v-for="employee in newEmployeesToBind" 
                                 :key="employee.id"
-                                class="employee-item"
-                                :class="{ 'employee-item--fact': isEmployeeByFact(employee) }"
+                                class="item employee-item"
+                                :class="{ 'item-fact': isEmployeeByFact(employee) }"
                             >
-                                <div class="employee-info">
-                                    <span class="employee-name">{{ formatFullName(employee) }}</span>
-                                    <span class="employee-position">{{ employee.position }}</span>
+                                <div class="item-info">
+                                    <span class="item-name">{{ formatFullName(employee) }}</span>
+                                    <span class="item-detail">{{ employee.position }}</span>
                                     <span v-if="isEmployeeByFact(employee)" class="fact-badge">По факту</span>
                                 </div>
                             </div>
@@ -89,35 +86,33 @@
                                     <input 
                                         type="checkbox" 
                                         v-model="employeesBindToOrganization"
-                                        :disabled="!hasEmployeesForBinding"
                                     />
-                                    <span class="option-text">Организации "{{ organization }}"</span>
+                                    <span>Организации "{{ organization }}"</span>
                                 </label>
                                 <label class="binding-option" v-if="hasCompany">
                                     <input 
                                         type="checkbox" 
                                         v-model="employeesBindToCompany"
-                                        :disabled="!hasEmployeesForBinding"
                                     />
-                                    <span class="option-text">Компании "{{ company }}"</span>
+                                    <span>Компании "{{ company }}"</span>
                                 </label>
                             </div>
-                            <div v-if="!hasEmployeesForBinding" class="no-binding-message">
-                                Все сотрудники имеют поля "По факту" и не требуют привязки
-                            </div>
+                        </div>
+                        <div v-else class="no-binding-message">
+                            Сотрудники "По факту" не требуют привязки к организации/компании
                         </div>
                     </div>
 
                     <div class="warning-section">
                         <p class="warning-text">
-                            <strong class="red">Внимание!</strong> При привязке данных к организации или компании, они будут доступны для отображения и использования для всех сотрудников, привязанных к организации/компании.
+                            <strong class="warning-strong">Внимание!</strong> При привязке данных к организации или компании, они будут доступны для отображения и использования для <strong>всех</strong> сотрудников, которые в них числятся.
                         </p>
                     </div>
                 </div>
                 
                 <div class="modal-actions">
-                    <button class="skip-btn" @click="handleSkip">Пропустить и отправить</button>
-                    <button class="confirm-btn" @click="handleConfirm">
+                    <button class="btn skip-btn" @click="handleSkip">Отправить без привязки</button>
+                    <button class="btn confirm-btn" @click="handleConfirm">
                         {{ buttonText }}
                     </button>
                 </div>
@@ -172,16 +167,14 @@ export default {
             if (hasAnyBinding) {
                 return 'Привязать и отправить';
             } else {
-                return 'Отправить без привязки';
+                return 'Отправить заявку';
             }
         },
         
-        // Проверяем, есть ли автомобили для привязки (не "По факту")
         hasVehiclesForBinding() {
             return this.newVehiclesToBind.some(vehicle => !this.isVehicleByFact(vehicle));
         },
         
-        // Проверяем, есть ли сотрудники для привязки (не "По факту")
         hasEmployeesForBinding() {
             return this.newEmployeesToBind.some(employee => !this.isEmployeeByFact(employee));
         }
@@ -195,19 +188,16 @@ export default {
             return parts.join(' ') || 'Не указано';
         },
         
-        // Проверка, является ли автомобиль "По факту"
         isVehicleByFact(vehicle) {
             return vehicle.plateNumber === 'По факту' || vehicle.mark === 'По факту';
         },
         
-        // Проверка, является ли сотрудник "По факту"
         isEmployeeByFact(employee) {
             return employee.passportSeriesNumber === 'По факту' || 
                    employee.position === 'По факту';
         },
         
         handleConfirm() {
-            // Отправляем данные о привязке раздельно для автомобилей и сотрудников
             this.$emit('confirm-binding', {
                 vehicles: {
                     bindToOrganization: this.vehiclesBindToOrganization,
@@ -223,6 +213,7 @@ export default {
         },
         
         handleSkip() {
+            // Кнопка "Отправить без привязки" - отправляет данные без привязки к организации/компании
             this.$emit('skip-binding');
         }
     }
@@ -230,7 +221,6 @@ export default {
 </script>
 
 <style scoped>
-/* Модальное окно привязки */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -248,47 +238,41 @@ export default {
     background: white;
     border-radius: 20px;
     padding: 0;
-    width: 550px;
+    width: 540px;
     max-width: 90vw;
-    max-height: 700px;
+    max-height: 80vh;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 15px 20px;
-    border-bottom: 1px solid #e6e6e6;
-}
-
-.modal-header__top {
-    display: flex;
     align-items: center;
-    justify-content: space-between;
-    flex: 1;
-    height: 25px;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e8e8e8;
 }
 
 .modal-header h3 {
     margin: 0;
-    color: #333;
     font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
 }
 
 .modal-close {
     background: none;
     border: none;
     font-size: 24px;
+    line-height: 1;
     cursor: pointer;
-    color: #a2a2a2;
+    color: #666;
     padding: 0;
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: 10px;
 }
 
 .modal-close:hover {
@@ -297,7 +281,7 @@ export default {
 
 .modal-body {
     padding: 20px;
-    max-height: 600px;
+    max-height: calc(80vh - 60px);
     overflow-y: auto;
 }
 
@@ -308,189 +292,145 @@ export default {
 .binding-description {
     font-size: 14px;
     line-height: 1.5;
-    color: #666;
-    margin-bottom: 25px;
-    text-align: left;
-    padding-bottom: 15px;
+    color: #595959;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
     border-bottom: 1px solid #f0f0f0;
 }
 
-/* Общие стили для секций */
+.binding-description strong {
+    color: #1a1a1a;
+    font-weight: 600;
+}
+
 .data-section {
-    margin-bottom: 25px;
-    padding-bottom: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
     border-bottom: 1px solid #f0f0f0;
 }
 
 .data-section:last-of-type {
     border-bottom: none;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     padding-bottom: 0;
 }
 
 .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
-.section-title {
+.section-header h4 {
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: #1a1a1a;
     margin: 0;
 }
 
-/* Стили для списков */
-.vehicles-list,
-.employees-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 150px;
-    overflow-y: auto;
-    padding-right: 5px;
-    margin-bottom: 20px;
-}
-
-.vehicle-item,
-.employee-item {
-    padding: 12px 15px;
-    border: 1px solid #e6e6e6;
-    border-radius: 15px;
-    background: #f8f9fa;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.vehicle-item:hover,
-.employee-item:hover {
-    border-color: #4F5BDF;
-    background: #f0f2ff;
-}
-
-/* Стили для автомобилей */
-.vehicles-section .section-title {
+.vehicles-section .section-header h4 {
     color: #4F5BDF;
     border-left: 4px solid #4F5BDF;
     padding-left: 10px;
 }
 
-.vehicles-section .vehicle-item {
-    border-left: 3px solid #4F5BDF;
-}
-
-.vehicle-info {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.vehicle-number {
-    font-weight: 600;
-    color: #333;
-    font-size: 14px;
-    min-width: 100px;
-}
-
-.vehicle-mark {
-    color: #666;
-    font-size: 13px;
-    background: #e8e8e8;
-    padding: 4px 10px;
-    border-radius: 12px;
-}
-
-/* Стили для сотрудников */
-.employees-section .section-title {
+.employees-section .section-header h4 {
     color: #2e7d32;
     border-left: 4px solid #2e7d32;
     padding-left: 10px;
 }
 
-.employees-section .employee-item {
+.items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    padding-right: 4px;
+}
+
+.item {
+    padding: 10px 14px;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+.vehicle-item {
+    border-left: 3px solid #4F5BDF;
+}
+
+.employee-item {
     border-left: 3px solid #2e7d32;
 }
 
-.employee-info {
+.item-fact {
+    background: #fff8e6;
+    border-color: #ffc107;
+}
+
+.item-info {
     display: flex;
     align-items: center;
-    gap: 15px;
-}
-
-.employee-name {
-    font-weight: 600;
-    color: #333;
+    gap: 12px;
     font-size: 14px;
-    min-width: 150px;
 }
 
-.employee-position {
-    color: #666;
+.item-number,
+.item-name {
+    font-weight: 600;
+    color: #1a1a1a;
+    min-width: 120px;
+}
+
+.item-detail {
+    color: #595959;
+    background: #f0f0f0;
+    padding: 3px 8px;
+    border-radius: 6px;
     font-size: 13px;
-    background: #e8e8e8;
-    padding: 4px 10px;
-    border-radius: 12px;
 }
 
-/* Стили для "По факту" */
 .fact-badge {
     background: #ff9800;
     color: white;
     font-size: 11px;
+    font-weight: 500;
     padding: 3px 8px;
     border-radius: 10px;
-    font-weight: 500;
     margin-left: auto;
 }
 
-.vehicle-item--fact,
-.employee-item--fact {
-    background: #fff3e0;
-    border-color: #ff9800;
-}
-
-.vehicle-item--fact:hover,
-.employee-item--fact:hover {
-    background: #ffe0b2;
-    border-color: #f57c00;
-}
-
-/* Стили для опций привязки */
 .binding-options-section {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #e6e6e6;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
 }
 
 .options-title {
     font-size: 14px;
     font-weight: 600;
-    color: #333;
-    margin-bottom: 12px;
+    color: #1a1a1a;
+    margin-bottom: 10px;
 }
 
 .binding-options {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .binding-option {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
     font-size: 14px;
-    padding: 8px 0;
-    transition: all 0.2s;
+    padding: 6px;
+    border-radius: 6px;
 }
 
-.binding-option:hover:not(:has(input:disabled)) {
+.binding-option:hover {
     background-color: #f8f9fa;
-    padding: 8px 10px;
-    border-radius: 8px;
 }
 
 .binding-option input[type="checkbox"] {
@@ -500,17 +440,8 @@ export default {
     accent-color: #4F5BDF;
 }
 
-.binding-option input[type="checkbox"]:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-}
-
-.option-text {
-    color: #333;
-}
-
-.binding-option input[type="checkbox"]:disabled + .option-text {
-    color: #999;
+.binding-option span {
+    color: #1a1a1a;
 }
 
 .no-binding-message {
@@ -519,112 +450,107 @@ export default {
     font-style: italic;
     margin-top: 10px;
     padding: 8px;
-    background: #f5f5f5;
-    border-radius: 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
     border-left: 3px solid #ff9800;
 }
 
 .warning-section {
-    margin-top: 20px;
-    padding: 15px;
+    margin-top: 16px;
+    padding: 12px;
     background: #fff5f5;
-    border-radius: 12px;
-    border: 1px solid #ffcccc;
+    border-radius: 8px;
+    border: 1px solid #ffcdd2;
 }
 
 .warning-text {
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.5;
     color: #666;
     margin: 0;
-    text-align: left;
+}
+
+.warning-strong {
+    color: #d32f2f;
 }
 
 .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
-    padding-top: 20px;
-    border-top: 1px solid #e6e6e6;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.2s;
+    min-width: 140px;
 }
 
 .skip-btn {
     background: white;
-    color: #666;
-    border: 1px solid #e6e6e6;
-    border-radius: 12px;
-    padding: 12px 24px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 120px;
+    color: #595959;
+    border-color: #d9d9d9;
 }
 
 .skip-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
+    background: #fafafa;
+    border-color: #bfbfbf;
+    color: #1a1a1a;
 }
 
 .confirm-btn {
     background: #4F5BDF;
     color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 12px 30px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    min-width: 180px;
+    border-color: #4F5BDF;
 }
 
 .confirm-btn:hover {
     background: #3a45c0;
-}
-
-.blue {
-    color: #4F5BDF;
-}
-
-.red {
-    color: #ff4444;
+    border-color: #3a45c0;
 }
 
 @media (max-width: 768px) {
     .modal-content {
         width: 95vw;
-        margin: 10px;
-        max-height: 500px;
+        margin: 16px;
+        max-height: 85vh;
     }
     
     .modal-body {
-        max-height: 400px;
+        max-height: calc(85vh - 60px);
+        padding: 16px;
     }
     
     .modal-actions {
         flex-direction: column;
     }
     
-    .skip-btn,
-    .confirm-btn {
+    .btn {
         width: 100%;
         min-width: auto;
     }
     
-    .vehicle-info,
-    .employee-info {
+    .item-info {
         flex-direction: column;
         align-items: flex-start;
-        gap: 5px;
+        gap: 6px;
     }
     
-    .vehicle-number,
-    .employee-name {
+    .item-number,
+    .item-name {
         min-width: auto;
     }
     
     .fact-badge {
         margin-left: 0;
-        margin-top: 5px;
+        align-self: flex-start;
     }
 }
 </style>

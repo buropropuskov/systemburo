@@ -163,16 +163,16 @@
             
             <!-- Основная таблица -->
             <SelectedTable 
-                :table-type="currentTable?.table_type"
-                :table-name="currentTable?.name"
-                :search-query="searchQuery"
-                :selected-organization="selectedOrganization"
-                :selected-unloading-place="selectedUnloadingPlace"
-                :date-range-start="dateRangeStart"
-                :date-range-end="dateRangeEnd"
-                :selected-date="selectedDate"
-                @refresh-data="refreshData"
-            />
+    :table-type="currentTable?.table_type"  
+    :table-name="currentTable?.name"     
+    :search-query="searchQuery"
+    :selected-organization="selectedOrganization"
+    :selected-unloading-place="selectedUnloadingPlace"
+    :date-range-start="dateRangeStart"
+    :date-range-end="dateRangeEnd"
+    :selected-date="selectedDate"
+    @refresh-data="refreshData"
+/>
         </div>
     </div>
 </template>

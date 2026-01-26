@@ -1,5 +1,6 @@
 // routes.rs
 use actix_web::web;
+
 use crate::handlers::auth::*;
 use crate::handlers::applications::*;
 use crate::handlers::companies::*;
@@ -13,6 +14,8 @@ use crate::handlers::unique_employees::*;
 use crate::handlers::table_constructor::*;
 use crate::handlers::citizenship::*;
 use crate::handlers::unique_attachments::*;
+use crate::handlers::cars::*;
+use crate::handlers::employees::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -46,6 +49,20 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/responsible-users", web::get().to(get_application_responsible_users))
                 .route("/{id}/details", web::get().to(get_application_details))
                 .route("/{id}/attachments", web::get().to(get_application_attachments))
+                .route("/{id}/update-items-status", web::post().to(update_application_items_status))
+        )
+
+        // Машины
+        .service(
+            web::scope("/cars")
+                .route("/active-for-tables", web::get().to(get_active_cars_for_tables))
+                .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
+        )
+
+        // Сотрудники
+        .service(
+            web::scope("/employees")
+                .route("/active-for-table/{table_id}", web::get().to(get_active_employees_for_table))
         )
 
         // Уникальные машины
@@ -138,7 +155,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         .service(web::resource("/users/{username}").route(web::delete().to(delete_user))
         )
-        // Получение текущего пользователя - исправлено, используем существующий эндпоинт
+        // Получение текущего пользователя
         .service(web::resource("/users/current").route(web::get().to(get_current_user)))
 
         // Форматы номеров

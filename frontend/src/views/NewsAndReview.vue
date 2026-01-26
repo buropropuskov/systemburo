@@ -102,20 +102,9 @@ export default {
     border: 1px solid #E6E6E6;
     box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
     border-radius: 30px;
-    padding: 30px 20px;
+    padding: 15px;
     position: relative;
     overflow: hidden;
-}
-
-.news-container::after {
-    content: '';
-    position: absolute;
-    width: 10px;
-    height: 60px;
-    right: -5px;
-    top: 40px;
-    background: #D9E2FF;
-    border-radius: 50px;
 }
 
 .news-header {
