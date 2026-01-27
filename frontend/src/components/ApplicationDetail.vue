@@ -1,12 +1,20 @@
 <template>
     <div class="application-detail-overlay" @click.self="closeApplicationDetail">
+        <!-- Уведомление -->
+        <div v-if="notification.show" class="notification" :class="notification.type">
+            {{ notification.message }}
+        </div>
+
         <div class="application-detail">
             <!-- Заголовок и кнопки -->
             <div class="detail-header">
                 <div class="detail-header-left">
                     <div class="detail-title-row">
                         <h3 class="detail-title">Заявка {{ application.application_number }}</h3>
-                        <div class="detail-datetime">{{ formatDateTime(application.sending_datetime) }}</div>
+                        <div class="detail-datetime">
+                            {{ formatDateTime(application.sending_datetime) }}
+                            <span class="weekday">{{ getWeekday(application.sending_datetime) }}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="detail-header-right">
@@ -17,14 +25,16 @@
                             @click="updateConfirmation('Согласовано')"
                             :disabled="updatingConfirmation"
                         >
-                            Согласовать
+                            <span v-if="updatingConfirmation" class="button-loading"></span>
+                            <span v-else>Согласовать</span>
                         </button>
                         <button 
                             class="reject-btn" 
                             @click="updateConfirmation('Не согласовано')"
                             :disabled="updatingConfirmation"
                         >
-                            Отказать
+                            <span v-if="updatingConfirmation" class="button-loading"></span>
+                            <span v-else>Отказать</span>
                         </button>
                     </div>
                     <button class="close-detail-btn" @click="close">×</button>
@@ -55,107 +65,121 @@
 
                     <!-- Детали выбранного вложения -->
                     <div v-if="selectedAttachment" class="attachment-details">
-                        <h4>{{ selectedAttachment.attachment_display_name }}</h4>
-                        
-                        <!-- Даты действия -->
-                        <div v-if="selectedAttachment.entry_date_from || selectedAttachment.entry_date_to" class="date-range">
-                            <span class="date-label">Срок действия:</span>
-                            <span class="date-value">
-                                {{ formatDate(selectedAttachment.entry_date_from) }}
-                                <span v-if="selectedAttachment.entry_date_to"> - {{ formatDate(selectedAttachment.entry_date_to) }}</span>
-                            </span>
-                        </div>
-
-                        <!-- Время действия -->
-                        <div v-if="selectedAttachment.entry_time_from || selectedAttachment.entry_time_to" class="time-range">
-                            <span class="time-label">Время:</span>
-                            <span class="time-value">
-                                {{ selectedAttachment.entry_time_from }}
-                                <span v-if="selectedAttachment.entry_time_to"> - {{ selectedAttachment.entry_time_to }}</span>
-                            </span>
-                        </div>
-
-                        <!-- Данные вложения в зависимости от типа -->
-                        <div class="attachment-data">
-                            <!-- Автомобили -->
-                            <div v-if="selectedAttachment.attachment_type === 'cars'" class="cars-section">
-                                <h5>Список автомобилей</h5>
-                                <div v-if="loadingAttachmentDetails" class="loading-container">
-                                    <div class="loading-spinner"></div>
-                                    <span class="loading-text">Загрузка автомобилей...</span>
-                                </div>
-                                <div v-else-if="attachmentCars.length > 0" class="cars-list">
-                                    <div v-for="car in attachmentCars" :key="car.id" class="car-item">
-                                        <div class="car-item-content">
-                                            <div class="car-main-info">
-                                                <span class="car-number">{{ car.car_number }}</span>
-                                                <span class="car-brand">{{ car.car_brand }}</span>
-                                            </div>
-                                            <!-- Места разгрузки -->
-                                            <div v-if="car.unload_places && car.unload_places.length > 0" 
-                                                class="unload-places-container"
-                                                :title="getFullPlacesList(car.unload_places)"
-                                            >
-                                                <span class="places-list">
-                                                    {{ getTruncatedPlacesList(car.unload_places) }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div v-else class="no-data">
-                                    Нет данных об автомобилях
-                                </div>
+                        <div class="attachment-header-section">
+                            <h4>{{ selectedAttachment.attachment_display_name }}</h4>
+                            
+                            <!-- Даты действия -->
+                            <div v-if="selectedAttachment.entry_date_from || selectedAttachment.entry_date_to" class="date-range">
+                                <span class="date-label">Срок действия:</span>
+                                <span class="date-value">
+                                    {{ formatDateRange(selectedAttachment.entry_date_from, selectedAttachment.entry_date_to) }}
+                                </span>
                             </div>
 
-                            <!-- Сотрудники -->
-                            <div v-if="selectedAttachment.attachment_type === 'people'" class="employees-section">
-                                <h5>Сотрудники</h5>
-                                <div v-if="loadingAttachmentDetails" class="loading-container">
-                                    <div class="loading-spinner"></div>
-                                    <span class="loading-text">Загрузка сотрудников...</span>
-                                </div>
-                                <div v-else-if="attachmentEmployees.length > 0" class="employees-list">
-                                    <div v-for="employee in attachmentEmployees" :key="employee.id" class="employee-item">
-                                        <div class="employee-item-content">
-                                            <div class="employee-main-info">
-                                                <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
-                                                <span class="employee-position">{{ employee.position }}</span>
-                                            </div>
-                                            <!-- Целевые таблицы -->
-                                            <div v-if="employee.target_tables && employee.target_tables.length > 0" 
-                                                class="target-tables-container"
-                                                :title="getFullTablesList(employee.target_tables)"
-                                            >
-                                                <span class="tables-list">
-                                                    {{ getTruncatedTablesList(employee.target_tables) }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div v-else class="no-data">
-                                    Нет данных о сотрудниках
-                                </div>
+                            <!-- Время действия -->
+                            <div v-if="selectedAttachment.entry_time_from || selectedAttachment.entry_time_to" class="time-range">
+                                <span class="time-label">Время:</span>
+                                <span class="time-value">
+                                    {{ formatTimeRange(selectedAttachment.entry_time_from, selectedAttachment.entry_time_to) }}
+                                </span>
                             </div>
+                        </div>
 
-                            <!-- ТМЦ -->
-                            <div v-if="selectedAttachment.attachment_type === 'items'" class="items-section">
-                                <h5>Товарно-материальные ценности</h5>
-                                <div v-if="loadingAttachmentDetails" class="loading-container">
-                                    <div class="loading-spinner"></div>
-                                    <span class="loading-text">Загрузка ТМЦ...</span>
-                                </div>
-                                <div v-else-if="attachmentItems.length > 0" class="items-list">
-                                    <div v-for="item in attachmentItems" :key="item.id" class="item-item">
-                                        <div class="item-item-content">
-                                            <span class="item-name">{{ item.name }}</span>
-                                            <span class="item-count">Количество: {{ item.count }}</span>
+                        <div class="attachment-data-section">
+                            <!-- Данные вложения в зависимости от типа -->
+                            <div class="attachment-data">
+                                <!-- Автомобили -->
+                                <div v-if="selectedAttachment.attachment_type === 'cars'" class="cars-section">
+                                    <h5>Список автомобилей ({{ attachmentCars.length }})</h5>
+                                    <div v-if="loadingAttachmentDetails" class="loading-container">
+                                        <div class="loading-spinner"></div>
+                                        <span class="loading-text">Загрузка автомобилей...</span>
+                                    </div>
+                                    <div v-else-if="attachmentCars.length > 0" class="cars-list">
+                                        <div v-for="(car, index) in attachmentCars" :key="car.id" class="car-item">
+                                            <div class="car-item-content">
+                                                <!-- Номер порядковый -->
+                                                <div class="item-number">
+                                                    {{ index + 1 }}.
+                                                </div>
+                                                <div class="car-main-info">
+                                                    <span class="car-number">{{ car.car_number }}</span>
+                                                    <span class="car-brand">{{ car.car_brand }}</span>
+                                                </div>
+                                                <!-- Места разгрузки -->
+                                                <div v-if="car.unload_places && car.unload_places.length > 0" 
+                                                    class="unload-places-container"
+                                                    :title="getFullPlacesList(car.unload_places)"
+                                                >
+                                                    <span class="places-list">
+                                                        {{ getTruncatedPlacesList(car.unload_places) }}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div v-else class="no-data">
+                                        Нет данных об автомобилях
+                                    </div>
                                 </div>
-                                <div v-else class="no-data">
-                                    Нет данных о ТМЦ
+
+                                <!-- Сотрудники -->
+                                <div v-if="selectedAttachment.attachment_type === 'people'" class="employees-section">
+                                    <h5>Сотрудники ({{ attachmentEmployees.length }})</h5>
+                                    <div v-if="loadingAttachmentDetails" class="loading-container">
+                                        <div class="loading-spinner"></div>
+                                        <span class="loading-text">Загрузка сотрудников...</span>
+                                    </div>
+                                    <div v-else-if="attachmentEmployees.length > 0" class="employees-list">
+                                        <div v-for="(employee, index) in attachmentEmployees" :key="employee.id" class="employee-item">
+                                            <div class="employee-item-content">
+                                                <!-- Номер порядковый -->
+                                                <div class="item-number">
+                                                    {{ index + 1 }}.
+                                                </div>
+                                                <div class="employee-main-info">
+                                                    <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
+                                                    <span class="employee-position">{{ employee.position }}</span>
+                                                </div>
+                                                <!-- Целевые таблицы -->
+                                                <div v-if="employee.target_tables && employee.target_tables.length > 0" 
+                                                    class="target-tables-container"
+                                                    :title="getFullTablesList(employee.target_tables)"
+                                                >
+                                                    <span class="tables-list">
+                                                        {{ getTruncatedTablesList(employee.target_tables) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else class="no-data">
+                                        Нет данных о сотрудниках
+                                    </div>
+                                </div>
+
+                                <!-- ТМЦ -->
+                                <div v-if="selectedAttachment.attachment_type === 'items'" class="items-section">
+                                    <h5>Товарно-материальные ценности ({{ attachmentItems.length }})</h5>
+                                    <div v-if="loadingAttachmentDetails" class="loading-container">
+                                        <div class="loading-spinner"></div>
+                                        <span class="loading-text">Загрузка ТМЦ...</span>
+                                    </div>
+                                    <div v-else-if="attachmentItems.length > 0" class="items-list">
+                                        <div v-for="(item, index) in attachmentItems" :key="item.id" class="item-item">
+                                            <div class="item-item-content">
+                                                <!-- Номер порядковый -->
+                                                <div class="item-number">
+                                                    {{ index + 1 }}.
+                                                </div>
+                                                <span class="item-name">{{ item.name }}</span>
+                                                <span class="item-count">Количество: {{ item.count }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else class="no-data">
+                                        Нет данных о ТМЦ
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -187,6 +211,9 @@
                     <div class="confirmation-section">
                         <div class="confirmation-header">
                             <h4>Согласование заявки</h4>
+                            <div v-if="updatingConfirmation" class="confirmation-loading">
+                                <div class="loader"></div>
+                            </div>
                         </div>
                         <div class="confirmation-info">
                             <div class="confirmation-status-row">
@@ -204,19 +231,27 @@
                             <!-- Время согласования (отображается только при согласовании/отказе) -->
                             <div v-if="application.confirmation !== 'Согласование' && application.confirmation_datetime" class="confirmation-info-row">
                                 <span class="confirmation-label">Время:</span>
-                                <span class="confirmation-value">{{ formatTime(application.confirmation_datetime) }}</span>
+                                <span class="confirmation-value">
+                                    {{ formatDateTimeFull(application.confirmation_datetime) }}
+                                </span>
                             </div>
                         </div>
 
                         <!-- Ответственные пользователи -->
                         <div v-if="responsibleUsers.length > 0" class="responsible-users-section">
-                            <h5>Ответственные за согласование:</h5>
+                            <h5>Ответственные за согласование ({{ responsibleUsers.length }}):</h5>
                             <div class="users-list">
-                                <div v-for="user in responsibleUsers" :key="user.id" class="user-item">
+                                <div v-for="(user, index) in responsibleUsers" :key="user.id" class="user-item">
                                     <div class="user-info">
-                                        <span class="user-name">{{ user.last_name }} {{ user.first_name }} {{ user.middle_name || '' }}</span>
-                                        <span v-if="user.position" class="user-position">{{ user.position }}</span>
-                                        <span v-if="user.phone" class="user-phone">{{ formatPhone(user.phone) }}</span>
+                                        <!-- Номер порядковый для ответственных -->
+                                        <div class="user-number">
+                                            {{ index + 1 }}.
+                                        </div>
+                                        <div class="user-details">
+                                            <span class="user-name">{{ user.last_name }} {{ user.first_name }} {{ user.middle_name || '' }}</span>
+                                            <span v-if="user.position" class="user-position">{{ user.position }}</span>
+                                            <span v-if="user.phone" class="user-phone">{{ formatPhone(user.phone) }}</span>
+                                        </div>
                                     </div>
                                     <span v-if="user.is_primary" class="primary-badge">Основной</span>
                                 </div>
@@ -270,7 +305,12 @@ export default {
             updatingConfirmation: false,
             loadingAttachmentDetails: false,
             loadingApplicationDetails: false,
-            isLeftColumnCollapsed: false
+            isLeftColumnCollapsed: false,
+            notification: {
+                show: false,
+                message: '',
+                type: 'success' // 'success' или 'error'
+            }
         }
     },
     computed: {
@@ -313,7 +353,7 @@ export default {
                     }
                 }
 
-                // Загружаем вложения
+                // Загружаем вложения (теперь с информацией о unique_attachments)
                 const attachmentsResponse = await fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
                     method: "GET",
                     headers: {
@@ -461,7 +501,9 @@ export default {
                         status: newStatus,
                         responsible_comment: confirmation === 'Согласовано' ? 
                             `Заявка согласована пользователем ${this.currentUserName}` : 
-                            `Заявка отклонена пользователем ${this.currentUserName}`
+                            `Заявка отклонена пользователем ${this.currentUserName}`,
+                        responsible_name: this.currentUserName,
+                        confirmation_datetime: new Date().toISOString()
                     })
                 });
 
@@ -489,21 +531,40 @@ export default {
                     });
                     
                     // Показываем уведомление
-                    const message = confirmation === 'Согласовано' ? 
-                        'Заявка успешно согласована! Статусы машин и сотрудников обновлены.' : 
-                        'Заявка отклонена!';
-                    alert(message);
+                    this.showNotification(
+                        confirmation === 'Согласовано' 
+                            ? 'Заявка согласована'
+                            : 'Заявка отклонена',
+                        confirmation === 'Согласовано' ? 'success' : 'error'
+                    );
                 } else {
                     const errorText = await response.text();
                     console.error("Ошибка при обновлении подтверждения:", errorText);
-                    alert(`Ошибка: ${errorText}`);
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
                 }
             } catch (error) {
                 console.error("Ошибка сети при обновлении подтверждения:", error);
-                alert("Ошибка сети при обновлении статуса");
+                this.showNotification("Ошибка сети при обновлении статуса", 'error');
             } finally {
                 this.updatingConfirmation = false;
             }
+        },
+
+        showNotification(message, type = 'success') {
+            this.notification = {
+                show: true,
+                message,
+                type
+            };
+            
+            // Автоматически скрыть уведомление через 3 секунды
+            setTimeout(() => {
+                this.hideNotification();
+            }, 6000);
+        },
+
+        hideNotification() {
+            this.notification.show = false;
         },
 
         formatDate(date) {
@@ -518,6 +579,54 @@ export default {
             });
         },
 
+        formatDateRange(dateFrom, dateTo) {
+            if (!dateFrom && !dateTo) return '';
+            
+            const from = dateFrom ? this.formatDate(dateFrom) : '';
+            const to = dateTo ? this.formatDate(dateTo) : '';
+            
+            if (from && to) {
+                // Если даты одинаковые, показываем только одну
+                const fromDate = new Date(dateFrom);
+                const toDate = new Date(dateTo);
+                if (fromDate.toDateString() === toDate.toDateString()) {
+                    return from;
+                }
+                return `${from} - ${to}`;
+            } else if (from) {
+                return `с ${from}`;
+            } else if (to) {
+                return `по ${to}`;
+            }
+            return '';
+        },
+
+        formatTime(time) {
+            if (!time) return '';
+            // Убираем секунды, если они есть
+            const timeParts = time.split(':');
+            if (timeParts.length >= 2) {
+                return `${timeParts[0]}:${timeParts[1]}`;
+            }
+            return time;
+        },
+
+        formatTimeRange(timeFrom, timeTo) {
+            if (!timeFrom && !timeTo) return '';
+            
+            const from = timeFrom ? this.formatTime(timeFrom) : '';
+            const to = timeTo ? this.formatTime(timeTo) : '';
+            
+            if (from && to) {
+                return `${from} - ${to}`;
+            } else if (from) {
+                return `с ${from}`;
+            } else if (to) {
+                return `до ${to}`;
+            }
+            return '';
+        },
+
         formatDateTime(dateTimeString) {
             if (!dateTimeString) return '';
             const date = new Date(dateTimeString);
@@ -530,14 +639,32 @@ export default {
             });
         },
 
-        formatTime(dateTimeString) {
+        formatDateTimeFull(dateTimeString) {
+            if (!dateTimeString) return '';
+            const date = new Date(dateTimeString);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+
+        formatTimeOnly(dateTimeString) {
             if (!dateTimeString) return '';
             const date = new Date(dateTimeString);
             return date.toLocaleTimeString('ru-RU', {
                 hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
+                minute: '2-digit'
             });
+        },
+
+        getWeekday(dateTimeString) {
+            if (!dateTimeString) return '';
+            const date = new Date(dateTimeString);
+            const weekdays = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+            return weekdays[date.getDay()];
         },
 
         formatPhone(phone) {
@@ -599,6 +726,61 @@ export default {
     }
 }
 
+/* Стили для уведомлений */
+.notification {
+    position: fixed;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 8px;
+    border-radius: 50px;
+    z-index: 2000;
+    min-width: 180px;
+    width: 180px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    animation: slideInDown 0.3s ease-out, slideOutUp 0.3s ease-out 2.7s forwards;
+}
+
+.notification.success {
+    background: #4CAF50;
+    color: white;
+    border: 1px solid #45a049;
+}
+
+.notification.error {
+    background: #f44336;
+    color: white;
+    border: 1px solid #d32f2f;
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translate(-50%, -100%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutUp {
+    from {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+    to {
+        transform: translate(-50%, -100%);
+        opacity: 0;
+    }
+}
+
 .application-detail {
     background: white;
     border-radius: 30px;
@@ -655,10 +837,18 @@ export default {
 }
 
 .detail-datetime {
-    font-size: 16px;
+    font-size: 15px;
     color: #a2a2a2;
     line-height: 1.2;
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.weekday {
+    font-size: 15px;
+    color: #a2a2a2;
 }
 
 .detail-header-right {
@@ -682,10 +872,12 @@ export default {
     transition: all 0.2s ease;
     min-width: 120px;
     border: 1px solid #e6e6e6;
+    position: relative;
+    overflow: hidden;
 }
 
 .confirm-btn {
-    background: #57c785;
+    background: rgba(9, 136, 0, 1);
     color: white;
 }
 
@@ -706,8 +898,21 @@ export default {
 .reject-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+}
+
+.button-loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .close-detail-btn {
@@ -793,23 +998,33 @@ export default {
     background: white;
     border: 1px solid #e6e6e6;
     border-radius: 20px;
-    padding: 15px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+.attachment-header-section {
+    padding: 15px;
+    border-bottom: 1px solid #e6e6e6;
 }
 
 .attachment-details h4 {
     font-size: 18px;
     color: #4F5BDF;
-    padding-bottom: 20px;
+    padding-bottom: 15px;
     font-weight: 700;
+    margin: 0;
 }
 
 .date-range, .time-range {
     display: flex;
     flex-direction: column;
     gap: 0px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     font-size: 14px;
+}
+
+.date-range:last-child, .time-range:last-child {
+    margin-bottom: 0;
 }
 
 .date-label, .time-label {
@@ -822,11 +1037,16 @@ export default {
 .date-value, .time-value {
     color: #000;
     font-weight: 400;
-    font-size: 16px;
+    font-size: 15px;
+}
+
+.attachment-data-section {
+    padding: 15px;
+    min-height: 300px;
 }
 
 .attachment-data {
-    margin-top: 25px;
+    margin-top: 0;
 }
 
 .cars-section h5,
@@ -836,8 +1056,15 @@ export default {
     color: #333;
     margin: 0 0 15px 0;
     font-weight: 700;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #4F5BDF;
+    padding-top: 10px;
+    border-top: 1px solid #e6e6e6;
+}
+
+.cars-section:first-child h5,
+.employees-section:first-child h5,
+.items-section:first-child h5 {
+    border-top: none;
+    padding-top: 0;
 }
 
 .loading-container {
@@ -856,11 +1083,6 @@ export default {
     border-top: 3px solid #4F5BDF;
     border-radius: 50%;
     animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
 }
 
 .loading-text {
@@ -913,9 +1135,17 @@ export default {
 .car-item-content, .employee-item-content, .item-item-content {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     width: 100%;
-    gap: 20px;
+    gap: 12px;
+}
+
+.item-number {
+    color: #a2a2a2;
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 25px;
+    flex-shrink: 0;
 }
 
 .car-main-info, .employee-main-info {
@@ -977,7 +1207,7 @@ export default {
 
 .item-item-content {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     width: 100%;
 }
@@ -997,7 +1227,6 @@ export default {
     padding: 4px 10px;
     border-radius: 6px;
     white-space: nowrap;
-    margin-left: 20px;
 }
 
 .basic-info-section,
@@ -1016,8 +1245,6 @@ export default {
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 15px;
-    border-bottom: 1px solid #e6e6e6;
-    padding-bottom: 10px;
 }
 
 .confirmation-header h4 {
@@ -1027,11 +1254,26 @@ export default {
     margin: 0;
 }
 
+.confirmation-loading {
+    display: flex;
+    align-items: center;
+}
+
+.confirmation-loading .loader {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #4F5BDF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
 .confirmation-status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    padding: 3px 0;
 }
 
 .confirmation-label {
@@ -1048,6 +1290,7 @@ export default {
     font-weight: 500;
     display: inline-block;
     border: 1px solid;
+    transition: all 0.3s ease;
 }
 
 .confirmation-badge.confirmation-approved {
@@ -1070,13 +1313,14 @@ export default {
 
 .confirmation-info {
     margin-bottom: 20px;
+    transition: opacity 0.3s ease;
 }
 
 .confirmation-info-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: 5px 0;
 }
 
 .confirmation-info-row:last-child {
@@ -1103,9 +1347,7 @@ export default {
     font-size: 18px;
     color: #4F5BDF;
     font-weight: 700;
-    padding-bottom: 10px;
     margin-bottom: 15px;
-    border-bottom: 2px solid #4F5BDF;
 }
 
 .info-grid {
@@ -1126,7 +1368,6 @@ export default {
     font-weight: 400;
     min-width: 140px;
     text-align: left;
-    margin-bottom: 4px;
 }
 
 .info-value {
@@ -1135,7 +1376,6 @@ export default {
     text-align: left;
     flex: 1;
     font-weight: 400;
-    line-height: 1.5;
 }
 
 .responsible-users-section h5 {
@@ -1168,6 +1408,21 @@ export default {
 }
 
 .user-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex: 1;
+}
+
+.user-number {
+    color: #a2a2a2;
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.user-details {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1207,13 +1462,10 @@ export default {
 
 .comment-content {
     font-size: 14px;
-    line-height: 1.6;
     color: #333;
     white-space: pre-wrap;
-    padding: 15px;
     background: #f9f9f9;
     border-radius: 10px;
-    border: 1px solid #e6e6e6;
     margin-top: 10px;
 }
 </style>

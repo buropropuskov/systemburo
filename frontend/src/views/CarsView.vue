@@ -36,6 +36,13 @@
                     >
                         Мои машины
                     </button>
+                    <button 
+                        class="filter-tab"
+                        :class="{ 'filter-tab--active': currentFilter === 'system' }"
+                        @click="switchFilter('system')"
+                    >
+                        Все машины системы
+                    </button>
                 </div>
             </div>
         </div>
@@ -48,11 +55,16 @@
                         <h3 class="card-title">
                             <span v-if="currentFilter === 'organization'" class="highlight-text">Машины <span class="blue">организации</span></span>
                             <span v-else-if="currentFilter === 'company'" class="highlight-text">Машины <span class="blue">компании</span></span>
+                            <span v-else-if="currentFilter === 'system'" class="highlight-text">Все машины <span class="blue">системы</span></span>
                             <span v-else class="highlight-text">Мои <span class="blue">автомобили</span></span>
                         </h3>
                     </div>
                     <div class="card-header__settings">
-                        <button class="add-button" @click="showAddCarModal">
+                        <button 
+                            class="add-button" 
+                            @click="showAddCarModal"
+                            v-if="currentFilter !== 'system'"
+                        >
                             Добавить
                         </button>
                         <RefreshButton @refresh="fetchCars" />
@@ -107,6 +119,17 @@
                                     }" 
                                 />
                             </div>
+                            <div class="header-col source-col" v-if="currentFilter === 'system'" @click="sortBy('source')">
+                                <p :class="{ 'active-sort': sortField === 'source' }">Источник</p>
+                                <img 
+                                    src="@/assets/icons/sort.png" 
+                                    class="sort-icon" 
+                                    :class="{ 
+                                        'sorted': sortField === 'source',
+                                        'desc': sortField === 'source' && sortDirection === 'desc'
+                                    }" 
+                                />
+                            </div>
                             <div class="header-col status-col" @click="sortBy('status')">
                                 <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
                                 <img 
@@ -118,7 +141,7 @@
                                     }" 
                                 />
                             </div>
-                            <div class="header-col actions-col">
+                            <div class="header-col actions-col" v-if="currentFilter !== 'system'">
                                 Действия
                             </div>
                         </div>
@@ -129,7 +152,7 @@
                         <div v-if="filteredCars.length > 0" class="cars-body">
                             <div 
                                 v-for="(car) in sortedCars" 
-                                :key="car.id" 
+                                :key="`${car.source || 'unique'}-${car.id}`" 
                                 class="car-item"
                             >
                                 <div class="car-row">
@@ -145,6 +168,11 @@
                                     <div class="car-col format-col">
                                         {{ car.format_name || 'Не указан' }}
                                     </div>
+                                    <div class="car-col source-col" v-if="currentFilter === 'system'">
+                                        <span class="source-badge" :class="`source-${car.source}`">
+                                            {{ car.source === 'unique' ? 'База машин' : 'Заявки' }}
+                                        </span>
+                                    </div>
                                     <div class="car-col status-col">
                                         <span 
                                             class="status-badge"
@@ -156,7 +184,7 @@
                                             {{ car.status ? 'Активна' : 'Неактивна' }}
                                         </span>
                                     </div>
-                                    <div class="car-col actions-col">
+                                    <div class="car-col actions-col" v-if="currentFilter !== 'system'">
                                         <button 
                                             @click="editCar(car)" 
                                             class="edit-btn"
@@ -193,9 +221,20 @@
             <div class="carsview__right-side">
                 <div class="carsview__help">
                     <p class="help__text">
-                        Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        <span v-if="currentFilter === 'organization'">
+                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </span>
+                        <span v-else-if="currentFilter === 'company'">
+                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </span>
+                        <span v-else-if="currentFilter === 'system'">
+                            Здесь находятся <strong class="blue">все автомобили системы</strong> (из базы машин и заявок). Только для просмотра.
+                        </span>
+                        <span v-else>
+                            Здесь находятся автомобили, привязанные к вашему <strong class="blue">аккаунту</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </span>
                     </p>
-                    <p class="help__text">
+                    <p class="help__text" v-if="currentFilter !== 'system'">
                         Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
                     </p>
                 </div>
@@ -368,7 +407,6 @@ export default {
             showModal: false,
             availableFormats: [],
 
-            
             // Формат номера
             selectedFormat: null,
             isFormatDropdownOpen: false,
@@ -412,6 +450,7 @@ export default {
                 car.number.toLowerCase().includes(query) ||
                 car.mark.toLowerCase().includes(query) ||
                 (car.format_name && car.format_name.toLowerCase().includes(query)) ||
+                (car.source && car.source.toLowerCase().includes(query)) ||
                 (car.status ? 'активна' : 'неактивна').includes(query)
             );
         },
@@ -445,6 +484,11 @@ export default {
                     case 'format_name':
                         valueA = a.format_name?.toLowerCase() || '';
                         valueB = b.format_name?.toLowerCase() || '';
+                        break;
+                        
+                    case 'source':
+                        valueA = a.source?.toLowerCase() || '';
+                        valueB = b.source?.toLowerCase() || '';
                         break;
                         
                     case 'status':
@@ -522,18 +566,76 @@ export default {
         async fetchCars() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${this.currentFilter}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                
+                if (this.currentFilter === 'system') {
+                    // Загружаем все машины системы (unique_cars + cars)
+                    const [uniqueCarsResponse, systemCarsResponse] = await Promise.all([
+                        fetch(`http://localhost:8080/unique-cars?filter_type=all`, {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${token}`
+                            }
+                        }),
+                        fetch(`http://localhost:8080/cars/system-all`, {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${token}`
+                            }
+                        })
+                    ]);
 
-                if (response.ok) {
-                    this.carsData = await response.json();
+                    if (uniqueCarsResponse.ok && systemCarsResponse.ok) {
+                        const uniqueCars = await uniqueCarsResponse.json();
+                        const systemCars = await systemCarsResponse.json();
+                        
+                        // Добавляем source для идентификации
+                        const uniqueWithSource = uniqueCars.map(car => ({
+                            ...car,
+                            source: 'unique'
+                        }));
+                        
+                        // Объединяем и убираем дубликаты (по номеру и марке)
+                        const allCarsMap = new Map();
+                        
+                        // Сначала добавляем уникальные машины
+                        uniqueWithSource.forEach(car => {
+                            const key = `${car.number.toLowerCase()}_${car.mark.toLowerCase()}`;
+                            allCarsMap.set(key, car);
+                        });
+                        
+                        // Затем добавляем машины из заявок (перезаписываем если нужно)
+                        systemCars.forEach(car => {
+                            const key = `${car.number.toLowerCase()}_${car.mark.toLowerCase()}`;
+                            if (!allCarsMap.has(key)) {
+                                allCarsMap.set(key, {
+                                    ...car,
+                                    source: 'cars',
+                                    format_name: car.format_name || 'Не указан',
+                                    status: car.status !== undefined ? car.status : true
+                                });
+                            }
+                        });
+                        
+                        this.carsData = Array.from(allCarsMap.values());
+                    } else {
+                        console.error("Ошибка при загрузке всех машин системы");
+                        this.carsData = [];
+                    }
                 } else {
-                    console.error("Ошибка при загрузке машин");
-                    this.carsData = [];
+                    // Загружаем машины по фильтру (user, organization, company)
+                    const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${this.currentFilter}`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        this.carsData = await response.json();
+                    } else {
+                        console.error("Ошибка при загрузке машин");
+                        this.carsData = [];
+                    }
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
@@ -606,79 +708,85 @@ export default {
         },
 
         editCar(car) {
-    this.editingCar = car;
-    
-    // Сохраняем оригинальные значения для сравнения
-    this.originalCarData = {
-        mark: car.mark,
-        format_id: car.format_id,
-        number: car.number,
-        organization_id: car.organization_id,
-        company_id: car.company_id
-    };
-    
-    // Устанавливаем текущие значения машины
-    this.selectedMark = car.mark;
-    
-    // Находим формат по format_id
-    if (car.format_id) {
-        const carFormat = this.availableFormats.find(f => f.format.id === car.format_id);
-        if (carFormat) {
-            this.selectedFormat = carFormat;
-            // Разбиваем номер на части согласно формату
-            this.numberParts = car.number.split(' ');
-        } else {
-            // Если формат не найден, используем формат по умолчанию
-            const defaultFormat = this.availableFormats.find(f => f.format.is_default) || this.availableFormats[0];
-            this.selectedFormat = defaultFormat;
-            this.initializeNumberParts();
-        }
-    }
-    
-    // Устанавливаем привязки
-    this.bindToOrganization = !!car.organization_id;
-    this.bindToCompany = !!car.company_id;
-    
-    this.showModal = true;
-    this.hideNotification();
-},
+            // Не разрешаем редактировать машины из системы
+            if (this.currentFilter === 'system' || car.source === 'cars') {
+                this.showNotification('Редактирование недоступно для машин из заявок', 'error');
+                return;
+            }
+            
+            this.editingCar = car;
+            
+            // Сохраняем оригинальные значения для сравнения
+            this.originalCarData = {
+                mark: car.mark,
+                format_id: car.format_id,
+                number: car.number,
+                organization_id: car.organization_id,
+                company_id: car.company_id
+            };
+            
+            // Устанавливаем текущие значения машины
+            this.selectedMark = car.mark;
+            
+            // Находим формат по format_id
+            if (car.format_id) {
+                const carFormat = this.availableFormats.find(f => f.format.id === car.format_id);
+                if (carFormat) {
+                    this.selectedFormat = carFormat;
+                    // Разбиваем номер на части согласно формату
+                    this.numberParts = car.number.split(' ');
+                } else {
+                    // Если формат не найден, используем формат по умолчанию
+                    const defaultFormat = this.availableFormats.find(f => f.format.is_default) || this.availableFormats[0];
+                    this.selectedFormat = defaultFormat;
+                    this.initializeNumberParts();
+                }
+            }
+            
+            // Устанавливаем привязки
+            this.bindToOrganization = !!car.organization_id;
+            this.bindToCompany = !!car.company_id;
+            
+            this.showModal = true;
+            this.hideNotification();
+        },
 
-// Проверка наличия изменений
-hasChanges() {
-    if (!this.editingCar) {
-        return true; // Для новой машины всегда отправляем запрос
-    }
+        // Проверка наличия изменений
+        hasChanges() {
+            if (!this.editingCar) {
+                return true; // Для новой машины всегда отправляем запрос
+            }
 
-    // Проверяем изменения в марке
-    if (this.selectedMark !== this.originalCarData.mark) {
-        return true;
-    }
+            // Проверяем изменения в марке
+            if (this.selectedMark !== this.originalCarData.mark) {
+                return true;
+            }
 
-    // Проверяем изменения в формате
-    if (this.selectedFormat.format.id !== this.originalCarData.format_id) {
-        return true;
-    }
+            // Проверяем изменения в формате
+            if (this.selectedFormat.format.id !== this.originalCarData.format_id) {
+                return true;
+            }
 
-    // Проверяем изменения в номере
-    const currentNumber = this.numberParts.join(' ');
-    if (currentNumber !== this.originalCarData.number) {
-        return true;
-    }
+            // Проверяем изменения в номере
+            const currentNumber = this.numberParts.join(' ');
+            if (currentNumber !== this.originalCarData.number) {
+                return true;
+            }
 
-    // Проверяем изменения в привязке к организации
-    const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
-    if (currentOrgId !== this.originalCarData.organization_id) {
-        return true;
-    }
+            // Проверяем изменения в привязке к организации
+            const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+            if (currentOrgId !== this.originalCarData.organization_id) {
+                return true;
+            }
 
-    // Проверяем изменения в привязке к компании
-    const currentCompanyId = this.bindToCompany ? this.ownershipInfo.company_id : null;
-    if (currentCompanyId !== this.originalCarData.company_id) {
-        return true;
-    }
+            // Проверяем изменения в привязке к компании
+            const currentCompanyId = this.bindToCompany ? this.ownershipInfo.company_id : null;
+            if (currentCompanyId !== this.originalCarData.company_id) {
+                return true;
+            }
 
-    return false;
-},
+            return false;
+        },
         
         sortBy(field) {
             if (this.sortField === field) {
@@ -695,6 +803,12 @@ hasChanges() {
         },
 
         showAddCarModal() {
+            // Не разрешаем добавлять в системную вкладку
+            if (this.currentFilter === 'system') {
+                this.showNotification('Добавление недоступно во вкладке "Все машины системы"', 'error');
+                return;
+            }
+            
             this.editingCar = null;
             this.showModal = true;
             this.filteredMarks = this.marks;
@@ -720,19 +834,19 @@ hasChanges() {
         },
 
         clearFormFields() {
-    // Очищаем только номер и марку, чекбоксы остаются
-    this.initializeNumberParts();
-    this.selectedMark = '';
-    this.markSearch = '';
-    this.filteredMarks = this.marks;
-    
-    // Если это добавление новой машины (не редактирование), сбрасываем чекбоксы
-    if (!this.editingCar) {
-        this.bindToOrganization = false;
-        this.bindToCompany = false;
-    }
-    // При редактировании поля НЕ очищаются - остаются текущие значения машины
-},
+            // Очищаем только номер и марку, чекбоксы остаются
+            this.initializeNumberParts();
+            this.selectedMark = '';
+            this.markSearch = '';
+            this.filteredMarks = this.marks;
+            
+            // Если это добавление новой машины (не редактирование), сбрасываем чекбоксы
+            if (!this.editingCar) {
+                this.bindToOrganization = false;
+                this.bindToCompany = false;
+            }
+            // При редактировании поля НЕ очищаются - остаются текущие значения машины
+        },
 
         // Уведомления
         showNotification(message, type = 'success') {
@@ -905,92 +1019,92 @@ hasChanges() {
         },
 
         async saveCar() {
-    if (!this.canSaveCar) {
-        this.showNotification('Заполните все обязательные поля правильно', 'error');
-        return;
-    }
+            if (!this.canSaveCar) {
+                this.showNotification('Заполните все обязательные поля правильно', 'error');
+                return;
+            }
 
-    // Проверяем изменения для редактирования
-    if (this.editingCar && !this.hasChanges()) {
-        this.showNotification('Изменений не обнаружено', 'info');
-        return;
-    }
+            // Проверяем изменения для редактирования
+            if (this.editingCar && !this.hasChanges()) {
+                this.showNotification('Изменений не обнаружено', 'info');
+                return;
+            }
 
-    try {
-        const token = localStorage.getItem("token");
-        
-        // Формируем номер из частей
-        const number = this.numberParts.join(' ');
-        
-        // Формируем данные для отправки
-        const carData = {
-            number: number,
-            mark: this.selectedMark,
-            format_id: this.selectedFormat.format.id,
-            user_id: this.ownershipInfo.user_id,
-            organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
-            company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
-        };
-
-        let response;
-        if (this.editingCar) {
-            // Редактирование существующей машины
-            response = await fetch(`http://localhost:8080/unique-cars/${this.editingCar.id}`, {
-                method: "PUT",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(carData)
-            });
-        } else {
-            // Создание новой машины
-            response = await fetch("http://localhost:8080/unique-cars", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(carData)
-            });
-        }
-
-        if (response.ok) {
-            const action = this.editingCar ? 'обновлен' : 'добавлен';
-            this.showNotification(`Автомобиль успешно ${action}!`, 'success');
-            
-            // Обновляем список машин
-            this.fetchCars();
-            
-            // Очищаем форму только при добавлении новой машины
-            if (!this.editingCar) {
-                this.clearFormFields();
-            } else {
-                // Обновляем оригинальные данные после успешного сохранения
-                this.originalCarData = {
+            try {
+                const token = localStorage.getItem("token");
+                
+                // Формируем номер из частей
+                const number = this.numberParts.join(' ');
+                
+                // Формируем данные для отправки
+                const carData = {
+                    number: number,
                     mark: this.selectedMark,
                     format_id: this.selectedFormat.format.id,
-                    number: number,
-                    organization_id: carData.organization_id,
-                    company_id: carData.company_id
+                    user_id: this.ownershipInfo.user_id,
+                    organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
+                    company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
                 };
-            }
-        } else {
-            const errorData = await response.json();
-            const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
-            
-            // Специальные сообщения для дубликатов
-            if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
-                this.showNotification("Автомобиль уже привязан к вашему аккаунту", 'error');
-            } else {
-                this.showNotification(errorMessage, 'error');
+
+                let response;
+                if (this.editingCar) {
+                    // Редактирование существующей машины
+                    response = await fetch(`http://localhost:8080/unique-cars/${this.editingCar.id}`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(carData)
+                    });
+                } else {
+                    // Создание новой машины
+                    response = await fetch("http://localhost:8080/unique-cars", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(carData)
+                    });
+                }
+
+                if (response.ok) {
+                    const action = this.editingCar ? 'обновлен' : 'добавлен';
+                    this.showNotification(`Автомобиль успешно ${action}!`, 'success');
+                    
+                    // Обновляем список машин
+                    this.fetchCars();
+                    
+                    // Очищаем форму только при добавлении новой машины
+                    if (!this.editingCar) {
+                        this.clearFormFields();
+                    } else {
+                        // Обновляем оригинальные данные после успешного сохранения
+                        this.originalCarData = {
+                            mark: this.selectedMark,
+                            format_id: this.selectedFormat.format.id,
+                            number: number,
+                            organization_id: carData.organization_id,
+                            company_id: carData.company_id
+                        };
+                    }
+                } else {
+                    const errorData = await response.json();
+                    const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
+                    
+                    // Специальные сообщения для дубликатов
+                    if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
+                        this.showNotification("Автомобиль уже привязан к вашему аккаунту", 'error');
+                    } else {
+                        this.showNotification(errorMessage, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error("Ошибка при сохранении автомобиля:", error);
+                this.showNotification("Ошибка при сохранении автомобиля", 'error');
             }
         }
-    } catch (error) {
-        console.error("Ошибка при сохранении автомобиля:", error);
-        this.showNotification("Ошибка при сохранении автомобиля", 'error');
-    }
-}
     },
     async mounted() {
         await Promise.all([
@@ -1216,28 +1330,33 @@ hasChanges() {
 
 /* Колонки с фиксированной шириной */
 .number-col {
-    width: 8%;
+    width: 6%;
     min-width: 40px;
 }
 
 .car-number-col {
-    width: 20%;
+    width: 18%;
     min-width: 120px;
 }
 
 .brand-col {
-    width: 20%;
+    width: 18%;
     min-width: 120px;
 }
 
 .format-col {
-    width: 25%;
+    width: 20%;
     min-width: 120px;
 }
 
+.source-col {
+    width: 14%;
+    min-width: 90px;
+}
+
 .status-col {
-    width: 18%;
-    min-width: 100px;
+    width: 14%;
+    min-width: 90px;
 }
 
 .actions-col {
@@ -1287,6 +1406,27 @@ hasChanges() {
 .number-col .car-col,
 .actions-col .car-col {
     justify-content: center;
+}
+
+/* Бейджи для источника */
+.source-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.source-unique {
+    background-color: #e6f4ea;
+    color: #0d652d;
+    border: 1px solid #a7d7b8;
+}
+
+.source-cars {
+    background-color: #e6f2ff;
+    color: #0066cc;
+    border: 1px solid #99ccff;
 }
 
 /* Стилизация скроллбара */

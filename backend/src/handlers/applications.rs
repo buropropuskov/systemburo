@@ -1,12 +1,12 @@
 // handlers/applications.rs
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
-use sqlx::{PgPool, Row, postgres::PgQueryResult};
+use sqlx::{PgPool, Row};
 use serde_json::json;
 use log;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc, NaiveDateTime, NaiveDate, NaiveTime};
 
-use crate::models::applications::{Application, ApplicationWithDetails, ApplicationFilter, ApplicationCreateRequest, ApplicationUpdateRequest};
+use crate::models::applications::{ApplicationWithDetails, ApplicationFilter, ApplicationCreateRequest, ApplicationUpdateRequest};
 use crate::auth::decode_token;
 
 // Структура для полной заявки с вложениями
@@ -26,6 +26,7 @@ pub struct AttachmentData {
     pub attachment_type: String,
     pub attachment_name: String,
     pub attachment_display_name: String,
+    pub unique_attachment_id: i32, // НОВОЕ ПОЛЕ
     pub entry_date_from: Option<String>,
     pub entry_date_to: Option<String>,
     pub entry_time_from: Option<String>,
@@ -734,36 +735,39 @@ pub async fn submit_complete_application(
         let entry_time_to: Option<NaiveTime> = attachment.entry_time_to.as_ref()
             .and_then(|s| NaiveTime::parse_from_str(s, "%H:%M:%S").ok());
 
-        let attachment_result = sqlx::query!(
-            r#"
-            INSERT INTO attachments (
-                application_id,
-                attachment_type,
-                attachment_name,
-                attachment_display_name,
-                entry_date_from,
-                entry_date_to,
-                entry_time_from,
-                entry_time_to
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id
-            "#,
-            application_id,
-            attachment.attachment_type,
-            attachment.attachment_name,
-            attachment.attachment_display_name,
-            entry_date_from,
-            entry_date_to,
-            entry_time_from,
-            entry_time_to
-        )
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to create attachment: {}", e);
-            error::ErrorInternalServerError("Error creating attachment")
-        })?;
+        // В функции submit_complete_application заменим создание вложения на:
+let attachment_result = sqlx::query!(
+    r#"
+    INSERT INTO attachments (
+        application_id,
+        attachment_type,
+        attachment_name,
+        attachment_display_name,
+        unique_attachment_id,   
+        entry_date_from,
+        entry_date_to,
+        entry_time_from,
+        entry_time_to
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING id
+    "#,
+    application_id,
+    attachment.attachment_type,
+    attachment.attachment_name,
+    attachment.attachment_display_name,
+    attachment.unique_attachment_id, // ← ДОБАВЬТЕ ЭТОТ ПАРАМЕТР
+    entry_date_from,
+    entry_date_to,
+    entry_time_from,
+    entry_time_to
+)
+.fetch_one(&mut *transaction)
+.await
+.map_err(|e| {
+    log::error!("Failed to create attachment: {}", e);
+    error::ErrorInternalServerError("Error creating attachment")
+})?;
 
         let attachment_id = attachment_result.id;
 
@@ -1554,6 +1558,7 @@ pub async fn get_user_applications(
 }
 
 /// Получение вложений для заявки
+/// Получение вложений для заявки с информацией о unique_attachments
 pub async fn get_application_attachments(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1584,23 +1589,30 @@ pub async fn get_application_attachments(
         entry_time_from: Option<NaiveTime>,
         entry_time_to: Option<NaiveTime>,
         created_at: Option<NaiveDateTime>,
+        unique_attachment_id: Option<i32>,
+        unique_attachment_title: Option<String>,
+        unique_attachment_display_name: Option<String>,
     }
 
     let rows = sqlx::query!(
         r#"
         SELECT 
-            id,
-            attachment_type,
-            attachment_name,
-            attachment_display_name,
-            entry_date_from,
-            entry_date_to,
-            entry_time_from,
-            entry_time_to,
-            created_at
-        FROM attachments 
-        WHERE application_id = $1
-        ORDER BY created_at
+            a.id,
+            a.attachment_type,
+            a.attachment_name,
+            a.attachment_display_name,
+            a.entry_date_from,
+            a.entry_date_to,
+            a.entry_time_from,
+            a.entry_time_to,
+            a.created_at,
+            a.unique_attachment_id,
+            ua.title as "unique_attachment_title?",
+            ua.display_name as "unique_attachment_display_name?"
+        FROM attachments a
+        LEFT JOIN unique_attachments ua ON a.unique_attachment_id = ua.id
+        WHERE a.application_id = $1
+        ORDER BY ua.title, a.created_at
         "#,
         application_id
     )
@@ -1622,6 +1634,9 @@ pub async fn get_application_attachments(
             entry_time_from: row.entry_time_from,
             entry_time_to: row.entry_time_to,
             created_at: row.created_at,
+            unique_attachment_id: row.unique_attachment_id,
+            unique_attachment_title: row.unique_attachment_title.clone(),
+            unique_attachment_display_name: row.unique_attachment_display_name.clone(),
         }
     }).collect();
 
@@ -2307,5 +2322,231 @@ pub async fn update_application_items_status(
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
         "message": "All items statuses updated successfully"
+    })))
+}
+
+
+
+/// Обновление ответственных пользователей для заявок организации/компании
+pub async fn update_responsible_users_for_entity(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    entity_id: i32,
+    entity_type: String, // "organization" или "company"
+    removed_user_ids: Vec<i32>,
+    added_users: Vec<(i32, bool)>, // (user_id, is_primary)
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    log::info!("Updating responsible users for {} {}: removed={:?}, added={:?}", 
+               entity_type, entity_id, removed_user_ids, added_users);
+
+    // Начинаем транзакцию
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to begin transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Получаем заявки организации/компании, которые можно обновлять
+    let applications = sqlx::query!(
+        r#"
+        SELECT a.id, a.responsible_user_id
+        FROM applications a
+        WHERE (
+            ($1 = 'organization' AND a.organization_id = $2)
+            OR ($1 = 'company' AND a.company_id = $2)
+        )
+        AND a.status IN ('Непрочитано', 'В обработке')
+        AND a.confirmation = 'Согласование'
+        "#,
+        entity_type,
+        entity_id
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch applications: {}", e);
+        error::ErrorInternalServerError("Error fetching applications")
+    })?;
+
+    let mut updated_apps_count = 0;
+    
+    // Определяем нового главного (если есть)
+    let new_primary_user = added_users.iter()
+        .find(|&&(_, is_primary)| is_primary)
+        .map(|&(user_id, _)| user_id);
+    
+    for app in applications {
+        let application_id = app.id;
+        let current_responsible_user_id = app.responsible_user_id;
+        let mut app_updated = false;
+        
+        // 1. Обрабатываем удаленных пользователей
+        for &user_id in &removed_user_ids {
+            // Если удаляемый пользователь был главным в заявке
+            if current_responsible_user_id == Some(user_id) {
+                // Устанавливаем нового главного или NULL
+                if let Some(new_primary_id) = new_primary_user {
+                    let result = sqlx::query!(
+                        "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+                        new_primary_id,
+                        application_id
+                    )
+                    .execute(&mut *transaction)
+                    .await;
+                    
+                    if let Ok(r) = result {
+                        if r.rows_affected() > 0 {
+                            app_updated = true;
+                            log::debug!("Replaced primary responsible {} with {} in application {}", 
+                                       user_id, new_primary_id, application_id);
+                        }
+                    }
+                } else {
+                    // Нет нового главного - сбрасываем поле
+                    let result = sqlx::query!(
+                        "UPDATE applications SET responsible_user_id = NULL WHERE id = $1",
+                        application_id
+                    )
+                    .execute(&mut *transaction)
+                    .await;
+                    
+                    if let Ok(r) = result {
+                        if r.rows_affected() > 0 {
+                            app_updated = true;
+                            log::debug!("Removed primary responsible {} from application {}", 
+                                       user_id, application_id);
+                        }
+                    }
+                }
+            }
+            
+            // Обновляем is_primary на false для удаленного пользователя в application_responsible_users
+            let result = sqlx::query!(
+                "UPDATE application_responsible_users SET is_primary = false WHERE application_id = $1 AND user_id = $2",
+                application_id,
+                user_id
+            )
+            .execute(&mut *transaction)
+            .await;
+            
+            if let Ok(r) = result {
+                if r.rows_affected() > 0 {
+                    app_updated = true;
+                    log::debug!("Set is_primary=false for removed user {} in application {}", 
+                               user_id, application_id);
+                }
+            }
+        }
+        
+        // 2. Добавляем/обновляем новых пользователей
+        for &(user_id, is_primary) in &added_users {
+            let result = sqlx::query!(
+                r#"
+                INSERT INTO application_responsible_users (application_id, user_id, is_primary)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (application_id, user_id) 
+                DO UPDATE SET is_primary = EXCLUDED.is_primary
+                "#,
+                application_id,
+                user_id,
+                is_primary
+            )
+            .execute(&mut *transaction)
+            .await;
+            
+            if let Ok(r) = result {
+                if r.rows_affected() > 0 {
+                    app_updated = true;
+                    log::debug!("Updated user {} in application {} with is_primary={}", 
+                               user_id, application_id, is_primary);
+                }
+            }
+            
+            // Если это главный пользователь, обновляем поле в applications
+            if is_primary && current_responsible_user_id != Some(user_id) {
+                let result = sqlx::query!(
+                    "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+                    user_id,
+                    application_id
+                )
+                .execute(&mut *transaction)
+                .await;
+                
+                if let Ok(r) = result {
+                    if r.rows_affected() > 0 {
+                        app_updated = true;
+                        log::debug!("Set user {} as primary responsible for application {}", 
+                                   user_id, application_id);
+                    }
+                }
+            }
+        }
+        
+        // 3. Если у заявки еще есть ответственный, но он не является главным среди added_users,
+        //    обновляем его статус в application_responsible_users
+        if let Some(current_resp_id) = current_responsible_user_id {
+            // Проверяем, является ли этот пользователь главным среди добавленных
+            let is_primary_in_added = added_users.iter()
+                .any(|&(id, is_primary)| id == current_resp_id && is_primary);
+            
+            if !is_primary_in_added && !removed_user_ids.contains(&current_resp_id) {
+                // Пользователь остался, но не как главный - обновляем его статус
+                let result = sqlx::query!(
+                    "UPDATE application_responsible_users SET is_primary = false WHERE application_id = $1 AND user_id = $2",
+                    application_id,
+                    current_resp_id
+                )
+                .execute(&mut *transaction)
+                .await;
+                
+                if let Ok(r) = result {
+                    if r.rows_affected() > 0 {
+                        app_updated = true;
+                        log::debug!("Set is_primary=false for existing user {} in application {}", 
+                                   current_resp_id, application_id);
+                        
+                        // Устанавливаем нового главного (если есть)
+                        if let Some(new_primary_id) = new_primary_user {
+                            let set_result = sqlx::query!(
+                                "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+                                new_primary_id,
+                                application_id
+                            )
+                            .execute(&mut *transaction)
+                            .await;
+                            
+                            if let Ok(_) = set_result {
+                                log::debug!("Set new primary responsible {} for application {}", 
+                                           new_primary_id, application_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if app_updated {
+            updated_apps_count += 1;
+        }
+    }
+    
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+    
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": format!("Responsible users updated for {} applications", updated_apps_count),
+        "applications_updated": updated_apps_count
     })))
 }

@@ -12,9 +12,9 @@
             <div class="attachments-list">
                 <div
                     v-for="attachment in getCategoryAttachments(category)"
-                    :key="attachment.id"
+                    :key="attachment.local_id || attachment.id"
                     class="attachment"
-                    :class="{ selected: selectedAttachment?.id === attachment.id }"
+                    :class="{ selected: selectedAttachment && (selectedAttachment.local_id || selectedAttachment.id) === (attachment.local_id || attachment.id) }"
                     @click="selectAttachment(attachment)"
                     @mouseenter="handleMouseEnter(attachment, $event)"
                     @mouseleave="handleMouseLeave"
@@ -22,7 +22,7 @@
                     <span class="attachment-name">{{ attachment.display_name }}</span>
                     
                     <button 
-                        v-if="hoveredAttachment === attachment.id"
+                        v-if="hoveredAttachment === (attachment.local_id || attachment.id)"
                         class="delete-btn"
                         @click.stop="confirmDelete(attachment)"
                     >
@@ -146,7 +146,8 @@ export default {
             
             const nextNumber = this.getNextAttachmentNumber(category);
             const newAttachment = {
-                id: Date.now() + Math.random(),
+                id: template.id, // ID уникального бланка из базы
+                local_id: Date.now() + Math.random(), // Локальный ID для интерфейса
                 template_id: template.id,
                 title: category,
                 name: `${template.name}_copy_${nextNumber}`,
@@ -181,64 +182,35 @@ export default {
         },
         
         deleteAttachment() {
-    if (this.attachmentToDelete) {
-        // Удаляем данные вложения из хранилища
-        if (this.attachmentData[this.attachmentToDelete.id]) {
-            delete this.attachmentData[this.attachmentToDelete.id];
-        }
-        
-        // Удаляем данные вложения из общего localStorage
-        try {
-            const savedData = localStorage.getItem('draftApplicationState');
-            if (savedData) {
-                const parsedData = JSON.parse(savedData);
-                
-                // Удаляем данные этого вложения из vehiclesByAttachment
-                if (parsedData.vehiclesByAttachment && parsedData.vehiclesByAttachment[this.attachmentToDelete.id]) {
-                    delete parsedData.vehiclesByAttachment[this.attachmentToDelete.id];
+            if (this.attachmentToDelete) {
+                // Удаляем данные вложения из хранилища
+                const deleteId = this.attachmentToDelete.local_id || this.attachmentToDelete.id;
+                if (this.attachmentData[deleteId]) {
+                    delete this.attachmentData[deleteId];
                 }
                 
-                // Удаляем данные этого вложения из employeesByAttachment
-                if (parsedData.employeesByAttachment && parsedData.employeesByAttachment[this.attachmentToDelete.id]) {
-                    delete parsedData.employeesByAttachment[this.attachmentToDelete.id];
+                // Remove attachment from local array
+                this.attachments = this.attachments.filter(
+                    attachment => (attachment.local_id || attachment.id) !== deleteId
+                );
+                
+                // Clear selection if deleted attachment was selected
+                if (this.selectedAttachment && (this.selectedAttachment.local_id || this.selectedAttachment.id) === deleteId) {
+                    this.selectedAttachment = null;
+                    this.$emit('attachment-selected', null);
                 }
                 
-                // Удаляем данные этого вложения из itemsByAttachment
-                if (parsedData.itemsByAttachment && parsedData.itemsByAttachment[this.attachmentToDelete.id]) {
-                    delete parsedData.itemsByAttachment[this.attachmentToDelete.id];
-                }
+                this.$emit('attachment-removed', this.attachmentToDelete);
+                this.showDeleteModal = false;
+                this.attachmentToDelete = null;
                 
-                // Сохраняем обновленные данные
-                localStorage.setItem('draftApplicationState', JSON.stringify(parsedData));
+                // Сохраняем в localStorage
+                this.saveToLocalStorage();
             }
-        } catch (error) {
-            console.error('Ошибка при удалении данных вложения из localStorage:', error);
-        }
-        
-        // Remove attachment from local array
-        this.attachments = this.attachments.filter(
-            attachment => attachment.id !== this.attachmentToDelete.id
-        );
-        
-        // Clear selection if deleted attachment was selected
-        if (this.selectedAttachment?.id === this.attachmentToDelete.id) {
-            // Если это было последнее вложение, отправляем null
-            this.selectedAttachment = null;
-            this.$emit('attachment-selected', null);
-        }
-        
-        this.$emit('attachment-removed', this.attachmentToDelete);
-        this.showDeleteModal = false;
-        this.attachmentToDelete = null;
-        
-        // Сохраняем в localStorage
-        this.saveToLocalStorage();
-    }
-},
-
+        },
 
         handleMouseEnter(attachment, event) {
-            this.hoveredAttachment = attachment.id;
+            this.hoveredAttachment = attachment.local_id || attachment.id;
             
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
@@ -328,7 +300,7 @@ export default {
                     // Восстанавливаем выбранное вложение
                     if (parsedData.selectedAttachment && this.attachments.length > 0) {
                         const foundAttachment = this.attachments.find(
-                            a => a.id === parsedData.selectedAttachment.id
+                            a => (a.local_id || a.id) === (parsedData.selectedAttachment.local_id || parsedData.selectedAttachment.id)
                         );
                         if (foundAttachment) {
                             this.selectedAttachment = foundAttachment;
@@ -382,6 +354,7 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются без изменений */
 .selector {
     width: 200px;
     height: 490px;

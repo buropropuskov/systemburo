@@ -2,7 +2,7 @@ use actix_web::{web, HttpResponse, Responder, HttpRequest, error, Error};
 use sqlx::PgPool;
 use serde_json::json;
 use log;
-use chrono::{Utc, DateTime};
+use chrono::{Utc};
 
 use crate::models::auth::*;
 use crate::models::user_types::UserType;

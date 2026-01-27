@@ -142,29 +142,31 @@
                 <RefreshButton @refresh="refreshData" />
             </div>
         </div>
-        <div class="tables__content">
-            <!-- Таблица по факту с подсказкой -->
-            <div v-if="currentTable?.show_fact_table" class="fact-section">
-                <FactTable 
-                    :table-type="currentTable?.table_type"
-                    :search-query="searchQuery"
-                    :selected-organization="selectedOrganization"
-                    :selected-unloading-place="selectedUnloadingPlace"
-                    :date-range-start="dateRangeStart"
-                    :date-range-end="dateRangeEnd"
-                    :selected-date="selectedDate"
-                    @refresh-data="refreshData"
-                />
-                <!-- Подсказка на синем фоне -->
-                <div class="fact-hint-card" v-if="currentTable?.fact_table_hint">
-                    <div class="text-constructor-content hint-content" v-html="sanitizedHint"></div>
-                </div>
-            </div>
-            
-            <!-- Основная таблица -->
-            <SelectedTable 
-    :table-type="currentTable?.table_type"  
-    :table-name="currentTable?.name"     
+        <!-- В TemplatesComponent.vue замените блок SelectedTable на: -->
+
+<div class="tables__content">
+  <!-- Таблица по факту с подсказкой -->
+  <div v-if="currentTable?.show_fact_table" class="fact-section">
+    <FactTable 
+      :table-type="currentTable?.table_type"
+      :search-query="searchQuery"
+      :selected-organization="selectedOrganization"
+      :selected-unloading-place="selectedUnloadingPlace"
+      :date-range-start="dateRangeStart"
+      :date-range-end="dateRangeEnd"
+      :selected-date="selectedDate"
+      @refresh-data="refreshData"
+    />
+    <!-- Подсказка на синем фоне -->
+    <div class="fact-hint-card" v-if="currentTable?.fact_table_hint">
+      <div class="text-constructor-content hint-content" v-html="sanitizedHint"></div>
+    </div>
+  </div>
+  
+  <!-- Основная таблица - разные компоненты для разных типов -->
+  <CarsTable 
+    v-if="currentTable?.table_type === 'cars'"
+    :table-name="currentTable?.name"
     :search-query="searchQuery"
     :selected-organization="selectedOrganization"
     :selected-unloading-place="selectedUnloadingPlace"
@@ -172,8 +174,20 @@
     :date-range-end="dateRangeEnd"
     :selected-date="selectedDate"
     @refresh-data="refreshData"
-/>
-        </div>
+  />
+  
+  <PeopleTable 
+    v-if="currentTable?.table_type === 'people'"
+    :table-name="currentTable?.name"
+    :search-query="searchQuery"
+    :selected-organization="selectedOrganization"
+    :selected-unloading-place="selectedUnloadingPlace"
+    :date-range-start="dateRangeStart"
+    :date-range-end="dateRangeEnd"
+    :selected-date="selectedDate"
+    @refresh-data="refreshData"
+  />
+</div>
     </div>
 </template>
 
@@ -181,14 +195,16 @@
 import RefreshButton from './RefreshButton.vue';
 import DatePicker from './DatePicker.vue';
 import FactTable from './FactTable.vue';
-import SelectedTable from './SelectedTable.vue';
+import CarsTable from './CarsTable.vue'; // <-- добавьте
+import PeopleTable from './PeopleTable.vue'; // <-- добавьте
 
 export default {
     components: {
         RefreshButton,
         DatePicker,
         FactTable,
-        SelectedTable
+        CarsTable, // <-- добавьте
+        PeopleTable // <-- добавьте
     },
     data() {
         return {

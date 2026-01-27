@@ -1457,110 +1457,111 @@ export default {
 
         // Новый метод для отправки полной заявки с вложениями
         async sendCompleteApplication() {
-            if (this.attachments.length === 0) {
-                alert('Добавьте вложения для отправки');
-                return;
+    if (this.attachments.length === 0) {
+        alert('Добавьте вложения для отправки');
+        return;
+    }
+
+    // Подготавливаем данные для отправки
+    const applicationData = {
+        message: this.message || null,
+        organization: this.organization,
+        company: this.company || null,
+        responsible_person: this.responsiblePerson,
+        contact_phone: this.phoneNumber.replace(/\D/g, ''),
+        data_approval: this.consentGiven,
+        attachments: []
+    };
+
+    // Для каждого вложения добавляем данные
+    for (const attachment of this.attachments) {
+        const dateData = this.attachmentDatesByAttachment[attachment.id] || this.getDefaultDateData();
+        
+        const attachmentData = {
+            attachment_type: attachment.attachment_type,
+            attachment_name: attachment.name,
+            attachment_display_name: attachment.display_name,
+            unique_attachment_id: attachment.id, // ← ВАЖНО: передаем ID уникального бланка
+            entry_date_from: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.startDate),
+            entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
+            entry_time_from: dateData.startTime + ":00",
+            entry_time_to: dateData.endTime + ":00",
+            data: {}
+        };
+
+        // Добавляем данные в зависимости от типа вложения
+        switch (attachment.attachment_type) {
+            case 'cars': {
+                const vehicles = this.vehiclesByAttachment[attachment.id] || [];
+                attachmentData.data.vehicles = vehicles.map(vehicle => ({
+                    car_number: vehicle.plateNumber,
+                    car_brand: vehicle.mark,
+                    unload_place: vehicle.unloadingPlace,
+                    unload_places: vehicle.unloadPlaces || []
+                }));
+                break;
             }
-
-            // Подготавливаем данные для отправки
-            const applicationData = {
-                message: this.message || null,
-                organization: this.organization,
-                company: this.company || null,
-                responsible_person: this.responsiblePerson,
-                contact_phone: this.phoneNumber.replace(/\D/g, ''),
-                data_approval: this.consentGiven,
-                attachments: []
-            };
-
-            // Для каждого вложения добавляем данные
-            for (const attachment of this.attachments) {
-                const dateData = this.attachmentDatesByAttachment[attachment.id] || this.getDefaultDateData();
-                
-                const attachmentData = {
-                    attachment_type: attachment.attachment_type,
-                    attachment_name: attachment.name,
-                    attachment_display_name: attachment.display_name,
-                    entry_date_from: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.startDate),
-                    entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
-                    entry_time_from: dateData.startTime + ":00",
-                    entry_time_to: dateData.endTime + ":00",
-                    data: {}
-                };
-
-                // Добавляем данные в зависимости от типа вложения
-                switch (attachment.attachment_type) {
-                    case 'cars': {
-                        const vehicles = this.vehiclesByAttachment[attachment.id] || [];
-                        attachmentData.data.vehicles = vehicles.map(vehicle => ({
-                            car_number: vehicle.plateNumber,
-                            car_brand: vehicle.mark,
-                            unload_place: vehicle.unloadingPlace,
-                            unload_places: vehicle.unloadPlaces || []
-                        }));
-                        break;
-                    }
-                    case 'people': {
-                        const employees = this.employeesByAttachment[attachment.id] || [];
-                        attachmentData.data.employees = employees.map(employee => ({
-                            last_name: employee.lastName,
-                            first_name: employee.firstName,
-                            middle_name: employee.middleName,
-                            citizenship_id: employee.citizenshipId,
-                            position: employee.position,
-                            passport_series_number: employee.passportSeriesNumber,
-                            patent_number: employee.patentNumber,
-                            other_permission: employee.otherPermission,
-                            target_tables: employee.targetTables || []
-                        }));
-                        break;
-                    }
-                    case 'items': {
-                        const items = this.itemsByAttachment[attachment.id] || [];
-                        attachmentData.data.items = items.map((item, index) => ({
-                            name: item.itemName,
-                            count: item.quantity,
-                            order_index: index + 1
-                        }));
-                        break;
-                    }
-                }
-
-                applicationData.attachments.push(attachmentData);
+            case 'people': {
+                const employees = this.employeesByAttachment[attachment.id] || [];
+                attachmentData.data.employees = employees.map(employee => ({
+                    last_name: employee.lastName,
+                    first_name: employee.firstName,
+                    middle_name: employee.middleName,
+                    citizenship_id: employee.citizenshipId,
+                    position: employee.position,
+                    passport_series_number: employee.passportSeriesNumber,
+                    patent_number: employee.patentNumber,
+                    other_permission: employee.otherPermission,
+                    target_tables: employee.targetTables || []
+                }));
+                break;
             }
-
-            // Отправляем заявку
-            try {
-                const token = localStorage.getItem("token");
-                if (!token) {
-                    alert('Токен не найден');
-                    return;
-                }
-
-                const response = await fetch("http://localhost:8080/applications/submit-complete-application", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    },
-                    body: JSON.stringify(applicationData)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    alert(`Заявка успешно отправлена! Номер заявки: ${result.application_number}`);
-                    // Очищаем форму после успешной отправки
-                    this.clearAllAttachments();
-                } else {
-                    const errorText = await response.text();
-                    console.error('Ошибка отправки заявки:', errorText);
-                    alert('Ошибка отправки заявки: ' + errorText);
-                }
-            } catch (error) {
-                console.error('Ошибка отправки заявки:', error);
-                alert(`Произошла ошибка при отправке заявки: ${error.message}`);
+            case 'items': {
+                const items = this.itemsByAttachment[attachment.id] || [];
+                attachmentData.data.items = items.map((item, index) => ({
+                    name: item.itemName,
+                    count: item.quantity,
+                    order_index: index + 1
+                }));
+                break;
             }
-        },
+        }
+
+        applicationData.attachments.push(attachmentData);
+    }
+
+    // Отправляем заявку
+    try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            alert('Токен не найден');
+            return;
+        }
+
+        const response = await fetch("http://localhost:8080/applications/submit-complete-application", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify(applicationData)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            alert(`Заявка успешно отправлена! Номер заявки: ${result.application_number}`);
+            // Очищаем форму после успешной отправки
+            this.clearAllAttachments();
+        } else {
+            const errorText = await response.text();
+            console.error('Ошибка отправки заявки:', errorText);
+            alert('Ошибка отправки заявки: ' + errorText);
+        }
+    } catch (error) {
+        console.error('Ошибка отправки заявки:', error);
+        alert(`Произошла ошибка при отправке заявки: ${error.message}`);
+    }
+},
 
         // Новый метод для очистки localStorage после отправки
         clearLocalStorageAfterSubmit() {

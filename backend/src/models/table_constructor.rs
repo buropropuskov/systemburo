@@ -1,6 +1,6 @@
 // models/table_constructor.rs
 use serde::{Serialize, Deserialize};
-use chrono::{NaiveDateTime, Utc};
+use chrono::{NaiveDateTime};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemTable {

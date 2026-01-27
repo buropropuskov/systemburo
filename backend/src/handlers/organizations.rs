@@ -8,6 +8,8 @@ use serde::Serialize;
 use crate::models::organizations::*;
 use crate::auth::decode_token;
 
+use crate::handlers::applications::update_responsible_users_for_entity;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateOrganizationResponsibleRequest {
     pub responsible_person_id: Option<i32>,
@@ -188,6 +190,48 @@ pub async fn update_organization_users(
                             error::ErrorInternalServerError("Database error")
                         })?;
 
+                        // Получаем старых пользователей для сравнения
+                        let old_users = sqlx::query!(
+                            "SELECT user_id, is_primary FROM organization_users WHERE organization_id = $1",
+                            org_id
+                        )
+                        .fetch_all(&mut *transaction)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to fetch old organization users: {}", e);
+                            error::ErrorInternalServerError("Error fetching old organization users")
+                        })?;
+
+                        // Векторы для хранения изменений
+                        let mut removed_user_ids = Vec::new();
+                        let mut added_users = Vec::new();
+                        let mut new_user_ids = Vec::new();
+                        
+                        // Сначала получаем ID всех новых пользователей
+                        for user_request in &form.users {
+                            let user_result = sqlx::query!(
+                                "SELECT id FROM users WHERE username = $1",
+                                user_request.username
+                            )
+                            .fetch_optional(&mut *transaction)
+                            .await
+                            .map_err(|e| {
+                                log::error!("Failed to find user by username: {}", e);
+                                error::ErrorInternalServerError("Error finding user")
+                            })?;
+
+                            if let Some(user) = user_result {
+                                new_user_ids.push(user.id);
+                            }
+                        }
+                        
+                        // Определяем удаленных пользователей - тех, кто был в старом списке, но нет в новом
+                        for old_user in &old_users {
+                            if !new_user_ids.contains(&old_user.user_id) {
+                                removed_user_ids.push(old_user.user_id);
+                            }
+                        }
+
                         // Удаляем старых пользователей организации
                         sqlx::query!(
                             "DELETE FROM organization_users WHERE organization_id = $1",
@@ -200,7 +244,7 @@ pub async fn update_organization_users(
                             error::ErrorInternalServerError("Error updating organization users")
                         })?;
 
-                        // Добавляем новых пользователей с указанием главного
+                        // Добавляем новых пользователей
                         for user_request in &form.users {
                             // Получаем ID пользователя по username
                             let user_result = sqlx::query!(
@@ -215,11 +259,13 @@ pub async fn update_organization_users(
                             })?;
 
                             if let Some(user) = user_result {
+                                let is_primary = user_request.is_primary.unwrap_or(false);
+                                
                                 sqlx::query!(
                                     "INSERT INTO organization_users (organization_id, user_id, is_primary) VALUES ($1, $2, $3)",
                                     org_id,
                                     user.id,
-                                    user_request.is_primary.unwrap_or(false)
+                                    is_primary
                                 )
                                 .execute(&mut *transaction)
                                 .await
@@ -227,18 +273,58 @@ pub async fn update_organization_users(
                                     log::error!("Failed to insert organization user: {}", e);
                                     error::ErrorInternalServerError("Error updating organization users")
                                 })?;
+                                
+                                // Проверяем, был ли этот пользователь в старом списке
+                                let was_in_old = old_users.iter().any(|old_user| old_user.user_id == user.id);
+                                if !was_in_old {
+                                    // Новый пользователь
+                                    added_users.push((user.id, is_primary));
+                                } else {
+                                    // Пользователь был, проверяем изменился ли его статус is_primary
+                                    let old_is_primary = old_users.iter()
+                                        .find(|old_user| old_user.user_id == user.id)
+                                        .map(|old_user| old_user.is_primary.unwrap_or(false))
+                                        .unwrap_or(false);
+                                    
+                                    if old_is_primary != is_primary {
+                                        // Статус изменился - добавляем в список изменений
+                                        added_users.push((user.id, is_primary));
+                                    }
+                                }
                             } else {
                                 log::warn!("User with username {} not found", user_request.username);
                             }
                         }
 
-                        // Коммитим транзакцию
+                        // Коммитим транзакцию организации
                         transaction.commit().await.map_err(|e| {
                             log::error!("Failed to commit transaction: {}", e);
                             error::ErrorInternalServerError("Database error")
                         })?;
-
-                        Ok(HttpResponse::Ok().json(json!({"message": "Organization users updated successfully"})))
+                        
+                        // Теперь обновляем заявки с новыми ответственными
+                        let update_result = crate::handlers::applications::update_responsible_users_for_entity(
+                            pool.clone(),
+                            req.clone(),
+                            org_id,
+                            "organization".to_string(),
+                            removed_user_ids,
+                            added_users,
+                        ).await;
+                        
+                        match update_result {
+                            Ok(response) => {
+                                log::info!("Successfully updated organization users and related applications");
+                                Ok(response)
+                            }
+                            Err(e) => {
+                                log::error!("Failed to update applications: {}", e);
+                                Ok(HttpResponse::Ok().json(json!({
+                                    "message": "Organization users updated successfully",
+                                    "warning": "Some applications may have outdated responsible users"
+                                })))
+                            }
+                        }
                     }
                     Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
                 }

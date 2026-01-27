@@ -1,6 +1,6 @@
 <template>
   <div class="selected-table-card">
-    <!-- Уведомление об удалении -->
+    <!-- Уведомление об удаления -->
     <transition name="slide-down">
       <div v-if="notification.message" class="notification">
         <span>{{ notification.message }}</span>
@@ -19,7 +19,7 @@
         <span class="items-count">
           {{ tableType === 'cars' ? 'Машин' : 'Людей' }} на территории: {{ activeItemsCount }}
         </span>
-        <RefreshButton @refresh="fetchData" />
+        <RefreshButton @refresh="loadData" :disabled="isLoading" />
       </div>
     </div>
     
@@ -164,101 +164,105 @@
       
       <!-- Тело таблицы -->
       <div class="items-container">
-        <div v-if="isLoading && itemsData.length === 0" class="loading-message">
-            <div class="loader"></div>
-            <p>Загрузка данных...</p>
-          </div>
-          <div v-else-if="filteredItems.length > 0" class="items-body">
-        <div v-if="filteredItems.length > 0" class="items-body">
-          <transition-group name="fade-list" tag="div">
-            <div 
-              v-for="(item, index) in sortedItems" 
-              :key="item.id || index" 
-              class="item-row"
-              :style="{ animationDelay: `${index * 0.1}s` }"
-            >
-              <div class="item-data">
-                <div class="item-col checkbox-col">
-                  <input 
-                    type="checkbox" 
-                    v-model="item.checked"
-                    class="checkbox-input"
-                    @change="updateActiveItemsCount"
-                  />
-                </div>
-                
-                <!-- Данные для машин -->
-                <template v-if="tableType === 'cars'">
-                  <div class="item-col number-col">
-                    {{ item.car_number }}
-                  </div>
-                  <div class="item-col brand-col">
-                    {{ item.car_brand }}
-                  </div>
-                </template>
-                
-                <!-- Данные для людей -->
-                <template v-else>
-                  <div class="item-col name-col">
-                    {{ item.last_name }}
-                  </div>
-                  <div class="item-col name-col">
-                    {{ item.first_name }}
-                  </div>
-                  <div class="item-col name-col">
-                    {{ item.middle_name || '-' }}
-                  </div>
-                </template>
-
-                <div class="item-col organization-col">
-                  {{ item.organization }}
-                </div>
-                
-                <div class="item-col place-col" v-if="tableType === 'cars'">
-                  <!-- Используем unload_place вместо formatUnloadPlaces -->
-                  {{ item.unload_place || formatUnloadPlaces(item) }}
-                </div>
-                
-                <div class="item-col date-col">
-                  {{ formatDate(item.entry_date_to) }}
-                </div>
-                
-                <div class="item-col time-col">
-                  {{ tableType === 'cars' 
-                    ? formatTimeRange(item.entry_time_from, item.entry_time_to)
-                    : formatPassTime(item.pass_time)
-                  }}
-                </div>
-                
-                <div class="item-col status-col">
-                  <span class="status-text">
-                    {{ item.status }}
-                  </span>
-                </div>
-                
-                <div class="item-col actions-col">
-                  <button 
-                    @click="removeItemWithNotification(item)" 
-                    class="delete-btn"
-                  >
-                    <img 
-                      src="@/assets/icons/trashcan.png" 
-                      alt="Удалить" 
-                      class="delete-icon"
+        <div v-if="isLoading" class="loading-message">
+          <div class="loader"></div>
+          <p>Загрузка данных...</p>
+        </div>
+        
+        <template v-else>
+          <div v-if="displayItems.length > 0" class="items-body">
+            <transition-group name="fade-list" tag="div">
+              <div 
+                v-for="(item, index) in displayItems" 
+                :key="item.id || index" 
+                class="item-row"
+                :style="{ animationDelay: `${index * 0.05}s` }"
+              >
+                <div class="item-data">
+                  <div class="item-col checkbox-col">
+                    <input 
+                      type="checkbox" 
+                      v-model="item.checked"
+                      class="checkbox-input"
+                      @change="updateActiveItemsCount"
                     />
-                  </button>
+                  </div>
+                  
+                  <!-- Данные для машин -->
+                  <template v-if="tableType === 'cars'">
+                    <div class="item-col number-col">
+                      {{ item.car_number }}
+                    </div>
+                    <div class="item-col brand-col">
+                      {{ item.car_brand }}
+                    </div>
+                  </template>
+                  
+                  <!-- Данные для людей -->
+                  <template v-else>
+                    <div class="item-col name-col">
+                      {{ item.last_name }}
+                    </div>
+                    <div class="item-col name-col">
+                      {{ item.first_name }}
+                    </div>
+                    <div class="item-col name-col">
+                      {{ item.middle_name || '-' }}
+                    </div>
+                  </template>
+
+                  <div class="item-col organization-col">
+                    {{ item.organization }}
+                  </div>
+                  
+                  <div class="item-col place-col" v-if="tableType === 'cars'">
+                    {{ item.unload_place || '-' }}
+                  </div>
+                  
+                  <div class="item-col date-col">
+                    {{ formatDate(item.entry_date_to) }}
+                  </div>
+                  
+                  <div class="item-col time-col">
+                    {{ tableType === 'cars' 
+                      ? formatTimeRange(item.entry_time_from, item.entry_time_to)
+                      : formatPassTime(item.pass_time)
+                    }}
+                  </div>
+                  
+                  <div class="item-col status-col">
+                    <span class="status-text">
+                      {{ item.status }}
+                    </span>
+                  </div>
+                  
+                  <div class="item-col actions-col">
+                    <button 
+                      @click="removeItemWithNotification(item)" 
+                      class="delete-btn"
+                      :disabled="isLoading"
+                    >
+                      <img 
+                        src="@/assets/icons/trashcan.png" 
+                        alt="Удалить" 
+                        class="delete-icon"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </transition-group>
-        </div>
-        </div>
-        <p v-else class="no-data-message">
-          {{ hasActiveFilters 
-            ? 'Нет данных по выбранным фильтрам' 
-            : `Нет заявок на ${tableType === 'cars' ? 'автомобили' : 'людей'}` 
-          }}
-        </p>
+            </transition-group>
+          </div>
+          
+          <div v-else class="no-data-message">
+            {{ hasActiveFilters 
+              ? 'Нет данных по выбранным фильтрам' 
+              : tableType === 'cars' 
+                ? 'Нет активных автомобилей' 
+                : 'Нет активных сотрудников'
+            }}
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -310,50 +314,49 @@ export default {
     return {
       sortField: null,
       sortDirection: 'desc',
-      itemsData: [],
+      itemsData: [], // Общий массив данных
       notification: { message: null, item: null },
       progress: 100,
       progressInterval: null,
       activeItemsCount: 0,
-      unloadingPlacesMap: new Map(),
-      isLoading: false, // Добавляем флаг загрузки
-      isInitialLoad: true // Флаг первой загрузки
+      isLoading: false,
+      hasDataLoaded: false // Флаг, что данные были загружены
     };
   },
   computed: {
-    filteredItems() {
+    displayItems() {
+      if (!this.hasDataLoaded || this.isLoading) {
+        return [];
+      }
+      
       let filtered = [...this.itemsData];
-
+      
       // Поиск по всем полям
       if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
+        const query = this.searchQuery.toLowerCase().trim();
         filtered = filtered.filter(item => {
           const searchFields = [
             item.organization,
             this.formatDate(item.entry_date_to),
-            item.status,
-            this.tableType === 'cars' 
-              ? this.formatTimeRange(item.entry_time_from, item.entry_time_to)
-              : this.formatPassTime(item.pass_time)
+            item.status
           ];
 
           if (this.tableType === 'cars') {
             searchFields.push(
               item.car_number,
               item.car_brand,
-              // Используем unload_place вместо formatUnloadPlaces
               item.unload_place || ''
             );
           } else {
             searchFields.push(
               item.last_name,
               item.first_name,
-              item.middle_name
+              item.middle_name || ''
             );
           }
 
           return searchFields.some(field => 
-            field?.toLowerCase().includes(query)
+            field && field.toString().toLowerCase().includes(query)
           );
         });
       }
@@ -368,7 +371,6 @@ export default {
       // Фильтр по месту разгрузки (только для машин)
       if (this.selectedUnloadingPlace && this.tableType === 'cars') {
         filtered = filtered.filter(item => {
-          // Используем поле unload_place для фильтрации
           const place = item.unload_place || '';
           return place.toLowerCase().includes(this.selectedUnloadingPlace.toLowerCase());
         });
@@ -385,64 +387,58 @@ export default {
         });
       }
 
-      return filtered;
-    },
-
-    sortedItems() {
-      const items = [...this.filteredItems];
-      
-      if (!this.sortField) {
-        return items;
+      // Сортировка
+      if (this.sortField) {
+        filtered.sort((a, b) => {
+          let valueA, valueB;
+          
+          switch (this.sortField) {
+            case 'car_number':
+            case 'car_brand':
+            case 'organization':
+            case 'status':
+            case 'last_name':
+            case 'first_name':
+            case 'middle_name':
+              valueA = (a[this.sortField] || '').toString().toLowerCase();
+              valueB = (b[this.sortField] || '').toString().toLowerCase();
+              break;
+              
+            case 'unload_place':
+              valueA = (a.unload_place || '').toString().toLowerCase();
+              valueB = (b.unload_place || '').toString().toLowerCase();
+              break;
+              
+            case 'entry_date_to':
+              valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
+              valueB = b.entry_date_to ? new Date(b.entry_date_to) : new Date(0);
+              break;
+              
+            case 'entry_time':
+              if (this.tableType === 'cars') {
+                valueA = this.extractStartTime(a.entry_time_from);
+                valueB = this.extractStartTime(b.entry_time_from);
+              } else {
+                valueA = this.extractPassTime(a.pass_time);
+                valueB = this.extractPassTime(b.pass_time);
+              }
+              break;
+              
+            default:
+              return 0;
+          }
+          
+          if (valueA < valueB) {
+            return this.sortDirection === 'asc' ? -1 : 1;
+          }
+          if (valueA > valueB) {
+            return this.sortDirection === 'asc' ? 1 : -1;
+          }
+          return 0;
+        });
       }
-      
-      return items.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (this.sortField) {
-          case 'car_number':
-          case 'car_brand':
-          case 'organization':
-          case 'status':
-          case 'last_name':
-          case 'first_name':
-          case 'middle_name':
-            valueA = a[this.sortField]?.toLowerCase() || '';
-            valueB = b[this.sortField]?.toLowerCase() || '';
-            break;
-            
-          case 'unload_place':
-            // Используем поле unload_place для сортировки
-            valueA = a.unload_place?.toLowerCase() || '';
-            valueB = b.unload_place?.toLowerCase() || '';
-            break;
-            
-          case 'entry_date_to':
-            valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
-            valueB = b.entry_date_to ? new Date(b.entry_date_to) : new Date(0);
-            break;
-            
-          case 'entry_time':
-            if (this.tableType === 'cars') {
-              valueA = this.extractStartTime(a.entry_time_from);
-              valueB = this.extractStartTime(b.entry_time_from);
-            } else {
-              valueA = this.extractPassTime(a.pass_time);
-              valueB = this.extractPassTime(b.pass_time);
-            }
-            break;
-            
-          default:
-            return 0;
-        }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
+
+      return filtered;
     },
 
     hasActiveFilters() {
@@ -456,181 +452,150 @@ export default {
     }
   },
   methods: {
-    async fetchUnloadingPlaces() {
+    async loadData() {
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
+      this.hasDataLoaded = false;
+      
       try {
-        const response = await fetch("http://localhost:8080/unload-places");
-        const places = await response.json();
+        console.log('Загрузка данных для таблицы типа:', this.tableType);
         
-        places.forEach(place => {
-          this.unloadingPlacesMap.set(place.id, place.name);
-        });
+        if (this.tableType === 'cars') {
+          await this.fetchCarsData();
+        } else {
+          await this.fetchPeopleData();
+        }
+        
+        this.hasDataLoaded = true;
+        this.updateActiveItemsCount();
       } catch (error) {
-        console.error("Ошибка при загрузке мест разгрузки:", error);
+        console.error(`Ошибка при загрузке данных (${this.tableType}):`, error);
+        this.hasDataLoaded = true;
+      } finally {
+        this.isLoading = false;
       }
     },
 
-    async fetchData() {
-  // Если загрузка уже идет, не начинаем новую
-  if (this.isLoading) return;
-  
-  // Если это таблица людей и нет имени таблицы - не загружаем
-  if (this.tableType === 'people' && !this.tableName) {
-    console.warn('Table name is required for people table');
-    this.itemsData = [];
-    this.isLoading = false;
-    return;
-  }
-  
-  this.isLoading = true;
-  
-  // Сначала сбрасываем данные, чтобы не показывать старые данные другого типа
-  this.itemsData = [];
-  
-  try {
-    // Сохраняем текущий тип таблицы для проверки после загрузки
-    const currentTableType = this.tableType;
-    
-    let newData = [];
-    
-    if (currentTableType === 'cars') {
-      newData = await this.fetchCarsData();
-    } else if (currentTableType === 'people') {
-      newData = await this.fetchPeopleData();
-    } else {
-      console.warn(`Unknown table type: ${currentTableType}`);
-      newData = [];
-    }
-    
-    // Проверяем, не изменился ли тип таблицы во время загрузки
-    if (this.tableType !== currentTableType) {
-      console.log('Тип таблицы изменился во время загрузки, игнорируем результат');
-      this.itemsData = [];
-    } else {
-      // Устанавливаем данные только если тип таблицы не изменился
-      this.itemsData = newData;
-    }
-    
-    this.updateActiveItemsCount();
-  } catch (error) {
-    console.error(`Ошибка при загрузке данных (${this.tableType}):`, error);
-    this.itemsData = [];
-  } finally {
-    this.isLoading = false;
-    this.isInitialLoad = false;
-  }
-},
-
     async fetchCarsData() {
-  try {
-    const token = localStorage.getItem("token");
-    
-    console.log('Загрузка машин для таблицы с типом cars...');
-    
-    const response = await fetch("http://localhost:8080/cars/active-for-tables", {
-        method: "GET",
-        headers: {
+      try {
+        const token = localStorage.getItem("token");
+        
+        console.log('Загрузка машин для таблицы с типом cars...');
+        
+        const response = await fetch("http://localhost:8080/cars/active-for-tables", {
+          method: "GET",
+          headers: {
             "Authorization": `Bearer ${token}`,
-        },
-    });
-    
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const cars = await response.json();
-    console.log('Получены все активные машины:', cars.length, 'шт.');
-    
-    // Фильтруем машины
-    const regularCars = cars.filter(car => {
-        if (car.status !== 1) {
-            return false;
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const carNumber = car.car_number?.toLowerCase().trim();
-        return carNumber !== 'по факту';
-    });
-    
-    console.log('Машины для отображения в таблице:', regularCars.length, 'шт.');
-    
-    // Возвращаем отформатированные данные
-    return regularCars.map(car => ({
-        id: car.id,
-        car_number: car.car_number || '',
-        car_brand: car.car_brand || '',
-        organization: car.organization || 'Не указана',
-        unload_place: car.unload_place || '-',
-        unload_places: car.unload_places || [],
-        entry_date_to: car.entry_date_to || '',
-        entry_time_from: car.entry_time_from || '',
-        entry_time_to: car.entry_time_to || '',
-        status: 'В работе',
-        checked: false
-    }));
-    
-  } catch (error) {
-    console.error("Ошибка при загрузке данных машин:", error);
-    return [];
-  }
-},
+        const cars = await response.json();
+        console.log('Получены все активные машины:', cars.length, 'шт.');
+        
+        // Фильтруем машины
+        const regularCars = cars.filter(car => {
+          if (car.status !== 1) {
+            return false;
+          }
+          
+          const carNumber = car.car_number?.toLowerCase().trim();
+          return carNumber !== 'по факту';
+        });
+        
+        console.log('Машины для отображения в таблице:', regularCars.length, 'шт.');
+        
+        // Сохраняем данные
+        this.itemsData = regularCars.map(car => ({
+          id: car.id,
+          car_number: car.car_number || '',
+          car_brand: car.car_brand || '',
+          organization: car.organization || 'Не указана',
+          unload_place: car.unload_place || '-',
+          entry_date_to: car.entry_date_to || '',
+          entry_time_from: car.entry_time_from || '',
+          entry_time_to: car.entry_time_to || '',
+          status: 'В работе',
+          checked: false,
+          applicationId: car.application_id
+        }));
+        
+      } catch (error) {
+        console.error("Ошибка при загрузке данных машин:", error);
+        this.itemsData = [];
+        throw error;
+      }
+    },
 
     async fetchPeopleData() {
-  try {
-    const token = localStorage.getItem("token");
-    
-    if (!this.tableName) {
-        console.error("Table name is required for fetching people data");
-        return [];
-    }
-    
-    const tableResponse = await fetch(`http://localhost:8080/system-tables/name/${this.tableName}`, {
-        method: "GET",
-        headers: {
+      try {
+        const token = localStorage.getItem("token");
+        
+        if (!this.tableName) {
+          console.warn('Table name не указан для загрузки людей');
+          this.itemsData = [];
+          return;
+        }
+        
+        const tableResponse = await fetch(`http://localhost:8080/system-tables/name/${this.tableName}`, {
+          method: "GET",
+          headers: {
             "Authorization": `Bearer ${token}`,
-        },
-    });
-    
-    if (!tableResponse.ok) {
-        throw new Error(`Failed to get table: ${tableResponse.status}`);
-    }
-    
-    const table = await tableResponse.json();
-    
-    const response = await fetch(`http://localhost:8080/employees/active-for-table/${table.id}`, {
-        method: "GET",
-        headers: {
+          }
+        });
+        
+        if (!tableResponse.ok) {
+          throw new Error(`Failed to get table: ${tableResponse.status}`);
+        }
+        
+        const table = await tableResponse.json();
+        
+        const response = await fetch(`http://localhost:8080/employees/active-for-table/${table.id}`, {
+          method: "GET",
+          headers: {
             "Authorization": `Bearer ${token}`,
-        },
-    });
-    
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const employees = await response.json();
-    
-    return employees.map(emp => ({
-        id: emp.id,
-        last_name: emp.last_name || '',
-        first_name: emp.first_name || '',
-        middle_name: emp.middle_name || '',
-        organization: emp.organization || 'Не указана',
-        entry_date_to: emp.entry_date_to || '',
-        pass_time: emp.pass_time || '',
-        status: 'Активен',
-        checked: false
-    }));
-    
-  } catch (error) {
-    console.error("Ошибка при загрузке данных сотрудников:", error);
-    return [];
-  }
-},
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const employees = await response.json();
+        
+        this.itemsData = employees.map(emp => ({
+          id: emp.id,
+          last_name: emp.last_name || '',
+          first_name: emp.first_name || '',
+          middle_name: emp.middle_name || '',
+          organization: emp.organization || 'Не указана',
+          entry_date_to: emp.entry_date_to || '',
+          pass_time: emp.pass_time || '',
+          status: 'Активен',
+          checked: false
+        }));
+        
+      } catch (error) {
+        console.error("Ошибка при загрузке данных сотрудников:", error);
+        this.itemsData = [];
+        throw error;
+      }
+    },
 
     formatDate(dateString) {
       if (!dateString) return '';
-      const [year, month, day] = dateString.split('-');
-      const date = new Date(year, month - 1, day);
-      return date.toLocaleDateString('ru-RU');
+      try {
+        const [year, month, day] = dateString.split('-');
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString('ru-RU');
+      } catch (error) {
+        console.error('Ошибка форматирования даты:', error);
+        return '';
+      }
     },
 
     formatTimeRange(timeFrom, timeTo) {
@@ -638,8 +603,9 @@ export default {
       
       const formatTime = (timeStr) => {
         if (!timeStr) return '';
-        if (timeStr.includes(':') && timeStr.split(':').length === 3) {
-          return timeStr.substring(0, 5);
+        const parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          return `${parts[0]}:${parts[1]}`;
         }
         return timeStr;
       };
@@ -653,39 +619,27 @@ export default {
     },
 
     formatPassTime(passTime) {
-      return passTime || '-';
-    },
+      if (!passTime) return '-';
+      
+      const [timeFrom, timeTo] = passTime.split('-');
+      
+      if (!timeFrom && !timeTo) return '-';
+      
+      const formatTime = (timeStr) => {
+        if (!timeStr) return '';
+        const parts = timeStr.trim().split(':');
+        if (parts.length >= 2) {
+          return `${parts[0]}:${parts[1]}`;
+        }
+        return timeStr;
+      };
 
-    // Обновляем функцию formatUnloadPlaces для использования unload_place
-    formatUnloadPlaces(item) {
-      // Используем поле unload_place из данных
-      if (item.unload_place) {
-        return item.unload_place;
-      }
+      const formattedTimeFrom = formatTime(timeFrom);
+      const formattedTimeTo = formatTime(timeTo);
       
-      // Для обратной совместимости с массивом unload_places
-      if (item.unload_places && item.unload_places.length > 0) {
-        const placeNames = item.unload_places
-          .map(place => {
-            if (typeof place === 'object' && place.unload_place_name) {
-              return place.unload_place_name;
-            }
-            if (this.unloadingPlacesMap.has(place)) {
-              return this.unloadingPlacesMap.get(place);
-            }
-            if (typeof place === 'object' && place.unload_place_id) {
-              return this.unloadingPlacesMap.get(place.unload_place_id) || `Место ${place.unload_place_id}`;
-            }
-            return null;
-          })
-          .filter(name => name);
-        
-        if (placeNames.length === 0) return '-';
-        if (placeNames.length === 1) return placeNames[0];
-        return `${placeNames[0]} и др.`;
-      }
-      
-      return '-';
+      if (!formattedTimeTo) return formattedTimeFrom;
+      if (!formattedTimeFrom) return formattedTimeTo;
+      return `${formattedTimeFrom} - ${formattedTimeTo}`;
     },
 
     sortBy(field) {
@@ -700,52 +654,61 @@ export default {
     extractStartTime(timeString) {
       if (!timeString || timeString === '-') return 0;
       
-      const timeWithoutSeconds = timeString.split(':').slice(0, 2).join(':');
-      const [hours, minutes] = timeWithoutSeconds.split(':').map(Number);
-      return hours * 60 + minutes;
+      const parts = timeString.split(':');
+      if (parts.length >= 2) {
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        return hours * 60 + minutes;
+      }
+      return 0;
     },
 
     extractPassTime(passTime) {
       if (!passTime || passTime === '-') return 0;
       
       const startTime = passTime.split('-')[0];
-      const [hours, minutes] = startTime.split(':').map(Number);
-      return hours * 60 + minutes;
+      const parts = startTime.split(':');
+      if (parts.length >= 2) {
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        return hours * 60 + minutes;
+      }
+      return 0;
     },
 
-    async removeItemWithNotification(item) {
+    removeItemWithNotification(item) {
+      if (this.isLoading) return;
+      
       const originalItem = { ...item };
+      const itemIndex = this.itemsData.findIndex(i => i.id === item.id);
+      
+      // Отменяем предыдущее уведомление, если оно есть
+      if (this.notification.message) {
+        clearInterval(this.progressInterval);
+      }
       
       this.notification = { 
         message: `${this.tableType === 'cars' ? 'Машина' : 'Человек'} ${this.tableType === 'cars' ? item.car_number : item.last_name} удален.`, 
         item,
-        originalStatus: item.status,
-        undoFunction: async () => {
+        originalItem: originalItem,
+        itemIndex: itemIndex,
+        undoFunction: () => {
           try {
-            item.status = originalItem.status;
-            if (this.tableType === 'cars') {
-              const response = await fetch(`http://localhost:8080/applications/${item.applicationId}/cars/${item.id}`, {
-                method: "PUT",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ 
-                  car: { ...item, status: originalItem.status },
-                  unload_places: item.unload_places || []
-                })
-              });
-              
-              if (!response.ok) throw new Error("Ошибка восстановления");
+            // Восстанавливаем исходные данные
+            if (itemIndex !== -1) {
+              this.itemsData[itemIndex] = { ...originalItem };
+              this.updateActiveItemsCount();
             }
-            this.fetchData();
           } catch (error) {
             console.error("Ошибка при отмене удаления:", error);
           }
         }
       };
 
-      item.status = 0;
+      // Временно скрываем элемент
+      item.status = 'Удален';
+      item.checked = false;
+      this.updateActiveItemsCount();
 
       this.progress = 100;
       clearInterval(this.progressInterval);
@@ -753,7 +716,7 @@ export default {
         this.progress -= 10;
         if (this.progress <= 0) {
           clearInterval(this.progressInterval);
-          this.actuallyDeleteItem(item);
+          this.actuallyDeleteItem(item, originalItem, itemIndex);
           if (this.notification.item?.id === item.id) {
             this.notification = { message: null, item: null };
           }
@@ -761,7 +724,7 @@ export default {
       }, 100);
     },
 
-    async actuallyDeleteItem(item) {
+    async actuallyDeleteItem(item, originalItem, itemIndex) {
       try {
         if (this.tableType === 'cars') {
           const response = await fetch(`http://localhost:8080/applications/${item.applicationId}/cars/${item.id}`, {
@@ -772,25 +735,39 @@ export default {
             },
             body: JSON.stringify({ 
               car: {
-                ...item,
+                ...originalItem,
                 status: 0
-              },
-              unload_places: item.unload_places || []
+              }
             })
           });
           
           if (!response.ok) {
             console.error("Ошибка при удалении");
-            item.status = this.notification.originalStatus;
+            // Восстанавливаем статус в случае ошибки
+            if (itemIndex !== -1) {
+              this.itemsData[itemIndex] = { ...originalItem };
+            }
+            return;
+          }
+          
+          // Удаляем элемент из массива после успешного удаления
+          if (itemIndex !== -1) {
+            this.itemsData.splice(itemIndex, 1);
           }
         } else {
-          // Логика удаления для людей
-          this.itemsData = this.itemsData.filter(i => i.id !== item.id);
+          // Для людей просто удаляем из массива
+          if (itemIndex !== -1) {
+            this.itemsData.splice(itemIndex, 1);
+          }
         }
-        this.fetchData();
+        
+        this.updateActiveItemsCount();
       } catch (error) {
         console.error("Ошибка сети при удалении:", error);
-        item.status = this.notification.originalStatus;
+        // Восстанавливаем статус в случае ошибки
+        if (itemIndex !== -1) {
+          this.itemsData[itemIndex] = { ...originalItem };
+        }
       }
     },
 
@@ -803,54 +780,62 @@ export default {
     },
 
     updateActiveItemsCount() {
-      this.activeItemsCount = this.itemsData.filter(item => item.checked).length;
+      this.activeItemsCount = this.itemsData.filter(item => 
+        item.checked && item.status !== 'Удален'
+      ).length;
+    }
+  },
+  watch: {
+    tableType: {
+      immediate: true,
+      async handler(newVal, oldVal) {
+        if (newVal !== oldVal || !this.hasDataLoaded) {
+          console.log('Тип таблицы изменился:', oldVal, '->', newVal);
+          
+          // Очищаем данные
+          this.itemsData = [];
+          this.sortField = null;
+          this.sortDirection = 'desc';
+          this.hasDataLoaded = false;
+          
+          // Отменяем предыдущие уведомления
+          if (this.notification.message) {
+            clearInterval(this.progressInterval);
+            this.notification = { message: null, item: null };
+          }
+          
+          // Загружаем данные только если тип определен
+          if (newVal) {
+            await this.loadData();
+          }
+        }
+      }
+    },
+    tableName: {
+      async handler(newVal, oldVal) {
+        if (newVal !== oldVal && this.tableType !== 'cars') {
+          console.log('Имя таблицы для людей изменилось:', oldVal, '->', newVal);
+          this.itemsData = [];
+          this.hasDataLoaded = false;
+          await this.loadData();
+        }
+      }
     }
   },
   mounted() {
-  // Загружаем данные только если указан tableType
-  if (this.tableType === 'cars') {
-    this.fetchUnloadingPlaces().then(() => {
-      this.fetchData();
-    });
-  } else if (this.tableType === 'people' && this.tableName) {
-    // Для людей ждем, пока tableName будет установлен
-    this.fetchData();
-  }
-  },
-  watch: {
-  tableType: {
-    handler(newVal, oldVal) {
-      console.log('Тип таблицы изменился:', oldVal, '->', newVal);
-      console.log('Имя таблицы:', this.tableName);
-      
-      // Сбрасываем данные при смене типа таблицы
-      this.itemsData = [];
-      this.isInitialLoad = true;
-      
-      // Отменяем предыдущие уведомления
-      if (this.notification.message) {
-        clearInterval(this.progressInterval);
-        this.notification = { message: null, item: null };
-      }
-      
-      // Загружаем данные для нового типа
-      this.fetchData();
+    console.log('SelectedTable mounted с типом:', this.tableType, 'и именем:', this.tableName);
+    
+    // Загружаем данные при монтировании
+    if (this.tableType) {
+      this.loadData();
     }
   },
-  tableName: {
-    handler(newVal, oldVal) {
-      if (newVal && this.tableType === 'people') {
-        console.log('Имя таблицы изменилось:', oldVal, '->', newVal);
-        
-        // Сбрасываем данные при смене имени таблицы
-        this.itemsData = [];
-        this.isInitialLoad = true;
-        
-        this.fetchData();
-      }
+  beforeUnmount() {
+    // Очищаем интервалы
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
     }
   }
-},
 };
 </script>
 
@@ -1038,7 +1023,7 @@ export default {
   transition: background-color 0.2s ease;
   opacity: 0;
   transform: translateY(10px);
-  animation: fadeInUp 0.5s ease forwards;
+  animation: fadeInUp 0.3s ease forwards;
 }
 
 @keyframes fadeInUp {
@@ -1094,8 +1079,13 @@ export default {
   justify-content: center;
 }
 
-.delete-btn:hover {
+.delete-btn:hover:not(:disabled) {
   background-color: transparent;
+}
+
+.delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .delete-icon {
@@ -1105,7 +1095,7 @@ export default {
   transition: opacity 0.2s ease;
 }
 
-.delete-btn:hover .delete-icon {
+.delete-btn:hover:not(:disabled) .delete-icon {
   opacity: 1;
 }
 
@@ -1121,10 +1111,38 @@ export default {
   justify-content: center;
 }
 
+.loading-message {
+  text-align: center;
+  color: #a2a2a2;
+  padding: 40px 20px;
+  margin: 0;
+  font-size: 14px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.loader {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #4F5BDF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Анимация для списка */
 .fade-list-enter-active,
 .fade-list-leave-active {
-  transition: all 0.5s ease;
+  transition: all 0.3s ease;
 }
 
 .fade-list-enter-from,
@@ -1134,7 +1152,7 @@ export default {
 }
 
 .fade-list-move {
-  transition: transform 0.5s ease;
+  transition: transform 0.3s ease;
 }
 
 /* Стили для уведомления */
@@ -1159,6 +1177,11 @@ export default {
   padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.notification button:hover {
+  background: #3a46d2;
 }
 
 .progress-bar {

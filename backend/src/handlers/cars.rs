@@ -1,8 +1,8 @@
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool};
 use serde_json::json;
 use log;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 use chrono::{NaiveDate, NaiveTime};
 
 use crate::auth::decode_token;

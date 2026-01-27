@@ -1,6 +1,6 @@
 // models/attachments.rs
 use serde::{Serialize, Deserialize};
-use chrono::{NaiveDateTime, Utc};
+use chrono::{NaiveDateTime};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UniqueAttachment {
@@ -32,4 +32,20 @@ pub struct UpdateAttachmentRequest {
     pub title: String,
     pub attachment_type: String,
     pub instruction: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AttachmentWithUniqueInfo {
+    pub id: i32,
+    pub attachment_type: String,
+    pub attachment_name: String,
+    pub attachment_display_name: String,
+    pub entry_date_from: Option<NaiveDateTime>,
+    pub entry_date_to: Option<NaiveDateTime>,
+    pub entry_time_from: Option<NaiveDateTime>,
+    pub entry_time_to: Option<NaiveDateTime>,
+    pub created_at: Option<NaiveDateTime>,
+    pub unique_attachment_id: Option<i32>,
+    pub unique_attachment_title: Option<String>,
+    pub unique_attachment_display_name: Option<String>,
 }

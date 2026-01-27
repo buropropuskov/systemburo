@@ -84,30 +84,35 @@
             v-model="userSearchQuery"
             @focus="showUserDropdown = true"
             @blur="onUserSearchBlur"
+            @input="handleSearchInput"
             class="user-search-input"
             placeholder="Добавить ответственного пользователя..."
             type="text"
           />
-          <div v-if="showUserDropdown" class="user-dropdown">
-            <div 
-              v-for="user in sortedAvailableUsers" 
-              :key="user.username"
-              class="user-dropdown-item"
-              @mousedown="addResponsibleUser(user)"
-            >
-              <div class="user-dropdown-info">
-                <div class="user-main-info">
-                  <span class="user-name">{{ getUserDisplayName(user) }}</span>
-                  <span class="user-username">@{{ user.username }}</span>
-                </div>
-                <div class="user-details">
-                  <span v-if="user.position" class="user-position">{{ user.position }}</span>
-                  <span v-if="user.organization" class="user-organization">{{ user.organization }}</span>
-                  <span v-if="user.company" class="user-company">{{ user.company }}</span>
+          <div v-if="showUserDropdown && sortedAvailableUsers.length > 0" class="user-dropdown">
+            <div class="user-dropdown-content">
+              <div 
+                v-for="user in sortedAvailableUsers" 
+                :key="user.username"
+                class="user-dropdown-item"
+                @mousedown="addResponsibleUser(user)"
+              >
+                <div class="user-dropdown-info">
+                  <div class="user-main-info">
+                    <span class="user-name">{{ getUserDisplayName(user) }}</span>
+                    <span class="user-username">@{{ user.username }}</span>
+                  </div>
+                  <div class="user-details">
+                    <span v-if="user.position" class="user-position">{{ user.position }}</span>
+                    <span v-if="user.organization" class="user-organization">{{ user.organization }}</span>
+                    <span v-if="user.company" class="user-company">{{ user.company }}</span>
+                  </div>
                 </div>
               </div>
             </div>
-            <div v-if="sortedAvailableUsers.length === 0" class="no-users-dropdown">
+          </div>
+          <div v-if="showUserDropdown && userSearchQuery && sortedAvailableUsers.length === 0" class="user-dropdown">
+            <div class="no-users-dropdown">
               Пользователи не найдены
             </div>
           </div>
@@ -357,58 +362,58 @@ export default {
     },
 
     async saveResponsibleUsers() {
-  if (!this.entity) return;
-  
-  this.isSavingUsers = true;
-  try {
-    const token = localStorage.getItem("token");
-    const endpoint = this.entityType === 'organization'
-      ? `http://localhost:8080/organizations/${this.entity.id}/users`
-      : `http://localhost:8080/companies/${this.entity.id}/users`;
-    
-    // Подготавливаем данные в новом формате
-    const usersData = this.selectedUsers.map(user => ({
-      username: user.username,
-      is_primary: user.is_primary || false
-    }));
-    
-    const response = await fetch(endpoint, {
-      method: "PUT",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        users: usersData
-      }),
-    });
-    
-    if (response.ok) {
-      this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
-      this.showNotification("Ответственные лица успешно обновлены", "success");
-      this.$emit('users-updated');
-    } else {
-      const errorText = await response.text();
-      let errorMessage = "Ошибка при обновлении ответственных лиц";
+      if (!this.entity) return;
       
+      this.isSavingUsers = true;
       try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.message || errorMessage;
-      } catch {
-        errorMessage = errorText || errorMessage;
+        const token = localStorage.getItem("token");
+        const endpoint = this.entityType === 'organization'
+          ? `http://localhost:8080/organizations/${this.entity.id}/users`
+          : `http://localhost:8080/companies/${this.entity.id}/users`;
+        
+        // Подготавливаем данные в новом формате
+        const usersData = this.selectedUsers.map(user => ({
+          username: user.username,
+          is_primary: user.is_primary || false
+        }));
+        
+        const response = await fetch(endpoint, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            users: usersData
+          }),
+        });
+        
+        if (response.ok) {
+          this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
+          this.showNotification("Ответственные лица успешно обновлены", "success");
+          this.$emit('users-updated');
+        } else {
+          const errorText = await response.text();
+          let errorMessage = "Ошибка при обновлении ответственных лиц";
+          
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.message || errorMessage;
+          } catch {
+            errorMessage = errorText || errorMessage;
+          }
+          
+          this.showNotification(errorMessage, "error");
+          await this.fetchEntityUsers(this.entity.id);
+        } 
+      } catch (error) {
+        console.error("Error updating responsible users:", error);
+        this.showNotification("Ошибка сети", "error");
+        await this.fetchEntityUsers(this.entity.id);
+      } finally {
+        this.isSavingUsers = false;
       }
-      
-      this.showNotification(errorMessage, "error");
-      await this.fetchEntityUsers(this.entity.id);
-    } 
-  } catch (error) {
-    console.error("Error updating responsible users:", error);
-    this.showNotification("Ошибка сети", "error");
-    await this.fetchEntityUsers(this.entity.id);
-  } finally {
-    this.isSavingUsers = false;
-  }
-},
+    },
 
     cancelResponsibleUsersChanges() {
       this.selectedUsers = JSON.parse(JSON.stringify(this.originalSelectedUsers));
@@ -458,6 +463,14 @@ export default {
       if (user) {
         this.setAsPrimary(user);
         this.newPrimaryUserUsername = '';
+      }
+    },
+
+    handleSearchInput() {
+      if (this.userSearchQuery.trim()) {
+        this.showUserDropdown = true;
+      } else {
+        this.showUserDropdown = false;
       }
     },
 
@@ -539,6 +552,7 @@ export default {
   width: 100%;
   background: #FFF;
   border-radius: 12px;
+  overflow: visible;
 }
 
 /* Секции */
@@ -730,11 +744,36 @@ export default {
   background: white;
   border: 1px solid #e6e6e6;
   border-radius: 12px;
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   margin-top: 8px;
+}
+
+.user-dropdown-content {
+  max-height: 250px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f0f0f0;
+}
+
+.user-dropdown-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.user-dropdown-content::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.user-dropdown-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.user-dropdown-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .user-dropdown-item {
@@ -742,6 +781,7 @@ export default {
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .user-dropdown-item:hover {
@@ -796,7 +836,7 @@ export default {
 }
 
 .no-users-dropdown {
-  padding: 8px;
+  padding: 12px;
   text-align: center;
   color: #6b7280;
   font-style: italic;
@@ -808,8 +848,29 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f0f0f0;
+}
+
+.selected-users-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.selected-users-list::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.selected-users-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.selected-users-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .selected-user-item {
@@ -821,6 +882,7 @@ export default {
   border: 1px solid #e6e6e6;
   background: #fff;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .selected-user-item:hover {
@@ -833,29 +895,39 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .selected-user-main {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
 }
 
 .selected-user-name {
   font-weight: 600;
   font-size: 0.7em;
   color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .selected-user-username {
   font-size: 0.65em;
   color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .selected-user-details {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 5px;
+  overflow: hidden;
 }
 
 .selected-user-position,
@@ -889,7 +961,9 @@ export default {
 .selected-user-actions {
   display: flex;
   gap: 4px;
-  align-items: center;
+  align-items: flex-start;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .set-primary-btn {
@@ -902,6 +976,7 @@ export default {
   padding: 2px 6px;
   border-radius: 4px;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .set-primary-btn:hover {
@@ -918,6 +993,7 @@ export default {
   padding: 2px 6px;
   border-radius: 3px;
   transition: background-color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .remove-user-btn:hover {
@@ -946,6 +1022,7 @@ export default {
   cursor: pointer;
   transition: background-color 0.2s ease;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .save-users-btn:hover:not(:disabled) {
@@ -968,6 +1045,7 @@ export default {
   cursor: pointer;
   transition: background-color 0.2s ease;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .cancel-users-btn:hover:not(:disabled) {
@@ -1008,6 +1086,8 @@ export default {
   
   .selected-user-actions {
     align-self: flex-end;
+    margin-left: 0;
+    margin-top: 4px;
   }
   
   .primary-user-card {
@@ -1017,6 +1097,18 @@ export default {
   
   .primary-user-actions {
     align-self: flex-end;
+  }
+  
+  .selected-users-list {
+    max-height: 200px;
+  }
+  
+  .user-dropdown {
+    max-height: 200px;
+  }
+  
+  .user-dropdown-content {
+    max-height: 200px;
   }
 }
 </style>
