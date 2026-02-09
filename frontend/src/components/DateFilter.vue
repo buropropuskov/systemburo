@@ -31,7 +31,7 @@
                         </div>
                         
                         <div class="calendar-body">
-                            <!-- Quick selection buttons слева -->
+                            <!-- Quick selection слева -->
                             <div class="quick-selection">
                                 <div class="quick-buttons-list">
                                     <button @click="setQuickDate('today')" class="quick-btn" :class="{ 'active': isQuickActive('today') }">
@@ -182,7 +182,11 @@ export default {
     },
     computed: {
         displayText() {
-            if (this.selectingRange) {
+            if (!this.selectingRange && this.internalSelectedDate) {
+                // Режим одного дня
+                return this.formatDateForDisplay(this.internalSelectedDate);
+            } else if (this.selectingRange) {
+                // Режим периода
                 if (this.internalRangeStart && this.internalRangeEnd) {
                     const start = this.formatDateForDisplay(this.internalRangeStart);
                     const end = this.formatDateForDisplay(this.internalRangeEnd);
@@ -190,8 +194,6 @@ export default {
                 } else if (this.internalRangeStart) {
                     return `${this.formatDateForDisplay(this.internalRangeStart)} — ...`;
                 }
-            } else if (!this.selectingRange && this.internalSelectedDate) {
-                return this.formatDateForDisplay(this.internalSelectedDate);
             }
             return 'Выберите дату';
         },
@@ -250,28 +252,32 @@ export default {
         selectedDate: {
             immediate: true,
             handler(newVal) {
-                this.internalSelectedDate = newVal;
-                this.updateActiveQuickDate();
+                this.internalSelectedDate = newVal ? new Date(newVal) : null;
             }
         },
         dateRangeStart: {
             immediate: true,
             handler(newVal) {
-                this.internalRangeStart = newVal;
-                this.updateActiveQuickDate();
+                this.internalRangeStart = newVal ? new Date(newVal) : null;
             }
         },
         dateRangeEnd: {
             immediate: true,
             handler(newVal) {
-                this.internalRangeEnd = newVal;
-                this.updateActiveQuickDate();
+                this.internalRangeEnd = newVal ? new Date(newVal) : null;
+            }
+        },
+        mode: {
+            immediate: true,
+            handler(newVal) {
+                this.selectingRange = newVal === 'range';
             }
         },
     },
     mounted() {
         document.addEventListener('click', this.handleClickOutside);
-        this.updateActiveQuickDate();
+        // Устанавливаем режим на основе пропса
+        this.selectingRange = this.mode === 'range';
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside);
@@ -290,6 +296,8 @@ export default {
                     this.currentDate = new Date(this.internalSelectedDate);
                 } else if (this.internalRangeStart) {
                     this.currentDate = new Date(this.internalRangeStart);
+                } else {
+                    this.currentDate = new Date();
                 }
             } else {
                 // Сбрасываем режим выбора периода при закрытии
@@ -313,14 +321,19 @@ export default {
             this.selectingRange = mode === 'range';
             
             // Если переключаемся с периода на один день и есть выбранный период
-            if (mode === 'single' && this.internalRangeStart) {
-                this.internalSelectedDate = this.internalRangeStart;
+            if (mode === 'single') {
+                // Если в диапазоне выбран один день, используем его
+                if (this.internalRangeStart && this.internalRangeEnd && 
+                    this.areDatesEqual(this.internalRangeStart, this.internalRangeEnd)) {
+                    this.internalSelectedDate = new Date(this.internalRangeStart);
+                }
                 this.internalRangeStart = null;
                 this.internalRangeEnd = null;
             }
             // Если переключаемся с одного дня на период и есть выбранная дата
             else if (mode === 'range' && this.internalSelectedDate) {
-                this.internalRangeStart = this.internalSelectedDate;
+                this.internalRangeStart = new Date(this.internalSelectedDate);
+                this.internalRangeEnd = new Date(this.internalSelectedDate);
                 this.internalSelectedDate = null;
             }
             
@@ -408,35 +421,33 @@ export default {
         },
         
         selectDay(day) {
-            if (!day.isCurrentMonth) return;
+            if (!day.isCurrentMonth || !day.date) return;
             
             if (!this.selectingRange) {
                 // Выбор одного дня
-                this.internalSelectedDate = day.date;
+                this.internalSelectedDate = new Date(day.date);
                 this.internalRangeStart = null;
                 this.internalRangeEnd = null;
+                this.activeQuickDate = null;
             } else {
                 // Выбор периода
                 if (!this.internalRangeStart || (this.internalRangeStart && this.internalRangeEnd)) {
                     // Начинаем новый выбор периода
-                    this.internalRangeStart = day.date;
+                    this.internalRangeStart = new Date(day.date);
                     this.internalRangeEnd = null;
                 } else {
                     // Завершаем выбор периода
-                    if (day.date < this.internalRangeStart) {
+                    const selectedDate = new Date(day.date);
+                    
+                    if (selectedDate < this.internalRangeStart) {
                         // Если выбрана дата раньше начала, меняем местами
-                        this.internalRangeEnd = this.internalRangeStart;
-                        this.internalRangeStart = day.date;
-                    } else if (this.areDatesEqual(day.date, this.internalRangeStart)) {
-                        // Нельзя выбрать тот же день второй раз - делаем его одним днем
-                        this.internalRangeEnd = null;
-                        this.internalSelectedDate = day.date;
-                        this.internalRangeStart = null;
-                        this.selectingRange = false;
+                        this.internalRangeEnd = new Date(this.internalRangeStart);
+                        this.internalRangeStart = selectedDate;
                     } else {
-                        this.internalRangeEnd = day.date;
+                        this.internalRangeEnd = selectedDate;
                     }
                 }
+                this.activeQuickDate = null;
             }
         },
         
@@ -452,6 +463,7 @@ export default {
         setQuickDate(period) {
             this.activeQuickDate = period;
             const today = new Date();
+            today.setHours(0, 0, 0, 0);
             let start, end;
             
             const periods = {
@@ -481,27 +493,32 @@ export default {
                 },
                 thisWeek: () => {
                     const start = new Date(today);
-                    const day = start.getDay();
-                    const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+                    const day = start.getDay() || 7; // 0 = воскресенье, 1 = понедельник
+                    const diff = start.getDate() - day + 1; // Понедельник этой недели
                     start.setDate(diff);
-                    return [start, today];
+                    
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + 6); // Воскресенье этой недели
+                    return [start, end];
                 },
                 lastWeek: () => {
                     const start = new Date(today);
-                    const day = start.getDay();
-                    const diff = start.getDate() - day - 6;
+                    const day = start.getDay() || 7;
+                    const diff = start.getDate() - day - 6; // Понедельник прошлой недели
                     start.setDate(diff);
+                    
                     const end = new Date(start);
-                    end.setDate(start.getDate() + 6);
+                    end.setDate(start.getDate() + 6); // Воскресенье прошлой недели
                     return [start, end];
                 },
                 nextWeek: () => {
                     const start = new Date(today);
-                    const day = start.getDay();
-                    const diff = start.getDate() - day + 8;
+                    const day = start.getDay() || 7;
+                    const diff = start.getDate() - day + 8; // Понедельник следующей недели
                     start.setDate(diff);
+                    
                     const end = new Date(start);
-                    end.setDate(start.getDate() + 6);
+                    end.setDate(start.getDate() + 6); // Воскресенье следующей недели
                     return [start, end];
                 },
                 thisMonth: () => [
@@ -528,6 +545,10 @@ export default {
             
             [start, end] = periods[period]();
             
+            // Убедимся, что время сброшено
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+            
             // Определяем, является ли период одним днем
             const isSingleDayPeriod = [
                 'today', 'yesterday', 'tomorrow', 
@@ -537,72 +558,66 @@ export default {
             if (isSingleDayPeriod) {
                 // Для выбора одного дня переключаем режим на "Один день"
                 this.selectingRange = false;
-                this.internalSelectedDate = start;
+                this.internalSelectedDate = new Date(start);
                 this.internalRangeStart = null;
                 this.internalRangeEnd = null;
             } else {
                 // Для выбора периода используем обе даты
                 this.selectingRange = true;
-                this.internalRangeStart = start;
-                this.internalRangeEnd = end;
+                this.internalRangeStart = new Date(start);
+                this.internalRangeEnd = new Date(end);
                 this.internalSelectedDate = null;
             }
             
-            // Показываем месяц с выбранной датой
+            // Показываем месяц с начальной датой
             this.currentDate = new Date(start);
         },
         
         isQuickActive(period) {
-            return this.activeQuickDate === period;
-        },
-        
-        updateActiveQuickDate() {
-            // Определяем, какой быстрый период активен
-            if (!this.internalSelectedDate && !this.internalRangeStart) {
-                this.activeQuickDate = null;
-                return;
+            if (this.activeQuickDate === period) return true;
+            
+            // Также проверяем, соответствует ли текущий выбор какому-либо быстрому периоду
+            if (period === 'today' && this.isToday(this.internalSelectedDate)) return true;
+            if (period === 'yesterday') {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                yesterday.setHours(0, 0, 0, 0);
+                if (this.internalSelectedDate && this.areDatesEqual(this.internalSelectedDate, yesterday)) return true;
             }
             
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            // Проверяем single mode
-            if (!this.selectingRange && this.internalSelectedDate) {
-                const selected = new Date(this.internalSelectedDate);
-                selected.setHours(0, 0, 0, 0);
-                
-                if (selected.getTime() === today.getTime()) {
-                    this.activeQuickDate = 'today';
-                } else if (selected.getTime() === today.getTime() - 86400000) {
-                    this.activeQuickDate = 'yesterday';
-                } else if (selected.getTime() === today.getTime() + 86400000) {
-                    this.activeQuickDate = 'tomorrow';
-                } else if (selected.getTime() === today.getTime() - 2 * 86400000) {
-                    this.activeQuickDate = 'dayBeforeYesterday';
-                } else if (selected.getTime() === today.getTime() + 2 * 86400000) {
-                    this.activeQuickDate = 'dayAfterTomorrow';
-                } else {
-                    this.activeQuickDate = null;
-                }
-            }
-            // Проверяем range mode
-            else if (this.selectingRange && this.internalRangeStart && this.internalRangeEnd) {
-                // Логика для определения активного периода диапазона
-                this.activeQuickDate = null;
-            }
+            return false;
         },
         
         applySelection() {
-            if (!this.selectingRange) {
+            if (!this.selectingRange && this.internalSelectedDate) {
                 // Режим одного дня
-                this.$emit('update:selectedDate', this.internalSelectedDate);
+                const date = new Date(this.internalSelectedDate);
+                date.setHours(0, 0, 0, 0);
+                this.$emit('update:selectedDate', date);
                 this.$emit('update:dateRangeStart', null);
                 this.$emit('update:dateRangeEnd', null);
-            } else {
+            } else if (this.selectingRange && this.internalRangeStart && this.internalRangeEnd) {
                 // Режим периода
+                const start = new Date(this.internalRangeStart);
+                start.setHours(0, 0, 0, 0);
+                const end = new Date(this.internalRangeEnd);
+                end.setHours(23, 59, 59, 999);
+                
                 this.$emit('update:selectedDate', null);
-                this.$emit('update:dateRangeStart', this.internalRangeStart);
-                this.$emit('update:dateRangeEnd', this.internalRangeEnd);
+                this.$emit('update:dateRangeStart', start);
+                this.$emit('update:dateRangeEnd', end);
+            } else if (this.selectingRange && this.internalRangeStart) {
+                // Если выбран только начальный день, делаем его и конечным
+                const date = new Date(this.internalRangeStart);
+                date.setHours(0, 0, 0, 0);
+                this.$emit('update:selectedDate', null);
+                this.$emit('update:dateRangeStart', date);
+                this.$emit('update:dateRangeEnd', date);
+            } else {
+                // Ничего не выбрано
+                this.$emit('update:selectedDate', null);
+                this.$emit('update:dateRangeStart', null);
+                this.$emit('update:dateRangeEnd', null);
             }
             
             this.$emit('apply');
@@ -619,12 +634,12 @@ export default {
             this.$emit('update:dateRangeStart', null);
             this.$emit('update:dateRangeEnd', null);
             this.$emit('clear');
-            this.$emit('apply'); // Добавлено: применяем очистку
         },
         
         formatDateForDisplay(date) {
             if (!date) return '';
-            return date.toLocaleDateString('ru-RU', {
+            const d = new Date(date);
+            return d.toLocaleDateString('ru-RU', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
@@ -1120,4 +1135,3 @@ export default {
     }
 }
 </style>
-

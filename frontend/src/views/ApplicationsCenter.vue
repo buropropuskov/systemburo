@@ -34,8 +34,10 @@
                     <DateFilter
                         ref="dateFilter"
                         :mode="'range'"
+                        :selected-date="selectedDate"
                         :date-range-start="dateRangeStart"
                         :date-range-end="dateRangeEnd"
+                        @update:selectedDate="updateSelectedDate"
                         @update:dateRangeStart="updateDateRangeStart"
                         @update:dateRangeEnd="updateDateRangeEnd"
                         @apply="applyDateFilters"
@@ -252,7 +254,7 @@
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail.vue';
-import DateFilter from '../components/DateFilter.vue'; // Новый компонент
+import DateFilter from '../components/DateFilter.vue';
 
 export default {
     name: 'ApplicationsCenter',
@@ -276,7 +278,8 @@ export default {
             shakeInterval: null,
             isInitialLoad: true,
             
-            // Дата
+            // Дата - теперь поддерживаем и одиночную дату, и диапазон
+            selectedDate: null,
             dateRangeStart: null,
             dateRangeEnd: null,
             
@@ -348,8 +351,21 @@ export default {
                 );
             }
 
-            // Фильтр по дате
-            if (this.dateRangeStart && this.dateRangeEnd) {
+            // Фильтр по дате - поддерживаем и одиночную дату, и диапазон
+            if (this.selectedDate) {
+                // Фильтр по одной дате
+                filtered = filtered.filter(app => {
+                    const appDate = new Date(app.sending_datetime);
+                    const filterDate = new Date(this.selectedDate);
+                    
+                    // Сравниваем даты без времени
+                    appDate.setHours(0, 0, 0, 0);
+                    filterDate.setHours(0, 0, 0, 0);
+                    
+                    return appDate.getTime() === filterDate.getTime();
+                });
+            } else if (this.dateRangeStart && this.dateRangeEnd) {
+                // Фильтр по диапазону дат
                 filtered = filtered.filter(app => {
                     const appDate = new Date(app.sending_datetime);
                     const startOfDay = new Date(this.dateRangeStart);
@@ -421,6 +437,7 @@ export default {
                    !!this.selectedOrganizationId || 
                    this.selectedConfirmations.length > 0 || 
                    this.selectedApplicationStatuses.length > 0 ||
+                   !!this.selectedDate ||
                    (this.dateRangeStart && this.dateRangeEnd);
         },
 
@@ -515,6 +532,7 @@ export default {
             this.selectedOrganizationName = '';
             this.selectedConfirmations = [];
             this.selectedApplicationStatuses = [];
+            this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
             
@@ -569,12 +587,29 @@ export default {
             });
         },
         
+        updateSelectedDate(date) {
+            this.selectedDate = date;
+            // При выборе одиночной даты сбрасываем диапазон
+            if (date) {
+                this.dateRangeStart = null;
+                this.dateRangeEnd = null;
+            }
+        },
+        
         updateDateRangeStart(date) {
             this.dateRangeStart = date;
+            // При выборе диапазона сбрасываем одиночную дату
+            if (date) {
+                this.selectedDate = null;
+            }
         },
         
         updateDateRangeEnd(date) {
             this.dateRangeEnd = date;
+            // При выборе диапазона сбрасываем одиночную дату
+            if (date) {
+                this.selectedDate = null;
+            }
         },
         
         applyDateFilters() {
@@ -582,6 +617,7 @@ export default {
         },
         
         clearDateRange() {
+            this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
             this.applyFilters();
@@ -632,10 +668,13 @@ export default {
                 if (this.selectedApplicationStatuses.length > 0) {
                     params.append('status', this.selectedApplicationStatuses[0]);
                 }
-                if (this.dateRangeStart) {
+                
+                // Добавляем параметры даты в запрос к API
+                if (this.selectedDate) {
+                    const dateStr = this.selectedDate.toISOString().split('T')[0];
+                    params.append('date', dateStr);
+                } else if (this.dateRangeStart && this.dateRangeEnd) {
                     params.append('date_from', this.dateRangeStart.toISOString().split('T')[0]);
-                }
-                if (this.dateRangeEnd) {
                     params.append('date_to', this.dateRangeEnd.toISOString().split('T')[0]);
                 }
 
@@ -792,7 +831,6 @@ export default {
 </script>
 
 <style scoped>
-/* Стили остаются такими же как в предыдущей версии, удаляем только старые стили для date-picker */
 .center {
     padding: 20px;
     position: relative;
@@ -1006,7 +1044,7 @@ export default {
 }
 
 .applications-table {
-     min-width: 300px;
+    min-width: 300px;
     background-color: #fff;
     border-radius: 30px;
     border: 1px solid #e6e6e6;
@@ -1143,7 +1181,6 @@ export default {
 }
 
 .applications-list {
-
     flex-grow: 1;
 }
 
