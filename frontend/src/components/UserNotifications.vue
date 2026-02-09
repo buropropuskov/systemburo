@@ -21,7 +21,7 @@ export default {
         background-color: #FFF;
         border-radius: 30px;
         border: 1px solid #e6e6e6;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
     }
 
     .notifications__header {

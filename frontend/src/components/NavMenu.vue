@@ -11,8 +11,16 @@
       <div class="nav-section">
         <div class="section-title">ЗАЯВКИ</div>
         <div class="nav-item" @click="navigateToCenter"> 
-          <img src="@/assets/icons/envelope.png" alt="Центр заявок" class="nav-icon">
+          <div class="nav-icon-wrapper">
+            <img src="@/assets/icons/envelope.png" alt="Центр заявок" class="nav-icon">
+            <span v-if="newApplicationsCount > 0" class="icon-badge">
+              {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
+            </span>
+          </div>
           <span class="nav-text">Центр заявок</span>
+          <span v-if="newApplicationsCount > 0" class="notification-badge">
+            {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
+          </span>
         </div>
         <div class="nav-item disabled">
           <img src="@/assets/icons/archive.png" alt="Архив" class="nav-icon">
@@ -59,7 +67,7 @@
         </div>
 
         <!-- Элемент с выпадающим списком сотрудников -->
-       <div class="nav-item" @click="navigateToEmployeesView">
+        <div class="nav-item" @click="navigateToEmployeesView">
           <img src="@/assets/icons/employees.png" alt="Архив" class="nav-icon">
           <span class="nav-text">Сотрудники</span>
         </div>
@@ -89,6 +97,45 @@
           <img src="@/assets/icons/newspaper.png" alt="Новости" class="nav-icon">
           <span class="nav-text">Обзор и новости</span>
         </div>
+        
+        <!-- Элемент с выпадающим списком админки -->
+        <div class="nav-item-container">
+          <div 
+            class="nav-item has-dropdown" 
+            @mouseenter="openDropdown('admin')"
+            @mouseleave="handleDropdownLeave('admin')"
+          >
+            <div class="nav-item-content">
+              <img src="@/assets/settings.png" alt="Админка" class="nav-icon">
+              <span class="nav-text">Админка</span>
+            </div>
+            <img src="@/assets/icons/arrow.png" alt="▼" class="dropdown-arrow" :class="{ rotated: dropdowns.admin }">
+          </div>
+          
+          <!-- Выпадающий список админки (справа от меню) -->
+          <transition name="dropdown-fade">
+            <div 
+              v-show="dropdowns.admin" 
+              class="dropdown-list dropdown-right"
+              @mouseenter="keepDropdownOpen('admin')"
+              @mouseleave="closeDropdown('admin')"
+            >
+              <div 
+                class="dropdown-item" 
+                @click="navigateToAdminRequests"
+              >
+                Запросы
+              </div>
+              <div 
+                class="dropdown-item" 
+                @click="navigateToAdminFeedback"
+              >
+                Обратная связь
+              </div>
+            </div>
+          </transition>
+        </div>
+        
         <div class="nav-item" @click="navigateToAccount">
           <img src="@/assets/icons/user.png" alt="Личный кабинет" class="nav-icon">
           <span class="nav-text">Личный кабинет</span>
@@ -110,12 +157,14 @@ export default {
       isExpanded: false,
       dropdowns: {
         tables: false,
-        employees: false
+        admin: false
       },
       hoverTimeout: null,
       dropdownTimeout: null,
       dropdownLeaveTimeout: null,
-      systemTables: []
+      systemTables: [],
+      newApplicationsCount: 0,
+      applicationsPollingInterval: null
     };
   },
   methods: {
@@ -174,12 +223,12 @@ export default {
       this.$router.push(`/table/${tableName}`);
       this.closeAllDropdowns();
     },
-    navigateToTableConstructor() {
-      this.$router.push('/table-constructor');
+    navigateToAdminRequests() {
+      this.$router.push('/admin/requests');
       this.closeAllDropdowns();
     },
-    navigateToNumberFormat() {
-      this.$router.push('/number-format');
+    navigateToAdminFeedback() {
+      this.$router.push('/admin/feedback');
       this.closeAllDropdowns();
     },
     navigateToCenter() {
@@ -195,7 +244,7 @@ export default {
     navigateToCarsView() {
       this.$router.push('/carsview');
     },
-     navigateToEmployeesView() {
+    navigateToEmployeesView() {
       this.$router.push('/employeesview');
     },
     
@@ -216,16 +265,64 @@ export default {
       }
     },
     
+    async fetchNewApplicationsCount() {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const response = await fetch("http://localhost:8080/applications/user", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Считаем заявки со статусом "Непрочитано"
+          const newApps = data.filter(app => app.status === 'Непрочитано');
+          this.newApplicationsCount = newApps.length;
+        } else {
+          console.error("Error fetching applications count:", response.status);
+          this.newApplicationsCount = 0;
+        }
+      } catch (error) {
+        console.error("Error fetching new applications count:", error);
+        this.newApplicationsCount = 0;
+      }
+    },
+    
+    startApplicationsPolling() {
+      // Загружаем сразу при старте
+      this.fetchNewApplicationsCount();
+      
+      // Запускаем периодическую проверку каждые 30 секунд
+      this.applicationsPollingInterval = setInterval(() => {
+        this.fetchNewApplicationsCount();
+      }, 30000); // 30 секунд
+    },
+    
+    stopApplicationsPolling() {
+      if (this.applicationsPollingInterval) {
+        clearInterval(this.applicationsPollingInterval);
+        this.applicationsPollingInterval = null;
+      }
+    },
+    
     logout() {
+      this.stopApplicationsPolling();
       this.$emit('logout');
     }
   },
   async mounted() {
     document.body.classList.add('auth-active');
     await this.fetchSystemTables();
+    this.startApplicationsPolling();
   },
   beforeUnmount() {
     document.body.classList.remove('auth-active');
+    this.stopApplicationsPolling();
+    
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
     }
@@ -308,6 +405,7 @@ export default {
   min-height: 35px;
   justify-content: flex-start;
   width: 187px;
+  gap: 10px;
 }
 
 .nav-item:hover .exit {
@@ -321,6 +419,7 @@ export default {
 .nav-item-content {
   display: flex;
   align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -328,15 +427,18 @@ export default {
   background-color: #e6e6e6;
 }
 
+.nav-icon-wrapper {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 .nav-icon {
   width: 16px;
   height: 16px;
-  min-width: 16px;
-  margin-right: 12px;
-  flex-shrink: 0;
   transition: transform 0.2s ease;
 }
-
 
 .nav-text {
   font-family: 'Montserrat', sans-serif;
@@ -388,12 +490,13 @@ export default {
   left: 188px;
   top: 0;
   background: #fafafa;
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 15px 15px 0;
   z-index: 1001;
   border: 1px solid #e6e6e6;
   border-left: none;
-  min-width: 220px;
+  min-width: 200px;
   transform-origin: left center;
+  overflow: hidden;
 }
 
 .dropdown-item {
@@ -408,7 +511,7 @@ export default {
 }
 
 .dropdown-item:hover {
-  background-color: #f8f9fa;
+  background-color: #e6e6e6;
 }
 
 .disabled {
@@ -429,6 +532,65 @@ export default {
   background-color: transparent;
   border-left-color: transparent;
   padding-left: 16px;
+}
+
+/* Бейдж на иконке (для свёрнутого состояния) */
+.icon-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  background-color: #4F5BDF;
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border: 1.5px solid #fafafa;
+  z-index: 2;
+  line-height: 1;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.nav-menu.expanded .icon-badge {
+  opacity: 0;
+  transform: scale(0);
+  transition-delay: 0s;
+}
+
+/* Бейдж уведомлений в раскрытом состоянии (правее текста) */
+.notification-badge {
+  position: absolute;
+  right: 15px;
+  background-color: #4F5BDF;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: scale(0);
+}
+
+.nav-menu.expanded .notification-badge {
+  opacity: 1;
+  transform: scale(1);
+  transition-delay: 0.3s;
 }
 
 /* Анимации для выпадающих списков */

@@ -38,8 +38,8 @@
                     </button>
                     <button 
                         class="filter-tab"
-                        :class="{ 'filter-tab--active': currentFilter === 'system' }"
-                        @click="switchFilter('system')"
+                        :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+                        @click="switchFilter('all_system')"
                     >
                         Все машины системы
                     </button>
@@ -55,7 +55,7 @@
                         <h3 class="card-title">
                             <span v-if="currentFilter === 'organization'" class="highlight-text">Машины <span class="blue">организации</span></span>
                             <span v-else-if="currentFilter === 'company'" class="highlight-text">Машины <span class="blue">компании</span></span>
-                            <span v-else-if="currentFilter === 'system'" class="highlight-text">Все машины <span class="blue">системы</span></span>
+                            <span v-else-if="currentFilter === 'all_system'" class="highlight-text">Все <span class="blue">машины системы</span></span>
                             <span v-else class="highlight-text">Мои <span class="blue">автомобили</span></span>
                         </h3>
                     </div>
@@ -63,7 +63,7 @@
                         <button 
                             class="add-button" 
                             @click="showAddCarModal"
-                            v-if="currentFilter !== 'system'"
+                            v-if="currentFilter !== 'all_system'"
                         >
                             Добавить
                         </button>
@@ -119,17 +119,6 @@
                                     }" 
                                 />
                             </div>
-                            <div class="header-col source-col" v-if="currentFilter === 'system'" @click="sortBy('source')">
-                                <p :class="{ 'active-sort': sortField === 'source' }">Источник</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'source',
-                                        'desc': sortField === 'source' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
                             <div class="header-col status-col" @click="sortBy('status')">
                                 <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
                                 <img 
@@ -141,7 +130,7 @@
                                     }" 
                                 />
                             </div>
-                            <div class="header-col actions-col" v-if="currentFilter !== 'system'">
+                            <div class="header-col actions-col">
                                 Действия
                             </div>
                         </div>
@@ -152,7 +141,7 @@
                         <div v-if="filteredCars.length > 0" class="cars-body">
                             <div 
                                 v-for="(car) in sortedCars" 
-                                :key="`${car.source || 'unique'}-${car.id}`" 
+                                :key="car.id" 
                                 class="car-item"
                             >
                                 <div class="car-row">
@@ -168,11 +157,6 @@
                                     <div class="car-col format-col">
                                         {{ car.format_name || 'Не указан' }}
                                     </div>
-                                    <div class="car-col source-col" v-if="currentFilter === 'system'">
-                                        <span class="source-badge" :class="`source-${car.source}`">
-                                            {{ car.source === 'unique' ? 'База машин' : 'Заявки' }}
-                                        </span>
-                                    </div>
                                     <div class="car-col status-col">
                                         <span 
                                             class="status-badge"
@@ -184,8 +168,9 @@
                                             {{ car.status ? 'Активна' : 'Неактивна' }}
                                         </span>
                                     </div>
-                                    <div class="car-col actions-col" v-if="currentFilter !== 'system'">
+                                    <div class="car-col actions-col">
                                         <button 
+                                            v-if="currentFilter !== 'all_system'"
                                             @click="editCar(car)" 
                                             class="edit-btn"
                                             title="Редактировать"
@@ -197,6 +182,7 @@
                                             />
                                         </button>
                                         <button 
+                                            v-if="currentFilter !== 'all_system'"
                                             @click="deleteCar(car)" 
                                             class="delete-btn"
                                             title="Удалить"
@@ -207,6 +193,9 @@
                                                 class="delete-icon"
                                             />
                                         </button>
+                                        <span v-if="currentFilter === 'all_system'" class="read-only-text">
+                                            Только просмотр
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -220,21 +209,13 @@
             
             <div class="carsview__right-side">
                 <div class="carsview__help">
-                    <p class="help__text">
-                        <span v-if="currentFilter === 'organization'">
-                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                        </span>
-                        <span v-else-if="currentFilter === 'company'">
-                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                        </span>
-                        <span v-else-if="currentFilter === 'system'">
-                            Здесь находятся <strong class="blue">все автомобили системы</strong> (из базы машин и заявок). Только для просмотра.
-                        </span>
-                        <span v-else>
-                            Здесь находятся автомобили, привязанные к вашему <strong class="blue">аккаунту</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                        </span>
+                    <p class="help__text" v-if="currentFilter === 'all_system'">
+                        Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
                     </p>
-                    <p class="help__text" v-if="currentFilter !== 'system'">
+                    <p class="help__text" v-else>
+                        Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                    </p>
+                    <p class="help__text" v-if="currentFilter !== 'all_system'">
                         Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
                     </p>
                 </div>
@@ -242,7 +223,7 @@
         </div>
 
         <!-- Модальное окно добавления машины -->
-        <div v-if="showModal" class="modal-overlay" @click="closeModal">
+        <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" @click="closeModal">
             <div class="modal-content" @click.stop>
                 <div class="modal-header">
                     <div class="modal-header__top">
@@ -349,7 +330,7 @@
                         </div>
 
                         <!-- Привязка -->
-                        <div class="completion__binding">
+                        <div class="completion__binding" v-if="currentFilter !== 'all_system'">
                             <label class="input__label">Привязка</label>
                             <div class="binding-info">
                                 <p class="binding-note">
@@ -407,6 +388,7 @@ export default {
             showModal: false,
             availableFormats: [],
 
+            
             // Формат номера
             selectedFormat: null,
             isFormatDropdownOpen: false,
@@ -450,7 +432,6 @@ export default {
                 car.number.toLowerCase().includes(query) ||
                 car.mark.toLowerCase().includes(query) ||
                 (car.format_name && car.format_name.toLowerCase().includes(query)) ||
-                (car.source && car.source.toLowerCase().includes(query)) ||
                 (car.status ? 'активна' : 'неактивна').includes(query)
             );
         },
@@ -484,11 +465,6 @@ export default {
                     case 'format_name':
                         valueA = a.format_name?.toLowerCase() || '';
                         valueB = b.format_name?.toLowerCase() || '';
-                        break;
-                        
-                    case 'source':
-                        valueA = a.source?.toLowerCase() || '';
-                        valueB = b.source?.toLowerCase() || '';
                         break;
                         
                     case 'status':
@@ -566,76 +542,18 @@ export default {
         async fetchCars() {
             try {
                 const token = localStorage.getItem("token");
-                
-                if (this.currentFilter === 'system') {
-                    // Загружаем все машины системы (unique_cars + cars)
-                    const [uniqueCarsResponse, systemCarsResponse] = await Promise.all([
-                        fetch(`http://localhost:8080/unique-cars?filter_type=all`, {
-                            method: "GET",
-                            headers: {
-                                "Authorization": `Bearer ${token}`
-                            }
-                        }),
-                        fetch(`http://localhost:8080/cars/system-all`, {
-                            method: "GET",
-                            headers: {
-                                "Authorization": `Bearer ${token}`
-                            }
-                        })
-                    ]);
-
-                    if (uniqueCarsResponse.ok && systemCarsResponse.ok) {
-                        const uniqueCars = await uniqueCarsResponse.json();
-                        const systemCars = await systemCarsResponse.json();
-                        
-                        // Добавляем source для идентификации
-                        const uniqueWithSource = uniqueCars.map(car => ({
-                            ...car,
-                            source: 'unique'
-                        }));
-                        
-                        // Объединяем и убираем дубликаты (по номеру и марке)
-                        const allCarsMap = new Map();
-                        
-                        // Сначала добавляем уникальные машины
-                        uniqueWithSource.forEach(car => {
-                            const key = `${car.number.toLowerCase()}_${car.mark.toLowerCase()}`;
-                            allCarsMap.set(key, car);
-                        });
-                        
-                        // Затем добавляем машины из заявок (перезаписываем если нужно)
-                        systemCars.forEach(car => {
-                            const key = `${car.number.toLowerCase()}_${car.mark.toLowerCase()}`;
-                            if (!allCarsMap.has(key)) {
-                                allCarsMap.set(key, {
-                                    ...car,
-                                    source: 'cars',
-                                    format_name: car.format_name || 'Не указан',
-                                    status: car.status !== undefined ? car.status : true
-                                });
-                            }
-                        });
-                        
-                        this.carsData = Array.from(allCarsMap.values());
-                    } else {
-                        console.error("Ошибка при загрузке всех машин системы");
-                        this.carsData = [];
+                const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${this.currentFilter}`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
                     }
+                });
+
+                if (response.ok) {
+                    this.carsData = await response.json();
                 } else {
-                    // Загружаем машины по фильтру (user, organization, company)
-                    const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${this.currentFilter}`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        this.carsData = await response.json();
-                    } else {
-                        console.error("Ошибка при загрузке машин");
-                        this.carsData = [];
-                    }
+                    console.error("Ошибка при загрузке машин");
+                    this.carsData = [];
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
@@ -708,10 +626,8 @@ export default {
         },
 
         editCar(car) {
-            // Не разрешаем редактировать машины из системы
-            if (this.currentFilter === 'system' || car.source === 'cars') {
-                this.showNotification('Редактирование недоступно для машин из заявок', 'error');
-                return;
+            if (this.currentFilter === 'all_system') {
+                return; // Запрещаем редактирование для вкладки "Все машины системы"
             }
             
             this.editingCar = car;
@@ -803,10 +719,8 @@ export default {
         },
 
         showAddCarModal() {
-            // Не разрешаем добавлять в системную вкладку
-            if (this.currentFilter === 'system') {
-                this.showNotification('Добавление недоступно во вкладке "Все машины системы"', 'error');
-                return;
+            if (this.currentFilter === 'all_system') {
+                return; // Запрещаем добавление для вкладки "Все машины системы"
             }
             
             this.editingCar = null;
@@ -1330,33 +1244,28 @@ export default {
 
 /* Колонки с фиксированной шириной */
 .number-col {
-    width: 6%;
+    width: 8%;
     min-width: 40px;
 }
 
 .car-number-col {
-    width: 18%;
-    min-width: 120px;
-}
-
-.brand-col {
-    width: 18%;
-    min-width: 120px;
-}
-
-.format-col {
     width: 20%;
     min-width: 120px;
 }
 
-.source-col {
-    width: 14%;
-    min-width: 90px;
+.brand-col {
+    width: 20%;
+    min-width: 120px;
+}
+
+.format-col {
+    width: 25%;
+    min-width: 120px;
 }
 
 .status-col {
-    width: 14%;
-    min-width: 90px;
+    width: 18%;
+    min-width: 100px;
 }
 
 .actions-col {
@@ -1406,27 +1315,6 @@ export default {
 .number-col .car-col,
 .actions-col .car-col {
     justify-content: center;
-}
-
-/* Бейджи для источника */
-.source-badge {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-    display: inline-block;
-}
-
-.source-unique {
-    background-color: #e6f4ea;
-    color: #0d652d;
-    border: 1px solid #a7d7b8;
-}
-
-.source-cars {
-    background-color: #e6f2ff;
-    color: #0066cc;
-    border: 1px solid #99ccff;
 }
 
 /* Стилизация скроллбара */
@@ -1515,6 +1403,12 @@ export default {
 .edit-btn:hover .edit-icon,
 .delete-btn:hover .delete-icon {
     opacity: 1;
+}
+
+.read-only-text {
+    font-size: 12px;
+    color: #a2a2a2;
+    font-style: italic;
 }
 
 .no-data-message {

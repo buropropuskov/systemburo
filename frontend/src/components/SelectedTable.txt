@@ -17,7 +17,7 @@
       </div>
       <div class="card-header__settings">
         <span class="items-count">
-          {{ tableType === 'cars' ? 'Машин' : 'Людей' }} на территории: {{ activeItemsCount }}
+          {{ tableType === 'cars' ? 'Машин' : 'Людей' }} навцйвйцвтерритории: {{ activeItemsCount }}
         </span>
         <RefreshButton @refresh="loadData" :disabled="isLoading" />
       </div>
@@ -478,58 +478,46 @@ export default {
     },
 
     async fetchCarsData() {
-      try {
-        const token = localStorage.getItem("token");
-        
-        console.log('Загрузка машин для таблицы с типом cars...');
-        
-        const response = await fetch("http://localhost:8080/cars/active-for-tables", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const cars = await response.json();
-        console.log('Получены все активные машины:', cars.length, 'шт.');
-        
-        // Фильтруем машины
-        const regularCars = cars.filter(car => {
-          if (car.status !== 1) {
-            return false;
-          }
-          
-          const carNumber = car.car_number?.toLowerCase().trim();
-          return carNumber !== 'по факту';
-        });
-        
-        console.log('Машины для отображения в таблице:', regularCars.length, 'шт.');
-        
-        // Сохраняем данные
-        this.itemsData = regularCars.map(car => ({
-          id: car.id,
-          car_number: car.car_number || '',
-          car_brand: car.car_brand || '',
-          organization: car.organization || 'Не указана',
-          unload_place: car.unload_place || '-',
-          entry_date_to: car.entry_date_to || '',
-          entry_time_from: car.entry_time_from || '',
-          entry_time_to: car.entry_time_to || '',
-          status: 'В работе',
-          checked: false,
-          applicationId: car.application_id
-        }));
-        
-      } catch (error) {
-        console.error("Ошибка при загрузке данных машин:", error);
-        this.itemsData = [];
-        throw error;
+  try {
+    const token = localStorage.getItem("token");
+    
+    console.log('Загрузка машин для таблицы с типом cars...');
+    
+    const response = await fetch("http://localhost:8080/cars/active-for-tables", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
       }
-    },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const cars = await response.json();
+    console.log('Получены активные машины (без "по факту" номеров):', cars.length, 'шт.');
+    
+    // Все машины из ответа уже отфильтрованы (без номеров "по факту")
+    this.itemsData = cars.map(car => ({
+      id: car.id,
+      car_number: car.car_number || '',
+      car_brand: car.car_brand || '',
+      organization: car.organization || 'Не указана',
+      unload_place: car.unload_place || '-',
+      entry_date_to: car.entry_date_to || '',
+      entry_time_from: car.entry_time_from || '',
+      entry_time_to: car.entry_time_to || '',
+      status: 'В работе',
+      checked: false,
+      applicationId: car.application_id // Используем поле из ответа
+    }));
+    
+  } catch (error) {
+    console.error("Ошибка при загрузке данных машин:", error);
+    this.itemsData = [];
+    throw error;
+  }
+},
 
     async fetchPeopleData() {
       try {

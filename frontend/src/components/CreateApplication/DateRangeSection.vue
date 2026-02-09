@@ -170,38 +170,10 @@
                     type="time"
                 />
             </div>
-            <p class="time-message">Укажите время, в которое должна будет действовать заявка и будет разрешен въезд</p>
+            <p class="time-message"></p>
             <div v-if="errors.startTime || errors.endTime" class="error-message">
                 {{ errors.startTime || errors.endTime }}
             </div>
-        </div>
-        
-        <!-- Чекбоксы справа -->
-        <div class="additional-options">
-            <label class="option-checkbox">
-                <input 
-                    type="checkbox" 
-                    :checked="roofAccess"
-                    @change="$emit('update:roof-access', $event.target.checked)"
-                />
-                <span class="option-text">Необходим доступ на <span class="blue">крышу</span></span>
-            </label>
-            <label class="option-checkbox">
-                <input 
-                    type="checkbox" 
-                    :checked="freeParking"
-                    @change="$emit('update:free-parking', $event.target.checked)"
-                />
-                <span class="option-text">Трубется <span class="blue">бесплатная</span> парковка</span>
-            </label>
-            <label class="option-checkbox">
-                <input 
-                    type="checkbox" 
-                    :checked="notifySituationCenter"
-                    @change="$emit('update:notify-situation-center', $event.target.checked)"
-                />
-                <span class="option-text">Уведомить <span class="blue">Ситуационный центр</span></span>
-            </label>
         </div>
     </div>
 </template>

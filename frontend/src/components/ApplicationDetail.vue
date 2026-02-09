@@ -1,4 +1,5 @@
 <template>
+    <!-- Внешний контейнер для модального окна -->
     <div class="application-detail-overlay" @click.self="closeApplicationDetail">
         <!-- Уведомление -->
         <div v-if="notification.show" class="notification" :class="notification.type">
@@ -18,25 +19,49 @@
                     </div>
                 </div>
                 <div class="detail-header-right">
-                    <!-- Кнопки согласования для ответственных -->
-                    <div v-if="isResponsibleUser && application.confirmation === 'Согласование'" class="confirmation-buttons">
+                    <!-- Режим центра заявок -->
+                    <div v-if="mode === 'center'" class="confirmation-buttons">
+                        <!-- Кнопка пересылки -->
                         <button 
-                            class="confirm-btn" 
-                            @click="updateConfirmation('Согласовано')"
+                            class="forward-btn" 
+                            @click="forwardApplication"
                             :disabled="updatingConfirmation"
                         >
                             <span v-if="updatingConfirmation" class="button-loading"></span>
-                            <span v-else>Согласовать</span>
+                            <span v-else>Переслать</span>
                         </button>
+                        
+                        <!-- Кнопки согласования для ответственных -->
+                        <template v-if="isResponsibleUser && application.confirmation === 'Согласование'">
+                            <button 
+                                class="confirm-btn" 
+                                @click="updateConfirmation('Согласовано')"
+                                :disabled="updatingConfirmation"
+                            >
+                                <span v-if="updatingConfirmation" class="button-loading"></span>
+                                <span v-else>Согласовать</span>
+                            </button>
+                            <button 
+                                class="reject-btn" 
+                                @click="updateConfirmation('Не согласовано')"
+                                :disabled="updatingConfirmation"
+                            >
+                                <span v-if="updatingConfirmation" class="button-loading"></span>
+                                <span v-else>Отказать</span>
+                            </button>
+                        </template>
+                    </div>
+                    
+                    <!-- Режим просмотра заявок пользователя -->
+                    <div v-if="mode === 'user'" class="view-buttons">
                         <button 
-                            class="reject-btn" 
-                            @click="updateConfirmation('Не согласовано')"
-                            :disabled="updatingConfirmation"
+                            class="duplicate-btn" 
+                            @click="duplicateApplication"
                         >
-                            <span v-if="updatingConfirmation" class="button-loading"></span>
-                            <span v-else>Отказать</span>
+                            Продублировать
                         </button>
                     </div>
+                    
                     <button class="close-detail-btn" @click="close">×</button>
                 </div>
             </div>
@@ -292,6 +317,10 @@ export default {
         currentUserName: {
             type: String,
             default: ''
+        },
+        mode: {
+            type: String,
+            default: 'center' // 'center' или 'user'
         }
     },
     data() {
@@ -550,6 +579,18 @@ export default {
             }
         },
 
+        forwardApplication() {
+            console.log('Пересылка заявки:', this.application.application_number);
+            // Здесь будет логика пересылки заявки
+            this.showNotification('Функция пересылки пока не реализована', 'error');
+        },
+
+        duplicateApplication() {
+            console.log('Дублирование заявки:', this.application.application_number);
+            this.$emit('duplicate', this.application);
+            this.showNotification('Функция дублирования пока не реализована', 'error');
+        },
+
         showNotification(message, type = 'success') {
             this.notification = {
                 show: true,
@@ -693,11 +734,15 @@ export default {
             this.isLeftColumnCollapsed = !this.isLeftColumnCollapsed;
         },
 
+        closeApplicationDetail() {
+            this.close();
+        },
+
         close() {
             this.$emit('close');
         }
     },
-    emits: ['close', 'confirmation-updated']
+    emits: ['close', 'confirmation-updated', 'duplicate']
 }
 </script>
 
@@ -713,7 +758,7 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 10000;
     animation: fadeIn 0.3s ease-out;
 }
 
@@ -734,7 +779,7 @@ export default {
     transform: translateX(-50%);
     padding: 8px 8px;
     border-radius: 50px;
-    z-index: 2000;
+    z-index: 29000;
     min-width: 180px;
     width: 180px;
     height: 30px;
@@ -862,6 +907,29 @@ export default {
     gap: 10px;
 }
 
+.view-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.forward-btn {
+    padding: 6px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
+    border: 1px solid #e6e6e6;
+    background: #f0f0f0;
+    color: #333;
+}
+
+.forward-btn:hover:not(:disabled) {
+    background: #e0e0e0;
+}
+
 .confirm-btn, .reject-btn {
     padding: 6px 24px;
     border: none;
@@ -894,8 +962,27 @@ export default {
     background: #ff4d4f;
 }
 
+.duplicate-btn {
+    padding: 6px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    border: 1px solid #e6e6e6;
+    background: #4F5BDF;
+    color: white;
+}
+
+.duplicate-btn:hover {
+    background: #3a45c0;
+}
+
 .confirm-btn:disabled,
-.reject-btn:disabled {
+.reject-btn:disabled,
+.forward-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
@@ -1102,7 +1189,7 @@ export default {
 .cars-list, .employees-list, .items-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 .car-item, .employee-item, .item-item {
@@ -1144,13 +1231,15 @@ export default {
     color: #a2a2a2;
     font-size: 14px;
     font-weight: 500;
-    min-width: 25px;
+    min-width: 20px;
     flex-shrink: 0;
+    pointer-events: none;
+    user-select: none;
 }
 
 .car-main-info, .employee-main-info {
     display: flex;
-    gap: 10px;
+    gap: 15px;
     min-width: 250px;
     flex-shrink: 0;
 }
@@ -1203,6 +1292,7 @@ export default {
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: end;
+    user-select: none;
 }
 
 .item-item-content {
@@ -1388,7 +1478,7 @@ export default {
 .users-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .user-item {

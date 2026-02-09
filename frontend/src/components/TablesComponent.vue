@@ -41,96 +41,36 @@
                     <img src="@/assets/icons/search.png" class="tables__icon" />
                 </div>
                 
-                <!-- Организация -->
-                <div class="field field--select" @click="toggleDropdown('organization')" v-if="showOrganizationFilter">
-                    <select class="field__input field__select" v-model="selectedOrganization" style="display: none;">
-                        <option value="">Организация</option>
-                        <option v-for="org in organizations" :key="org" :value="org">{{ org }}</option>
-                    </select>
-                    <span class="select-text">{{ selectedOrganization || 'Организация' }}</span>
-                    <img src="@/assets/icons/arrow.png" class="select-icon" :class="{ 'select-icon--rotated': showOrganizationDropdown }" />
-                    <div class="custom-dropdown" v-if="showOrganizationDropdown">
-                        <div class="dropdown-search">
-                            <input 
-                                type="text" 
-                                placeholder="Поиск..." 
-                                v-model="organizationSearch"
-                                @click.stop
-                                class="dropdown-search__input"
-                            />
-                        </div>
-                        <div class="dropdown-item" @click.stop="selectOrganization('')">Все организации</div>
-                        <div 
-                            class="dropdown-item" 
-                            v-for="org in filteredOrganizations" 
-                            :key="org" 
-                            @click.stop="selectOrganization(org)"
-                            :class="{ 'dropdown-item--selected': org === selectedOrganization }"
-                        >
-                            {{ org }}
-                        </div>
-                        <div class="dropdown-no-results" v-if="filteredOrganizations.length === 0">
-                            Организации не найдены
-                        </div>
-                    </div>
-                </div>
+                <!-- Организация через компонент -->
+                <OrganizationFilter
+                    v-if="showOrganizationFilter"
+                    ref="organizationFilter"
+                    v-model="selectedOrganizationId"
+                    :organizations="organizations"
+                    @change="handleOrganizationChange"
+                />
 
-                <!-- Место разгрузки -->
-                <div class="field field--select" @click="toggleDropdown('unloading')" v-if="showUnloadingFilter">
-                    <select class="field__input field__select" v-model="selectedUnloadingPlace" style="display: none;">
-                        <option value="">Место разгрузки</option>
-                        <option v-for="place in unloadingPlaces" :key="place" :value="place">{{ place }}</option>
-                    </select>
-                    <span class="select-text">{{ selectedUnloadingPlace || 'Место разгрузки' }}</span>
-                    <img src="@/assets/icons/arrow.png" class="select-icon" :class="{ 'select-icon--rotated': showUnloadingDropdown }" />
-                    <div class="custom-dropdown" v-if="showUnloadingDropdown">
-                        <div class="dropdown-search">
-                            <input 
-                                type="text" 
-                                placeholder="Поиск..." 
-                                v-model="unloadingSearch"
-                                @click.stop
-                                class="dropdown-search__input"
-                            />
-                        </div>
-                        <div class="dropdown-item" @click.stop="selectUnloadingPlace('')">Все места</div>
-                        <div 
-                            class="dropdown-item" 
-                            v-for="place in filteredUnloadingPlaces" 
-                            :key="place" 
-                            @click.stop="selectUnloadingPlace(place)"
-                            :class="{ 'dropdown-item--selected': place === selectedUnloadingPlace }"
-                        >
-                            {{ place }}
-                        </div>
-                        <div class="dropdown-no-results" v-if="filteredUnloadingPlaces.length === 0">
-                            Места разгрузки не найдены
-                        </div>
-                    </div>
-                </div>
+                <!-- Место разгрузки через компонент -->
+                <UnloadingPlaceFilter
+                    v-if="showUnloadingFilter"
+                    ref="unloadingPlaceFilter"
+                    v-model="selectedUnloadingPlaceId"
+                    @change="handleUnloadingPlaceChange"
+                />
 
-                <!-- Дата -->
-                <div class="field">
-                    <input 
-                        placeholder="Выберите дату" 
-                        type="text" 
-                        class="field__input" 
-                        @click="toggleDatePicker"
-                        :value="dateRangeText"
-                        readonly
-                    />
-                    <img src="@/assets/icons/calendar.png" class="tables__icon" />
-                    <DatePicker 
-                        v-if="showDatePicker"
-                        :selectedDate="selectedDate"
-                        :dateRangeStart="dateRangeStart"
-                        :dateRangeEnd="dateRangeEnd"
-                        @update:selectedDate="updateSelectedDate"
-                        @update:dateRange="updateDateRange"
-                        @apply="applyDateRange"
-                        @clear="clearDate"
-                    />
-                </div>
+                <!-- Новый DateFilter -->
+                <DateFilter
+                    ref="dateFilter"
+                    :mode="'range'"
+                    :selected-date="selectedDate"
+                    :date-range-start="dateRangeStart"
+                    :date-range-end="dateRangeEnd"
+                    @update:selectedDate="updateSelectedDate"
+                    @update:dateRangeStart="updateDateRangeStart"
+                    @update:dateRangeEnd="updateDateRangeEnd"
+                    @apply="applyDateFilters"
+                    @clear="clearDate"
+                />
             </div>
             <div class="filters__options">
                 <img src="@/assets/icons/trashcan.png" class="options__icon" @click="clearFilters" />
@@ -142,159 +82,121 @@
                 <RefreshButton @refresh="refreshData" />
             </div>
         </div>
-        <!-- В TemplatesComponent.vue замените блок SelectedTable на: -->
 
-<div class="tables__content">
-  <!-- Таблица по факту с подсказкой -->
-  <div v-if="currentTable?.show_fact_table" class="fact-section">
-    <FactTable 
-      :table-type="currentTable?.table_type"
-      :search-query="searchQuery"
-      :selected-organization="selectedOrganization"
-      :selected-unloading-place="selectedUnloadingPlace"
-      :date-range-start="dateRangeStart"
-      :date-range-end="dateRangeEnd"
-      :selected-date="selectedDate"
-      @refresh-data="refreshData"
-    />
-    <!-- Подсказка на синем фоне -->
-    <div class="fact-hint-card" v-if="currentTable?.fact_table_hint">
-      <div class="text-constructor-content hint-content" v-html="sanitizedHint"></div>
-    </div>
-  </div>
-  
-  <!-- Основная таблица - разные компоненты для разных типов -->
-  <CarsTable 
-    v-if="currentTable?.table_type === 'cars'"
-    :table-name="currentTable?.name"
-    :search-query="searchQuery"
-    :selected-organization="selectedOrganization"
-    :selected-unloading-place="selectedUnloadingPlace"
-    :date-range-start="dateRangeStart"
-    :date-range-end="dateRangeEnd"
-    :selected-date="selectedDate"
-    @refresh-data="refreshData"
-  />
-  
-  <PeopleTable 
-    v-if="currentTable?.table_type === 'people'"
-    :table-name="currentTable?.name"
-    :search-query="searchQuery"
-    :selected-organization="selectedOrganization"
-    :selected-unloading-place="selectedUnloadingPlace"
-    :date-range-start="dateRangeStart"
-    :date-range-end="dateRangeEnd"
-    :selected-date="selectedDate"
-    @refresh-data="refreshData"
-  />
-</div>
+        <div class="tables__content">
+            <!-- Таблица по факту с подсказкой -->
+            <div v-if="currentTable?.show_fact_table" class="fact-section">
+                <FactTable 
+                    :table-type="currentTable?.table_type"
+                    :search-query="searchQuery"
+                    :selected-organization-id="selectedOrganizationId"
+                    :selected-unloading-place-id="selectedUnloadingPlaceId"
+                    :date-range-start="dateRangeStart"
+                    :date-range-end="dateRangeEnd"
+                    :selected-date="selectedDate"
+                    @refresh-data="refreshData"
+                />
+                <!-- Подсказка на синем фоне -->
+                <div class="fact-hint-card" v-if="currentTable?.fact_table_hint">
+                    <div class="text-constructor-content hint-content" v-html="sanitizedHint"></div>
+                </div>
+            </div>
+            
+            <!-- Основная таблица - разные компоненты для разных типов -->
+            <CarsTable 
+                v-if="currentTable?.table_type === 'cars'"
+                :table-name="currentTable?.name"
+                :search-query="searchQuery"
+                :selected-organization-id="selectedOrganizationId"
+                :selected-unloading-place-id="selectedUnloadingPlaceId"
+                :date-range-start="dateRangeStart"
+                :date-range-end="dateRangeEnd"
+                :selected-date="selectedDate"
+                @refresh-data="refreshData"
+            />
+            
+            <PeopleTable 
+                v-if="currentTable?.table_type === 'people'"
+                :table-name="currentTable?.name"
+                :search-query="searchQuery"
+                :selected-organization-id="selectedOrganizationId"
+                :selected-unloading-place-id="selectedUnloadingPlaceId"
+                :date-range-start="dateRangeStart"
+                :date-range-end="dateRangeEnd"
+                :selected-date="selectedDate"
+                @refresh-data="refreshData"
+            />
+        </div>
     </div>
 </template>
 
 <script>
+import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
 import RefreshButton from './RefreshButton.vue';
-import DatePicker from './DatePicker.vue';
+import DateFilter from './DateFilter.vue'; // Новый компонент
 import FactTable from './FactTable.vue';
-import CarsTable from './CarsTable.vue'; // <-- добавьте
-import PeopleTable from './PeopleTable.vue'; // <-- добавьте
+import CarsTable from './CarsTable.vue';
+import PeopleTable from './PeopleTable.vue';
 
 export default {
+    name: 'TablesComponent',
     components: {
+        OrganizationFilter,
+        UnloadingPlaceFilter,
         RefreshButton,
-        DatePicker,
+        DateFilter,
         FactTable,
-        CarsTable, // <-- добавьте
-        PeopleTable // <-- добавьте
+        CarsTable,
+        PeopleTable
     },
     data() {
         return {
             currentTable: null,
             searchQuery: '',
-            selectedOrganization: '',
-            selectedUnloadingPlace: '',
-            organizations: [
-                'ООО "Ромашка"',
-                'ИП Иванов',
-                'ЗАО "Весна"',
-                'ОАО "Технопром"',
-                'ТОО "Стройсервис"',
-                'ООО "Нефтегаз"',
-                'ИП Петров',
-                'ЗАО "Металлург"',
-                'ОАО "Строймаш"',
-                'ТОО "Транспорт"'
-            ],
-            unloadingPlaces: [
-                'Дебаркадер №1',
-                'Дебаркадер №2',
-                'Дебаркадер №3',
-                'Дебаркадер №4',
-                'Дебаркадер №5',
-                'Пост №21',
-                'Пост №27',
-                'Пост Север',
-                'Ворота Сочи',
-                'Терминал А',
-                'Терминал Б',
-                'Склад №1',
-                'Склад №2'
-            ],
-            showOrganizationDropdown: false,
-            showUnloadingDropdown: false,
-            showDatePicker: false,
+            selectedOrganizationId: null,
+            selectedOrganizationName: '',
+            selectedUnloadingPlaceId: null,
+            selectedUnloadingPlaceName: '',
+            
+            // Данные организаций (будем загружать с сервера)
+            organizations: [],
+            
             showInstruction: false,
             selectedDate: null,
             dateRangeStart: null,
-            dateRangeEnd: null,
-            organizationSearch: '',
-            unloadingSearch: ''
-        }
+            dateRangeEnd: null
+        };
     },
     computed: {
-        dateRangeText() {
-            if (this.dateRangeStart && this.dateRangeEnd) {
-                return `${this.formatDate(this.dateRangeStart)} - ${this.formatDate(this.dateRangeEnd)}`;
-            } else if (this.selectedDate) {
-                return this.formatDate(this.selectedDate);
-            }
-            return 'Выберите дату';
-        },
-        filteredOrganizations() {
-            if (!this.organizationSearch) {
-                return this.organizations;
-            }
-            const searchTerm = this.organizationSearch.toLowerCase();
-            return this.organizations.filter(org => 
-                org.toLowerCase().includes(searchTerm)
-            );
-        },
-        filteredUnloadingPlaces() {
-            if (!this.unloadingSearch) {
-                return this.unloadingPlaces;
-            }
-            const searchTerm = this.unloadingSearch.toLowerCase();
-            return this.unloadingPlaces.filter(place => 
-                place.toLowerCase().includes(searchTerm)
-            );
-        },
         showOrganizationFilter() {
             return this.currentTable?.table_type === 'cars' || this.currentTable?.table_type === 'people';
         },
+        
         showUnloadingFilter() {
             return this.currentTable?.table_type === 'cars';
         },
+        
         sanitizedHint() {
             return this.sanitizeHtml(this.currentTable?.fact_table_hint || '');
         },
+        
         sanitizedInstruction() {
             return this.sanitizeHtml(this.currentTable?.instruction || '');
+        },
+        
+        hasActiveFilters() {
+            return !!this.searchQuery.trim() || 
+                   !!this.selectedOrganizationId || 
+                   !!this.selectedUnloadingPlaceId ||
+                   !!this.selectedDate ||
+                   (this.dateRangeStart && this.dateRangeEnd);
         }
     },
     methods: {
         sanitizeHtml(content) {
             if (!content) return '';
             
-            // Запрещенные теги для безопасности
             const forbiddenTags = [
                 'script', 'style', 'link', 'meta', 'iframe', 'frame', 'frameset', 
                 'object', 'embed', 'applet', 'form', 'input', 'button', 'select',
@@ -303,13 +205,11 @@ export default {
             
             let sanitizedContent = content;
             
-            // Удаляем запрещенные теги
             forbiddenTags.forEach(tag => {
                 const regex = new RegExp(`<${tag}[^>]*>.*?</${tag}>`, 'gis');
                 sanitizedContent = sanitizedContent.replace(regex, '');
             });
             
-            // Удаляем опасные атрибуты
             sanitizedContent = sanitizedContent.replace(/ on\w+="[^"]*"/gi, '');
             sanitizedContent = sanitizedContent.replace(/ javascript:/gi, '');
             sanitizedContent = sanitizedContent.replace(/ expression\(/gi, '');
@@ -330,6 +230,9 @@ export default {
                 });
                 if (response.ok) {
                     this.currentTable = await response.json();
+                    
+                    // Загружаем организации для этой таблицы
+                    await this.fetchOrganizationsForTable();
                 } else {
                     console.error('Table not found');
                     this.$router.push('/404');
@@ -338,67 +241,75 @@ export default {
                 console.error("Error fetching table data:", error);
             }
         },
-        
-        formatDate(date) {
-            if (!date) return '';
-            return date.toLocaleDateString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-        },
-        
-        // Dropdown methods
-        toggleDropdown(type) {
-            if (type === 'organization') {
-                this.showOrganizationDropdown = !this.showOrganizationDropdown;
-                this.showUnloadingDropdown = false;
-                this.showDatePicker = false;
-                if (this.showOrganizationDropdown) {
-                    this.organizationSearch = '';
+
+        async fetchOrganizationsForTable() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/organizations", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.organizations = data;
+                } else {
+                    console.error("Ошибка при загрузке организаций");
+                    this.organizations = this.getStaticOrganizations();
                 }
-            } else if (type === 'unloading') {
-                this.showUnloadingDropdown = !this.showUnloadingDropdown;
-                this.showOrganizationDropdown = false;
-                this.showDatePicker = false;
-                if (this.showUnloadingDropdown) {
-                    this.unloadingSearch = '';
-                }
+            } catch (error) {
+                console.error("Ошибка сети при загрузке организаций:", error);
+                this.organizations = this.getStaticOrganizations();
             }
         },
-        
-        selectOrganization(org) {
-            this.selectedOrganization = org;
-            this.showOrganizationDropdown = false;
-            this.organizationSearch = '';
+
+        getStaticOrganizations() {
+            return [
+                { id: 1, name: 'ООО "Ромашка"' },
+                { id: 2, name: 'ИП Иванов' },
+                { id: 3, name: 'ЗАО "Весна"' },
+                { id: 4, name: 'ОАО "Технопром"' },
+                { id: 5, name: 'ТОО "Стройсервис"' },
+                { id: 6, name: 'ООО "Нефтегаз"' },
+                { id: 7, name: 'ИП Петров' },
+                { id: 8, name: 'ЗАО "Металлург"' },
+                { id: 9, name: 'ОАО "Строймаш"' },
+                { id: 10, name: 'ТОО "Транспорт"' }
+            ];
+        },
+
+        handleOrganizationChange({ id, name }) {
+            this.selectedOrganizationId = id;
+            this.selectedOrganizationName = name;
             this.applyFilters();
         },
         
-        selectUnloadingPlace(place) {
-            this.selectedUnloadingPlace = place;
-            this.showUnloadingDropdown = false;
-            this.unloadingSearch = '';
+        handleUnloadingPlaceChange({ id, name }) {
+            this.selectedUnloadingPlaceId = id;
+            this.selectedUnloadingPlaceName = name;
             this.applyFilters();
         },
         
-        // Date picker methods
-        toggleDatePicker() {
-            this.showDatePicker = !this.showDatePicker;
-            this.showOrganizationDropdown = false;
-            this.showUnloadingDropdown = false;
-        },
-        
+        // Date filter methods
         updateSelectedDate(date) {
             this.selectedDate = date;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            this.applyFilters();
         },
         
-        updateDateRange(range) {
-            this.dateRangeStart = range.start;
-            this.dateRangeEnd = range.end;
+        updateDateRangeStart(date) {
+            this.dateRangeStart = date;
             this.selectedDate = null;
+        },
+        
+        updateDateRangeEnd(date) {
+            this.dateRangeEnd = date;
+            this.selectedDate = null;
+        },
+        
+        applyDateFilters() {
             this.applyFilters();
         },
         
@@ -409,24 +320,32 @@ export default {
             this.applyFilters();
         },
         
-        applyDateRange() {
-            this.showDatePicker = false;
-            this.applyFilters();
-        },
-        
         applyFilters() {
             // Фильтры применяются автоматически через props в дочерних компонентах
         },
         
         clearFilters() {
             this.searchQuery = '';
-            this.selectedOrganization = '';
-            this.selectedUnloadingPlace = '';
+            
+            // Сбрасываем даты
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            this.organizationSearch = '';
-            this.unloadingSearch = '';
+            
+            // Сбрасываем фильтр организации через метод reset
+            if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
+                this.$refs.organizationFilter.reset();
+            }
+            
+            // Сбрасываем фильтр места разгрузки через метод reset
+            if (this.$refs.unloadingPlaceFilter && this.$refs.unloadingPlaceFilter.reset) {
+                this.$refs.unloadingPlaceFilter.reset();
+            }
+            
+            // Сбрасываем фильтр даты
+            if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
+                this.$refs.dateFilter.clearSelection();
+            }
         },
         
         refreshData() {
@@ -436,14 +355,6 @@ export default {
     },
     mounted() {
         this.fetchTableData();
-        
-        document.addEventListener('click', (e) => {
-            if (!this.$el.contains(e.target)) {
-                this.showOrganizationDropdown = false;
-                this.showUnloadingDropdown = false;
-                this.showDatePicker = false;
-            }
-        });
     },
     watch: {
         '$route.params.tableName': {
@@ -458,10 +369,12 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются без изменений, только удалены старые стили для выпадающего меню дат */
 .tables {
     padding: 20px;
     position: relative;
 }
+
 .tables__title {
     font-size: 18px;
     font-weight: bold;
@@ -505,17 +418,6 @@ export default {
 .tables__icon {
     width: 15px;
     height: 15px;
-}
-
-.select-icon {
-    width: 10px;
-    height: 10px;
-    transition: transform 0.5s ease;
-    transform: rotate(90deg);
-}
-
-.select-icon--rotated {
-    transform: rotate(-90deg);
 }
 
 .tables__filters {
@@ -567,10 +469,8 @@ export default {
     flex: 1;
 }
 
-.field__select {
-    cursor: pointer;
-    appearance: none;
-    width: 100%;
+.search {
+    cursor: text;
 }
 
 .filters__options {
@@ -586,7 +486,7 @@ export default {
 }
 
 .options__export {
-    width:100px;
+    width: 100px;
     height: 25px;
     background: #FFF;
     border: 1px solid #e6e6e6;
@@ -607,80 +507,6 @@ export default {
     font-weight: 500;
 }
 
-.search {
-    cursor: text;
-}
-
-/* Custom Dropdown */
-.custom-dropdown {
-    position: absolute;
-    top: calc(100% + 5px);
-    left: 0;
-    width: 100%;
-    background: white;
-    border: 1px solid #e6e6e6;
-    border-radius: 10px;
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1001;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.dropdown-search {
-    padding: 10px;
-    border-bottom: 1px solid #f0f0f0;
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 1002;
-}
-
-.dropdown-search__input {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #e6e6e6;
-    border-radius: 5px;
-    font-size: 14px;
-    outline: none;
-}
-
-.dropdown-search__input:focus {
-    border-color: #4F5BDF;
-}
-
-.dropdown-item {
-    padding: 10px 15px;
-    cursor: pointer;
-    font-size: 14px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s ease;
-}
-
-.dropdown-item:last-child {
-    border-bottom: none;
-}
-
-.dropdown-item:hover {
-    background-color: #f5f5f5;
-}
-
-.dropdown-item--selected {
-    background-color: #4F5BDF;
-    color: white;
-}
-
-.dropdown-item--selected:hover {
-    background-color: #3a45c4;
-}
-
-.dropdown-no-results {
-    padding: 15px;
-    text-align: center;
-    color: #999;
-    font-size: 14px;
-    font-style: italic;
-}
-
 .tables__content {
     margin-top: 15px;
     display: flex;
@@ -692,7 +518,6 @@ export default {
 .fact-section {
     display: flex;
     gap: 20px;
-
 }
 
 .fact-hint-card {
@@ -707,15 +532,42 @@ export default {
     box-shadow: 0 3px 10px rgba(79, 91, 223, 0.2);
 }
 
-.hint-icon {
-    font-size: 24px;
-    flex-shrink: 0;
-    margin-top: 4px;
-}
-
 .hint-content {
     flex: 1;
     color: #FFF;
+}
+
+.reset-filters-btn {
+    padding: 6px 12px;
+    border: 1px solid #e6e6e6;
+    background: #fff5f5;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    height: 35px;
+    color: #c53030;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border-color: #fed7d7;
+}
+
+.reset-filters-btn:hover:not(:disabled) {
+    background: #fed7d7;
+}
+
+.reset-filters-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f5f5f5;
+    color: #999;
+    border-color: #e6e6e6;
+}
+
+.reset-filters-btn:disabled .options__icon {
+    filter: grayscale(100%);
 }
 
 /* Text Constructor Content Styles */

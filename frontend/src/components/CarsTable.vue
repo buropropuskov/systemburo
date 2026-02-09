@@ -83,7 +83,7 @@
                 </div>
                 <div class="item-col number-col">{{ item.car_number }}</div>
                 <div class="item-col brand-col">{{ item.car_brand }}</div>
-                <div class="item-col organization-col">{{ item.organization }}</div>
+                <div class="item-col organization-col">{{ item.organization_name }}</div>
                 <div class="item-col place-col">{{ item.unload_place || '-' }}</div>
                 <div class="item-col date-col">{{ formatDate(item.entry_date_to) }}</div>
                 <div class="item-col time-col">{{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}</div>
@@ -125,13 +125,13 @@ export default {
       type: String,
       default: ''
     },
-    selectedOrganization: {
-      type: String,
-      default: ''
+    selectedOrganizationId: {
+      type: [Number, String],
+      default: null
     },
-    selectedUnloadingPlace: {
-      type: String,
-      default: ''
+    selectedUnloadingPlaceId: {
+      type: [Number, String],
+      default: null
     },
     dateRangeStart: {
       type: Date,
@@ -155,7 +155,9 @@ export default {
       progress: 100,
       progressInterval: null,
       activeItemsCount: 0,
-      isLoading: false
+      isLoading: false,
+      organizationsMap: {},
+      carUnloadPlacesMap: {}
     };
   },
   computed: {
@@ -169,7 +171,7 @@ export default {
           const searchFields = [
             item.car_number,
             item.car_brand,
-            item.organization,
+            item.organization_name,
             item.unload_place || '',
             this.formatDate(item.entry_date_to),
             item.status
@@ -181,16 +183,17 @@ export default {
         });
       }
 
-      // Фильтр по организации
-      if (this.selectedOrganization) {
-        filtered = filtered.filter(item => item.organization === this.selectedOrganization);
+      // Фильтр по организации (теперь по organization_id)
+      if (this.selectedOrganizationId) {
+        filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
 
-      // Фильтр по месту разгрузки
-      if (this.selectedUnloadingPlace) {
+      // Фильтр по месту разгрузки (по ID из car_unload_places)
+      if (this.selectedUnloadingPlaceId) {
         filtered = filtered.filter(item => {
-          const place = item.unload_place || '';
-          return place.toLowerCase().includes(this.selectedUnloadingPlace.toLowerCase());
+          const carId = item.id;
+          const unloadPlaces = this.carUnloadPlacesMap[carId] || [];
+          return unloadPlaces.some(place => place.id == this.selectedUnloadingPlaceId);
         });
       }
 
@@ -253,8 +256,8 @@ export default {
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
-        this.selectedOrganization ||
-        this.selectedUnloadingPlace ||
+        this.selectedOrganizationId ||
+        this.selectedUnloadingPlaceId ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)
       );
@@ -268,6 +271,7 @@ export default {
       
       try {
         await this.fetchCarsData();
+        await this.fetchCarUnloadPlaces();
         this.updateActiveItemsCount();
       } catch (error) {
         console.error('Ошибка при загрузке машин:', error);
@@ -293,32 +297,112 @@ export default {
         
         const cars = await response.json();
         
-        // Фильтруем машины
+        await this.fetchOrganizations();
+        
+        const nameToIdMap = {};
+        Object.keys(this.organizationsMap).forEach(id => {
+          nameToIdMap[this.organizationsMap[id]] = id;
+        });
+        
         const regularCars = cars.filter(car => {
           if (car.status !== 1) return false;
           const carNumber = car.car_number?.toLowerCase().trim();
           return carNumber !== 'по факту';
         });
         
-        this.itemsData = regularCars.map(car => ({
-          id: car.id,
-          car_number: car.car_number || '',
-          car_brand: car.car_brand || '',
-          organization: car.organization || 'Не указана',
-          unload_place: car.unload_place || '-',
-          entry_date_to: car.entry_date_to || '',
-          entry_time_from: car.entry_time_from || '',
-          entry_time_to: car.entry_time_to || '',
-          status: 'В работе',
-          checked: false,
-          applicationId: car.application_id
-        }));
+        this.itemsData = regularCars.map(car => {
+          const orgName = car.organization || '';
+          const orgId = nameToIdMap[orgName] || car.organization_id;
+          
+          return {
+            id: car.id,
+            car_number: car.car_number || '',
+            car_brand: car.car_brand || '',
+            organization_id: orgId,
+            organization_name: orgName || 'Не указана',
+            unload_place: car.unload_place || '-',
+            entry_date_to: car.entry_date_to || '',
+            entry_time_from: car.entry_time_from || '',
+            entry_time_to: car.entry_time_to || '',
+            status: 'В работе',
+            checked: false,
+            applicationId: car.application_id
+          };
+        });
+        
+        console.log('Загружены машины:', this.itemsData);
         
       } catch (error) {
         console.error("Ошибка при загрузке данных машин:", error);
         this.itemsData = [];
         throw error;
       }
+    },
+
+    async fetchCarUnloadPlaces() {
+      try {
+        const token = localStorage.getItem("token");
+        
+        const response = await fetch("http://localhost:8080/cars/unload-places", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          const carUnloadPlaces = await response.json();
+          
+          this.carUnloadPlacesMap = {};
+          
+          carUnloadPlaces.forEach(cup => {
+            if (!this.carUnloadPlacesMap[cup.car_id]) {
+              this.carUnloadPlacesMap[cup.car_id] = [];
+            }
+            this.carUnloadPlacesMap[cup.car_id].push({
+              id: cup.unload_place_id,
+              name: cup.unload_place_name || `Место #${cup.unload_place_id}`
+            });
+          });
+          
+          console.log('Загружены связи машин с местами разгрузки:', this.carUnloadPlacesMap);
+        } else {
+          console.error("Ошибка при загрузке связей машин с местами разгрузки");
+          this.carUnloadPlacesMap = {};
+        }
+      } catch (error) {
+        console.error("Ошибка сети при загрузке связей машин с местами разгрузки:", error);
+        this.carUnloadPlacesMap = {};
+      }
+    },
+
+    async fetchOrganizations() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/organizations", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          this.organizationsMap = {};
+          data.forEach(org => {
+            this.organizationsMap[org.id] = org.name;
+          });
+        } else {
+          console.error("Ошибка при загрузке организаций");
+        }
+      } catch (error) {
+        console.error("Ошибка сети при загрузке организаций:", error);
+      }
+    },
+
+    getOrganizationName(organizationId) {
+      if (!organizationId) return 'Не указана';
+      return this.organizationsMap[organizationId] || `Организация ID: ${organizationId}`;
     },
 
     formatDate(dateString) {
@@ -474,6 +558,15 @@ export default {
           this.loadData();
         }
       }
+    },
+    selectedOrganizationId(newVal) {
+      console.log('Фильтр по организации ID:', newVal);
+    },
+    selectedUnloadingPlaceId(newVal) {
+      console.log('Фильтр по месту разгрузки ID:', newVal);
+    },
+    searchQuery(newVal) {
+      console.log('Поисковый запрос:', newVal);
     }
   },
   beforeUnmount() {
@@ -615,6 +708,8 @@ export default {
   min-width: 90px;
 }
 
+
+
 .brand-col {
   width: 12%;
   min-width: 80px;
@@ -700,7 +795,7 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .checkbox-input {
@@ -889,4 +984,6 @@ export default {
     min-width: auto;
   }
 }
+
+
 </style>

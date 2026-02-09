@@ -248,95 +248,124 @@
         <!-- Модальное окно выбора существующих сотрудников -->
         <div v-if="showExistingEmployeesModal" class="modal-overlay" @click="closeExistingEmployeesModal">
             <div class="modal-content" @click.stop>
+                <!-- Заголовок модалки -->
                 <div class="modal-header">
-                    <div class="modal-header__top">
-                        <h3>Выбор существующих сотрудников</h3>
-                        <div class="selected-count-badge" v-if="tempSelectedEmployees.length > 0">
-                            Выбрано: {{ tempSelectedEmployees.length }}
-                        </div>
+                    <h3>Выбор существующих сотрудников</h3>
+                    <div class="header-right">
+                        <SearchComponent 
+                            title="Поиск сотрудников..."
+                            v-model="searchQuery"
+                            @update:modelValue="handleSearch"
+                        />
                     </div>
                     <button class="modal-close" @click="closeExistingEmployeesModal">×</button>
                 </div>
-                <div class="modal-body">
-                    <!-- Вкладки фильтров -->
+                
+                <!-- Фильтры -->
+                <div class="filter-section">
                     <div class="filter-tabs">
                         <button 
-                            v-for="tab in filterTabs" 
-                            :key="tab.value"
                             class="filter-tab"
-                            :class="{ 'filter-tab--active': currentFilter === tab.value }"
-                            @click="switchFilter(tab.value)"
+                            :class="{ 'filter-tab--active': currentFilter === 'all' }"
+                            @click="switchFilter('all')"
                         >
-                            {{ tab.label }}
+                            Все сотрудники
+                        </button>
+                        <button 
+                            v-if="userOrganizationId"
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                            @click="switchFilter('organization')"
+                        >
+                            Организация
+                        </button>
+                        <button 
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                            @click="switchFilter('user')"
+                        >
+                            Мои
                         </button>
                     </div>
+                    <div v-if="tempSelectedEmployees.length > 0" class="selected-counter">
+                        Выбрано: <span class="selected-count">{{ tempSelectedEmployees.length }}</span>
+                    </div>
+                </div>
 
-                    <!-- Список сотрудников -->
-                    <div class="employees-list">
-                        <div class="employees-header">
-                            <div class="header-row">
-                                <div class="header-col select-col">
-                                    <!-- Убрана кнопка "Выбрать всё" -->
-                                </div>
-                                <div class="header-col number-col">№</div>
-                                <div class="header-col name-col">ФИО</div>
-                                <div class="header-col position-col">Должность</div>
-                                <div class="header-col citizenship-col">Гражданство</div>
-                                <div class="header-col passport-col">Паспорт</div>
-                                <div class="header-col status-col">Статус</div>
-                            </div>
+                <!-- Список сотрудников -->
+                <div class="employees-table-container">
+                    <div class="employees-table">
+                        <!-- Заголовки таблицы -->
+                        <div class="table-header">
+                            <div class="header-cell select-cell"></div>
+                            <div class="header-cell number-cell">№</div>
+                            <div class="header-cell name-col">ФИО</div>
+                            <div class="header-cell position-col">Должность</div>
+                            <div class="header-cell citizenship-col">Гражданство</div>
+                            <div class="header-cell status-cell">Статус</div>
                         </div>
-                        <div class="employees-body">
+                        
+                        <!-- Тело таблицы -->
+                        <div class="table-body">
                             <div 
-                                v-for="employee in filteredEmployees" 
+                                v-for="employee in displayedEmployees" 
                                 :key="employee.id"
-                                class="employee-item"
+                                class="table-row"
                                 :class="{ 
-                                    'employee-item--disabled': isEmployeeDisabled(employee),
-                                    'employee-item--selected': isEmployeeSelected(employee)
+                                    'table-row--disabled': isEmployeeDisabled(employee),
+                                    'table-row--selected': isEmployeeSelected(employee)
                                 }"
-                                @click="toggleEmployeeSelection(employee)"
+                                @click="handleRowClick(employee)"
                             >
-                                <div class="employee-row">
-                                    <div class="employee-col select-col">
-                                        <input 
-                                            type="checkbox" 
-                                            :checked="isEmployeeSelected(employee)"
-                                            @change="toggleEmployeeSelection(employee)"
-                                            :disabled="isEmployeeDisabled(employee)"
-                                            @click.stop
-                                        />
-                                    </div>
-                                    <div class="employee-col number-col">{{ employee.id }}</div>
-                                    <div class="employee-col name-col">{{ formatFullName(employee) }}</div>
-                                    <div class="employee-col position-col">{{ employee.position || 'Не указана' }}</div>
-                                    <div class="employee-col citizenship-col">{{ employee.citizenship_name || 'Не указано' }}</div>
-                                    <div class="employee-col passport-col">{{ employee.passport_series_number || 'Не указан' }}</div>
-                                    <div class="employee-col status-col">
-                                        <span 
-                                            class="status-badge"
-                                            :class="{
-                                                'status-active': employee.status,
-                                                'status-inactive': !employee.status
-                                            }"
-                                        >
-                                            {{ employee.status ? 'Активен' : 'Неактивен' }}
-                                        </span>
-                                    </div>
+                                <div class="table-cell select-cell" @click.stop>
+                                    <input 
+                                        type="checkbox" 
+                                        :checked="isEmployeeSelected(employee)"
+                                        :disabled="isEmployeeDisabled(employee)"
+                                        @change="toggleEmployeeSelection(employee)"
+                                    />
+                                </div>
+                                <div class="table-cell number-cell">{{ employee.id }}</div>
+                                <div class="table-cell name-col">{{ formatFullName(employee) }}</div>
+                                <div class="table-cell position-col">{{ employee.position || 'Не указана' }}</div>
+                                <div class="table-cell citizenship-col">{{ employee.citizenship_name || 'Не указано' }}</div>
+                                <div class="table-cell status-cell">
+                                    <span 
+                                        class="status-badge"
+                                        :class="{
+                                            'status-active': employee.status,
+                                            'status-inactive': !employee.status
+                                        }"
+                                    >
+                                        {{ employee.status ? 'Активен' : 'Неактивен' }}
+                                    </span>
                                 </div>
                             </div>
-                            <div v-if="filteredEmployees.length === 0" class="no-employees-message">
-                                Нет доступных сотрудников
+                            
+                            <!-- Состояния загрузки/пусто -->
+                            <div v-if="loadingEmployees" class="loading-state">
+                                <div class="spinner"></div>
+                                <span>Загрузка сотрудников...</span>
+                            </div>
+                            <div v-else-if="displayedEmployees.length === 0" class="empty-state">
+                                {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных сотрудников' }}
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="modal-actions">
-                        <button class="cancel-btn" @click="closeExistingEmployeesModal">Отмена</button>
-                        <button class="select-btn" @click="confirmExistingEmployeesSelection">
-                            {{ tempSelectedEmployees.length > 0 ? `Выбрать (${tempSelectedEmployees.length})` : 'Выбрать' }}
-                        </button>
-                    </div>
+                <!-- Кнопки действий -->
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @click="closeExistingEmployeesModal">
+                        Отмена
+                    </button>
+                    <button 
+                        class="btn btn-primary" 
+                        @click="confirmExistingEmployeesSelection"
+                        :disabled="tempSelectedEmployees.length === 0"
+                    >
+                        {{ tempSelectedEmployees.length > 0 ? `Добавить (${tempSelectedEmployees.length})` : 'Добавить' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -344,8 +373,13 @@
 </template>
 
 <script>
+import SearchComponent from '@/components/SearchComponent.vue'
+
 export default {
     name: 'EmployeeForm',
+    components: {
+        SearchComponent
+    },
     props: {
         userOrganization: {
             type: String,
@@ -421,17 +455,14 @@ export default {
             
             // Существующие сотрудники
             showExistingEmployeesModal: false,
-            allEmployees: [],
+            filteredEmployees: [],
+            displayedEmployees: [],
             tempSelectedEmployees: [],
             selectedExistingEmployees: [],
             currentFilter: 'all',
-            filterTabs: [
-                { label: 'Все сотрудники', value: 'all' },
-                { label: 'Сотрудники организации', value: 'organization' },
-                { label: 'Сотрудники компании', value: 'company' },
-                { label: 'Мои сотрудники', value: 'user' }
-            ],
-
+            loadingEmployees: false,
+            searchQuery: '',
+            
             // Редактирование
             editingEmployee: null,
 
@@ -490,18 +521,6 @@ export default {
         },
         attachedTablesIds() {
             return this.attachedPassageTables.map(table => table.id);
-        },
-        filteredEmployees() {
-            if (this.currentFilter === 'all') {
-                return this.allEmployees;
-            } else if (this.currentFilter === 'organization') {
-                return this.allEmployees.filter(employee => employee.organization_id !== null);
-            } else if (this.currentFilter === 'company') {
-                return this.allEmployees.filter(employee => employee.company_id !== null);
-            } else if (this.currentFilter === 'user') {
-                return this.allEmployees.filter(employee => employee.user_id !== null);
-            }
-            return this.allEmployees;
         },
         canAddExistingEmployees() {
             return this.selectedExistingEmployees.length > 0 && this.selectedPassageTables.length > 0;
@@ -624,10 +643,16 @@ export default {
             }
         },
 
-        async loadExistingEmployees() {
+        async loadEmployeesByFilter(filterType) {
+            this.loadingEmployees = true;
+            this.filteredEmployees = [];
+            this.displayedEmployees = [];
+            this.tempSelectedEmployees = [];
+            
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unique-employees?filter_type=all", {
+                
+                const response = await fetch(`http://localhost:8080/unique-employees?filter_type=${filterType}`, {
                     method: "GET",
                     headers: {
                         "Authorization": `Bearer ${token}`
@@ -635,13 +660,37 @@ export default {
                 });
 
                 if (response.ok) {
-                    this.allEmployees = await response.json();
+                    this.filteredEmployees = await response.json();
+                    this.applySearch();
                 } else {
-                    console.error("Ошибка при загрузке существующих сотрудников");
+                    console.error("Ошибка при загрузке сотрудников по фильтру:", filterType);
                 }
             } catch (error) {
-                console.error("Ошибка при загрузке существующих сотрудников:", error);
+                console.error("Ошибка при загрузке сотрудников:", error);
+            } finally {
+                this.loadingEmployees = false;
             }
+        },
+
+        handleSearch() {
+            this.applySearch();
+        },
+
+        applySearch() {
+            if (!this.searchQuery.trim()) {
+                this.displayedEmployees = [...this.filteredEmployees];
+                return;
+            }
+
+            const searchTerm = this.searchQuery.toLowerCase().trim();
+            this.displayedEmployees = this.filteredEmployees.filter(employee => {
+                const fullName = this.formatFullName(employee).toLowerCase();
+                return fullName.includes(searchTerm) ||
+                       (employee.position && employee.position.toLowerCase().includes(searchTerm)) ||
+                       (employee.passport_series_number && employee.passport_series_number.toLowerCase().includes(searchTerm)) ||
+                       (employee.citizenship_name && employee.citizenship_name.toLowerCase().includes(searchTerm)) ||
+                       (employee.id && employee.id.toString().includes(searchTerm));
+            });
         },
 
         formatNameField(fieldName) {
@@ -762,16 +811,37 @@ export default {
         openExistingEmployeesModal() {
             this.showExistingEmployeesModal = true;
             this.tempSelectedEmployees = [...this.selectedExistingEmployees];
-            this.loadExistingEmployees();
+            this.currentFilter = 'all';
+            this.loadEmployeesByFilter('all');
+            this.searchQuery = '';
         },
 
         closeExistingEmployeesModal() {
             this.showExistingEmployeesModal = false;
             this.tempSelectedEmployees = [];
+            this.searchQuery = '';
         },
 
         switchFilter(filter) {
             this.currentFilter = filter;
+            this.loadEmployeesByFilter(filter);
+        },
+
+        handleRowClick(employee) {
+            if (!this.isEmployeeDisabled(employee)) {
+                this.toggleEmployeeSelection(employee);
+            }
+        },
+
+        toggleEmployeeSelection(employee) {
+            if (this.isEmployeeDisabled(employee)) return;
+
+            const index = this.tempSelectedEmployees.findIndex(selectedEmployee => selectedEmployee.id === employee.id);
+            if (index > -1) {
+                this.tempSelectedEmployees.splice(index, 1);
+            } else {
+                this.tempSelectedEmployees.push(employee);
+            }
         },
 
         isEmployeeSelected(employee) {
@@ -786,25 +856,12 @@ export default {
             );
         },
 
-        toggleEmployeeSelection(employee) {
-            if (this.isEmployeeDisabled(employee)) return;
-
-            const index = this.tempSelectedEmployees.findIndex(selectedEmployee => selectedEmployee.id === employee.id);
-            if (index > -1) {
-                this.tempSelectedEmployees.splice(index, 1);
-            } else {
-                this.tempSelectedEmployees.push(employee);
-            }
-        },
-
         confirmExistingEmployeesSelection() {
             this.selectedExistingEmployees = [...this.tempSelectedEmployees];
             this.closeExistingEmployeesModal();
-            // Очищаем форму нового сотрудника
             this.clearEmployeeFormPartial();
         },
 
-        // Метод для добавления выбранных существующих сотрудников
         addExistingEmployees() {
             if (this.selectedExistingEmployees.length === 0) {
                 alert('Выберите сотрудников для добавления');
@@ -991,14 +1048,14 @@ export default {
 </script>
 
 <style scoped>
-    .input__label {
-        font-size: 13px;
-        color: #a2a2a2;
-    }
+.input__label {
+    font-size: 13px;
+    color: #a2a2a2;
+}
 
-    .required {
-        color: #ff4444;
-    }
+.required {
+    color: #ff4444;
+}
 
 .data__completion {
     padding: 15px;
@@ -1647,45 +1704,46 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    padding: 20px;
 }
 
 .modal-content {
     background: white;
-    border-radius: 20px;
-    padding: 0;
-    width: 900px;
-    max-width: 90vw;
-    max-height: 80vh;
+    border-radius: 30px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid #e6e6e6;
-}
-
-.modal-header__top {
-    display: flex;
-    align-items: center;
-    gap: 15px;
+    background: white;
+    flex-shrink: 0;
+    gap: 20px;
 }
 
 .modal-header h3 {
     margin: 0;
+    font-size: 16px;
+    font-weight: 600;
     color: #333;
-    font-size: 18px;
+    flex-shrink: 0;
 }
 
-.selected-count-badge {
-    background: #4F5BDF;
-    color: white;
-    border-radius: 50px;
-    padding: 5px 12px;
-    font-size: 12px;
-    font-weight: 500;
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    justify-content: flex-end;
 }
 
 .modal-close {
@@ -1695,158 +1753,226 @@ export default {
     cursor: pointer;
     color: #a2a2a2;
     padding: 0;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .modal-close:hover {
+    background: #f5f5f5;
     color: #333;
 }
 
-.modal-body {
-    padding: 20px;
-    max-height: 60vh;
-    overflow-y: auto;
+.filter-section {
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #fafafa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 16px;
 }
 
-/* Вкладки фильтров */
 .filter-tabs {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #e6e6e6;
-    padding-bottom: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .filter-tab {
-    padding: 8px 16px;
+    padding: 6px 12px;
     border: 1px solid #e6e6e6;
     background: white;
-    border-radius: 50px;
+    border-radius: 16px;
     cursor: pointer;
     font-size: 12px;
+    font-weight: 500;
+    color: #666;
     transition: all 0.2s;
-    white-space: nowrap;
+    outline: none;
+    min-height: 32px;
+    line-height: 1;
 }
 
-.filter-tab:hover {
+.filter-tab:hover:not(.filter-tab--active) {
     border-color: #4F5BDF;
+    color: #4F5BDF;
 }
 
 .filter-tab--active {
     background: #4F5BDF;
     color: white;
     border-color: #4F5BDF;
+    pointer-events: none;
 }
 
-/* Список сотрудников */
-.employees-list {
-    border: 1px solid #e6e6e6;
-    border-radius: 10px;
+.selected-counter {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.selected-count {
+    font-weight: 600;
+    color: #4F5BDF;
+}
+
+.employees-table-container {
+    flex: 1;
     overflow: hidden;
-    margin-bottom: 20px;
+    min-height: 240px;
+    max-height: 240px;
+    display: flex;
+    flex-direction: column;
 }
 
-.employees-header {
+.employees-table {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.table-header {
+    display: flex;
     background: #f8f8f8;
     border-bottom: 1px solid #e6e6e6;
-    padding: 12px 15px;
-}
-
-.header-row {
-    display: flex;
-    width: 100%;
-    align-items: center;
+    padding: 0 20px;
+    height: 40px;
+    min-height: 40px;
+    font-size: 14px;
     font-weight: 500;
     color: #a2a2a2;
-    font-size: 14px;
+    flex-shrink: 0;
+    align-items: center;
 }
 
-.header-col {
-    padding: 0 5px;
+.header-cell {
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
 }
 
-.select-col {
-    width: 5%;
-    text-align: center;
+.select-cell {
+    width: 40px;
+    flex-shrink: 0;
+    justify-content: center;
 }
 
-.number-col {
-    width: 8%;
+.number-cell {
+    width: 30px;
+    flex-shrink: 0;
 }
 
 .name-col {
-    width: 25%;
+    flex: 2;
+    min-width: 250px;
 }
 
 .position-col {
-    width: 20%;
+    flex: 2;
+    min-width: 140px;
+    white-space: nowrap; /* Текст не переносится */
+    overflow: hidden; /* Обрезаем всё за пределами блока */
+    text-overflow: ellipsis;
 }
 
 .citizenship-col {
-    width: 15%;
+    flex: 1;
+    min-width: 200px;
 }
 
-.passport-col {
-    width: 15%;
+.status-cell {
+    width: 100px;
+    flex-shrink: 0;
+    justify-content: center;
 }
 
-.status-col {
-    width: 12%;
-}
-
-.employees-body {
-    max-height: 300px;
+.table-body {
+    flex: 1;
     overflow-y: auto;
+    max-height: 200px;
+    min-height: 200px;
+    height: 200px;
 }
 
-.employee-item {
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s;
+.table-row {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid #f5f5f5;
     cursor: pointer;
+    transition: background-color 0.2s;
+    height: 40px;
+    min-height: 40px;
 }
 
-.employee-item:hover {
+.table-row:hover:not(.table-row--disabled) {
     background-color: #fafafa;
 }
 
-.employee-item--disabled {
-    background-color: #f5f5f5;
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.employee-item--disabled:hover {
-    background-color: #f5f5f5;
-}
-
-.employee-item--selected {
+.table-row--selected {
     background-color: #f0f9ff;
 }
 
-.employee-item--selected:hover {
+.table-row--selected:hover {
     background-color: #e0f2fe;
 }
 
-.employee-row {
+.table-row--disabled {
+    background-color: #f9f9f9;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.table-cell {
+    padding: 0 8px;
+    font-size: 14px;
+    color: #000;
     display: flex;
-    padding: 10px 15px;
     align-items: center;
 }
 
-.employee-col {
-    padding: 0 5px;
+.table-row--disabled .table-cell {
+    color: #999;
+}
+
+.select-cell {
+    width: 40px;
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+.table-cell input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4F5BDF;
+    margin: 0;
+}
+
+.table-row--disabled input[type="checkbox"] {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .status-badge {
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
     font-size: 11px;
     font-weight: 500;
     display: inline-block;
+    min-width: 70px;
+    text-align: center;
 }
 
 .status-active {
@@ -1861,48 +1987,158 @@ export default {
     border: 1px solid #fecaca;
 }
 
-.no-employees-message {
-    text-align: center;
-    padding: 40px 20px;
-    color: #a2a2a2;
+.table-row--disabled .status-badge {
+    opacity: 0.7;
+}
+
+.loading-state,
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 200px;
+    color: #999;
     font-size: 14px;
+    text-align: center;
+}
+
+.loading-state {
+    flex-direction: column;
+    gap: 12px;
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #4F5BDF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+    font-style: italic;
+    color: #a2a2a2;
 }
 
 .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #e6e6e6;
+    background: white;
+    flex-shrink: 0;
 }
 
-.cancel-btn {
+.btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    outline: none;
+    min-height: 36px;
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-secondary {
     background: white;
     color: #333;
     border: 1px solid #e6e6e6;
-    border-radius: 15px;
-    padding: 8px 16px;
-    font-size: 12px;
-    cursor: pointer;
 }
 
-.cancel-btn:hover {
+.btn-secondary:hover:not(:disabled) {
     background: #f5f5f5;
+    border-color: #d9d9d9;
 }
 
-.select-btn {
+.btn-primary {
     background: #4F5BDF;
     color: white;
-    border: none;
-    border-radius: 15px;
-    padding: 8px 16px;
-    font-size: 12px;
-    cursor: pointer;
 }
 
-.select-btn:hover {
+.btn-primary:hover:not(:disabled) {
     background: #3a45c0;
 }
 
-/* Анимации для dropdown */
+.btn-primary:disabled {
+    background: #a2a2a2;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.table-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.table-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.table-body::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.table-body::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        max-height: 90vh;
+        max-width: 95vw;
+    }
+    
+    .modal-header {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .header-right {
+        justify-content: center;
+    }
+    
+    .filter-section {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .filter-tabs {
+        justify-content: center;
+    }
+    
+    .table-header,
+    .table-row {
+        padding: 0 16px;
+    }
+    
+    .modal-actions {
+        padding: 12px 16px;
+    }
+    
+    .btn {
+        min-width: 80px;
+        padding: 8px 16px;
+    }
+}
+
 .dropdown-enter-active,
 .dropdown-leave-active {
     transition: all 0.2s ease;

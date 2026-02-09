@@ -200,93 +200,130 @@
         <!-- Модальное окно выбора существующих машин -->
         <div v-if="showExistingCarsModal" class="modal-overlay" @click="closeExistingCarsModal">
             <div class="modal-content" @click.stop>
+                <!-- Заголовок модалки -->
                 <div class="modal-header">
-                    <div class="modal-header__top">
-                        <h3>Выбор существующих автомобилей</h3>
-                        <div class="selected-count-badge" v-if="tempSelectedCars.length > 0">
-                            Выбрано: {{ tempSelectedCars.length }}
-                        </div>
+                    <h3>Выбор существующих автомобилей</h3>
+                    <div class="header-right">
+                        <SearchComponent 
+                            title="Поиск автомобилей..."
+                            v-model="searchQuery"
+                            @update:modelValue="handleSearch"
+                        />
                     </div>
                     <button class="modal-close" @click="closeExistingCarsModal">×</button>
                 </div>
-                <div class="modal-body">
-                    <!-- Вкладки фильтров -->
+                
+                <!-- Фильтры -->
+                <div class="filter-section">
                     <div class="filter-tabs">
                         <button 
-                            v-for="tab in filterTabs" 
-                            :key="tab.value"
                             class="filter-tab"
-                            :class="{ 'filter-tab--active': currentFilter === tab.value }"
-                            @click="switchFilter(tab.value)"
+                            :class="{ 'filter-tab--active': currentFilter === 'all' }"
+                            @click="switchFilter('all')"
                         >
-                            {{ tab.label }}
+                            Все машины
+                        </button>
+                        <button 
+                            v-if="userOrganizationId"
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                            @click="switchFilter('organization')"
+                        >
+                            Организация
+                        </button>
+                        <button 
+                            v-if="userCompanyId"
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': currentFilter === 'company' }"
+                            @click="switchFilter('company')"
+                        >
+                            Компания
+                        </button>
+                        <button 
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                            @click="switchFilter('user')"
+                        >
+                            Мои
                         </button>
                     </div>
+                    <div v-if="tempSelectedCars.length > 0" class="selected-counter">
+                        Выбрано: <span class="selected-count">{{ tempSelectedCars.length }}</span>
+                    </div>
+                </div>
 
-                    <!-- Список машин -->
-                    <div class="cars-list">
-                        <div class="cars-header">
-                            <div class="header-row">
-                                <div class="header-col select-col">
-                                    <!-- Убрана кнопка "Выбрать всё" -->
-                                </div>
-                                <div class="header-col number-col">№</div>
-                                <div class="header-col plate-col">Номер</div>
-                                <div class="header-col mark-col">Марка</div>
-                                <div class="header-col format-col">Формат</div>
-                                <div class="header-col status-col">Статус</div>
-                            </div>
+                <!-- Список машин -->
+                <div class="cars-table-container">
+                    <div class="cars-table">
+                        <!-- Заголовки таблицы -->
+                        <div class="table-header">
+                            <div class="header-cell select-cell"></div>
+                            <div class="header-cell number-cell">№</div>
+                            <div class="header-cell plate-cell">Номер</div>
+                            <div class="header-cell mark-cell">Марка</div>
+                            <div class="header-cell status-cell">Статус</div>
                         </div>
-                        <div class="cars-body">
+                        
+                        <!-- Тело таблицы -->
+                        <div class="table-body">
                             <div 
-                                v-for="car in filteredCars" 
+                                v-for="car in displayedCars" 
                                 :key="car.id"
-                                class="car-item"
+                                class="table-row"
                                 :class="{ 
-                                    'car-item--disabled': isCarDisabled(car),
-                                    'car-item--selected': isCarSelected(car)
+                                    'table-row--disabled': isCarDisabled(car),
+                                    'table-row--selected': isCarSelected(car)
                                 }"
-                                @click="toggleCarSelection(car)"
+                                @click="handleRowClick(car)"
                             >
-                                <div class="car-row">
-                                    <div class="car-col select-col">
-                                        <input 
-                                            type="checkbox" 
-                                            :checked="isCarSelected(car)"
-                                            @change="toggleCarSelection(car)"
-                                            :disabled="isCarDisabled(car)"
-                                            @click.stop
-                                        />
-                                    </div>
-                                    <div class="car-col number-col">{{ car.id }}</div>
-                                    <div class="car-col plate-col">{{ car.number }}</div>
-                                    <div class="car-col mark-col">{{ car.mark }}</div>
-                                    <div class="car-col format-col">{{ car.format_name || 'Не указан' }}</div>
-                                    <div class="car-col status-col">
-                                        <span 
-                                            class="status-badge"
-                                            :class="{
-                                                'status-active': car.status,
-                                                'status-inactive': !car.status
-                                            }"
-                                        >
-                                            {{ car.status ? 'Активна' : 'Неактивна' }}
-                                        </span>
-                                    </div>
+                                <div class="table-cell select-cell" @click.stop>
+                                    <input 
+                                        type="checkbox" 
+                                        :checked="isCarSelected(car)"
+                                        :disabled="isCarDisabled(car)"
+                                        @change="toggleCarSelection(car)"
+                                    />
+                                </div>
+                                <div class="table-cell number-cell">{{ car.id }}</div>
+                                <div class="table-cell plate-cell">{{ car.number }}</div>
+                                <div class="table-cell mark-cell">{{ car.mark }}</div>
+                                <div class="table-cell status-cell">
+                                    <span 
+                                        class="status-badge"
+                                        :class="{
+                                            'status-active': car.status,
+                                            'status-inactive': !car.status
+                                        }"
+                                    >
+                                        {{ car.status ? 'Активна' : 'Неактивна' }}
+                                    </span>
                                 </div>
                             </div>
-                            <div v-if="filteredCars.length === 0" class="no-cars-message">
-                                Нет доступных автомобилей
+                            
+                            <!-- Состояния загрузки/пусто -->
+                            <div v-if="loadingCars" class="loading-state">
+                                <div class="spinner"></div>
+                                <span>Загрузка машин...</span>
+                            </div>
+                            <div v-else-if="displayedCars.length === 0" class="empty-state">
+                                {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="modal-actions">
-                        <button class="cancel-btn" @click="closeExistingCarsModal">Отмена</button>
-                        <button class="select-btn" @click="confirmExistingCarsSelection">
-                            {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
-                        </button>
-                    </div>
+                <!-- Кнопки действий -->
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @click="closeExistingCarsModal">
+                        Отмена
+                    </button>
+                    <button 
+                        class="btn btn-primary" 
+                        @click="confirmExistingCarsSelection"
+                        :disabled="tempSelectedCars.length === 0"
+                    >
+                        {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -294,8 +331,13 @@
 </template>
 
 <script>
+import SearchComponent from '@/components/SearchComponent.vue'
+
 export default {
     name: 'VehicleForm',
+    components: {
+        SearchComponent
+    },
     props: {
         userOrganization: {
             type: String,
@@ -320,61 +362,37 @@ export default {
     },
     data() {
         return {
-            // Number parts
             numberParts: [],
             isNumberByFact: false,
-            
-            // Format data
             availableFormats: [],
             selectedFormat: null,
             isFormatDropdownOpen: false,
-            
-            // Mark data
             isMarkByFact: false,
             selectedMark: '',
             isMarkDropdownOpen: false,
             markSearch: '',
-            
-            // Available marks
             marks: [
                 'ВАЗ', 'Мерседес', 'БМВ', 'Газель', 'ГАЗ', 'Вольво', 'Тойота', 'Митсубиси',
                 'Ауди', 'Фольксваген', 'Шевроле', 'Хендай', 'Киа', 'Ниссан', 'Рено', 'Пежо',
                 'Ситроен', 'Форд', 'Опель', 'Шкода', 'Лада', 'УАЗ'
             ],
             filteredMarks: [],
-            
-            // Unloading places
             allUnloadingPlaces: [],
             attachedUnloadingPlaces: [],
             selectedUnloadingPlaces: [],
             loadingUnloadingPlaces: false,
-            
-            // Validation
-            errors: {
-                unloadingPlaces: ''
-            },
-            
-            // Character sets
+            errors: { unloadingPlaces: '' },
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
-
-            // Существующие машины
             showExistingCarsModal: false,
-            allCars: [],
+            filteredCars: [],
+            displayedCars: [],
             tempSelectedCars: [],
             selectedExistingCars: [],
             currentFilter: 'all',
-            filterTabs: [
-                { label: 'Все машины', value: 'all' },
-                { label: 'Машины организации', value: 'organization' },
-                { label: 'Машины компании', value: 'company' },
-                { label: 'Мои машины', value: 'user' }
-            ],
-
-            // Редактирование
+            loadingCars: false,
+            searchQuery: '',
             editingVehicle: null,
-
-            // Tooltip
             showTooltip: false
         }
     },
@@ -383,12 +401,10 @@ export default {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
         },
         canAddVehicle() {
-            // Если выбраны существующие машины
             if (this.selectedExistingCars.length > 0) {
                 return this.selectedUnloadingPlaces.length > 0;
             }
 
-            // Если добавляется новая машина
             if (this.isNumberByFact && this.isMarkByFact && this.selectedUnloadingPlaces.length > 0) {
                 return true;
             }
@@ -398,7 +414,6 @@ export default {
                     return false;
                 }
 
-                // Проверяем каждую клетку формата
                 for (let i = 0; i < this.selectedFormat.cells.length; i++) {
                     const cell = this.selectedFormat.cells[i];
                     const part = this.numberParts[i];
@@ -421,25 +436,6 @@ export default {
         },
         attachedPlacesIds() {
             return this.attachedUnloadingPlaces.map(place => place.id);
-        },
-        filteredCars() {
-            if (this.currentFilter === 'all') {
-                return this.allCars;
-            } else if (this.currentFilter === 'organization') {
-                return this.allCars.filter(car => car.organization_id !== null);
-            } else if (this.currentFilter === 'company') {
-                return this.allCars.filter(car => car.company_id !== null);
-            } else if (this.currentFilter === 'user') {
-                // Мои машины - все машины, где user_id не null (даже если они также привязаны к организации/компании)
-                return this.allCars.filter(car => car.user_id !== null);
-            }
-            return this.allCars;
-        },
-        allSelected() {
-            if (this.filteredCars.length === 0) return false;
-            return this.filteredCars.every(car => 
-                this.isCarDisabled(car) || this.isCarSelected(car)
-            );
         },
         canAddExistingCars() {
             return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0;
@@ -488,7 +484,6 @@ export default {
 
                 if (response.ok) {
                     this.availableFormats = await response.json();
-                    // Выбираем формат по умолчанию или первый формат
                     const defaultFormat = this.availableFormats.find(f => f.format.is_default);
                     this.selectedFormat = defaultFormat || this.availableFormats[0];
                     this.initializeNumberParts();
@@ -513,7 +508,6 @@ export default {
                     return;
                 }
 
-                // Загружаем все доступные места разгрузки
                 const allPlacesResponse = await fetch("http://localhost:8080/unload-places", {
                     method: "GET",
                     headers: {
@@ -525,7 +519,6 @@ export default {
                     this.allUnloadingPlaces = await allPlacesResponse.json();
                 }
 
-                // Загружаем привязанные места разгрузки организации
                 if (this.userOrganizationId) {
                     const orgPlacesResponse = await fetch(`http://localhost:8080/organizations/${this.userOrganizationId}/unload-places`, {
                         method: "GET",
@@ -536,12 +529,10 @@ export default {
 
                     if (orgPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await orgPlacesResponse.json();
-                        // Автоматически выбираем привязанные места
                         this.selectedUnloadingPlaces = this.attachedUnloadingPlaces.map(place => place.id);
                     }
                 }
 
-                // Если нет привязанных мест организации, пробуем компанию
                 if (this.attachedUnloadingPlaces.length === 0 && this.userCompanyId) {
                     const companyPlacesResponse = await fetch(`http://localhost:8080/companies/${this.userCompanyId}/unload-places`, {
                         method: "GET",
@@ -552,7 +543,6 @@ export default {
 
                     if (companyPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await companyPlacesResponse.json();
-                        // Автоматически выбираем привязанные места
                         this.selectedUnloadingPlaces = this.attachedUnloadingPlaces.map(place => place.id);
                     }
                 }
@@ -568,10 +558,16 @@ export default {
             }
         },
 
-        async loadExistingCars() {
+        async loadCarsByFilter(filterType) {
+            this.loadingCars = true;
+            this.filteredCars = [];
+            this.displayedCars = [];
+            this.tempSelectedCars = [];
+            
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unique-cars?filter_type=all", {
+                
+                const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${filterType}`, {
                     method: "GET",
                     headers: {
                         "Authorization": `Bearer ${token}`
@@ -579,13 +575,92 @@ export default {
                 });
 
                 if (response.ok) {
-                    this.allCars = await response.json();
+                    this.filteredCars = await response.json();
+                    this.applySearch();
                 } else {
-                    console.error("Ошибка при загрузке существующих машин");
+                    console.error("Ошибка при загрузке машин по фильтру:", filterType);
                 }
             } catch (error) {
-                console.error("Ошибка при загрузке существующих машин:", error);
+                console.error("Ошибка при загрузке машин:", error);
+            } finally {
+                this.loadingCars = false;
             }
+        },
+
+        handleSearch() {
+            this.applySearch();
+        },
+
+        applySearch() {
+            if (!this.searchQuery.trim()) {
+                this.displayedCars = [...this.filteredCars];
+                return;
+            }
+
+            // Нормализуем поисковый запрос: удаляем пробелы и приводим к верхнему регистру
+            const searchTerm = this.searchQuery.trim().toUpperCase().replace(/\s+/g, '');
+            
+            this.displayedCars = this.filteredCars.filter(car => {
+                if (!car.number) return false;
+                
+                // Нормализуем номер машины: удаляем пробелы и приводим к верхнему регистру
+                const normalizedCarNumber = car.number.toUpperCase().replace(/\s+/g, '');
+                
+                // Проверяем совпадения:
+                // 1. Полное совпадение без пробелов
+                if (normalizedCarNumber.includes(searchTerm)) {
+                    return true;
+                }
+                
+                // 2. Проверяем совпадение с частями номера
+                // Например, для номера "А 777 АА 777" и запроса "А777" или "АА777"
+                // Разбиваем номер на части (буквы и цифры)
+                const numberParts = car.number.toUpperCase().split(/\s+/);
+                const concatenatedParts = numberParts.join('');
+                
+                // Проверяем полное совпадение без пробелов
+                if (concatenatedParts.includes(searchTerm)) {
+                    return true;
+                }
+                
+                // Проверяем частичные совпадения
+                // Например, для номера "А 777 АА 777":
+                // - Поиск "А 777" -> совпадет
+                // - Поиск "А777" -> совпадет
+                // - Поиск "777 АА" -> совпадет
+                // - Поиск "А777АА7" -> совпадет
+                
+                // Создаем варианты номеров с разными комбинациями пробелов
+                const variations = [
+                    car.number.toUpperCase(),                     // "А 777 АА 777"
+                    car.number.toUpperCase().replace(/\s+/g, ''), // "А777АА777"
+                    numberParts.join(' '),                        // "А 777 АА 777"
+                    numberParts.slice(0, 2).join(''),             // "А777"
+                    numberParts.slice(2).join(''),               // "АА777"
+                    numberParts[0] + numberParts[1],             // "А777"
+                    numberParts[2] + numberParts[3],             // "АА777"
+                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1), // "А777А"
+                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1) + numberParts[3].slice(0, 1) // "А777АА7"
+                ];
+                
+                // Проверяем все варианты
+                for (const variation of variations) {
+                    if (variation.includes(searchTerm)) {
+                        return true;
+                    }
+                }
+                
+                // Также проверяем совпадения по марке и ID
+                if (car.mark && car.mark.toLowerCase().includes(this.searchQuery.toLowerCase())) {
+                    return true;
+                }
+                
+                if (car.id && car.id.toString().includes(this.searchQuery)) {
+                    return true;
+                }
+                
+                return false;
+            });
         },
 
         initializeNumberParts() {
@@ -605,9 +680,8 @@ export default {
         },
 
         getInputWidth(cell) {
-            // Рассчитываем ширину на основе максимальной длины
-            const baseWidth = 25; // Базовая ширина для одного символа
-            const minWidth = 50; // Минимальная ширина
+            const baseWidth = 25;
+            const minWidth = 50;
             const width = Math.max(minWidth, cell.max_length * baseWidth);
             return `${width}px`;
         },
@@ -616,10 +690,8 @@ export default {
             let value = event.target.value.toUpperCase();
             
             if (cell.cell_type === 'numbers') {
-                // Только цифры
                 value = value.replace(/\D/g, '');
             } else if (cell.cell_type === 'letters') {
-                // Только буквы в зависимости от алфавита
                 if (cell.alphabet_type === 'cyrillic') {
                     value = this.filterCyrillicLetters(value, cell.allowed_letters);
                 } else if (cell.alphabet_type === 'latin') {
@@ -628,7 +700,6 @@ export default {
                     value = this.filterBothLetters(value, cell.allowed_letters);
                 }
             } else if (cell.cell_type === 'mixed') {
-                // Буквы и цифры
                 if (cell.alphabet_type === 'cyrillic') {
                     value = this.filterMixedCyrillic(value, cell.allowed_letters);
                 } else if (cell.alphabet_type === 'latin') {
@@ -638,7 +709,6 @@ export default {
                 }
             }
             
-            // Ограничиваем максимальную длину
             if (value.length > cell.max_length) {
                 value = value.slice(0, cell.max_length);
             }
@@ -648,7 +718,6 @@ export default {
         },
 
         formatPart(index, cell) {
-            // Дополняем нулями только если есть введенное значение
             if (cell.cell_type === 'numbers' && cell.padding_side && this.numberParts[index]) {
                 let value = this.numberParts[index];
                 const targetLength = cell.max_length;
@@ -688,27 +757,23 @@ export default {
                 const allowedChars = allowedLetters.split('');
                 return value.split('').filter(char => allowedChars.includes(char)).join('');
             } else {
-                // Разрешаем и кириллицу и латиницу
                 return value.replace(/[^A-ZА-Я]/g, '');
             }
         },
 
         filterMixedCyrillic(value, allowedLetters) {
-            // Цифры + кириллица
             const numericPart = value.replace(/\D/g, '');
             const letterPart = this.filterCyrillicLetters(value.replace(/[0-9]/g, ''), allowedLetters);
             return numericPart + letterPart;
         },
 
         filterMixedLatin(value, allowedLetters) {
-            // Цифры + латиница
             const numericPart = value.replace(/\D/g, '');
             const letterPart = this.filterLatinLetters(value.replace(/[0-9]/g, ''), allowedLetters);
             return numericPart + letterPart;
         },
 
         filterMixedBoth(value, allowedLetters) {
-            // Цифры + кириллица + латиница
             const numericPart = value.replace(/\D/g, '');
             const letterPart = this.filterBothLetters(value.replace(/[0-9]/g, ''), allowedLetters);
             return numericPart + letterPart;
@@ -761,13 +826,11 @@ export default {
                 return;
             }
             
-            // Если выбраны существующие машины
             if (this.selectedExistingCars.length > 0) {
                 this.addExistingCars();
                 return;
             }
             
-            // Если добавляется новая машина
             let plateNumber = '';
             if (this.isNumberByFact) {
                 plateNumber = 'По факту';
@@ -797,7 +860,6 @@ export default {
         },
         
         clearVehicleFormPartial() {
-            // Очищаем только номер и марку, места разгрузки остаются выбранными
             this.initializeNumberParts();
             this.selectedMark = '';
             this.isNumberByFact = false;
@@ -815,33 +877,29 @@ export default {
             this.editingVehicle = null;
         },
 
-        // Методы для существующих машин
         openExistingCarsModal() {
             this.showExistingCarsModal = true;
             this.tempSelectedCars = [...this.selectedExistingCars];
-            this.loadExistingCars();
+            this.currentFilter = 'all';
+            this.loadCarsByFilter('all');
+            this.searchQuery = '';
         },
 
         closeExistingCarsModal() {
             this.showExistingCarsModal = false;
             this.tempSelectedCars = [];
+            this.searchQuery = '';
         },
 
         switchFilter(filter) {
             this.currentFilter = filter;
+            this.loadCarsByFilter(filter);
         },
 
-        isCarSelected(car) {
-            return this.tempSelectedCars.some(selectedCar => selectedCar.id === car.id);
-        },
-
-        isCarDisabled(car) {
-            // Проверяем, не добавлена ли уже машина в список транспортных средств
-            // Сравниваем по номеру и марке для всех типов машин
-            return this.existingVehicles.some(vehicle => 
-                (vehicle.isExisting && vehicle.existingCarId === car.id) ||
-                (!vehicle.isExisting && vehicle.plateNumber === car.number && vehicle.mark === car.mark)
-            );
+        handleRowClick(car) {
+            if (!this.isCarDisabled(car)) {
+                this.toggleCarSelection(car);
+            }
         },
 
         toggleCarSelection(car) {
@@ -855,14 +913,23 @@ export default {
             }
         },
 
+        isCarSelected(car) {
+            return this.tempSelectedCars.some(selectedCar => selectedCar.id === car.id);
+        },
+
+        isCarDisabled(car) {
+            return this.existingVehicles.some(vehicle => 
+                (vehicle.isExisting && vehicle.existingCarId === car.id) ||
+                (!vehicle.isExisting && vehicle.plateNumber === car.number && vehicle.mark === car.mark)
+            );
+        },
+
         confirmExistingCarsSelection() {
             this.selectedExistingCars = [...this.tempSelectedCars];
             this.closeExistingCarsModal();
-            // Очищаем форму новой машины
             this.clearVehicleFormPartial();
         },
 
-        // Метод для добавления выбранных существующих машин
         addExistingCars() {
             if (this.selectedExistingCars.length === 0) {
                 alert('Выберите машины для добавления');
@@ -892,19 +959,16 @@ export default {
             this.selectedExistingCars = [];
         },
 
-        // Методы редактирования
         editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
             
             if (vehicle.isExisting) {
-                // Загружаем данные существующей машины
                 this.selectedMark = vehicle.mark;
                 this.isMarkByFact = vehicle.mark === 'По факту';
                 this.isNumberByFact = vehicle.plateNumber === 'По факту';
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
                 
-                // Для существующих машин находим формат
                 if (vehicle.formatId) {
                     const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
                     if (format) {
@@ -912,12 +976,10 @@ export default {
                     }
                 }
             } else {
-                // Загружаем данные новой машины
                 if (vehicle.plateNumber === 'По факту') {
                     this.isNumberByFact = true;
                 } else {
                     this.isNumberByFact = false;
-                    // Находим формат и разбиваем номер
                     const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
                     if (format) {
                         this.selectedFormat = format;
@@ -942,7 +1004,6 @@ export default {
             this.clearVehicleForm();
         },
         
-        // Mark dropdown methods
         toggleMarkDropdown() {
             this.isMarkDropdownOpen = !this.isMarkDropdownOpen;
             if (this.isMarkDropdownOpen) {
@@ -967,7 +1028,6 @@ export default {
             this.markSearch = '';
         },
         
-        // Format dropdown methods
         toggleFormatDropdown() {
             this.isFormatDropdownOpen = !this.isFormatDropdownOpen;
         },
@@ -979,7 +1039,6 @@ export default {
         }
     },
     async mounted() {
-        // Загружаем форматы номеров и места разгрузки
         await Promise.all([
             this.loadLicensePlateFormats(),
             this.loadUnloadingPlaces()
@@ -1001,14 +1060,14 @@ export default {
 </script>
 
 <style scoped>
-    .input__label {
-        font-size: 13px;
-        color: #a2a2a2;
-    }
+.input__label {
+    font-size: 13px;
+    color: #a2a2a2;
+}
 
-    .required {
-        color: #ff4444;
-    }
+.required {
+    color: #ff4444;
+}
 
 .data__completion {
     padding: 15px;
@@ -1080,7 +1139,6 @@ export default {
     opacity: 0.6;
 }
 
-/* Tooltip styles */
 .tooltip {
     position: absolute;
     top: 100%;
@@ -1327,7 +1385,6 @@ export default {
     border: 1px solid #e6e6e6;
 }
 
-/* Mark dropdown styles */
 .mark__field {
     width: 100%;
     height: 40px;
@@ -1464,7 +1521,6 @@ export default {
     font-size: 12px;
 }
 
-/* Unloading places styles */
 .completion__unloading {
     margin-top: 15px;
 }
@@ -1585,7 +1641,6 @@ export default {
     background-color: #f5f5f5;
 }
 
-/* Стили для существующих машин */
 .existing-cars-info {
     margin-bottom: 15px;
     padding: 10px;
@@ -1645,7 +1700,6 @@ export default {
     opacity: 0.6;
 }
 
-/* Модальное окно */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -1657,45 +1711,46 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    padding: 20px;
 }
 
 .modal-content {
     background: white;
-    border-radius: 20px;
-    padding: 0;
-    width: 800px;
-    max-width: 90vw;
-    max-height: 80vh;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid #e6e6e6;
-}
-
-.modal-header__top {
-    display: flex;
-    align-items: center;
-    gap: 15px;
+    background: white;
+    flex-shrink: 0;
+    gap: 20px;
 }
 
 .modal-header h3 {
     margin: 0;
+    font-size: 16px;
+    font-weight: 600;
     color: #333;
-    font-size: 18px;
+    flex-shrink: 0;
 }
 
-.selected-count-badge {
-    background: #4F5BDF;
-    color: white;
-    border-radius: 50px;
-    padding: 5px 12px;
-    font-size: 12px;
-    font-weight: 500;
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    justify-content: flex-end;
 }
 
 .modal-close {
@@ -1705,154 +1760,219 @@ export default {
     cursor: pointer;
     color: #a2a2a2;
     padding: 0;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .modal-close:hover {
+    background: #f5f5f5;
     color: #333;
 }
 
-.modal-body {
-    padding: 20px;
-    max-height: 60vh;
-    overflow-y: auto;
+.filter-section {
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #fafafa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 16px;
 }
 
-/* Вкладки фильтров */
 .filter-tabs {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #e6e6e6;
-    padding-bottom: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .filter-tab {
-    padding: 8px 16px;
+    padding: 6px 12px;
     border: 1px solid #e6e6e6;
     background: white;
-    border-radius: 50px;
+    border-radius: 16px;
     cursor: pointer;
     font-size: 12px;
+    font-weight: 500;
+    color: #666;
     transition: all 0.2s;
-    white-space: nowrap;
+    outline: none;
+    min-height: 32px;
+    line-height: 1;
 }
 
-.filter-tab:hover {
+.filter-tab:hover:not(.filter-tab--active) {
     border-color: #4F5BDF;
+    color: #4F5BDF;
 }
 
 .filter-tab--active {
     background: #4F5BDF;
     color: white;
     border-color: #4F5BDF;
+    pointer-events: none;
 }
 
-/* Список машин */
-.cars-list {
-    border: 1px solid #e6e6e6;
-    border-radius: 10px;
+.selected-counter {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.selected-count {
+    font-weight: 600;
+    color: #4F5BDF;
+}
+
+.cars-table-container {
+    flex: 1;
     overflow: hidden;
-    margin-bottom: 20px;
+    min-height: 240px;
+    max-height: 240px;
+    display: flex;
+    flex-direction: column;
 }
 
-.cars-header {
+.cars-table {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.table-header {
+    display: flex;
     background: #f8f8f8;
     border-bottom: 1px solid #e6e6e6;
-    padding: 12px 15px;
-}
-
-.header-row {
-    display: flex;
-    width: 100%;
-    align-items: center;
+    border-top: 1px solid #e6e6e6;
+    padding: 0 20px;
+    height: 40px;
+    min-height: 40px;
+    font-size: 14px;
     font-weight: 500;
     color: #a2a2a2;
-    font-size: 14px;
+    flex-shrink: 0;
+    align-items: center;
 }
 
-.header-col {
-    padding: 0 5px;
+.header-cell {
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
 }
 
-.select-col {
-    width: 5%;
-    text-align: center;
+.select-cell {
+    width: 40px;
+    flex-shrink: 0;
+    justify-content: center;
 }
 
-.number-col {
-    width: 10%;
+.number-cell {
+    width: 60px;
+    flex-shrink: 0;
 }
 
-.plate-col {
-    width: 25%;
+.plate-cell {
+    flex: 2;
+    min-width: 150px;
 }
 
-.mark-col {
-    width: 25%;
+.mark-cell {
+    flex: 2;
+    min-width: 120px;
 }
 
-.format-col {
-    width: 20%;
+.status-cell {
+    width: 100px;
+    flex-shrink: 0;
+    justify-content: center;
 }
 
-.status-col {
-    width: 15%;
-}
-
-.cars-body {
-    max-height: 300px;
+.table-body {
+    flex: 1;
     overflow-y: auto;
+    max-height: 200px;
+    min-height: 200px;
+    height: 200px;
 }
 
-.car-item {
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s;
+.table-row {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid #f5f5f5;
     cursor: pointer;
+    transition: background-color 0.2s;
+    height: 40px;
+    min-height: 40px;
 }
 
-.car-item:hover {
+.table-row:hover:not(.table-row--disabled) {
     background-color: #fafafa;
 }
 
-.car-item--disabled {
-    background-color: #f5f5f5;
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.car-item--disabled:hover {
-    background-color: #f5f5f5;
-}
-
-.car-item--selected {
+.table-row--selected {
     background-color: #f0f9ff;
 }
 
-.car-item--selected:hover {
+.table-row--selected:hover {
     background-color: #e0f2fe;
 }
 
-.car-row {
+.table-row--disabled {
+    background-color: #f9f9f9;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.table-cell {
+    padding: 0 8px;
+    font-size: 14px;
+    color: #000;
     display: flex;
-    padding: 10px 15px;
     align-items: center;
 }
 
-.car-col {
-    padding: 0 5px;
+.table-row--disabled .table-cell {
+    color: #999;
+}
+
+.select-cell {
+    width: 40px;
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+.table-cell input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4F5BDF;
+    margin: 0;
+}
+
+.table-row--disabled input[type="checkbox"] {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .status-badge {
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
     font-size: 11px;
     font-weight: 500;
     display: inline-block;
+    min-width: 70px;
+    text-align: center;
 }
 
 .status-active {
@@ -1867,48 +1987,158 @@ export default {
     border: 1px solid #fecaca;
 }
 
-.no-cars-message {
-    text-align: center;
-    padding: 40px 20px;
-    color: #a2a2a2;
+.table-row--disabled .status-badge {
+    opacity: 0.7;
+}
+
+.loading-state,
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 200px;
+    color: #999;
     font-size: 14px;
+    text-align: center;
+}
+
+.loading-state {
+    flex-direction: column;
+    gap: 12px;
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #4F5BDF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+    font-style: italic;
+    color: #a2a2a2;
 }
 
 .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #e6e6e6;
+    background: white;
+    flex-shrink: 0;
 }
 
-.cancel-btn {
+.btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    outline: none;
+    min-height: 36px;
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-secondary {
     background: white;
     color: #333;
     border: 1px solid #e6e6e6;
-    border-radius: 15px;
-    padding: 8px 16px;
-    font-size: 12px;
-    cursor: pointer;
 }
 
-.cancel-btn:hover {
+.btn-secondary:hover:not(:disabled) {
     background: #f5f5f5;
+    border-color: #d9d9d9;
 }
 
-.select-btn {
+.btn-primary {
     background: #4F5BDF;
     color: white;
-    border: none;
-    border-radius: 15px;
-    padding: 8px 16px;
-    font-size: 12px;
-    cursor: pointer;
 }
 
-.select-btn:hover {
+.btn-primary:hover:not(:disabled) {
     background: #3a45c0;
 }
 
-/* Анимации для dropdown */
+.btn-primary:disabled {
+    background: #a2a2a2;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.table-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.table-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.table-body::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.table-body::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        max-height: 90vh;
+        max-width: 95vw;
+    }
+    
+    .modal-header {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .header-right {
+        justify-content: center;
+    }
+    
+    .filter-section {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .filter-tabs {
+        justify-content: center;
+    }
+    
+    .table-header,
+    .table-row {
+        padding: 0 16px;
+    }
+    
+    .modal-actions {
+        padding: 12px 16px;
+    }
+    
+    .btn {
+        min-width: 80px;
+        padding: 8px 16px;
+    }
+}
+
 .dropdown-enter-active,
 .dropdown-leave-active {
     transition: all 0.2s ease;

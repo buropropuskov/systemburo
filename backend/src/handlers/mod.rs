@@ -14,3 +14,4 @@ pub mod unique_employees;
 pub mod unique_attachments;
 pub mod employees;
 pub mod items;
+pub mod feedback;

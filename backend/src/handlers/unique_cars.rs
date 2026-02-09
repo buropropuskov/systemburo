@@ -69,7 +69,7 @@ pub async fn get_unique_cars(
                         log::info!("Fetching cars for user: {}, filter_type: {}", owner_info.user_id, filter_type);
 
                         // Определяем SQL запрос и параметры
-                        let (sql, param): (&str, i32) = match filter_type {
+                        let (sql, params): (&str, Vec<i32>) = match filter_type {
                             "organization" if owner_info.has_organization => (
                                 r#"
                                 SELECT 
@@ -94,7 +94,7 @@ pub async fn get_unique_cars(
                                 WHERE uc.organization_id = $1
                                 ORDER BY uc.number, uc.mark
                                 "#,
-                                owner_info.organization_id.unwrap_or(0)
+                                vec![owner_info.organization_id.unwrap_or(0)]
                             ),
                             "company" if owner_info.has_company => (
                                 r#"
@@ -120,7 +120,7 @@ pub async fn get_unique_cars(
                                 WHERE uc.company_id = $1
                                 ORDER BY uc.number, uc.mark
                                 "#,
-                                owner_info.company_id.unwrap_or(0)
+                                vec![owner_info.company_id.unwrap_or(0)]
                             ),
                             "all" => (
                                 r#"
@@ -146,7 +146,36 @@ pub async fn get_unique_cars(
                                 WHERE uc.user_id = $1 OR uc.organization_id = $2 OR uc.company_id = $3
                                 ORDER BY uc.number, uc.mark
                                 "#,
-                                owner_info.user_id
+                                vec![
+                                    owner_info.user_id,
+                                    owner_info.organization_id.unwrap_or(0),
+                                    owner_info.company_id.unwrap_or(0)
+                                ]
+                            ),
+                            "all_system" => (
+                                r#"
+                                SELECT 
+                                    uc.id,
+                                    uc.number,
+                                    uc.mark,
+                                    uc.organization_id,
+                                    uc.company_id,
+                                    uc.format_id,
+                                    uc.user_id,
+                                    uc.status,
+                                    uc.created_at,
+                                    o.name as organization_name,
+                                    c.name as company_name,
+                                    lpf.name as format_name,
+                                    u.username as user_name
+                                FROM unique_cars uc
+                                LEFT JOIN organizations o ON uc.organization_id = o.id
+                                LEFT JOIN companies c ON uc.company_id = c.id
+                                LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id
+                                LEFT JOIN users u ON uc.user_id = u.id
+                                ORDER BY uc.number, uc.mark
+                                "#,
+                                vec![] // Пустой вектор параметров для all_system
                             ),
                             _ => (
                                 r#"
@@ -172,24 +201,30 @@ pub async fn get_unique_cars(
                                 WHERE uc.user_id = $1
                                 ORDER BY uc.number, uc.mark
                                 "#,
-                                owner_info.user_id
+                                vec![owner_info.user_id]
                             )
                         };
 
-                        let cars_rows = if filter_type == "all" {
+                        // Выполняем запрос в зависимости от типа фильтра
+                        let cars_rows = if filter_type == "all_system" {
+                            // Для all_system выполняем запрос без параметров
                             sqlx::query(sql)
-                                .bind(owner_info.user_id)
-                                .bind(owner_info.organization_id)
-                                .bind(owner_info.company_id)
                                 .fetch_all(pool.get_ref())
                                 .await
                                 .map_err(|e| {
-                                    log::error!("Failed to fetch unique cars: {}", e);
-                                    error::ErrorInternalServerError("Error fetching cars")
+                                    log::error!("Failed to fetch all system cars: {}", e);
+                                    error::ErrorInternalServerError("Error fetching all system cars")
                                 })?
                         } else {
-                            sqlx::query(sql)
-                                .bind(param)
+                            // Для остальных фильтров выполняем запрос с параметрами
+                            let mut query = sqlx::query(sql);
+                            
+                            // Динамически добавляем параметры
+                            for param in params {
+                                query = query.bind(param);
+                            }
+                            
+                            query
                                 .fetch_all(pool.get_ref())
                                 .await
                                 .map_err(|e| {

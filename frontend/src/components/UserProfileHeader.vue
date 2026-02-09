@@ -182,7 +182,7 @@ export default {
 
 .main-info {
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .name-and-type {
@@ -222,7 +222,7 @@ export default {
 }
 
 .user-organization {
-  font-size: 1.3em;
+  font-size: 1.2em;
   color: #333;
   font-weight: 600;
   animation: fadeInRight 0.4s ease-out 0.35s forwards;

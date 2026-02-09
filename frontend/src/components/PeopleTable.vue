@@ -84,7 +84,7 @@
                 <div class="item-col name-col">{{ item.last_name }}</div>
                 <div class="item-col name-col">{{ item.first_name }}</div>
                 <div class="item-col name-col">{{ item.middle_name || '-' }}</div>
-                <div class="item-col organization-col">{{ item.organization }}</div>
+                <div class="item-col organization-col">{{ item.organization_name }}</div>
                 <div class="item-col date-col">{{ formatDate(item.entry_date_to) }}</div>
                 <div class="item-col time-col">{{ formatPassTime(item.pass_time) }}</div>
                 <div class="item-col status-col">
@@ -125,9 +125,9 @@ export default {
       type: String,
       default: ''
     },
-    selectedOrganization: {
-      type: String,
-      default: ''
+    selectedOrganizationId: {
+      type: [Number, String],
+      default: null
     },
     selectedUnloadingPlace: {
       type: String,
@@ -156,7 +156,8 @@ export default {
       progressInterval: null,
       activeItemsCount: 0,
       isLoading: false,
-      currentTableId: null
+      currentTableId: null,
+      organizationsMap: {}
     };
   },
   computed: {
@@ -171,7 +172,7 @@ export default {
             item.last_name,
             item.first_name,
             item.middle_name || '',
-            item.organization,
+            item.organization_name,
             this.formatDate(item.entry_date_to),
             item.status
           ];
@@ -182,9 +183,9 @@ export default {
         });
       }
 
-      // Фильтр по организации
-      if (this.selectedOrganization) {
-        filtered = filtered.filter(item => item.organization === this.selectedOrganization);
+      // Фильтр по организации (теперь по organization_id)
+      if (this.selectedOrganizationId) {
+        filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
 
       // Фильтр по дате
@@ -242,7 +243,7 @@ export default {
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
-        this.selectedOrganization ||
+        this.selectedOrganizationId ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)
       );
@@ -265,59 +266,106 @@ export default {
     },
 
     async fetchPeopleData() {
+  try {
+    const token = localStorage.getItem("token");
+    
+    if (!this.tableName) {
+      throw new Error('Table name is required');
+    }
+    
+    // Получаем ID таблицы по имени
+    const tableResponse = await fetch(`http://localhost:8080/system-tables/name/${this.tableName}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      }
+    });
+    
+    if (!tableResponse.ok) {
+      throw new Error(`Failed to get table: ${tableResponse.status}`);
+    }
+    
+    const table = await tableResponse.json();
+    this.currentTableId = table.id;
+    
+    // Получаем карту организаций
+    await this.fetchOrganizations();
+    
+    // Создаем обратную карту: название организации → ID
+    const nameToIdMap = {};
+    Object.keys(this.organizationsMap).forEach(id => {
+      nameToIdMap[this.organizationsMap[id]] = id;
+    });
+    
+    // Получаем сотрудников для этой таблицы
+    const response = await fetch(`http://localhost:8080/employees/active-for-table/${table.id}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const employees = await response.json();
+    
+    this.itemsData = employees.map(emp => {
+      const orgName = emp.organization || '';
+      const orgId = nameToIdMap[orgName] || emp.organization_id;
+      
+      return {
+        id: emp.id,
+        last_name: emp.last_name || '',
+        first_name: emp.first_name || '',
+        middle_name: emp.middle_name || '',
+        organization_id: orgId,
+        organization_name: orgName || 'Не указана',
+        entry_date_to: emp.entry_date_to || '',
+        pass_time: emp.pass_time || '',
+        status: 'Активен',
+        checked: false
+      };
+    });
+    
+    console.log('Загружены сотрудники:', this.itemsData);
+    
+  } catch (error) {
+    console.error("Ошибка при загрузке данных сотрудников:", error);
+    this.itemsData = [];
+    throw error;
+  }
+},
+
+    async fetchOrganizations() {
       try {
         const token = localStorage.getItem("token");
-        
-        if (!this.tableName) {
-          throw new Error('Table name is required');
-        }
-        
-        // Получаем ID таблицы по имени
-        const tableResponse = await fetch(`http://localhost:8080/system-tables/name/${this.tableName}`, {
+        const response = await fetch("http://localhost:8080/organizations", {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
-          }
+          },
         });
-        
-        if (!tableResponse.ok) {
-          throw new Error(`Failed to get table: ${tableResponse.status}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          // Создаем карту организаций для быстрого поиска по ID
+          this.organizationsMap = {};
+          data.forEach(org => {
+            this.organizationsMap[org.id] = org.name;
+          });
+        } else {
+          console.error("Ошибка при загрузке организаций");
         }
-        
-        const table = await tableResponse.json();
-        this.currentTableId = table.id;
-        
-        // Получаем сотрудников для этой таблицы
-        const response = await fetch(`http://localhost:8080/employees/active-for-table/${table.id}`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const employees = await response.json();
-        
-        this.itemsData = employees.map(emp => ({
-          id: emp.id,
-          last_name: emp.last_name || '',
-          first_name: emp.first_name || '',
-          middle_name: emp.middle_name || '',
-          organization: emp.organization || 'Не указана',
-          entry_date_to: emp.entry_date_to || '',
-          pass_time: emp.pass_time || '',
-          status: 'Активен',
-          checked: false
-        }));
-        
       } catch (error) {
-        console.error("Ошибка при загрузке данных сотрудников:", error);
-        this.itemsData = [];
-        throw error;
+        console.error("Ошибка сети при загрузке организаций:", error);
       }
+    },
+
+    getOrganizationName(organizationId) {
+      if (!organizationId) return 'Не указана';
+      return this.organizationsMap[organizationId] || `Организация ID: ${organizationId}`;
     },
 
     formatDate(dateString) {
@@ -460,6 +508,12 @@ export default {
           await this.loadData();
         }
       }
+    },
+    selectedOrganizationId(newVal) {
+      console.log('Фильтр по организации ID:', newVal);
+    },
+    searchQuery(newVal) {
+      console.log('Поисковый запрос:', newVal);
     }
   },
   beforeUnmount() {

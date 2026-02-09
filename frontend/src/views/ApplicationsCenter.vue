@@ -11,9 +11,7 @@
         
         <div class="center__filters">
             <div class="filters__main">
-                <!-- Основные фильтры в строку -->
                 <div class="filters-row">
-                    <!-- Поиск -->
                     <div class="field search">
                         <input 
                             placeholder="Поиск заявок..." 
@@ -25,93 +23,25 @@
                         <img src="@/assets/icons/search.png" class="center__icon" />
                     </div>
                     
-                    <!-- Организация -->
-                    <div class="field field--select" @click="toggleDropdown('organization')">
-                        <span class="select-text">{{ selectedOrganizationName || 'Организация' }}</span>
-                        <img src="@/assets/icons/arrow.png" class="select-icon" :class="{ 'select-icon--rotated': showOrganizationDropdown }" />
-                        <div class="custom-dropdown" v-if="showOrganizationDropdown" :class="{ 'dropdown-enter-active': showOrganizationDropdown }">
-                            <div class="dropdown-search">
-                                <input 
-                                    type="text" 
-                                    placeholder="Поиск..." 
-                                    v-model="organizationSearch"
-                                    @click.stop
-                                    class="dropdown-search__input"
-                                />
-                            </div>
-                            <div class="dropdown-item" @click.stop="selectOrganization(null, 'Все организации')">Все организации</div>
-                            <div 
-                                class="dropdown-item" 
-                                v-for="org in filteredOrganizations" 
-                                :key="org.id" 
-                                @click.stop="selectOrganization(org.id, org.name)"
-                                :class="{ 'dropdown-item--selected': org.id === selectedOrganizationId }"
-                            >
-                                {{ org.name }}
-                            </div>
-                            <div class="dropdown-no-results" v-if="filteredOrganizations.length === 0">
-                                Организации не найдены
-                            </div>
-                        </div>
-                    </div>
+                    <OrganizationFilter
+                        ref="organizationFilter"
+                        v-model="selectedOrganizationId"
+                        :organizations="organizations"
+                        @change="handleOrganizationChange"
+                    />
 
-                    <!-- Дата -->
-                    <div class="field date-field" @click="toggleDatePicker">
-                        <input 
-                            placeholder="Выберите дату" 
-                            type="text" 
-                            class="field__input" 
-                            :value="dateRangeText"
-                            readonly
-                        />
-                        <img src="@/assets/icons/calendar.png" class="center__icon" />
-                        <div class="date-picker" v-if="showDatePicker" @click.stop :class="{ 'date-picker-enter-active': showDatePicker }">
-                            <div class="date-picker__header">
-                                <h4>Выберите период</h4>
-                                <button class="date-picker__close" @click="closeDatePicker">×</button>
-                            </div>
-                            
-                            <div class="date-picker__quick-buttons">
-                                <button @click="setQuickDate('today')" class="quick-btn">Сегодня</button>
-                                <button @click="setQuickDate('yesterday')" class="quick-btn">Вчера</button>
-                                <button @click="setQuickDate('dayBeforeYesterday')" class="quick-btn">Позавчера</button>
-                                <button @click="setQuickDate('thisWeek')" class="quick-btn">Эта неделя</button>
-                                <button @click="setQuickDate('lastWeek')" class="quick-btn">Прошлая неделя</button>
-                                <button @click="setQuickDate('thisMonth')" class="quick-btn">Этот месяц</button>
-                                <button @click="setQuickDate('lastMonth')" class="quick-btn">Прошлый месяц</button>
-                                <button @click="setQuickDate('thisYear')" class="quick-btn">Этот год</button>
-                                <button @click="setQuickDate('lastYear')" class="quick-btn">Прошлый год</button>
-                            </div>
-                            
-                            <div class="date-picker__range">
-                                <div class="date-input-group">
-                                    <label>С:</label>
-                                    <input 
-                                        type="date" 
-                                        v-model="dateRangeStartInput"
-                                        @change="updateDateRange"
-                                        class="date-input"
-                                    />
-                                </div>
-                                <div class="date-input-group">
-                                    <label>ПО:</label>
-                                    <input 
-                                        type="date" 
-                                        v-model="dateRangeEndInput"
-                                        @change="updateDateRange"
-                                        class="date-input"
-                                    />
-                                </div>
-                            </div>
-                            
-                            <div class="date-picker__actions">
-                                <button @click="applyDateRange" class="apply-btn">Применить</button>
-                                <button @click="clearDateRange" class="clear-btn">Очистить</button>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Новый DateFilter -->
+                    <DateFilter
+                        ref="dateFilter"
+                        :mode="'range'"
+                        :date-range-start="dateRangeStart"
+                        :date-range-end="dateRangeEnd"
+                        @update:dateRangeStart="updateDateRangeStart"
+                        @update:dateRangeEnd="updateDateRangeEnd"
+                        @apply="applyDateFilters"
+                        @clear="clearDateRange"
+                    />
 
-                    <!-- Кнопка сброса сортировки -->
                     <button 
                         class="reset-sort-btn"
                         @click="resetSort"
@@ -120,7 +50,6 @@
                         Сбросить сортировку
                     </button>
 
-                    <!-- Кнопка сброса фильтров -->
                     <button 
                         class="reset-filters-btn"
                         @click="resetFilters"
@@ -128,21 +57,9 @@
                     >
                         Сбросить фильтры
                     </button>
-
-                    <!-- Кнопка дополнительных фильтров -->
-                    <button 
-                        class="more-filters-btn"
-                        @click="toggleMoreFilters"
-                        :class="{ 'more-filters-btn--active': showMoreFilters }"
-                    >
-                        <span>Доп. фильтры</span>
-                        <img src="@/assets/icons/arrow.png" class="more-filters-icon" :class="{ 'more-filters-icon--rotated': showMoreFilters }" />
-                    </button>
                 </div>
 
-                <!-- Вторая строка фильтров -->
                 <div class="filters-row filters-row--secondary">
-                    <!-- Фильтр по подтверждению -->
                     <div class="filter-section">
                         <div class="filter-section__header">
                             <span class="filter-label">Подтверждение</span>
@@ -160,7 +77,6 @@
                         </div>
                     </div>
 
-                    <!-- Фильтр по статусу заявки -->
                     <div class="filter-section">
                         <div class="filter-section__header">
                             <span class="filter-label">Статус заявки</span>
@@ -177,8 +93,7 @@
                             </button>
                         </div>
                     </div>
-
-                    <!-- Кнопка обновить -->
+                    
                     <div class="filter-section filter-section--refresh">
                         <RefreshButton @refresh="fetchApplications" />
                     </div>
@@ -186,7 +101,6 @@
             </div>
         </div>
 
-        <!-- Таблица заявок -->
         <div class="applications-table" :class="{ 'with-details': selectedApplication }">
             <div class="table-header">
                 <div class="header-row">
@@ -256,9 +170,7 @@
                             }" 
                         />
                     </div>
-                    <div class="header-col actions-col">
-                        <!-- Убрано слово "Действия" -->
-                    </div>
+                    <div class="header-col actions-col"></div>
                 </div>
             </div>
             
@@ -311,11 +223,7 @@
                                     class="download-btn"
                                     title="Скачать"
                                 >
-                                    <img 
-                                        src="@/assets/icons/download.png" 
-                                        alt="Скачать" 
-                                        class="download-icon"
-                                    />
+                                    Скачать
                                 </button>
                             </div>
                         </div>
@@ -327,26 +235,32 @@
             </div>
         </div>
 
-        <!-- Детальное представление заявки через отдельный компонент -->
         <ApplicationDetail 
             v-if="selectedApplication"
             :application="selectedApplication"
             :current-user-id="currentUserId"
             :current-user-name="currentUserName"
+            :mode="'center'"
             @close="closeApplicationDetail"
             @confirmation-updated="handleConfirmationUpdate"
+            @duplicate="handleDuplicate"
         />
     </section>
 </template>
 
 <script>
-import RefreshButton from '../components/RefreshButton.vue'
-import ApplicationDetail from '../components/ApplicationDetail.vue'
+import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import RefreshButton from '../components/RefreshButton.vue';
+import ApplicationDetail from '../components/ApplicationDetail.vue';
+import DateFilter from '../components/DateFilter.vue'; // Новый компонент
 
 export default {
+    name: 'ApplicationsCenter',
     components: {
+        OrganizationFilter,
         RefreshButton,
-        ApplicationDetail
+        ApplicationDetail,
+        DateFilter
     },
     data() {
         return {
@@ -355,10 +269,7 @@ export default {
             selectedOrganizationName: '',
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
-            showMoreFilters: false,
             organizations: [],
-            showOrganizationDropdown: false,
-            organizationSearch: '',
             sortField: null,
             sortDirection: 'desc',
             shouldShake: false,
@@ -366,11 +277,8 @@ export default {
             isInitialLoad: true,
             
             // Дата
-            showDatePicker: false,
             dateRangeStart: null,
             dateRangeEnd: null,
-            dateRangeStartInput: '',
-            dateRangeEndInput: '',
             
             // Конфигурации
             confirmations: [
@@ -393,26 +301,9 @@ export default {
             selectedApplication: null,
             currentUserId: null,
             currentUserName: ''
-        }
+        };
     },
     computed: {
-        filteredOrganizations() {
-            if (!this.organizationSearch) return this.organizations;
-            const searchTerm = this.organizationSearch.toLowerCase();
-            return this.organizations.filter(org => 
-                org.name.toLowerCase().includes(searchTerm)
-            );
-        },
-        
-        dateRangeText() {
-            if (this.dateRangeStart && this.dateRangeEnd) {
-                const start = this.formatDate(this.dateRangeStart);
-                const end = this.formatDate(this.dateRangeEnd);
-                return start === end ? start : `${start} - ${end}`;
-            }
-            return 'Выберите дату';
-        },
-        
         filteredApplications() {
             let filtered = this.applications;
 
@@ -538,6 +429,7 @@ export default {
         }
     },
     methods: {
+        // Организация
         getOrganizationName(application) {
             if (application.organization_name && application.organization_name.trim()) {
                 return application.organization_name;
@@ -548,6 +440,13 @@ export default {
             return 'Не указана';
         },
         
+        handleOrganizationChange({ id, name }) {
+            this.selectedOrganizationId = id;
+            this.selectedOrganizationName = name;
+            this.applyFilters();
+        },
+        
+        // Отправитель
         getSenderName(fullName) {
             if (!fullName) return '';
             return fullName;
@@ -558,6 +457,7 @@ export default {
             return fullName.replace(/\./g, '').trim();
         },
         
+        // Поиск
         normalizeSearch(text) {
             if (!text) return '';
             
@@ -587,28 +487,7 @@ export default {
             return normalized;
         },
         
-        toggleMoreFilters() {
-            this.showMoreFilters = !this.showMoreFilters;
-        },
-        
-        toggleDropdown(type) {
-            if (type === 'organization') {
-                this.showOrganizationDropdown = !this.showOrganizationDropdown;
-                this.showDatePicker = false;
-                if (this.showOrganizationDropdown) {
-                    this.organizationSearch = '';
-                }
-            }
-        },
-        
-        selectOrganization(id, name) {
-            this.selectedOrganizationId = id;
-            this.selectedOrganizationName = name;
-            this.showOrganizationDropdown = false;
-            this.organizationSearch = '';
-            this.applyFilters();
-        },
-        
+        // Фильтры
         toggleConfirmation(status) {
             const index = this.selectedConfirmations.indexOf(status);
             if (index > -1) {
@@ -630,40 +509,54 @@ export default {
         },
         
         resetFilters() {
+            // Сбрасываем все фильтры
+            this.searchQuery = '';
             this.selectedOrganizationId = null;
             this.selectedOrganizationName = '';
             this.selectedConfirmations = [];
             this.selectedApplicationStatuses = [];
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            this.dateRangeStartInput = '';
-            this.dateRangeEndInput = '';
-            this.searchQuery = '';
-            this.isInitialLoad = false;
-            this.fetchApplications();
-        },
-        
-        toggleDatePicker() {
-            this.showDatePicker = !this.showDatePicker;
-            this.showOrganizationDropdown = false;
-        },
-        
-        closeDatePicker() {
-            this.showDatePicker = false;
-        },
-        
-        formatDate(date) {
-            if (!date) return '';
-            if (typeof date === 'string') {
-                date = new Date(date);
+            
+            // Сбрасываем сортировку
+            this.resetSort();
+            
+            // Сбрасываем фильтр организации через метод reset
+            if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
+                this.$refs.organizationFilter.reset();
             }
-            return date.toLocaleDateString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
+            
+            // Сбрасываем фильтр даты
+            if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
+                this.$refs.dateFilter.clearSelection();
+            }
+            
+            // Сбрасываем анимацию загрузки и обновляем данные
+            this.isInitialLoad = false;
+            this.applyFilters();
         },
         
+        applyFilters() {
+            this.isInitialLoad = false;
+        },
+        
+        // Сортировка
+        sortBy(field) {
+            if (this.sortField === field) {
+                this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortField = field;
+                this.sortDirection = 'desc';
+            }
+            this.isInitialLoad = false;
+        },
+
+        resetSort() {
+            this.sortField = null;
+            this.sortDirection = 'desc';
+        },
+        
+        // Дата
         formatDateTime(dateTimeString) {
             if (!dateTimeString) return '';
             const date = new Date(dateTimeString);
@@ -676,96 +569,25 @@ export default {
             });
         },
         
-        setQuickDate(period) {
-            const today = new Date();
-            let start, end;
-            
-            const periods = {
-                today: () => [new Date(today), new Date(today)],
-                yesterday: () => {
-                    const date = new Date(today);
-                    date.setDate(today.getDate() - 1);
-                    return [date, date];
-                },
-                dayBeforeYesterday: () => {
-                    const date = new Date(today);
-                    date.setDate(today.getDate() - 2);
-                    return [date, date];
-                },
-                thisWeek: () => {
-                    const start = new Date(today);
-                    start.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
-                    return [start, new Date(today)];
-                },
-                lastWeek: () => {
-                    const start = new Date(today);
-                    start.setDate(today.getDate() - today.getDay() - 6);
-                    const end = new Date(start);
-                    end.setDate(start.getDate() + 6);
-                    return [start, end];
-                },
-                thisMonth: () => [
-                    new Date(today.getFullYear(), today.getMonth(), 1),
-                    new Date(today.getFullYear(), today.getMonth() + 1, 0)
-                ],
-                lastMonth: () => [
-                    new Date(today.getFullYear(), today.getMonth() - 1, 1),
-                    new Date(today.getFullYear(), today.getMonth(), 0)
-                ],
-                thisYear: () => [
-                    new Date(today.getFullYear(), 0, 1),
-                    new Date(today.getFullYear(), 11, 31)
-                ],
-                lastYear: () => [
-                    new Date(today.getFullYear() - 1, 0, 1),
-                    new Date(today.getFullYear() - 1, 11, 31)
-                ]
-            };
-            
-            [start, end] = periods[period]();
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
-            
-            this.dateRangeStart = start;
-            this.dateRangeEnd = end;
-            this.dateRangeStartInput = this.formatDateForInput(start);
-            this.dateRangeEndInput = this.formatDateForInput(end);
-            this.showDatePicker = false;
-            this.applyFilters();
+        updateDateRangeStart(date) {
+            this.dateRangeStart = date;
         },
         
-        formatDateForInput(date) {
-            return date ? date.toISOString().split('T')[0] : '';
+        updateDateRangeEnd(date) {
+            this.dateRangeEnd = date;
         },
         
-        updateDateRange() {
-            if (this.dateRangeStartInput) {
-                const start = new Date(this.dateRangeStartInput);
-                start.setHours(0, 0, 0, 0);
-                this.dateRangeStart = start;
-            }
-            if (this.dateRangeEndInput) {
-                const end = new Date(this.dateRangeEndInput);
-                end.setHours(23, 59, 59, 999);
-                this.dateRangeEnd = end;
-            }
-        },
-        
-        applyDateRange() {
-            this.updateDateRange();
-            this.showDatePicker = false;
+        applyDateFilters() {
             this.applyFilters();
         },
         
         clearDateRange() {
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            this.dateRangeStartInput = '';
-            this.dateRangeEndInput = '';
-            this.showDatePicker = false;
             this.applyFilters();
         },
         
+        // Стилизация
         getConfirmationClass(confirmation) {
             const classes = {
                 'Согласовано': 'confirmation-approved',
@@ -786,25 +608,7 @@ export default {
             return statusClasses[status] || 'status-default';
         },
         
-        sortBy(field) {
-            if (this.sortField === field) {
-                this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                this.sortField = field;
-                this.sortDirection = 'desc';
-            }
-            this.isInitialLoad = false;
-        },
-
-        resetSort() {
-            this.sortField = null;
-            this.sortDirection = 'desc';
-        },
-        
-        applyFilters() {
-            this.isInitialLoad = false;
-        },
-        
+        // API методы
         async fetchApplications() {
             try {
                 const token = localStorage.getItem("token");
@@ -913,7 +717,6 @@ export default {
                 }
             }
 
-            // Устанавливаем выбранную заявку
             this.selectedApplication = application;
         },
 
@@ -922,17 +725,18 @@ export default {
         },
 
         handleConfirmationUpdate(updatedData) {
-            // Обновляем данные выбранной заявки
             Object.assign(this.selectedApplication, updatedData);
             
-            // Обновляем заявку в основном списке
             const appIndex = this.applications.findIndex(app => app.id === this.selectedApplication.id);
             if (appIndex !== -1) {
                 this.applications[appIndex] = { ...this.applications[appIndex], ...updatedData };
             }
             
-            // Инициируем обновление данных в родительских компонентах
             this.$emit('refresh-data');
+        },
+
+        handleDuplicate() {
+            console.log('Дублирование заявки из ApplicationsCenter:', this.selectedApplication.application_number);
         },
 
         async getCurrentUser() {
@@ -949,7 +753,6 @@ export default {
                     const userData = await response.json();
                     this.currentUserId = userData.id;
                     this.currentUserName = `${userData.last_name} ${userData.first_name}`;
-                    console.log('Текущий пользователь:', this.currentUserName, 'ID:', this.currentUserId);
                 } else {
                     console.error("Ошибка при получении текущего пользователя:", await response.text());
                 }
@@ -970,13 +773,6 @@ export default {
         }
     },
     mounted() {
-        document.addEventListener('click', (e) => {
-            if (!this.$el.contains(e.target)) {
-                this.showOrganizationDropdown = false;
-                this.showDatePicker = false;
-            }
-        });
-
         this.startShakeAnimation();
         
         this.fetchOrganizations();
@@ -996,6 +792,7 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются такими же как в предыдущей версии, удаляем только старые стили для date-picker */
 .center {
     padding: 20px;
     position: relative;
@@ -1044,10 +841,6 @@ export default {
     border-bottom: 1px solid #e6e6e6;
 }
 
-.filters__main {
-    flex: 1;
-}
-
 .filters-row {
     display: flex;
     align-items: center;
@@ -1056,7 +849,6 @@ export default {
 }
 
 .filters-row--secondary {
-    align-items: flex-start;
     gap: 20px;
 }
 
@@ -1178,46 +970,6 @@ export default {
     border-color: #3a45c0;
 }
 
-.more-filters-btn {
-    padding: 6px 12px;
-    border: 1px solid #e6e6e6;
-    background: white;
-    border-radius: 15px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-    height: 30px;
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.more-filters-btn:hover:not(.more-filters-btn--active) {
-    background: #f5f5f5;
-}
-
-.more-filters-btn--active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
-}
-
-.more-filters-btn--active:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
-}
-
-.more-filters-icon {
-    width: 10px;
-    height: 10px;
-    transition: transform 0.3s ease;
-}
-
-.more-filters-icon--rotated {
-    transform: rotate(-90deg);
-}
-
 .reset-sort-btn,
 .reset-filters-btn {
     padding: 6px 12px;
@@ -1251,228 +1003,6 @@ export default {
 
 .reset-filters-btn:hover:not(:disabled) {
     background: #fed7d7;
-}
-
-.date-picker {
-    position: absolute;
-    top: calc(100% + 5px);
-    left: 0;
-    width: 420px;
-    background: white;
-    border: 1px solid #e6e6e6;
-    border-radius: 10px;
-    padding: 12px;
-    z-index: 1001;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transform-origin: top left;
-}
-
-.date-picker-enter-active {
-    animation: scaleIn 0.2s ease-out;
-}
-
-@keyframes scaleIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-.date-picker__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.date-picker__header h4 {
-    margin: 0;
-    font-size: 14px;
-    color: #333;
-}
-
-.date-picker__close {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    color: #a2a2a2;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.date-picker__close:hover {
-    color: #333;
-}
-
-.date-picker__quick-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    margin-bottom: 12px;
-}
-
-.quick-btn {
-    padding: 4px 6px;
-    border: 1px solid #e6e6e6;
-    background: white;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 11px;
-    transition: background-color 0.2s;
-    color: #333;
-    height: 24px;
-}
-
-.quick-btn:hover {
-    background: #f5f5f5;
-}
-
-.date-picker__range {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.date-input-group {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.date-input-group label {
-    font-size: 11px;
-    color: #a2a2a2;
-}
-
-.date-input {
-    padding: 4px 6px;
-    border: 1px solid #e6e6e6;
-    border-radius: 6px;
-    font-size: 11px;
-    outline: none;
-    height: 24px;
-}
-
-.date-input:focus {
-    border-color: #4F5BDF;
-}
-
-.date-picker__actions {
-    display: flex;
-    gap: 6px;
-}
-
-.apply-btn, .clear-btn {
-    flex: 1;
-    padding: 6px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 11px;
-    transition: background-color 0.2s;
-    height: 26px;
-}
-
-.apply-btn {
-    background: #4F5BDF;
-    color: white;
-}
-
-.apply-btn:hover {
-    background: #3a45c0;
-}
-
-.clear-btn {
-    background: #f5f5f5;
-    color: #333;
-}
-
-.clear-btn:hover {
-    background: #e5e5e5;
-}
-
-.custom-dropdown {
-    position: absolute;
-    top: calc(100% + 5px);
-    left: 0;
-    width: 100%;
-    background: white;
-    border: 1px solid #e6e6e6;
-    border-radius: 10px;
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1001;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transform-origin: top left;
-}
-
-.dropdown-enter-active {
-    animation: scaleIn 0.2s ease-out;
-}
-
-.dropdown-search {
-    padding: 10px;
-    border-bottom: 1px solid #f0f0f0;
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 1002;
-}
-
-.dropdown-search__input {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #e6e6e6;
-    border-radius: 5px;
-    font-size: 14px;
-    outline: none;
-}
-
-.dropdown-search__input:focus {
-    border-color: #4F5BDF;
-}
-
-.dropdown-item {
-    padding: 10px 15px;
-    cursor: pointer;
-    font-size: 14px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s ease;
-}
-
-.dropdown-item:last-child {
-    border-bottom: none;
-}
-
-.dropdown-item:hover {
-    background-color: #f5f5f5;
-}
-
-.dropdown-item--selected {
-    background-color: #4F5BDF;
-    color: white;
-}
-
-.dropdown-item--selected:hover {
-    background-color: #3a45c4;
-}
-
-.dropdown-no-results {
-    padding: 15px;
-    text-align: center;
-    color: #999;
-    font-size: 14px;
-    font-style: italic;
 }
 
 .applications-table {
@@ -1549,29 +1079,25 @@ export default {
     font-weight: 500 !important;
 }
 
+/* Перераспределение размеров колонок */
 .confirmation-col {
-    width: 13%;
-    min-width: 130px;
+    width: 15%;
 }
 
 .number-col {
-    width: 12%;
-    min-width: 130px;
+    width: 15%;
 }
 
 .date-col {
-    width: 12%;
-    min-width: 140px;
+    width: 15%;
 }
 
 .organization-col {
-    width: 17%;
-    min-width: 130px;
+    width: 20%;
 }
 
 .sender-col {
-    width: 16%;
-    min-width: 130px;
+    width: 15%;
     position: relative;
 }
 
@@ -1598,29 +1124,36 @@ export default {
 }
 
 .status-col {
-    width: 16%;
-    min-width: 110px;
+    width: 15%;
 }
 
 .actions-col {
-    width: 4%;
-    min-width: 60px;
-    justify-content: center;
+    width: 7%;
+    justify-content: flex-end;
+    cursor: default;
+}
+
+.header-col.actions-col:hover {
+    color: #a2a2a2;
 }
 
 .table-body {
     flex-grow: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
 }
 
 .applications-list {
-    overflow-y: auto;
+
     flex-grow: 1;
 }
 
 .application-item {
     transition: background-color 0.2s ease;
     cursor: pointer;
+}
+
+.application-item:hover {
+    background-color: #a2a2a2;
 }
 
 .application-item.initial-load {
@@ -1646,12 +1179,12 @@ export default {
     }
 }
 
-.application-item:hover {
-    background-color: #fafafa;
+.application-item:hover:not(.download-btn:hover) {
+    background-color: #f0f0f0;
 }
 
 .application-item.unread {
-    background-color: #fcf7e8;
+    background-color: #fffeda;
 }
 
 .application-row {
@@ -1665,13 +1198,34 @@ export default {
 
 .application-col {
     text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-size: 14px;
     display: flex;
     align-items: center;
     height: 100%;
+}
+
+/* Стили для кнопки "Скачать" */
+.download-btn {
+    height: 25px;
+    background-color: #fff;
+    color: #000;
+    border-radius: 50px;
+    border: 1px solid #e6e6e6;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 0 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.download-btn:hover {
+    background-color: #f5f5f5;
+    border-color: #d0d0d0;
 }
 
 .confirmation-badge {
@@ -1753,33 +1307,6 @@ export default {
     background-color: #f5f5f5;
     color: #616161;
     border-color: #e0e0e0;
-}
-
-.download-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    transition: background-color 0.2s ease;
-}
-
-.download-btn:hover {
-    background-color: #f5f5f5;
-}
-
-.download-icon {
-    width: 16px;
-    height: 16px;
-    opacity: 0.7;
-    transition: opacity 0.2s ease;
-}
-
-.download-btn:hover .download-icon {
-    opacity: 1;
 }
 
 .no-data-message {

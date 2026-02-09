@@ -66,21 +66,33 @@
                 </form>
             </div>
             <div class="login__info" :style="infoStyle">
+                <!-- Уведомления -->
+                <transition name="notification">
+                    <div v-if="showEmailNotification" class="notification email-notification">
+                        E-mail скопирован
+                    </div>
+                </transition>
+                <transition name="notification">
+                    <div v-if="showPhoneNotification" class="notification phone-notification">
+                        Номер телефона скопирован
+                    </div>
+                </transition>
+                
                 <h2 class="info__title">Добро пожаловать!</h2>
                 <p class="info__text">
                     Для продолжения, необходимо войти в аккаунт,
-                    используя выданные Вам данные.
+                    используя выданные данные.
                 </p>
                 <h3 class="info__title help">Помощь и поддержка</h3>
                 <p class="info__text">
-                  Обращайтесь к нам, чтобы получить учётную запись, восстановить доступ или решить другие проблемы:
+                  Обратитесь к нам, чтобы получить учётную запись, восстановить доступ или решить другие проблемы:
                 </p>
                 <div class="info__contacts">
-                    <div class="contact">
+                    <div class="contact" @click="copyEmail">
                         <img src="@/assets/icons/email-blue.png" class="contact__icon" alt="" />
                         <p class="contact__text">buropropuskov@dreamisland.ru</p>
                     </div>
-                    <div class="contact">
+                    <div class="contact" @click="copyPhone">
                         <img src="@/assets/icons/phone-blue.png" class="contact__icon" alt="" />
                         <p class="contact__text">+7 (910) 083 00-55</p>
                     </div>
@@ -110,9 +122,14 @@ export default {
             hasError: false,
             isShaking: false,
             animationTimeout: null,
+            errorTimeout: null,
             mouseX: 0,
             mouseY: 0,
-            elementsVisible: false
+            elementsVisible: false,
+            // Новые данные для уведомлений
+            showEmailNotification: false,
+            showPhoneNotification: false,
+            notificationTimeout: null
         }
     },
     computed: {
@@ -201,6 +218,11 @@ export default {
                 this.animationTimeout = null;
             }
             
+            if (this.errorTimeout) {
+                clearTimeout(this.errorTimeout);
+                this.errorTimeout = null;
+            }
+            
             this.showError = false;
             this.isLoading = false;
             this.isSuccess = false;
@@ -208,66 +230,181 @@ export default {
             this.isShaking = false;
         },
         
-        async handleSubmit() {
-            this.resetAnimations();
-            this.errors.general = '';
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            if (!this.formData.username || !this.formData.password) {
-                this.errors.general = 'Необходимо заполнить все поля';
-                await this.showErrorWithDelay();
-                return;
+        setupErrorAutoHide() {
+            if (this.errorTimeout) {
+                clearTimeout(this.errorTimeout);
             }
             
-            this.isLoading = true;
+            this.errorTimeout = setTimeout(() => {
+                this.showError = false;
+                this.errors.general = '';
+            }, 10000);
+        },
+        
+        // Метод для копирования email
+        async copyEmail() {
+            const email = 'buropropuskov@dreamisland.ru';
             
             try {
-                const response = await fetch("http://localhost:8080/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                        username: this.formData.username, 
-                        password: this.formData.password 
-                    }),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    localStorage.setItem("token", data.token);
-                    localStorage.setItem("refreshToken", data.refreshToken);
-                    
-                    this.isLoading = false;
-                    this.isSuccess = true;
-                    
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    
-                    this.$emit('login-success', {
-                        token: data.token,
-                        refreshToken: data.refreshToken
-                    });
-                    
-                    this.$root.$forceUpdate(); 
-                    this.$router.push('/personal-cabinet');
-                } else {
-                    const errorData = await response.json();
-                    console.error("Login error:", errorData);
-                    this.errors.general = errorData.message || "Неверный логин и/или пароль";
-                    this.isLoading = false;
-                    await this.showErrorWithDelay();
-                }
-            } catch (error) {
-                console.error("Network error:", error);
-                this.errors.general = "Ошибка сети";
-                this.isLoading = false;
-                await this.showErrorWithDelay();
+                await navigator.clipboard.writeText(email);
+                this.showEmailNotification = true;
+                this.hideNotificationAfterDelay('email');
+            } catch (err) {
+                // Fallback для старых браузеров
+                const textArea = document.createElement('textarea');
+                textArea.value = email;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                this.showEmailNotification = true;
+                this.hideNotificationAfterDelay('email');
             }
         },
+        
+        // Метод для копирования телефона
+        async copyPhone() {
+            const phone = '+7 (910) 083 00-55';
+            
+            try {
+                await navigator.clipboard.writeText(phone);
+                this.showPhoneNotification = true;
+                this.hideNotificationAfterDelay('phone');
+            } catch (err) {
+                // Fallback для старых браузеров
+                const textArea = document.createElement('textarea');
+                textArea.value = phone;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                this.showPhoneNotification = true;
+                this.hideNotificationAfterDelay('phone');
+            }
+        },
+        
+        // Метод для скрытия уведомления через 2 секунды
+        hideNotificationAfterDelay(type) {
+            // Очищаем предыдущий таймаут
+            if (this.notificationTimeout) {
+                clearTimeout(this.notificationTimeout);
+            }
+            
+            this.notificationTimeout = setTimeout(() => {
+                if (type === 'email') {
+                    this.showEmailNotification = false;
+                } else if (type === 'phone') {
+                    this.showPhoneNotification = false;
+                }
+            }, 2000);
+        },
+        
+        async handleSubmit() {
+    this.resetAnimations();
+    this.errors.general = '';
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    if (!this.formData.username || !this.formData.password) {
+        this.errors.general = 'Необходимо заполнить все поля';
+        await this.showErrorWithDelay();
+        return;
+    }
+    
+    this.isLoading = true;
+    let timeoutId;
+    
+    try {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд таймаут
+        
+        const response = await fetch("http://localhost:8080/login", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({ 
+                username: this.formData.username, 
+                password: this.formData.password 
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            localStorage.setItem("token", data.token);
+            localStorage.setItem("refreshToken", data.refreshToken);
+            
+            this.isLoading = false;
+            this.isSuccess = true;
+            
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            this.$emit('login-success', {
+                token: data.token,
+                refreshToken: data.refreshToken
+            });
+            
+            this.$root.$forceUpdate(); 
+            this.$router.push('/personal-cabinet');
+        } else {
+            // Проверяем статус код для определения типа ошибки
+            if (response.status === 429) {
+                this.errors.general = "Вы отправляете слишком много запросов. Пожалуйста, подождите.";
+            } else if (response.status === 401) {
+                this.errors.general = "Неверный логин и/или пароль";
+            } else {
+                try {
+                    const errorText = await response.text();
+                    if (errorText) {
+                        try {
+                            const errorData = JSON.parse(errorText);
+                            this.errors.general = errorData.message || errorData || "Произошла ошибка";
+                        } catch {
+                            this.errors.general = errorText || "Произошла ошибка";
+                        }
+                    } else {
+                        this.errors.general = `Ошибка ${response.status}: ${response.statusText}`;
+                    }
+                } catch {
+                    this.errors.general = `Ошибка ${response.status}: ${response.statusText}`;
+                }
+            }
+            this.isLoading = false;
+            await this.showErrorWithDelay();
+        }
+    } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        console.error("Network error:", error);
+        
+        // Определяем тип ошибки более точно
+        if (error.name === 'AbortError') {
+            this.errors.general = "Таймаут запроса. Сервер не отвечает.";
+        } else if (error.toString().includes("Failed to fetch") || error.toString().includes("NetworkError")) {
+            // Это может быть CORS ошибка
+            this.errors.general = "Ошибка сети. Проверьте подключение и повторите позже.";
+        } else if (error.toString().includes("Too many requests") || error.toString().includes("429")) {
+            this.errors.general = "Вы отправляете слишком много запросов. Подождите.";
+        } else {
+            this.errors.general = "Ошибка соединения. Проверьте подключение к интернету.";
+        }
+        
+        this.isLoading = false;
+        await this.showErrorWithDelay();
+    }
+},
         
         async showErrorWithDelay() {
             await new Promise(resolve => setTimeout(resolve, 100));
             this.showError = true;
+            this.setupErrorAutoHide();
             this.showErrorAnimation();
         },
         
@@ -283,7 +420,8 @@ export default {
                 this.hasError = false;
                 
                 this.animationTimeout = setTimeout(() => {
-                    this.resetAnimations();
+                    this.hasError = false;
+                    this.isShaking = false;
                 }, 300);
             }, 700);
         },
@@ -292,11 +430,18 @@ export default {
         if (this.animationTimeout) {
             clearTimeout(this.animationTimeout);
         }
+        if (this.errorTimeout) {
+            clearTimeout(this.errorTimeout);
+        }
+        if (this.notificationTimeout) {
+            clearTimeout(this.notificationTimeout);
+        }
     }
 }
 </script>
 
 <style scoped>
+    /* Ваши существующие стили остаются без изменений */
     .login {
         width: 100%;
         height: 100vh;
@@ -433,6 +578,52 @@ export default {
         z-index: 1000;
         padding: 50px;
         margin-top: 50px;
+        position: relative;
+    }
+
+    /* Стили для уведомлений */
+    .notification {
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 25px;
+        border-radius: 50px;
+        background-color: #fff;
+        font-size: 14px;
+        color: #000;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 15px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        z-index: 1001;
+        min-width: 150px;
+        white-space: nowrap;
+    }
+
+    .email-notification {
+        top: -35px;
+    }
+
+    .phone-notification {
+        top: -35px;
+    }
+
+    /* Анимации для уведомлений */
+    .notification-enter-active, .notification-leave-active {
+        transition: all 0.3s ease;
+    }
+    
+    .notification-enter-from, .notification-leave-to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+    
+    .notification-enter-to, .notification-leave-from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
     }
 
     .info__title {
@@ -441,7 +632,7 @@ export default {
     }
 
     .help {
-        font-size: 30px;
+        font-size: 25px;
     }
     
     .contact {
@@ -449,6 +640,12 @@ export default {
         gap: 10px;
         align-items: center;
         padding-bottom: 10px;
+        cursor: pointer;
+        transition: opacity 0.2s ease;
+    }
+
+    .contact:hover {
+        opacity: 0.8;
     }
 
     .contact__icon {
@@ -496,7 +693,7 @@ export default {
     .login__subtitle {
         font-size: 20px;
         color: #FFFFFF;
-        font-weight: 400;
+        font-weight: 500;
     }
 
     .login__form {
@@ -522,7 +719,7 @@ export default {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 10px;
+        gap: 15px;
     }
 
     .input__icon {
@@ -536,7 +733,7 @@ export default {
         height: 100%;
         border: none;
         outline: none;
-        font-size: 18px;
+        font-size: 19px;
         font-weight: 500;
         background-color: transparent;
     }
@@ -592,14 +789,15 @@ export default {
     }
 
     .error-message {
-        background: rgba(255, 45, 45, 0.2);
-        color: #ff4d4d;
+        background: rgba(255, 45, 45, 0.4);
+        color: #fff;
         padding: 12px 20px;
-        border-radius: 10px;
-        border-left: 6px solid #ff4d4d;
-        width: 440px;
+        border-radius: 20px;
+        font-size: 14px;
+        width: fit-content;
         font-weight: 600;
         animation: errorFadeIn 0.5s ease-out;
+        backdrop-filter: blur(5px);
     }
 
     @keyframes errorFadeIn {
@@ -785,7 +983,7 @@ export default {
             transform: translateY(0);
         }
         50% {
-            transform: translateY(-3px);
+            transform: translateY(-2px);
         }
     }
 

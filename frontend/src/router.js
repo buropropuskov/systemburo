@@ -9,6 +9,7 @@ import TableConstructor from './components/TableConstructor.vue';
 import NumberFormat from './components/NumberFormat.vue';
 import EmployeeView from './components/EmployeeView.vue';
 import NewsAndReview from './views/NewsAndReview.vue';
+import FeedbackPage from './views/FeedbackPage.vue';
 
 const routes = [
   { 
@@ -76,6 +77,12 @@ const routes = [
     name: 'NewsAndReview',
     component: NewsAndReview,
     meta: {requiresAuth: true}
+  },
+  {
+    path: '/admin/feedback',
+    name: 'FeedbackPage',
+    component: FeedbackPage,
+    meta: {requiresAuth: true, requiresBuro: true}
   }
 ];
 

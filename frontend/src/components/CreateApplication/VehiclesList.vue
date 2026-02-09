@@ -277,7 +277,7 @@ export default {
 
 h4 {
     font-size: 16px;
-    color: #333;
+    color: #000;
     font-weight: 600;
     margin: 0;
 }

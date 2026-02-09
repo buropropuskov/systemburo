@@ -16,6 +16,7 @@ use crate::handlers::citizenship::*;
 use crate::handlers::unique_attachments::*;
 use crate::handlers::cars::*;
 use crate::handlers::employees::*;
+use crate::handlers::feedback::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -27,6 +28,17 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(web::resource("/user-data").route(web::get().to(get_current_user_data)))
         .service(web::resource("/users/me").route(web::get().to(get_this_user)))
         .service(web::resource("/user-types").route(web::get().to(get_user_types)))
+
+        // Обратная связь
+        .service(
+            web::scope("/feedback")
+                .route("", web::post().to(create_feedback))
+                .route("/all", web::get().to(get_all_feedback))
+                .route("/stats", web::get().to(get_feedback_stats))
+                .route("/my", web::get().to(get_my_feedback))
+                .route("/{id}/status", web::put().to(update_feedback_status))
+                .route("/{id}/read", web::put().to(mark_feedback_as_read))
+        )
 
         // Управление типами пользователей (CRUD)
         .service(
@@ -57,6 +69,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::scope("/cars")
                 .route("/active-for-tables", web::get().to(get_active_cars_for_tables))
                 .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
+                .route("/unload-places", web::get().to(get_car_unload_places))
+                .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
         )
 
         // Сотрудники
