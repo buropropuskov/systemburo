@@ -70,7 +70,7 @@ pub struct ApplicationUpdateRequest {
     pub responsible_comment: Option<String>,
 }
 
-// Новая структура для информации об ответственных
+// Обновленная структура для информации об ответственных
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsibleUserInfo {
     pub id: i32,
@@ -80,4 +80,28 @@ pub struct ResponsibleUserInfo {
     pub middle_name: Option<String>,
     pub position: Option<String>,
     pub is_primary: bool,
+    pub required_approval: bool,
+    pub approval_status: Option<String>,
+    pub approval_comment: Option<String>,
+    pub approval_datetime: Option<DateTime<Utc>>,
+}
+
+// Структура для пересылки заявки
+#[derive(Debug, Deserialize)]
+pub struct ForwardApplicationRequest {
+    pub users: Vec<ForwardUser>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ForwardUser {
+    pub user_id: i32,
+    pub required_approval: bool,
+}
+
+// Структура для согласования заявки пользователем
+#[derive(Debug, Deserialize)]
+pub struct UserApprovalRequest {
+    pub user_id: i32,
+    pub status: String,
+    pub comment: Option<String>,
 }

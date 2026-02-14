@@ -202,23 +202,24 @@ pub async fn get_company_users(
                         let company_id = path.into_inner();
 
                         let users = sqlx::query_as!(
-                            CompanyUser,
-                            r#"
-                            SELECT 
-                                u.id,
-                                u.username,
-                                u.last_name,
-                                u.first_name,
-                                u.middle_name,
-                                u.position,
-                                cu.is_primary as "is_primary?"
-                            FROM users u
-                            INNER JOIN companies_users cu ON u.id = cu.user_id
-                            WHERE cu.company_id = $1
-                            ORDER BY cu.is_primary DESC, u.last_name, u.first_name
-                            "#,
-                            company_id
-                        )
+    CompanyUser,
+    r#"
+    SELECT 
+        u.id,
+        u.username,
+        u.last_name,
+        u.first_name,
+        u.middle_name,
+        u.position,
+        cu.is_primary as "is_primary?",
+        cu.required_approval as "required_approval?"
+    FROM users u
+    INNER JOIN companies_users cu ON u.id = cu.user_id
+    WHERE cu.company_id = $1
+    ORDER BY cu.is_primary DESC, u.last_name, u.first_name
+    "#,
+    company_id
+)
                         .fetch_all(pool.get_ref())
                         .await
                         .map_err(|e| {
@@ -241,7 +242,7 @@ pub async fn get_company_users(
     }
 }
 
-/// Обновление ответственных пользователей компании
+/// Обновление ответственных пользователей компании с поддержкой обязательного согласования
 pub async fn update_company_users(
     pool: web::Data<PgPool>,
     path: web::Path<i32>,
@@ -274,7 +275,7 @@ pub async fn update_company_users(
 
                         // Получаем старых пользователей для сравнения
                         let old_users = sqlx::query!(
-                            "SELECT user_id, is_primary FROM companies_users WHERE company_id = $1",
+                            "SELECT user_id, is_primary, required_approval FROM companies_users WHERE company_id = $1",
                             company_id
                         )
                         .fetch_all(&mut *transaction)
@@ -326,7 +327,7 @@ pub async fn update_company_users(
                             error::ErrorInternalServerError("Error updating company users")
                         })?;
 
-                        // Добавляем новых пользователей с указанием главного
+                        // Добавляем новых пользователей с поддержкой обязательного согласования
                         for user_request in &form.users {
                             // Получаем ID пользователя по username
                             let user_result = sqlx::query!(
@@ -342,12 +343,14 @@ pub async fn update_company_users(
 
                             if let Some(user) = user_result {
                                 let is_primary = user_request.is_primary.unwrap_or(false);
+                                let required_approval = user_request.required_approval.unwrap_or(false);
                                 
                                 sqlx::query!(
-                                    "INSERT INTO companies_users (company_id, user_id, is_primary) VALUES ($1, $2, $3)",
+                                    "INSERT INTO companies_users (company_id, user_id, is_primary, required_approval) VALUES ($1, $2, $3, $4)",
                                     company_id,
                                     user.id,
-                                    is_primary
+                                    is_primary,
+                                    required_approval
                                 )
                                 .execute(&mut *transaction)
                                 .await
@@ -360,17 +363,22 @@ pub async fn update_company_users(
                                 let was_in_old = old_users.iter().any(|old_user| old_user.user_id == user.id);
                                 if !was_in_old {
                                     // Новый пользователь
-                                    added_users.push((user.id, is_primary));
+                                    added_users.push((user.id, is_primary, required_approval));
                                 } else {
-                                    // Пользователь был, проверяем изменился ли его статус is_primary
+                                    // Пользователь был, проверяем изменился ли его статус is_primary или required_approval
                                     let old_is_primary = old_users.iter()
                                         .find(|old_user| old_user.user_id == user.id)
                                         .map(|old_user| old_user.is_primary.unwrap_or(false))
                                         .unwrap_or(false);
                                     
-                                    if old_is_primary != is_primary {
+                                    let old_required_approval = old_users.iter()
+                                    .find(|old_user| old_user.user_id == user.id)
+                                    .and_then(|old_user| Some(old_user.required_approval))
+                                    .unwrap_or(false);
+                                    
+                                    if old_is_primary != is_primary || old_required_approval != required_approval {
                                         // Статус изменился - добавляем в список изменений
-                                        added_users.push((user.id, is_primary));
+                                        added_users.push((user.id, is_primary, required_approval));
                                     }
                                 }
                             } else {
@@ -385,13 +393,19 @@ pub async fn update_company_users(
                         })?;
                         
                         // Теперь обновляем заявки с новыми ответственными
-                        let update_result = crate::handlers::applications::update_responsible_users_for_entity(
+                        // Создаем векторы с информацией об обязательном согласовании
+                        let added_users_with_required: Vec<(i32, bool, bool)> = added_users.iter()
+                            .map(|&(id, is_primary, required_approval)| (id, is_primary, required_approval))
+                            .collect();
+                        
+                        // Вызываем обновленную функцию для обновления заявок
+                        let update_result = crate::handlers::applications::update_responsible_users_for_entity_with_required(
                             pool.clone(),
                             req.clone(),
                             company_id,
                             "company".to_string(),
                             removed_user_ids,
-                            added_users,
+                            added_users_with_required,
                         ).await;
                         
                         match update_result {
@@ -420,7 +434,6 @@ pub async fn update_company_users(
         Err(error::ErrorUnauthorized("Missing Authorization header"))
     }
 }
-
 /// Получение мест разгрузки компании
 pub async fn get_company_unload_places(
     pool: web::Data<PgPool>,

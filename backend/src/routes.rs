@@ -17,6 +17,7 @@ use crate::handlers::unique_attachments::*;
 use crate::handlers::cars::*;
 use crate::handlers::employees::*;
 use crate::handlers::feedback::*;
+use crate::handlers::application_approvers::*;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -62,6 +63,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/details", web::get().to(get_application_details))
                 .route("/{id}/attachments", web::get().to(get_application_attachments))
                 .route("/{id}/update-items-status", web::post().to(update_application_items_status))
+                // Новые маршруты для обязательного согласования
+                .route("/{id}/forward", web::post().to(forward_application))
+                .route("/{id}/approve", web::post().to(approve_application_by_user))
         )
 
         // Машины
@@ -180,6 +184,13 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::put().to(update_license_plate_format))
                 .route("/{id}", web::delete().to(delete_license_plate_format))
         )
+        .service(
+    web::scope("/application-approvers")
+        .route("", web::get().to(get_application_approvers))
+        .route("/available-users", web::get().to(get_available_users_for_approvers))
+        .route("", web::post().to(create_application_approver))
+        .route("/{id}", web::delete().to(delete_application_approver))
+)
 
         // Гражданства
         .service(

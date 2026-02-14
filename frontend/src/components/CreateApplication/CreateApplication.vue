@@ -611,55 +611,54 @@ export default {
             }
         },
         
-        // Методы для работы с пользователем
         async loadUserData() {
-            const token = localStorage.getItem("token");
-            if (!token) {
-                console.error("Токен не найден");
-                return;
-            }
+    const token = localStorage.getItem("token");
+    if (!token) {
+        console.error("Токен не найден");
+        return;
+    }
 
-            try {
-                const response = await fetch("http://localhost:8080/user-data", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
-
-                if (response.ok) {
-                    const userData = await response.json();
-                    // Автозаполнение данных пользователя
-                    this.organization = userData.organization || '';
-                    this.company = userData.company || '';
-                    
-                    // Сохраняем ID организации и компании если они есть в ответе
-                    this.organizationId = userData.organization_id || null;
-                    this.companyId = userData.company_id || null;
-                    
-                    // Проверяем наличие организации и компании
-                    this.hasOrganization = !!this.organizationId;
-                    this.hasCompany = !!this.companyId;
-                    
-                    // Формирование ФИО
-                    const lastName = userData.last_name || '';
-                    const firstName = userData.first_name || '';
-                    const middleName = userData.middle_name || '';
-                    this.responsiblePerson = `${lastName} ${firstName} ${middleName}`.trim();
-                    
-                    // Форматирование телефона
-                    this.phoneNumber = userData.phone || '';
-                    if (this.phoneNumber) {
-                        this.formatPhoneNumberImmediately(this.phoneNumber);
-                    }
-                    
-                } else {
-                    console.error("Ошибка загрузки данных пользователя");
-                }
-            } catch (error) {
-                console.error("Ошибка:", error);
+    try {
+        const response = await fetch("http://localhost:8080/user-data", {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`
             }
-        },
+        });
+
+        if (response.ok) {
+            const userData = await response.json();
+            // Автозаполнение данных пользователя
+            this.organization = userData.organization || '';
+            this.company = userData.company || '';
+            
+            // Сохраняем ID организации и компании если они есть в ответе
+            this.organizationId = userData.organization_id || null;
+            this.companyId = userData.company_id || null;
+            
+            // Проверяем наличие организации и компании
+            this.hasOrganization = !!this.organizationId;
+            this.hasCompany = !!this.companyId;
+            
+            // Формирование ФИО
+            const lastName = userData.last_name || '';
+            const firstName = userData.first_name || '';
+            const middleName = userData.middle_name || '';
+            this.responsiblePerson = `${lastName} ${firstName} ${middleName}`.trim();
+            
+            // Форматирование телефона
+            this.phoneNumber = userData.phone || '';
+            if (this.phoneNumber) {
+                this.formatPhoneNumberImmediately(this.phoneNumber);
+            }
+            
+        } else {
+            console.error("Ошибка загрузки данных пользователя");
+        }
+    } catch (error) {
+        console.error("Ошибка:", error);
+    }
+},
 
         formatPhoneNumberImmediately(phone) {
             if (!phone) return;
@@ -1455,7 +1454,6 @@ export default {
             alert('Заявка успешно отправлена! Данные очищены.');
         },
 
-        // Новый метод для отправки полной заявки с вложениями
         async sendCompleteApplication() {
     if (this.attachments.length === 0) {
         alert('Добавьте вложения для отправки');
@@ -1481,7 +1479,7 @@ export default {
             attachment_type: attachment.attachment_type,
             attachment_name: attachment.name,
             attachment_display_name: attachment.display_name,
-            unique_attachment_id: attachment.id, // ← ВАЖНО: передаем ID уникального бланка
+            unique_attachment_id: attachment.id,
             entry_date_from: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.startDate),
             entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
             entry_time_from: dateData.startTime + ":00",
@@ -1538,13 +1536,76 @@ export default {
             return;
         }
 
+        // ПОЛУЧАЕМ ОБЯЗАТЕЛЬНЫХ ОТВЕТСТВЕННЫХ ИЗ ОРГАНИЗАЦИИ И КОМПАНИИ
+        const requiredUsers = [];
+        
+        // Загружаем ответственных из организации
+        if (this.organizationId) {
+            try {
+                const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+                
+                if (orgResponse.ok) {
+                    const orgUsers = await orgResponse.json();
+                    orgUsers.forEach(user => {
+                        if (user.required_approval) {
+                            requiredUsers.push({
+                                user_id: user.id,
+                                required_approval: true
+                            });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке ответственных из организации:", error);
+            }
+        }
+        
+        // Загружаем ответственных из компании
+        if (this.companyId) {
+            try {
+                const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+                
+                if (companyResponse.ok) {
+                    const companyUsers = await companyResponse.json();
+                    companyUsers.forEach(user => {
+                        // Проверяем, не добавлен ли уже этот пользователь
+                        const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
+                        if (!alreadyAdded && user.required_approval) {
+                            requiredUsers.push({
+                                user_id: user.id,
+                                required_approval: true
+                            });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке ответственных из компании:", error);
+            }
+        }
+
+        // Добавляем информацию об обязательных ответственных в запрос
+        // ВАЖНО: Нужно модифицировать бэкенд, чтобы он принимал этот список
+        // Для этого создадим расширенную версию запроса
+        const finalRequestData = {
+            ...applicationData,
+            required_users: requiredUsers
+        };
+
         const response = await fetch("http://localhost:8080/applications/submit-complete-application", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`
             },
-            body: JSON.stringify(applicationData)
+            body: JSON.stringify(finalRequestData)
         });
 
         if (response.ok) {
@@ -1561,6 +1622,64 @@ export default {
         console.error('Ошибка отправки заявки:', error);
         alert(`Произошла ошибка при отправке заявки: ${error.message}`);
     }
+},
+async loadRequiredResponsibles() {
+    const requiredUsers = [];
+    const token = localStorage.getItem("token");
+    
+    // Загружаем ответственных из организации
+    if (this.organizationId) {
+        try {
+            const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            
+            if (orgResponse.ok) {
+                const orgUsers = await orgResponse.json();
+                orgUsers.forEach(user => {
+                    if (user.required_approval) {
+                        requiredUsers.push({
+                            user_id: user.id,
+                            required_approval: true
+                        });
+                    }
+                });
+            }
+        } catch (error) {
+            console.error("Ошибка при загрузке ответственных из организации:", error);
+        }
+    }
+    
+    // Загружаем ответственных из компании
+    if (this.companyId) {
+        try {
+            const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            
+            if (companyResponse.ok) {
+                const companyUsers = await companyResponse.json();
+                companyUsers.forEach(user => {
+                    // Проверяем, не добавлен ли уже этот пользователь
+                    const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
+                    if (!alreadyAdded && user.required_approval) {
+                        requiredUsers.push({
+                            user_id: user.id,
+                            required_approval: true
+                        });
+                    }
+                });
+            }
+        } catch (error) {
+            console.error("Ошибка при загрузке ответственных из компании:", error);
+        }
+    }
+    
+    return requiredUsers;
 },
 
         // Новый метод для очистки localStorage после отправки

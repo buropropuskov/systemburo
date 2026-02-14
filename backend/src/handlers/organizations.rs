@@ -119,24 +119,27 @@ pub async fn get_organization_users(
                     Ok(_claims) => {
                         let org_id = path.into_inner();
 
-                        let users = sqlx::query_as!(
-                            OrganizationUser,
-                            r#"
-                            SELECT 
-                                u.id,
-                                u.username,
-                                u.last_name,
-                                u.first_name,
-                                u.middle_name,
-                                u.position,
-                                ou.is_primary as "is_primary?"
-                            FROM users u
-                            INNER JOIN organization_users ou ON u.id = ou.user_id
-                            WHERE ou.organization_id = $1
-                            ORDER BY ou.is_primary DESC, u.last_name, u.first_name
-                            "#,
-                            org_id
-                        )
+                        // В функции get_organization_users, замените запрос на:
+
+let users = sqlx::query_as!(
+    OrganizationUser,
+    r#"
+    SELECT 
+        u.id,
+        u.username,
+        u.last_name,
+        u.first_name,
+        u.middle_name,
+        u.position,
+        ou.is_primary as "is_primary?",
+        ou.required_approval as "required_approval?"
+    FROM users u
+    INNER JOIN organization_users ou ON u.id = ou.user_id
+    WHERE ou.organization_id = $1
+    ORDER BY ou.is_primary DESC, u.last_name, u.first_name
+    "#,
+    org_id
+)
                         .fetch_all(pool.get_ref())
                         .await
                         .map_err(|e| {
@@ -159,7 +162,7 @@ pub async fn get_organization_users(
     }
 }
 
-/// Обновление ответственных пользователей организации
+/// Обновление ответственных пользователей организации с поддержкой обязательного согласования
 pub async fn update_organization_users(
     pool: web::Data<PgPool>,
     path: web::Path<i32>,
@@ -192,7 +195,7 @@ pub async fn update_organization_users(
 
                         // Получаем старых пользователей для сравнения
                         let old_users = sqlx::query!(
-                            "SELECT user_id, is_primary FROM organization_users WHERE organization_id = $1",
+                            "SELECT user_id, is_primary, required_approval FROM organization_users WHERE organization_id = $1",
                             org_id
                         )
                         .fetch_all(&mut *transaction)
@@ -244,7 +247,7 @@ pub async fn update_organization_users(
                             error::ErrorInternalServerError("Error updating organization users")
                         })?;
 
-                        // Добавляем новых пользователей
+                        // Добавляем новых пользователей с поддержкой обязательного согласования
                         for user_request in &form.users {
                             // Получаем ID пользователя по username
                             let user_result = sqlx::query!(
@@ -260,12 +263,14 @@ pub async fn update_organization_users(
 
                             if let Some(user) = user_result {
                                 let is_primary = user_request.is_primary.unwrap_or(false);
+                                let required_approval = user_request.required_approval.unwrap_or(false);
                                 
                                 sqlx::query!(
-                                    "INSERT INTO organization_users (organization_id, user_id, is_primary) VALUES ($1, $2, $3)",
+                                    "INSERT INTO organization_users (organization_id, user_id, is_primary, required_approval) VALUES ($1, $2, $3, $4)",
                                     org_id,
                                     user.id,
-                                    is_primary
+                                    is_primary,
+                                    required_approval
                                 )
                                 .execute(&mut *transaction)
                                 .await
@@ -278,17 +283,23 @@ pub async fn update_organization_users(
                                 let was_in_old = old_users.iter().any(|old_user| old_user.user_id == user.id);
                                 if !was_in_old {
                                     // Новый пользователь
-                                    added_users.push((user.id, is_primary));
+                                    added_users.push((user.id, is_primary, required_approval));
                                 } else {
-                                    // Пользователь был, проверяем изменился ли его статус is_primary
+                                    // Пользователь был, проверяем изменился ли его статус is_primary или required_approval
                                     let old_is_primary = old_users.iter()
                                         .find(|old_user| old_user.user_id == user.id)
                                         .map(|old_user| old_user.is_primary.unwrap_or(false))
                                         .unwrap_or(false);
                                     
-                                    if old_is_primary != is_primary {
+                                  
+let old_required_approval = old_users.iter()
+    .find(|old_user| old_user.user_id == user.id)
+    .and_then(|old_user| Some(old_user.required_approval))
+    .unwrap_or(false);
+                                    
+                                    if old_is_primary != is_primary || old_required_approval != required_approval {
                                         // Статус изменился - добавляем в список изменений
-                                        added_users.push((user.id, is_primary));
+                                        added_users.push((user.id, is_primary, required_approval));
                                     }
                                 }
                             } else {
@@ -303,13 +314,19 @@ pub async fn update_organization_users(
                         })?;
                         
                         // Теперь обновляем заявки с новыми ответственными
-                        let update_result = crate::handlers::applications::update_responsible_users_for_entity(
+                        // Создаем векторы с информацией об обязательном согласовании
+                        let added_users_with_required: Vec<(i32, bool, bool)> = added_users.iter()
+                            .map(|&(id, is_primary, required_approval)| (id, is_primary, required_approval))
+                            .collect();
+                        
+                        // Вызываем обновленную функцию для обновления заявок
+                        let update_result = crate::handlers::applications::update_responsible_users_for_entity_with_required(
                             pool.clone(),
                             req.clone(),
                             org_id,
                             "organization".to_string(),
                             removed_user_ids,
-                            added_users,
+                            added_users_with_required,
                         ).await;
                         
                         match update_result {

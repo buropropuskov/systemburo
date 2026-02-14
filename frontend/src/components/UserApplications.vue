@@ -175,7 +175,7 @@
 <script>
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
-import ApplicationDetail from './ApplicationDetail.vue';
+import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 
 export default {
   components: {

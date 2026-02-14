@@ -3,7 +3,10 @@
     <div class="detail-group">
       <div class="responsible-users__header">
         <div class="header-content">
-          <label class="detail-label">Ответственные:</label>
+          <div class="title-with-count">
+            <label class="detail-label">Ответственные:</label>
+            <span v-if="selectedUsers.length > 0" class="count-badge">{{ selectedUsers.length }}</span>
+          </div>
           <div v-if="hasSelectedUsers" class="users-actions">
             <button 
               @click="saveResponsibleUsers" 
@@ -24,60 +27,6 @@
       </div>
       
       <div class="responsible-users-container">
-        <!-- Главный ответственный -->
-        <div v-if="primaryUser" class="primary-responsible-section">
-          <div class="section-title">
-            <span class="title-text">Главный ответственный</span>
-            <span class="primary-badge">ГЛАВНЫЙ</span>
-          </div>
-          <div class="primary-user-card">
-            <div class="primary-user-info">
-              <div class="primary-user-main">
-                <span class="primary-user-name">{{ getUserDisplayName(primaryUser) }}</span>
-                <span class="primary-user-username">@{{ primaryUser.username }}</span>
-              </div>
-              <div class="primary-user-details">
-                <span v-if="primaryUser.position" class="primary-user-position">{{ primaryUser.position }}</span>
-                <span v-if="primaryUser.organization" class="primary-user-organization">{{ primaryUser.organization }}</span>
-                <span v-if="primaryUser.company" class="primary-user-company">{{ primaryUser.company }}</span>
-              </div>
-            </div>
-            <div class="primary-user-actions">
-              <button 
-                @click="removePrimaryUser"
-                class="remove-primary-btn"
-                title="Убрать как главного"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-          <div class="section-hint">
-            Только один пользователь может быть главным ответственным
-          </div>
-        </div>
-
-        <!-- Выбор нового главного ответственного -->
-        <div v-if="!primaryUser && selectedUsers.length > 0" class="set-primary-section">
-          <div class="section-title">
-            <span class="title-text">Назначить главного ответственного</span>
-          </div>
-          <select 
-            v-model="newPrimaryUserUsername"
-            class="primary-select"
-            @change="setNewPrimaryUser"
-          >
-            <option value="">Выберите пользователя...</option>
-            <option 
-              v-for="user in availableForPrimaryUsers" 
-              :key="user.username"
-              :value="user.username"
-            >
-              {{ getUserDisplayName(user) }} (@{{ user.username }})
-            </option>
-          </select>
-        </div>
-
         <!-- Поисковая строка для добавления пользователей -->
         <div class="user-search-container">
           <input
@@ -86,7 +35,7 @@
             @blur="onUserSearchBlur"
             @input="handleSearchInput"
             class="user-search-input"
-            placeholder="Добавить ответственного пользователя..."
+            placeholder="Добавить ответственного"
             type="text"
           />
           <div v-if="showUserDropdown && sortedAvailableUsers.length > 0" class="user-dropdown">
@@ -103,9 +52,9 @@
                     <span class="user-username">@{{ user.username }}</span>
                   </div>
                   <div class="user-details">
-                    <span v-if="user.position" class="user-position">{{ user.position }}</span>
-                    <span v-if="user.organization" class="user-organization">{{ user.organization }}</span>
-                    <span v-if="user.company" class="user-company">{{ user.company }}</span>
+                    <span v-if="user.position" class="user-tag position-tag">{{ user.position }}</span>
+                    <span v-if="user.organization" class="user-tag org-tag">{{ user.organization }}</span>
+                    <span v-if="user.company" class="user-tag company-tag">{{ user.company }}</span>
                   </div>
                 </div>
               </div>
@@ -118,41 +67,57 @@
           </div>
         </div>
 
-        <!-- Список обычных ответственных -->
-        <div v-if="regularUsers.length > 0" class="regular-users-section">
-          <div class="section-title">
-            <span class="title-text">Обычные ответственные</span>
-            <span class="count-badge">{{ regularUsers.length }}</span>
-          </div>
+        <!-- Список ответственных -->
+        <div v-if="selectedUsers.length > 0" class="users-list-section">
           <div class="selected-users-list">
             <div 
-              v-for="user in regularUsers" 
+              v-for="user in sortedUsers" 
               :key="user.username"
               class="selected-user-item"
+              :class="{ 'is-primary': user.is_primary }"
             >
               <div class="selected-user-info">
                 <div class="selected-user-main">
-                  <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
+                    <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
                   <span class="selected-user-username">@{{ user.username }}</span>
                 </div>
                 <div class="selected-user-details">
-                  <span v-if="user.position" class="selected-user-position">{{ user.position }}</span>
-                  <span v-if="user.organization" class="selected-user-organization">{{ user.organization }}</span>
-                  <span v-if="user.company" class="selected-user-company">{{ user.company }}</span>
+                  <span v-if="user.position" class="user-tag position-tag">{{ user.position }}</span>
+                  <span v-if="user.organization" class="user-tag org-tag">{{ user.organization }}</span>
+                  <span v-if="user.company" class="user-tag company-tag">{{ user.company }}</span>
+                </div>
+                <div class="user-settings">
+                  <label class="toggle-switch">
+                    <input 
+                      type="checkbox" 
+                      v-model="user.required_approval"
+                      @change="updateUserRequiredApproval(user)"
+                    />
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="toggle-label-text">Обязательное согласование</span>
                 </div>
               </div>
               <div class="selected-user-actions">
                 <button 
-                  v-if="!primaryUser"
+                  v-if="!user.is_primary"
                   @click="setAsPrimary(user)"
-                  class="set-primary-btn"
+                  class="primary-btn"
                   title="Сделать главным"
                 >
                   ↑
                 </button>
                 <button 
+                  v-if="user.is_primary"
+                  @click="removePrimaryUser(user)"
+                  class="unprimary-btn"
+                  title="Убрать главного"
+                >
+                  ↓
+                </button>
+                <button 
                   @click="removeResponsibleUser(user)"
-                  class="remove-user-btn"
+                  class="remove-btn"
                   title="Удалить"
                 >
                   ×
@@ -163,7 +128,7 @@
         </div>
 
         <div v-if="selectedUsers.length === 0" class="no-selected-users">
-          <p>Не выбрано ни одного ответственного лица для согласования.</p>
+          <p>Нет ответственных</p>
         </div>
       </div>
     </div>
@@ -192,32 +157,32 @@ export default {
       isSavingUsers: false,
       userSearchQuery: '',
       showUserDropdown: false,
-      isLoading: false,
-      newPrimaryUserUsername: ''
+      isLoading: false
     };
   },
   computed: {
     hasSelectedUsers() {
       return JSON.stringify(this.selectedUsers.map(u => ({
         username: u.username,
-        is_primary: u.is_primary
+        is_primary: u.is_primary,
+        required_approval: u.required_approval
       })).sort()) !== 
              JSON.stringify(this.originalSelectedUsers.map(u => ({
                username: u.username,
-               is_primary: u.is_primary
+               is_primary: u.is_primary,
+               required_approval: u.required_approval
              })).sort());
     },
     
-    primaryUser() {
-      return this.selectedUsers.find(user => user.is_primary === true);
-    },
-    
-    regularUsers() {
-      return this.selectedUsers.filter(user => !user.is_primary);
-    },
-    
-    availableForPrimaryUsers() {
-      return this.regularUsers.filter(user => !user.is_primary);
+    sortedUsers() {
+      return [...this.selectedUsers].sort((a, b) => {
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        
+        const lastNameA = (a.last_name || '').toLowerCase();
+        const lastNameB = (b.last_name || '').toLowerCase();
+        return lastNameA.localeCompare(lastNameB);
+      });
     },
     
     filteredUsers() {
@@ -230,19 +195,16 @@ export default {
         const position = (user.position || '').toLowerCase();
         const organization = (user.organization || '').toLowerCase();
         const company = (user.company || '').toLowerCase();
-        const phone = (user.phone || '').toLowerCase();
         
         return fullName.includes(query) ||
                username.includes(query) ||
                position.includes(query) ||
                organization.includes(query) ||
-               company.includes(query) ||
-               phone.includes(query);
+               company.includes(query);
       });
     },
     
     filteredAvailableUsers() {
-      // Фильтруем пользователей, исключая уже выбранных
       return this.filteredUsers.filter(user => 
         !this.selectedUsers.some(selected => selected.username === user.username)
       );
@@ -250,18 +212,6 @@ export default {
     
     sortedAvailableUsers() {
       return [...this.filteredAvailableUsers].sort((a, b) => {
-        const companyA = (a.company || '').toLowerCase();
-        const companyB = (b.company || '').toLowerCase();
-        if (companyA !== companyB) {
-          return companyA.localeCompare(companyB);
-        }
-        
-        const orgA = (a.organization || '').toLowerCase();
-        const orgB = (b.organization || '').toLowerCase();
-        if (orgA !== orgB) {
-          return orgA.localeCompare(orgB);
-        }
-        
         const lastNameA = (a.last_name || '').toLowerCase();
         const lastNameB = (b.last_name || '').toLowerCase();
         return lastNameA.localeCompare(lastNameB);
@@ -319,7 +269,6 @@ export default {
         if (response.ok) {
           const users = await response.json();
           
-          // Обрабатываем данные с учетом нового поля is_primary
           this.selectedUsers = users.map(entityUser => {
             const fullUserData = this.allUsers.find(u => u.username === entityUser.username);
             
@@ -327,6 +276,7 @@ export default {
               return {
                 ...entityUser,
                 is_primary: entityUser.is_primary || false,
+                required_approval: entityUser.required_approval || false,
                 position: entityUser.position || fullUserData.position || '',
                 organization: fullUserData.organization || '',
                 company: fullUserData.company || '',
@@ -340,6 +290,7 @@ export default {
               return {
                 ...entityUser,
                 is_primary: entityUser.is_primary || false,
+                required_approval: entityUser.required_approval || false,
                 position: entityUser.position || '',
                 organization: '',
                 company: ''
@@ -371,10 +322,10 @@ export default {
           ? `http://localhost:8080/organizations/${this.entity.id}/users`
           : `http://localhost:8080/companies/${this.entity.id}/users`;
         
-        // Подготавливаем данные в новом формате
         const usersData = this.selectedUsers.map(user => ({
           username: user.username,
-          is_primary: user.is_primary || false
+          is_primary: user.is_primary || false,
+          required_approval: user.required_approval || false
         }));
         
         const response = await fetch(endpoint, {
@@ -417,7 +368,6 @@ export default {
 
     cancelResponsibleUsersChanges() {
       this.selectedUsers = JSON.parse(JSON.stringify(this.originalSelectedUsers));
-      this.newPrimaryUserUsername = '';
     },
 
     addResponsibleUser(user) {
@@ -426,6 +376,7 @@ export default {
         const userWithDetails = {
           ...user,
           is_primary: false,
+          required_approval: false,
           position: user.position || '',
           organization: user.organization || '',
           company: user.company || ''
@@ -440,29 +391,22 @@ export default {
       this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
     },
     
-    removePrimaryUser() {
-      if (this.primaryUser) {
-        this.primaryUser.is_primary = false;
-      }
-    },
-    
     setAsPrimary(user) {
-      // Сбрасываем всех остальных
       this.selectedUsers.forEach(u => {
         u.is_primary = false;
       });
       
-      // Устанавливаем выбранного как главного
       user.is_primary = true;
     },
+
+    removePrimaryUser(user) {
+      user.is_primary = false;
+    },
     
-    setNewPrimaryUser() {
-      if (!this.newPrimaryUserUsername) return;
-      
-      const user = this.selectedUsers.find(u => u.username === this.newPrimaryUserUsername);
-      if (user) {
-        this.setAsPrimary(user);
-        this.newPrimaryUserUsername = '';
+    updateUserRequiredApproval(user) {
+      const selectedUser = this.selectedUsers.find(u => u.username === user.username);
+      if (selectedUser) {
+        selectedUser.required_approval = user.required_approval;
       }
     },
 
@@ -524,211 +468,82 @@ export default {
 
 <style scoped>
 .responsible-users-section {
-  width: 100%;
+  width: 250px;
+  max-width: 250px;
+  min-width: 250px;
+  box-sizing: border-box;
 }
 
 .responsible-users__header {
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 
 .header-content {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  height: 18px;
-  padding-bottom: 5px;
+  height: 22px;
+}
+
+.title-with-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.count-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #fff;
+  background: #4F5BDF;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.selected-user-main {
+  display: flex;
+  flex-direction: column;
 }
 
 .users-actions {
   display: flex;
-  height: 18px;
-  width: 118px;
-  gap: 6px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .responsible-users-container {
-  width: 100%;
+  width: 250px;
   background: #FFF;
-  border-radius: 12px;
-  overflow: visible;
-}
-
-/* Секции */
-.primary-responsible-section,
-.regular-users-section,
-.set-primary-section {
-  margin-bottom: 15px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.title-text {
-  font-size: 0.75em;
-  font-weight: 600;
-  color: #333;
-}
-
-.primary-badge {
-  font-size: 0.6em;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, #ff6b6b, #ff4757);
-  padding: 2px 8px;
-  border-radius: 10px;
-  text-transform: uppercase;
-}
-
-.count-badge {
-  font-size: 0.65em;
-  font-weight: 600;
-  color: #fff;
-  background: #4F5BDF;
-  padding: 2px 6px;
   border-radius: 8px;
+  padding: 4px 0;
+  max-height: 800px;
+  box-sizing: border-box;
 }
 
-.section-hint {
-  font-size: 0.65em;
-  color: #888;
-  font-style: italic;
-  margin-top: 4px;
-}
-
-/* Карточка главного ответственного */
-.primary-user-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 10px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #fff9e6, #fff0cc);
-  border: 2px solid #ffd700;
-  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.1);
-}
-
-.primary-user-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.primary-user-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.primary-user-name {
-  font-weight: 700;
-  font-size: 0.8em;
-  color: #333;
-}
-
-.primary-user-username {
-  font-size: 0.65em;
-  color: #666;
-  font-weight: 500;
-}
-
-.primary-user-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.primary-user-position,
-.primary-user-organization,
-.primary-user-company {
-  font-size: 0.65em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-.primary-user-position {
-  background: #4F5BDF;
-  color: white;
-  font-weight: 600;
-}
-
-.primary-user-organization {
-  background: #10b981;
-  color: white;
-}
-
-.primary-user-company {
-  background: #8b5cf6;
-  color: white;
-}
-
-.primary-user-actions {
-  display: flex;
-  align-items: center;
-}
-
-.remove-primary-btn {
-  background: none;
-  border: none;
-  color: #ff4444;
-  font-size: 1.2em;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.remove-primary-btn:hover {
-  background-color: rgba(255, 68, 68, 0.1);
-}
-
-/* Выбор главного ответственного */
-.primary-select {
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 0.7em;
-  background: #fff;
-  color: #333;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.primary-select:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.primary-select option {
-  font-size: 0.7em;
-  padding: 4px;
-}
-
-/* Поиск пользователей */
+/* Поиск */
 .user-search-container {
   position: relative;
   margin-bottom: 12px;
+  padding: 0 6px;
 }
 
 .user-search-input {
   width: 100%;
-  padding: 6px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 0.7em;
-  transition: border-color 0.2s ease;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  transition: all 0.2s ease;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .user-search-input:focus {
@@ -736,56 +551,39 @@ export default {
   outline: none;
 }
 
+.user-search-input::placeholder {
+  color: #94a3b8;
+  font-size: 0.65rem;
+}
+
 .user-dropdown {
   position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  top: calc(100% + 6px);
+  left: 6px;
+  right: 6px;
   background: white;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  max-height: 250px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  max-height: 300px;
   overflow-y: auto;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-top: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .user-dropdown-content {
-  max-height: 250px;
+  max-height: 300px;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #c1c1c1 #f0f0f0;
-}
-
-.user-dropdown-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.user-dropdown-content::-webkit-scrollbar-track {
-  background: #f0f0f0;
-  border-radius: 3px;
-}
-
-.user-dropdown-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.user-dropdown-content::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
 }
 
 .user-dropdown-item {
-  padding: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f5f9;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  flex-shrink: 0;
 }
 
 .user-dropdown-item:hover {
-  background-color: #f8f9ff;
+  background-color: #f8fafc;
 }
 
 .user-dropdown-item:last-child {
@@ -795,82 +593,83 @@ export default {
 .user-dropdown-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .user-main-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 3px;
+  gap: 1px;
 }
 
 .user-name {
   font-weight: 600;
-  font-size: 0.7em;
-  color: #000;
+  font-size: 0.7rem;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .user-username {
-  font-size: 0.65em;
-  color: #6b7280;
+  font-size: 0.6rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .user-details {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
-.user-position,
-.user-organization,
-.user-company,
-.user-phone {
-  font-size: 0.7em;
-  color: #6b7280;
+/* Убираем подсветку тегов в дропдауне */
+.user-dropdown .user-tag {
+  opacity: 0.9;
+  background: #f1f5f9;
+  color: #475569;
 }
 
-.user-position {
-  font-weight: 500;
-  color: #4F5BDF;
+.user-dropdown .position-tag {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.user-dropdown .org-tag {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.user-dropdown .company-tag {
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .no-users-dropdown {
   padding: 12px;
   text-align: center;
-  color: #6b7280;
+  color: #94a3b8;
   font-style: italic;
-  font-size: 0.7em;
+  font-size: 0.7rem;
 }
 
-/* Обычные ответственные */
+/* Список пользователей */
+.users-list-section {
+  padding: 0 6px;
+}
+
 .selected-users-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 250px;
+  gap: 8px;
+  max-height: 350px;
   overflow-y: auto;
   padding-right: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: #c1c1c1 #f0f0f0;
-}
-
-.selected-users-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.selected-users-list::-webkit-scrollbar-track {
-  background: #f0f0f0;
-  border-radius: 3px;
-}
-
-.selected-users-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.selected-users-list::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  padding-bottom: 15px;
 }
 
 .selected-user-item {
@@ -878,237 +677,279 @@ export default {
   justify-content: space-between;
   align-items: flex-start;
   padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  border: 1px solid #e2e8f0;
   background: #fff;
   transition: all 0.2s ease;
-  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.selected-user-item:hover {
+.selected-user-item.is-primary {
+  background: linear-gradient(135deg, #fef9e7, #fff3d6);
+  border: 1px solid #fcd34d;
+}
+
+.selected-user-item:hover:not(.is-primary) {
   border-color: #4F5BDF;
-  box-shadow: 0 2px 4px rgba(79, 91, 223, 0.1);
 }
 
 .selected-user-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
-  overflow: hidden;
-}
-
-.selected-user-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
 }
 
 .selected-user-name {
   font-weight: 600;
-  font-size: 0.7em;
-  color: #000;
+  font-size: 0.75rem;
+  color: #1e293b;
+  max-width: 160px;
+}
+
+.selected-user-username {
+  font-size: 0.6rem;
+  color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.selected-user-username {
-  font-size: 0.65em;
-  color: #6b7280;
+.primary-badge {
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fff3cd;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid #fcd34d;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .selected-user-details {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  overflow: hidden;
+  gap: 4px;
 }
 
-.selected-user-position,
-.selected-user-organization,
-.selected-user-company {
-  font-size: 0.7em;
-  padding: 1px 6px;
-  border-radius: 50px;
+.user-tag {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
   white-space: nowrap;
+  display: inline-block;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
 }
 
-.selected-user-position {
-  background: #e0e7ff;
-  color: #4F5BDF;
-  font-weight: 500;
-}
-
-.selected-user-organization {
-  background: #f0f9ff;
+.position-tag {
+  background: #e0f2fe;
   color: #0369a1;
 }
 
-.selected-user-company {
-  background: #f0f0f0;
-  color: #666;
+.org-tag {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.company-tag {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.user-settings {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 28px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.2s;
+  border-radius: 16px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #4F5BDF;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(12px);
+}
+
+.toggle-label-text {
+  font-size: 0.6rem;
+  color: #475569;
+  white-space: nowrap;
 }
 
 .selected-user-actions {
   display: flex;
-  gap: 4px;
-  align-items: flex-start;
+  gap: 2px;
+  align-items: center;
+  margin-left: 4px;
   flex-shrink: 0;
-  margin-left: 8px;
 }
 
-.set-primary-btn {
-  background: #f0f9ff;
-  border: 1px solid #0ea5e9;
-  color: #0ea5e9;
-  font-size: 0.8em;
+.primary-btn {
+  background: #fef9e7;
+  border: 1px solid #fcd34d;
+  color: #b45309;
+  font-size: 0.8rem;
   font-weight: bold;
   cursor: pointer;
-  padding: 2px 6px;
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
-.set-primary-btn:hover {
-  background: #0ea5e9;
-  color: white;
+.primary-btn:hover {
+  background: #fcd34d;
+  color: #1e293b;
 }
 
-.remove-user-btn {
-  background: none;
-  border: none;
-  color: #ef4444;
-  font-size: 1em;
+.unprimary-btn {
+  background: #fff3cd;
+  border: 1px solid #fcd34d;
+  color: #b45309;
+  font-size: 0.8rem;
+  font-weight: bold;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 3px;
-  transition: background-color 0.2s ease;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
-.remove-user-btn:hover {
-  background-color: #fee;
+.unprimary-btn:hover {
+  background: #fcd34d;
+  color: #1e293b;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 1rem;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.remove-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
 }
 
 .no-selected-users {
   text-align: center;
-  padding: 15px;
-  color: #6b7280;
-  font-size: 0.7em;
-  border: 1px dashed #e6e6e6;
-  border-radius: 8px;
-  background: #fafafa;
+  padding: 16px 8px;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  margin: 8px 6px;
 }
 
-/* Кнопки сохранения/отмены */
-.save-users-btn {
-  padding: 2px 6px;
-  background: #4F5BDF;
-  color: white;
+.save-users-btn,
+.cancel-users-btn {
+  padding: 2px 8px;
   border: none;
   border-radius: 12px;
-  font-size: 0.55em;
+  font-size: 0.6rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 18px;
-  flex-shrink: 0;
+  transition: all 0.2s ease;
+  height: 20px;
+  white-space: nowrap;
+}
+
+.save-users-btn {
+  background: #4F5BDF;
+  color: white;
 }
 
 .save-users-btn:hover:not(:disabled) {
   background: #3a45b2;
 }
 
-.save-users-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
 .cancel-users-btn {
-  padding: 2px 6px;
-  font-weight: 600;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 0.55em;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 18px;
-  flex-shrink: 0;
+  background: #e2e8f0;
+  color: #475569;
 }
 
 .cancel-users-btn:hover:not(:disabled) {
-  background: #4b5563;
+  background: #cbd5e1;
 }
 
+.save-users-btn:disabled,
 .cancel-users-btn:disabled {
-  background: #9ca3af;
+  opacity: 0.5;
   cursor: not-allowed;
-}
-
-.detail-label {
-  font-size: 0.75em;
-  color: #a2a2a2;
-  font-weight: 400;
-  margin-bottom: 0;
 }
 
 @media (max-width: 768px) {
   .responsible-users-section {
     width: 100%;
+    max-width: 100%;
+    min-width: auto;
   }
   
-  .header-content {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  
-  .users-actions {
-    justify-content: center;
-  }
-  
-  .selected-user-item {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .selected-user-actions {
-    align-self: flex-end;
-    margin-left: 0;
-    margin-top: 4px;
-  }
-  
-  .primary-user-card {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .primary-user-actions {
-    align-self: flex-end;
-  }
-  
-  .selected-users-list {
-    max-height: 200px;
-  }
-  
-  .user-dropdown {
-    max-height: 200px;
-  }
-  
-  .user-dropdown-content {
-    max-height: 200px;
+  .responsible-users-container {
+    width: 100%;
   }
 }
 </style>

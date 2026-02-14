@@ -253,7 +253,7 @@
 <script>
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
-import ApplicationDetail from '../components/ApplicationDetail.vue';
+import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
 import DateFilter from '../components/DateFilter.vue';
 
 export default {

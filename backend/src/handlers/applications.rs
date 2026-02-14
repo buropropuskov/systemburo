@@ -19,6 +19,7 @@ pub struct CompleteApplicationRequest {
     pub contact_phone: String,
     pub data_approval: bool,
     pub attachments: Vec<AttachmentData>,
+    pub required_users: Option<Vec<RequiredUser>>, // Новое поле
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +40,12 @@ pub struct AttachmentContentData {
     pub vehicles: Option<Vec<VehicleData>>,
     pub employees: Option<Vec<EmployeeData>>,
     pub items: Option<Vec<ItemData>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RequiredUser {
+    pub user_id: i32,
+    pub required_approval: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,6 +83,446 @@ pub struct CompleteApplicationResponse {
     pub message: String,
     pub application_id: i32,
     pub application_number: String,
+}
+
+// Структура для пересылки заявки
+#[derive(Debug, Deserialize)]
+pub struct ForwardApplicationRequest {
+    pub users: Vec<ForwardUser>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ForwardUser {
+    pub user_id: i32,
+    pub required_approval: bool,
+}
+
+/// Функция для согласования заявки отдельным пользователем (НОВАЯ)
+#[derive(Debug, Deserialize)]
+pub struct UserApprovalRequest {
+    pub user_id: i32,
+    pub status: String, // 'approved' или 'rejected'
+    pub comment: Option<String>,
+}
+
+pub async fn approve_application_by_user(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<UserApprovalRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let username = &claims.sub;
+    
+    // Проверяем, что пользователь согласует свою собственную запись
+    let current_user_row = sqlx::query!(
+        "SELECT id FROM users WHERE username = $1",
+        username
+    )
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch user: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let current_user_id = match current_user_row {
+        Some(row) => row.id,
+        None => return Err(error::ErrorUnauthorized("User not found")),
+    };
+
+    // Проверяем, что user_id соответствует текущему пользователю
+    if form.user_id != current_user_id {
+        return Err(error::ErrorForbidden("You can only approve for yourself"));
+    }
+
+    let application_id = path.into_inner();
+
+    log::info!("User {} approving application {} with status {}", form.user_id, application_id, form.status);
+
+    // Проверяем, что статус валидный
+    if form.status != "approved" && form.status != "rejected" {
+        return Err(error::ErrorBadRequest("Invalid status. Must be 'approved' or 'rejected'"));
+    }
+
+    // Начинаем транзакцию
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Проверяем, что пользователь является ответственным для этой заявки
+    let is_responsible = sqlx::query!(
+        "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
+        application_id,
+        form.user_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to check if user is responsible: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if !is_responsible.exists.unwrap_or(false) {
+        return Err(error::ErrorForbidden("You are not responsible for this application"));
+    }
+
+    // Проверяем текущий статус заявки
+    let application_status = sqlx::query!(
+        "SELECT confirmation FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application status: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if application_status.confirmation != "Согласование" {
+        return Err(error::ErrorBadRequest("Application is not in approval status"));
+    }
+
+    // Обновляем статус согласования для пользователя
+    let now_utc = Utc::now();
+    
+    sqlx::query!(
+        r#"
+        UPDATE application_responsible_users 
+        SET approval_status = $1,
+            approval_comment = $2,
+            approval_datetime = $3
+        WHERE application_id = $4 AND user_id = $5
+        "#,
+        form.status,
+        form.comment,
+        now_utc,
+        application_id,
+        form.user_id
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update user approval status: {}", e);
+        error::ErrorInternalServerError("Error updating approval status")
+    })?;
+
+    // Обновляем общий статус заявки на основе новых правил
+    update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
+
+    // Фиксируем транзакцию
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    log::info!("Successfully updated approval status for user {} in application {}", form.user_id, application_id);
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Approval status updated successfully"
+    })))
+}
+
+/// Вспомогательная функция для обновления общего статуса заявки на основе новых правил (НОВАЯ)
+async fn update_application_confirmation_based_on_approvals(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    application_id: i32,
+) -> Result<(), Error> {
+    // Получаем информацию о всех ответственных
+    let responsibles = sqlx::query!(
+        r#"
+        SELECT 
+            user_id,
+            required_approval,
+            approval_status
+        FROM application_responsible_users
+        WHERE application_id = $1
+        "#,
+        application_id
+    )
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch responsible users: {}", e);
+        error::ErrorInternalServerError("Error fetching responsible users")
+    })?;
+
+    if responsibles.is_empty() {
+        // Нет ответственных - статус остается прежним
+        return Ok(());
+    }
+
+    // Проверяем по новым правилам:
+    // 1. Если хотя бы один обязательный ответственный отказал -> "Не согласовано"
+    // 2. Если все обязательные ответственные согласовали -> "Согласовано"
+    // 3. Если нет обязательных ответственных и хотя бы один обычный ответственный согласовал -> "Согласовано"
+    // 4. Если нет обязательных ответственных и хотя бы один обычный ответственный отказал -> "Не согласовано"
+    // 5. В остальных случаях -> "Согласование"
+
+    let required_users = responsibles.iter()
+        .filter(|r| r.required_approval)
+        .collect::<Vec<_>>();
+    
+    let non_required_users = responsibles.iter()
+        .filter(|r| !r.required_approval)
+        .collect::<Vec<_>>();
+
+    let mut new_confirmation = "Согласование".to_string();
+    let mut new_status = "В обработке".to_string();
+
+    // Проверяем случай 1: обязательный ответственный отказал
+    let has_required_rejected = required_users.iter()
+        .any(|r| r.approval_status.as_deref() == Some("rejected"));
+    
+    if has_required_rejected {
+        new_confirmation = "Не согласовано".to_string();
+        new_status = "Отказано".to_string();
+    } 
+    // Проверяем случай 2: все обязательные ответственные согласовали
+    else if !required_users.is_empty() {
+        let all_required_approved = required_users.iter()
+            .all(|r| r.approval_status.as_deref() == Some("approved"));
+        
+        if all_required_approved {
+            new_confirmation = "Согласовано".to_string();
+            new_status = "В работе".to_string();
+        }
+    }
+    // Проверяем случай 3 и 4: нет обязательных ответственных
+    else if required_users.is_empty() && !non_required_users.is_empty() {
+        let has_any_approved = non_required_users.iter()
+            .any(|r| r.approval_status.as_deref() == Some("approved"));
+        
+        let has_any_rejected = non_required_users.iter()
+            .any(|r| r.approval_status.as_deref() == Some("rejected"));
+        
+        if has_any_approved && !has_any_rejected {
+            new_confirmation = "Согласовано".to_string();
+            new_status = "В работе".to_string();
+        } else if has_any_rejected {
+            new_confirmation = "Не согласовано".to_string();
+            new_status = "Отказано".to_string();
+        }
+    }
+
+    // Обновляем статус заявки
+    sqlx::query(
+    r#"
+    UPDATE applications 
+    SET confirmation = $1,
+        status = $2,
+        confirmation_datetime = CASE 
+            WHEN $1 != 'Согласование' THEN NOW()
+            ELSE confirmation_datetime
+        END
+    WHERE id = $3
+    "#
+)
+.bind(&new_confirmation)
+.bind(&new_status)
+.bind(application_id)
+.execute(&mut **transaction)
+.await
+    .map_err(|e| {
+        log::error!("Failed to update application confirmation: {}", e);
+        error::ErrorInternalServerError("Error updating application confirmation")
+    })?;
+
+    Ok(())
+}
+
+/// Функция для пересылки заявки (НОВАЯ)
+pub async fn forward_application(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<ForwardApplicationRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let username = &claims.sub;
+    
+    // Получаем ID текущего пользователя
+    let user_row = sqlx::query!(
+        "SELECT id FROM users WHERE username = $1",
+        username
+    )
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch user: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let current_user_id = match user_row {
+        Some(row) => row.id,
+        None => return Err(error::ErrorUnauthorized("User not found")),
+    };
+
+    let application_id = path.into_inner();
+
+    log::info!("Forwarding application {} by user {}", application_id, current_user_id);
+
+    // Начинаем транзакцию
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Проверяем существование заявки
+    let application_exists = sqlx::query!(
+        "SELECT EXISTS(SELECT 1 FROM applications WHERE id = $1) as exists",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to check application existence: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if !application_exists.exists.unwrap_or(false) {
+        return Err(error::ErrorNotFound("Application not found"));
+    }
+
+    // Проверяем права пользователя (должен быть ответственным или отправителем)
+    let can_forward = sqlx::query!(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM applications a
+            WHERE a.id = $1 
+            AND (a.sender_user_id = $2 
+                 OR EXISTS(
+                     SELECT 1 FROM application_responsible_users aru 
+                     WHERE aru.application_id = a.id 
+                     AND aru.user_id = $2
+                 ))
+        ) as can_forward
+        "#,
+        application_id,
+        current_user_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to check forwarding permissions: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if !can_forward.can_forward.unwrap_or(false) {
+        return Err(error::ErrorForbidden("You don't have permission to forward this application"));
+    }
+
+    // Добавляем новых ответственных пользователей
+    for forward_user in &form.users {
+        // Проверяем существование пользователя
+        let user_exists = sqlx::query!(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1) as exists",
+            forward_user.user_id
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to check user existence: {}", e);
+            error::ErrorInternalServerError("Database error")
+        })?;
+
+        if !user_exists.exists.unwrap_or(false) {
+            log::warn!("User {} not found, skipping", forward_user.user_id);
+            continue;
+        }
+
+        // Проверяем, не добавлен ли уже этот пользователь
+        let already_added = sqlx::query!(
+            "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
+            application_id,
+            forward_user.user_id
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to check if user already added: {}", e);
+            error::ErrorInternalServerError("Database error")
+        })?;
+
+        if already_added.exists.unwrap_or(false) {
+            // Обновляем только поле required_approval, если пользователь уже добавлен
+            sqlx::query!(
+                r#"
+                UPDATE application_responsible_users 
+                SET required_approval = $1
+                WHERE application_id = $2 AND user_id = $3
+                "#,
+                forward_user.required_approval,
+                application_id,
+                forward_user.user_id
+            )
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to update existing responsible user: {}", e);
+                error::ErrorInternalServerError("Error updating responsible user")
+            })?;
+        } else {
+            // Добавляем нового пользователя
+            sqlx::query!(
+                r#"
+                INSERT INTO application_responsible_users (
+                    application_id, 
+                    user_id, 
+                    required_approval,
+                    approval_status,
+                    created_at
+                )
+                VALUES ($1, $2, $3, 'pending', NOW())
+                "#,
+                application_id,
+                forward_user.user_id,
+                forward_user.required_approval
+            )
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to insert responsible user: {}", e);
+                error::ErrorInternalServerError("Error adding responsible user")
+            })?;
+        }
+    }
+
+    // Обновляем общий статус заявки на основе новых правил
+    update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
+
+    // Фиксируем транзакцию
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    log::info!("Successfully forwarded application {}", application_id);
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Application forwarded successfully"
+    })))
 }
 
 /// Получение всех заявок с фильтрами
@@ -624,101 +1071,130 @@ pub async fn submit_complete_application(
     let application_id = application_result.id;
 
     // Получаем ответственных пользователей для организации и компании
-    let mut responsible_users = Vec::new();
-    let mut primary_responsible_id: Option<i32> = None;
+    // Получаем ответственных пользователей для организации и компании
+// Получаем ответственных пользователей для организации и компании
+let mut responsible_users: Vec<(i32, bool, bool)> = Vec::new(); // (user_id, is_primary, required_approval)
+let mut primary_responsible_id: Option<i32> = None;
 
-    if let Some(org_id) = organization_id {
-        // Получаем ответственных для организации
-        let org_responsibles = sqlx::query!(
-            r#"
-            SELECT user_id, is_primary
-            FROM organization_users
-            WHERE organization_id = $1
-            "#,
-            org_id
-        )
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch organization responsibles: {}", e);
-            error::ErrorInternalServerError("Error fetching organization responsibles")
-        })?;
+if let Some(org_id) = organization_id {
+    // Получаем ответственных для организации
+    let org_responsibles = sqlx::query!(
+        r#"
+        SELECT user_id, is_primary, required_approval
+        FROM organization_users
+        WHERE organization_id = $1
+        "#,
+        org_id
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch organization responsibles: {}", e);
+        error::ErrorInternalServerError("Error fetching organization responsibles")
+    })?;
 
-        for row in org_responsibles {
-            // Преобразуем Option<bool> в bool, по умолчанию false
+    for row in org_responsibles {
+        let is_primary = row.is_primary.unwrap_or(false);
+        let required_approval = row.required_approval; // ← ИСПРАВЛЕНО: убираем .unwrap_or()
+        responsible_users.push((row.user_id, is_primary, required_approval));
+        if is_primary {
+            primary_responsible_id = Some(row.user_id);
+        }
+    }
+}
+
+if let Some(comp_id) = company_id {
+    // Получаем ответственных для компании
+    let company_responsibles = sqlx::query!(
+        r#"
+        SELECT user_id, is_primary, required_approval
+        FROM companies_users
+        WHERE company_id = $1
+        "#,
+        comp_id
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch company responsibles: {}", e);
+        error::ErrorInternalServerError("Error fetching company responsibles")
+    })?;
+
+    for row in company_responsibles {
+        // Проверяем, не добавлен ли уже этот пользователь из организации
+        let exists = responsible_users.iter().any(|&(user_id, _, _)| user_id == row.user_id);
+        if !exists {
             let is_primary = row.is_primary.unwrap_or(false);
-            responsible_users.push((row.user_id, is_primary));
-            if is_primary {
+            let required_approval = row.required_approval; // ← ИСПРАВЛЕНО: убираем .unwrap_or()
+            responsible_users.push((row.user_id, is_primary, required_approval));
+            if is_primary && primary_responsible_id.is_none() {
                 primary_responsible_id = Some(row.user_id);
             }
         }
     }
+}
 
-    if let Some(comp_id) = company_id {
-        // Получаем ответственных для компании
-        let company_responsibles = sqlx::query!(
-            r#"
-            SELECT user_id, is_primary
-            FROM companies_users
-            WHERE company_id = $1
-            "#,
-            comp_id
-        )
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch company responsibles: {}", e);
-            error::ErrorInternalServerError("Error fetching company responsibles")
-        })?;
-
-        for row in company_responsibles {
-            // Проверяем, не добавлен ли уже этот пользователь из организации
-            let exists = responsible_users.iter().any(|&(user_id, _)| user_id == row.user_id);
-            if !exists {
-                // Преобразуем Option<bool> в bool, по умолчанию false
-                let is_primary = row.is_primary.unwrap_or(false);
-                responsible_users.push((row.user_id, is_primary));
-                if is_primary && primary_responsible_id.is_none() {
-                    primary_responsible_id = Some(row.user_id);
-                }
+// Добавляем информацию об обязательных ответственных из запроса
+if let Some(required_users) = &form.required_users {
+    for req_user in required_users {
+        // Проверяем, не добавлен ли уже этот пользователь
+        let exists = responsible_users.iter().any(|&(user_id, _, _)| user_id == req_user.user_id);
+        if !exists {
+            responsible_users.push((req_user.user_id, false, req_user.required_approval));
+        } else {
+            // Если пользователь уже есть, обновляем флаг required_approval
+            if let Some(pos) = responsible_users.iter().position(|&(user_id, _, _)| user_id == req_user.user_id) {
+                responsible_users[pos].2 = req_user.required_approval;
             }
         }
     }
+}
 
-    // Обновляем поле responsible_user_id в заявке (главный ответственный)
-    if let Some(primary_id) = primary_responsible_id {
-        sqlx::query!(
-            "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
-            primary_id,
-            application_id
-        )
-        .execute(&mut *transaction)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to update primary responsible: {}", e);
-            error::ErrorInternalServerError("Error updating primary responsible")
-        })?;
-    }
+// Обновляем поле responsible_user_id в заявке (главный ответственный)
+if let Some(primary_id) = primary_responsible_id {
+    sqlx::query!(
+        "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+        primary_id,
+        application_id
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update primary responsible: {}", e);
+        error::ErrorInternalServerError("Error updating primary responsible")
+    })?;
+}
 
-    // Добавляем всех ответственных в новую таблицу
-    for (user_id, is_primary) in responsible_users {
-        sqlx::query!(
-            r#"
-            INSERT INTO application_responsible_users (application_id, user_id, is_primary)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (application_id, user_id) DO NOTHING
-            "#,
-            application_id,
-            user_id,
-            is_primary
+// Добавляем всех ответственных в новую таблицу - ИСПРАВЛЕНО: добавляем required_approval в кортеж
+for (user_id, is_primary, required_approval) in responsible_users {
+    sqlx::query!(
+        r#"
+        INSERT INTO application_responsible_users (
+            application_id, 
+            user_id, 
+            is_primary, 
+            required_approval,
+            approval_status,
+            created_at
         )
-        .execute(&mut *transaction)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to insert responsible user: {}", e);
-            error::ErrorInternalServerError("Error inserting responsible user")
-        })?;
-    }
+        VALUES ($1, $2, $3, $4, 'pending', NOW())
+        ON CONFLICT (application_id, user_id) 
+        DO UPDATE SET 
+            is_primary = EXCLUDED.is_primary,
+            required_approval = EXCLUDED.required_approval
+        "#,
+        application_id,
+        user_id,
+        is_primary,
+        required_approval
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to insert responsible user: {}", e);
+        error::ErrorInternalServerError("Error inserting responsible user")
+    })?;
+}
 
     // 2. Создаем вложения для заявки
     for attachment in &form.attachments {
@@ -942,7 +1418,7 @@ let attachment_result = sqlx::query!(
     Ok(HttpResponse::Ok().json(response))
 }
 
-/// Получение ответственных пользователей для заявки
+/// Получение ответственных пользователей для заявки с информацией о согласовании
 pub async fn get_application_responsible_users(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -971,6 +1447,10 @@ pub async fn get_application_responsible_users(
         middle_name: Option<String>,
         position: Option<String>,
         is_primary: bool,
+        required_approval: bool,
+        approval_status: Option<String>,
+        approval_comment: Option<String>,
+        approval_datetime: Option<DateTime<Utc>>,
     }
 
     let responsibles = sqlx::query_as!(
@@ -983,7 +1463,11 @@ pub async fn get_application_responsible_users(
             u.first_name,
             u.middle_name,
             u.position,
-            COALESCE(aru.is_primary, false) as "is_primary!"
+            COALESCE(aru.is_primary, false) as "is_primary!",
+            COALESCE(aru.required_approval, false) as "required_approval!",
+            aru.approval_status,
+            aru.approval_comment,
+            aru.approval_datetime
         FROM application_responsible_users aru
         JOIN users u ON aru.user_id = u.id
         WHERE aru.application_id = $1
@@ -1009,6 +1493,10 @@ pub async fn get_application_responsible_users(
             middle_name: row.middle_name.clone(),
             position: row.position.clone(),
             is_primary: row.is_primary,
+            required_approval: row.required_approval,
+            approval_status: row.approval_status.clone(),
+            approval_comment: row.approval_comment.clone(),
+            approval_datetime: row.approval_datetime,
         }
     }).collect();
 
@@ -1151,7 +1639,7 @@ pub async fn update_application(
         "rows_affected": result.rows_affected()
     })))
 }
-/// Получение заявки по ID с расширенной информацией (включая ответственных)
+/// Получение заявки по ID с расширенной информацией (включая ответственных с информацией о согласовании)
 pub async fn get_application_by_id(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1225,7 +1713,7 @@ pub async fn get_application_by_id(
                     ELSE ''
                 END,
                 CASE 
-                    WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN 
+                    WHEN ru.middle_name IS NOT NULL AND u.middle_name != '' THEN 
                         ' ' || LEFT(ru.middle_name, 1) || '.'
                     ELSE ''
                 END
@@ -1248,12 +1736,7 @@ pub async fn get_application_by_id(
 
     let application = match application_row {
         Some(r) => {
-            // Получаем DateTime<Utc> из БД
-            let sending_datetime: DateTime<Utc> = r.sending_datetime;
-            let reading_datetime: Option<DateTime<Utc>> = r.reading_datetime;
-            let confirmation_datetime: Option<DateTime<Utc>> = r.confirmation_datetime;
-
-            // Получаем список всех ответственных для этой заявки
+            // Получаем список всех ответственных для этой заявки с информацией о согласовании
             #[derive(Debug, sqlx::FromRow)]
             struct DbResponsibleUser {
                 id: i32,
@@ -1263,6 +1746,10 @@ pub async fn get_application_by_id(
                 middle_name: Option<String>,
                 position: Option<String>,
                 is_primary: bool,
+                required_approval: bool,
+                approval_status: Option<String>,
+                approval_comment: Option<String>,
+                approval_datetime: Option<DateTime<Utc>>,
             }
 
             let responsibles = sqlx::query_as!(
@@ -1275,7 +1762,11 @@ pub async fn get_application_by_id(
                     u.first_name,
                     u.middle_name,
                     u.position,
-                    COALESCE(aru.is_primary, false) as "is_primary!"
+                    COALESCE(aru.is_primary, false) as "is_primary!",
+                    COALESCE(aru.required_approval, false) as "required_approval!",
+                    aru.approval_status,
+                    aru.approval_comment,
+                    aru.approval_datetime
                 FROM application_responsible_users aru
                 JOIN users u ON aru.user_id = u.id
                 WHERE aru.application_id = $1
@@ -1298,8 +1789,17 @@ pub async fn get_application_by_id(
                     middle_name: row.middle_name.clone(),
                     position: row.position.clone(),
                     is_primary: row.is_primary,
+                    required_approval: row.required_approval,
+                    approval_status: row.approval_status.clone(),
+                    approval_comment: row.approval_comment.clone(),
+                    approval_datetime: row.approval_datetime,
                 }
             }).collect();
+
+            // Получаем DateTime<Utc> из БД
+            let sending_datetime: DateTime<Utc> = r.sending_datetime;
+            let reading_datetime: Option<DateTime<Utc>> = r.reading_datetime;
+            let confirmation_datetime: Option<DateTime<Utc>> = r.confirmation_datetime;
 
             let application_with_details = ApplicationWithDetails {
                 id: r.id,
@@ -1953,7 +2453,7 @@ pub async fn get_attachment_items(
     }
 } */
 
-/// Получение заявки по ID с расширенной информацией (включая ответственных и вложения)
+/// Получение заявки по ID с расширенной информацией (включая ответственных с информацией о согласовании)
 pub async fn get_application_details(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -2044,6 +2544,10 @@ pub async fn get_application_details(
                 middle_name: Option<String>,
                 position: Option<String>,
                 is_primary: bool,
+                required_approval: bool,
+                approval_status: Option<String>,
+                approval_comment: Option<String>,
+                approval_datetime: Option<DateTime<Utc>>,
             }
 
             let responsibles = sqlx::query_as!(
@@ -2056,7 +2560,11 @@ pub async fn get_application_details(
                     u.first_name,
                     u.middle_name,
                     u.position,
-                    COALESCE(aru.is_primary, false) as "is_primary!"
+                    COALESCE(aru.is_primary, false) as "is_primary!",
+                    COALESCE(aru.required_approval, false) as "required_approval!",
+                    aru.approval_status,
+                    aru.approval_comment,
+                    aru.approval_datetime
                 FROM application_responsible_users aru
                 JOIN users u ON aru.user_id = u.id
                 WHERE aru.application_id = $1
@@ -2128,7 +2636,6 @@ pub async fn get_application_details(
 
     Ok(HttpResponse::Ok().json(application))
 }
-
 
 
 // Структура для обновления статуса машины
@@ -2536,6 +3043,254 @@ pub async fn update_responsible_users_for_entity(
         
         if app_updated {
             updated_apps_count += 1;
+        }
+    }
+    
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+    
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": format!("Responsible users updated for {} applications", updated_apps_count),
+        "applications_updated": updated_apps_count
+    })))
+}
+
+/// Обновление ответственных пользователей для заявок организации/компании с поддержкой обязательного согласования (НОВАЯ)
+pub async fn update_responsible_users_for_entity_with_required(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    entity_id: i32,
+    entity_type: String, // "organization" или "company"
+    removed_user_ids: Vec<i32>,
+    added_users: Vec<(i32, bool, bool)>, // (user_id, is_primary, required_approval)
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    log::info!("Updating responsible users for {} {}: removed={:?}, added={:?}", 
+               entity_type, entity_id, removed_user_ids, added_users);
+
+    // Начинаем транзакцию
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to begin transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Получаем заявки организации/компании, которые можно обновлять
+    let applications = sqlx::query!(
+        r#"
+        SELECT a.id, a.responsible_user_id
+        FROM applications a
+        WHERE (
+            ($1 = 'organization' AND a.organization_id = $2)
+            OR ($1 = 'company' AND a.company_id = $2)
+        )
+        AND a.status IN ('Непрочитано', 'В обработке')
+        AND a.confirmation = 'Согласование'
+        "#,
+        entity_type,
+        entity_id
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch applications: {}", e);
+        error::ErrorInternalServerError("Error fetching applications")
+    })?;
+
+    let mut updated_apps_count = 0;
+    
+    // Определяем нового главного (если есть)
+    let new_primary_user = added_users.iter()
+        .find(|&&(_, is_primary, _)| is_primary)
+        .map(|&(user_id, _, _)| user_id);
+    
+    for app in applications {
+        let application_id = app.id;
+        let current_responsible_user_id = app.responsible_user_id;
+        let mut app_updated = false;
+        
+        // 1. Обрабатываем удаленных пользователей
+        for &user_id in &removed_user_ids {
+            // Если удаляемый пользователь был главным в заявке
+            if current_responsible_user_id == Some(user_id) {
+                // Устанавливаем нового главного или NULL
+                if let Some(new_primary_id) = new_primary_user {
+                    let result = sqlx::query!(
+                        "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+                        new_primary_id,
+                        application_id
+                    )
+                    .execute(&mut *transaction)
+                    .await;
+                    
+                    if let Ok(r) = result {
+                        if r.rows_affected() > 0 {
+                            app_updated = true;
+                            log::debug!("Replaced primary responsible {} with {} in application {}", 
+                                       user_id, new_primary_id, application_id);
+                        }
+                    }
+                } else {
+                    // Нет нового главного - сбрасываем поле
+                    let result = sqlx::query!(
+                        "UPDATE applications SET responsible_user_id = NULL WHERE id = $1",
+                        application_id
+                    )
+                    .execute(&mut *transaction)
+                    .await;
+                    
+                    if let Ok(r) = result {
+                        if r.rows_affected() > 0 {
+                            app_updated = true;
+                            log::debug!("Removed primary responsible {} from application {}", 
+                                       user_id, application_id);
+                        }
+                    }
+                }
+            }
+            
+            // Удаляем пользователя из списка ответственных
+            let result = sqlx::query!(
+                "DELETE FROM application_responsible_users WHERE application_id = $1 AND user_id = $2",
+                application_id,
+                user_id
+            )
+            .execute(&mut *transaction)
+            .await;
+            
+            if let Ok(r) = result {
+                if r.rows_affected() > 0 {
+                    app_updated = true;
+                    log::debug!("Removed user {} from application {}", 
+                               user_id, application_id);
+                }
+            }
+        }
+        
+        // 2. Добавляем/обновляем новых пользователей
+        for &(user_id, is_primary, required_approval) in &added_users {
+            let result = sqlx::query!(
+                r#"
+                INSERT INTO application_responsible_users (
+                    application_id, 
+                    user_id, 
+                    is_primary, 
+                    required_approval,
+                    approval_status,
+                    created_at
+                )
+                VALUES ($1, $2, $3, $4, 'pending', NOW())
+                ON CONFLICT (application_id, user_id) 
+                DO UPDATE SET 
+                    is_primary = EXCLUDED.is_primary,
+                    required_approval = EXCLUDED.required_approval
+                "#,
+                application_id,
+                user_id,
+                is_primary,
+                required_approval
+            )
+            .execute(&mut *transaction)
+            .await;
+            
+            if let Ok(r) = result {
+                if r.rows_affected() > 0 {
+                    app_updated = true;
+                    log::debug!("Updated user {} in application {} with is_primary={}, required_approval={}", 
+                               user_id, application_id, is_primary, required_approval);
+                }
+            }
+            
+            // Если это главный пользователь, обновляем поле в applications
+            if is_primary && current_responsible_user_id != Some(user_id) {
+                let result = sqlx::query!(
+                    "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+                    user_id,
+                    application_id
+                )
+                .execute(&mut *transaction)
+                .await;
+                
+                if let Ok(r) = result {
+                    if r.rows_affected() > 0 {
+                        app_updated = true;
+                        log::debug!("Set user {} as primary responsible for application {}", 
+                                   user_id, application_id);
+                    }
+                }
+            }
+        }
+        
+        // 3. Если у заявки еще есть ответственный, но он не является главным среди added_users,
+        //    обновляем его статус в application_responsible_users
+        if let Some(current_resp_id) = current_responsible_user_id {
+            // Проверяем, является ли этот пользователь главным среди добавленных
+            let is_primary_in_added = added_users.iter()
+                .any(|&(id, is_primary, _)| id == current_resp_id && is_primary);
+            
+            if !is_primary_in_added && !removed_user_ids.contains(&current_resp_id) {
+                // Находим информацию о required_approval для этого пользователя
+                let user_required_approval = added_users.iter()
+                    .find(|&&(id, _, _)| id == current_resp_id)
+                    .map(|&(_, _, required_approval)| required_approval)
+                    .unwrap_or(false);
+                
+                // Пользователь остался, но не как главный - обновляем его статус
+                let result = sqlx::query!(
+                    r#"
+                    UPDATE application_responsible_users 
+                    SET is_primary = false,
+                        required_approval = $1
+                    WHERE application_id = $2 AND user_id = $3
+                    "#,
+                    user_required_approval,
+                    application_id,
+                    current_resp_id
+                )
+                .execute(&mut *transaction)
+                .await;
+                
+                if let Ok(r) = result {
+                    if r.rows_affected() > 0 {
+                        app_updated = true;
+                        log::debug!("Set is_primary=false for existing user {} in application {}", 
+                                   current_resp_id, application_id);
+                        
+                        // Устанавливаем нового главного (если есть)
+                        if let Some(new_primary_id) = new_primary_user {
+                            let set_result = sqlx::query!(
+                                "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
+                                new_primary_id,
+                                application_id
+                            )
+                            .execute(&mut *transaction)
+                            .await;
+                            
+                            if let Ok(_) = set_result {
+                                log::debug!("Set new primary responsible {} for application {}", 
+                                           new_primary_id, application_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if app_updated {
+            updated_apps_count += 1;
+            // Обновляем общий статус заявки на основе новых правил
+            update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
         }
     }
     

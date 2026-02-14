@@ -51,19 +51,20 @@ pub struct CompanyUser {
     pub first_name: Option<String>,
     pub middle_name: Option<String>,
     pub position: Option<String>,
-    pub is_primary: Option<bool>, // Добавлено новое поле
+    pub is_primary: Option<bool>,
+    pub required_approval: Option<bool>,
 }
 
-// ИЗМЕНЕНИЕ: Обновляем существующую структуру
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateCompanyUsersRequest {
-    pub users: Vec<CompanyUserRequest>, // Изменено с user_ids на users
+    pub users: Vec<CompanyUserRequest>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompanyUserRequest {
     pub username: String,
     pub is_primary: Option<bool>,
+    pub required_approval: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

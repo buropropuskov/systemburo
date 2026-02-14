@@ -563,7 +563,7 @@ export default {
 
 .content-container {
   display: flex;
-  height: 400px;
+  height: 450px;
   width: 100%;
 }
 

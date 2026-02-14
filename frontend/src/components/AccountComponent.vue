@@ -74,6 +74,10 @@
     <div class="dashboard-row" id="attachments" v-if="isBuroPropuskov">
       <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
     </div>
+    <div class="dashboard-row" id="approvers" v-if="isBuroPropuskov">
+      <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
+    </div>
+
     
   </div>
 </template>
@@ -92,6 +96,7 @@ import UserTypes from './UserTypes.vue';
 import AccountSettings from './AccountSettings.vue';
 import CitizenshipManagement from './CitizenshipManagement.vue';
 import AttachmentsManagement from './AttachmentsManagement.vue';
+import ApplicationApprovers from './ApplicationApprovers.vue';
 
 export default {
   components: {
@@ -107,7 +112,8 @@ export default {
     UserTypes,
     AccountSettings,
     CitizenshipManagement,
-    AttachmentsManagement
+    AttachmentsManagement,
+    ApplicationApprovers
   },
   data() {
     return {
