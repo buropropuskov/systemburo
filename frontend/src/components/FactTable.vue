@@ -340,49 +340,49 @@ export default {
     },
 
     async fetchCarsData() {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/cars/fact-for-tables", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const factCars = await response.json();
-        console.log('Получены машины "по факту":', factCars);
-        
-        const nameToIdMap = {};
-        Object.keys(this.organizationsMap).forEach(id => {
-          nameToIdMap[this.organizationsMap[id]] = id;
-        });
-        
-        this.factData = factCars.map(car => {
-          const orgName = car.organization || '';
-          const orgId = nameToIdMap[orgName] || car.organization_id;
-          
-          return {
-            id: car.id,
-            organization_id: orgId,
-            organization_name: orgName || 'Не указана',
-            unload_place: car.unload_place || '-',
-            entry_date_to: car.entry_date_to || '',
-            entry_time_from: car.entry_time_from || '',
-            entry_time_to: car.entry_time_to || '',
-            status: 'В работе',
-            checked: false,
-            applicationId: car.application_id
-          };
-        });
-        
-      } catch (error) {
-        console.error("Ошибка при загрузке данных по факту:", error);
-      }
-    },
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch("http://localhost:8080/cars/fact-for-tables", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const factCars = await response.json();
+    console.log('Получены машины "по факту":', factCars);
+    
+    const nameToIdMap = {};
+    Object.keys(this.organizationsMap).forEach(id => {
+      nameToIdMap[this.organizationsMap[id]] = id;
+    });
+    
+    this.factData = factCars.map(car => {
+      const orgName = car.organization || '';
+      const orgId = nameToIdMap[orgName] || car.organization_id;
+      
+      return {
+        id: car.id,
+        organization_id: orgId,
+        organization_name: orgName || 'Не указана',
+        unload_place: car.unload_place || '-',
+        entry_date_to: car.entry_date_to || '',
+        entry_time_from: car.entry_time_from || '',
+        entry_time_to: car.entry_time_to || '',
+        status: 'В работе',
+        checked: false,
+        applicationId: car.application_id
+      };
+    });
+    
+  } catch (error) {
+    console.error("Ошибка при загрузке данных по факту:", error);
+  }
+},
 
     async fetchFactCarUnloadPlaces() {
       try {

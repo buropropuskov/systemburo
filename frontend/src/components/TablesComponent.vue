@@ -194,6 +194,16 @@ export default {
         }
     },
     methods: {
+        handleApplicationUpdate(updatedApp) {
+    console.log('Application updated:', updatedApp);
+    // Можно обновить данные в таблицах если нужно
+    this.refreshData();
+  },
+  
+  refreshData() {
+    this.fetchTableData();
+    this.$emit('refresh-data');
+  },
         sanitizeHtml(content) {
             if (!content) return '';
             

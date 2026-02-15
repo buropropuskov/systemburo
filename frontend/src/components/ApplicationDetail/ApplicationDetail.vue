@@ -31,9 +31,9 @@
                             v-if="mode === 'center'"
                             class="forward-btn" 
                             @click="forwardApplication"
-                            :disabled="updatingConfirmation"
+                            :disabled="updatingConfirmation || processingApplication"
                         >
-                            <span v-if="updatingConfirmation" class="button-loading"></span>
+                            <span v-if="updatingConfirmation || processingApplication" class="button-loading"></span>
                             <span v-else>Переслать</span>
                         </button>
                     </div>
@@ -41,55 +41,91 @@
                 <div class="detail-header-right">
                     <!-- Режим центра заявок -->
                     <div v-if="mode === 'center'" class="action-buttons">
-                        <!-- Если пользователь может принимать заявки - показываем кнопки Принять/Отказать -->
+                        <!-- Для принимающих заявки -->
                         <template v-if="isApprover">
-                            <button 
-                                class="accept-btn" 
-                                @click="handleApplicationAction('accept')"
-                                :disabled="!canTakeApplication || updatingConfirmation"
-                            >
-                                <span v-if="updatingConfirmation" class="button-loading"></span>
-                                <span v-else>Принять</span>
-                            </button>
-                            <button 
-                                class="reject-btn" 
-                                @click="handleApplicationAction('reject')"
-                                :disabled="!canTakeApplication || updatingConfirmation"
-                            >
-                                <span v-if="updatingConfirmation" class="button-loading"></span>
-                                <span v-else>Отказать</span>
-                            </button>
+                            <!-- Если заявка в работе - показываем статус -->
+                            <div v-if="application.status === 'В работе'" class="status-badge status-in-work-badge">
+                                В работе
+                            </div>
+                            <!-- Если заявка не в работе и согласована - показываем кнопки -->
+                            <template v-else-if="application.confirmation === 'Согласовано'">
+                                <button 
+                                    class="accept-btn" 
+                                    @click="handleApplicationAction('accept')"
+                                    :disabled="processingApplication"
+                                >
+                                    <span v-if="processingApplication" class="button-loading"></span>
+                                    <span v-else>Принять</span>
+                                </button>
+                                <button 
+                                    class="reject-btn" 
+                                    @click="handleApplicationAction('reject')"
+                                    :disabled="processingApplication"
+                                >
+                                    <span v-if="processingApplication" class="button-loading"></span>
+                                    <span v-else>Отказать</span>
+                                </button>
+                            </template>
+                            <!-- Если заявка не согласована - показываем информационное сообщение -->
+                            <div v-else class="info-badge">
+                                {{ getApproverStatusMessage }}
+                            </div>
                         </template>
                         
-                        <!-- Если пользователь не принимающий, но ответственный за согласование -->
-                        <template v-else-if="showConfirmationButtons">
-                            <button 
-                                class="confirm-btn" 
-                                @click="updateConfirmation('Согласовано')"
-                                :disabled="updatingConfirmation"
-                            >
-                                <span v-if="updatingConfirmation" class="button-loading"></span>
-                                <span v-else>Согласовать</span>
-                            </button>
-                            <button 
-                                class="reject-btn" 
-                                @click="updateConfirmation('Не согласовано')"
-                                :disabled="updatingConfirmation"
-                            >
-                                <span v-if="updatingConfirmation" class="button-loading"></span>
-                                <span v-else>Отказать</span>
-                            </button>
+                        <!-- Для ответственных за согласование -->
+                        <template v-else-if="isResponsibleUser">
+                            <!-- Если пользователь уже проголосовал -->
+                            <div v-if="hasUserVoted" class="vote-status-badge" :class="userVoteStatus.class">
+                                {{ userVoteStatus.text }}
+                            </div>
+                            <!-- Если заявка на согласовании и пользователь еще не голосовал -->
+                            <template v-else-if="application.confirmation === 'Согласование'">
+                                <button 
+                                    class="confirm-btn" 
+                                    @click="updateConfirmation('Согласовано')"
+                                    :disabled="updatingConfirmation || processingApplication"
+                                >
+                                    <span v-if="updatingConfirmation" class="button-loading"></span>
+                                    <span v-else>Согласовать</span>
+                                </button>
+                                <button 
+                                    class="reject-btn" 
+                                    @click="updateConfirmation('Не согласовано')"
+                                    :disabled="updatingConfirmation || processingApplication"
+                                >
+                                    <span v-if="updatingConfirmation" class="button-loading"></span>
+                                    <span v-else>Отказать</span>
+                                </button>
+                            </template>
+                            <!-- Если заявка уже согласована/отклонена и пользователь не голосовал (например, добавлен позже) -->
+                            <div v-else class="info-badge">
+                                Заявка {{ application.confirmation.toLowerCase() }}
+                            </div>
                         </template>
                         
-                        <!-- Индикатор статуса для ответственных, которые уже проголосовали -->
-                        <div v-else-if="isResponsibleUser && userVoteStatus" class="vote-status-badge" :class="userVoteStatus.class">
-                            {{ userVoteStatus.text }}
-                        </div>
-                        
-                        <!-- Информация для принимающих, когда кнопки неактивны -->
-                        <div v-else-if="isApprover && !canTakeApplication" class="info-badge">
-                            {{ getApproverStatusMessage }}
-                        </div>
+                        <!-- Для создателя заявки - кнопки управления -->
+                        <template v-if="canManageApplication">
+                            <!-- Если заявка в работе - показать кнопку отзыва -->
+                            <button 
+                                v-if="application.status === 'В работе'"
+                                class="revoke-btn" 
+                                @click="revokeApplication"
+                                :disabled="processingApplication"
+                            >
+                                <span v-if="processingApplication" class="button-loading"></span>
+                                <span v-else>Отозвать из работы</span>
+                            </button>
+                            <!-- Если заявка согласована и не в работе - показать кнопку возврата в работу (для повторного принятия) -->
+                            <button 
+                                v-else-if="application.confirmation === 'Согласовано' && application.status !== 'В работе' && application.status !== 'Отказано'"
+                                class="restore-btn" 
+                                @click="restoreApplication"
+                                :disabled="processingApplication"
+                            >
+                                <span v-if="processingApplication" class="button-loading"></span>
+                                <span v-else>Вернуть в работу</span>
+                            </button>
+                        </template>
                     </div>
                     
                     <!-- Режим просмотра заявок пользователя -->
@@ -332,6 +368,7 @@ export default {
             attachmentItems: [],
             responsibleUsers: [],
             updatingConfirmation: false,
+            processingApplication: false,
             loadingAttachmentDetails: false,
             loadingApplicationDetails: false,
             isLeftColumnCollapsed: false,
@@ -343,7 +380,7 @@ export default {
             showForwardModal: false,
             isForwarding: false,
             allUsers: [],
-            approvers: [] // Список пользователей, которые могут принимать заявки
+            approvers: []
         }
     },
     computed: {
@@ -352,20 +389,26 @@ export default {
             return this.responsibleUsers.some(user => user.id === this.currentUserId);
         },
 
-        // Проверяем, является ли пользователь принимающим заявки
         isApprover() {
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
         },
 
-        // Проверяем, голосовал ли текущий пользователь
+        // Может ли пользователь управлять заявкой (отозвать/вернуть)
+        canManageApplication() {
+            // Только в режиме центра
+            if (this.mode !== 'center') return false;
+            
+            // Создатель заявки или админ
+            return this.application.sender_user_id === this.currentUserId;
+        },
+
         hasUserVoted() {
             if (!this.currentUserId || !this.responsibleUsers.length) return false;
             const currentUser = this.responsibleUsers.find(user => user.id === this.currentUserId);
             return currentUser && currentUser.approval_status !== 'pending';
         },
 
-        // Статус голоса текущего пользователя
         userVoteStatus() {
             if (!this.currentUserId || !this.responsibleUsers.length) return null;
             const currentUser = this.responsibleUsers.find(user => user.id === this.currentUserId);
@@ -387,36 +430,20 @@ export default {
             return null;
         },
 
-        // Показывать ли кнопки согласования для ответственных, не являющихся принимающими
-        showConfirmationButtons() {
-            return !this.isApprover && 
-                   this.isResponsibleUser && 
-                   this.application.confirmation === 'Согласование' && 
-                   !this.hasUserVoted;
-        },
-
-        // Может ли принимающий выполнить действие с заявкой
-        canTakeApplication() {
-            // Для ответственных пользователей - могут действовать если еще не голосовали
-            if (this.isResponsibleUser) {
-                return !this.hasUserVoted;
+        getApproverStatusMessage() {
+            if (this.application.status === 'В работе') {
+                return 'Заявка уже в работе';
             }
             
-            // Для обычных принимающих - заявка должна быть согласована
-            return this.application.confirmation === 'Согласовано';
-        },
-
-        // Сообщение о статусе для принимающих
-        getApproverStatusMessage() {
-            if (this.isResponsibleUser && this.hasUserVoted) {
-                return 'Вы уже обработали заявку';
+            if (this.application.status === 'Отказано') {
+                return 'Заявка отклонена';
             }
             
             if (this.application.confirmation !== 'Согласовано') {
-                return 'Заявка еще не согласована';
+                return 'Ожидает согласования';
             }
             
-            return '';
+            return 'Готова к принятию';
         }
     },
     watch: {
@@ -435,7 +462,6 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Загружаем детали заявки
                 const appResponse = await fetch(`http://localhost:8080/applications/${application.id}/details`, {
                     method: "GET",
                     headers: {
@@ -447,7 +473,8 @@ export default {
                 if (appResponse.ok) {
                     const appData = await appResponse.json();
                     
-                    // Если есть ответственные пользователи
+                    Object.assign(this.application, appData);
+                    
                     if (appData.responsible_users) {
                         this.responsibleUsers = appData.responsible_users.map(user => ({
                             ...user,
@@ -456,7 +483,6 @@ export default {
                     }
                 }
 
-                // Загружаем вложения
                 const attachmentsResponse = await fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
                     method: "GET",
                     headers: {
@@ -473,10 +499,7 @@ export default {
                     }
                 }
 
-                // Загружаем всех пользователей для поиска
                 await this.fetchAllUsers();
-                
-                // Загружаем список принимающих заявки
                 await this.fetchApprovers();
 
             } catch (error) {
@@ -584,26 +607,17 @@ export default {
         },
 
         async handleApplicationAction(action) {
-            if (!this.canTakeApplication) return;
-            
-            this.updatingConfirmation = true;
+            this.processingApplication = true;
             try {
-                // Если пользователь ответственный за согласование - сначала согласовываем
-                if (this.isResponsibleUser && !this.hasUserVoted) {
-                    await this.updateConfirmation(action === 'accept' ? 'Согласовано' : 'Не согласовано');
-                }
-                
-                // Затем выполняем действие принятия/отказа
                 if (action === 'accept') {
                     await this.acceptApplication();
                 } else {
                     await this.rejectApplication();
                 }
-                
             } catch (error) {
                 console.error(`Ошибка при ${action === 'accept' ? 'принятии' : 'отказе'} заявки:`, error);
             } finally {
-                this.updatingConfirmation = false;
+                this.processingApplication = false;
             }
         },
 
@@ -611,17 +625,38 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Здесь будет логика принятия заявки
-                // Например, обновление статуса заявки на "Принята"
-                
-                this.showNotification("Заявка принята", "success");
-                
-                // Перезагружаем детали заявки
-                await this.loadApplicationDetails(this.application);
+                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/take-to-work`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: this.currentUserId,
+                        action: 'accept'
+                    })
+                });
+
+                if (response.ok) {
+                    this.showNotification("Заявка принята в работу", "success");
+                    
+                    this.application.status = 'В работе';
+                    
+                    await this.loadApplicationDetails(this.application);
+                    
+                    this.$emit('application-updated', {
+                        id: this.application.id,
+                        status: 'В работе',
+                        confirmation: this.application.confirmation
+                    });
+                } else {
+                    const errorText = await response.text();
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                }
                 
             } catch (error) {
                 console.error("Ошибка при принятии заявки:", error);
-                this.showNotification("Ошибка при принятии заявки", "error");
+                this.showNotification("Ошибка сети при принятии заявки", "error");
             }
         },
 
@@ -629,48 +664,130 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Здесь будет логика отказа от заявки
-                // Например, обновление статуса заявки на "Отказана"
-                
-                this.showNotification("Заявка отклонена", "error");
-                
-                // Перезагружаем детали заявки
-                await this.loadApplicationDetails(this.application);
+                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/take-to-work`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: this.currentUserId,
+                        action: 'reject'
+                    })
+                });
+
+                if (response.ok) {
+                    this.showNotification("Заявка отклонена", "error");
+                    
+                    this.application.status = 'Отказано';
+                    
+                    await this.loadApplicationDetails(this.application);
+                    
+                    this.$emit('application-updated', {
+                        id: this.application.id,
+                        status: 'Отказано',
+                        confirmation: this.application.confirmation
+                    });
+                } else {
+                    const errorText = await response.text();
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                }
                 
             } catch (error) {
-                console.error("Ошибка при отказе от заявки:", error);
-                this.showNotification("Ошибка при отказе от заявки", "error");
+                console.error("Ошибка при отказе заявки:", error);
+                this.showNotification("Ошибка сети при отказе заявки", "error");
+            }
+        },
+
+        async revokeApplication() {
+            this.processingApplication = true;
+            try {
+                const token = localStorage.getItem("token");
+                
+                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/revoke-from-work`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: this.currentUserId
+                    })
+                });
+
+                if (response.ok) {
+                    this.showNotification("Заявка отозвана из работы", "success");
+                    
+                    this.application.status = 'Согласовано';
+                    
+                    await this.loadApplicationDetails(this.application);
+                    
+                    this.$emit('application-updated', {
+                        id: this.application.id,
+                        status: 'Согласовано',
+                        confirmation: this.application.confirmation
+                    });
+                } else {
+                    const errorText = await response.text();
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error("Ошибка при отзыве заявки:", error);
+                this.showNotification("Ошибка сети при отзыве заявки", "error");
+            } finally {
+                this.processingApplication = false;
+            }
+        },
+
+        async restoreApplication() {
+            this.processingApplication = true;
+            try {
+                const token = localStorage.getItem("token");
+                
+                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/restore-to-work`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: this.currentUserId
+                    })
+                });
+
+                if (response.ok) {
+                    this.showNotification("Заявка возвращена в работу", "success");
+                    
+                    this.application.status = 'Согласовано';
+                    
+                    await this.loadApplicationDetails(this.application);
+                    
+                    this.$emit('application-updated', {
+                        id: this.application.id,
+                        status: 'Согласовано',
+                        confirmation: this.application.confirmation
+                    });
+                } else {
+                    const errorText = await response.text();
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error("Ошибка при возврате заявки:", error);
+                this.showNotification("Ошибка сети при возврате заявки", "error");
+            } finally {
+                this.processingApplication = false;
             }
         },
 
         async updateConfirmation(confirmation) {
             if (!this.application || !this.isResponsibleUser || this.hasUserVoted) return;
 
+            this.updatingConfirmation = true;
             try {
                 const token = localStorage.getItem("token");
                 
-                // Определяем новый статус на основе новых правил
-                let newStatus = 'В работе';
-                let newConfirmation = 'Согласовано';
-                
-                if (confirmation === 'Не согласовано') {
-                    newConfirmation = 'Не согласовано';
-                    newStatus = 'Отказано';
-                } else {
-                    // Проверяем, все ли обязательные ответственные согласовали
-                    const requiredUsers = this.responsibleUsers.filter(user => user.required_approval);
-                    const hasAllRequiredApproved = requiredUsers.every(user => 
-                        user.approval_status === 'approved' || user.id === this.currentUserId
-                    );
-                    
-                    if (!hasAllRequiredApproved && requiredUsers.length > 0) {
-                        // Еще не все обязательные согласовали
-                        newConfirmation = 'Согласование';
-                        newStatus = 'В обработке';
-                    }
-                }
-                
-                // 1. Обновляем статус согласования для текущего пользователя
                 const userApprovalResponse = await fetch(`http://localhost:8080/applications/${this.application.id}/approve`, {
                     method: "POST",
                     headers: {
@@ -691,55 +808,24 @@ export default {
                     throw new Error(errorText);
                 }
 
-                // 2. Обновляем общее подтверждение заявки
-                const response = await fetch(`http://localhost:8080/applications/${this.application.id}`, {
-                    method: "PUT",
+                const checkResponse = await fetch(`http://localhost:8080/applications/${this.application.id}/check-approval-status`, {
+                    method: "GET",
                     headers: {
                         "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        confirmation: newConfirmation,
-                        status: newStatus,
-                        responsible_comment: confirmation === 'Согласовано' ? 
-                            `Заявка согласована пользователем ${this.currentUserName}` : 
-                            `Заявка отклонена пользователем ${this.currentUserName}`,
-                        responsible_name: this.currentUserName,
-                        confirmation_datetime: new Date().toISOString()
-                    })
+                    }
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText);
-                }
-
-                // 3. Если заявка полностью согласована, обновляем статусы машин и сотрудников
-                if (newConfirmation === 'Согласовано') {
-                    await fetch(`http://localhost:8080/applications/${this.application.id}/update-items-status`, {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
+                if (checkResponse.ok) {
+                    const approvalStatus = await checkResponse.json();
+                    
+                    this.$emit('confirmation-updated', {
+                        confirmation: approvalStatus.confirmation,
+                        status: this.application.status
                     });
                 }
                 
-                // Обновляем локальные данные
-                this.$emit('confirmation-updated', {
-                    confirmation: newConfirmation,
-                    status: newStatus,
-                    confirmation_datetime: new Date().toISOString(),
-                    responsible_comment: confirmation === 'Согласовано' ? 
-                        `Заявка согласована пользователем ${this.currentUserName}` : 
-                        `Заявка отклонена пользователем ${this.currentUserName}`,
-                    responsible_name: this.currentUserName
-                });
-                
-                // Перезагружаем детали заявки для обновления статусов
                 await this.loadApplicationDetails(this.application);
                 
-                // Показываем уведомление
                 this.showNotification(
                     confirmation === 'Согласовано' 
                         ? 'Заявка согласована'
@@ -751,6 +837,8 @@ export default {
                 console.error("Ошибка при обновлении подтверждения:", error);
                 this.showNotification(`Ошибка: ${error.message}`, 'error');
                 throw error;
+            } finally {
+                this.updatingConfirmation = false;
             }
         },
 
@@ -787,7 +875,6 @@ export default {
                     this.showNotification("Заявка успешно переслана", "success");
                     this.closeForwardModal();
                     
-                    // Перезагружаем детали заявки
                     await this.loadApplicationDetails(this.application);
                 } else {
                     const errorText = await response.text();
@@ -900,6 +987,16 @@ export default {
             return weekdays[date.getDay()];
         },
 
+        getApplicationStatusClass(status) {
+            const classes = {
+                'В работе': 'status-in-work',
+                'Отказано': 'status-rejected',
+                'Согласовано': 'status-approved',
+                'Согласование': 'status-pending'
+            };
+            return classes[status] || '';
+        },
+
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
             return names.length > 0 ? names.join(' ') : user.username;
@@ -955,12 +1052,93 @@ export default {
             this.$emit('close');
         }
     },
-    emits: ['close', 'confirmation-updated', 'duplicate']
+    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated']
 }
 </script>
 
 <style scoped>
-/* Все стили остаются без изменений */
+/* Все стили остаются без изменений, добавляем новые классы для кнопок и статусов */
+
+.revoke-btn, .restore-btn {
+    padding: 6px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    border: 1px solid #e6e6e6;
+    background: #FFA500;
+    color: white;
+}
+
+.revoke-btn:hover:not(:disabled) {
+    background: #e69500;
+}
+
+.restore-btn {
+    background: #4CAF50;
+}
+
+.restore-btn:hover:not(:disabled) {
+    background: #45a049;
+}
+
+.revoke-btn:disabled,
+.restore-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.status-in-work-badge {
+    background: rgba(79, 91, 223, 0.1);
+    color: #4F5BDF;
+    border: 1px solid rgba(79, 91, 223, 0.3);
+    padding: 6px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.status-in-work {
+    color: #4F5BDF;
+    font-weight: 600;
+    background: rgba(79, 91, 223, 0.1);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+.status-rejected {
+    color: #dc2626;
+    font-weight: 600;
+    background: rgba(220, 38, 38, 0.1);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+.status-approved {
+    color: #059669;
+    font-weight: 600;
+    background: rgba(5, 150, 105, 0.1);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+.status-pending {
+    color: #d97706;
+    font-weight: 600;
+    background: rgba(217, 119, 6, 0.1);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
 .application-detail-overlay {
     position: fixed;
     top: 0;

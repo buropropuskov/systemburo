@@ -265,79 +265,79 @@ export default {
   },
   methods: {
     async loadData() {
-      if (this.isLoading) return;
-      
-      this.isLoading = true;
-      
-      try {
-        await this.fetchCarsData();
-        await this.fetchCarUnloadPlaces();
-        this.updateActiveItemsCount();
-      } catch (error) {
-        console.error('Ошибка при загрузке машин:', error);
-      } finally {
-        this.isLoading = false;
-      }
-    },
+  if (this.isLoading) return;
+  
+  this.isLoading = true;
+  
+  try {
+    await this.fetchCarsData();
+    await this.fetchCarUnloadPlaces();
+    this.updateActiveItemsCount();
+  } catch (error) {
+    console.error('Ошибка при загрузке машин:', error);
+  } finally {
+    this.isLoading = false;
+  }
+},
 
     async fetchCarsData() {
-      try {
-        const token = localStorage.getItem("token");
-        
-        const response = await fetch("http://localhost:8080/cars/active-for-tables", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const cars = await response.json();
-        
-        await this.fetchOrganizations();
-        
-        const nameToIdMap = {};
-        Object.keys(this.organizationsMap).forEach(id => {
-          nameToIdMap[this.organizationsMap[id]] = id;
-        });
-        
-        const regularCars = cars.filter(car => {
-          if (car.status !== 1) return false;
-          const carNumber = car.car_number?.toLowerCase().trim();
-          return carNumber !== 'по факту';
-        });
-        
-        this.itemsData = regularCars.map(car => {
-          const orgName = car.organization || '';
-          const orgId = nameToIdMap[orgName] || car.organization_id;
-          
-          return {
-            id: car.id,
-            car_number: car.car_number || '',
-            car_brand: car.car_brand || '',
-            organization_id: orgId,
-            organization_name: orgName || 'Не указана',
-            unload_place: car.unload_place || '-',
-            entry_date_to: car.entry_date_to || '',
-            entry_time_from: car.entry_time_from || '',
-            entry_time_to: car.entry_time_to || '',
-            status: 'В работе',
-            checked: false,
-            applicationId: car.application_id
-          };
-        });
-        
-        console.log('Загружены машины:', this.itemsData);
-        
-      } catch (error) {
-        console.error("Ошибка при загрузке данных машин:", error);
-        this.itemsData = [];
-        throw error;
+  try {
+    const token = localStorage.getItem("token");
+    
+    const response = await fetch("http://localhost:8080/cars/active-for-tables", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
       }
-    },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const cars = await response.json();
+    
+    await this.fetchOrganizations();
+    
+    const nameToIdMap = {};
+    Object.keys(this.organizationsMap).forEach(id => {
+      nameToIdMap[this.organizationsMap[id]] = id;
+    });
+    
+    const regularCars = cars.filter(car => {
+      if (car.status !== 1) return false;
+      const carNumber = car.car_number?.toLowerCase().trim();
+      return carNumber !== 'по факту';
+    });
+    
+    this.itemsData = regularCars.map(car => {
+      const orgName = car.organization || '';
+      const orgId = nameToIdMap[orgName] || car.organization_id;
+      
+      return {
+        id: car.id,
+        car_number: car.car_number || '',
+        car_brand: car.car_brand || '',
+        organization_id: orgId,
+        organization_name: orgName || 'Не указана',
+        unload_place: car.unload_place || '-',
+        entry_date_to: car.entry_date_to || '',
+        entry_time_from: car.entry_time_from || '',
+        entry_time_to: car.entry_time_to || '',
+        status: 'В работе',
+        checked: false,
+        applicationId: car.application_id
+      };
+    });
+    
+    console.log('Загружены машины:', this.itemsData);
+    
+  } catch (error) {
+    console.error("Ошибка при загрузке данных машин:", error);
+    this.itemsData = [];
+    throw error;
+  }
+},
 
     async fetchCarUnloadPlaces() {
       try {

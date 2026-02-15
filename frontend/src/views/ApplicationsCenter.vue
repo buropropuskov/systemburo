@@ -237,14 +237,16 @@
             </div>
         </div>
 
-        <ApplicationDetail 
+        <!-- Исправлено: используем selectedApplication вместо showDetail -->
+        <ApplicationDetail
             v-if="selectedApplication"
             :application="selectedApplication"
             :current-user-id="currentUserId"
             :current-user-name="currentUserName"
             :mode="'center'"
-            @close="closeApplicationDetail"
+            @close="closeDetail"
             @confirmation-updated="handleConfirmationUpdate"
+            @application-updated="handleApplicationUpdate"
             @duplicate="handleDuplicate"
         />
     </section>
@@ -728,54 +730,67 @@ export default {
         },
 
         async openApplication(application) {
-            console.log('Открытие заявки:', application.application_number);
-            
-            if (application.status === 'Непрочитано') {
-                try {
-                    const token = localStorage.getItem("token");
-                    const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
-                        method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            status: "В обработке"
-                        })
-                    });
+    console.log('Открытие заявки:', application.application_number);
+    console.log('Application object:', application);
+    
+    if (application.status === 'Непрочитано') {
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    status: "В обработке"
+                })
+            });
 
-                    if (response.ok) {
-                        application.status = 'В обработке';
-                        this.fetchApplications();
-                    } else {
-                        const errorText = await response.text();
-                        console.error("Ошибка при обновлении статуса заявки:", errorText);
-                    }
-                } catch (error) {
-                    console.error("Ошибка сети при обновлении статуса заявки:", error);
-                }
+            if (response.ok) {
+                application.status = 'В обработке';
+                this.fetchApplications();
+            } else {
+                const errorText = await response.text();
+                console.error("Ошибка при обновлении статуса заявки:", errorText);
             }
+        } catch (error) {
+            console.error("Ошибка сети при обновлении статуса заявки:", error);
+        }
+    }
 
-            this.selectedApplication = application;
-        },
+    console.log('Setting selectedApplication to:', application);
+    this.selectedApplication = application;
+    console.log('selectedApplication after set:', this.selectedApplication);
+    
+    // Принудительно обновляем DOM
+    this.$forceUpdate();
+},
 
-        closeApplicationDetail() {
+        closeDetail() {
             this.selectedApplication = null;
         },
 
         handleConfirmationUpdate(updatedData) {
-            Object.assign(this.selectedApplication, updatedData);
-            
-            const appIndex = this.applications.findIndex(app => app.id === this.selectedApplication.id);
-            if (appIndex !== -1) {
-                this.applications[appIndex] = { ...this.applications[appIndex], ...updatedData };
+            if (this.selectedApplication) {
+                Object.assign(this.selectedApplication, updatedData);
+                
+                const appIndex = this.applications.findIndex(app => app.id === this.selectedApplication.id);
+                if (appIndex !== -1) {
+                    this.applications[appIndex] = { ...this.applications[appIndex], ...updatedData };
+                }
             }
             
             this.$emit('refresh-data');
         },
 
-        handleDuplicate() {
-            console.log('Дублирование заявки из ApplicationsCenter:', this.selectedApplication.application_number);
+        handleApplicationUpdate(updatedApp) {
+            console.log('Application updated in center:', updatedApp);
+            this.fetchApplications(); // Обновляем список заявок
+        },
+
+        handleDuplicate(application) {
+            console.log('Дублирование заявки из ApplicationsCenter:', application?.application_number);
         },
 
         async getCurrentUser() {
