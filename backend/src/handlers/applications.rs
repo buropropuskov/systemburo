@@ -102,12 +102,14 @@ pub struct ForwardUser {
 pub struct TakeToWorkRequest {
     pub user_id: i32,
     pub action: String, // 'accept' или 'reject'
+    pub comment: Option<String>, // ДОБАВИТЬ
 }
 
 // Структура для отзыва заявки из работы
 #[derive(Debug, Deserialize)]
 pub struct RevokeFromWorkRequest {
     pub user_id: i32,
+    pub comment: Option<String>, // ДОБАВИТЬ
 }
 
 /// Функция для согласования заявки отдельным пользователем
@@ -118,6 +120,7 @@ pub struct UserApprovalRequest {
     pub comment: Option<String>,
 }
 
+/// Функция для согласования заявки отдельным пользователем
 pub async fn approve_application_by_user(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -136,7 +139,7 @@ pub async fn approve_application_by_user(
 
     let username = &claims.sub;
     
-    // Проверяем, что пользователь согласует свою собственную запись
+    // Получаем ID текущего пользователя
     let current_user_row = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         username
@@ -174,21 +177,43 @@ pub async fn approve_application_by_user(
     })?;
 
     // Проверяем, что пользователь является ответственным для этой заявки
-    let is_responsible = sqlx::query!(
-        "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
+    let responsible = sqlx::query!(
+        r#"
+        SELECT id, approval_status, required_approval
+        FROM application_responsible_users 
+        WHERE application_id = $1 AND user_id = $2
+        "#,
         application_id,
         form.user_id
     )
-    .fetch_one(&mut *transaction)
+    .fetch_optional(&mut *transaction)
     .await
     .map_err(|e| {
         log::error!("Failed to check if user is responsible: {}", e);
         error::ErrorInternalServerError("Database error")
     })?;
 
-    if !is_responsible.exists.unwrap_or(false) {
-        return Err(error::ErrorForbidden("You are not responsible for this application"));
+    let responsible = match responsible {
+        Some(r) => r,
+        None => return Err(error::ErrorForbidden("You are not responsible for this application")),
+    };
+
+    // Проверяем, не голосовал ли уже пользователь
+    if responsible.approval_status != Some("pending".to_string()) {
+        return Err(error::ErrorBadRequest("You have already voted on this application"));
     }
+
+    // Получаем текущий confirmation до обновления
+    let old_confirmation = sqlx::query!(
+        "SELECT confirmation FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch confirmation: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
 
     // Обновляем статус согласования для пользователя
     let now_utc = Utc::now();
@@ -202,7 +227,7 @@ pub async fn approve_application_by_user(
         WHERE application_id = $4 AND user_id = $5
         "#,
         form.status,
-        form.comment,
+        form.comment, // Сохраняем комментарий
         now_utc,
         application_id,
         form.user_id
@@ -214,8 +239,79 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Error updating approval status")
     })?;
 
-    // Обновляем общий статус заявки на основе новых правил (меняем только confirmation, status не трогаем)
-    update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
+    // Записываем в историю действие пользователя (согласование/отказ)
+    sqlx::query!(
+        r#"
+        INSERT INTO application_history (
+            application_id,
+            user_id,
+            action_type,
+            comment,
+            metadata,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        "#,
+        application_id,
+        current_user_id,
+        if form.status == "approved" { "approve" } else { "reject" },
+        form.comment, // Сохраняем комментарий в историю
+        serde_json::json!({
+            "required_approval": responsible.required_approval
+        })
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add approval history: {}", e);
+        error::ErrorInternalServerError("Error adding history")
+    })?;
+
+    // Обновляем общий статус заявки на основе новых правил
+    if let Err(e) = update_application_confirmation_based_on_approvals(&mut transaction, application_id).await {
+        log::error!("Failed to update application confirmation: {}", e);
+        return Err(e);
+    }
+
+    // Получаем новый confirmation после обновления
+    let new_confirmation = sqlx::query!(
+        "SELECT confirmation FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch new confirmation: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Если confirmation изменился, записываем в историю
+    if old_confirmation.confirmation != new_confirmation.confirmation {
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                old_value,
+                new_value,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 millisecond')
+            "#,
+            application_id,
+            current_user_id,
+            "confirmation_change",
+            old_confirmation.confirmation,
+            new_confirmation.confirmation
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add confirmation change history: {}", e);
+            error::ErrorInternalServerError("Error adding history")
+        })?;
+    }
 
     // Фиксируем транзакцию
     transaction.commit().await.map_err(|e| {
@@ -272,7 +368,7 @@ pub async fn check_approval_status(
     }
 }
 
-/// Функция для принятия заявки в работу (НОВАЯ)
+/// Функция для принятия заявки в работу
 pub async fn take_application_to_work(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -335,9 +431,9 @@ pub async fn take_application_to_work(
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Проверяем, что заявка существует и согласована
+    // Получаем текущий статус заявки
     let application = sqlx::query!(
-        "SELECT confirmation, status FROM applications WHERE id = $1",
+        "SELECT status FROM applications WHERE id = $1",
         application_id
     )
     .fetch_optional(&mut *transaction)
@@ -352,9 +448,7 @@ pub async fn take_application_to_work(
         None => return Err(error::ErrorNotFound("Application not found")),
     };
 
-    if application.confirmation != "Согласовано" {
-        return Err(error::ErrorBadRequest("Application is not confirmed"));
-    }
+    let old_status = application.status.clone();
 
     if action == "accept" {
         // Принимаем заявку в работу
@@ -362,10 +456,11 @@ pub async fn take_application_to_work(
             return Err(error::ErrorBadRequest("Application is already in work"));
         }
 
-        // Обновляем статус заявки
+        // Обновляем статус заявки и сохраняем комментарий
         sqlx::query!(
-            "UPDATE applications SET status = 'В работе', responsible_user_id = $1 WHERE id = $2",
+            "UPDATE applications SET status = 'В работе', responsible_user_id = $1, responsible_comment = $2 WHERE id = $3",
             current_user_id,
+            form.comment, // Сохраняем комментарий в responsible_comment
             application_id
         )
         .execute(&mut *transaction)
@@ -375,7 +470,35 @@ pub async fn take_application_to_work(
             error::ErrorInternalServerError("Error updating application status")
         })?;
 
-        // Активируем все машины и сотрудники в этой заявке
+        // ПИШЕМ ИСТОРИЮ
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                old_value,
+                new_value,
+                comment,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            "#,
+            application_id,
+            current_user_id,
+            "take_to_work",
+            old_status,
+            "В работе",
+            form.comment // Сохраняем комментарий в историю
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add history entry: {}", e);
+            error::ErrorInternalServerError("Error adding history")
+        })?;
+
+        // Активируем все машины и сотрудники
         activate_application_items(&mut transaction, application_id, true).await?;
 
     } else if action == "reject" {
@@ -385,8 +508,9 @@ pub async fn take_application_to_work(
         }
 
         sqlx::query!(
-            "UPDATE applications SET status = 'Отказано', responsible_user_id = $1 WHERE id = $2",
+            "UPDATE applications SET status = 'Отказано', responsible_user_id = $1, responsible_comment = $2 WHERE id = $3",
             current_user_id,
+            form.comment, // Сохраняем комментарий в responsible_comment
             application_id
         )
         .execute(&mut *transaction)
@@ -396,7 +520,35 @@ pub async fn take_application_to_work(
             error::ErrorInternalServerError("Error updating application status")
         })?;
 
-        // Деактивируем все машины и сотрудники (на всякий случай)
+        // ПИШЕМ ИСТОРИЮ
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                old_value,
+                new_value,
+                comment,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            "#,
+            application_id,
+            current_user_id,
+            "reject",
+            old_status,
+            "Отказано",
+            form.comment // Сохраняем комментарий в историю
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add history entry: {}", e);
+            error::ErrorInternalServerError("Error adding history")
+        })?;
+
+        // Деактивируем все машины и сотрудники
         activate_application_items(&mut transaction, application_id, false).await?;
     }
 
@@ -411,7 +563,7 @@ pub async fn take_application_to_work(
     })))
 }
 
-/// Функция для отзыва заявки из работы (НОВАЯ)
+/// Функция для отзыва заявки из работы
 pub async fn revoke_application_from_work(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -447,9 +599,25 @@ pub async fn revoke_application_from_work(
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
+    // Проверяем, что пользователь является принимающим
+    let is_approver = sqlx::query!(
+        "SELECT EXISTS(SELECT 1 FROM application_approvers WHERE user_id = $1) as exists",
+        current_user_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to check if user is approver: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if !is_approver.exists.unwrap_or(false) {
+        return Err(error::ErrorForbidden("Only approver can revoke the application"));
+    }
+
     let application_id = path.into_inner();
 
-    log::info!("User {} revoking application {} from work", current_user_id, application_id);
+    log::info!("Approver {} revoking application {} from work", current_user_id, application_id);
 
     // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
@@ -457,9 +625,9 @@ pub async fn revoke_application_from_work(
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Проверяем, что заявка существует и находится в работе
+    // Получаем текущий статус заявки
     let application = sqlx::query!(
-        "SELECT confirmation, status, sender_user_id FROM applications WHERE id = $1",
+        "SELECT status FROM applications WHERE id = $1",
         application_id
     )
     .fetch_optional(&mut *transaction)
@@ -474,22 +642,11 @@ pub async fn revoke_application_from_work(
         None => return Err(error::ErrorNotFound("Application not found")),
     };
 
-    // Проверяем права: только создатель заявки может отозвать
-    if application.sender_user_id != current_user_id {
-        return Err(error::ErrorForbidden("Only the creator can revoke the application"));
-    }
+    let old_status = application.status.clone();
 
-    if application.confirmation != "Согласовано" {
-        return Err(error::ErrorBadRequest("Application is not confirmed"));
-    }
-
-    if application.status != "В работе" {
-        return Err(error::ErrorBadRequest("Application is not in work"));
-    }
-
-    // Возвращаем статус заявки на "Согласовано"
+    // Обновляем статус заявки и очищаем комментарий ответственного
     sqlx::query!(
-        "UPDATE applications SET status = 'Согласовано', responsible_user_id = NULL WHERE id = $1",
+        "UPDATE applications SET status = 'В обработке', responsible_user_id = NULL, responsible_comment = NULL WHERE id = $1",
         application_id
     )
     .execute(&mut *transaction)
@@ -499,7 +656,35 @@ pub async fn revoke_application_from_work(
         error::ErrorInternalServerError("Error updating application status")
     })?;
 
-    // Деактивируем все машины и сотрудники в этой заявке
+    // ПИШЕМ ИСТОРИЮ С КОММЕНТАРИЕМ
+    sqlx::query!(
+        r#"
+        INSERT INTO application_history (
+            application_id,
+            user_id,
+            action_type,
+            old_value,
+            new_value,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        "#,
+        application_id,
+        current_user_id,
+        "revoke_from_work",
+        old_status,
+        "В обработке",
+        form.comment // Сохраняем комментарий в историю
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add history entry: {}", e);
+        error::ErrorInternalServerError("Error adding history")
+    })?;
+
+    // Деактивируем все машины и сотрудники
     activate_application_items(&mut transaction, application_id, false).await?;
 
     transaction.commit().await.map_err(|e| {
@@ -513,7 +698,7 @@ pub async fn revoke_application_from_work(
     })))
 }
 
-/// Функция для возврата заявки в работу (НОВАЯ)
+/// Функция для возврата заявки в работу
 pub async fn restore_application_to_work(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -549,9 +734,25 @@ pub async fn restore_application_to_work(
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
+    // Проверяем, что пользователь является принимающим
+    let is_approver = sqlx::query!(
+        "SELECT EXISTS(SELECT 1 FROM application_approvers WHERE user_id = $1) as exists",
+        current_user_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to check if user is approver: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if !is_approver.exists.unwrap_or(false) {
+        return Err(error::ErrorForbidden("Only approver can restore the application"));
+    }
+
     let application_id = path.into_inner();
 
-    log::info!("User {} restoring application {} to work", current_user_id, application_id);
+    log::info!("Approver {} restoring application {} to work", current_user_id, application_id);
 
     // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
@@ -559,9 +760,9 @@ pub async fn restore_application_to_work(
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Проверяем, что заявка существует и согласована
+    // Получаем текущий статус заявки
     let application = sqlx::query!(
-        "SELECT confirmation, status, sender_user_id FROM applications WHERE id = $1",
+        "SELECT status FROM applications WHERE id = $1",
         application_id
     )
     .fetch_optional(&mut *transaction)
@@ -576,22 +777,11 @@ pub async fn restore_application_to_work(
         None => return Err(error::ErrorNotFound("Application not found")),
     };
 
-    // Проверяем права: только создатель заявки может вернуть
-    if application.sender_user_id != current_user_id {
-        return Err(error::ErrorForbidden("Only the creator can restore the application"));
-    }
+    let old_status = application.status.clone();
 
-    if application.confirmation != "Согласовано" {
-        return Err(error::ErrorBadRequest("Application is not confirmed"));
-    }
-
-    if application.status == "В работе" {
-        return Err(error::ErrorBadRequest("Application is already in work"));
-    }
-
-    // Возвращаем статус заявки на "Согласовано" (для принятия в работу)
+    // Обновляем статус заявки и очищаем комментарий ответственного
     sqlx::query!(
-        "UPDATE applications SET status = 'Согласовано', responsible_user_id = NULL WHERE id = $1",
+        "UPDATE applications SET status = 'В обработке', responsible_user_id = NULL, responsible_comment = NULL WHERE id = $1",
         application_id
     )
     .execute(&mut *transaction)
@@ -601,7 +791,35 @@ pub async fn restore_application_to_work(
         error::ErrorInternalServerError("Error updating application status")
     })?;
 
-    // Деактивируем все машины и сотрудники (если были активны)
+    // ПИШЕМ ИСТОРИЮ С КОММЕНТАРИЕМ
+    sqlx::query!(
+        r#"
+        INSERT INTO application_history (
+            application_id,
+            user_id,
+            action_type,
+            old_value,
+            new_value,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        "#,
+        application_id,
+        current_user_id,
+        "restore_to_work",
+        old_status,
+        "В обработке",
+        form.comment // Сохраняем комментарий в историю
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add history entry: {}", e);
+        error::ErrorInternalServerError("Error adding history")
+    })?;
+
+    // Деактивируем все машины и сотрудники
     activate_application_items(&mut transaction, application_id, false).await?;
 
     transaction.commit().await.map_err(|e| {
@@ -676,8 +894,8 @@ async fn activate_application_items(
     Ok(())
 }
 
-/// Вспомогательная функция для обновления общего статуса заявки на основе новых правил
-async fn update_application_confirmation_based_on_approvals(
+
+pub async fn update_application_confirmation_based_on_approvals(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     application_id: i32,
 ) -> Result<(), Error> {
@@ -701,9 +919,20 @@ async fn update_application_confirmation_based_on_approvals(
     })?;
 
     if responsibles.is_empty() {
-        // Нет ответственных - статус остается прежним
         return Ok(());
     }
+
+    // Получаем текущий статус заявки
+    let current_application = sqlx::query!(
+        "SELECT confirmation FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application: {}", e);
+        error::ErrorInternalServerError("Error fetching application")
+    })?;
 
     // Проверяем по новым правилам:
     // 1. Если хотя бы один обязательный ответственный отказал -> "Не согласовано"
@@ -721,7 +950,6 @@ async fn update_application_confirmation_based_on_approvals(
         .collect::<Vec<_>>();
 
     let mut new_confirmation = "Согласование".to_string();
-    // Статус заявки НЕ МЕНЯЕМ при согласовании! Только confirmation
 
     // Проверяем случай 1: обязательный ответственный отказал
     let has_required_rejected = required_users.iter()
@@ -797,9 +1025,14 @@ pub async fn forward_application(
 
     let username = &claims.sub;
     
-    // Получаем ID текущего пользователя
+    // Получаем ID и имя текущего пользователя
     let user_row = sqlx::query!(
-        "SELECT id FROM users WHERE username = $1",
+        r#"SELECT id, 
+            last_name,
+            first_name,
+            middle_name
+        FROM users 
+        WHERE username = $1"#,
         username
     )
     .fetch_optional(pool.get_ref())
@@ -809,14 +1042,27 @@ pub async fn forward_application(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    let current_user_id = match user_row {
-        Some(row) => row.id,
+    let (current_user_id, current_user_name) = match user_row {
+        Some(row) => {
+            let name = format!("{} {} {}", 
+                row.last_name.as_deref().unwrap_or(""),
+                row.first_name.as_deref().unwrap_or(""),
+                row.middle_name.as_deref().unwrap_or("")
+            ).trim().to_string();
+            (row.id, name)
+        },
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
     let application_id = path.into_inner();
+    let now_utc = Utc::now(); // Время пересылки
+    let now_naive = now_utc.naive_utc(); 
 
-    log::info!("Forwarding application {} by user {}", application_id, current_user_id);
+    log::info!("Forwarding application {} by user {} ({})", 
+        application_id, 
+        current_user_id, 
+        current_user_name
+    );
 
     // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
@@ -905,10 +1151,12 @@ pub async fn forward_application(
             sqlx::query!(
                 r#"
                 UPDATE application_responsible_users 
-                SET required_approval = $1
-                WHERE application_id = $2 AND user_id = $3
+                SET required_approval = $1,
+                    created_by = $2
+                WHERE application_id = $3 AND user_id = $4
                 "#,
                 forward_user.required_approval,
+                current_user_id,
                 application_id,
                 forward_user.user_id
             )
@@ -919,7 +1167,7 @@ pub async fn forward_application(
                 error::ErrorInternalServerError("Error updating responsible user")
             })?;
         } else {
-            // Добавляем нового пользователя
+            // Добавляем нового пользователя с указанием created_by
             sqlx::query!(
                 r#"
                 INSERT INTO application_responsible_users (
@@ -927,13 +1175,17 @@ pub async fn forward_application(
                     user_id, 
                     required_approval,
                     approval_status,
-                    created_at
+                    created_at,
+                    created_by,
+                    is_primary
                 )
-                VALUES ($1, $2, $3, 'pending', NOW())
+                VALUES ($1, $2, $3, 'pending', $4, $5, false)
                 "#,
                 application_id,
                 forward_user.user_id,
-                forward_user.required_approval
+                forward_user.required_approval,
+                now_naive, // Время пересылки
+                current_user_id
             )
             .execute(&mut *transaction)
             .await
@@ -941,10 +1193,39 @@ pub async fn forward_application(
                 log::error!("Failed to insert responsible user: {}", e);
                 error::ErrorInternalServerError("Error adding responsible user")
             })?;
+            
+            // Записываем в историю назначение ответственного при пересылке
+            sqlx::query!(
+                r#"
+                INSERT INTO application_history (
+                    application_id,
+                    user_id,
+                    action_type,
+                    metadata,
+                    created_at
+                )
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+                application_id,
+                forward_user.user_id,
+                "assigned_responsible",
+                serde_json::json!({
+                    "required_approval": forward_user.required_approval,
+                    "is_primary": false,
+                    "forwarded_by": current_user_name
+                }),
+                now_utc // Время пересылки
+            )
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to add assigned responsible history: {}", e);
+                error::ErrorInternalServerError("Error adding history")
+            })?;
         }
     }
 
-    // Обновляем общий статус заявки на основе новых правил (только confirmation)
+    // Обновляем общий статус заявки на основе новых правил
     update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
 
     // Фиксируем транзакцию
@@ -1419,6 +1700,7 @@ pub async fn submit_complete_application(
 
     // 1. Создаем заявку в таблице applications
     let now_utc = Utc::now();
+    let now_naive = now_utc.naive_utc(); 
     let today_local = now_utc.date_naive();
     let date_part = today_local.format("%Y%m%d").to_string();
     
@@ -1502,6 +1784,36 @@ pub async fn submit_complete_application(
     })?;
 
     let application_id = application_result.id;
+
+    // Записываем в историю создание заявки
+    sqlx::query!(
+        r#"
+        INSERT INTO application_history (
+            application_id,
+            user_id,
+            action_type,
+            new_value,
+            metadata,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        application_id,
+        user_id,
+        "create",
+        application_result.application_number,
+        serde_json::json!({
+            "confirmation": "Согласование",
+            "status": "Непрочитано"
+        }),
+        now_utc
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add create history: {}", e);
+        error::ErrorInternalServerError("Error adding history")
+    })?;
 
     // Получаем ответственных пользователей для организации и компании
     let mut responsible_users: Vec<(i32, bool, bool)> = Vec::new(); // (user_id, is_primary, required_approval)
@@ -1596,7 +1908,7 @@ pub async fn submit_complete_application(
         })?;
     }
 
-    // Добавляем всех ответственных в новую таблицу
+    // Добавляем всех ответственных в новую таблицу и записываем в историю
     for (user_id, is_primary, required_approval) in responsible_users {
         sqlx::query!(
             r#"
@@ -1608,7 +1920,7 @@ pub async fn submit_complete_application(
                 approval_status,
                 created_at
             )
-            VALUES ($1, $2, $3, $4, 'pending', NOW())
+            VALUES ($1, $2, $3, $4, 'pending', $5)
             ON CONFLICT (application_id, user_id) 
             DO UPDATE SET 
                 is_primary = EXCLUDED.is_primary,
@@ -1617,13 +1929,42 @@ pub async fn submit_complete_application(
             application_id,
             user_id,
             is_primary,
-            required_approval
+            required_approval,
+            now_naive // Используем время создания заявки
         )
         .execute(&mut *transaction)
         .await
         .map_err(|e| {
             log::error!("Failed to insert responsible user: {}", e);
             error::ErrorInternalServerError("Error inserting responsible user")
+        })?;
+        
+        // Записываем в историю назначение ответственного
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                metadata,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            "#,
+            application_id,
+            user_id,
+            "assigned_responsible",
+            serde_json::json!({
+                "required_approval": required_approval,
+                "is_primary": is_primary
+            }),
+            now_utc // Используем время создания заявки
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add assigned responsible history: {}", e);
+            error::ErrorInternalServerError("Error adding history")
         })?;
     }
 
@@ -1695,7 +2036,7 @@ pub async fn submit_complete_application(
                                 entry_time_to,
                                 status
                             )
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)  -- status = 0 при создании
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)
                             RETURNING id
                             "#,
                             attachment_id,
@@ -1753,7 +2094,7 @@ pub async fn submit_complete_application(
                                 other_permission,
                                 status
                             )
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0)  -- status = 0 при создании
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0)
                             RETURNING id
                             "#,
                             attachment_id,
@@ -1934,6 +2275,7 @@ pub async fn get_application_responsible_users(
 }
 
 /// Обновление заявки (подтверждение, статус и т.д.)
+/// Обновление заявки (подтверждение, статус и т.д.)
 pub async fn update_application(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1996,6 +2338,7 @@ pub async fn update_application(
         query_parts.push(format!("status = ${}", param_counter));
         param_counter += 1;
         
+        // Если статус меняется на "В обработке", обновляем reading_datetime
         if status == "В обработке" {
             query_parts.push(format!("reading_datetime = ${}", param_counter));
             param_counter += 1;
@@ -2021,34 +2364,25 @@ pub async fn update_application(
     // Создаем query builder и добавляем параметры с правильными типами
     let mut query_builder = sqlx::query(&query);
     
-    // Добавляем параметры в правильном порядке
-    let mut param_index = 1;
-    
     if let Some(ref confirmation) = update_data.confirmation {
         query_builder = query_builder.bind(confirmation);
-        param_index += 1;
         
         if confirmation == "Согласовано" || confirmation == "Не согласовано" {
             query_builder = query_builder.bind(now_utc);
-            param_index += 1;
         }
     }
 
     if let Some(ref status) = update_data.status {
         query_builder = query_builder.bind(status);
-        param_index += 1;
         
         if status == "В обработке" {
             query_builder = query_builder.bind(now_utc);
-            param_index += 1;
         }
     }
 
     if let Some(ref comment) = update_data.responsible_comment {
         query_builder = query_builder.bind(comment);
-        param_index += 1;
         query_builder = query_builder.bind(user_id);
-        param_index += 1;
     }
 
     // Добавляем ID заявки
@@ -2070,6 +2404,7 @@ pub async fn update_application(
 }
 
 /// Получение заявки по ID с расширенной информацией (включая ответственных с информацией о согласовании)
+/// Получение заявки по ID с обновлением статуса
 pub async fn get_application_by_id(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -2082,14 +2417,39 @@ pub async fn get_application_by_id(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let _claims = decode_token(token)
+    let claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let username = &claims.sub;
+    
+    // Получаем ID текущего пользователя
+    let current_user = sqlx::query!(
+        "SELECT id FROM users WHERE username = $1",
+        username
+    )
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch user: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let current_user_id = match current_user {
+        Some(user) => user.id,
+        None => return Err(error::ErrorUnauthorized("User not found")),
+    };
 
     let application_id = path.into_inner();
 
-    log::info!("Getting application by ID: {}", application_id);
+    log::info!("Getting application by ID: {} for user {}", application_id, current_user_id);
 
-    // Получаем основную информацию о заявке
+    // Начинаем транзакцию
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Получаем информацию о заявке
     let application_row = sqlx::query!(
         r#"
         SELECT 
@@ -2157,7 +2517,7 @@ pub async fn get_application_by_id(
         "#,
         application_id
     )
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&mut *transaction)
     .await
     .map_err(|e| {
         log::error!("Failed to fetch application: {}", e);
@@ -2166,7 +2526,49 @@ pub async fn get_application_by_id(
 
     let application = match application_row {
         Some(r) => {
-            // Получаем список всех ответственных для этой заявки с информацией о согласовании
+            // Если заявка непрочитана и ее читает не отправитель, обновляем статус
+            if r.status == "Непрочитано" && r.sender_user_id != current_user_id {
+                sqlx::query!(
+                    "UPDATE applications SET status = 'В обработке', reading_datetime = NOW() WHERE id = $1",
+                    application_id
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to update application status: {}", e);
+                    error::ErrorInternalServerError("Error updating application status")
+                })?;
+                
+                // Записываем в историю прочтение заявки
+                sqlx::query!(
+                    r#"
+                    INSERT INTO application_history (
+                        application_id,
+                        user_id,
+                        action_type,
+                        old_value,
+                        new_value,
+                        created_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, NOW())
+                    "#,
+                    application_id,
+                    current_user_id,
+                    "read",
+                    "Непрочитано",
+                    "В обработке"
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to add read history: {}", e);
+                    error::ErrorInternalServerError("Error adding history")
+                })?;
+                
+                log::info!("Application {} marked as read by user {}", application_id, current_user_id);
+            }
+
+            // Получаем список всех ответственных
             #[derive(Debug, sqlx::FromRow)]
             struct DbResponsibleUser {
                 id: i32,
@@ -2204,7 +2606,7 @@ pub async fn get_application_by_id(
                 "#,
                 application_id
             )
-            .fetch_all(pool.get_ref())
+            .fetch_all(&mut *transaction)
             .await
             .unwrap_or_else(|_| Vec::new());
 
@@ -2226,7 +2628,6 @@ pub async fn get_application_by_id(
                 }
             }).collect();
 
-            // Получаем DateTime<Utc> из БД
             let sending_datetime: DateTime<Utc> = r.sending_datetime;
             let reading_datetime: Option<DateTime<Utc>> = r.reading_datetime;
             let confirmation_datetime: Option<DateTime<Utc>> = r.confirmation_datetime;
@@ -2254,14 +2655,12 @@ pub async fn get_application_by_id(
                 data_approval: r.data_approval,
             };
 
-            // Создаем объект с полной информацией о заявке
             let mut response = serde_json::to_value(application_with_details)
                 .map_err(|e| {
                     log::error!("Failed to serialize application: {}", e);
                     error::ErrorInternalServerError("Error serializing application")
                 })?;
             
-            // Добавляем список ответственных в ответ
             if let serde_json::Value::Object(ref mut map) = response {
                 map.insert("responsible_users".to_string(), serde_json::to_value(responsibles_info)
                     .map_err(|e| {
@@ -2274,6 +2673,12 @@ pub async fn get_application_by_id(
         },
         None => return Err(error::ErrorNotFound("Application not found")),
     };
+
+    // Фиксируем транзакцию
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
 
     Ok(HttpResponse::Ok().json(application))
 }
@@ -3730,4 +4135,44 @@ pub async fn update_responsible_users_for_entity_with_required(
         "message": format!("Responsible users updated for {} applications", updated_apps_count),
         "applications_updated": updated_apps_count
     })))
+}
+
+// Добавьте эту функцию в applications.rs
+async fn add_application_history_entry(
+    pool: &PgPool,
+    application_id: i32,
+    user_id: i32,
+    action_type: &str,
+    old_value: Option<&str>,
+    new_value: Option<&str>,
+    comment: Option<&str>,
+) -> Result<(), Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO application_history (
+            application_id,
+            user_id,
+            action_type,
+            old_value,
+            new_value,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        "#,
+        application_id,
+        user_id,
+        action_type,
+        old_value,
+        new_value,
+        comment
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add history entry: {}", e);
+        error::ErrorInternalServerError("Error adding history entry")
+    })?;
+
+    Ok(())
 }

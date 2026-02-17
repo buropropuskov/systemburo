@@ -8,8 +8,9 @@
         </div>
         
         <div class="confirmation-info">
-            <div class="confirmation-status-row">
-                <span class="confirmation-label">Статус:</span>
+            <!-- Статус заявки -->
+            <div class="info-row">
+                <span class="info-label">Статус:</span>
                 <span class="confirmation-badge" :class="getConfirmationClass(application.confirmation)">
                     {{ application.confirmation }}
                 </span>
@@ -33,10 +34,21 @@
                     
                     <!-- Ряд с бейджем и статусом -->
                     <div class="user-badge-status-row">
-                        <span v-if="user.required_approval" class="badge required-badge">Обязательно</span>
+                        <div class="required-badge-container" v-if="user.required_approval">
+                            <span class="badge required-badge">Обязательно</span>
+                            <div class="required-tooltip">
+                                Согласование этого пользователя является обязательным. Без него принять заявку в работу будет невозможно.
+                            </div>
+                        </div>
                         <span class="status-badge" :class="getStatusClass(user.approval_status)">
                             {{ getStatusText(user.approval_status) }}
                         </span>
+                    </div>
+                    
+                    <!-- Комментарий пользователя (только если есть) -->
+                    <div v-if="user.approval_comment" class="user-comment-block">
+                        <span class="comment-label">Комментарий:</span>
+                        <span class="comment-text">{{ user.approval_comment }}</span>
                     </div>
                     
                     <!-- Время -->
@@ -60,6 +72,10 @@ export default {
         responsibleUsers: {
             type: Array,
             required: true
+        },
+        currentUserId: {
+            type: Number,
+            default: null
         },
         updatingConfirmation: {
             type: Boolean,
@@ -133,19 +149,6 @@ export default {
                 hour: '2-digit',
                 minute: '2-digit'
             });
-        },
-
-        formatPhone(phone) {
-            if (!phone) return '';
-            const cleaned = phone.replace(/\D/g, '');
-            
-            if (cleaned.length === 11) {
-                return `+${cleaned[0]} (${cleaned.substring(1, 4)}) ${cleaned.substring(4, 7)}-${cleaned.substring(7, 9)}-${cleaned.substring(9)}`;
-            } else if (cleaned.length === 10) {
-                return `+7 (${cleaned.substring(0, 3)}) ${cleaned.substring(3, 6)}-${cleaned.substring(6, 8)}-${cleaned.substring(8)}`;
-            }
-            
-            return phone;
         }
     }
 }
@@ -195,20 +198,17 @@ export default {
     100% { transform: rotate(360deg); }
 }
 
-.confirmation-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 3px 0;
-}
-
 .confirmation-info {
     margin-bottom: 20px;
-    transition: opacity 0.3s ease;
 }
 
-.confirmation-label {
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+}
+
+.info-label {
     color: #a2a2a2;
     font-size: 14px;
     font-weight: 400;
@@ -216,9 +216,9 @@ export default {
 }
 
 .confirmation-badge {
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
     font-weight: 500;
     display: inline-block;
     border: 1px solid;
@@ -265,6 +265,7 @@ export default {
     border: 1px solid #e6e6e6;
     transition: all 0.2s ease;
     gap: 3px;
+    position: relative;
 }
 
 .user-item:hover {
@@ -292,6 +293,76 @@ export default {
     align-items: center;
     gap: 8px;
     margin: 2px 0;
+    flex-wrap: wrap;
+}
+
+/* Контейнер для бейджа и тултипа */
+.required-badge-container {
+    position: relative;
+    display: inline-block;
+}
+
+.required-badge {
+    background: #4F5BDF;
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-block;
+    white-space: nowrap;
+    cursor: help;
+}
+
+/* Тултип */
+.required-tooltip {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: #333;
+    color: white;
+    font-size: 10px;
+    line-height: 1.4;
+    padding: 6px 10px;
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    
+    width: 250px;
+    font-weight: 400;
+}
+
+/* Маленькая стрелочка сверху тултипа */
+.required-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 12px;
+    width: 8px;
+    height: 8px;
+    background: #333;
+    transform: rotate(45deg);
+    border-radius: 2px;
+}
+
+/* Показываем тултип при наведении на контейнер */
+.required-badge-container:hover .required-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.user-comment-block {
+    font-size: 11px;
+    color: #4b5563;
+    background: #f3f4f6;
+    padding: 6px 10px;
+    border-radius: 10px;
+    margin-top: 4px;
+    border-left: 3px solid #4F5BDF;
 }
 
 .user-time-block {
@@ -345,8 +416,14 @@ export default {
     white-space: nowrap;
 }
 
-.required-badge {
-    background: #4F5BDF;
-    color: #fff;
+.comment-label {
+    color: #6b7280;
+    font-size: 11px;
+    margin-right: 4px;
+}
+
+.comment-text {
+    color: #1f2937;
+    font-size: 12px;
 }
 </style>

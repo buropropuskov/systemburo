@@ -1,4 +1,3 @@
-// routes.rs
 use actix_web::web;
 
 use crate::handlers::auth::*;
@@ -18,6 +17,8 @@ use crate::handlers::cars::*;
 use crate::handlers::employees::*;
 use crate::handlers::feedback::*;
 use crate::handlers::application_approvers::*;
+use crate::handlers::application_history::*;
+
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -63,23 +64,28 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/details", web::get().to(get_application_details))
                 .route("/{id}/attachments", web::get().to(get_application_attachments))
                 .route("/{id}/update-items-status", web::post().to(update_application_items_status))
-                // Новые маршруты для согласования и принятия
+                // Маршруты для согласования и принятия
                 .route("/{id}/forward", web::post().to(forward_application))
                 .route("/{id}/approve", web::post().to(approve_application_by_user))
-                .route("/{id}/check-approval-status", web::get().to(check_approval_status)) // НОВЫЙ
-                .route("/{id}/take-to-work", web::post().to(take_application_to_work)) // НОВЫЙ
-                .route("/{id}/revoke-from-work", web::post().to(revoke_application_from_work)) // НОВЫЙ
-                .route("/{id}/restore-to-work", web::post().to(restore_application_to_work)) // НОВЫЙ
+                .route("/{id}/check-approval-status", web::get().to(check_approval_status))
+                .route("/{id}/take-to-work", web::post().to(take_application_to_work))
+                .route("/{id}/revoke-from-work", web::post().to(revoke_application_from_work))
+                .route("/{id}/restore-to-work", web::post().to(restore_application_to_work))
+                // Новые маршруты для истории
+                .route("/{id}/history", web::get().to(get_application_history))
+                .route("/{id}/revoke-approval", web::post().to(revoke_approval))
+                .route("/history", web::post().to(add_history_entry))
         )
 
-        // Машины
+        // Машины - обновленный раздел с новыми маршрутами
         .service(
-            web::scope("/cars")
-                .route("/active-for-tables", web::get().to(get_active_cars_for_tables))
-                .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
-                .route("/unload-places", web::get().to(get_car_unload_places))
-                .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
-        )
+    web::scope("/cars")
+        .route("/active-for-tables", web::get().to(get_active_cars_for_tables))
+        .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
+        .route("/unload-places", web::get().to(get_car_unload_places))
+        .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
+       
+)
 
         // Сотрудники
         .service(
@@ -175,8 +181,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::resource("/users/{username}/info")
                 .route(web::put().to(update_user_info))
         )
-        .service(web::resource("/users/{username}").route(web::delete().to(delete_user))
-        )
+        .service(web::resource("/users/{username}").route(web::delete().to(delete_user)))
         // Получение текущего пользователя
         .service(web::resource("/users/current").route(web::get().to(get_current_user)))
 

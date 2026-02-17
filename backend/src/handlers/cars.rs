@@ -118,8 +118,6 @@ pub async fn create_car(
     })))
 }
 
-
-/// Получение активных машин для ВСЕХ таблиц с типом cars
 /// Получение активных машин для ВСЕХ таблиц с типом cars
 pub async fn get_active_cars_for_tables(
     pool: web::Data<PgPool>,
@@ -149,11 +147,10 @@ pub async fn get_active_cars_for_tables(
         entry_time_from: Option<chrono::NaiveTime>,
         entry_time_to: Option<chrono::NaiveTime>,
         status: i32,
-        application_id: Option<i32>, // Добавляем application_id для удаления
+        application_id: Option<i32>,
     }
 
     // Получаем ВСЕ активные машины из согласованных заявок
-    // Исключаем ТОЛЬКО машины с номером "по факту" (они будут в FactTable)
     let rows = sqlx::query!(
         r#"
         SELECT 
@@ -166,7 +163,7 @@ pub async fn get_active_cars_for_tables(
             c.entry_time_from,
             c.entry_time_to,
             c.status,
-            app.id as application_id  -- Добавляем application_id
+            app.id as application_id
         FROM cars c
         JOIN attachments a ON c.attachment_id = a.id
         JOIN applications app ON a.application_id = app.id
@@ -175,7 +172,7 @@ pub async fn get_active_cars_for_tables(
         WHERE c.status = 1
         AND app.confirmation = 'Согласовано'
         AND app.status IN ('В работе', 'Завершено')
-        AND LOWER(TRIM(c.car_number)) != 'по факту'  -- Исключаем только номера "по факту"
+        AND LOWER(TRIM(c.car_number)) != 'по факту'
         ORDER BY c.car_number
         "#
     )
@@ -221,7 +218,7 @@ pub async fn get_active_cars_for_tables(
             entry_time_from: Some(row.entry_time_from),
             entry_time_to: Some(row.entry_time_to),
             status: row.status.unwrap_or(0),
-            application_id: Some(row.application_id), // Сохраняем application_id
+            application_id: Some(row.application_id),
         });
     }
 
@@ -229,7 +226,6 @@ pub async fn get_active_cars_for_tables(
 }
 
 /// Получение машин "по факту"
-/// Получение машин "по факту" - УПРОЩЕННАЯ И РАБОЧАЯ ВЕРСИЯ
 pub async fn get_fact_cars_for_tables(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -258,7 +254,6 @@ pub async fn get_fact_cars_for_tables(
         application_id: Option<i32>,
     }
 
-    // ПРОСТОЙ ЗАПРОС БЕЗ ФИЛЬТРАЦИИ ПО ТЕКУЩЕМУ ВРЕМЕНИ
     let rows = sqlx::query!(
         r#"
         SELECT 
@@ -276,10 +271,9 @@ pub async fn get_fact_cars_for_tables(
         LEFT JOIN organizations o ON app.organization_id = o.id
         LEFT JOIN companies co ON app.company_id = co.id
         WHERE c.status = 1
-        AND LOWER(TRIM(c.car_number)) = 'по факту'  -- ТОЛЬКО ПО НОМЕРУ!
+        AND LOWER(TRIM(c.car_number)) = 'по факту'
         AND app.confirmation = 'Согласовано'
         AND app.status IN ('В работе', 'Завершено')
-        -- УБРАНА ФИЛЬТРАЦИЯ ПО CURRENT_DATE и CURRENT_TIME
         ORDER BY organization, c.entry_date_to
         "#
     )
@@ -332,7 +326,6 @@ pub async fn get_fact_cars_for_tables(
         
         log::info!("Alternative search found {} cars", alt_rows.len());
         
-        // Используем альтернативные результаты
         let cars: Vec<FactCar> = alt_rows.into_iter().map(|row| {
             FactCar {
                 id: row.id,
@@ -349,7 +342,6 @@ pub async fn get_fact_cars_for_tables(
         return Ok(HttpResponse::Ok().json(cars));
     }
 
-    // Преобразуем результаты
     let cars: Vec<FactCar> = rows.into_iter().map(|row| {
         FactCar {
             id: row.id,

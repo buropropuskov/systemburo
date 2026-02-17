@@ -21,10 +21,10 @@
             <div class="detail-header">
                 <div class="detail-header-left">
                     <div class="detail-title-row">
-                        <h3 class="detail-title">Заявка {{ application.application_number }}</h3>
+                        <h3 class="detail-title">Заявка {{ applicationData.application_number }}</h3>
                         <div class="detail-datetime">
-                            {{ formatDateTime(application.sending_datetime) }}
-                            <span class="weekday">{{ getWeekday(application.sending_datetime) }}</span>
+                            {{ formatDateTime(applicationData.sending_datetime) }}
+                            <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
                         </div>
                         <!-- Кнопка пересылки (рядом с датой) -->
                         <button 
@@ -41,14 +41,123 @@
                 <div class="detail-header-right">
                     <!-- Режим центра заявок -->
                     <div v-if="mode === 'center'" class="action-buttons">
-                        <!-- Для принимающих заявки -->
-                        <template v-if="isApprover">
-                            <!-- Если заявка в работе - показываем статус -->
-                            <div v-if="application.status === 'В работе'" class="status-badge status-in-work-badge">
-                                В работе
-                            </div>
-                            <!-- Если заявка не в работе и согласована - показываем кнопки -->
-                            <template v-else-if="application.confirmation === 'Согласовано'">
+                        <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
+                        <template v-if="isApprover && isResponsibleUser">
+                            <!-- Если пользователь еще не голосовал -->
+                            <template v-if="!hasUserVoted">
+                                <!-- Показываем кнопки согласования, если заявка не отклонена окончательно -->
+                                <template v-if="applicationData.confirmation !== 'Не согласовано'">
+                                    <button 
+                                        class="accept-btn" 
+                                        @click="handleCombinedAction('accept')"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Согласовать и принять</span>
+                                    </button>
+                                    <button 
+                                        class="reject-btn" 
+                                        @click="handleCombinedAction('reject')"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Отказать</span>
+                                    </button>
+                                </template>
+                                <!-- Если заявка отклонена окончательно -->
+                                <div v-else class="info-badge">
+                                    Заявка отклонена
+                                </div>
+                            </template>
+                            
+                            <!-- Если пользователь уже проголосовал -->
+                            <template v-else>
+                                <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
+                                <template v-if="applicationData.status === 'В работе'">
+                                    <button 
+                                        class="subtle-btn" 
+                                        @click="revokeApplication"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Отозвать из работы</span>
+                                    </button>
+                                    <div class="status-badge status-in-work-badge">
+                                        В работе
+                                    </div>
+                                </template>
+                                <!-- Если заявка отказана - показываем статус и кнопку возврата -->
+                                <template v-else-if="applicationData.status === 'Отказано'">
+                                    <button 
+                                        class="subtle-btn" 
+                                        @click="restoreApplication"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Вернуть в работу</span>
+                                    </button>
+                                    <div class="status-badge status-rejected-badge">
+                                        Отказано
+                                    </div>
+                                </template>
+                                <!-- Если заявка не в работе и не отказана, но согласована - показываем кнопки принять/отказать -->
+                                <template v-else-if="applicationData.confirmation === 'Согласовано'">
+                                    <button 
+                                        class="accept-btn" 
+                                        @click="handleApplicationAction('accept')"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Принять</span>
+                                    </button>
+                                    <button 
+                                        class="reject-btn" 
+                                        @click="handleApplicationAction('reject')"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Отказать</span>
+                                    </button>
+                                </template>
+                                <!-- Если пользователь проголосовал, но заявка не согласована (ждет других) -->
+                                <div v-else class="vote-status-badge" :class="userVoteStatus.class">
+                                    {{ userVoteStatus.text }} (ожидание других)
+                                </div>
+                            </template>
+                        </template>
+                        
+                        <!-- Для принимающих заявки (не ответственных) -->
+                        <template v-else-if="isApprover">
+                            <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
+                            <template v-if="applicationData.status === 'В работе'">
+                                <button 
+                                    class="subtle-btn" 
+                                    @click="revokeApplication"
+                                    :disabled="processingApplication"
+                                >
+                                    <span v-if="processingApplication" class="button-loading"></span>
+                                    <span v-else>Отозвать из работы</span>
+                                </button>
+                                <div class="status-badge status-in-work-badge">
+                                    В работе
+                                </div>
+                            </template>
+                            <!-- Если заявка отказана - показываем статус и кнопку возврата -->
+                            <template v-else-if="applicationData.status === 'Отказано'">
+                                <button 
+                                    class="subtle-btn" 
+                                    @click="restoreApplication"
+                                    :disabled="processingApplication"
+                                >
+                                    <span v-if="processingApplication" class="button-loading"></span>
+                                    <span v-else>Вернуть в работу</span>
+                                </button>
+                                <div class="status-badge status-rejected-badge">
+                                    Отказано
+                                </div>
+                            </template>
+                            <!-- Если заявка не в работе и согласована - показываем кнопки принять/отказать -->
+                            <template v-else-if="applicationData.confirmation === 'Согласовано'">
                                 <button 
                                     class="accept-btn" 
                                     @click="handleApplicationAction('accept')"
@@ -72,59 +181,74 @@
                             </div>
                         </template>
                         
-                        <!-- Для ответственных за согласование -->
+                        <!-- Для ответственных за согласование (не принимающих) -->
                         <template v-else-if="isResponsibleUser">
-                            <!-- Если пользователь уже проголосовал -->
-                            <div v-if="hasUserVoted" class="vote-status-badge" :class="userVoteStatus.class">
-                                {{ userVoteStatus.text }}
-                            </div>
-                            <!-- Если заявка на согласовании и пользователь еще не голосовал -->
-                            <template v-else-if="application.confirmation === 'Согласование'">
-                                <button 
-                                    class="confirm-btn" 
-                                    @click="updateConfirmation('Согласовано')"
-                                    :disabled="updatingConfirmation || processingApplication"
-                                >
-                                    <span v-if="updatingConfirmation" class="button-loading"></span>
-                                    <span v-else>Согласовать</span>
-                                </button>
-                                <button 
-                                    class="reject-btn" 
-                                    @click="updateConfirmation('Не согласовано')"
-                                    :disabled="updatingConfirmation || processingApplication"
-                                >
-                                    <span v-if="updatingConfirmation" class="button-loading"></span>
-                                    <span v-else>Отказать</span>
-                                </button>
+                            <!-- Если пользователь еще не голосовал -->
+                            <template v-if="!hasUserVoted">
+                                <!-- Показываем кнопки согласования ВСЕГДА, когда заявка не отклонена окончательно -->
+                                <template v-if="applicationData.confirmation !== 'Не согласовано'">
+                                    <button 
+                                        class="confirm-btn" 
+                                        @click="updateConfirmation('Согласовано')"
+                                        :disabled="updatingConfirmation || processingApplication"
+                                    >
+                                        <span v-if="updatingConfirmation" class="button-loading"></span>
+                                        <span v-else>Согласовать</span>
+                                    </button>
+                                    <button 
+                                        class="reject-btn" 
+                                        @click="updateConfirmation('Не согласовано')"
+                                        :disabled="updatingConfirmation || processingApplication"
+                                    >
+                                        <span v-if="updatingConfirmation" class="button-loading"></span>
+                                        <span v-else>Отказать</span>
+                                    </button>
+                                </template>
+                                <!-- Если заявка отклонена окончательно -->
+                                <div v-else class="info-badge">
+                                    Заявка отклонена
+                                </div>
                             </template>
-                            <!-- Если заявка уже согласована/отклонена и пользователь не голосовал (например, добавлен позже) -->
-                            <div v-else class="info-badge">
-                                Заявка {{ application.confirmation.toLowerCase() }}
-                            </div>
+                            
+                            <!-- Если пользователь уже проголосовал -->
+                            <template v-else>
+                                <!-- Если заявка в работе - показываем только статус (нельзя отозвать) -->
+                                <template v-if="applicationData.status === 'В работе'">
+                                    <div class="vote-status-badge" :class="userVoteStatus.class">
+                                        {{ userVoteStatus.text }}
+                                    </div>
+                                </template>
+                                <!-- Если заявка не в работе - показываем кнопку отзыва согласования -->
+                                <template v-else>
+                                    <button 
+                                        class="revoke-approval-btn subtle-btn" 
+                                        @click="revokeOwnApproval"
+                                        :disabled="processingApplication"
+                                    >
+                                        <span v-if="processingApplication" class="button-loading"></span>
+                                        <span v-else>Отозвать своё решение</span>
+                                    </button>
+                                    <div class="vote-status-badge" :class="userVoteStatus.class">
+                                        {{ userVoteStatus.text }}
+                                    </div>
+                                </template>
+                            </template>
                         </template>
                         
-                        <!-- Для создателя заявки - кнопки управления -->
-                        <template v-if="canManageApplication">
-                            <!-- Если заявка в работе - показать кнопку отзыва -->
-                            <button 
-                                v-if="application.status === 'В работе'"
-                                class="revoke-btn" 
-                                @click="revokeApplication"
-                                :disabled="processingApplication"
-                            >
-                                <span v-if="processingApplication" class="button-loading"></span>
-                                <span v-else>Отозвать из работы</span>
-                            </button>
-                            <!-- Если заявка согласована и не в работе - показать кнопку возврата в работу (для повторного принятия) -->
-                            <button 
-                                v-else-if="application.confirmation === 'Согласовано' && application.status !== 'В работе' && application.status !== 'Отказано'"
-                                class="restore-btn" 
-                                @click="restoreApplication"
-                                :disabled="processingApplication"
-                            >
-                                <span v-if="processingApplication" class="button-loading"></span>
-                                <span v-else>Вернуть в работу</span>
-                            </button>
+                        <!-- Для остальных пользователей - только информация -->
+                        <template v-else>
+                            <div v-if="applicationData.status === 'В работе'" class="status-badge status-in-work-badge">
+                                В работе
+                            </div>
+                            <div v-else-if="applicationData.status === 'Отказано'" class="status-badge status-rejected-badge">
+                                Отказано
+                            </div>
+                            <div v-else-if="applicationData.confirmation === 'Согласовано'" class="status-badge status-approved-badge">
+                                Согласовано
+                            </div>
+                            <div v-else-if="applicationData.confirmation === 'Согласование'" class="status-badge status-pending-badge">
+                                На согласовании
+                            </div>
                         </template>
                     </div>
                     
@@ -146,7 +270,7 @@
                 <!-- Левая колонка - вложения -->
                 <div class="detail-left-column" :class="{ collapsed: isLeftColumnCollapsed }">
                     <ApplicationAttachments 
-                        :application-id="application.id"
+                        :application-id="applicationData.id"
                         :attachments="attachments"
                         :collapsed="isLeftColumnCollapsed"
                         @attachment-selected="selectAttachment"
@@ -158,9 +282,9 @@
                 <div class="detail-main-column">
                     <!-- Сообщение заявки -->
                     <div class="message-section">
-                        <h4>Сообщение к заявке {{ application.application_number }}</h4>
+                        <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
                         <div class="message-content">
-                            {{ application.message || 'Сообщение отсутствует' }}
+                            {{ applicationData.message || 'Сообщение отсутствует' }}
                         </div>
                     </div>
 
@@ -190,97 +314,104 @@
                             <!-- Данные вложения в зависимости от типа -->
                             <div class="attachment-data">
                                 <!-- Автомобили -->
-                                <div v-if="selectedAttachment.attachment_type === 'cars'" class="cars-section">
-                                    <h5>Список автомобилей ({{ attachmentCars.length }})</h5>
-                                    <div v-if="loadingAttachmentDetails" class="loading-container">
-                                        <div class="loading-spinner"></div>
-                                        <span class="loading-text">Загрузка автомобилей...</span>
-                                    </div>
-                                    <div v-else-if="attachmentCars.length > 0" class="cars-list">
-                                        <div v-for="(car, index) in attachmentCars" :key="car.id" class="car-item">
-                                            <div class="car-item-content">
-                                                <!-- Номер порядковый -->
-                                                <div class="item-number">
-                                                    {{ index + 1 }}.
-                                                </div>
-                                                <div class="car-main-info">
-                                                    <span class="car-number">{{ car.car_number }}</span>
-                                                    <span class="car-brand">{{ car.car_brand }}</span>
-                                                </div>
-                                                <!-- Места разгрузки -->
-                                                <div v-if="car.unload_places && car.unload_places.length > 0" 
-                                                    class="unload-places-container"
-                                                    :title="getFullPlacesList(car.unload_places)"
-                                                >
-                                                    <span class="places-list">
-                                                        {{ getTruncatedPlacesList(car.unload_places) }}
-                                                    </span>
+                                <div v-if="selectedAttachment?.attachment_type === 'cars'" class="cars-section">
+                                    <h5>Список автомобилей</h5>
+                                    <template v-if="loadingAttachmentDetails">
+                                        <div class="loading-container">
+                                            <div class="loading-spinner"></div>
+                                            <span class="loading-text">Загрузка...</span>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div v-if="attachmentCars.length > 0" class="cars-list">
+                                            <div v-for="(car, index) in attachmentCars" :key="car.id" class="car-item">
+                                                <div class="car-item-content">
+                                                    <div class="item-number">
+                                                        {{ index + 1 }}.
+                                                    </div>
+                                                    <div class="car-main-info">
+                                                        <span class="car-number">{{ car.car_number }}</span>
+                                                        <span class="car-brand">{{ car.car_brand }}</span>
+                                                    </div>
+                                                    <div v-if="car.unload_places && car.unload_places.length > 0" 
+                                                        class="unload-places-container"
+                                                        :title="getFullPlacesList(car.unload_places)"
+                                                    >
+                                                        <span class="places-list">
+                                                            {{ getTruncatedPlacesList(car.unload_places) }}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div v-else class="no-data">
-                                        Нет данных об автомобилях
-                                    </div>
+                                        <div v-else class="no-data">
+                                            Нет данных об автомобилях
+                                        </div>
+                                    </template>
                                 </div>
 
                                 <!-- Сотрудники -->
-                                <div v-if="selectedAttachment.attachment_type === 'people'" class="employees-section">
-                                    <h5>Сотрудники ({{ attachmentEmployees.length }})</h5>
-                                    <div v-if="loadingAttachmentDetails" class="loading-container">
-                                        <div class="loading-spinner"></div>
-                                        <span class="loading-text">Загрузка сотрудников...</span>
-                                    </div>
-                                    <div v-else-if="attachmentEmployees.length > 0" class="employees-list">
-                                        <div v-for="(employee, index) in attachmentEmployees" :key="employee.id" class="employee-item">
-                                            <div class="employee-item-content">
-                                                <!-- Номер порядковый -->
-                                                <div class="item-number">
-                                                    {{ index + 1 }}.
-                                                </div>
-                                                <div class="employee-main-info">
-                                                    <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
-                                                    <span class="employee-position">{{ employee.position }}</span>
-                                                </div>
-                                                <!-- Целевые таблицы -->
-                                                <div v-if="employee.target_tables && employee.target_tables.length > 0" 
-                                                    class="target-tables-container"
-                                                    :title="getFullTablesList(employee.target_tables)"
-                                                >
-                                                    <span class="tables-list">
-                                                        {{ getTruncatedTablesList(employee.target_tables) }}
-                                                    </span>
+                                <div v-if="selectedAttachment?.attachment_type === 'people'" class="employees-section">
+                                    <h5>Сотрудники</h5>
+                                    <template v-if="loadingAttachmentDetails">
+                                        <div class="loading-container">
+                                            <div class="loading-spinner"></div>
+                                            <span class="loading-text">Загрузка...</span>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div v-if="attachmentEmployees.length > 0" class="employees-list">
+                                            <div v-for="(employee, index) in attachmentEmployees" :key="employee.id" class="employee-item">
+                                                <div class="employee-item-content">
+                                                    <div class="item-number">
+                                                        {{ index + 1 }}.
+                                                    </div>
+                                                    <div class="employee-main-info">
+                                                        <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
+                                                        <span class="employee-position">{{ employee.position }}</span>
+                                                    </div>
+                                                    <div v-if="employee.target_tables && employee.target_tables.length > 0" 
+                                                        class="target-tables-container"
+                                                        :title="getFullTablesList(employee.target_tables)"
+                                                    >
+                                                        <span class="tables-list">
+                                                            {{ getTruncatedTablesList(employee.target_tables) }}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div v-else class="no-data">
-                                        Нет данных о сотрудниках
-                                    </div>
+                                        <div v-else class="no-data">
+                                            Нет данных о сотрудниках
+                                        </div>
+                                    </template>
                                 </div>
 
                                 <!-- ТМЦ -->
-                                <div v-if="selectedAttachment.attachment_type === 'items'" class="items-section">
-                                    <h5>Товарно-материальные ценности ({{ attachmentItems.length }})</h5>
-                                    <div v-if="loadingAttachmentDetails" class="loading-container">
-                                        <div class="loading-spinner"></div>
-                                        <span class="loading-text">Загрузка ТМЦ...</span>
-                                    </div>
-                                    <div v-else-if="attachmentItems.length > 0" class="items-list">
-                                        <div v-for="(item, index) in attachmentItems" :key="item.id" class="item-item">
-                                            <div class="item-item-content">
-                                                <!-- Номер порядковый -->
-                                                <div class="item-number">
-                                                    {{ index + 1 }}.
+                                <div v-if="selectedAttachment?.attachment_type === 'items'" class="items-section">
+                                    <h5>Товарно-материальные ценности</h5>
+                                    <template v-if="loadingAttachmentDetails">
+                                        <div class="loading-container">
+                                            <div class="loading-spinner"></div>
+                                            <span class="loading-text">Загрузка...</span>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div v-if="attachmentItems.length > 0" class="items-list">
+                                            <div v-for="(item, index) in attachmentItems" :key="item.id" class="item-item">
+                                                <div class="item-item-content">
+                                                    <div class="item-number">
+                                                        {{ index + 1 }}.
+                                                    </div>
+                                                    <span class="item-name">{{ item.name }}</span>
+                                                    <span class="item-count">Количество: {{ item.count }}</span>
                                                 </div>
-                                                <span class="item-name">{{ item.name }}</span>
-                                                <span class="item-count">Количество: {{ item.count }}</span>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div v-else class="no-data">
-                                        Нет данных о ТМЦ
-                                    </div>
+                                        <div v-else class="no-data">
+                                            Нет данных о ТМЦ
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -295,33 +426,75 @@
                         <div class="info-grid">
                             <div class="info-row">
                                 <span class="info-label">Организация / Отдел:</span>
-                                <span class="info-value">{{ application.organization_name }}</span>
+                                <span class="info-value">{{ applicationData.organization_name }}</span>
                             </div>
-                            <div v-if="application.company_name" class="info-row">
+                            <div v-if="applicationData.company_name" class="info-row">
                                 <span class="info-label">Компания:</span>
-                                <span class="info-value">{{ application.company_name }}</span>
+                                <span class="info-value">{{ applicationData.company_name }}</span>
                             </div>
                             <div class="info-row">
                                 <span class="info-label">Отправитель:</span>
-                                <span class="info-value">{{ application.sender_full_name || application.sender_name }}</span>
+                                <span class="info-value">{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Компонент согласования -->
+                    <!-- Блок статуса заявки (для принятых/отказанных) -->
+                    <div v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'" class="application-status-section">
+                        <div class="status-header">
+                            <h4>Статус заявки</h4>
+                            <span class="status-mini-badge" :class="getStatusBadgeClass(applicationData.status)">
+                                {{ applicationData.status }}
+                            </span>
+                        </div>
+                        
+                        <div class="status-info" v-if="applicationData.responsible_user_id">
+                            <div class="status-info-row">
+                                <span class="status-info-label">{{ applicationData.status === 'В работе' ? 'Принял(-а):' : 'Отказал(а):' }}</span>
+                                <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
+                            </div>
+                            <div v-if="applicationData.confirmation_datetime" class="status-info-row">
+                                <span class="status-info-label">Время:</span>
+                                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+                            </div>
+                            <div class="status-info-row comment-row">
+                                <span class="status-info-label">Комментарий:</span>
+                                <div class="status-info-value comment-text">{{ applicationData.responsible_comment || 'Комментария нет' }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Поле для комментария (только для пользователей, которые еще не выполнили действие) -->
+                    <div v-if="canLeaveComment && !hasUserVoted && !isApproverActionDone" class="comment-action-section">
+                        <h4>Комментарий</h4>
+                        <textarea
+                            v-model="actionComment"
+                            class="comment-action-textarea"
+                            placeholder="Вы можете написать здесь комментарий (необязательно)"
+                            rows="3"
+                            @input="saveCommentToLocalStorage"
+                        ></textarea>
+                    </div>
+
+                    <!-- Компонент согласования (без информации о принявшем) -->
                     <ApplicationConfirmation 
-                        :application="application"
+                        ref="confirmationComponent"
+                        :application="applicationData"
                         :responsible-users="responsibleUsers"
                         :current-user-id="currentUserId"
                         :updating-confirmation="updatingConfirmation"
                     />
 
-                    <!-- Комментарий ответственного -->
-                    <div v-if="application.responsible_comment" class="comment-section">
-                        <h4>Комментарий ответственного</h4>
-                        <div class="comment-content">
-                            {{ application.responsible_comment }}
-                        </div>
+                    <div class="history-button-section">
+                        <ApplicationHistory
+                            ref="historyComponent"
+                            :application-id="applicationData.id"
+                            :application-number="applicationData.application_number"
+                            :current-user-id="currentUserId"
+                            :current-user-name="currentUserName"
+                            :application-organization="applicationData.organization_name"
+                            @application-updated="handleApplicationUpdate"
+                        />
                     </div>
                 </div>
             </div>
@@ -332,6 +505,7 @@
 <script>
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
+import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
 
 export default {
@@ -339,6 +513,7 @@ export default {
     components: {
         ApplicationAttachments,
         ApplicationConfirmation,
+        ApplicationHistory,
         ForwardModal
     },
     props: {
@@ -356,11 +531,12 @@ export default {
         },
         mode: {
             type: String,
-            default: 'center' // 'center' или 'user'
+            default: 'center'
         }
     },
     data() {
         return {
+            applicationData: { ...this.application },
             attachments: [],
             selectedAttachment: null,
             attachmentCars: [],
@@ -370,7 +546,6 @@ export default {
             updatingConfirmation: false,
             processingApplication: false,
             loadingAttachmentDetails: false,
-            loadingApplicationDetails: false,
             isLeftColumnCollapsed: false,
             notification: {
                 show: false,
@@ -380,7 +555,10 @@ export default {
             showForwardModal: false,
             isForwarding: false,
             allUsers: [],
-            approvers: []
+            approvers: [],
+            actionComment: '', // Поле для комментария к действию
+            lastUserComment: '', // Сохраняем последний комментарий пользователя
+            storageKey: '' // Ключ для localStorage
         }
     },
     computed: {
@@ -394,19 +572,16 @@ export default {
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
         },
 
-        // Может ли пользователь управлять заявкой (отозвать/вернуть)
-        canManageApplication() {
-            // Только в режиме центра
-            if (this.mode !== 'center') return false;
-            
-            // Создатель заявки или админ
-            return this.application.sender_user_id === this.currentUserId;
-        },
-
         hasUserVoted() {
             if (!this.currentUserId || !this.responsibleUsers.length) return false;
             const currentUser = this.responsibleUsers.find(user => user.id === this.currentUserId);
             return currentUser && currentUser.approval_status !== 'pending';
+        },
+
+        // Проверяем, выполнил ли принимающий действие
+        isApproverActionDone() {
+            if (!this.isApprover || this.isResponsibleUser) return false;
+            return this.applicationData.status === 'В работе' || this.applicationData.status === 'Отказано';
         },
 
         userVoteStatus() {
@@ -417,12 +592,12 @@ export default {
             
             if (currentUser.approval_status === 'approved') {
                 return {
-                    text: 'Вы согласовали заявку',
+                    text: 'Вы согласовали',
                     class: 'vote-approved'
                 };
             } else if (currentUser.approval_status === 'rejected') {
                 return {
-                    text: 'Вы отказали в заявке',
+                    text: 'Вы отказали',
                     class: 'vote-rejected'
                 };
             }
@@ -430,16 +605,52 @@ export default {
             return null;
         },
 
+        canLeaveComment() {
+            // Может ли текущий пользователь оставить комментарий
+            if (this.processingApplication) return false;
+            
+            // Для принимающих - только если не выполнили действие
+            if (this.isApprover && !this.isResponsibleUser) {
+                return !this.isApproverActionDone;
+            }
+            
+            // Для ответственных - только если не голосовали
+            if (this.isResponsibleUser) {
+                return !this.hasUserVoted;
+            }
+            
+            return false;
+        },
+
+        canUserApprove() {
+            if (!this.responsibleUsers.length) return true;
+            
+            const requiredUsers = this.responsibleUsers.filter(user => user.required_approval);
+            
+            if (requiredUsers.length === 0) return true;
+            
+            const hasRequiredRejected = requiredUsers.some(user => user.approval_status === 'rejected');
+            
+            if (hasRequiredRejected && this.applicationData.confirmation === 'Не согласовано') {
+                return false;
+            }
+            
+            return true;
+        },
+
         getApproverStatusMessage() {
-            if (this.application.status === 'В работе') {
+            if (this.applicationData.status === 'В работе') {
                 return 'Заявка уже в работе';
             }
             
-            if (this.application.status === 'Отказано') {
+            if (this.applicationData.status === 'Отказано') {
                 return 'Заявка отклонена';
             }
             
-            if (this.application.confirmation !== 'Согласовано') {
+            if (this.applicationData.confirmation !== 'Согласовано') {
+                if (!this.canUserApprove) {
+                    return 'Ожидание обязательных согласующих';
+                }
                 return 'Ожидает согласования';
             }
             
@@ -451,45 +662,99 @@ export default {
             immediate: true,
             handler(newApplication) {
                 if (newApplication && newApplication.id) {
+                    this.applicationData = { ...newApplication };
+                    this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
+                    this.loadCommentFromLocalStorage();
                     this.loadApplicationDetails(newApplication);
                 }
-            }
+            },
+            deep: true
         }
     },
     methods: {
+        getStatusBadgeClass(status) {
+            const classes = {
+                'В работе': 'status-mini-work',
+                'Отказано': 'status-mini-rejected'
+            };
+            return classes[status] || '';
+        },
+
+        saveCommentToLocalStorage() {
+            if (this.storageKey && this.currentUserId) {
+                localStorage.setItem(this.storageKey, this.actionComment);
+            }
+        },
+
+        loadCommentFromLocalStorage() {
+            if (this.storageKey && this.currentUserId) {
+                const savedComment = localStorage.getItem(this.storageKey);
+                if (savedComment) {
+                    this.actionComment = savedComment;
+                    this.lastUserComment = savedComment;
+                }
+            }
+        },
+
+        clearCommentFromLocalStorage() {
+            if (this.storageKey) {
+                localStorage.removeItem(this.storageKey);
+            }
+        },
+
         async loadApplicationDetails(application) {
-            this.loadingApplicationDetails = true;
             try {
                 const token = localStorage.getItem("token");
                 
-                const appResponse = await fetch(`http://localhost:8080/applications/${application.id}/details`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
-                });
+                const [appResponse, attachmentsResponse] = await Promise.all([
+                    fetch(`http://localhost:8080/applications/${application.id}/details`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                    }),
+                    fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                    })
+                ]);
 
                 if (appResponse.ok) {
                     const appData = await appResponse.json();
                     
-                    Object.assign(this.application, appData);
+                    this.applicationData = {
+                        ...this.applicationData,
+                        ...appData
+                    };
                     
                     if (appData.responsible_users) {
                         this.responsibleUsers = appData.responsible_users.map(user => ({
                             ...user,
                             approval_status: user.approval_status || 'pending'
                         }));
+                        
+                        // Загружаем комментарий текущего пользователя из БД, если он есть
+                        if (this.currentUserId) {
+                            const currentUser = this.responsibleUsers.find(u => u.id === this.currentUserId);
+                            if (currentUser && currentUser.approval_comment) {
+                                this.actionComment = currentUser.approval_comment;
+                                this.lastUserComment = currentUser.approval_comment;
+                                this.saveCommentToLocalStorage();
+                            } else {
+                                // Если в БД нет, используем сохраненный из localStorage
+                                this.loadCommentFromLocalStorage();
+                            }
+                        }
+                    }
+                    
+                    if (this.$refs.confirmationComponent) {
+                        this.$refs.confirmationComponent.$forceUpdate();
                     }
                 }
-
-                const attachmentsResponse = await fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
-                });
 
                 if (attachmentsResponse.ok) {
                     this.attachments = await attachmentsResponse.json();
@@ -504,8 +769,6 @@ export default {
 
             } catch (error) {
                 console.error("Ошибка при загрузке деталей заявки:", error);
-            } finally {
-                this.loadingApplicationDetails = false;
             }
         },
 
@@ -555,11 +818,9 @@ export default {
                 const attachment = this.attachments.find(a => a.id === attachmentId);
                 if (!attachment) return;
 
-                let carsResponse, employeesResponse, itemsResponse;
-                
                 switch (attachment.attachment_type) {
-                    case 'cars':
-                        carsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/cars`, {
+                    case 'cars': {
+                        const carsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/cars`, {
                             method: "GET",
                             headers: {
                                 "Authorization": `Bearer ${token}`,
@@ -569,9 +830,10 @@ export default {
                             this.attachmentCars = await carsResponse.json();
                         }
                         break;
+                    }
                     
-                    case 'people':
-                        employeesResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/employees`, {
+                    case 'people': {
+                        const employeesResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/employees`, {
                             method: "GET",
                             headers: {
                                 "Authorization": `Bearer ${token}`,
@@ -581,9 +843,10 @@ export default {
                             this.attachmentEmployees = await employeesResponse.json();
                         }
                         break;
+                    }
                     
-                    case 'items':
-                        itemsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/items`, {
+                    case 'items': {
+                        const itemsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/items`, {
                             method: "GET",
                             headers: {
                                 "Authorization": `Bearer ${token}`,
@@ -593,6 +856,7 @@ export default {
                             this.attachmentItems = await itemsResponse.json();
                         }
                         break;
+                    }
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке деталей вложения:", error);
@@ -606,6 +870,97 @@ export default {
             this.loadAttachmentDetails(attachment.id);
         },
 
+        async revokeOwnApproval() {
+            if (!confirm('Вы уверены, что хотите отозвать своё решение?')) return;
+
+            this.processingApplication = true;
+            try {
+                const token = localStorage.getItem("token");
+                
+                // Отзываем решение БЕЗ комментария
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/revoke-approval`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        comment: null // Не отправляем комментарий
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    this.showNotification("Ваше решение отозвано", "success");
+                    
+                    this.applicationData = {
+                        ...this.applicationData,
+                        status: result.status,
+                        confirmation: result.confirmation
+                    };
+                    
+                    // Сохраняем комментарий в localStorage перед перезагрузкой
+                    this.saveCommentToLocalStorage();
+                    
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
+                } else {
+                    const errorText = await response.text();
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error("Ошибка при отзыве решения:", error);
+                this.showNotification("Ошибка сети при отзыве решения", "error");
+            } finally {
+                this.processingApplication = false;
+            }
+        },
+
+        async handleCombinedAction(action) {
+            this.processingApplication = true;
+            try {
+                // Сохраняем комментарий перед отправкой
+                const commentToSend = this.actionComment;
+                this.lastUserComment = commentToSend;
+
+                const approvalResponse = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/approve`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: this.currentUserId,
+                        status: action === 'accept' ? 'approved' : 'rejected',
+                        comment: commentToSend || null
+                    })
+                });
+
+                if (!approvalResponse.ok) {
+                    const errorText = await approvalResponse.text();
+                    throw new Error(errorText);
+                }
+
+                if (action === 'accept') {
+                    await this.acceptApplication();
+                } else {
+                    await this.rejectApplication();
+                }
+                
+            } catch (error) {
+                console.error(`Ошибка при комбинированном действии:`, error);
+                this.showNotification(`Ошибка: ${error.message}`, 'error');
+            } finally {
+                this.processingApplication = false;
+            }
+        },
+
         async handleApplicationAction(action) {
             this.processingApplication = true;
             try {
@@ -614,6 +969,7 @@ export default {
                 } else {
                     await this.rejectApplication();
                 }
+                
             } catch (error) {
                 console.error(`Ошибка при ${action === 'accept' ? 'принятии' : 'отказе'} заявки:`, error);
             } finally {
@@ -625,7 +981,11 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/take-to-work`, {
+                // Сохраняем комментарий перед отправкой
+                const commentToSend = this.actionComment;
+                this.lastUserComment = commentToSend;
+
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/take-to-work`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -633,22 +993,28 @@ export default {
                     },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
-                        action: 'accept'
+                        action: 'accept',
+                        comment: commentToSend || null
                     })
                 });
 
                 if (response.ok) {
                     this.showNotification("Заявка принята в работу", "success");
                     
-                    this.application.status = 'В работе';
+                    this.applicationData = {
+                        ...this.applicationData,
+                        status: 'В работе'
+                    };
                     
-                    await this.loadApplicationDetails(this.application);
+                    // Очищаем комментарий из localStorage после успешного действия
+                    this.clearCommentFromLocalStorage();
                     
-                    this.$emit('application-updated', {
-                        id: this.application.id,
-                        status: 'В работе',
-                        confirmation: this.application.confirmation
-                    });
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
                 } else {
                     const errorText = await response.text();
                     this.showNotification(`Ошибка: ${errorText}`, 'error');
@@ -664,7 +1030,11 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/take-to-work`, {
+                // Сохраняем комментарий перед отправкой
+                const commentToSend = this.actionComment;
+                this.lastUserComment = commentToSend;
+
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/take-to-work`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -672,22 +1042,28 @@ export default {
                     },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
-                        action: 'reject'
+                        action: 'reject',
+                        comment: commentToSend || null
                     })
                 });
 
                 if (response.ok) {
                     this.showNotification("Заявка отклонена", "error");
                     
-                    this.application.status = 'Отказано';
+                    this.applicationData = {
+                        ...this.applicationData,
+                        status: 'Отказано'
+                    };
                     
-                    await this.loadApplicationDetails(this.application);
+                    // Очищаем комментарий из localStorage после успешного действия
+                    this.clearCommentFromLocalStorage();
                     
-                    this.$emit('application-updated', {
-                        id: this.application.id,
-                        status: 'Отказано',
-                        confirmation: this.application.confirmation
-                    });
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
                 } else {
                     const errorText = await response.text();
                     this.showNotification(`Ошибка: ${errorText}`, 'error');
@@ -704,29 +1080,36 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/revoke-from-work`, {
+                // Отзываем заявку БЕЗ комментария
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/revoke-from-work`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${token}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        user_id: this.currentUserId
+                        user_id: this.currentUserId,
+                        comment: null // Не отправляем комментарий
                     })
                 });
 
                 if (response.ok) {
                     this.showNotification("Заявка отозвана из работы", "success");
                     
-                    this.application.status = 'Согласовано';
+                    this.applicationData = {
+                        ...this.applicationData,
+                        status: 'В обработке'
+                    };
                     
-                    await this.loadApplicationDetails(this.application);
+                    // Сохраняем комментарий в localStorage перед перезагрузкой
+                    this.saveCommentToLocalStorage();
                     
-                    this.$emit('application-updated', {
-                        id: this.application.id,
-                        status: 'Согласовано',
-                        confirmation: this.application.confirmation
-                    });
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
                 } else {
                     const errorText = await response.text();
                     this.showNotification(`Ошибка: ${errorText}`, 'error');
@@ -745,29 +1128,39 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/restore-to-work`, {
+                // Сохраняем комментарий перед отправкой
+                const commentToSend = this.actionComment;
+                this.lastUserComment = commentToSend;
+
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/restore-to-work`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${token}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        user_id: this.currentUserId
+                        user_id: this.currentUserId,
+                        comment: commentToSend || null
                     })
                 });
 
                 if (response.ok) {
                     this.showNotification("Заявка возвращена в работу", "success");
                     
-                    this.application.status = 'Согласовано';
+                    this.applicationData = {
+                        ...this.applicationData,
+                        status: 'В обработке'
+                    };
                     
-                    await this.loadApplicationDetails(this.application);
+                    // Сохраняем комментарий в localStorage перед перезагрузкой
+                    this.saveCommentToLocalStorage();
                     
-                    this.$emit('application-updated', {
-                        id: this.application.id,
-                        status: 'Согласовано',
-                        confirmation: this.application.confirmation
-                    });
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
                 } else {
                     const errorText = await response.text();
                     this.showNotification(`Ошибка: ${errorText}`, 'error');
@@ -782,13 +1175,23 @@ export default {
         },
 
         async updateConfirmation(confirmation) {
-            if (!this.application || !this.isResponsibleUser || this.hasUserVoted) return;
+            if (!this.applicationData || !this.isResponsibleUser) return;
 
             this.updatingConfirmation = true;
             try {
                 const token = localStorage.getItem("token");
                 
-                const userApprovalResponse = await fetch(`http://localhost:8080/applications/${this.application.id}/approve`, {
+                if (this.hasUserVoted) {
+                    this.showNotification("Вы уже проголосовали по этой заявке", "error");
+                    this.updatingConfirmation = false;
+                    return;
+                }
+
+                // Сохраняем комментарий перед отправкой
+                const commentToSend = this.actionComment;
+                this.lastUserComment = commentToSend;
+
+                const userApprovalResponse = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/approve`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -797,18 +1200,16 @@ export default {
                     body: JSON.stringify({
                         user_id: this.currentUserId,
                         status: confirmation === 'Согласовано' ? 'approved' : 'rejected',
-                        comment: confirmation === 'Согласовано' ? 
-                            `Заявка согласована пользователем ${this.currentUserName}` : 
-                            `Заявка отклонена пользователем ${this.currentUserName}`
+                        comment: commentToSend || null
                     })
                 });
 
                 if (!userApprovalResponse.ok) {
                     const errorText = await userApprovalResponse.text();
-                    throw new Error(errorText);
+                    throw new Error(errorText || "Error updating application confirmation");
                 }
 
-                const checkResponse = await fetch(`http://localhost:8080/applications/${this.application.id}/check-approval-status`, {
+                const checkResponse = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/check-approval-status`, {
                     method: "GET",
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -818,13 +1219,21 @@ export default {
                 if (checkResponse.ok) {
                     const approvalStatus = await checkResponse.json();
                     
-                    this.$emit('confirmation-updated', {
+                    this.applicationData = {
+                        ...this.applicationData,
                         confirmation: approvalStatus.confirmation,
-                        status: this.application.status
-                    });
+                        ...(approvalStatus.status && { status: approvalStatus.status })
+                    };
                 }
                 
-                await this.loadApplicationDetails(this.application);
+                // Очищаем комментарий из localStorage после успешного действия
+                this.clearCommentFromLocalStorage();
+                
+                await this.loadApplicationDetails(this.applicationData);
+                
+                if (this.$refs.historyComponent) {
+                    this.$refs.historyComponent.loadHistory();
+                }
                 
                 this.showNotification(
                     confirmation === 'Согласовано' 
@@ -836,10 +1245,13 @@ export default {
             } catch (error) {
                 console.error("Ошибка при обновлении подтверждения:", error);
                 this.showNotification(`Ошибка: ${error.message}`, 'error');
-                throw error;
             } finally {
                 this.updatingConfirmation = false;
             }
+        },
+
+        handleApplicationUpdate() {
+            this.loadApplicationDetails(this.applicationData);
         },
 
         forwardApplication() {
@@ -857,7 +1269,7 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.application.id}/forward`, {
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/forward`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -875,7 +1287,12 @@ export default {
                     this.showNotification("Заявка успешно переслана", "success");
                     this.closeForwardModal();
                     
-                    await this.loadApplicationDetails(this.application);
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
                 } else {
                     const errorText = await response.text();
                     this.showNotification(`Ошибка: ${errorText}`, 'error');
@@ -889,8 +1306,8 @@ export default {
         },
 
         duplicateApplication() {
-            console.log('Дублирование заявки:', this.application.application_number);
-            this.$emit('duplicate', this.application);
+            console.log('Дублирование заявки:', this.applicationData.application_number);
+            this.$emit('duplicate', this.applicationData);
             this.showNotification('Функция дублирования пока не реализована', 'error');
         },
 
@@ -987,16 +1404,6 @@ export default {
             return weekdays[date.getDay()];
         },
 
-        getApplicationStatusClass(status) {
-            const classes = {
-                'В работе': 'status-in-work',
-                'Отказано': 'status-rejected',
-                'Согласовано': 'status-approved',
-                'Согласование': 'status-pending'
-            };
-            return classes[status] || '';
-        },
-
         getUserDisplayName(user) {
             const names = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
             return names.length > 0 ? names.join(' ') : user.username;
@@ -1052,93 +1459,135 @@ export default {
             this.$emit('close');
         }
     },
-    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated']
+    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application']
 }
 </script>
 
 <style scoped>
-/* Все стили остаются без изменений, добавляем новые классы для кнопок и статусов */
-
-.revoke-btn, .restore-btn {
-    padding: 6px 24px;
-    border: none;
-    border-radius: 50px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 140px;
+/* Стили остаются без изменений, как в вашем коде */
+.application-status-section {
+    background: white;
     border: 1px solid #e6e6e6;
-    background: #FFA500;
-    color: white;
+    border-radius: 20px;
+    padding: 15px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-.revoke-btn:hover:not(:disabled) {
-    background: #e69500;
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
 }
 
-.restore-btn {
-    background: #4CAF50;
-}
-
-.restore-btn:hover:not(:disabled) {
-    background: #45a049;
-}
-
-.revoke-btn:disabled,
-.restore-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.status-in-work-badge {
-    background: rgba(79, 91, 223, 0.1);
+.status-header h4 {
+    font-size: 18px;
     color: #4F5BDF;
-    border: 1px solid rgba(79, 91, 223, 0.3);
-    padding: 6px 24px;
-    border-radius: 50px;
-    font-size: 14px;
-    font-weight: 600;
-    min-width: 120px;
-    text-align: center;
+    font-weight: 700;
+    margin: 0;
 }
 
-.status-in-work {
-    color: #4F5BDF;
-    font-weight: 600;
-    background: rgba(79, 91, 223, 0.1);
+.status-mini-badge {
     padding: 4px 12px;
     border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
     display: inline-block;
+    border: 1px solid;
 }
 
-.status-rejected {
+.status-mini-work {
+    background-color: rgba(79, 91, 223, 0.1);
+    color: #4F5BDF;
+    border-color: rgba(79, 91, 223, 0.3);
+}
+
+.status-mini-rejected {
+    background-color: rgba(220, 38, 38, 0.1);
     color: #dc2626;
-    font-weight: 600;
-    background: rgba(220, 38, 38, 0.1);
-    padding: 4px 12px;
-    border-radius: 20px;
-    display: inline-block;
+    border-color: rgba(220, 38, 38, 0.3);
 }
 
-.status-approved {
-    color: #059669;
-    font-weight: 600;
-    background: rgba(5, 150, 105, 0.1);
-    padding: 4px 12px;
-    border-radius: 20px;
-    display: inline-block;
+.status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.status-pending {
-    color: #d97706;
-    font-weight: 600;
-    background: rgba(217, 119, 6, 0.1);
-    padding: 4px 12px;
-    border-radius: 20px;
-    display: inline-block;
+.status-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
 }
 
+.status-info-row.comment-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.status-info-label {
+    color: #a2a2a2;
+    font-size: 14px;
+    font-weight: 400;
+    min-width: 120px;
+}
+
+.status-info-value {
+    color: #000;
+    font-size: 15px;
+    font-weight: 400;
+    text-align: end;
+    flex: 1;
+}
+
+.status-info-value.comment-text {
+    font-weight: 400;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+    font-size: 13px;
+    text-align: start;
+    color: #333;
+    
+}
+
+.comment-action-section {
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    padding: 15px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.comment-action-section h4 {
+    font-size: 18px;
+    color: #4F5BDF;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.comment-action-textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    transition: all 0.2s ease;
+    background-color: #fff;
+}
+
+.comment-action-textarea:focus {
+    outline: none;
+    border-color: #4F5BDF;
+    box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+/* Остальные стили остаются без изменений */
 .application-detail-overlay {
     position: fixed;
     top: 0;
@@ -1150,7 +1599,7 @@ export default {
     justify-content: center;
     align-items: center;
     z-index: 10000;
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
@@ -1175,7 +1624,7 @@ export default {
     font-size: 14px;
     font-weight: 500;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    animation: slideInDown 0.3s ease-out, slideOutUp 0.3s ease-out 2.7s forwards;
+    animation: slideInDown 0.2s ease-out, slideOutUp 0.2s ease-out 5.8s forwards;
 }
 
 .notification.success {
@@ -1300,6 +1749,7 @@ export default {
     display: flex;
     gap: 5px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .view-buttons {
@@ -1337,6 +1787,40 @@ export default {
 
 .reject-btn:hover:not(:disabled) {
     background: #ff4d4f;
+}
+
+.subtle-btn {
+    padding: 6px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    background: transparent;
+    color: #a2a2a2;
+    border: 1px solid #e6e6e6;
+}
+
+.subtle-btn:hover:not(:disabled) {
+    background: #f5f5f5;
+    color: #666;
+}
+
+.subtle-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.revoke-approval-btn {
+    border-color: #f59e0b;
+    color: #f59e0b;
+}
+
+.revoke-approval-btn:hover:not(:disabled) {
+    background: #fef3c7;
+    color: #d97706;
 }
 
 .vote-status-badge {
@@ -1394,7 +1878,8 @@ export default {
 .confirm-btn:disabled,
 .reject-btn:disabled,
 .forward-btn:disabled,
-.accept-btn:disabled {
+.accept-btn:disabled,
+.subtle-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
@@ -1498,7 +1983,7 @@ export default {
     border: 1px solid #e6e6e6;
     border-radius: 20px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
+
 }
 
 .attachment-header-section {
@@ -1542,6 +2027,7 @@ export default {
 .attachment-data-section {
     padding: 15px;
     min-height: 300px;
+    max-height: 500px;
 }
 
 .attachment-data {
@@ -1601,6 +2087,8 @@ export default {
 .cars-list, .employees-list, .items-list {
     display: flex;
     flex-direction: column;
+    max-height: 330px;
+    overflow: scroll;
     gap: 8px;
 }
 
@@ -1610,7 +2098,7 @@ export default {
     border-radius: 15px;
     border: 1px solid #e6e6e6;
     transition: all 0.2s ease;
-    animation: slideIn 0.4s ease-out forwards;
+    animation: slideIn 0.3s ease-out forwards;
     opacity: 0;
     transform: translateY(10px);
 }
@@ -1726,8 +2214,7 @@ export default {
     white-space: nowrap;
 }
 
-.basic-info-section,
-.comment-section {
+.basic-info-section {
     background: white;
     border: 1px solid #e6e6e6;
     border-radius: 20px;
@@ -1736,7 +2223,6 @@ export default {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-.comment-section h4,
 .basic-info-section h4 {
     font-size: 18px;
     color: #4F5BDF;
@@ -1772,12 +2258,89 @@ export default {
     font-weight: 400;
 }
 
-.comment-content {
+.status-in-work-badge {
+    background: rgba(79, 91, 223, 0.1);
+    color: #4F5BDF;
+    border: 1px solid rgba(79, 91, 223, 0.3);
+    padding: 6px 24px;
+    border-radius: 50px;
     font-size: 14px;
-    color: #333;
-    white-space: pre-wrap;
-    background: #f9f9f9;
-    border-radius: 10px;
-    margin-top: 10px;
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.status-rejected-badge {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    padding: 6px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.status-approved-badge {
+    background: rgba(5, 150, 105, 0.1);
+    color: #059669;
+    border: 1px solid rgba(5, 150, 105, 0.3);
+    padding: 6px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.status-pending-badge {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+    border: 1px solid rgba(217, 119, 6, 0.3);
+    padding: 6px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.revoke-btn, .restore-btn {
+    padding: 6px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    border: 1px solid #e6e6e6;
+    background: #FFA500;
+    color: white;
+}
+
+.revoke-btn:hover:not(:disabled) {
+    background: #e69500;
+}
+
+.restore-btn {
+    background: #4CAF50;
+}
+
+.restore-btn:hover:not(:disabled) {
+    background: #45a049;
+}
+
+.revoke-btn:disabled,
+.restore-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.history-button-section {
+    margin: 10px 0;
+    display: flex;
+    justify-content: flex-end;
 }
 </style>

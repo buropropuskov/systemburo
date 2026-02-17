@@ -730,42 +730,36 @@ export default {
         },
 
         async openApplication(application) {
-    console.log('Открытие заявки:', application.application_number);
-    console.log('Application object:', application);
-    
-    if (application.status === 'Непрочитано') {
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
-                method: "PUT",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    status: "В обработке"
-                })
-            });
+            console.log('Открытие заявки:', application.application_number);
+            
+            if (application.status === 'Непрочитано') {
+                try {
+                    const token = localStorage.getItem("token");
+                    const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            status: "В обработке"
+                        })
+                    });
 
-            if (response.ok) {
-                application.status = 'В обработке';
-                this.fetchApplications();
-            } else {
-                const errorText = await response.text();
-                console.error("Ошибка при обновлении статуса заявки:", errorText);
+                    if (response.ok) {
+                        application.status = 'В обработке';
+                        this.fetchApplications();
+                    } else {
+                        const errorText = await response.text();
+                        console.error("Ошибка при обновлении статуса заявки:", errorText);
+                    }
+                } catch (error) {
+                    console.error("Ошибка сети при обновлении статуса заявки:", error);
+                }
             }
-        } catch (error) {
-            console.error("Ошибка сети при обновлении статуса заявки:", error);
-        }
-    }
 
-    console.log('Setting selectedApplication to:', application);
-    this.selectedApplication = application;
-    console.log('selectedApplication after set:', this.selectedApplication);
-    
-    // Принудительно обновляем DOM
-    this.$forceUpdate();
-},
+            this.selectedApplication = application;
+        },
 
         closeDetail() {
             this.selectedApplication = null;
