@@ -9,6 +9,9 @@ use chrono::{DateTime, Utc, NaiveDateTime, NaiveDate, NaiveTime};
 use crate::models::applications::{ApplicationWithDetails, ApplicationFilter, ApplicationCreateRequest, ApplicationUpdateRequest};
 use crate::auth::decode_token;
 
+use crate::models::applications::{ForwardApplicationRequest, ForwardUser};
+use crate::models::application_viewers::ApplicationViewer;
+
 // Структура для полной заявки с вложениями
 #[derive(Debug, Deserialize)]
 pub struct CompleteApplicationRequest {
@@ -83,18 +86,6 @@ pub struct CompleteApplicationResponse {
     pub message: String,
     pub application_id: i32,
     pub application_number: String,
-}
-
-// Структура для пересылки заявки
-#[derive(Debug, Deserialize)]
-pub struct ForwardApplicationRequest {
-    pub users: Vec<ForwardUser>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ForwardUser {
-    pub user_id: i32,
-    pub required_approval: bool,
 }
 
 // Структура для принятия заявки в работу
@@ -215,9 +206,11 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Обновляем статус согласования для пользователя
+    // Базовое время для операций
     let now_utc = Utc::now();
-    
+    let mut history_time = now_utc;
+
+    // Обновляем статус согласования для пользователя
     sqlx::query!(
         r#"
         UPDATE application_responsible_users 
@@ -227,7 +220,7 @@ pub async fn approve_application_by_user(
         WHERE application_id = $4 AND user_id = $5
         "#,
         form.status,
-        form.comment, // Сохраняем комментарий
+        form.comment,
         now_utc,
         application_id,
         form.user_id
@@ -250,15 +243,16 @@ pub async fn approve_application_by_user(
             metadata,
             created_at
         )
-        VALUES ($1, $2, $3, $4, $5, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6)
         "#,
         application_id,
         current_user_id,
         if form.status == "approved" { "approve" } else { "reject" },
-        form.comment, // Сохраняем комментарий в историю
+        form.comment,
         serde_json::json!({
             "required_approval": responsible.required_approval
-        })
+        }),
+        history_time
     )
     .execute(&mut *transaction)
     .await
@@ -285,8 +279,10 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Если confirmation изменился, записываем в историю
+    // Если confirmation изменился, записываем в историю (с временем на 1 мс позже)
     if old_confirmation.confirmation != new_confirmation.confirmation {
+        let status_change_time = history_time + chrono::Duration::milliseconds(1);
+        
         sqlx::query!(
             r#"
             INSERT INTO application_history (
@@ -297,13 +293,14 @@ pub async fn approve_application_by_user(
                 new_value,
                 created_at
             )
-            VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 millisecond')
+            VALUES ($1, $2, $3, $4, $5, $6)
             "#,
             application_id,
             current_user_id,
             "confirmation_change",
             old_confirmation.confirmation,
-            new_confirmation.confirmation
+            new_confirmation.confirmation,
+            status_change_time
         )
         .execute(&mut *transaction)
         .await
@@ -1006,7 +1003,7 @@ pub async fn update_application_confirmation_based_on_approvals(
     Ok(())
 }
 
-/// Функция для пересылки заявки
+/// Функция для пересылки заявки (обновленная)
 pub async fn forward_application(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1055,8 +1052,6 @@ pub async fn forward_application(
     };
 
     let application_id = path.into_inner();
-    let now_utc = Utc::now(); // Время пересылки
-    let now_naive = now_utc.naive_utc(); 
 
     log::info!("Forwarding application {} by user {} ({})", 
         application_id, 
@@ -1086,7 +1081,7 @@ pub async fn forward_application(
         return Err(error::ErrorNotFound("Application not found"));
     }
 
-    // Проверяем права пользователя (должен быть ответственным или отправителем)
+    // Проверяем права пользователя
     let can_forward = sqlx::query!(
         r#"
         SELECT EXISTS(
@@ -1114,7 +1109,27 @@ pub async fn forward_application(
         return Err(error::ErrorForbidden("You don't have permission to forward this application"));
     }
 
-    // Добавляем новых ответственных пользователей
+    // Получаем текущий confirmation до изменений
+    let old_confirmation = sqlx::query!(
+        "SELECT confirmation FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch confirmation: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Базовое время для операций
+    let base_time = Utc::now();
+    let mut history_time = base_time;
+
+    // Векторы для хранения данных о добавленных пользователях
+    let mut added_responsible_users = Vec::new(); // (user_id, required_approval)
+    let mut added_viewers = Vec::new();           // user_id
+
+    // ЭТАП 1: Добавляем пользователей (только в БД)
     for forward_user in &form.users {
         // Проверяем существование пользователя
         let user_exists = sqlx::query!(
@@ -1133,100 +1148,313 @@ pub async fn forward_application(
             continue;
         }
 
-        // Проверяем, не добавлен ли уже этот пользователь
-        let already_added = sqlx::query!(
-            "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
-            application_id,
-            forward_user.user_id
-        )
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to check if user already added: {}", e);
-            error::ErrorInternalServerError("Database error")
-        })?;
+        // Проверяем корректность параметров
+        if forward_user.required_approval && forward_user.can_view {
+            log::warn!("User {} cannot be both responsible and viewer, skipping", forward_user.user_id);
+            continue;
+        }
 
-        if already_added.exists.unwrap_or(false) {
-            // Обновляем только поле required_approval, если пользователь уже добавлен
-            sqlx::query!(
-                r#"
-                UPDATE application_responsible_users 
-                SET required_approval = $1,
-                    created_by = $2
-                WHERE application_id = $3 AND user_id = $4
-                "#,
-                forward_user.required_approval,
-                current_user_id,
+        log::info!("Processing user {}: required_approval={}, can_view={}", 
+                   forward_user.user_id, forward_user.required_approval, forward_user.can_view);
+
+        if forward_user.required_approval {
+            // Добавляем как ответственного с обязательным согласованием
+            let already_added = sqlx::query!(
+                "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
                 application_id,
                 forward_user.user_id
             )
-            .execute(&mut *transaction)
+            .fetch_one(&mut *transaction)
             .await
             .map_err(|e| {
-                log::error!("Failed to update existing responsible user: {}", e);
-                error::ErrorInternalServerError("Error updating responsible user")
+                log::error!("Failed to check if user already added: {}", e);
+                error::ErrorInternalServerError("Database error")
             })?;
-        } else {
-            // Добавляем нового пользователя с указанием created_by
-            sqlx::query!(
-                r#"
-                INSERT INTO application_responsible_users (
-                    application_id, 
-                    user_id, 
-                    required_approval,
-                    approval_status,
-                    created_at,
-                    created_by,
-                    is_primary
-                )
-                VALUES ($1, $2, $3, 'pending', $4, $5, false)
-                "#,
-                application_id,
-                forward_user.user_id,
-                forward_user.required_approval,
-                now_naive, // Время пересылки
-                current_user_id
-            )
-            .execute(&mut *transaction)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to insert responsible user: {}", e);
-                error::ErrorInternalServerError("Error adding responsible user")
-            })?;
-            
-            // Записываем в историю назначение ответственного при пересылке
-            sqlx::query!(
-                r#"
-                INSERT INTO application_history (
+
+            if already_added.exists.unwrap_or(false) {
+                // Обновляем только поле required_approval, если пользователь уже добавлен
+                sqlx::query!(
+                    r#"
+                    UPDATE application_responsible_users 
+                    SET required_approval = $1,
+                        created_by = $2
+                    WHERE application_id = $3 AND user_id = $4
+                    "#,
+                    forward_user.required_approval,
+                    current_user_id,
                     application_id,
-                    user_id,
-                    action_type,
-                    metadata,
-                    created_at
+                    forward_user.user_id
                 )
-                VALUES ($1, $2, $3, $4, $5)
-                "#,
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to update existing responsible user: {}", e);
+                    error::ErrorInternalServerError("Error updating responsible user")
+                })?;
+                
+                log::info!("Updated existing responsible user {} with required_approval=true", forward_user.user_id);
+            } else {
+                // Добавляем нового пользователя
+                sqlx::query!(
+                    r#"
+                    INSERT INTO application_responsible_users (
+                        application_id, 
+                        user_id, 
+                        required_approval,
+                        approval_status,
+                        created_at,
+                        created_by,
+                        is_primary
+                    )
+                    VALUES ($1, $2, $3, 'pending', $4, $5, false)
+                    "#,
+                    application_id,
+                    forward_user.user_id,
+                    forward_user.required_approval,
+                    base_time.naive_utc(),
+                    current_user_id
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to insert responsible user: {}", e);
+                    error::ErrorInternalServerError("Error adding responsible user")
+                })?;
+                
+                log::info!("Added new responsible user {} with required_approval=true", forward_user.user_id);
+            }
+            
+            added_responsible_users.push((forward_user.user_id, forward_user.required_approval));
+        } 
+        else if forward_user.can_view {
+            // Добавляем как просматривающего
+            let already_added = sqlx::query!(
+                "SELECT EXISTS(SELECT 1 FROM application_viewers WHERE application_id = $1 AND user_id = $2) as exists",
                 application_id,
-                forward_user.user_id,
-                "assigned_responsible",
-                serde_json::json!({
-                    "required_approval": forward_user.required_approval,
-                    "is_primary": false,
-                    "forwarded_by": current_user_name
-                }),
-                now_utc // Время пересылки
+                forward_user.user_id
             )
-            .execute(&mut *transaction)
+            .fetch_one(&mut *transaction)
             .await
             .map_err(|e| {
-                log::error!("Failed to add assigned responsible history: {}", e);
-                error::ErrorInternalServerError("Error adding history")
+                log::error!("Failed to check if user already added as viewer: {}", e);
+                error::ErrorInternalServerError("Database error")
             })?;
+
+            if !already_added.exists.unwrap_or(false) {
+                sqlx::query!(
+                    r#"
+                    INSERT INTO application_viewers (
+                        application_id,
+                        user_id,
+                        created_at,
+                        created_by
+                    )
+                    VALUES ($1, $2, $3, $4)
+                    "#,
+                    application_id,
+                    forward_user.user_id,
+                    base_time.naive_utc(),
+                    current_user_id
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to insert viewer: {}", e);
+                    error::ErrorInternalServerError("Error adding viewer")
+                })?;
+                
+                log::info!("Added viewer user {}", forward_user.user_id);
+            }
+            
+            added_viewers.push(forward_user.user_id);
+        }
+        else {
+            // Случай: пользователь должен быть ответственным, но с required_approval = false
+            // (т.е. на фронтенде выбрали только "Требуется согласование", но не "Согласование обязательно")
+            
+            log::info!("Adding user {} as responsible with required_approval=false", forward_user.user_id);
+            
+            let already_added = sqlx::query!(
+                "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
+                application_id,
+                forward_user.user_id
+            )
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to check if user already added: {}", e);
+                error::ErrorInternalServerError("Database error")
+            })?;
+
+            if already_added.exists.unwrap_or(false) {
+                // Обновляем запись, устанавливая required_approval = false
+                sqlx::query!(
+                    r#"
+                    UPDATE application_responsible_users 
+                    SET required_approval = false,
+                        created_by = $1
+                    WHERE application_id = $2 AND user_id = $3
+                    "#,
+                    current_user_id,
+                    application_id,
+                    forward_user.user_id
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to update existing responsible user: {}", e);
+                    error::ErrorInternalServerError("Error updating responsible user")
+                })?;
+                
+                log::info!("Updated existing responsible user {} with required_approval=false", forward_user.user_id);
+            } else {
+                // Добавляем нового пользователя как ответственного с required_approval = false
+                sqlx::query!(
+                    r#"
+                    INSERT INTO application_responsible_users (
+                        application_id, 
+                        user_id, 
+                        required_approval,
+                        approval_status,
+                        created_at,
+                        created_by,
+                        is_primary
+                    )
+                    VALUES ($1, $2, false, 'pending', $3, $4, false)
+                    "#,
+                    application_id,
+                    forward_user.user_id,
+                    base_time.naive_utc(),
+                    current_user_id
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to insert responsible user: {}", e);
+                    error::ErrorInternalServerError("Error adding responsible user")
+                })?;
+                
+                log::info!("Added new responsible user {} with required_approval=false", forward_user.user_id);
+            }
+            
+            added_responsible_users.push((forward_user.user_id, false));
         }
     }
 
-    // Обновляем общий статус заявки на основе новых правил
-    update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
+    // ЭТАП 2: Записываем историю о назначениях
+    // Сначала ответственные
+    for (user_id, required_approval) in &added_responsible_users {
+        history_time = history_time + chrono::Duration::milliseconds(1);
+        
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                metadata,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            "#,
+            application_id,
+            *user_id,
+            "assigned_responsible",
+            serde_json::json!({
+                "required_approval": *required_approval,
+                "is_primary": false,
+                "forwarded_by": current_user_name,
+                "type": "responsible"
+            }),
+            history_time
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add assigned responsible history: {}", e);
+            error::ErrorInternalServerError("Error adding history")
+        })?;
+    }
+
+    // Потом просматривающие
+    for user_id in &added_viewers {
+        history_time = history_time + chrono::Duration::milliseconds(1);
+        
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                metadata,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            "#,
+            application_id,
+            *user_id,
+            "assigned_viewer",
+            serde_json::json!({
+                "forwarded_by": current_user_name,
+                "type": "viewer"
+            }),
+            history_time
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add assigned viewer history: {}", e);
+            error::ErrorInternalServerError("Error adding history")
+        })?;
+    }
+
+    // ЭТАП 3: Обновляем общий статус заявки на основе новых правил (только если были добавлены ответственные)
+    if !added_responsible_users.is_empty() {
+        update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
+    }
+
+    // ЭТАП 4: Получаем новый confirmation после обновления
+    let new_confirmation = sqlx::query!(
+        "SELECT confirmation FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch new confirmation: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // ЭТАП 5: Если confirmation изменился, записываем историю изменения статуса
+    if old_confirmation.confirmation != new_confirmation.confirmation {
+        let status_change_time = history_time + chrono::Duration::milliseconds(1);
+        
+        sqlx::query!(
+            r#"
+            INSERT INTO application_history (
+                application_id,
+                user_id,
+                action_type,
+                old_value,
+                new_value,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+            application_id,
+            current_user_id,
+            "confirmation_change",
+            old_confirmation.confirmation,
+            new_confirmation.confirmation,
+            status_change_time
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add confirmation change history: {}", e);
+            error::ErrorInternalServerError("Error adding history")
+        })?;
+    }
 
     // Фиксируем транзакцию
     transaction.commit().await.map_err(|e| {
@@ -1242,7 +1470,7 @@ pub async fn forward_application(
     })))
 }
 
-/// Получение всех заявок с фильтрами
+/// Получение всех заявок с фильтрами (для Центра заявок)
 pub async fn get_applications(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1256,11 +1484,40 @@ pub async fn get_applications(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let _claims = decode_token(token)
+    let claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
 
-    log::info!("Getting applications with filters");
+    let username = &claims.sub;
 
+    // Получаем информацию о текущем пользователе
+    let current_user = sqlx::query!(
+        r#"
+        SELECT 
+            u.id,
+            EXISTS(SELECT 1 FROM application_approvers aa WHERE aa.user_id = u.id) as is_approver
+        FROM users u
+        WHERE u.username = $1
+        "#,
+        username
+    )
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch current user: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let current_user = match current_user {
+        Some(user) => user,
+        None => return Err(error::ErrorUnauthorized("User not found")),
+    };
+
+    let current_user_id = current_user.id;
+    let is_approver = current_user.is_approver.unwrap_or(false);
+
+    log::info!("Getting applications for Center - user {} (approver: {})", current_user_id, is_approver);
+
+    // Базовый запрос
     let mut query = String::from(
         "SELECT 
             a.*,
@@ -1326,13 +1583,39 @@ pub async fn get_applications(
         WHERE 1=1"
     );
 
+    // Фильтр по правам пользователя для Центра заявок
+    if is_approver {
+        // Принимающие видят все заявки (как и раньше)
+        query.push_str(" AND 1=1");
+    } else {
+        // Обычные пользователи в Центре заявок видят только те заявки, где они:
+        // - являются ответственными
+        // - являются просматривающими
+        // НО НЕ являются отправителями (отправители видят свои заявки в UserApplications)
+        query.push_str(&format!(
+            r#" AND (
+                EXISTS(
+                    SELECT 1 FROM application_responsible_users aru 
+                    WHERE aru.application_id = a.id 
+                    AND aru.user_id = {}
+                )
+                OR EXISTS(
+                    SELECT 1 FROM application_viewers av 
+                    WHERE av.application_id = a.id 
+                    AND av.user_id = {}
+                )
+            )"#,
+            current_user_id, current_user_id
+        ));
+    }
+
     let mut params: Vec<String> = Vec::new();
     let mut param_counter = 1;
 
     // Фильтр по поиску
     if let Some(ref search) = filter.search_query {
         if !search.is_empty() {
-            query.push_str(&format!(" AND (
+            query.push_str(&format!(" AND ( 
                 a.application_number ILIKE ${} OR
                 COALESCE(o.name, c.name, '') ILIKE ${} OR
                 c.name ILIKE ${} OR
@@ -1698,6 +1981,10 @@ pub async fn submit_complete_application(
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
+    // Базовое время для всех операций
+    let base_time = Utc::now();
+    let mut history_time = base_time;
+
     // 1. Создаем заявку в таблице applications
     let now_utc = Utc::now();
     let now_naive = now_utc.naive_utc(); 
@@ -1785,7 +2072,7 @@ pub async fn submit_complete_application(
 
     let application_id = application_result.id;
 
-    // Записываем в историю создание заявки
+    // Записываем в историю создание заявки (с базовым временем)
     sqlx::query!(
         r#"
         INSERT INTO application_history (
@@ -1806,7 +2093,7 @@ pub async fn submit_complete_application(
             "confirmation": "Согласование",
             "status": "Непрочитано"
         }),
-        now_utc
+        history_time
     )
     .execute(&mut *transaction)
     .await
@@ -1930,7 +2217,7 @@ pub async fn submit_complete_application(
             user_id,
             is_primary,
             required_approval,
-            now_naive // Используем время создания заявки
+            now_naive
         )
         .execute(&mut *transaction)
         .await
@@ -1938,6 +2225,9 @@ pub async fn submit_complete_application(
             log::error!("Failed to insert responsible user: {}", e);
             error::ErrorInternalServerError("Error inserting responsible user")
         })?;
+        
+        // Увеличиваем время для следующей записи истории
+        history_time = history_time + chrono::Duration::milliseconds(1);
         
         // Записываем в историю назначение ответственного
         sqlx::query!(
@@ -1958,7 +2248,7 @@ pub async fn submit_complete_application(
                 "required_approval": required_approval,
                 "is_primary": is_primary
             }),
-            now_utc // Используем время создания заявки
+            history_time
         )
         .execute(&mut *transaction)
         .await

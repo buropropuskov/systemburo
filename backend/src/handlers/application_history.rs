@@ -271,6 +271,10 @@ pub async fn revoke_approval(
     // Сохраняем старый статус для истории
     let old_status = responsible.approval_status.clone();
 
+    // Базовое время для операций
+    let now_utc = Utc::now();
+    let mut history_time = now_utc;
+
     // Отзываем согласование (возвращаем в pending) и очищаем комментарий
     sqlx::query!(
         r#"
@@ -290,6 +294,31 @@ pub async fn revoke_approval(
         error::ErrorInternalServerError("Error revoking approval")
     })?;
 
+    // Добавляем запись в историю об отзыве согласования с комментарием
+    sqlx::query!(
+        r#"
+        INSERT INTO application_history (
+            application_id,
+            user_id,
+            action_type,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+        application_id,
+        current_user_id,
+        "revoke_approval",
+        form.comment,
+        history_time
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add history entry: {}", e);
+        error::ErrorInternalServerError("Error adding history entry")
+    })?;
+
     // Обновляем общий статус заявки на основе новых правил
     use crate::handlers::applications::update_application_confirmation_based_on_approvals;
     update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
@@ -306,32 +335,10 @@ pub async fn revoke_approval(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Добавляем запись в историю об отзыве согласования с комментарием
-    sqlx::query!(
-        r#"
-        INSERT INTO application_history (
-            application_id,
-            user_id,
-            action_type,
-            comment,
-            created_at
-        )
-        VALUES ($1, $2, $3, $4, NOW())
-        "#,
-        application_id,
-        current_user_id,
-        "revoke_approval",
-        form.comment // Сохраняем комментарий
-    )
-    .execute(&mut *transaction)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to add history entry: {}", e);
-        error::ErrorInternalServerError("Error adding history entry")
-    })?;
-
     // Если confirmation изменился, добавляем запись об изменении статуса
     if old_confirmation.confirmation != new_confirmation.confirmation {
+        let status_change_time = history_time + chrono::Duration::milliseconds(1);
+        
         sqlx::query!(
             r#"
             INSERT INTO application_history (
@@ -342,13 +349,14 @@ pub async fn revoke_approval(
                 new_value,
                 created_at
             )
-            VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 millisecond')
+            VALUES ($1, $2, $3, $4, $5, $6)
             "#,
             application_id,
             current_user_id,
             "confirmation_change",
             old_confirmation.confirmation,
-            new_confirmation.confirmation
+            new_confirmation.confirmation,
+            status_change_time
         )
         .execute(&mut *transaction)
         .await

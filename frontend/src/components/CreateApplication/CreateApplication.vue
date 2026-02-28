@@ -115,6 +115,8 @@
                             :vehicles="sortedVehicles"
                             :sort-field="sortField"
                             :sort-direction="sortDirection"
+                            :all-unloading-places="allUnloadingPlaces"
+                            :license-plate-formats="licensePlateFormats"
                             @sort="sortBy"
                             @edit-vehicle="editVehicle"
                             @delete-vehicle="deleteVehicle"
@@ -231,6 +233,8 @@ export default {
             consentGiven: false,
             applicationNumber: 1,
 
+            allUnloadingPlaces: [],
+
             // IDs
             organizationId: null,
             companyId: null,
@@ -238,6 +242,8 @@ export default {
             // Данные вложений
             selectedAttachment: null,
             attachments: [],
+
+            licensePlateFormats: [],
 
             // Данные для разных типов вложений (храним по attachment_id)
             vehiclesByAttachment: {},
@@ -390,17 +396,13 @@ export default {
                 switch (this.sortField) {
                     case 'number':
                         return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
-                    case 'brand':
-                        valueA = a.brand.toLowerCase();
-                        valueB = b.brand.toLowerCase();
-                        break;
-                    case 'model':
-                        valueA = a.model.toLowerCase();
-                        valueB = b.model.toLowerCase();
-                        break;
                     case 'plate':
-                        valueA = a.licensePlate.toLowerCase();
-                        valueB = b.licensePlate.toLowerCase();
+                        valueA = a.plateNumber ? a.plateNumber.toLowerCase() : '';
+                        valueB = b.plateNumber ? b.plateNumber.toLowerCase() : '';
+                        break;
+                    case 'mark':
+                        valueA = a.mark ? a.mark.toLowerCase() : '';
+                        valueB = b.mark ? b.mark.toLowerCase() : '';
                         break;
                     default:
                         return 0;
@@ -432,12 +434,12 @@ export default {
                         valueB = this.formatFullName(b).toLowerCase();
                         break;
                     case 'position':
-                        valueA = a.position.toLowerCase();
-                        valueB = b.position.toLowerCase();
+                        valueA = a.position ? a.position.toLowerCase() : '';
+                        valueB = b.position ? b.position.toLowerCase() : '';
                         break;
                     case 'tables':
-                        valueA = a.passageTables.toLowerCase();
-                        valueB = b.passageTables.toLowerCase();
+                        valueA = a.passageTables ? a.passageTables.toLowerCase() : '';
+                        valueB = b.passageTables ? b.passageTables.toLowerCase() : '';
                         break;
                     default:
                         return 0;
@@ -465,8 +467,8 @@ export default {
                     case 'number':
                         return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
                     case 'name':
-                        valueA = a.itemName.toLowerCase();
-                        valueB = b.itemName.toLowerCase();
+                        valueA = a.itemName ? a.itemName.toLowerCase() : '';
+                        valueB = b.itemName ? b.itemName.toLowerCase() : '';
                         break;
                     case 'quantity':
                         return this.sortDirection === 'asc' ? a.quantity - b.quantity : b.quantity - a.quantity;
@@ -485,6 +487,46 @@ export default {
         }
     },
     methods: {
+        async loadLicensePlateFormats() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/license-plate-formats", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    this.licensePlateFormats = await response.json();
+                    console.log('Loaded license plate formats:', this.licensePlateFormats);
+                } else {
+                    console.error("Ошибка при загрузке форматов номеров");
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке форматов номеров:", error);
+            }
+        },
+
+        async loadAllUnloadingPlaces() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/unload-places", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    this.allUnloadingPlaces = await response.json();
+                    console.log('Loaded unloading places:', this.allUnloadingPlaces);
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке мест разгрузки:", error);
+            }
+        },
+        
         // Получение дефолтных данных дат
         getDefaultDateData() {
             return {
@@ -612,53 +654,53 @@ export default {
         },
         
         async loadUserData() {
-    const token = localStorage.getItem("token");
-    if (!token) {
-        console.error("Токен не найден");
-        return;
-    }
-
-    try {
-        const response = await fetch("http://localhost:8080/user-data", {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${token}`
+            const token = localStorage.getItem("token");
+            if (!token) {
+                console.error("Токен не найден");
+                return;
             }
-        });
 
-        if (response.ok) {
-            const userData = await response.json();
-            // Автозаполнение данных пользователя
-            this.organization = userData.organization || '';
-            this.company = userData.company || '';
-            
-            // Сохраняем ID организации и компании если они есть в ответе
-            this.organizationId = userData.organization_id || null;
-            this.companyId = userData.company_id || null;
-            
-            // Проверяем наличие организации и компании
-            this.hasOrganization = !!this.organizationId;
-            this.hasCompany = !!this.companyId;
-            
-            // Формирование ФИО
-            const lastName = userData.last_name || '';
-            const firstName = userData.first_name || '';
-            const middleName = userData.middle_name || '';
-            this.responsiblePerson = `${lastName} ${firstName} ${middleName}`.trim();
-            
-            // Форматирование телефона
-            this.phoneNumber = userData.phone || '';
-            if (this.phoneNumber) {
-                this.formatPhoneNumberImmediately(this.phoneNumber);
+            try {
+                const response = await fetch("http://localhost:8080/user-data", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    // Автозаполнение данных пользователя
+                    this.organization = userData.organization || '';
+                    this.company = userData.company || '';
+                    
+                    // Сохраняем ID организации и компании если они есть в ответе
+                    this.organizationId = userData.organization_id || null;
+                    this.companyId = userData.company_id || null;
+                    
+                    // Проверяем наличие организации и компании
+                    this.hasOrganization = !!this.organizationId;
+                    this.hasCompany = !!this.companyId;
+                    
+                    // Формирование ФИО
+                    const lastName = userData.last_name || '';
+                    const firstName = userData.first_name || '';
+                    const middleName = userData.middle_name || '';
+                    this.responsiblePerson = `${lastName} ${firstName} ${middleName}`.trim();
+                    
+                    // Форматирование телефона
+                    this.phoneNumber = userData.phone || '';
+                    if (this.phoneNumber) {
+                        this.formatPhoneNumberImmediately(this.phoneNumber);
+                    }
+                    
+                } else {
+                    console.error("Ошибка загрузки данных пользователя");
+                }
+            } catch (error) {
+                console.error("Ошибка:", error);
             }
-            
-        } else {
-            console.error("Ошибка загрузки данных пользователя");
-        }
-    } catch (error) {
-        console.error("Ошибка:", error);
-    }
-},
+        },
 
         formatPhoneNumberImmediately(phone) {
             if (!phone) return;
@@ -845,7 +887,12 @@ export default {
             const vehicleWithId = {
                 ...newVehicle,
                 id: this.vehicleIdCounter++,
-                isExisting: false
+                isExisting: false,
+                // Добавляем информацию об организации и компании
+                organization: this.organization,
+                organizationId: this.organizationId,
+                company: this.company,
+                companyId: this.companyId
             };
             
             if (this.selectedAttachment) {
@@ -864,7 +911,12 @@ export default {
                 const vehicleWithId = {
                     ...vehicle,
                     id: this.vehicleIdCounter++,
-                    isExisting: false
+                    isExisting: false,
+                    // Добавляем информацию об организации и компании
+                    organization: this.organization,
+                    organizationId: this.organizationId,
+                    company: this.company,
+                    companyId: this.companyId
                 };
                 
                 if (this.selectedAttachment) {
@@ -1455,232 +1507,230 @@ export default {
         },
 
         async sendCompleteApplication() {
-    if (this.attachments.length === 0) {
-        alert('Добавьте вложения для отправки');
-        return;
-    }
-
-    // Подготавливаем данные для отправки
-    const applicationData = {
-        message: this.message || null,
-        organization: this.organization,
-        company: this.company || null,
-        responsible_person: this.responsiblePerson,
-        contact_phone: this.phoneNumber.replace(/\D/g, ''),
-        data_approval: this.consentGiven,
-        attachments: []
-    };
-
-    // Для каждого вложения добавляем данные
-    for (const attachment of this.attachments) {
-        const dateData = this.attachmentDatesByAttachment[attachment.id] || this.getDefaultDateData();
-        
-        const attachmentData = {
-            attachment_type: attachment.attachment_type,
-            attachment_name: attachment.name,
-            attachment_display_name: attachment.display_name,
-            unique_attachment_id: attachment.id,
-            entry_date_from: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.startDate),
-            entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
-            entry_time_from: dateData.startTime + ":00",
-            entry_time_to: dateData.endTime + ":00",
-            data: {}
-        };
-
-        // Добавляем данные в зависимости от типа вложения
-        switch (attachment.attachment_type) {
-            case 'cars': {
-                const vehicles = this.vehiclesByAttachment[attachment.id] || [];
-                attachmentData.data.vehicles = vehicles.map(vehicle => ({
-                    car_number: vehicle.plateNumber,
-                    car_brand: vehicle.mark,
-                    unload_place: vehicle.unloadingPlace,
-                    unload_places: vehicle.unloadPlaces || []
-                }));
-                break;
+            if (this.attachments.length === 0) {
+                alert('Добавьте вложения для отправки');
+                return;
             }
-            case 'people': {
-                const employees = this.employeesByAttachment[attachment.id] || [];
-                attachmentData.data.employees = employees.map(employee => ({
-                    last_name: employee.lastName,
-                    first_name: employee.firstName,
-                    middle_name: employee.middleName,
-                    citizenship_id: employee.citizenshipId,
-                    position: employee.position,
-                    passport_series_number: employee.passportSeriesNumber,
-                    patent_number: employee.patentNumber,
-                    other_permission: employee.otherPermission,
-                    target_tables: employee.targetTables || []
-                }));
-                break;
-            }
-            case 'items': {
-                const items = this.itemsByAttachment[attachment.id] || [];
-                attachmentData.data.items = items.map((item, index) => ({
-                    name: item.itemName,
-                    count: item.quantity,
-                    order_index: index + 1
-                }));
-                break;
-            }
-        }
 
-        applicationData.attachments.push(attachmentData);
-    }
+            // Подготавливаем данные для отправки
+            const applicationData = {
+                message: this.message || null,
+                organization: this.organization,
+                company: this.company || null,
+                responsible_person: this.responsiblePerson,
+                contact_phone: this.phoneNumber.replace(/\D/g, ''),
+                data_approval: this.consentGiven,
+                attachments: []
+            };
 
-    // Отправляем заявку
-    try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-            alert('Токен не найден');
-            return;
-        }
-
-        // ПОЛУЧАЕМ ОБЯЗАТЕЛЬНЫХ ОТВЕТСТВЕННЫХ ИЗ ОРГАНИЗАЦИИ И КОМПАНИИ
-        const requiredUsers = [];
-        
-        // Загружаем ответственных из организации
-        if (this.organizationId) {
-            try {
-                const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+            // Для каждого вложения добавляем данные
+            for (const attachment of this.attachments) {
+                const dateData = this.attachmentDatesByAttachment[attachment.id] || this.getDefaultDateData();
                 
-                if (orgResponse.ok) {
-                    const orgUsers = await orgResponse.json();
-                    orgUsers.forEach(user => {
-                        if (user.required_approval) {
-                            requiredUsers.push({
-                                user_id: user.id,
-                                required_approval: true
+                const attachmentData = {
+                    attachment_type: attachment.attachment_type,
+                    attachment_name: attachment.name,
+                    attachment_display_name: attachment.display_name,
+                    unique_attachment_id: attachment.id,
+                    entry_date_from: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.startDate),
+                    entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
+                    entry_time_from: dateData.startTime + ":00",
+                    entry_time_to: dateData.endTime + ":00",
+                    data: {}
+                };
+
+                // Добавляем данные в зависимости от типа вложения
+                switch (attachment.attachment_type) {
+                    case 'cars': {
+                        const vehicles = this.vehiclesByAttachment[attachment.id] || [];
+                        attachmentData.data.vehicles = vehicles.map(vehicle => ({
+                            car_number: vehicle.plateNumber,
+                            car_brand: vehicle.mark,
+                            unload_place: vehicle.unloadingPlace,
+                            unload_places: vehicle.unloadPlaces || []
+                        }));
+                        break;
+                    }
+                    case 'people': {
+                        const employees = this.employeesByAttachment[attachment.id] || [];
+                        attachmentData.data.employees = employees.map(employee => ({
+                            last_name: employee.lastName,
+                            first_name: employee.firstName,
+                            middle_name: employee.middleName,
+                            citizenship_id: employee.citizenshipId,
+                            position: employee.position,
+                            passport_series_number: employee.passportSeriesNumber,
+                            patent_number: employee.patentNumber,
+                            other_permission: employee.otherPermission,
+                            target_tables: employee.targetTables || []
+                        }));
+                        break;
+                    }
+                    case 'items': {
+                        const items = this.itemsByAttachment[attachment.id] || [];
+                        attachmentData.data.items = items.map((item, index) => ({
+                            name: item.itemName,
+                            count: item.quantity,
+                            order_index: index + 1
+                        }));
+                        break;
+                    }
+                }
+
+                applicationData.attachments.push(attachmentData);
+            }
+
+            // Отправляем заявку
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) {
+                    alert('Токен не найден');
+                    return;
+                }
+
+                // ПОЛУЧАЕМ ОБЯЗАТЕЛЬНЫХ ОТВЕТСТВЕННЫХ ИЗ ОРГАНИЗАЦИИ И КОМПАНИИ
+                const requiredUsers = [];
+                
+                // Загружаем ответственных из организации
+                if (this.organizationId) {
+                    try {
+                        const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
+                            headers: {
+                                "Authorization": `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (orgResponse.ok) {
+                            const orgUsers = await orgResponse.json();
+                            orgUsers.forEach(user => {
+                                if (user.required_approval) {
+                                    requiredUsers.push({
+                                        user_id: user.id,
+                                        required_approval: true
+                                    });
+                                }
                             });
                         }
-                    });
-                }
-            } catch (error) {
-                console.error("Ошибка при загрузке ответственных из организации:", error);
-            }
-        }
-        
-        // Загружаем ответственных из компании
-        if (this.companyId) {
-            try {
-                const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}`
+                    } catch (error) {
+                        console.error("Ошибка при загрузке ответственных из организации:", error);
                     }
-                });
+                }
                 
-                if (companyResponse.ok) {
-                    const companyUsers = await companyResponse.json();
-                    companyUsers.forEach(user => {
-                        // Проверяем, не добавлен ли уже этот пользователь
-                        const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
-                        if (!alreadyAdded && user.required_approval) {
-                            requiredUsers.push({
-                                user_id: user.id,
-                                required_approval: true
+                // Загружаем ответственных из компании
+                if (this.companyId) {
+                    try {
+                        const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
+                            headers: {
+                                "Authorization": `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (companyResponse.ok) {
+                            const companyUsers = await companyResponse.json();
+                            companyUsers.forEach(user => {
+                                // Проверяем, не добавлен ли уже этот пользователь
+                                const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
+                                if (!alreadyAdded && user.required_approval) {
+                                    requiredUsers.push({
+                                        user_id: user.id,
+                                        required_approval: true
+                                    });
+                                }
                             });
                         }
-                    });
+                    } catch (error) {
+                        console.error("Ошибка при загрузке ответственных из компании:", error);
+                    }
+                }
+
+                // Добавляем информацию об обязательных ответственных в запрос
+                const finalRequestData = {
+                    ...applicationData,
+                    required_users: requiredUsers
+                };
+
+                const response = await fetch("http://localhost:8080/applications/submit-complete-application", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify(finalRequestData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`Заявка успешно отправлена! Номер заявки: ${result.application_number}`);
+                    // Очищаем форму после успешной отправки
+                    this.clearAllAttachments();
+                } else {
+                    const errorText = await response.text();
+                    console.error('Ошибка отправки заявки:', errorText);
+                    alert('Ошибка отправки заявки: ' + errorText);
                 }
             } catch (error) {
-                console.error("Ошибка при загрузке ответственных из компании:", error);
+                console.error('Ошибка отправки заявки:', error);
+                alert(`Произошла ошибка при отправке заявки: ${error.message}`);
             }
-        }
-
-        // Добавляем информацию об обязательных ответственных в запрос
-        // ВАЖНО: Нужно модифицировать бэкенд, чтобы он принимал этот список
-        // Для этого создадим расширенную версию запроса
-        const finalRequestData = {
-            ...applicationData,
-            required_users: requiredUsers
-        };
-
-        const response = await fetch("http://localhost:8080/applications/submit-complete-application", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify(finalRequestData)
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            alert(`Заявка успешно отправлена! Номер заявки: ${result.application_number}`);
-            // Очищаем форму после успешной отправки
-            this.clearAllAttachments();
-        } else {
-            const errorText = await response.text();
-            console.error('Ошибка отправки заявки:', errorText);
-            alert('Ошибка отправки заявки: ' + errorText);
-        }
-    } catch (error) {
-        console.error('Ошибка отправки заявки:', error);
-        alert(`Произошла ошибка при отправке заявки: ${error.message}`);
-    }
-},
-async loadRequiredResponsibles() {
-    const requiredUsers = [];
-    const token = localStorage.getItem("token");
-    
-    // Загружаем ответственных из организации
-    if (this.organizationId) {
-        try {
-            const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            });
+        },
+        async loadRequiredResponsibles() {
+            const requiredUsers = [];
+            const token = localStorage.getItem("token");
             
-            if (orgResponse.ok) {
-                const orgUsers = await orgResponse.json();
-                orgUsers.forEach(user => {
-                    if (user.required_approval) {
-                        requiredUsers.push({
-                            user_id: user.id,
-                            required_approval: true
+            // Загружаем ответственных из организации
+            if (this.organizationId) {
+                try {
+                    const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (orgResponse.ok) {
+                        const orgUsers = await orgResponse.json();
+                        orgUsers.forEach(user => {
+                            if (user.required_approval) {
+                                requiredUsers.push({
+                                    user_id: user.id,
+                                    required_approval: true
+                                });
+                            }
                         });
                     }
-                });
-            }
-        } catch (error) {
-            console.error("Ошибка при загрузке ответственных из организации:", error);
-        }
-    }
-    
-    // Загружаем ответственных из компании
-    if (this.companyId) {
-        try {
-            const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
-                headers: {
-                    "Authorization": `Bearer ${token}`
+                } catch (error) {
+                    console.error("Ошибка при загрузке ответственных из организации:", error);
                 }
-            });
+            }
             
-            if (companyResponse.ok) {
-                const companyUsers = await companyResponse.json();
-                companyUsers.forEach(user => {
-                    // Проверяем, не добавлен ли уже этот пользователь
-                    const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
-                    if (!alreadyAdded && user.required_approval) {
-                        requiredUsers.push({
-                            user_id: user.id,
-                            required_approval: true
+            // Загружаем ответственных из компании
+            if (this.companyId) {
+                try {
+                    const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (companyResponse.ok) {
+                        const companyUsers = await companyResponse.json();
+                        companyUsers.forEach(user => {
+                            // Проверяем, не добавлен ли уже этот пользователь
+                            const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
+                            if (!alreadyAdded && user.required_approval) {
+                                requiredUsers.push({
+                                    user_id: user.id,
+                                    required_approval: true
+                                });
+                            }
                         });
                     }
-                });
+                } catch (error) {
+                    console.error("Ошибка при загрузке ответственных из компании:", error);
+                }
             }
-        } catch (error) {
-            console.error("Ошибка при загрузке ответственных из компании:", error);
-        }
-    }
-    
-    return requiredUsers;
-},
+            
+            return requiredUsers;
+        },
 
         // Новый метод для очистки localStorage после отправки
         clearLocalStorageAfterSubmit() {
@@ -1917,6 +1967,9 @@ async loadRequiredResponsibles() {
         
         // Загружаем данные пользователя
         this.loadUserData();
+
+        this.loadAllUnloadingPlaces();
+        this.loadLicensePlateFormats();
         
         // Сохраняем состояние при закрытии/обновлении страницы
         window.addEventListener('beforeunload', () => {

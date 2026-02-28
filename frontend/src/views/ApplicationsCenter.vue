@@ -248,6 +248,7 @@
             @confirmation-updated="handleConfirmationUpdate"
             @application-updated="handleApplicationUpdate"
             @duplicate="handleDuplicate"
+            @application-changed="handleApplicationChanged"
         />
     </section>
 </template>
@@ -781,6 +782,34 @@ export default {
         handleApplicationUpdate(updatedApp) {
             console.log('Application updated in center:', updatedApp);
             this.fetchApplications(); // Обновляем список заявок
+        },
+
+        handleApplicationChanged(updatedApp) {
+            console.log('Application changed in center (via application-changed):', updatedApp);
+            
+            // Обновляем данные в списке
+            const appIndex = this.applications.findIndex(app => app.id === updatedApp.id);
+            if (appIndex !== -1) {
+                // Обновляем существующую заявку
+                this.applications[appIndex] = {
+                    ...this.applications[appIndex],
+                    ...updatedApp
+                };
+                
+                // Если это открытая заявка, обновляем и её
+                if (this.selectedApplication && this.selectedApplication.id === updatedApp.id) {
+                    this.selectedApplication = {
+                        ...this.selectedApplication,
+                        ...updatedApp
+                    };
+                }
+                
+                // Принудительно обновляем список для пересчета computed свойств
+                this.applications = [...this.applications];
+            } else {
+                // Если заявка не найдена в списке (например, из-за фильтров), просто перезагружаем весь список
+                this.fetchApplications();
+            }
         },
 
         handleDuplicate(application) {

@@ -1,5 +1,5 @@
 <template>
-  <div class="user-management">
+  <div class="user-management dashboard-card">
     <div class="management-header">
       <h3 class="management-title">Учётные записи пользователей</h3>
       <div class="search-container">
@@ -7,10 +7,10 @@
           :title="'Поиск пользователей...'"
           v-model="userSearch"
         />
-        <button @click="showCreateModal = true" class="create-btn">
+        <button @click="openCreateModal" class="create-btn">
           Создать
         </button>
-        <RefreshButton @refresh="fetchAllUsers" />
+        <RefreshButton @refresh="refreshAllData" />
       </div>
     </div>
 
@@ -128,7 +128,6 @@
               <button @click="confirmDeleteUser(selectedUser)" class="delete-icon-btn">
                 <img src="@/assets/icons/delete.png" class="delete-icon" />
               </button>
-              <!--<button @click="closeDetails" class="close-btn">×</button>-->
             </div>
           </div>
           
@@ -166,16 +165,31 @@
                 
                 <div class="detail-group">
                   <label class="detail-label">Организация:</label>
-                  <select 
-                    v-model="selectedUser.organization_id" 
-                    @change="updateUserOrganization(selectedUser)"
-                    class="form-select-sm"
-                    autocomplete="off"
-                  >
-                    <option v-for="org in organizations" :key="org.id" :value="org.id">
-                      {{ org.name }}
-                    </option>
-                  </select>
+                  <div class="custom-select" @click="toggleOrgDropdown">
+                    <div class="select-trigger">
+                      <span>{{ getOrganizationName(selectedUser.organization_id) || 'Не выбрано' }}</span>
+                      <img 
+                        src="@/assets/icons/arrow.png" 
+                        class="select-arrow" 
+                        :class="{ 'open': orgDropdownOpen }"
+                        width="12"
+                        height="12"
+                      />
+                    </div>
+                    <transition name="dropdown">
+                      <div v-if="orgDropdownOpen" class="select-dropdown">
+                        <div 
+                          v-for="org in organizations" 
+                          :key="org.id"
+                          class="select-option"
+                          :class="{ 'selected': selectedUser.organization_id === org.id }"
+                          @click="selectOrganization(org)"
+                        >
+                          {{ org.name }}
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
                 </div>
                 
                 <div class="detail-group">
@@ -226,16 +240,31 @@
                 
                 <div class="detail-group">
                   <label class="detail-label">Компания:</label>
-                  <select 
-                    v-model="selectedUser.company_id" 
-                    @change="updateUserCompany(selectedUser)"
-                    class="form-select-sm"
-                    autocomplete="off"
-                  >
-                    <option v-for="comp in companies" :key="comp.id" :value="comp.id">
-                      {{ comp.name }}
-                    </option>
-                  </select>
+                  <div class="custom-select" @click="toggleCompanyDropdown">
+                    <div class="select-trigger">
+                      <span>{{ getCompanyName(selectedUser.company_id) || 'Не выбрано' }}</span>
+                      <img 
+                        src="@/assets/icons/arrow.png" 
+                        class="select-arrow" 
+                        :class="{ 'open': companyDropdownOpen }"
+                        width="12"
+                        height="12"
+                      />
+                    </div>
+                    <transition name="dropdown">
+                      <div v-if="companyDropdownOpen" class="select-dropdown">
+                        <div 
+                          v-for="comp in companies" 
+                          :key="comp.id"
+                          class="select-option"
+                          :class="{ 'selected': selectedUser.company_id === comp.id }"
+                          @click="selectCompany(comp)"
+                        >
+                          {{ comp.name }}
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
                 </div>
                 
                 <div class="detail-group">
@@ -259,16 +288,31 @@
             <div class="full-width-groups">
               <div class="detail-group">
                 <label class="detail-label">Тип пользователя:</label>
-                <select 
-                  v-model="selectedUser.type_id" 
-                  @change="updateUserType(selectedUser)"
-                  class="form-select-sm full-width"
-                  autocomplete="off"
-                >
-                  <option v-for="type in userTypes" :key="type.id" :value="type.id">
-                    {{ type.name }}
-                  </option>
-                </select>
+                <div class="custom-select full-width" @click="toggleTypeDropdown">
+                  <div class="select-trigger">
+                    <span>{{ getUserTypeName(selectedUser.type_id) || 'Не выбрано' }}</span>
+                    <img 
+                      src="@/assets/icons/arrow.png" 
+                      class="select-arrow" 
+                      :class="{ 'open': typeDropdownOpen }"
+                      width="12"
+                      height="12"
+                    />
+                  </div>
+                  <transition name="dropdown">
+                    <div v-if="typeDropdownOpen" class="select-dropdown">
+                      <div 
+                        v-for="type in userTypes" 
+                        :key="type.id"
+                        class="select-option"
+                        :class="{ 'selected': selectedUser.type_id === type.id }"
+                        @click="selectUserType(type)"
+                      >
+                        {{ type.name }}
+                      </div>
+                    </div>
+                  </transition>
+                </div>
               </div>
               
               <div class="detail-group password-group">
@@ -324,28 +368,233 @@
       <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
     </div>
 
-    <teleport to="body">
-      <CreateUserModal
-        v-if="showCreateModal"
-        :organizations="organizations"
-        :companies="companies"
-        :userTypes="userTypes"
-        @close="showCreateModal = false"
-        @user-created="handleUserCreated"
-      />
-    </teleport>
+    <!-- Модальное окно создания пользователя - на уровне body через Teleport -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div v-if="showCreateModal" class="modal-overlay" @click.self="closeCreateModal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">Создание пользователя</h3>
+              <button @click="closeCreateModal" class="modal-close">
+                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                  <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="modal-body">
+              <!-- Первая строка -->
+              <div class="form-row">
+                <div class="input-group half">
+                  <label class="input-label">Логин <span class="required">*</span></label>
+                  <input
+                    v-model="newUser.username"
+                    placeholder="Введите логин"
+                    class="modal-input"
+                    ref="usernameInput"
+                    @input="saveDraft"
+                  >
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Пароль <span class="required">*</span></label>
+                  <input
+                    type="password"
+                    v-model="newUser.password"
+                    placeholder="Введите пароль"
+                    class="modal-input"
+                    @keyup="checkNewUserInputLanguage"
+                    @input="saveDraft"
+                  >
+                  <div class="input-hint">Минимум 6 символов</div>
+                </div>
+              </div>
+              
+              <!-- Вторая строка -->
+              <div class="form-row">
+                <div class="input-group half">
+                  <label class="input-label">Организация</label>
+                  <div class="custom-select" @click="toggleNewUserOrgDropdown">
+                    <div class="select-trigger">
+                      <span>{{ getOrganizationName(newUser.organization_id) || 'Выберите организацию' }}</span>
+                      <img 
+                        src="@/assets/icons/arrow.png" 
+                        class="select-arrow" 
+                        :class="{ 'open': newUserOrgDropdownOpen }"
+                        width="12"
+                        height="12"
+                      />
+                    </div>
+                    <transition name="dropdown">
+                      <div v-if="newUserOrgDropdownOpen" class="select-dropdown">
+                        <div 
+                          v-for="org in organizations" 
+                          :key="org.id"
+                          class="select-option"
+                          :class="{ 'selected': newUser.organization_id === org.id }"
+                          @click="selectNewUserOrg(org)"
+                        >
+                          {{ org.name }}
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Компания</label>
+                  <div class="custom-select" @click="toggleNewUserCompanyDropdown">
+                    <div class="select-trigger">
+                      <span>{{ getCompanyName(newUser.company_id) || 'Выберите компанию' }}</span>
+                      <img 
+                        src="@/assets/icons/arrow.png" 
+                        class="select-arrow" 
+                        :class="{ 'open': newUserCompanyDropdownOpen }"
+                        width="12"
+                        height="12"
+                      />
+                    </div>
+                    <transition name="dropdown">
+                      <div v-if="newUserCompanyDropdownOpen" class="select-dropdown">
+                        <div 
+                          v-for="comp in companies" 
+                          :key="comp.id"
+                          class="select-option"
+                          :class="{ 'selected': newUser.company_id === comp.id }"
+                          @click="selectNewUserCompany(comp)"
+                        >
+                          {{ comp.name }}
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Третья строка (полная ширина) -->
+              <div class="form-row full-width">
+                <div class="input-group full">
+                  <label class="input-label">Тип пользователя <span class="required">*</span></label>
+                  <div class="custom-select" @click="toggleNewUserTypeDropdown">
+                    <div class="select-trigger">
+                      <span>{{ getUserTypeName(newUser.type_id) || 'Выберите тип' }}</span>
+                      <img 
+                        src="@/assets/icons/arrow.png" 
+                        class="select-arrow" 
+                        :class="{ 'open': newUserTypeDropdownOpen }"
+                        width="12"
+                        height="12"
+                      />
+                    </div>
+                    <transition name="dropdown">
+                      <div v-if="newUserTypeDropdownOpen" class="select-dropdown">
+                        <div 
+                          v-for="type in userTypes" 
+                          :key="type.id"
+                          class="select-option"
+                          :class="{ 'selected': newUser.type_id === type.id }"
+                          @click="selectNewUserType(type)"
+                        >
+                          {{ type.name }}
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Четвертая строка -->
+              <div class="form-row">
+                <div class="input-group half">
+                  <label class="input-label">Фамилия</label>
+                  <input
+                    v-model="newUser.last_name"
+                    placeholder="Введите фамилию"
+                    class="modal-input"
+                    @input="saveDraft"
+                  >
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Должность</label>
+                  <input
+                    v-model="newUser.position"
+                    placeholder="Введите должность"
+                    class="modal-input"
+                    @input="saveDraft"
+                  >
+                </div>
+              </div>
+              
+              <!-- Пятая строка -->
+              <div class="form-row">
+                <div class="input-group half">
+                  <label class="input-label">Имя</label>
+                  <input
+                    v-model="newUser.first_name"
+                    placeholder="Введите имя"
+                    class="modal-input"
+                    @input="saveDraft"
+                  >
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Email</label>
+                  <input
+                    v-model="newUser.email"
+                    placeholder="Введите email"
+                    class="modal-input"
+                    type="email"
+                    @input="saveDraft"
+                  >
+                </div>
+              </div>
+              
+              <!-- Шестая строка -->
+              <div class="form-row">
+                <div class="input-group half">
+                  <label class="input-label">Отчество</label>
+                  <input
+                    v-model="newUser.middle_name"
+                    placeholder="Введите отчество"
+                    class="modal-input"
+                    @input="saveDraft"
+                  >
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Телефон</label>
+                  <input
+                    v-model="newUser.phone"
+                    placeholder="Введите телефон"
+                    class="modal-input"
+                    type="tel"
+                    @input="saveDraft"
+                  >
+                </div>
+              </div>
+            </div>
+            
+            <div class="modal-footer">
+              <button @click="closeCreateModal" class="modal-btn modal-btn--cancel">Отмена</button>
+              <button 
+                @click="createUser" 
+                class="modal-btn modal-btn--confirm"
+                :disabled="!canCreateUser"
+                :class="{'modal-btn--disabled': !canCreateUser}"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script>
 import { ref } from 'vue';
-import CreateUserModal from './CreateUserModal.vue';
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 
 export default {
   components: {
-    CreateUserModal,
     SearchComponent,
     RefreshButton
   },
@@ -370,7 +619,26 @@ export default {
       companies: [],
       userTypes: [],
       sortField: null,
-      sortDirection: 'desc'
+      sortDirection: 'desc',
+      orgDropdownOpen: false,
+      companyDropdownOpen: false,
+      typeDropdownOpen: false,
+      newUserTypeDropdownOpen: false,
+      newUserOrgDropdownOpen: false,
+      newUserCompanyDropdownOpen: false,
+      newUser: {
+        username: '',
+        password: '',
+        last_name: '',
+        first_name: '',
+        middle_name: '',
+        email: '',
+        phone: '',
+        position: '',
+        type_id: null,
+        organization_id: null,
+        company_id: null
+      }
     };
   },
   async created() {
@@ -379,6 +647,15 @@ export default {
       this.fetchCompanies(),
       this.fetchUserTypes()
     ]);
+    
+    // Слушаем события обновления организаций и компаний
+    window.addEventListener('organization-updated', this.fetchOrganizations);
+    window.addEventListener('company-updated', this.fetchCompanies);
+  },
+  beforeUnmount() {
+    window.removeEventListener('organization-updated', this.fetchOrganizations);
+    window.removeEventListener('company-updated', this.fetchCompanies);
+    document.removeEventListener('click', this.handleClickOutside);
   },
   computed: {
     filteredUsers() {
@@ -447,12 +724,40 @@ export default {
         }
         return 0;
       });
+    },
+    canCreateUser() {
+      return this.newUser.username && this.newUser.password && this.newUser.type_id;
     }
   },
   mounted() {
     this.fetchAllUsers();
+    
+    // Добавляем обработчики для закрытия дропдаунов при клике вне
+    document.addEventListener('click', this.handleClickOutside);
+    
+    // Восстанавливаем черновик при монтировании
+    this.loadDraft();
   },
+ 
   methods: {
+    refreshAllData() {
+      this.fetchOrganizations();
+      this.fetchCompanies();
+      this.fetchUserTypes();
+      this.fetchAllUsers();
+    },
+
+    handleClickOutside(event) {
+      if (!event.target.closest('.custom-select')) {
+        this.orgDropdownOpen = false;
+        this.companyDropdownOpen = false;
+        this.typeDropdownOpen = false;
+        this.newUserTypeDropdownOpen = false;
+        this.newUserOrgDropdownOpen = false;
+        this.newUserCompanyDropdownOpen = false;
+      }
+    },
+    
     formatUserName(user) {
       if (!user.last_name && !user.first_name && !user.middle_name) return '-';
       
@@ -465,10 +770,198 @@ export default {
       }
       return result || '-';
     },
+    
+    getOrganizationName(id) {
+      if (!id) return null;
+      const org = this.organizations.find(o => o.id === id);
+      return org ? org.name : null;
+    },
+    
+    getCompanyName(id) {
+      if (!id) return null;
+      const comp = this.companies.find(c => c.id === id);
+      return comp ? comp.name : null;
+    },
+    
+    getUserTypeName(id) {
+      if (!id) return null;
+      const type = this.userTypes.find(t => t.id === id);
+      return type ? type.name : null;
+    },
+    
+    toggleOrgDropdown() {
+      this.orgDropdownOpen = !this.orgDropdownOpen;
+      this.companyDropdownOpen = false;
+      this.typeDropdownOpen = false;
+    },
+    
+    toggleCompanyDropdown() {
+      this.companyDropdownOpen = !this.companyDropdownOpen;
+      this.orgDropdownOpen = false;
+      this.typeDropdownOpen = false;
+    },
+    
+    toggleTypeDropdown() {
+      this.typeDropdownOpen = !this.typeDropdownOpen;
+      this.orgDropdownOpen = false;
+      this.companyDropdownOpen = false;
+    },
+    
+    toggleNewUserTypeDropdown() {
+      this.newUserTypeDropdownOpen = !this.newUserTypeDropdownOpen;
+      this.newUserOrgDropdownOpen = false;
+      this.newUserCompanyDropdownOpen = false;
+    },
+    
+    toggleNewUserOrgDropdown() {
+      this.newUserOrgDropdownOpen = !this.newUserOrgDropdownOpen;
+      this.newUserTypeDropdownOpen = false;
+      this.newUserCompanyDropdownOpen = false;
+    },
+    
+    toggleNewUserCompanyDropdown() {
+      this.newUserCompanyDropdownOpen = !this.newUserCompanyDropdownOpen;
+      this.newUserTypeDropdownOpen = false;
+      this.newUserOrgDropdownOpen = false;
+    },
+    
+    selectOrganization(org) {
+      this.selectedUser.organization_id = org.id;
+      this.updateUserOrganization(this.selectedUser);
+      this.orgDropdownOpen = false;
+    },
+    
+    selectCompany(comp) {
+      this.selectedUser.company_id = comp.id;
+      this.updateUserCompany(this.selectedUser);
+      this.companyDropdownOpen = false;
+    },
+    
+    selectUserType(type) {
+      this.selectedUser.type_id = type.id;
+      this.updateUserType(this.selectedUser);
+      this.typeDropdownOpen = false;
+    },
+    
+    selectNewUserType(type) {
+      this.newUser.type_id = type.id;
+      this.newUserTypeDropdownOpen = false;
+      this.saveDraft();
+    },
+    
+    selectNewUserOrg(org) {
+      this.newUser.organization_id = org.id;
+      this.newUserOrgDropdownOpen = false;
+      this.saveDraft();
+    },
+    
+    selectNewUserCompany(comp) {
+      this.newUser.company_id = comp.id;
+      this.newUserCompanyDropdownOpen = false;
+      this.saveDraft();
+    },
+    
+    // Методы для работы с черновиком
+    saveDraft() {
+      localStorage.setItem('newUserDraft', JSON.stringify(this.newUser));
+    },
+    
+    loadDraft() {
+      const saved = localStorage.getItem('newUserDraft');
+      if (saved) {
+        try {
+          this.newUser = JSON.parse(saved);
+        } catch (e) {
+          console.error('Error loading draft:', e);
+          localStorage.removeItem('newUserDraft');
+        }
+      }
+    },
+    
+    clearDraft() {
+      localStorage.removeItem('newUserDraft');
+    },
+    
+    openCreateModal() {
+      this.loadDraft();
+      this.showCreateModal = true;
+      this.$nextTick(() => {
+        if (this.$refs.usernameInput) {
+          this.$refs.usernameInput.focus();
+        }
+      });
+    },
+    
+    closeCreateModal() {
+      this.showCreateModal = false;
+    },
+    
     handleUserCreated() {
       this.showCreateModal = false;
+      this.clearDraft();
+      this.resetNewUser();
       this.$emit('fetch-users');
+      // Обновляем организации и компании после создания пользователя
+      this.fetchOrganizations();
+      this.fetchCompanies();
     },
+    
+    resetNewUser() {
+      this.newUser = {
+        username: '',
+        password: '',
+        last_name: '',
+        first_name: '',
+        middle_name: '',
+        email: '',
+        phone: '',
+        position: '',
+        type_id: null,
+        organization_id: null,
+        company_id: null
+      };
+      this.clearDraft();
+    },
+    
+    async createUser() {
+      if (!this.canCreateUser) return;
+      
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/register", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: this.newUser.username,
+            password: this.newUser.password,
+            last_name: this.newUser.last_name || null,
+            first_name: this.newUser.first_name || null,
+            middle_name: this.newUser.middle_name || null,
+            email: this.newUser.email || null,
+            phone: this.newUser.phone || null,
+            position: this.newUser.position || null,
+            type_id: this.newUser.type_id,
+            organization_id: this.newUser.organization_id || null,
+            company_id: this.newUser.company_id || null
+          }),
+        });
+
+        if (response.ok) {
+          this.handleUserCreated();
+          alert("Пользователь успешно создан");
+        } else {
+          const errorData = await response.json();
+          alert(errorData.message || "Ошибка при создании пользователя");
+        }
+      } catch (error) {
+        console.error("Ошибка сети при создании пользователя:", error);
+        alert("Не удалось создать пользователя");
+      }
+    },
+    
     async updateUserInfo(user) {
       try {
         const token = localStorage.getItem("token");
@@ -504,6 +997,7 @@ export default {
         this.$emit('fetch-users');
       }
     },
+    
     async confirmDeleteUser(user) {
       if (confirm(`Вы уверены, что хотите удалить аккаунт «${user.username}»?`)) {
         try {
@@ -522,6 +1016,9 @@ export default {
             alert("Пользователь успешно удален");
             this.selectedUser = null;
             this.$emit('fetch-users');
+            // Обновляем организации и компании после удаления пользователя
+            this.fetchOrganizations();
+            this.fetchCompanies();
           } else {
             const errorData = await response.json();
             alert(errorData.message || "Ошибка при удалении пользователя");
@@ -532,6 +1029,7 @@ export default {
         }
       }
     },
+    
     generatePassword(user) {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&?';
       const length = Math.floor(Math.random() * 6) + 6;
@@ -542,6 +1040,7 @@ export default {
       user.newPassword = password;
       this.showNewPass = true;
     },
+    
     async fetchUserTypes() {
       try {
         const token = localStorage.getItem("token");
@@ -557,6 +1056,7 @@ export default {
         console.error("Error fetching user types:", error);
       }
     },
+    
     async fetchOrganizations() {
       try {
         const token = localStorage.getItem("token");
@@ -572,6 +1072,7 @@ export default {
         console.error("Error fetching organizations:", error);
       }
     },
+    
     async fetchCompanies() {
       try {
         const token = localStorage.getItem("token");
@@ -587,6 +1088,7 @@ export default {
         console.error("Error fetching companies:", error);
       }
     },
+    
     checkInputLanguage(event) {
       if (!event || typeof event.getModifierState !== 'function') return;
       
@@ -594,6 +1096,7 @@ export default {
       this.currentLanguage = isRussian ? 'RU' : 'EN';
       this.isCapsLockOn = event.getModifierState('CapsLock');
     },
+    
     async updateUserType(user) {
       try {
         const token = localStorage.getItem("token");
@@ -624,6 +1127,7 @@ export default {
         this.$emit('fetch-users');
       }
     },
+    
     async updateUserOrganization(user) {
       try {
         const token = localStorage.getItem("token");
@@ -654,6 +1158,7 @@ export default {
         this.$emit('fetch-users');
       }
     },
+    
     async updateUserCompany(user) {
       try {
         const token = localStorage.getItem("token");
@@ -684,6 +1189,7 @@ export default {
         this.$emit('fetch-users');
       }
     },
+    
     async changeUserPassword(user) {
       if (!user.newPassword) {
         alert("Введите новый пароль");
@@ -717,15 +1223,19 @@ export default {
         alert("Не удалось изменить пароль");
       }
     },
+    
     fetchAllUsers() {
       this.$emit('fetch-users');
     },
+    
     selectUser(user) {
       this.selectedUser = { ...user };
     },
+    
     closeDetails() {
       this.selectedUser = null;
     },
+    
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -739,6 +1249,7 @@ export default {
 </script>
 
 <style scoped>
+/* Все стили остаются без изменений */
 .user-management {
   background-color: #fff;
   border-radius: 30px;
@@ -781,7 +1292,7 @@ export default {
 }
 
 .create-btn:hover {
-  background-color: #3a5a80;
+  background-color: #3a45b2;
 }
 
 .users-container {
@@ -940,7 +1451,6 @@ export default {
 }
 
 .details-header {
-
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1020,28 +1530,6 @@ export default {
   height: 20px;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.close-btn:hover {
-  background-color: #f0f0f0;
-  color: #666;
-}
-
 .details-section {
   margin-bottom: 24px;
 }
@@ -1078,32 +1566,16 @@ export default {
 
 /* Уменьшенные инпуты */
 .form-input-sm {
-  padding: 6px 5px;
+  padding: 6px 10px;
   border: 1px solid #ddd;
   border-radius: 10px;
-  font-size: 0.8em;
+  font-size: 14px;
   width: 100%;
   height: 32px;
   transition: border-color 0.2s;
 }
 
 .form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.form-select-sm {
-  padding: 6px 5px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  background-color: white;
-  font-size: 0.8em;
-  width: 100%;
-  height: 32px;
-  transition: border-color 0.2s;
-}
-
-.form-select-sm:focus {
   border-color: #4F5BDF;
   outline: none;
 }
@@ -1123,10 +1595,10 @@ export default {
 }
 
 .password-input-sm {
-  padding: 6px 5px;
+  padding: 6px 10px;
   border: 1px solid #ddd;
   border-radius: 10px;
-  font-size: 0.8em;
+  font-size: 14px;
   height: 32px;
   width: 150px;
   transition: border-color 0.2s;
@@ -1150,7 +1622,7 @@ export default {
   border-radius: 50px;
   cursor: pointer;
   white-space: nowrap;
-  font-size: 0.8em;
+  font-size: 13px;
   height: 30px;
   transition: background-color 0.2s;
   color: #4F5BDF;
@@ -1189,7 +1661,7 @@ export default {
 }
 
 .save-password-btn:hover:not(:disabled) {
-  background-color: #3a5a80;
+  background-color: #3a45b2;
 }
 
 .save-icon {
@@ -1215,6 +1687,303 @@ export default {
   text-align: center;
   padding: 15px;
   color: #666;
+}
+
+/* Стили для кастомного селекта */
+.custom-select {
+  position: relative;
+  cursor: pointer;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  background: white;
+  transition: border-color 0.2s;
+  font-size: 14px;
+}
+
+.select-trigger:hover {
+  border-color: #4F5BDF;
+}
+
+.select-arrow {
+  transition: transform 0.2s ease;
+}
+
+.select-arrow.open {
+  transform: rotate(90deg);
+}
+
+.select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.select-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s;
+  font-size: 14px;
+}
+
+.select-option:last-child {
+  border-bottom: none;
+}
+
+.select-option:hover {
+  background: #f5f7ff;
+  color: #4F5BDF;
+}
+
+.select-option.selected {
+  background: #f0f3ff;
+  color: #4F5BDF;
+  font-weight: 500;
+}
+
+/* Анимации дропдауна */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Модальное окно */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(1px);
+  animation: overlayAppear 0.3s ease-out;
+}
+
+@keyframes overlayAppear {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(1px);
+  }
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 30px;
+  padding: 0;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 85vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalAppear 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-row.full-width {
+  margin-bottom: 0;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-group.half {
+  flex: 1;
+  min-width: 0;
+}
+
+.input-group.full {
+  width: 100%;
+  padding-bottom: 16px;
+}
+
+.input-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+}
+
+.required {
+  color: #ff4444;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+  background: #fff;
+}
+
+.modal-input:focus {
+  border-color: #4F5BDF;
+  outline: none;
+}
+
+.input-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.modal-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.modal-btn--cancel {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.modal-btn--cancel:hover {
+  background: #e9e9e9;
+}
+
+.modal-btn--confirm {
+  background: #4F5BDF;
+  color: white;
+}
+
+.modal-btn--confirm:hover:not(.modal-btn--disabled) {
+  background: #3a45b2;
+}
+
+.modal-btn--disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Скроллбары */
+.modal-body::-webkit-scrollbar,
+.select-dropdown::-webkit-scrollbar,
+.users-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track,
+.select-dropdown::-webkit-scrollbar-track,
+.users-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.modal-body::-webkit-scrollbar-thumb,
+.select-dropdown::-webkit-scrollbar-thumb,
+.users-body::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover,
+.select-dropdown::-webkit-scrollbar-thumb:hover,
+.users-body::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 @media (max-width: 768px) {
@@ -1270,6 +2039,16 @@ export default {
   .search-container {
     width: 100%;
     justify-content: flex-end;
+  }
+  
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
   }
 }
 </style>

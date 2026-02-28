@@ -95,7 +95,11 @@ pub struct ForwardApplicationRequest {
 #[derive(Debug, Deserialize)]
 pub struct ForwardUser {
     pub user_id: i32,
-    pub required_approval: bool,
+    pub required_approval: bool,      // true - добавляем в ответственные с обязательным согласованием
+    pub can_view: bool,                // true - добавляем в просматривающие
+    // required_approval и can_view не могут быть одновременно true
+    // required_approval = true означает, что пользователь будет в responsible_users
+    // can_view = true означает, что пользователь будет в viewers
 }
 
 // Структура для согласования заявки пользователем

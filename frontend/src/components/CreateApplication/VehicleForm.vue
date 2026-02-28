@@ -180,10 +180,13 @@
                     :key="place.id"
                     class="unloading__item"
                     :class="{ 
-                        'unloading__item--active': selectedUnloadingPlaces.includes(place.id),
-                        'unloading__item--attached': attachedPlacesIds.includes(place.id)
+                        'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
+                        'unloading__item--attached': attachedPlacesIds.includes(place.id),
+                        'unloading__item--inactive': place.status !== 'active'
                     }"
-                    @click="toggleUnloadingPlace(place.id)"
+                    @click="toggleUnloadingPlace(place)"
+                    @mouseenter="showInactiveTooltip(place)"
+                    @mouseleave="hideInactiveTooltip"
                 >
                     {{ place.name }}
                 </div>
@@ -195,6 +198,16 @@
                 Нет доступных мест разгрузки
             </div>
             <div v-if="errors.unloadingPlaces" class="error-message">{{ errors.unloadingPlaces }}</div>
+        </div>
+
+        <!-- Tooltip для неактивных мест -->
+        <div v-if="inactiveTooltip.visible" 
+             class="inactive-tooltip"
+             :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
+        >
+            <div class="inactive-tooltip-content">
+                {{ inactiveTooltip.text }}
+            </div>
         </div>
 
         <!-- Модальное окно выбора существующих машин -->
@@ -393,7 +406,13 @@ export default {
             loadingCars: false,
             searchQuery: '',
             editingVehicle: null,
-            showTooltip: false
+            showTooltip: false,
+            inactiveTooltip: {
+                visible: false,
+                text: '',
+                x: 0,
+                y: 0
+            }
         }
     },
     computed: {
@@ -428,6 +447,16 @@ export default {
                 return false;
             }
             
+            // Проверяем, что среди выбранных мест нет неактивных
+            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                return place && place.status !== 'active';
+            });
+            
+            if (hasInactiveSelected) {
+                return false;
+            }
+            
             if (this.selectedUnloadingPlaces.length === 0) {
                 return false;
             }
@@ -438,10 +467,26 @@ export default {
             return this.attachedUnloadingPlaces.map(place => place.id);
         },
         canAddExistingCars() {
-            return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0;
+            // Проверяем, что среди выбранных мест нет неактивных
+            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                return place && place.status !== 'active';
+            });
+            
+            return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected;
         },
         getTooltipMessage() {
             const missingFields = [];
+            
+            // Проверяем наличие неактивных мест
+            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                return place && place.status !== 'active';
+            });
+            
+            if (hasInactiveSelected) {
+                return 'Невозможно выбрать неактивные места разгрузки';
+            }
             
             if (this.selectedExistingCars.length === 0) {
                 if (!this.isNumberByFact) {
@@ -529,7 +574,9 @@ export default {
 
                     if (orgPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await orgPlacesResponse.json();
-                        this.selectedUnloadingPlaces = this.attachedUnloadingPlaces.map(place => place.id);
+                        // Автоматически выбираем только активные привязанные места
+                        const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
+                        this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
                     }
                 }
 
@@ -543,7 +590,9 @@ export default {
 
                     if (companyPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await companyPlacesResponse.json();
-                        this.selectedUnloadingPlaces = this.attachedUnloadingPlaces.map(place => place.id);
+                        // Автоматически выбираем только активные привязанные места
+                        const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
+                        this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
                     }
                 }
 
@@ -556,6 +605,38 @@ export default {
             } finally {
                 this.loadingUnloadingPlaces = false;
             }
+        },
+
+        getPlaceTooltip(place) {
+            if (place.status !== 'active') {
+                if (place.status_comment) {
+                    return `Недоступно: ${place.status_comment}`;
+                }
+                return 'Недоступно';
+            }
+            return '';
+        },
+
+        showInactiveTooltip(place) {
+            if (place.status !== 'active') {
+                const tooltipText = place.status_comment 
+                    ? `Недоступно: ${place.status_comment}`
+                    : 'Недоступно';
+                
+                this.inactiveTooltip.text = tooltipText;
+                this.inactiveTooltip.visible = true;
+                
+                // Позиционируем тултип
+                this.$nextTick(() => {
+                    const rect = event.target.getBoundingClientRect();
+                    this.inactiveTooltip.x = rect.left + rect.width / 2;
+                    this.inactiveTooltip.y = rect.top - 10;
+                });
+            }
+        },
+
+        hideInactiveTooltip() {
+            this.inactiveTooltip.visible = false;
         },
 
         async loadCarsByFilter(filterType) {
@@ -597,60 +678,42 @@ export default {
                 return;
             }
 
-            // Нормализуем поисковый запрос: удаляем пробелы и приводим к верхнему регистру
             const searchTerm = this.searchQuery.trim().toUpperCase().replace(/\s+/g, '');
             
             this.displayedCars = this.filteredCars.filter(car => {
                 if (!car.number) return false;
                 
-                // Нормализуем номер машины: удаляем пробелы и приводим к верхнему регистру
                 const normalizedCarNumber = car.number.toUpperCase().replace(/\s+/g, '');
                 
-                // Проверяем совпадения:
-                // 1. Полное совпадение без пробелов
                 if (normalizedCarNumber.includes(searchTerm)) {
                     return true;
                 }
                 
-                // 2. Проверяем совпадение с частями номера
-                // Например, для номера "А 777 АА 777" и запроса "А777" или "АА777"
-                // Разбиваем номер на части (буквы и цифры)
                 const numberParts = car.number.toUpperCase().split(/\s+/);
                 const concatenatedParts = numberParts.join('');
                 
-                // Проверяем полное совпадение без пробелов
                 if (concatenatedParts.includes(searchTerm)) {
                     return true;
                 }
                 
-                // Проверяем частичные совпадения
-                // Например, для номера "А 777 АА 777":
-                // - Поиск "А 777" -> совпадет
-                // - Поиск "А777" -> совпадет
-                // - Поиск "777 АА" -> совпадет
-                // - Поиск "А777АА7" -> совпадет
-                
-                // Создаем варианты номеров с разными комбинациями пробелов
                 const variations = [
-                    car.number.toUpperCase(),                     // "А 777 АА 777"
-                    car.number.toUpperCase().replace(/\s+/g, ''), // "А777АА777"
-                    numberParts.join(' '),                        // "А 777 АА 777"
-                    numberParts.slice(0, 2).join(''),             // "А777"
-                    numberParts.slice(2).join(''),               // "АА777"
-                    numberParts[0] + numberParts[1],             // "А777"
-                    numberParts[2] + numberParts[3],             // "АА777"
-                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1), // "А777А"
-                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1) + numberParts[3].slice(0, 1) // "А777АА7"
+                    car.number.toUpperCase(),
+                    car.number.toUpperCase().replace(/\s+/g, ''),
+                    numberParts.join(' '),
+                    numberParts.slice(0, 2).join(''),
+                    numberParts.slice(2).join(''),
+                    numberParts[0] + numberParts[1],
+                    numberParts[2] + numberParts[3],
+                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1),
+                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1) + numberParts[3].slice(0, 1)
                 ];
                 
-                // Проверяем все варианты
                 for (const variation of variations) {
                     if (variation.includes(searchTerm)) {
                         return true;
                     }
                 }
                 
-                // Также проверяем совпадения по марке и ID
                 if (car.mark && car.mark.toLowerCase().includes(this.searchQuery.toLowerCase())) {
                     return true;
                 }
@@ -793,12 +856,17 @@ export default {
             }
         },
         
-        toggleUnloadingPlace(placeId) {
-            const index = this.selectedUnloadingPlaces.indexOf(placeId);
+        toggleUnloadingPlace(place) {
+            // Не даем выбрать неактивное место
+            if (place.status !== 'active') {
+                return;
+            }
+            
+            const index = this.selectedUnloadingPlaces.indexOf(place.id);
             if (index > -1) {
                 this.selectedUnloadingPlaces.splice(index, 1);
             } else {
-                this.selectedUnloadingPlaces.push(placeId);
+                this.selectedUnloadingPlaces.push(place.id);
             }
         },
         
@@ -1165,6 +1233,33 @@ export default {
     right: 40px;
     border: 5px solid transparent;
     border-bottom-color: #333;
+}
+
+.inactive-tooltip {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    z-index: 10000;
+    pointer-events: none;
+}
+
+.inactive-tooltip-content {
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 300px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.inactive-tooltip-content::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
 }
 
 .format__dropdown {
@@ -1567,6 +1662,7 @@ export default {
     row-gap: 5px;
     max-width: 425px;
     margin-top: 5px;
+    position: relative;
 }
 
 .unloading__item {
@@ -1590,7 +1686,7 @@ export default {
     text-overflow: ellipsis;
 }
 
-.unloading__item:hover:not(.unloading__item--active) {
+.unloading__item:hover:not(.unloading__item--active):not(.unloading__item--inactive) {
     background: #e8e8e8;
 }
 
@@ -1598,6 +1694,18 @@ export default {
     background: #4F5BDF;
     color: #fff;
     border-color: #4F5BDF;
+}
+
+.unloading__item--inactive {
+    background: #ffe6e6;
+    color: #ff6b6b;
+    border-color: #ffcccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.unloading__item--attached {
+    border-left: 3px solid #4F5BDF;
 }
 
 .error-message {

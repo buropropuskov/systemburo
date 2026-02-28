@@ -66,15 +66,31 @@
                                         <span v-if="user.position" class="forward-selected-user-position">{{ user.position }}</span>
                                         <span v-if="user.organization" class="forward-selected-user-organization">{{ user.organization }}</span>
                                     </div>
+                                    
+                                    <!-- Настройки доступа -->
                                     <div class="forward-selected-user-settings">
-                                        <label class="required-toggle">
+                                        <!-- Тумблер "Требуется согласование" -->
+                                        <label class="setting-toggle">
+                                            <input 
+                                                type="checkbox" 
+                                                v-model="user.requires_approval"
+                                                @change="onApprovalToggle(user)"
+                                                class="setting-checkbox"
+                                            />
+                                            <span class="toggle-slider"></span>
+                                            <span class="toggle-text">Требуется согласование</span>
+                                        </label>
+
+                                        <!-- Тумблер "Согласование обязательно" (активен только если requires_approval = true) -->
+                                        <label class="setting-toggle" :class="{ 'toggle-disabled': !user.requires_approval }">
                                             <input 
                                                 type="checkbox" 
                                                 v-model="user.required_approval"
-                                                class="required-checkbox"
+                                                :disabled="!user.requires_approval"
+                                                class="setting-checkbox"
                                             />
-                                            <span class="required-toggle-slider"></span>
-                                            <span class="required-toggle-text">Требуется обязательное согласование</span>
+                                            <span class="toggle-slider"></span>
+                                            <span class="toggle-text">Согласование обязательно</span>
                                         </label>
                                     </div>
                                 </div>
@@ -125,6 +141,15 @@ export default {
             type: Array,
             default: () => []
         },
+        // Пропсы для пользователей, у которых уже есть доступ
+        existingApprovers: {
+            type: Array,
+            default: () => []
+        },
+        existingViewers: {
+            type: Array,
+            default: () => []
+        },
         isSending: {
             type: Boolean,
             default: false
@@ -135,7 +160,7 @@ export default {
             searchQuery: '',
             searchResults: [],
             showDropdown: false,
-            selectedUsers: []
+            selectedUsers: [] // Каждый пользователь будет иметь поля: requires_approval, required_approval
         }
     },
     computed: {
@@ -144,20 +169,41 @@ export default {
             return this.responsibleUsers.map(user => user.id);
         },
 
-        // Сортированный список всех пользователей, исключая ответственных
+        // ID пользователей, которые уже являются принимающими
+        approverUserIds() {
+            return this.existingApprovers.map(user => user.user_id);
+        },
+
+        // ID пользователей, которые уже являются просматривающими
+        viewerUserIds() {
+            return this.existingViewers.map(user => user.user_id);
+        },
+
+        // Все ID пользователей, у которых уже есть доступ (принимающие, ответственные, читатели)
+        existingUserIds() {
+            return [...this.responsibleUserIds, ...this.approverUserIds, ...this.viewerUserIds];
+        },
+
+        // Сортированный список всех пользователей, исключая тех, у кого уже есть доступ
         sortedAllUsers() {
-            return [...this.allUsers]
-                .filter(user => !this.responsibleUserIds.includes(user.id))
-                .sort((a, b) => {
-                    const nameA = this.getUserDisplayName(a).toLowerCase();
-                    const nameB = this.getUserDisplayName(b).toLowerCase();
-                    return nameA.localeCompare(nameB);
-                });
+            console.log('All users:', this.allUsers.length);
+            console.log('Existing user IDs:', this.existingUserIds);
+            
+            const filteredUsers = [...this.allUsers]
+                .filter(user => !this.existingUserIds.includes(user.id));
+            
+            console.log('Filtered users:', filteredUsers.length);
+            
+            return filteredUsers.sort((a, b) => {
+                const nameA = this.getUserDisplayName(a).toLowerCase();
+                const nameB = this.getUserDisplayName(b).toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
         },
         
         // Отфильтрованные пользователи для отображения
         filteredUsers() {
-            // Исключаем уже выбранных пользователей и ответственных
+            // Исключаем уже выбранных пользователей
             let availableUsers = this.sortedAllUsers.filter(user => 
                 !this.selectedUsers.some(selected => selected.username === user.username)
             );
@@ -196,32 +242,39 @@ export default {
         },
 
         addUser(user) {
+            console.log('Adding user:', user);
             const userWithSettings = {
                 ...user,
-                required_approval: false
+                requires_approval: false,  // По умолчанию только просмотр
+                required_approval: false    // По умолчанию необязательное
             };
             this.selectedUsers.push(userWithSettings);
             this.searchQuery = '';
             
-            // НЕМЕДЛЕННО закрываем выпадающее меню
             this.showDropdown = false;
-            
-            // Очищаем результаты поиска
             this.searchResults = [];
-            
-            // Убираем фокус с поля ввода, чтобы клавиатура скрылась на мобильных устройствах
             this.$refs.searchInput.blur();
             
             this.$emit('update:selected-users', this.selectedUsers);
+            console.log('Selected users after add:', this.selectedUsers);
+        },
+
+        onApprovalToggle(user) {
+            console.log('Toggle changed for user:', user.username, 'requires_approval:', user.requires_approval);
+            // Если выключили "Требуется согласование", сбрасываем "Согласование обязательно"
+            if (!user.requires_approval) {
+                user.required_approval = false;
+            }
+            console.log('User after toggle:', user);
         },
 
         removeUser(user) {
             this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
             this.$emit('update:selected-users', this.selectedUsers);
+            console.log('Selected users after remove:', this.selectedUsers);
         },
 
         onSearchBlur() {
-            // Увеличил задержку, чтобы дать время на обработку клика
             setTimeout(() => {
                 this.showDropdown = false;
             }, 200);
@@ -232,7 +285,30 @@ export default {
         },
 
         send() {
-            this.$emit('send', this.selectedUsers);
+            console.log('Sending selected users:', this.selectedUsers);
+            
+            // Преобразуем данные для отправки на сервер
+            const usersToSend = this.selectedUsers.map(user => {
+                // Если требуется согласование - отправляем как ответственного
+                if (user.requires_approval) {
+                    return {
+                        user_id: user.id,
+                        required_approval: user.required_approval || false,
+                        can_view: false  // Не может быть только просматривающим, если требуется согласование
+                    };
+                } 
+                // Если не требуется согласование - отправляем как просматривающего
+                else {
+                    return {
+                        user_id: user.id,
+                        required_approval: false,  // Не может быть обязательным согласующим
+                        can_view: true  // Только просмотр
+                    };
+                }
+            });
+            
+            console.log('Users to send to server:', usersToSend);
+            this.$emit('send', usersToSend);
         },
 
         reset() {
@@ -276,7 +352,7 @@ export default {
     flex-direction: column;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     animation: scaleIn 0.3s ease-out;
-    overflow: hidden; /* Важно: скрываем переполнение на уровне модала */
+    overflow: hidden;
 }
 
 @keyframes scaleIn {
@@ -338,7 +414,7 @@ export default {
 .user-search-section {
     position: relative;
     margin-bottom: 20px;
-    flex-shrink: 0; /* Не сжимается */
+    flex-shrink: 0;
 }
 
 .forward-search-input {
@@ -436,7 +512,7 @@ export default {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    flex: 1; /* Занимает все доступное место */
+    flex: 1;
 }
 
 .selected-forward-users h4 {
@@ -449,7 +525,7 @@ export default {
 
 .forward-users-list-container {
     flex: 1;
-    overflow-y: auto; /* Скроллится только список выбранных пользователей */
+    overflow-y: auto;
     min-height: 0;
     padding-right: 5px;
 }
@@ -480,7 +556,7 @@ export default {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 8px;
 }
 
 .forward-selected-user-main {
@@ -518,34 +594,41 @@ export default {
 
 .forward-selected-user-settings {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    gap: 8px;
     margin-top: 4px;
 }
 
-.required-toggle {
+.setting-toggle {
     display: flex;
     align-items: center;
     cursor: pointer;
     font-size: 13px;
     color: #666;
     gap: 8px;
+    width: fit-content;
 }
 
-.required-checkbox {
+.setting-toggle.toggle-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.setting-checkbox {
     display: none;
 }
 
-.required-toggle-slider {
+.toggle-slider {
     position: relative;
     width: 34px;
     height: 18px;
     background-color: #ccc;
     border-radius: 9px;
     transition: background-color 0.3s;
+    display: inline-block;
 }
 
-.required-toggle-slider:before {
+.toggle-slider:before {
     content: "";
     position: absolute;
     width: 14px;
@@ -557,15 +640,20 @@ export default {
     transition: transform 0.3s;
 }
 
-.required-checkbox:checked + .required-toggle-slider {
+.setting-checkbox:checked + .toggle-slider {
     background-color: #4F5BDF;
 }
 
-.required-checkbox:checked + .required-toggle-slider:before {
+.setting-checkbox:checked + .toggle-slider:before {
     transform: translateX(16px);
 }
 
-.required-toggle-text {
+.setting-checkbox:disabled + .toggle-slider {
+    background-color: #e0e0e0;
+    cursor: not-allowed;
+}
+
+.toggle-text {
     font-size: 13px;
     color: #333;
 }
@@ -647,7 +735,6 @@ export default {
     cursor: not-allowed;
 }
 
-/* Стилизация скроллбара */
 .forward-user-dropdown-content::-webkit-scrollbar,
 .forward-users-list-container::-webkit-scrollbar {
     width: 6px;

@@ -6,15 +6,17 @@
             {{ notification.message }}
         </div>
 
-        <!-- Модальное окно для пересылки -->
-        <ForwardModal
-            v-if="showForwardModal"
-            :all-users="allUsers"
-            :responsible-users="responsibleUsers"
-            :is-sending="isForwarding"
-            @close="closeForwardModal"
-            @send="sendForwardRequest"
-        />
+        <!-- В ApplicationDetail.vue, в секции с ForwardModal -->
+<ForwardModal
+    v-if="showForwardModal"
+    :all-users="allUsers"
+    :responsible-users="responsibleUsers"
+    :existing-approvers="approvers"  
+    :existing-viewers="viewers"       
+    :is-sending="isForwarding"
+    @close="closeForwardModal"
+    @send="sendForwardRequest"
+/>
 
         <div class="application-detail">
             <!-- Заголовок и кнопки -->
@@ -251,6 +253,7 @@
                             </div>
                         </template>
                     </div>
+
                     
                     <!-- Режим просмотра заявок пользователя -->
                     <div v-if="mode === 'user'" class="view-buttons">
@@ -543,6 +546,8 @@ export default {
             attachmentEmployees: [],
             attachmentItems: [],
             responsibleUsers: [],
+     
+        viewers: [],              // Добавляем для читателей
             updatingConfirmation: false,
             processingApplication: false,
             loadingAttachmentDetails: false,
@@ -556,9 +561,9 @@ export default {
             isForwarding: false,
             allUsers: [],
             approvers: [],
-            actionComment: '', // Поле для комментария к действию
-            lastUserComment: '', // Сохраняем последний комментарий пользователя
-            storageKey: '' // Ключ для localStorage
+            actionComment: '',
+            lastUserComment: '',
+            storageKey: ''
         }
     },
     computed: {
@@ -578,7 +583,6 @@ export default {
             return currentUser && currentUser.approval_status !== 'pending';
         },
 
-        // Проверяем, выполнил ли принимающий действие
         isApproverActionDone() {
             if (!this.isApprover || this.isResponsibleUser) return false;
             return this.applicationData.status === 'В работе' || this.applicationData.status === 'Отказано';
@@ -606,15 +610,12 @@ export default {
         },
 
         canLeaveComment() {
-            // Может ли текущий пользователь оставить комментарий
             if (this.processingApplication) return false;
             
-            // Для принимающих - только если не выполнили действие
             if (this.isApprover && !this.isResponsibleUser) {
                 return !this.isApproverActionDone;
             }
             
-            // Для ответственных - только если не голосовали
             if (this.isResponsibleUser) {
                 return !this.hasUserVoted;
             }
@@ -703,74 +704,84 @@ export default {
         },
 
         async loadApplicationDetails(application) {
-            try {
-                const token = localStorage.getItem("token");
+    try {
+        const token = localStorage.getItem("token");
+        
+        const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
+            fetch(`http://localhost:8080/applications/${application.id}/details`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+            }),
+            fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+            }),
+            fetch(`http://localhost:8080/applications/${application.id}/viewers`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+            })
+        ]);
+
+        if (appResponse.ok) {
+            const appData = await appResponse.json();
+            
+            this.applicationData = {
+                ...this.applicationData,
+                ...appData
+            };
+            
+            if (appData.responsible_users) {
+                this.responsibleUsers = appData.responsible_users.map(user => ({
+                    ...user,
+                    approval_status: user.approval_status || 'pending'
+                }));
                 
-                const [appResponse, attachmentsResponse] = await Promise.all([
-                    fetch(`http://localhost:8080/applications/${application.id}/details`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
-                    }),
-                    fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
-                    })
-                ]);
-
-                if (appResponse.ok) {
-                    const appData = await appResponse.json();
-                    
-                    this.applicationData = {
-                        ...this.applicationData,
-                        ...appData
-                    };
-                    
-                    if (appData.responsible_users) {
-                        this.responsibleUsers = appData.responsible_users.map(user => ({
-                            ...user,
-                            approval_status: user.approval_status || 'pending'
-                        }));
-                        
-                        // Загружаем комментарий текущего пользователя из БД, если он есть
-                        if (this.currentUserId) {
-                            const currentUser = this.responsibleUsers.find(u => u.id === this.currentUserId);
-                            if (currentUser && currentUser.approval_comment) {
-                                this.actionComment = currentUser.approval_comment;
-                                this.lastUserComment = currentUser.approval_comment;
-                                this.saveCommentToLocalStorage();
-                            } else {
-                                // Если в БД нет, используем сохраненный из localStorage
-                                this.loadCommentFromLocalStorage();
-                            }
-                        }
-                    }
-                    
-                    if (this.$refs.confirmationComponent) {
-                        this.$refs.confirmationComponent.$forceUpdate();
+                if (this.currentUserId) {
+                    const currentUser = this.responsibleUsers.find(u => u.id === this.currentUserId);
+                    if (currentUser && currentUser.approval_comment) {
+                        this.actionComment = currentUser.approval_comment;
+                        this.lastUserComment = currentUser.approval_comment;
+                        this.saveCommentToLocalStorage();
+                    } else {
+                        this.loadCommentFromLocalStorage();
                     }
                 }
-
-                if (attachmentsResponse.ok) {
-                    this.attachments = await attachmentsResponse.json();
-                    if (this.attachments.length > 0) {
-                        this.selectedAttachment = this.attachments[0];
-                        await this.loadAttachmentDetails(this.selectedAttachment.id);
-                    }
-                }
-
-                await this.fetchAllUsers();
-                await this.fetchApprovers();
-
-            } catch (error) {
-                console.error("Ошибка при загрузке деталей заявки:", error);
             }
-        },
+            
+            if (this.$refs.confirmationComponent) {
+                this.$refs.confirmationComponent.$forceUpdate();
+            }
+        }
+
+        if (attachmentsResponse.ok) {
+            this.attachments = await attachmentsResponse.json();
+            if (this.attachments.length > 0) {
+                this.selectedAttachment = this.attachments[0];
+                await this.loadAttachmentDetails(this.selectedAttachment.id);
+            }
+        }
+
+        if (viewersResponse.ok) {
+            this.viewers = await viewersResponse.json();
+            console.log('Loaded viewers:', this.viewers); // Для отладки
+        }
+
+        await this.fetchAllUsers();
+        await this.fetchApprovers();
+
+    } catch (error) {
+        console.error("Ошибка при загрузке деталей заявки:", error);
+    }
+},
 
         async fetchAllUsers() {
             try {
@@ -789,20 +800,21 @@ export default {
         },
 
         async fetchApprovers() {
-            try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/application-approvers", {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
-                });
-                if (response.ok) {
-                    this.approvers = await response.json();
-                }
-            } catch (error) {
-                console.error("Error fetching approvers:", error);
-            }
-        },
+    try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/application-approvers", {
+            headers: {
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+        if (response.ok) {
+            this.approvers = await response.json();
+            console.log('Loaded approvers:', this.approvers); // Для отладки
+        }
+    } catch (error) {
+        console.error("Error fetching approvers:", error);
+    }
+},
 
         async loadAttachmentDetails(attachmentId) {
             if (!attachmentId) return;
@@ -877,7 +889,6 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Отзываем решение БЕЗ комментария
                 const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/revoke-approval`, {
                     method: "POST",
                     headers: {
@@ -885,7 +896,7 @@ export default {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        comment: null // Не отправляем комментарий
+                        comment: null
                     })
                 });
 
@@ -900,7 +911,6 @@ export default {
                         confirmation: result.confirmation
                     };
                     
-                    // Сохраняем комментарий в localStorage перед перезагрузкой
                     this.saveCommentToLocalStorage();
                     
                     await this.loadApplicationDetails(this.applicationData);
@@ -908,6 +918,8 @@ export default {
                     if (this.$refs.historyComponent) {
                         this.$refs.historyComponent.loadHistory();
                     }
+                    
+                    this.$emit('application-changed', this.applicationData);
                     
                 } else {
                     const errorText = await response.text();
@@ -925,7 +937,6 @@ export default {
         async handleCombinedAction(action) {
             this.processingApplication = true;
             try {
-                // Сохраняем комментарий перед отправкой
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -981,7 +992,6 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Сохраняем комментарий перед отправкой
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1006,7 +1016,6 @@ export default {
                         status: 'В работе'
                     };
                     
-                    // Очищаем комментарий из localStorage после успешного действия
                     this.clearCommentFromLocalStorage();
                     
                     await this.loadApplicationDetails(this.applicationData);
@@ -1014,6 +1023,8 @@ export default {
                     if (this.$refs.historyComponent) {
                         this.$refs.historyComponent.loadHistory();
                     }
+                    
+                    this.$emit('application-changed', this.applicationData);
                     
                 } else {
                     const errorText = await response.text();
@@ -1030,7 +1041,6 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Сохраняем комментарий перед отправкой
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1055,7 +1065,6 @@ export default {
                         status: 'Отказано'
                     };
                     
-                    // Очищаем комментарий из localStorage после успешного действия
                     this.clearCommentFromLocalStorage();
                     
                     await this.loadApplicationDetails(this.applicationData);
@@ -1063,6 +1072,8 @@ export default {
                     if (this.$refs.historyComponent) {
                         this.$refs.historyComponent.loadHistory();
                     }
+                    
+                    this.$emit('application-changed', this.applicationData);
                     
                 } else {
                     const errorText = await response.text();
@@ -1080,7 +1091,6 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Отзываем заявку БЕЗ комментария
                 const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/revoke-from-work`, {
                     method: "POST",
                     headers: {
@@ -1089,7 +1099,7 @@ export default {
                     },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
-                        comment: null // Не отправляем комментарий
+                        comment: null
                     })
                 });
 
@@ -1101,7 +1111,6 @@ export default {
                         status: 'В обработке'
                     };
                     
-                    // Сохраняем комментарий в localStorage перед перезагрузкой
                     this.saveCommentToLocalStorage();
                     
                     await this.loadApplicationDetails(this.applicationData);
@@ -1109,6 +1118,8 @@ export default {
                     if (this.$refs.historyComponent) {
                         this.$refs.historyComponent.loadHistory();
                     }
+                    
+                    this.$emit('application-changed', this.applicationData);
                     
                 } else {
                     const errorText = await response.text();
@@ -1128,7 +1139,6 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Сохраняем комментарий перед отправкой
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1152,7 +1162,6 @@ export default {
                         status: 'В обработке'
                     };
                     
-                    // Сохраняем комментарий в localStorage перед перезагрузкой
                     this.saveCommentToLocalStorage();
                     
                     await this.loadApplicationDetails(this.applicationData);
@@ -1160,6 +1169,8 @@ export default {
                     if (this.$refs.historyComponent) {
                         this.$refs.historyComponent.loadHistory();
                     }
+                    
+                    this.$emit('application-changed', this.applicationData);
                     
                 } else {
                     const errorText = await response.text();
@@ -1187,7 +1198,6 @@ export default {
                     return;
                 }
 
-                // Сохраняем комментарий перед отправкой
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1226,7 +1236,6 @@ export default {
                     };
                 }
                 
-                // Очищаем комментарий из localStorage после успешного действия
                 this.clearCommentFromLocalStorage();
                 
                 await this.loadApplicationDetails(this.applicationData);
@@ -1241,6 +1250,8 @@ export default {
                         : 'Заявка отклонена',
                     confirmation === 'Согласовано' ? 'success' : 'error'
                 );
+                
+                this.$emit('application-changed', this.applicationData);
                 
             } catch (error) {
                 console.error("Ошибка при обновлении подтверждения:", error);
@@ -1262,48 +1273,61 @@ export default {
             this.showForwardModal = false;
         },
 
-        async sendForwardRequest(selectedUsers) {
-            if (selectedUsers.length === 0) return;
-            
-            this.isForwarding = true;
-            try {
-                const token = localStorage.getItem("token");
-                
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/forward`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        users: selectedUsers.map(user => ({
-                            user_id: user.id,
-                            required_approval: user.required_approval || false
-                        }))
-                    })
-                });
+        // В ApplicationDetail.vue, метод sendForwardRequest:
 
-                if (response.ok) {
-                    this.showNotification("Заявка успешно переслана", "success");
-                    this.closeForwardModal();
-                    
-                    await this.loadApplicationDetails(this.applicationData);
-                    
-                    if (this.$refs.historyComponent) {
-                        this.$refs.historyComponent.loadHistory();
-                    }
-                    
-                } else {
-                    const errorText = await response.text();
-                    this.showNotification(`Ошибка: ${errorText}`, 'error');
-                }
-            } catch (error) {
-                console.error("Ошибка при пересылке заявки:", error);
-                this.showNotification("Ошибка сети", 'error');
-            } finally {
-                this.isForwarding = false;
+async sendForwardRequest(selectedUsers) {
+    if (selectedUsers.length === 0) return;
+    
+    console.log('Selected users before sending:', selectedUsers); // Для отладки
+    
+    this.isForwarding = true;
+    try {
+        const token = localStorage.getItem("token");
+        
+        // Преобразуем данные в нужный формат для сервера
+        const usersToSend = selectedUsers.map(user => ({
+            user_id: user.user_id,
+            required_approval: user.required_approval || false,
+            can_view: user.can_view !== undefined ? user.can_view : !user.required_approval
+        }));
+        
+        console.log('Sending to server:', usersToSend); // Для отладки
+        
+        const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/forward`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                users: usersToSend
+            })
+        });
+
+        if (response.ok) {
+            this.showNotification("Заявка успешно переслана", "success");
+            this.closeForwardModal();
+            
+            await this.loadApplicationDetails(this.applicationData);
+            
+            if (this.$refs.historyComponent) {
+                this.$refs.historyComponent.loadHistory();
             }
-        },
+            
+            this.$emit('application-changed', this.applicationData);
+            
+        } else {
+            const errorText = await response.text();
+            console.error('Server error response:', errorText); // Для отладки
+            this.showNotification(`Ошибка: ${errorText}`, 'error');
+        }
+    } catch (error) {
+        console.error("Ошибка при пересылке заявки:", error);
+        this.showNotification("Ошибка сети", 'error');
+    } finally {
+        this.isForwarding = false;
+    }
+},
 
         duplicateApplication() {
             console.log('Дублирование заявки:', this.applicationData.application_number);
@@ -1459,7 +1483,7 @@ export default {
             this.$emit('close');
         }
     },
-    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application']
+    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application', 'application-changed']
 }
 </script>
 

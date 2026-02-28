@@ -7,6 +7,7 @@ mod auth;
 mod database;
 
 use actix_web::{App, HttpServer, middleware::Logger, web, HttpResponse};
+use actix_files as fs; // Добавить этот импорт
 use actix_cors::Cors;
 use std::sync::Arc;
 use dashmap::DashMap;
@@ -144,8 +145,12 @@ async fn main() -> std::io::Result<()> {
     let pool = get_pool().await;
     let rate_limiter = RateLimiter::new(10, 60);
 
+    // Создаем директорию для загрузок, если её нет
+    std::fs::create_dir_all("./uploads/unload_places").expect("Failed to create upload directory");
+
     println!("🚀 Server starting on http://127.0.0.1:8080");
     println!("📊 Rate limit: 10 requests/minute per IP/user");
+    println!("📁 Upload directory: ./uploads/unload_places");
 
     HttpServer::new(move || {
         let limiter = rate_limiter.clone();
@@ -163,6 +168,8 @@ async fn main() -> std::io::Result<()> {
                     .max_age(3600)
             )
             .wrap(RateLimitMiddleware)
+            // Добавляем обслуживание статических файлов из папки uploads
+            .service(fs::Files::new("/uploads", "./uploads").show_files_listing())
             .app_data(web::Data::new(limiter.clone()))
             .app_data(web::Data::new(pool.clone()))
             .configure(routes::config)

@@ -101,6 +101,11 @@
                                     Переслано пользователем {{ item.metadata.forwarded_by }}
                                 </div>
                                 
+                                <!-- Для просмотра показываем дополнительную информацию -->
+                                <div v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by" class="forward-info">
+                                    Переслано пользователем {{ item.metadata.forwarded_by }}
+                                </div>
+                                
                                 <!-- Бейдж обязательного согласования -->
                                 <div v-if="item.metadata?.required_approval" class="required-badge">
                                     Обязательно
@@ -531,6 +536,7 @@ export default {
                 'revoke_from_work': 'dot-warning',
                 'restore_to_work': 'dot-info',
                 'assigned_responsible': 'dot-assign',
+                'assigned_viewer': 'dot-view',
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system'
             };
@@ -547,6 +553,12 @@ export default {
                 return 'Не согласовал(а) заявку';
             }
             
+            // Новый тип для просматривающих
+            if (item.action_type === 'assigned_viewer') {
+                
+                return `Получил(-а) доступ к просмотру заявки`;
+            }
+            
             const texts = {
                 'create': 'Создал(-а) заявку',
                 'read': 'Прочитал(-а) заявку',
@@ -556,11 +568,16 @@ export default {
                 'revoke_from_work': 'Отозвал(-а) из работы',
                 'restore_to_work': 'Вернул(-а) в работу',
                 'assigned_responsible': 'Назначен(-а) ответственным получателем',
+                'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
                 'confirmation_change': 'Статус согласования изменился',
                 'status_change': 'Статус заявки изменился'
             };
             
-            return texts[item.action_type] || item.action_type;
+            let text = texts[item.action_type] || item.action_type;
+            
+            
+            
+            return text;
         },
 
         formatTime(dateTimeString) {
@@ -973,6 +990,7 @@ export default {
 .dot-warning { background: #f59e0b; }
 .dot-info { background: #3b82f6; }
 .dot-assign { background: #8b5cf6; }
+.dot-view { background: #9b59b6; }
 .dot-system { background: #8b5cf6; }
 .dot-default { background: #9ca3af; }
 

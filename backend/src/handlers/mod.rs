@@ -17,3 +17,4 @@ pub mod items;
 pub mod feedback;
 pub mod application_approvers;
 pub mod application_history;
+pub mod application_viewers;

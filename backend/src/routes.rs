@@ -18,6 +18,7 @@ use crate::handlers::employees::*;
 use crate::handlers::feedback::*;
 use crate::handlers::application_approvers::*;
 use crate::handlers::application_history::*;
+use crate::handlers::application_viewers::*;
 
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -41,6 +42,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/status", web::put().to(update_feedback_status))
                 .route("/{id}/read", web::put().to(mark_feedback_as_read))
         )
+
+        
 
         // Управление типами пользователей (CRUD)
         .service(
@@ -75,6 +78,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/history", web::get().to(get_application_history))
                 .route("/{id}/revoke-approval", web::post().to(revoke_approval))
                 .route("/history", web::post().to(add_history_entry))
+                .route("/{id}/viewers", web::get().to(get_application_viewers))
         )
 
         // Машины - обновленный раздел с новыми маршрутами
@@ -115,14 +119,24 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/ownership-info", web::get().to(get_employee_ownership_info))
         )
 
-        // Места разгрузки
-        .service(
-            web::scope("/unload-places")
-                .route("", web::get().to(get_unload_places))
-                .route("", web::post().to(create_unload_place))
-                .route("/{id}", web::put().to(update_unload_place))
-                .route("/{id}", web::delete().to(delete_unload_place))
-        )
+       .service(
+    web::scope("/unload-places")
+        .route("", web::get().to(get_unload_places))
+        .route("", web::post().to(create_unload_place))
+        .route("/{id}", web::get().to(get_unload_place_by_id))
+        .route("/{id}", web::put().to(update_unload_place))
+        .route("/{id}", web::delete().to(delete_unload_place))
+        // Новый маршрут для круглосуточного режима
+        // Маршруты для временных слотов
+        .route("/{id}/time-slots", web::get().to(get_unload_place_time_slots))
+        .route("/{id}/time-slots", web::post().to(add_unload_place_time_slot))
+        .route("/{place_id}/time-slots/{slot_id}", web::put().to(update_unload_place_time_slot))
+        .route("/{place_id}/time-slots/{slot_id}", web::delete().to(delete_unload_place_time_slot))
+        // Маршруты для фотографий
+        .route("/{id}/photos", web::post().to(upload_unload_place_photo))
+        .route("/{place_id}/photos/{photo_id}", web::delete().to(delete_unload_place_photo))
+        .route("/{place_id}/photos/{photo_id}/main", web::post().to(set_main_unload_place_photo))
+)
 
         // Организации
         .service(
