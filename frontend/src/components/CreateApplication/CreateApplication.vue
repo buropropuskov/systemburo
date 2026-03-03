@@ -142,6 +142,7 @@
                             :employees="sortedEmployees"
                             :sort-field="sortField"
                             :sort-direction="sortDirection"
+                            :all-tables="allPassageTables"
                             @sort="sortBy"
                             @edit-employee="editEmployee"
                             @delete-employee="deleteEmployee"
@@ -223,7 +224,6 @@ export default {
     },
     data() {
         return {
-            // Общие данные формы (общие для всех вложений)
             message: '',
             organization: '',
             company: '',
@@ -235,34 +235,27 @@ export default {
 
             allUnloadingPlaces: [],
 
-            // IDs
             organizationId: null,
             companyId: null,
             
-            // Данные вложений
             selectedAttachment: null,
             attachments: [],
 
             licensePlateFormats: [],
 
-            // Данные для разных типов вложений (храним по attachment_id)
             vehiclesByAttachment: {},
             employeesByAttachment: {},
             itemsByAttachment: {},
             
-            // Данные дат и времени для каждого вложения (храним по attachment_id)
             attachmentDatesByAttachment: {},
             
-            // Счетчики ID (храним глобально)
             vehicleIdCounter: 1,
             employeeIdCounter: 1,
             itemIdCounter: 1,
             
-            // Сортировка
             sortField: null,
             sortDirection: 'asc',
             
-            // Валидация
             errors: {
                 organization: '',
                 company: '',
@@ -270,20 +263,19 @@ export default {
                 phone: ''
             },
             
-            // Ключи для принудительного перерисовывания форм
             vehicleFormKey: 0,
             employeeFormKey: 0,
             itemsFormKey: 0,
 
-            // Модальное окно привязки
             showBindingModal: false,
             newVehiclesToBind: [],
             newEmployeesToBind: [],
             hasOrganization: false,
             hasCompany: false,
             
-            // Данные текущей заявки (для редактирования)
-            currentApplicationData: {}
+            currentApplicationData: {},
+            
+            allPassageTables: []
         }
     },
     computed: {
@@ -294,7 +286,6 @@ export default {
             return 'Добавьте новое вложение';
         },
         
-        // Получаем данные для текущего выбранного вложения
         vehicles() {
             if (!this.selectedAttachment) return [];
             return this.vehiclesByAttachment[this.selectedAttachment.id] || [];
@@ -310,7 +301,6 @@ export default {
             return this.itemsByAttachment[this.selectedAttachment.id] || [];
         },
         
-        // Данные дат и времени для текущего вложения
         currentAttachmentData() {
             if (!this.selectedAttachment) {
                 return this.getDefaultDateData();
@@ -319,7 +309,6 @@ export default {
             return data || this.getDefaultDateData();
         },
         
-        // Ошибки для текущего вложения
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.selectedAttachment.id];
@@ -327,12 +316,10 @@ export default {
         },
         
         canSubmit() {
-            // Если вложений нет, нельзя отправлять
             if (this.attachments.length === 0) {
                 return false;
             }
 
-            // Проверка общих обязательных полей
             const hasRequiredFields = 
                 this.organization && 
                 this.company && 
@@ -344,16 +331,13 @@ export default {
                 return false;
             }
 
-            // Проверка наличия данных во всех вложениях
             let allAttachmentsValid = true;
             
-            // Проверяем каждое вложение
             this.attachments.forEach(attachment => {
                 let hasAttachmentData = false;
                 let hasValidDates = false;
                 let hasValidTime = false;
 
-                // Проверка наличия данных
                 switch (attachment.attachment_type) {
                     case 'cars':
                         hasAttachmentData = (this.vehiclesByAttachment[attachment.id] || []).length > 0;
@@ -366,7 +350,6 @@ export default {
                         break;
                 }
 
-                // Проверка дат и времени
                 const dateData = this.attachmentDatesByAttachment[attachment.id];
                 if (dateData) {
                     hasValidDates = dateData.isOneDay 
@@ -384,7 +367,6 @@ export default {
             return allAttachmentsValid;
         },
         
-        // Сортированные списки
         sortedVehicles() {
             if (!this.sortField || !this.vehicles.length) {
                 return this.vehicles;
@@ -487,6 +469,27 @@ export default {
         }
     },
     methods: {
+        async loadPassageTables() {
+    try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/system-tables", {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const tables = await response.json();
+            console.log('Загруженные таблицы в CreateApplication:', tables);
+            this.allPassageTables = tables;
+        } else {
+            console.error("Ошибка при загрузке системных таблиц");
+        }
+    } catch (error) {
+        console.error("Ошибка при загрузке таблиц:", error);
+    }
+},
         async loadLicensePlateFormats() {
             try {
                 const token = localStorage.getItem("token");
@@ -499,7 +502,6 @@ export default {
 
                 if (response.ok) {
                     this.licensePlateFormats = await response.json();
-                    console.log('Loaded license plate formats:', this.licensePlateFormats);
                 } else {
                     console.error("Ошибка при загрузке форматов номеров");
                 }
@@ -520,14 +522,12 @@ export default {
 
                 if (response.ok) {
                     this.allUnloadingPlaces = await response.json();
-                    console.log('Loaded unloading places:', this.allUnloadingPlaces);
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке мест разгрузки:", error);
             }
         },
         
-        // Получение дефолтных данных дат
         getDefaultDateData() {
             return {
                 isOneDay: false,
@@ -543,25 +543,20 @@ export default {
             };
         },
         
-        // Обновление данных для текущего вложения
         updateAttachmentData(field, value) {
             if (!this.selectedAttachment) return;
             
             const attachmentId = this.selectedAttachment.id;
             
-            // Инициализируем данные, если их нет
             if (!this.attachmentDatesByAttachment[attachmentId]) {
                 this.attachmentDatesByAttachment[attachmentId] = this.getDefaultDateData();
             }
             
-            // Обновляем поле
             this.attachmentDatesByAttachment[attachmentId][field] = value;
             
-            // Сохраняем в localStorage
             this.saveToLocalStorage();
         },
         
-        // Валидация полей для текущего вложения
         validateAttachmentField(field) {
             if (!this.selectedAttachment) return;
             
@@ -636,14 +631,11 @@ export default {
             this.saveToLocalStorage();
         },
         
-        // Новый метод для очистки данных формы
         clearFormData() {
-            // Очищаем данные формы ТОЛЬКО если нет вложений
             if (this.attachments.length === 0 && this.selectedAttachment === null) {
                 this.message = '';
                 this.consentGiven = false;
                 
-                // Сбрасываем ошибки
                 this.errors = {
                     organization: '',
                     company: '',
@@ -670,25 +662,20 @@ export default {
 
                 if (response.ok) {
                     const userData = await response.json();
-                    // Автозаполнение данных пользователя
                     this.organization = userData.organization || '';
                     this.company = userData.company || '';
                     
-                    // Сохраняем ID организации и компании если они есть в ответе
                     this.organizationId = userData.organization_id || null;
                     this.companyId = userData.company_id || null;
                     
-                    // Проверяем наличие организации и компании
                     this.hasOrganization = !!this.organizationId;
                     this.hasCompany = !!this.companyId;
                     
-                    // Формирование ФИО
                     const lastName = userData.last_name || '';
                     const firstName = userData.first_name || '';
                     const middleName = userData.middle_name || '';
                     this.responsiblePerson = `${lastName} ${firstName} ${middleName}`.trim();
                     
-                    // Форматирование телефона
                     this.phoneNumber = userData.phone || '';
                     if (this.phoneNumber) {
                         this.formatPhoneNumberImmediately(this.phoneNumber);
@@ -762,19 +749,17 @@ export default {
         handleAttachmentSelected(attachment) {
             if (!attachment) {
                 this.selectedAttachment = null;
-                // Если нет выбранных вложений, проверяем нужно ли очищать данные
                 this.clearFormData();
                 return;
             }
             
             this.selectedAttachment = attachment;
-            // Восстанавливаем данные для этого вложения
             this.restoreAttachmentData(attachment);
         },
 
         handleAttachmentAdded(attachment) {
             this.attachments.push(attachment);
-            // Создаем пустой массив данных для нового вложения
+            
             if (attachment.attachment_type === 'cars') {
                 this.vehiclesByAttachment[attachment.id] = [];
             } else if (attachment.attachment_type === 'people') {
@@ -783,13 +768,10 @@ export default {
                 this.itemsByAttachment[attachment.id] = [];
             }
             
-            // Создаем дефолтные данные дат для нового вложения
             this.attachmentDatesByAttachment[attachment.id] = this.getDefaultDateData();
             
-            // Выбираем это вложение
             this.selectAttachment(attachment);
             
-            // Сохраняем состояние в localStorage
             this.saveToLocalStorage();
         },
 
@@ -800,7 +782,6 @@ export default {
         handleAttachmentRemoved(attachment) {
             this.attachments = this.attachments.filter(a => a.id !== attachment.id);
             
-            // Удаляем данные вложения
             if (attachment.attachment_type === 'cars') {
                 delete this.vehiclesByAttachment[attachment.id];
             } else if (attachment.attachment_type === 'people') {
@@ -809,34 +790,28 @@ export default {
                 delete this.itemsByAttachment[attachment.id];
             }
             
-            // Удаляем данные дат вложения
             delete this.attachmentDatesByAttachment[attachment.id];
             
             if (this.selectedAttachment && this.selectedAttachment.id === attachment.id) {
                 this.selectedAttachment = null;
             }
             
-            // Проверяем нужно ли очищать данные формы (после удаления)
             this.clearFormData();
             
-            // Сохраняем состояние в localStorage
             this.saveToLocalStorage();
         },
 
         restoreAttachmentData(attachment) {
-            // При переключении вложения сохраняем текущие данные
             if (this.selectedAttachment) {
                 this.saveCurrentAttachmentData();
             }
             
-            // Загружаем данные для нового вложения
             this.loadAttachmentData(attachment);
         },
 
         saveCurrentAttachmentData() {
             if (!this.selectedAttachment) return;
             
-            // Сохраняем текущие данные в соответствующее хранилище
             switch (this.selectedAttachment.attachment_type) {
                 case 'cars':
                     this.vehiclesByAttachment[this.selectedAttachment.id] = this.vehicles;
@@ -849,17 +824,14 @@ export default {
                     break;
             }
             
-            // Сохраняем в localStorage
             this.saveToLocalStorage();
         },
 
         loadAttachmentData(attachment) {
             if (!attachment) return;
             
-            // Загружаем данные из соответствующего хранилища
             switch (attachment.attachment_type) {
                 case 'cars':
-                    // Если данных нет, создаем пустой массив
                     if (!this.vehiclesByAttachment[attachment.id]) {
                         this.vehiclesByAttachment[attachment.id] = [];
                     }
@@ -876,19 +848,16 @@ export default {
                     break;
             }
             
-            // Загружаем данные дат
             if (!this.attachmentDatesByAttachment[attachment.id]) {
                 this.attachmentDatesByAttachment[attachment.id] = this.getDefaultDateData();
             }
         },
 
-        // Методы для автомобилей
         handleVehicleAdded(newVehicle) {
             const vehicleWithId = {
                 ...newVehicle,
                 id: this.vehicleIdCounter++,
                 isExisting: false,
-                // Добавляем информацию об организации и компании
                 organization: this.organization,
                 organizationId: this.organizationId,
                 company: this.company,
@@ -901,7 +870,6 @@ export default {
                 }
                 this.vehiclesByAttachment[this.selectedAttachment.id].push(vehicleWithId);
                 
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -912,7 +880,6 @@ export default {
                     ...vehicle,
                     id: this.vehicleIdCounter++,
                     isExisting: false,
-                    // Добавляем информацию об организации и компании
                     organization: this.organization,
                     organizationId: this.organizationId,
                     company: this.company,
@@ -927,7 +894,6 @@ export default {
                 }
             });
             
-            // Сохраняем в localStorage
             this.saveToLocalStorage();
         },
 
@@ -940,7 +906,6 @@ export default {
             const index = vehicles.findIndex(v => v.id === updatedVehicle.id);
             if (index !== -1) {
                 vehicles.splice(index, 1, updatedVehicle);
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -958,7 +923,6 @@ export default {
             const index = vehicles.findIndex(vehicle => vehicle.id === vehicleId);
             if (index !== -1) {
                 vehicles.splice(index, 1);
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -969,7 +933,6 @@ export default {
             }
         },
 
-        // Методы для сотрудников
         handleEmployeeAdded(newEmployee) {
             const employeeWithId = {
                 ...newEmployee,
@@ -983,7 +946,6 @@ export default {
                 }
                 this.employeesByAttachment[this.selectedAttachment.id].push(employeeWithId);
                 
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -1004,7 +966,6 @@ export default {
                 }
             });
             
-            // Сохраняем в localStorage
             this.saveToLocalStorage();
         },
 
@@ -1017,7 +978,6 @@ export default {
             const index = employees.findIndex(e => e.id === updatedEmployee.id);
             if (index !== -1) {
                 employees.splice(index, 1, updatedEmployee);
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -1035,7 +995,6 @@ export default {
             const index = employees.findIndex(employee => employee.id === employeeId);
             if (index !== -1) {
                 employees.splice(index, 1);
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -1054,7 +1013,6 @@ export default {
             return parts.join(' ') || 'Не указано';
         },
 
-        // Методы для ТМЦ
         handleItemAdded(newItem) {
             const itemWithId = {
                 ...newItem,
@@ -1067,7 +1025,6 @@ export default {
                 }
                 this.itemsByAttachment[this.selectedAttachment.id].push(itemWithId);
                 
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -1087,7 +1044,6 @@ export default {
                 }
             });
             
-            // Сохраняем в localStorage
             this.saveToLocalStorage();
         },
 
@@ -1100,7 +1056,6 @@ export default {
             const index = items.findIndex(e => e.id === updatedItem.id);
             if (index !== -1) {
                 items.splice(index, 1, updatedItem);
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -1118,7 +1073,6 @@ export default {
             const index = items.findIndex(item => item.id === itemId);
             if (index !== -1) {
                 items.splice(index, 1);
-                // Сохраняем в localStorage
                 this.saveToLocalStorage();
             }
         },
@@ -1129,7 +1083,6 @@ export default {
             }
         },
 
-        // Сортировка
         sortBy(field) {
             if (this.sortField === field) {
                 this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1139,7 +1092,6 @@ export default {
             }
         },
 
-        // Валидация общих полей
         validateField(field) {
             let phoneRegex;
 
@@ -1166,7 +1118,6 @@ export default {
             this.validateField('responsiblePerson');
             this.validateField('phone');
             
-            // Валидируем даты для всех вложений
             Object.keys(this.attachmentDatesByAttachment).forEach(attachmentId => {
                 const dateData = this.attachmentDatesByAttachment[attachmentId];
                 if (dateData) {
@@ -1204,7 +1155,6 @@ export default {
             }
         },
 
-        // Отправка заявки
         async submitApplication() {
             this.validateAllFields();
             
@@ -1213,14 +1163,12 @@ export default {
                 return;
             }
 
-            // Валидация дат для всех вложений
             let hasDateErrors = false;
             let errorMessage = '';
             
             this.attachments.forEach(attachment => {
                 const dateData = this.attachmentDatesByAttachment[attachment.id];
                 if (dateData) {
-                    // Валидация дат
                     if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
                         const start = new Date(dateData.startDate.split('.').reverse().join('-'));
                         const end = new Date(dateData.endDate.split('.').reverse().join('-'));
@@ -1230,7 +1178,6 @@ export default {
                         }
                     }
 
-                    // Валидация времени
                     if (dateData.startTime && dateData.endTime && dateData.startTime >= dateData.endTime) {
                         hasDateErrors = true;
                         errorMessage = `В вложении "${attachment.display_name}" время окончания должно быть позже времени начала`;
@@ -1243,10 +1190,8 @@ export default {
                 return;
             }
 
-            // Собираем все новые автомобили и сотрудники из ВСЕХ вложений
             await this.collectNewDataForBinding();
 
-            // Фильтруем автомобили и сотрудники "По факту"
             const vehiclesForBinding = this.newVehiclesToBind.filter(vehicle => 
                 vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
             );
@@ -1255,34 +1200,27 @@ export default {
                 employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
             );
 
-            // Показываем модальное окно привязки, если есть новые автомобили или сотрудники для привязки
             if (vehiclesForBinding.length > 0 || employeesForBinding.length > 0) {
                 this.showBindingModal = true;
             } else {
-                // Если нет новых автомобилей/сотрудников для привязки, сразу отправляем заявку
                 await this.sendCompleteApplication();
             }
         },
 
-        // Сбор всех новых данных для привязки из всех вложений
         async collectNewDataForBinding() {
             this.newVehiclesToBind = [];
             this.newEmployeesToBind = [];
             
-            // Загружаем существующие автомобили и сотрудники из БД
             const existingVehicles = await this.loadExistingVehicles();
             const existingEmployees = await this.loadExistingEmployees();
             
-            // Собираем все автомобили из всех вложений типа 'cars'
             Object.keys(this.vehiclesByAttachment).forEach(attachmentId => {
                 const vehicles = this.vehiclesByAttachment[attachmentId] || [];
                 vehicles.forEach(vehicle => {
                     if (!vehicle.isExisting) {
-                        // Проверяем, не "По факту" ли это автомобиль
                         const isByFact = vehicle.plateNumber === 'По факту' || vehicle.mark === 'По факту';
                         
                         if (!isByFact) {
-                            // Проверяем, существует ли уже такая машина в БД
                             const alreadyExists = existingVehicles.some(existingVehicle => 
                                 existingVehicle.number === vehicle.plateNumber && 
                                 existingVehicle.mark === vehicle.mark
@@ -1299,17 +1237,14 @@ export default {
                 });
             });
             
-            // Собираем всех сотрудников из всех вложений типа 'people'
             Object.keys(this.employeesByAttachment).forEach(attachmentId => {
                 const employees = this.employeesByAttachment[attachmentId] || [];
                 employees.forEach(employee => {
                     if (!employee.isExisting) {
-                        // Проверяем, не "По факту" ли это сотрудник
                         const isByFact = employee.passportSeriesNumber === 'По факту' || 
                                        employee.position === 'По факту';
                         
                         if (!isByFact) {
-                            // Проверяем, существует ли уже такой сотрудник в БД
                             const alreadyExists = existingEmployees.some(existingEmployee => 
                                 existingEmployee.passport_series_number === employee.passportSeriesNumber
                             );
@@ -1326,7 +1261,6 @@ export default {
             });
         },
 
-        // Загрузка существующих автомобилей из БД
         async loadExistingVehicles() {
             try {
                 const token = localStorage.getItem("token");
@@ -1347,7 +1281,6 @@ export default {
             }
         },
 
-        // Загрузка существующих сотрудников из БД
         async loadExistingEmployees() {
             try {
                 const token = localStorage.getItem("token");
@@ -1372,9 +1305,7 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                // Привязка автомобилей (только если есть автомобили для привязки)
                 if (this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
-                    // Фильтруем автомобили "По факту"
                     const vehiclesToBind = this.newVehiclesToBind.filter(vehicle => 
                         vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
                     );
@@ -1404,9 +1335,7 @@ export default {
                     }
                 }
 
-                // Привязка сотрудников (только если есть сотрудники для привязки)
                 if (this.newEmployeesToBind.length > 0 && bindingData.employees.hasEmployeesForBinding) {
-                    // Фильтруем сотрудников "По факту"
                     const employeesToBind = this.newEmployeesToBind.filter(employee => 
                         employee.passportSeriesNumber !== 'По факту' && employee.position !== 'По факту'
                     );
@@ -1442,7 +1371,6 @@ export default {
                 }
 
                 this.closeBindingModal();
-                // После привязки отправляем заявку
                 await this.sendCompleteApplication();
 
             } catch (error) {
@@ -1453,7 +1381,6 @@ export default {
 
         skipBinding() {
             this.closeBindingModal();
-            // Пропускаем привязку и отправляем заявку
             this.sendCompleteApplication();
         },
 
@@ -1463,29 +1390,23 @@ export default {
             this.newEmployeesToBind = [];
         },
 
-        // Метод для очистки всех вложений
         clearAllAttachments() {
-            // Сбрасываем данные всех вложений
             this.vehiclesByAttachment = {};
             this.employeesByAttachment = {};
             this.itemsByAttachment = {};
             this.attachmentDatesByAttachment = {};
             
-            // Сбрасываем ID счетчиков
             this.vehicleIdCounter = 1;
             this.employeeIdCounter = 1;
             this.itemIdCounter = 1;
             
-            // Сбрасываем ключи форм
             this.vehicleFormKey += 1;
             this.employeeFormKey += 1;
             this.itemsFormKey += 1;
             
-            // Сбрасываем общие данные формы
             this.message = '';
             this.consentGiven = false;
             
-            // Сбрасываем ошибки
             this.errors = {
                 organization: '',
                 company: '',
@@ -1493,14 +1414,12 @@ export default {
                 phone: ''
             };
             
-            // Очистка вложений в BlankSelector
             if (this.$refs.blankSelector) {
                 this.$refs.blankSelector.clearAttachments();
             }
             this.selectedAttachment = null;
             this.attachments = [];
             
-            // Очищаем ВСЕ данные из localStorage
             this.clearLocalStorageAfterSubmit();
             
             alert('Заявка успешно отправлена! Данные очищены.');
@@ -1512,7 +1431,6 @@ export default {
                 return;
             }
 
-            // Подготавливаем данные для отправки
             const applicationData = {
                 message: this.message || null,
                 organization: this.organization,
@@ -1523,7 +1441,6 @@ export default {
                 attachments: []
             };
 
-            // Для каждого вложения добавляем данные
             for (const attachment of this.attachments) {
                 const dateData = this.attachmentDatesByAttachment[attachment.id] || this.getDefaultDateData();
                 
@@ -1539,7 +1456,6 @@ export default {
                     data: {}
                 };
 
-                // Добавляем данные в зависимости от типа вложения
                 switch (attachment.attachment_type) {
                     case 'cars': {
                         const vehicles = this.vehiclesByAttachment[attachment.id] || [];
@@ -1580,7 +1496,6 @@ export default {
                 applicationData.attachments.push(attachmentData);
             }
 
-            // Отправляем заявку
             try {
                 const token = localStorage.getItem("token");
                 if (!token) {
@@ -1588,10 +1503,8 @@ export default {
                     return;
                 }
 
-                // ПОЛУЧАЕМ ОБЯЗАТЕЛЬНЫХ ОТВЕТСТВЕННЫХ ИЗ ОРГАНИЗАЦИИ И КОМПАНИИ
                 const requiredUsers = [];
                 
-                // Загружаем ответственных из организации
                 if (this.organizationId) {
                     try {
                         const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
@@ -1616,7 +1529,6 @@ export default {
                     }
                 }
                 
-                // Загружаем ответственных из компании
                 if (this.companyId) {
                     try {
                         const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
@@ -1628,7 +1540,6 @@ export default {
                         if (companyResponse.ok) {
                             const companyUsers = await companyResponse.json();
                             companyUsers.forEach(user => {
-                                // Проверяем, не добавлен ли уже этот пользователь
                                 const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
                                 if (!alreadyAdded && user.required_approval) {
                                     requiredUsers.push({
@@ -1643,7 +1554,6 @@ export default {
                     }
                 }
 
-                // Добавляем информацию об обязательных ответственных в запрос
                 const finalRequestData = {
                     ...applicationData,
                     required_users: requiredUsers
@@ -1661,7 +1571,6 @@ export default {
                 if (response.ok) {
                     const result = await response.json();
                     alert(`Заявка успешно отправлена! Номер заявки: ${result.application_number}`);
-                    // Очищаем форму после успешной отправки
                     this.clearAllAttachments();
                 } else {
                     const errorText = await response.text();
@@ -1673,11 +1582,11 @@ export default {
                 alert(`Произошла ошибка при отправке заявки: ${error.message}`);
             }
         },
+        
         async loadRequiredResponsibles() {
             const requiredUsers = [];
             const token = localStorage.getItem("token");
             
-            // Загружаем ответственных из организации
             if (this.organizationId) {
                 try {
                     const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
@@ -1702,7 +1611,6 @@ export default {
                 }
             }
             
-            // Загружаем ответственных из компании
             if (this.companyId) {
                 try {
                     const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
@@ -1714,7 +1622,6 @@ export default {
                     if (companyResponse.ok) {
                         const companyUsers = await companyResponse.json();
                         companyUsers.forEach(user => {
-                            // Проверяем, не добавлен ли уже этот пользователь
                             const alreadyAdded = requiredUsers.some(u => u.user_id === user.id);
                             if (!alreadyAdded && user.required_approval) {
                                 requiredUsers.push({
@@ -1732,13 +1639,10 @@ export default {
             return requiredUsers;
         },
 
-        // Новый метод для очистки localStorage после отправки
         clearLocalStorageAfterSubmit() {
-            // Очищаем ВСЕ данные из localStorage
             localStorage.removeItem('draftApplicationState');
             localStorage.removeItem('draftApplication');
             
-            // Также очищаем любые другие данные, связанные с заявкой
             const keysToRemove = [];
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
@@ -1750,8 +1654,6 @@ export default {
             keysToRemove.forEach(key => {
                 localStorage.removeItem(key);
             });
-            
-            console.log('Все данные заявки очищены из localStorage');
         },
         
         formatDateForAPI(dateStr) {
@@ -1761,56 +1663,43 @@ export default {
         },
 
         resetForm() {
-            // Используем метод очистки данных формы
             this.clearFormData();
-            
-            // Данные организации/компании/ФИО/телефона НЕ очищаем - они загружаются из данных пользователя
             
             this.applicationNumber++;
 
-            // Сброс данных всех вложений
             this.vehiclesByAttachment = {};
             this.employeesByAttachment = {};
             this.itemsByAttachment = {};
             this.attachmentDatesByAttachment = {};
             
-            // Сброс ID счетчиков
             this.vehicleIdCounter = 1;
             this.employeeIdCounter = 1;
             this.itemIdCounter = 1;
             
-            // Сброс ключей форм
             this.vehicleFormKey += 1;
             this.employeeFormKey += 1;
             this.itemsFormKey += 1;
 
-            // Сброс ID
             this.organizationId = null;
             this.companyId = null;
             
-            // Загрузка данных пользователя заново (восстанавливает организацию, компанию, ФИО, телефон)
             this.loadUserData();
             
-            // Очистка вложений и localStorage
             if (this.$refs.blankSelector) {
                 this.$refs.blankSelector.clearAttachments();
             }
             this.selectedAttachment = null;
             
-            // Очищаем localStorage
             this.clearLocalStorageAfterSubmit();
         },
 
-        // Сохранение состояния в localStorage
         saveToLocalStorage() {
             try {
-                // Проверяем, есть ли вложения
                 const hasAttachments = Object.keys(this.vehiclesByAttachment).length > 0 || 
                                       Object.keys(this.employeesByAttachment).length > 0 || 
                                       Object.keys(this.itemsByAttachment).length > 0;
                 
                 const savedData = {
-                    // Общие данные формы - сохраняем ВСЕГДА
                     message: this.message,
                     organization: this.organization,
                     company: this.company,
@@ -1819,20 +1708,16 @@ export default {
                     rawPhoneNumber: this.rawPhoneNumber,
                     consentGiven: this.consentGiven,
                     
-                    // Данные вложений
                     vehiclesByAttachment: hasAttachments ? this.vehiclesByAttachment : {},
                     employeesByAttachment: hasAttachments ? this.employeesByAttachment : {},
                     itemsByAttachment: hasAttachments ? this.itemsByAttachment : {},
                     
-                    // Данные дат для каждого вложения
                     attachmentDatesByAttachment: hasAttachments ? this.attachmentDatesByAttachment : {},
                     
-                    // Счетчики ID
                     vehicleIdCounter: this.vehicleIdCounter,
                     employeeIdCounter: this.employeeIdCounter,
                     itemIdCounter: this.itemIdCounter,
                     
-                    // Время сохранения
                     savedAt: new Date().toISOString()
                 };
                 
@@ -1842,14 +1727,12 @@ export default {
             }
         },
 
-        // Восстановление состояния из localStorage
         restoreFromLocalStorage() {
             try {
                 const savedData = localStorage.getItem('draftApplicationState');
                 if (savedData) {
                     const parsedData = JSON.parse(savedData);
                     
-                    // Восстанавливаем ВСЕ данные формы
                     this.message = parsedData.message || '';
                     this.organization = parsedData.organization || '';
                     this.company = parsedData.company || '';
@@ -1858,28 +1741,21 @@ export default {
                     this.rawPhoneNumber = parsedData.rawPhoneNumber || '';
                     this.consentGiven = parsedData.consentGiven || false;
                     
-                    // Восстанавливаем данные вложений
                     this.vehiclesByAttachment = parsedData.vehiclesByAttachment || {};
                     this.employeesByAttachment = parsedData.employeesByAttachment || {};
                     this.itemsByAttachment = parsedData.itemsByAttachment || {};
                     
-                    // Восстанавливаем данные дат для каждого вложения
                     this.attachmentDatesByAttachment = parsedData.attachmentDatesByAttachment || {};
                     
-                    // Восстанавливаем счетчики ID
                     this.vehicleIdCounter = parsedData.vehicleIdCounter || 1;
                     this.employeeIdCounter = parsedData.employeeIdCounter || 1;
                     this.itemIdCounter = parsedData.itemIdCounter || 1;
                     
-                    console.log('Данные восстановлены из localStorage');
-                    
-                    // Проверяем, есть ли вложения
                     const hasAttachments = Object.keys(this.vehiclesByAttachment).length > 0 || 
                                           Object.keys(this.employeesByAttachment).length > 0 || 
                                           Object.keys(this.itemsByAttachment).length > 0;
                     
                     if (!hasAttachments) {
-                        // Если нет вложений, очищаем данные формы
                         this.message = '';
                         this.consentGiven = false;
                     }
@@ -1889,7 +1765,6 @@ export default {
             }
         },
 
-        // Загрузка существующей заявки для редактирования
         async loadApplication(applicationId) {
             try {
                 const token = localStorage.getItem("token");
@@ -1903,14 +1778,12 @@ export default {
                     const data = await response.json();
                     this.currentApplicationData = data;
                     
-                    // Заполняем данные формы
                     this.message = data.message || '';
                     this.organization = data.organization || '';
                     this.company = data.company || '';
                     this.responsiblePerson = data.responsible_person || '';
                     this.phoneNumber = data.contact_phone || '';
                     
-                    // Для каждого вложения загружаем свои даты
                     if (data.attachments && data.attachments.length > 0) {
                         this.attachments = data.attachments;
                         data.attachments.forEach(attachment => {
@@ -1930,7 +1803,6 @@ export default {
                         });
                     }
                     
-                    // Загружаем данные в зависимости от типа вложения
                     if (data.attachment_type === 'cars' && data.vehicles) {
                         this.vehicles = data.vehicles.map((vehicle, index) => ({
                             ...vehicle,
@@ -1962,23 +1834,18 @@ export default {
         }
     },
     mounted() {
-        // Восстанавливаем состояние из localStorage
         this.restoreFromLocalStorage();
-        
-        // Загружаем данные пользователя
         this.loadUserData();
-
         this.loadAllUnloadingPlaces();
         this.loadLicensePlateFormats();
+        this.loadPassageTables();
         
-        // Сохраняем состояние при закрытии/обновлении страницы
         window.addEventListener('beforeunload', () => {
             this.saveCurrentAttachmentData();
             this.saveToLocalStorage();
         });
     },
     beforeUnmount() {
-        // Удаляем обработчик при уничтожении компонента
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
     }
 }

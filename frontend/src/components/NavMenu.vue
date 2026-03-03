@@ -56,11 +56,14 @@
             >
               <div 
                 v-for="table in systemTables" 
-                :key="table.id"
+                :key="getTableId(table)"
                 class="dropdown-item" 
-                @click="navigateToTable(table.name)"
+                @click="navigateToTable(getTableName(table))"
               >
-                {{ table.display_name }}
+                {{ getTableDisplayName(table) }}
+              </div>
+              <div v-if="systemTables.length === 0" class="dropdown-item disabled">
+                Нет доступных таблиц
               </div>
             </div>
           </transition>
@@ -68,11 +71,11 @@
 
         <!-- Элемент с выпадающим списком сотрудников -->
         <div class="nav-item" @click="navigateToEmployeesView">
-          <img src="@/assets/icons/employees.png" alt="Архив" class="nav-icon">
+          <img src="@/assets/icons/employees.png" alt="Сотрудники" class="nav-icon">
           <span class="nav-text">Сотрудники</span>
         </div>
         <div class="nav-item" @click="navigateToCarsView">
-          <img src="@/assets/icons/car.png" alt="Архив" class="nav-icon">
+          <img src="@/assets/icons/car.png" alt="Автомобили" class="nav-icon">
           <span class="nav-text">Автомобили</span>
         </div>
       </div>
@@ -219,10 +222,36 @@ export default {
         this.dropdowns[key] = false;
       });
     },
-    navigateToTable(tableName) {
-      this.$router.push(`/table/${tableName}`);
-      this.closeAllDropdowns();
+    
+    // Новые методы для работы с данными таблиц
+    getTableId(table) {
+      if (table.table && table.table.id) {
+        return table.table.id;
+      }
+      return table.id;
     },
+
+    getTableName(table) {
+      if (table.table && table.table.name) {
+        return table.table.name;
+      }
+      return table.name;
+    },
+
+    getTableDisplayName(table) {
+      if (table.table && table.table.display_name) {
+        return table.table.display_name;
+      }
+      return table.display_name || 'Без названия';
+    },
+
+    navigateToTable(tableName) {
+      if (tableName) {
+        this.$router.push(`/table/${tableName}`);
+        this.closeAllDropdowns();
+      }
+    },
+    
     navigateToAdminRequests() {
       this.$router.push('/admin/requests');
       this.closeAllDropdowns();
@@ -258,7 +287,13 @@ export default {
         });
         if (response.ok) {
           const data = await response.json();
-          this.systemTables = data.filter(table => table.is_active);
+          console.log('Fetched system tables in NavMenu:', data);
+          
+          // Фильтруем только активные таблицы
+          this.systemTables = data.filter(table => {
+            const isActive = table.table ? table.table.is_active : table.is_active;
+            return isActive;
+          });
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);
@@ -279,7 +314,6 @@ export default {
         
         if (response.ok) {
           const data = await response.json();
-          // Считаем заявки со статусом "Непрочитано"
           const newApps = data.filter(app => app.status === 'Непрочитано');
           this.newApplicationsCount = newApps.length;
         } else {
@@ -293,13 +327,10 @@ export default {
     },
     
     startApplicationsPolling() {
-      // Загружаем сразу при старте
       this.fetchNewApplicationsCount();
-      
-      // Запускаем периодическую проверку каждые 30 секунд
       this.applicationsPollingInterval = setInterval(() => {
         this.fetchNewApplicationsCount();
-      }, 30000); // 30 секунд
+      }, 30000);
     },
     
     stopApplicationsPolling() {
@@ -337,6 +368,7 @@ export default {
 </script>
 
 <style scoped>
+/* Все стили остаются без изменений */
 .nav-menu {
   position: fixed;
   left: 0;
@@ -461,7 +493,6 @@ export default {
   transition-delay: 0.15s;
 }
 
-/* Стрелки для выпадающих списков */
 .dropdown-arrow {
   width: 6px;
   height: 6px;
@@ -484,7 +515,6 @@ export default {
   opacity: 1;
 }
 
-/* Выпадающие списки (справа от меню) */
 .dropdown-list {
   position: absolute;
   left: 188px;
@@ -534,7 +564,6 @@ export default {
   padding-left: 16px;
 }
 
-/* Бейдж на иконке (для свёрнутого состояния) */
 .icon-badge {
   position: absolute;
   top: -7px;
@@ -565,7 +594,6 @@ export default {
   transition-delay: 0s;
 }
 
-/* Бейдж уведомлений в раскрытом состоянии (правее текста) */
 .notification-badge {
   position: absolute;
   right: 15px;
@@ -593,7 +621,6 @@ export default {
   transition-delay: 0.3s;
 }
 
-/* Анимации для выпадающих списков */
 .dropdown-fade-enter-active,
 .dropdown-fade-leave-active {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -605,22 +632,18 @@ export default {
   transform: translateX(-10px) scale(0.95);
 }
 
-/* Гарантируем, что все элементы сохраняют свои размеры */
 .nav-menu * {
   box-sizing: border-box;
 }
 
-/* Фиксируем высоту элементов чтобы не прыгали */
 .nav-item {
   flex-shrink: 0;
 }
 
-/* Плавная анимация для всего контента */
 .nav-content > * {
   transition: opacity 0.3s ease;
 }
 
-/* Улучшенная анимация для hover эффектов */
 .nav-item {
   position: relative;
   overflow: hidden;

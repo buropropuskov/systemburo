@@ -43,8 +43,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/read", web::put().to(mark_feedback_as_read))
         )
 
-        
-
         // Управление типами пользователей (CRUD)
         .service(
             web::scope("/user-types-management")
@@ -74,22 +72,21 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/take-to-work", web::post().to(take_application_to_work))
                 .route("/{id}/revoke-from-work", web::post().to(revoke_application_from_work))
                 .route("/{id}/restore-to-work", web::post().to(restore_application_to_work))
-                // Новые маршруты для истории
+                // Маршруты для истории
                 .route("/{id}/history", web::get().to(get_application_history))
                 .route("/{id}/revoke-approval", web::post().to(revoke_approval))
                 .route("/history", web::post().to(add_history_entry))
                 .route("/{id}/viewers", web::get().to(get_application_viewers))
         )
 
-        // Машины - обновленный раздел с новыми маршрутами
+        // Машины
         .service(
-    web::scope("/cars")
-        .route("/active-for-tables", web::get().to(get_active_cars_for_tables))
-        .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
-        .route("/unload-places", web::get().to(get_car_unload_places))
-        .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
-       
-)
+            web::scope("/cars")
+                .route("/active-for-tables", web::get().to(get_active_cars_for_tables))
+                .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
+                .route("/unload-places", web::get().to(get_car_unload_places))
+                .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
+        )
 
         // Сотрудники
         .service(
@@ -119,24 +116,24 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/ownership-info", web::get().to(get_employee_ownership_info))
         )
 
-       .service(
-    web::scope("/unload-places")
-        .route("", web::get().to(get_unload_places))
-        .route("", web::post().to(create_unload_place))
-        .route("/{id}", web::get().to(get_unload_place_by_id))
-        .route("/{id}", web::put().to(update_unload_place))
-        .route("/{id}", web::delete().to(delete_unload_place))
-        // Новый маршрут для круглосуточного режима
-        // Маршруты для временных слотов
-        .route("/{id}/time-slots", web::get().to(get_unload_place_time_slots))
-        .route("/{id}/time-slots", web::post().to(add_unload_place_time_slot))
-        .route("/{place_id}/time-slots/{slot_id}", web::put().to(update_unload_place_time_slot))
-        .route("/{place_id}/time-slots/{slot_id}", web::delete().to(delete_unload_place_time_slot))
-        // Маршруты для фотографий
-        .route("/{id}/photos", web::post().to(upload_unload_place_photo))
-        .route("/{place_id}/photos/{photo_id}", web::delete().to(delete_unload_place_photo))
-        .route("/{place_id}/photos/{photo_id}/main", web::post().to(set_main_unload_place_photo))
-)
+        // Места разгрузки
+        .service(
+            web::scope("/unload-places")
+                .route("", web::get().to(get_unload_places))
+                .route("", web::post().to(create_unload_place))
+                .route("/{id}", web::get().to(get_unload_place_by_id))
+                .route("/{id}", web::put().to(update_unload_place))
+                .route("/{id}", web::delete().to(delete_unload_place))
+                // Маршруты для временных слотов мест разгрузки
+                .route("/{id}/time-slots", web::get().to(get_unload_place_time_slots))
+                .route("/{id}/time-slots", web::post().to(add_unload_place_time_slot))
+                .route("/{place_id}/time-slots/{slot_id}", web::put().to(update_unload_place_time_slot))
+                .route("/{place_id}/time-slots/{slot_id}", web::delete().to(delete_unload_place_time_slot))
+                // Маршруты для фотографий мест разгрузки
+                .route("/{id}/photos", web::post().to(upload_unload_place_photo))
+                .route("/{place_id}/photos/{photo_id}", web::delete().to(delete_unload_place_photo))
+                .route("/{place_id}/photos/{photo_id}/main", web::post().to(set_main_unload_place_photo))
+        )
 
         // Организации
         .service(
@@ -207,6 +204,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::put().to(update_license_plate_format))
                 .route("/{id}", web::delete().to(delete_license_plate_format))
         )
+
+        // Принимающие заявки
         .service(
             web::scope("/application-approvers")
                 .route("", web::get().to(get_application_approvers))
@@ -230,16 +229,26 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::scope("/system-tables")
                 .route("", web::get().to(get_system_tables))
                 .route("", web::post().to(create_system_table))
+                .route("/{id}", web::get().to(get_system_table_by_id))
                 .route("/{id}", web::put().to(update_system_table))
                 .route("/{id}", web::delete().to(delete_system_table))
                 .route("/name/{name}", web::get().to(get_system_table_by_name))
+                // Маршруты для временных слотов таблиц
+                .route("/{id}/time-slots", web::get().to(get_system_table_time_slots))
+                .route("/{id}/time-slots", web::post().to(add_system_table_time_slot))
+                .route("/{table_id}/time-slots/{slot_id}", web::put().to(update_system_table_time_slot))
+                .route("/{table_id}/time-slots/{slot_id}", web::delete().to(delete_system_table_time_slot))
+                // Маршруты для фотографий таблиц
+                .route("/{id}/photos", web::post().to(upload_system_table_photo))
+                .route("/{table_id}/photos/{photo_id}", web::delete().to(delete_system_table_photo))
+                .route("/{table_id}/photos/{photo_id}/main", web::post().to(set_main_system_table_photo))
         )
 
         // Управление вложениями (бланками заявок)
         .service(
             web::scope("/attachments")
-                .route("", web::get().to(get_attachments)) // Только активные
-                .route("/all", web::get().to(get_all_attachments)) // Все (активные + архивные)
+                .route("", web::get().to(get_attachments))
+                .route("/all", web::get().to(get_all_attachments))
                 .route("", web::post().to(create_attachment))
                 .route("/{id}", web::put().to(update_attachment))
                 .route("/{id}", web::delete().to(delete_attachment))

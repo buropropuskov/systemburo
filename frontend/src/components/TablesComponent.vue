@@ -1,7 +1,7 @@
 <template>
     <div class="tables">
         <div class="tables__header">
-            <h1 class="tables__title">Таблица <span class="table-name">{{ currentTable?.display_name }}</span></h1>
+            <h1 class="tables__title">Таблица <span class="table-name">{{ tableDisplayName }}</span></h1>
             <button class="tables__instruction" @click="showInstruction = true">
                 <img src="@/assets/icons/instruction.png" class="tables__icon" />
                 <p class="instruction__text">Инструкция</p>
@@ -12,11 +12,11 @@
         <div v-if="showInstruction" class="modal-overlay" @click.self="showInstruction = false">
             <div class="instruction-modal-large">
                 <div class="modal-header">
-                    <h3>Инструкция по использованию таблицы <span class="blue">{{ currentTable?.display_name }}</span></h3>
+                    <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
                     <button @click="showInstruction = false" class="modal-close">×</button>
                 </div>
                 <div class="instruction-content">
-                    <div v-if="currentTable?.instruction" class="text-constructor-content" v-html="sanitizedInstruction"></div>
+                    <div v-if="tableInstruction" class="text-constructor-content" v-html="sanitizedInstruction"></div>
                     <div v-else class="no-instruction">
                         <div class="no-instruction-icon">📝</div>
                         <h4>Инструкция не добавлена</h4>
@@ -85,9 +85,9 @@
 
         <div class="tables__content">
             <!-- Таблица по факту с подсказкой -->
-            <div v-if="currentTable?.show_fact_table" class="fact-section">
+            <div v-if="showFactTable" class="fact-section">
                 <FactTable 
-                    :table-type="currentTable?.table_type"
+                    :table-type="tableType"
                     :search-query="searchQuery"
                     :selected-organization-id="selectedOrganizationId"
                     :selected-unloading-place-id="selectedUnloadingPlaceId"
@@ -97,15 +97,15 @@
                     @refresh-data="refreshData"
                 />
                 <!-- Подсказка на синем фоне -->
-                <div class="fact-hint-card" v-if="currentTable?.fact_table_hint">
+                <div class="fact-hint-card" v-if="tableFactHint">
                     <div class="text-constructor-content hint-content" v-html="sanitizedHint"></div>
                 </div>
             </div>
             
             <!-- Основная таблица - разные компоненты для разных типов -->
             <CarsTable 
-                v-if="currentTable?.table_type === 'cars'"
-                :table-name="currentTable?.name"
+                v-if="tableType === 'cars'"
+                :table-name="tableSystemName"
                 :search-query="searchQuery"
                 :selected-organization-id="selectedOrganizationId"
                 :selected-unloading-place-id="selectedUnloadingPlaceId"
@@ -116,8 +116,8 @@
             />
             
             <PeopleTable 
-                v-if="currentTable?.table_type === 'people'"
-                :table-name="currentTable?.name"
+                v-if="tableType === 'people'"
+                :table-name="tableSystemName"
                 :search-query="searchQuery"
                 :selected-organization-id="selectedOrganizationId"
                 :selected-unloading-place-id="selectedUnloadingPlaceId"
@@ -134,7 +134,7 @@
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
 import RefreshButton from './RefreshButton.vue';
-import DateFilter from './DateFilter.vue'; // Новый компонент
+import DateFilter from './DateFilter.vue';
 import FactTable from './FactTable.vue';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
@@ -152,14 +152,13 @@ export default {
     },
     data() {
         return {
-            currentTable: null,
+            tableData: null, // Здесь будут все данные с сервера
             searchQuery: '',
             selectedOrganizationId: null,
             selectedOrganizationName: '',
             selectedUnloadingPlaceId: null,
             selectedUnloadingPlaceName: '',
             
-            // Данные организаций (будем загружать с сервера)
             organizations: [],
             
             showInstruction: false,
@@ -169,20 +168,45 @@ export default {
         };
     },
     computed: {
+        // Извлекаем данные из tableData
+        tableSystemName() {
+            return this.tableData?.table?.name || '';
+        },
+        
+        tableDisplayName() {
+            return this.tableData?.table?.display_name || 'Загрузка...';
+        },
+        
+        tableType() {
+            return this.tableData?.table?.table_type || '';
+        },
+        
+        showFactTable() {
+            return this.tableData?.table?.show_fact_table || false;
+        },
+        
+        tableFactHint() {
+            return this.tableData?.table?.fact_table_hint || '';
+        },
+        
+        tableInstruction() {
+            return this.tableData?.table?.instruction || '';
+        },
+        
         showOrganizationFilter() {
-            return this.currentTable?.table_type === 'cars' || this.currentTable?.table_type === 'people';
+            return this.tableType === 'cars' || this.tableType === 'people';
         },
         
         showUnloadingFilter() {
-            return this.currentTable?.table_type === 'cars';
+            return this.tableType === 'cars';
         },
         
         sanitizedHint() {
-            return this.sanitizeHtml(this.currentTable?.fact_table_hint || '');
+            return this.sanitizeHtml(this.tableFactHint);
         },
         
         sanitizedInstruction() {
-            return this.sanitizeHtml(this.currentTable?.instruction || '');
+            return this.sanitizeHtml(this.tableInstruction);
         },
         
         hasActiveFilters() {
@@ -194,171 +218,152 @@ export default {
         }
     },
     methods: {
-    handleApplicationUpdate(updatedApp) {
-        console.log('Application updated:', updatedApp);
-        // Можно обновить данные в таблицах если нужно
-        this.refreshData();
-    },
+        handleApplicationUpdate(updatedApp) {
+            console.log('Application updated:', updatedApp);
+            this.refreshData();
+        },
 
-    refreshData() {
-        this.fetchTableData();
-        this.$emit('refresh-data');
-    },
-    
-    sanitizeHtml(content) {
-        if (!content) return '';
+        refreshData() {
+            this.fetchTableData();
+            this.$emit('refresh-data');
+        },
         
-        const forbiddenTags = [
-            'script', 'style', 'link', 'meta', 'iframe', 'frame', 'frameset', 
-            'object', 'embed', 'applet', 'form', 'input', 'button', 'select',
-            'textarea', 'label', 'fieldset', 'legend', 'marquee', 'blink'
-        ];
-        
-        let sanitizedContent = content;
-        
-        forbiddenTags.forEach(tag => {
-            const regex = new RegExp(`<${tag}[^>]*>.*?</${tag}>`, 'gis');
-            sanitizedContent = sanitizedContent.replace(regex, '');
-        });
-        
-        sanitizedContent = sanitizedContent.replace(/ on\w+="[^"]*"/gi, '');
-        sanitizedContent = sanitizedContent.replace(/ javascript:/gi, '');
-        sanitizedContent = sanitizedContent.replace(/ expression\(/gi, '');
-        
-        return sanitizedContent;
-    },
-
-    async fetchTableData() {
-        const tableName = this.$route.params.tableName;
-        if (!tableName) return;
-        
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(`http://localhost:8080/system-tables/name/${tableName}`, {
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                },
+        sanitizeHtml(content) {
+            if (!content) return '';
+            
+            const forbiddenTags = [
+                'script', 'style', 'link', 'meta', 'iframe', 'frame', 'frameset', 
+                'object', 'embed', 'applet', 'form', 'input', 'button', 'select',
+                'textarea', 'label', 'fieldset', 'legend', 'marquee', 'blink'
+            ];
+            
+            let sanitizedContent = content;
+            
+            forbiddenTags.forEach(tag => {
+                const regex = new RegExp(`<${tag}[^>]*>.*?</${tag}>`, 'gis');
+                sanitizedContent = sanitizedContent.replace(regex, '');
             });
-            if (response.ok) {
-                this.currentTable = await response.json();
+            
+            sanitizedContent = sanitizedContent.replace(/ on\w+="[^"]*"/gi, '');
+            sanitizedContent = sanitizedContent.replace(/ javascript:/gi, '');
+            sanitizedContent = sanitizedContent.replace(/ expression\(/gi, '');
+            
+            return sanitizedContent;
+        },
+
+        async fetchTableData() {
+            const tableName = this.$route.params.tableName;
+            if (!tableName) return;
+            
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`http://localhost:8080/system-tables/name/${tableName}`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
                 
-                // Загружаем организации для этой таблицы
-                await this.fetchOrganizationsForTable();
-            } else {
-                console.error('Table not found');
-                this.$router.push('/404');
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Table data received:', data);
+                    this.tableData = data;
+                    
+                    // Загружаем организации для этой таблицы
+                    await this.fetchOrganizationsForTable();
+                } else {
+                    console.error('Table not found');
+                    this.$router.push('/404');
+                }
+            } catch (error) {
+                console.error("Error fetching table data:", error);
             }
-        } catch (error) {
-            console.error("Error fetching table data:", error);
-        }
-    },
+        },
 
-    async fetchOrganizationsForTable() {
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch("http://localhost:8080/organizations", {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                },
-            });
+        async fetchOrganizationsForTable() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/organizations", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
 
-            if (response.ok) {
-                const data = await response.json();
-                this.organizations = data;
-            } else {
-                console.error("Ошибка при загрузке организаций");
-                this.organizations = this.getStaticOrganizations();
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Organizations loaded:', data);
+                    this.organizations = data;
+                } else {
+                    console.error("Ошибка при загрузке организаций");
+                }
+            } catch (error) {
+                console.error("Ошибка сети при загрузке организаций:", error);
             }
-        } catch (error) {
-            console.error("Ошибка сети при загрузке организаций:", error);
-            this.organizations = this.getStaticOrganizations();
-        }
-    },
+        },
 
-    getStaticOrganizations() {
-        return [
-            { id: 1, name: 'ООО "Ромашка"' },
-            { id: 2, name: 'ИП Иванов' },
-            { id: 3, name: 'ЗАО "Весна"' },
-            { id: 4, name: 'ОАО "Технопром"' },
-            { id: 5, name: 'ТОО "Стройсервис"' },
-            { id: 6, name: 'ООО "Нефтегаз"' },
-            { id: 7, name: 'ИП Петров' },
-            { id: 8, name: 'ЗАО "Металлург"' },
-            { id: 9, name: 'ОАО "Строймаш"' },
-            { id: 10, name: 'ТОО "Транспорт"' }
-        ];
-    },
-
-    handleOrganizationChange({ id, name }) {
-        this.selectedOrganizationId = id;
-        this.selectedOrganizationName = name;
-        this.applyFilters();
-    },
-    
-    handleUnloadingPlaceChange({ id, name }) {
-        this.selectedUnloadingPlaceId = id;
-        this.selectedUnloadingPlaceName = name;
-        this.applyFilters();
-    },
-    
-    // Date filter methods
-    updateSelectedDate(date) {
-        this.selectedDate = date;
-        this.dateRangeStart = null;
-        this.dateRangeEnd = null;
-    },
-    
-    updateDateRangeStart(date) {
-        this.dateRangeStart = date;
-        this.selectedDate = null;
-    },
-    
-    updateDateRangeEnd(date) {
-        this.dateRangeEnd = date;
-        this.selectedDate = null;
-    },
-    
-    applyDateFilters() {
-        this.applyFilters();
-    },
-    
-    clearDate() {
-        this.selectedDate = null;
-        this.dateRangeStart = null;
-        this.dateRangeEnd = null;
-        this.applyFilters();
-    },
-    
-    applyFilters() {
-        // Фильтры применяются автоматически через props в дочерних компонентах
-    },
-    
-    clearFilters() {
-        this.searchQuery = '';
+        handleOrganizationChange({ id, name }) {
+            this.selectedOrganizationId = id;
+            this.selectedOrganizationName = name;
+            this.applyFilters();
+        },
         
-        // Сбрасываем даты
-        this.selectedDate = null;
-        this.dateRangeStart = null;
-        this.dateRangeEnd = null;
+        handleUnloadingPlaceChange({ id, name }) {
+            this.selectedUnloadingPlaceId = id;
+            this.selectedUnloadingPlaceName = name;
+            this.applyFilters();
+        },
         
-        // Сбрасываем фильтр организации через метод reset
-        if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
-            this.$refs.organizationFilter.reset();
+        updateSelectedDate(date) {
+            this.selectedDate = date;
+            this.dateRangeStart = null;
+            this.dateRangeEnd = null;
+        },
+        
+        updateDateRangeStart(date) {
+            this.dateRangeStart = date;
+            this.selectedDate = null;
+        },
+        
+        updateDateRangeEnd(date) {
+            this.dateRangeEnd = date;
+            this.selectedDate = null;
+        },
+        
+        applyDateFilters() {
+            this.applyFilters();
+        },
+        
+        clearDate() {
+            this.selectedDate = null;
+            this.dateRangeStart = null;
+            this.dateRangeEnd = null;
+            this.applyFilters();
+        },
+        
+        applyFilters() {
+            // Фильтры применяются автоматически через props в дочерних компонентах
+        },
+        
+        clearFilters() {
+            this.searchQuery = '';
+            
+            this.selectedDate = null;
+            this.dateRangeStart = null;
+            this.dateRangeEnd = null;
+            
+            if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
+                this.$refs.organizationFilter.reset();
+            }
+            
+            if (this.$refs.unloadingPlaceFilter && this.$refs.unloadingPlaceFilter.reset) {
+                this.$refs.unloadingPlaceFilter.reset();
+            }
+            
+            if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
+                this.$refs.dateFilter.clearSelection();
+            }
         }
-        
-        // Сбрасываем фильтр места разгрузки через метод reset
-        if (this.$refs.unloadingPlaceFilter && this.$refs.unloadingPlaceFilter.reset) {
-            this.$refs.unloadingPlaceFilter.reset();
-        }
-        
-        // Сбрасываем фильтр даты
-        if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
-            this.$refs.dateFilter.clearSelection();
-        }
-    }
-},
+    },
     mounted() {
         this.fetchTableData();
     },
@@ -375,7 +380,7 @@ export default {
 </script>
 
 <style scoped>
-/* Стили остаются без изменений, только удалены старые стили для выпадающего меню дат */
+/* Все стили остаются без изменений */
 .tables {
     padding: 20px;
     position: relative;

@@ -52,27 +52,35 @@
                 }" 
               />
             </div>
+            <div class="header-col status-col">
+              <p>Статус</p>
+            </div>
           </div>
 
           <div class="table-body">
             <div 
               v-for="table in sortedTables" 
-              :key="table.id" 
+              :key="table.table.id" 
               class="table-row"
-              :class="{'selected': selectedTable && selectedTable.id === table.id}"
+              :class="{'selected': selectedTable && selectedTable.table.id === table.table.id}"
               @click="selectTable(table)"
             >
               <div class="table-col id-col">
-                <span class="cell-content id-value">{{ table.id }}</span>
+                <span class="cell-content id-value">{{ table.table.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="table.display_name">
-                  {{ table.display_name }}
+                <span class="truncate-text" :title="table.table.display_name">
+                  {{ table.table.display_name }}
                 </span>
               </div>
               <div class="table-col type-col">
-                <span class="type-badge" :class="table.table_type">
-                  {{ getTableTypeLabel(table.table_type) }}
+                <span class="type-badge" :class="table.table.table_type">
+                  {{ getTableTypeLabel(table.table.table_type) }}
+                </span>
+              </div>
+              <div class="table-col status-col">
+                <span class="status-badge" :class="getTableStatusClass(table)">
+                  {{ getTableStatusText(table) }}
                 </span>
               </div>
             </div>
@@ -86,17 +94,45 @@
 
       <!-- Правая часть - детали таблицы -->
       <div v-if="selectedTable" class="details-section">
-        <div class="details-content">
+        <div class="details-tabs">
+          <button 
+            class="tab-btn" 
+            :class="{ 'active': activeTab === 'main' }"
+            @click="activeTab = 'main'"
+          >
+            Основное
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ 'active': activeTab === 'schedule' }"
+            @click="activeTab = 'schedule'"
+          >
+            Расписание
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ 'active': activeTab === 'location' }"
+            @click="activeTab = 'location'"
+          >
+            Местоположение
+          </button>
+        </div>
+
+        <!-- Вкладка Основное -->
+        <div v-if="activeTab === 'main'" class="tab-content">
           <div class="details-header">
             <div class="details-title-wrapper">
               <div class="table-info-title">
-              <h3 class="details-title">{{ selectedTable.display_name }}</h3>
-              <span class="table-type-badge" :class="selectedTable.table_type">
-                  {{ getTableTypeLabel(selectedTable.table_type) }}
-              </span>
+                <h3 class="details-title">{{ selectedTable.table.display_name }}</h3>
+                <span class="table-type-badge" :class="selectedTable.table.table_type">
+                  {{ getTableTypeLabel(selectedTable.table.table_type) }}
+                </span>
               </div>
               <div class="table-info-row">
-                <span class="system-name">{{ selectedTable.name }}</span>
+                <span class="system-name">{{ selectedTable.table.name }}</span>
+                <span class="current-status-badge" :class="getTableCurrentStatusClass(selectedTable)">
+                  {{ getTableCurrentStatusText(selectedTable) }}
+                </span>
               </div>
             </div>
             <div class="details-header-actions">
@@ -115,8 +151,8 @@
                 <div class="form-group compact">
                   <label class="detail-label">Наименование таблицы:</label>
                   <input 
-                    v-model="selectedTable.display_name" 
-                    @change="updateTableDisplayName"
+                    v-model="selectedTable.table.display_name" 
+                    @change="updateTableField('display_name')"
                     class="form-input-sm"
                     placeholder="Название таблицы"
                     autocomplete="off"
@@ -126,21 +162,21 @@
                   <label class="detail-label">Тип таблицы:</label>
                   <div class="custom-select">
                     <div class="select-header" @click="toggleTableTypeDropdown">
-                      <span class="select-value">{{ getTableTypeLabel(selectedTable.table_type) }}</span>
+                      <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
                       <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: tableTypeDropdownOpen }" />
                     </div>
                     <transition name="dropdown-fade">
                       <div v-if="tableTypeDropdownOpen" class="select-dropdown">
                         <div 
                           class="select-option"
-                          :class="{ active: selectedTable.table_type === 'cars' }"
+                          :class="{ active: selectedTable.table.table_type === 'cars' }"
                           @click="selectTableType('cars')"
                         >
                           Машины
                         </div>
                         <div 
                           class="select-option"
-                          :class="{ active: selectedTable.table_type === 'people' }"
+                          :class="{ active: selectedTable.table.table_type === 'people' }"
                           @click="selectTableType('people')"
                         >
                           Люди
@@ -151,6 +187,46 @@
                 </div>
               </div>
 
+              <!-- Статус в виде кнопок -->
+              <div class="form-group">
+                <label class="detail-label">Статус:</label>
+                <div class="status-toggle">
+                  <button 
+                    class="status-btn" 
+                    :class="{ 'active': selectedTable.table.status === 'active' }"
+                    @click="setTableStatus('active')"
+                  >
+                    Активно
+                  </button>
+                  <button 
+                    class="status-btn" 
+                    :class="{ 'active': selectedTable.table.status === 'inactive' }"
+                    @click="setTableStatus('inactive')"
+                  >
+                    Не активно
+                  </button>
+                  <button 
+                    class="status-btn" 
+                    :class="{ 'active': selectedTable.table.status === 'maintenance' }"
+                    @click="setTableStatus('maintenance')"
+                  >
+                    На обслуживании
+                  </button>
+                </div>
+              </div>
+
+              <!-- Комментарий к статусу (только для неактивных) -->
+              <div v-if="selectedTable.table.status !== 'active'" class="form-group">
+                <label class="detail-label">Причина:</label>
+                <textarea 
+                  v-model="selectedTable.table.status_comment" 
+                  @change="updateTableField('status_comment')"
+                  class="form-textarea"
+                  placeholder="Укажите причину"
+                  rows="2"
+                ></textarea>
+              </div>
+
               <div class="settings-section">
                 <label class="section-label">Настройки отображения:</label>
                 
@@ -158,15 +234,15 @@
                   <label class="checkbox-label">
                     <input 
                       type="checkbox" 
-                      v-model="selectedTable.show_fact_table"
-                      @change="updateTableSettings"
+                      v-model="selectedTable.table.show_fact_table"
+                      @change="updateTableField('show_fact_table')"
                       class="checkbox-input"
                     />
                     <span class="checkbox-text">Отображать таблицу "по факту"</span>
                   </label>
                 </div>
 
-                <div v-if="selectedTable.show_fact_table" class="hint-section">
+                <div v-if="selectedTable.table.show_fact_table" class="hint-section">
                   <div class="section-header-with-actions">
                     <label class="detail-label">Подсказка для таблицы "по факту":</label>
                     <div class="editor-actions" v-if="hintHasChanges">
@@ -175,8 +251,8 @@
                     </div>
                   </div>
                   <TextConstructor
-                    v-model="selectedTable.fact_table_hint"
-                    :placeholder="getDefaultHint(selectedTable.table_type)"
+                    v-model="selectedTable.table.fact_table_hint"
+                    :placeholder="getDefaultHint(selectedTable.table.table_type)"
                     rows="4"
                     ref="hintConstructor"
                   />
@@ -192,11 +268,105 @@
                   </div>
                 </div>
                 <TextConstructor
-                  v-model="selectedTable.instruction"
+                  v-model="selectedTable.table.instruction"
                   placeholder="Введите инструкцию для таблицы..."
-                  rows="8"
+                  rows="4"
                   ref="instructionConstructor"
                 />
+              </div>
+
+              <div class="fields-section">
+                <label class="section-label">Поля таблицы:</label>
+                <div class="fields-list">
+                  <div 
+                    v-for="field in selectedTable.fields" 
+                    :key="field.id"
+                    class="field-item"
+                  >
+                    <span class="field-name">{{ getFieldDisplayName(field.field_name) }}</span>
+                    <span class="field-type">{{ getFieldTypeLabel(field.field_type) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Вкладка Расписание -->
+        <div v-if="activeTab === 'schedule'" class="tab-content">
+          <SystemTableScheduleTab 
+            :table-id="selectedTable.table.id"
+            :time-slots="selectedTable.time_slots"
+            @update="refreshSelectedTable"
+          />
+        </div>
+
+        <!-- Вкладка Местоположение -->
+        <div v-if="activeTab === 'location'" class="tab-content">
+          <div class="location-section">
+            <h4 class="section-title">Описание местоположения</h4>
+            <textarea 
+              v-model="selectedTable.table.location_description" 
+              @change="updateTableField('location_description')"
+              class="form-textarea"
+              placeholder="Введите описание местоположения..."
+              rows="3"
+            ></textarea>
+          </div>
+
+          <div class="location-section">
+            <h4 class="section-title">Ссылка на карту</h4>
+            <div class="map-link-group">
+              <input 
+                v-model="selectedTable.table.map_link" 
+                @change="updateTableField('map_link')"
+                class="form-input"
+                placeholder="https://maps.google.com/..."
+                autocomplete="off"
+              >
+              <a 
+                v-if="selectedTable.table.map_link" 
+                :href="selectedTable.table.map_link" 
+                target="_blank" 
+                class="map-link-btn"
+              >
+                Открыть карту
+              </a>
+            </div>
+          </div>
+
+          <div class="location-section">
+            <div class="photos-header">
+              <h4 class="section-title">Фотографии места</h4>
+              <label class="upload-photo-btn">
+                + Загрузить
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple 
+                  @change="uploadPhotos"
+                  style="display: none"
+                >
+              </label>
+            </div>
+
+            <div class="photos-grid">
+              <div v-for="photo in selectedTable.photos" :key="photo.id" class="photo-item" :class="{ 'main-photo': photo.is_main }">
+                <div class="photo-preview" @click="viewPhoto(photo)">
+                  <img :src="photo.photo_url" :alt="photo.file_name">
+                </div>
+                <div class="photo-actions">
+                  <button v-if="!photo.is_main" @click="setMainPhoto(photo)" class="photo-main-btn" title="Сделать главной">
+                    ★
+                  </button>
+                  <span v-else class="photo-main-badge" title="Главная фотография">★</span>
+                  <button @click="deletePhoto(photo)" class="photo-delete-btn" title="Удалить">
+                    <img src="@/assets/icons/trashcan.png" class="action-icon-small" />
+                  </button>
+                </div>
+              </div>
+              <div v-if="!selectedTable.photos || selectedTable.photos.length === 0" class="no-photos">
+                <p>Фотографии не загружены</p>
               </div>
             </div>
           </div>
@@ -214,132 +384,163 @@
     </div>
 
     <!-- Модальное окно создания таблицы -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
-      <div class="modal-content horizontal-modal">
-        <div class="modal-header">
-          <h3>Создать новую таблицу</h3>
-          <button @click="showAddModal = false" class="modal-close">×</button>
-        </div>
-        
-        <div class="modal-body-horizontal">
-          <!-- Левая часть - основная информация -->
-          <div class="modal-main-info">
-            <div class="main-fields">
-              <div class="form-group-compact">
-                <label class="form-label-compact">Наименование таблицы *</label>
-                <input
-                  v-model="newTable.display_name"
-                  placeholder="ПОСТ №27"
-                  class="input-compact"
-                >
+    <transition name="modal-fade">
+      <div v-if="showAddModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content horizontal-modal">
+          <div class="modal-header">
+            <h3>Создать новую таблицу</h3>
+            <button @click="closeModal" class="modal-close">
+              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="modal-body-horizontal">
+            <!-- Левая часть - основная информация -->
+            <div class="modal-main-info">
+              <div class="main-fields">
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Наименование таблицы *</label>
+                  <input
+                    v-model="newTable.display_name"
+                    placeholder="ПОСТ №27"
+                    class="input-compact"
+                  >
+                </div>
+                
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Системное имя *</label>
+                  <input
+                    v-model="newTable.name"
+                    @input="validateSystemName"
+                    placeholder="post_27"
+                    class="input-compact"
+                  >
+                  <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
+                  <span v-if="nameError" class="form-error">{{ nameError }}</span>
+                </div>
+
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Тип таблицы *</label>
+                  <div class="custom-select">
+                    <div class="select-header" @click="toggleNewTableTypeDropdown">
+                      <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
+                      <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: newTableTypeDropdownOpen }" />
+                    </div>
+                    <transition name="dropdown-fade">
+                      <div v-if="newTableTypeDropdownOpen" class="select-dropdown">
+                        <div 
+                          class="select-option"
+                          :class="{ active: newTable.table_type === 'cars' }"
+                          @click="selectNewTableType('cars')"
+                        >
+                          Машины
+                        </div>
+                        <div 
+                          class="select-option"
+                          :class="{ active: newTable.table_type === 'people' }"
+                          @click="selectNewTableType('people')"
+                        >
+                          Люди
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Правая часть - настройки -->
+            <div class="modal-cells-section">
+              <div class="cells-header-compact">
+                <h4 class="cells-title-compact">Настройки отображения</h4>
               </div>
               
-              <div class="form-group-compact">
-                <label class="form-label-compact">Системное имя *</label>
-                <input
-                  v-model="newTable.name"
-                  @input="validateSystemName"
-                  placeholder="post_27"
-                  class="input-compact"
-                >
-                <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-                <span v-if="nameError" class="form-error">{{ nameError }}</span>
-              </div>
-
-              <div class="form-group-compact">
-                <label class="form-label-compact">Тип таблицы *</label>
-                <div class="custom-select">
-                  <div class="select-header" @click="toggleNewTableTypeDropdown">
-                    <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
-                    <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: newTableTypeDropdownOpen }" />
+              <div class="cells-scroll-container">
+                <div class="settings-grid">
+                  <div class="setting-item">
+                    <label class="setting-label">
+                      <input 
+                        type="checkbox" 
+                        v-model="newTable.show_fact_table"
+                        class="setting-checkbox"
+                      />
+                      <span class="setting-text">Отображать таблицу "по факту"</span>
+                    </label>
+                    <span class="setting-hint">
+                      Будет показана дополнительная таблица с данными "по факту"
+                    </span>
                   </div>
-                  <transition name="dropdown-fade">
-                    <div v-if="newTableTypeDropdownOpen" class="select-dropdown">
-                      <div 
-                        class="select-option"
-                        :class="{ active: newTable.table_type === 'cars' }"
-                        @click="selectNewTableType('cars')"
-                      >
-                        Машины
-                      </div>
-                      <div 
-                        class="select-option"
-                        :class="{ active: newTable.table_type === 'people' }"
-                        @click="selectNewTableType('people')"
-                      >
-                        Люди
-                      </div>
-                    </div>
-                  </transition>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Правая часть - настройки -->
-          <div class="modal-cells-section">
-            <div class="cells-header-compact">
-              <h4 class="cells-title-compact">Настройки отображения</h4>
-            </div>
-            
-            <div class="cells-scroll-container">
-              <div class="settings-grid">
-                <div class="setting-item">
-                  <label class="setting-label">
-                    <input 
-                      type="checkbox" 
-                      v-model="newTable.show_fact_table"
-                      class="setting-checkbox"
+                  <div v-if="newTable.show_fact_table" class="setting-item">
+                    <label class="form-label-compact">Подсказка для таблицы "по факту"</label>
+                    <TextConstructor
+                      v-model="newTable.fact_table_hint"
+                      :placeholder="getDefaultHint(newTable.table_type)"
+                      rows="3"
                     />
-                    <span class="setting-text">Отображать таблицу "по факту"</span>
-                  </label>
-                  <span class="setting-hint">
-                    Будет показана дополнительная таблица с данными "по факту"
-                  </span>
-                </div>
+                  </div>
 
-                <div v-if="newTable.show_fact_table" class="setting-item">
-                  <label class="form-label-compact">Подсказка для таблицы "по факту"</label>
-                  <TextConstructor
-                    v-model="newTable.fact_table_hint"
-                    :placeholder="getDefaultHint(newTable.table_type)"
-                    rows="3"
-                  />
-                </div>
+                  <div class="setting-item">
+                    <label class="form-label-compact">Инструкция к таблице</label>
+                    <TextConstructor
+                      v-model="newTable.instruction"
+                      placeholder="Введите инструкцию для таблицы..."
+                      rows="4"
+                    />
+                  </div>
 
-                <div class="setting-item">
-                  <label class="form-label-compact">Инструкция к таблице</label>
-                  <TextConstructor
-                    v-model="newTable.instruction"
-                    placeholder="Введите инструкцию для таблицы..."
-                    rows="6"
-                  />
-                </div>
-
-                <div class="setting-item">
-                  <h5 class="fields-preview-title">Поля таблицы:</h5>
-                  <div class="fields-preview">
-                    <div 
-                      v-for="field in getTableFields(newTable.table_type)" 
-                      :key="field.name"
-                      class="preview-field"
-                    >
-                      <span class="preview-field-name">{{ field.displayName }}</span>
-                      <span class="preview-field-type">{{ field.type }}</span>
+                  <div class="setting-item">
+                    <h5 class="fields-preview-title">Поля таблицы:</h5>
+                    <div class="fields-preview">
+                      <div 
+                        v-for="field in getTableFields(newTable.table_type)" 
+                        :key="field.name"
+                        class="preview-field"
+                      >
+                        <span class="preview-field-name">{{ field.displayName }}</span>
+                        <span class="preview-field-type">{{ field.type }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div class="modal-footer">
-          <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="createTable" class="modal-confirm">Создать</button>
+          
+          <div class="modal-footer">
+            <button @click="closeModal" class="modal-btn modal-btn--cancel">Отмена</button>
+            <button 
+              @click="createTable" 
+              class="modal-btn modal-btn--confirm"
+              
+            >
+              Создатькцуйкцйук
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
+
+    <!-- Модальное окно просмотра фото -->
+    <transition name="modal-fade">
+      <div v-if="showPhotoModal" class="modal-overlay" @click.self="showPhotoModal = false">
+        <div class="modal-content photo-view-modal">
+          <div class="modal-header">
+            <h3 class="modal-title">{{ viewingPhoto?.file_name }}</h3>
+            <button @click="showPhotoModal = false" class="modal-close">
+              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body photo-view-body">
+            <img :src="viewingPhoto?.photo_url" class="full-photo" alt="Full size">
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- Уведомления -->
     <div v-if="notification.show" class="notification" :class="notification.type">
@@ -352,12 +553,15 @@
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
+import SystemTableScheduleTab from './SystemTableScheduleTab.vue';
 
 export default {
+  name: 'TableConstructor',
   components: {
     SearchComponent,
     RefreshButton,
-    TextConstructor
+    TextConstructor,
+    SystemTableScheduleTab
   },
   data() {
     return {
@@ -365,17 +569,24 @@ export default {
       newTable: {
         name: '',
         display_name: '',
-        table_type: 'cars',
+        table_type: 'people',
         show_fact_table: false,
         fact_table_hint: '',
         instruction: '',
+        map_link: '',
+        status: 'active',
+        status_comment: '',
+        location_description: '',
         is_active: true
       },
       tables: [],
       showAddModal: false,
+      showPhotoModal: false,
       selectedTable: null,
+      viewingPhoto: null,
       sortField: null,
       sortDirection: 'asc',
+      activeTab: 'main',
       nameError: '',
       originalHint: '',
       originalInstruction: '',
@@ -393,16 +604,16 @@ export default {
       if (!this.searchQuery) return this.tables;
       const query = this.searchQuery.toLowerCase();
       return this.tables.filter(table => 
-        table.display_name.toLowerCase().includes(query) || 
-        table.name.toLowerCase().includes(query) ||
-        table.id.toString().includes(query)
+        table.table.display_name.toLowerCase().includes(query) || 
+        table.table.name.toLowerCase().includes(query) ||
+        table.table.id.toString().includes(query)
       );
     },
     sortedTables() {
       const tables = [...this.filteredTables];
       
       if (!this.sortField) {
-        return tables.sort((a, b) => a.display_name.localeCompare(b.display_name));
+        return tables.sort((a, b) => a.table.display_name.localeCompare(b.table.display_name));
       }
       
       return tables.sort((a, b) => {
@@ -410,16 +621,16 @@ export default {
         
         switch (this.sortField) {
           case 'id':
-            valueA = a.id;
-            valueB = b.id;
+            valueA = a.table.id;
+            valueB = b.table.id;
             break;
           case 'name':
-            valueA = a.display_name;
-            valueB = b.display_name;
+            valueA = a.table.display_name;
+            valueB = b.table.display_name;
             break;
           case 'type':
-            valueA = a.table_type;
-            valueB = b.table_type;
+            valueA = a.table.table_type;
+            valueB = b.table.table_type;
             break;
           default:
             return 0;
@@ -435,13 +646,34 @@ export default {
       });
     },
     hintHasChanges() {
-      return this.selectedTable && this.selectedTable.fact_table_hint !== this.originalHint;
+      return this.selectedTable && this.selectedTable.table.fact_table_hint !== this.originalHint;
     },
     instructionHasChanges() {
-      return this.selectedTable && this.selectedTable.instruction !== this.originalInstruction;
+      return this.selectedTable && this.selectedTable.table.instruction !== this.originalInstruction;
     }
   },
+  mounted() {
+    this.refreshData();
+    
+    // Слушаем события уведомлений от дочерних компонентов
+    window.addEventListener('show-notification', this.handleNotification);
+    
+    // Закрываем dropdown при клике вне их
+    document.addEventListener('click', (e) => {
+      if (!this.$el.contains(e.target)) {
+        this.tableTypeDropdownOpen = false;
+        this.newTableTypeDropdownOpen = false;
+      }
+    });
+  },
+  beforeUnmount() {
+    window.removeEventListener('show-notification', this.handleNotification);
+  },
   methods: {
+    handleNotification(event) {
+      this.showNotification(event.detail.message, event.detail.type);
+    },
+
     validateSystemName() {
       const nameRegex = /^[a-z0-9_]*$/;
       if (!nameRegex.test(this.newTable.name)) {
@@ -450,9 +682,11 @@ export default {
         this.nameError = '';
       }
     },
+    
     async refreshData() {
       await this.fetchTables();
     },
+    
     async fetchTables() {
       try {
         const token = localStorage.getItem("token");
@@ -470,138 +704,243 @@ export default {
         this.showNotification("Ошибка при загрузке таблиц", "error");
       }
     },
-    async createTable() {
-      if (!this.newTable.name.trim() || !this.newTable.display_name.trim()) {
-        this.showNotification("Заполните все обязательные поля", "warning");
-        return;
-      }
-      
-      // Валидация системного имени
-      const nameRegex = /^[a-z0-9_]+$/;
-      if (!nameRegex.test(this.newTable.name)) {
-        this.showNotification("Системное имя может содержать только латинские буквы, цифры и подчеркивания", "warning");
-        return;
-      }
+    
+    async refreshSelectedTable() {
+      if (!this.selectedTable) return;
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/system-tables", {
-          method: "POST",
+        const response = await fetch(`http://localhost:8080/system-tables/${this.selectedTable.table.id}`, {
           headers: {
             "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
           },
-          body: JSON.stringify(this.newTable),
         });
-        
         if (response.ok) {
-          this.newTable = {
-            name: '',
-            display_name: '',
-            table_type: 'cars',
-            show_fact_table: false,
-            fact_table_hint: '',
-            instruction: '',
-            is_active: true
-          };
-          this.showAddModal = false;
-          await this.refreshData();
-          this.showNotification("Таблица успешно создана", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при создании таблицы", "error");
+          const data = await response.json();
+          
+          // Исправляем URL фотографий
+          if (data.photos) {
+            data.photos = data.photos.map(photo => ({
+              ...photo,
+              photo_url: photo.photo_url.replace('localhost:8081', 'localhost:8080')
+            }));
+          }
+          
+          this.selectedTable = data;
+          this.originalHint = data.table.fact_table_hint || '';
+          this.originalInstruction = data.table.instruction || '';
+          
+          // Обновляем в общем списке
+          const index = this.tables.findIndex(t => t.table.id === data.table.id);
+          if (index !== -1) {
+            this.tables[index] = data;
+          }
         }
       } catch (error) {
-        console.error("Error creating system table:", error);
-        this.showNotification("Ошибка сети", "error");
+        console.error("Error refreshing table:", error);
       }
     },
-    async updateTable(table, field = null) {
+    
+    async createTable() {
+      console.log(1);
+  if (!this.newTable.name.trim() || !this.newTable.display_name.trim()) {
+    this.showNotification("Заполните все обязательные поля", "warning");
+    return;
+  }
+  
+  // Валидация системного имени
+  const nameRegex = /^[a-z0-9_]+$/;
+  if (!nameRegex.test(this.newTable.name)) {
+    this.showNotification("Системное имя может содержать только латинские буквы, цифры и подчеркивания", "warning");
+    return;
+  }
+  
+  console.log("Creating table with data:", this.newTable);
+  
+  try {
+    const token = localStorage.getItem("token");
+    console.log("Token:", token ? "exists" : "missing");
+    
+    const response = await fetch("http://localhost:8080/system-tables", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(this.newTable),
+    });
+    
+    console.log("Response status:", response.status);
+    console.log("Response headers:", response.headers);
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log("Success result:", result);
+      
+      this.closeModal();
+      await this.refreshData();
+      
+      // Выбираем созданную таблицу
+      const newTable = this.tables.find(t => t.table.id === result.id);
+      if (newTable) {
+        this.selectTable(newTable);
+      }
+      
+      this.showNotification("Таблица успешно создана", "success");
+    } else {
+      // Пробуем получить текст ошибки
+      const errorText = await response.text();
+      console.error("Error response:", errorText);
+      
+      // Пробуем распарсить как JSON, если это возможно
+      try {
+        const errorJson = JSON.parse(errorText);
+        this.showNotification(errorJson.message || errorText, "error");
+      } catch {
+        this.showNotification(errorText || "Ошибка при создании таблицы", "error");
+      }
+    }
+  } catch (error) {
+    console.error("Network error creating system table:", error);
+    this.showNotification("Ошибка сети: " + error.message, "error");
+  }
+},
+    
+    async updateTable(field) {
+      if (!this.selectedTable) return;
+      
+      const updateData = {};
+      
+      switch (field) {
+        case 'display_name':
+          updateData.display_name = this.selectedTable.table.display_name;
+          break;
+        case 'table_type':
+          updateData.table_type = this.selectedTable.table.table_type;
+          break;
+        case 'show_fact_table':
+          updateData.show_fact_table = this.selectedTable.table.show_fact_table;
+          break;
+        case 'fact_table_hint':
+          updateData.fact_table_hint = this.selectedTable.table.fact_table_hint;
+          break;
+        case 'instruction':
+          updateData.instruction = this.selectedTable.table.instruction;
+          break;
+        case 'map_link':
+          updateData.map_link = this.selectedTable.table.map_link;
+          break;
+        case 'status':
+          updateData.status = this.selectedTable.table.status;
+          break;
+        case 'status_comment':
+          updateData.status_comment = this.selectedTable.table.status_comment;
+          break;
+        case 'location_description':
+          updateData.location_description = this.selectedTable.table.location_description;
+          break;
+      }
+      
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/system-tables/${table.id}`, {
+        const response = await fetch(`http://localhost:8080/system-tables/${this.selectedTable.table.id}`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(table),
+          body: JSON.stringify(updateData),
         });
         
         if (response.ok) {
-          let message = "Таблица успешно обновлена";
-          if (field === 'display_name') {
-            message = "Наименование успешно изменено";
-          } else if (field === 'table_type') {
-            message = "Тип таблицы успешно изменен";
-          } else if (field === 'show_fact_table') {
-            message = table.show_fact_table 
-              ? "Таблица по факту отображается" 
-              : "Таблица по факту не отображается";
-          } else if (field === 'fact_table_hint') {
-            message = "Подсказка успешно изменена";
+          if (field === 'fact_table_hint') {
+            this.originalHint = this.selectedTable.table.fact_table_hint || '';
+            this.showNotification("Подсказка успешно сохранена", "success");
           } else if (field === 'instruction') {
-            message = "Инструкция успешно изменена";
+            this.originalInstruction = this.selectedTable.table.instruction || '';
+            this.showNotification("Инструкция успешно сохранена", "success");
+          } else {
+            this.showNotification("Изменения сохранены", "success");
           }
-          
-          this.showNotification(message, "success");
-          await this.refreshData();
-          this.originalHint = table.fact_table_hint || '';
-          this.originalInstruction = table.instruction || '';
+          await this.refreshSelectedTable();
         } else {
           const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при обновлении таблицы", "error");
+          this.showNotification(errorText || "Ошибка при обновлении", "error");
         }
       } catch (error) {
-        console.error("Error updating system table:", error);
+        console.error("Error updating table:", error);
         this.showNotification("Ошибка сети", "error");
       }
     },
-    async updateTableDisplayName() {
-      if (this.selectedTable) {
-        await this.updateTable(this.selectedTable, 'display_name');
-      }
+    
+    updateTableField(field) {
+      this.updateTable(field);
     },
-    async updateTableSettings() {
-      if (this.selectedTable) {
-        await this.updateTable(this.selectedTable, 'show_fact_table');
+    
+    setTableStatus(status) {
+      if (!this.selectedTable) return;
+      this.selectedTable.table.status = status;
+      if (status === 'active') {
+        this.selectedTable.table.status_comment = null;
       }
+      this.updateTable('status');
     },
+    
     async confirmDeleteTable(table) {
-      if (!confirm(`Вы уверены, что хотите удалить таблицу "${table.display_name}"?`)) return;
+  if (!confirm(`Вы уверены, что хотите удалить таблицу "${table.table.display_name}"?`)) return;
+  
+  try {
+    const token = localStorage.getItem("token");
+    console.log("Deleting table ID:", table.table.id);
+    
+    const response = await fetch(`http://localhost:8080/system-tables/${table.table.id}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+    
+    console.log("Response status:", response.status);
+    console.log("Response headers:", response.headers);
+    
+    if (response.ok) {
+      this.selectedTable = null;
+      this.activeTab = 'main';
+      await this.refreshData();
+      this.showNotification("Таблица успешно удалена", "success");
+    } else {
+      // Получаем текст ошибки
+      const errorText = await response.text();
+      console.error("Error response text:", errorText);
       
+      // Пробуем распарсить как JSON, если это возможно
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/system-tables/${table.id}`, {
-          method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-        
-        if (response.ok) {
-          this.selectedTable = null;
-          await this.refreshData();
-          this.showNotification("Таблица успешно удалена", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении таблицы", "error");
-        }
-      } catch (error) {
-        console.error("Error deleting system table:", error);
-        this.showNotification("Ошибка сети", "error");
+        const errorJson = JSON.parse(errorText);
+        this.showNotification(errorJson.message || errorText, "error");
+      } catch {
+        // Если не JSON, показываем как текст
+        this.showNotification(errorText, "error");
       }
-    },
+    }
+  } catch (error) {
+    console.error("Error deleting system table:", error);
+    this.showNotification("Ошибка сети", "error");
+  }
+},
+    
     selectTable(table) {
       this.selectedTable = JSON.parse(JSON.stringify(table));
-      this.originalHint = table.fact_table_hint || '';
-      this.originalInstruction = table.instruction || '';
+      this.originalHint = table.table.fact_table_hint || '';
+      this.originalInstruction = table.table.instruction || '';
+      this.activeTab = 'main';
     },
+    
     openTable() {
       if (this.selectedTable) {
-        this.$router.push(`/table/${this.selectedTable.name}`);
+        this.$router.push(`/table/${this.selectedTable.table.name}`);
       }
     },
+    
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -610,9 +949,40 @@ export default {
         this.sortDirection = 'asc';
       }
     },
+    
     getTableTypeLabel(type) {
       return type === 'cars' ? 'Машины' : 'Люди';
     },
+    
+    getTableStatusClass(table) {
+      if (table.table.status !== 'active') {
+        return 'status-inactive';
+      }
+      return table.current_status === 'open' ? 'status-open' : 'status-closed';
+    },
+    
+    getTableStatusText(table) {
+      if (table.table.status !== 'active') {
+        return 'Неактивно';
+      }
+      return table.current_status === 'open' ? 'Открыто' : 'Закрыто';
+    },
+    
+    getTableCurrentStatusClass(table) {
+      if (table.table.status !== 'active') {
+        return 'status-inactive-badge';
+      }
+      return table.current_status === 'open' ? 'status-open-badge' : 'status-closed-badge';
+    },
+    
+    getTableCurrentStatusText(table) {
+      if (table.table.status !== 'active') {
+        if (table.table.status === 'maintenance') return 'На обслуживании';
+        return 'Неактивно';
+      }
+      return table.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
+    },
+    
     getTableFields(tableType) {
       if (tableType === 'cars') {
         return [
@@ -635,6 +1005,34 @@ export default {
         ];
       }
     },
+    
+    getFieldDisplayName(fieldName) {
+      const fields = {
+        'car_number': 'Номер машины',
+        'car_brand': 'Марка',
+        'organization': 'Организация',
+        'unload_place': 'Место разгрузки',
+        'valid_until': 'Действует до',
+        'time_range': 'Время',
+        'status': 'Статус',
+        'last_name': 'Фамилия',
+        'first_name': 'Имя',
+        'middle_name': 'Отчество',
+        'pass_time': 'Время прохода'
+      };
+      return fields[fieldName] || fieldName;
+    },
+    
+    getFieldTypeLabel(fieldType) {
+      const types = {
+        'text': 'Текст',
+        'date': 'Дата',
+        'time': 'Время',
+        'number': 'Число'
+      };
+      return types[fieldType] || fieldType;
+    },
+    
     getDefaultHint(tableType) {
       if (tableType === 'cars') {
         return 'При прибытии автомобиля ПО ФАКТУ: спроси у водителя организацию, посмотри, есть ли организация в таблице слева, если организация есть - пропустить';
@@ -642,43 +1040,170 @@ export default {
         return 'При проходе человека ПО ФАКТУ: проверьте документы, сверьте с данными в системе';
       }
     },
+    
     saveHint() {
-      if (this.selectedTable) {
-        this.updateTable(this.selectedTable, 'fact_table_hint');
-      }
+      this.updateTable('fact_table_hint');
     },
+    
     cancelHintEdit() {
       if (this.selectedTable) {
-        this.selectedTable.fact_table_hint = this.originalHint;
+        this.selectedTable.table.fact_table_hint = this.originalHint;
       }
     },
+    
     saveInstruction() {
-      if (this.selectedTable) {
-        this.updateTable(this.selectedTable, 'instruction');
-      }
+      this.updateTable('instruction');
     },
+    
     cancelInstructionEdit() {
       if (this.selectedTable) {
-        this.selectedTable.instruction = this.originalInstruction;
+        this.selectedTable.table.instruction = this.originalInstruction;
       }
     },
+    
     toggleTableTypeDropdown() {
       this.tableTypeDropdownOpen = !this.tableTypeDropdownOpen;
     },
+    
     selectTableType(type) {
       if (this.selectedTable) {
-        this.selectedTable.table_type = type;
+        this.selectedTable.table.table_type = type;
         this.tableTypeDropdownOpen = false;
-        this.updateTable(this.selectedTable, 'table_type');
+        this.updateTable('table_type');
       }
     },
+    
     toggleNewTableTypeDropdown() {
       this.newTableTypeDropdownOpen = !this.newTableTypeDropdownOpen;
     },
+    
     selectNewTableType(type) {
       this.newTable.table_type = type;
+      this.newTable.fact_table_hint = '';
       this.newTableTypeDropdownOpen = false;
     },
+    
+    closeModal() {
+      this.showAddModal = false;
+      this.newTable = {
+        name: '',
+        display_name: '',
+        table_type: 'people',
+        show_fact_table: false,
+        fact_table_hint: '',
+        instruction: '',
+        map_link: '',
+        status: 'active',
+        status_comment: '',
+        location_description: '',
+        is_active: true
+      };
+      this.nameError = '';
+    },
+    
+    // Методы для фото
+    async uploadPhotos(event) {
+      if (!this.selectedTable) return;
+      
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+      
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('photos', files[i]);
+      }
+      
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`http://localhost:8080/system-tables/${this.selectedTable.table.id}/photos`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+          body: formData,
+        });
+        
+        if (response.ok) {
+          await this.refreshSelectedTable();
+          
+          // Исправляем URL фотографий
+          if (this.selectedTable && this.selectedTable.photos) {
+            this.selectedTable.photos = this.selectedTable.photos.map(photo => ({
+              ...photo,
+              photo_url: photo.photo_url.replace('localhost:8081', 'localhost:8080')
+            }));
+          }
+          
+          this.showNotification("Фотографии успешно загружены", "success");
+        } else {
+          const errorText = await response.text();
+          this.showNotification(errorText || "Ошибка при загрузке фото", "error");
+        }
+      } catch (error) {
+        console.error("Error uploading photos:", error);
+        this.showNotification("Ошибка сети", "error");
+      }
+    },
+    
+    async deletePhoto(photo) {
+      if (!confirm(`Удалить фотографию?`)) return;
+      
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `http://localhost:8080/system-tables/${this.selectedTable.table.id}/photos/${photo.id}`, 
+          {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+          }
+        );
+        
+        if (response.ok) {
+          await this.refreshSelectedTable();
+          this.showNotification("Фотография удалена", "success");
+        } else {
+          const errorText = await response.text();
+          this.showNotification(errorText || "Ошибка при удалении фото", "error");
+        }
+      } catch (error) {
+        console.error("Error deleting photo:", error);
+        this.showNotification("Ошибка сети", "error");
+      }
+    },
+    
+    async setMainPhoto(photo) {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `http://localhost:8080/system-tables/${this.selectedTable.table.id}/photos/${photo.id}/main`, 
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+          }
+        );
+        
+        if (response.ok) {
+          await this.refreshSelectedTable();
+          this.showNotification("Главная фотография установлена", "success");
+        } else {
+          const errorText = await response.text();
+          this.showNotification(errorText || "Ошибка при установке главной фотографии", "error");
+        }
+      } catch (error) {
+        console.error("Error setting main photo:", error);
+        this.showNotification("Ошибка сети", "error");
+      }
+    },
+    
+    viewPhoto(photo) {
+      this.viewingPhoto = photo;
+      this.showPhotoModal = true;
+    },
+    
     showNotification(message, type = 'info') {
       this.notification = {
         show: true,
@@ -695,17 +1220,18 @@ export default {
       this.notification.show = false;
     }
   },
-  mounted() {
-    this.refreshData();
-    // Закрываем dropdown при клике вне их
-    document.addEventListener('click', (e) => {
-      if (!this.$el.contains(e.target)) {
-        this.tableTypeDropdownOpen = false;
-        this.newTableTypeDropdownOpen = false;
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          if (this.$refs.nameInput) {
+            this.$refs.nameInput.focus();
+          }
+        });
       }
-    });
-  },
-};
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -715,7 +1241,7 @@ export default {
   border: 1px solid #e6e6e6;
   overflow: hidden;
   width: 100%;
-  height: 500px;
+  height: 550px;
   position: relative;
 }
 
@@ -760,34 +1286,9 @@ export default {
   background: #3a45b2;
 }
 
-.export-btn, .import-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  background: white;
-  color: #000;
-}
-
-.export-btn:hover, .import-btn:hover {
-  background: #f8f9fa;
-  border-color: #ccc;
-}
-
-.action-icon {
-  width: 16px;
-  height: 16px;
-}
-
 .content-container {
   display: flex;
-  height: 450px;
+  height: 500px;
   width: 100%;
 }
 
@@ -796,6 +1297,7 @@ export default {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e6e6e6;
+  background: #fff;
 }
 
 .table-section.with-details {
@@ -817,29 +1319,6 @@ export default {
   background: #fff;
   height: 43px;
   align-items: center;
-}
-
-.delete-icon-btn {
-  outline: none;
-  border: none;
-  width: 30px;
-  height: 30px;
-  padding: 5px;
-  border-radius: 10px;
-  display: flex;
-  align-items:center;
-  justify-content: center;
-  transition: .2s;
-}
-
-.delete-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.delete-icon-btn:hover {
-  background-color: #e6e6e6;
-  cursor:pointer;
 }
 
 .header-col {
@@ -889,13 +1368,18 @@ export default {
 }
 
 .name-col {
-  width: 55%;
+  width: 40%;
   min-width: 200px;
 }
 
 .type-col {
-  width: 30%;
+  width: 25%;
   min-width: 100px;
+}
+
+.status-col {
+  width: 20%;
+  min-width: 80px;
 }
 
 .table-body {
@@ -950,28 +1434,59 @@ export default {
 }
 
 .type-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8em;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
   font-weight: 600;
+  min-width: 70px;
+  text-align: center;
 }
 
 .type-badge.cars {
-  background: linear-gradient(135deg, #f0f4ff 0%, #f0f4ff 100%);
-  color: #3a4a6e;
-  border: 1px solid #d0d9f0;
+  background-color: #e6f7e6;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
 }
 
 .type-badge.people {
-  background: linear-gradient(135deg, #f0ecff 0%, #f0ecff 100%);
-  color: #6d5aa7;
-  border: 1px solid #c6b8f0;
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  min-width: 70px;
+  text-align: center;
+}
+
+.status-open {
+  background-color: #e6f7e6;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.status-closed {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border: 1px solid #ffcc80;
+}
+
+.status-inactive {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
 }
 
 .table-footer {
   padding: 6px 20px;
   border-top: 1px solid #e6e6e6;
-  text-align: end;
+  text-align: right;
   background: #f8fafc;
 }
 
@@ -983,26 +1498,65 @@ export default {
 
 .details-section {
   width: 60%;
-  padding: 15px;
-  overflow-y: auto;
-  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
 }
 
-.details-content {
-  height: 100%;
+.details-tabs {
+  display: flex;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f8f9fa;
+  padding: 0 20px;
+}
+
+.tab-btn {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: #4F5BDF;
+}
+
+.tab-btn.active {
+  color: #4F5BDF;
+  border-bottom-color: #4F5BDF;
+}
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #fff;
 }
 
 .details-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .details-title-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 0px;
+  gap: 4px;
+}
+
+.table-info-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .details-title {
@@ -1012,42 +1566,64 @@ export default {
   font-weight: 600;
 }
 
+.table-type-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.table-type-badge.cars {
+  background-color: #e6f7e6;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.table-type-badge.people {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
 .table-info-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.table-info-title {
-  display: flex;
-  gap: 10px;
-  align-items:center;
-}
-
 .system-name {
-  font-size: 0.85em;
+  font-size: 12px;
   color: #666;
   background: #f5f5f5;
-  border-radius: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
-.table-type-badge {
-  padding: 3px 12px;
-  border-radius: 16px;
-  font-size: 0.8em;
+.current-status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 500;
 }
 
-.table-type-badge.cars {
-  background: linear-gradient(135deg, #f0f4ff 0%, #f0f4ff 100%);
-  color: #3a4a6e;
-  border: 1px solid #d0d9f0;
+.status-open-badge {
+  background-color: #e6f7e6;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
 }
 
-.table-type-badge.people {
-  background: linear-gradient(135deg, #f0ecff 0%, #f0ecff 100%);
-  color: #6d5aa7;
-  border: 1px solid #c6b8f0;
+.status-closed-badge {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border: 1px solid #ffcc80;
+}
+
+.status-inactive-badge {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
 }
 
 .details-header-actions {
@@ -1057,16 +1633,16 @@ export default {
 }
 
 .action-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   padding: 8px 16px;
   border: none;
-  border-radius: 50px;
+  border-radius: 30px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: 12px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .view-btn {
@@ -1078,6 +1654,29 @@ export default {
   background: #3a45b2;
 }
 
+.delete-icon-btn {
+  outline: none;
+  border: none;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border-radius: 10px;
+  display: flex;
+  align-items:center;
+  justify-content: center;
+  transition: .2s;
+}
+
+.delete-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.delete-icon-btn:hover {
+  background-color: #e6e6e6;
+  cursor:pointer;
+}
+
 .details-body {
   display: flex;
   flex-direction: column;
@@ -1087,7 +1686,7 @@ export default {
 .compact-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 
 .form-row {
@@ -1095,28 +1694,30 @@ export default {
   gap: 16px;
 }
 
-.form-group.compact {
+.form-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.form-group.compact {
   flex: 1;
 }
 
 .detail-label {
-  font-size: 0.85em;
-  color: #a2a2a2;
-  font-weight:400;
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
 }
 
 .form-input-sm {
-  padding:5px 12px;
+  padding: 8px 12px;
   border: 1px solid #e6e6e6;
   border-radius: 10px;
-  font-size: 0.8em;
-  height: 35px;
-  transition: border-color 0.2s ease;
-  background: #fff;
+  font-size: 13px;
   width: 100%;
+  transition: border-color 0.2s;
+  background: #fff;
 }
 
 .form-input-sm:focus {
@@ -1124,12 +1725,23 @@ export default {
   outline: none;
 }
 
-.form-input-sm:disabled {
-  background: #f5f5f5;
-  color: #999;
+.form-textarea {
+  padding: 8px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  font-size: 13px;
+  width: 100%;
+  transition: border-color 0.2s;
+  background: #fff;
+  resize: vertical;
+  font-family: inherit;
 }
 
-/* Стили для кастомного select */
+.form-textarea:focus {
+  border-color: #4F5BDF;
+  outline: none;
+}
+
 .custom-select {
   position: relative;
   width: 100%;
@@ -1144,7 +1756,7 @@ export default {
   border-radius: 10px;
   background: white;
   cursor: pointer;
-  font-size: 0.8em;
+  font-size: 13px;
   height: 35px;
   transition: all 0.2s ease;
 }
@@ -1162,7 +1774,6 @@ export default {
   width: 10px;
   height: 10px;
   transition: transform 0.2s ease;
-  margin-left: 4px;
   transform: rotate(90deg);
 }
 
@@ -1178,22 +1789,18 @@ export default {
   background: white;
   border: 1px solid #e6e6e6;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 10;
   margin-top: 4px;
   overflow: hidden;
 }
 
 .select-option {
-  padding: 6px 12px;
-  font-size: 0.8em;
+  padding: 8px 12px;
+  font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
-  color: #000;
+  transition: background 0.2s;
   border-bottom: 1px solid #f0f0f0;
-  height: 32px;
-  display: flex;
-  align-items: center;
 }
 
 .select-option:last-child {
@@ -1201,12 +1808,14 @@ export default {
 }
 
 .select-option:hover {
-  background: #f0f0f0;
+  background: #f5f7ff;
+  color: #4F5BDF;
 }
 
 .select-option.active {
-  background: #4F5BDF;
-  color: white;
+  background: #f0f3ff;
+  color: #4F5BDF;
+  font-weight: 500;
 }
 
 .dropdown-fade-enter-active,
@@ -1220,6 +1829,34 @@ export default {
   transform: translateY(-5px);
 }
 
+.status-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-btn {
+  padding: 6px 16px;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+  border-radius: 30px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.status-btn:hover {
+  border-color: #4F5BDF;
+  color: #4F5BDF;
+}
+
+.status-btn.active {
+  background: #4F5BDF;
+  border-color: #4F5BDF;
+  color: white;
+}
+
 .settings-section {
   display: flex;
   flex-direction: column;
@@ -1227,9 +1864,10 @@ export default {
 }
 
 .section-label {
-  font-size: 0.9em;
-  color: #000;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
 }
 
 .checkbox-group {
@@ -1246,21 +1884,30 @@ export default {
   cursor: pointer;
 }
 
+.checkbox-input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+}
+
 .checkbox-text {
-  font-size: 0.8em;
-  font-weight: 500;
-  color: #000;
+  font-size: 13px;
+  color: #333;
 }
 
 .hint-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
 .instruction-section {
   background: #f8f9ff;
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #e6e6e6;
   margin-bottom: 10px;
 }
 
@@ -1269,7 +1916,6 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-  height: 23px;
 }
 
 .editor-actions {
@@ -1278,13 +1924,13 @@ export default {
 }
 
 .compact-btn {
-  padding: 6px 12px;
+  padding: 4px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 15px;
   cursor: pointer;
-  font-size: 0.6em;
+  font-size: 11px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
 }
 
 .save-btn {
@@ -1303,6 +1949,204 @@ export default {
 
 .cancel-btn:hover {
   background: #4b5563;
+}
+
+.fields-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.field-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #f8f9fa;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+}
+
+.field-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+}
+
+.field-type {
+  font-size: 11px;
+  color: #666;
+  background: #e9ecef;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.location-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.map-link-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.map-link-group .form-input {
+  flex: 1;
+}
+
+.map-link-btn {
+  padding: 8px 16px;
+  background: #f0f3ff;
+  color: #4F5BDF;
+  text-decoration: none;
+  border-radius: 30px;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background-color 0.2s ease;
+  border: 1px solid #4F5BDF;
+}
+
+.map-link-btn:hover {
+  background: #4F5BDF;
+  color: white;
+}
+
+.photos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.upload-photo-btn {
+  padding: 4px 12px;
+  background: #f0f3ff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.upload-photo-btn:hover {
+  background: #4F5BDF;
+  color: white;
+}
+
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.photo-item {
+  position: relative;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: #f8f9fa;
+}
+
+.photo-item.main-photo {
+  border: 2px solid #4F5BDF;
+}
+
+.photo-preview {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.photo-item:hover .photo-actions {
+  opacity: 1;
+}
+
+.photo-main-btn,
+.photo-delete-btn,
+.photo-main-badge {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.photo-main-btn:hover {
+  background: #4F5BDF;
+  color: white;
+}
+
+.photo-main-badge {
+  background: #4F5BDF;
+  color: white;
+  cursor: default;
+}
+
+.photo-delete-btn:hover {
+  background: #c62828;
+}
+
+.photo-delete-btn:hover .action-icon-small {
+  filter: brightness(0) invert(1);
+}
+
+.action-icon-small {
+  width: 14px;
+  height: 14px;
+}
+
+.no-photos {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px;
+  color: #a2a2a2;
+  background: #f8f9fa;
+  border: 1px dashed #e6e6e6;
+  border-radius: 8px;
 }
 
 .no-selection-message {
@@ -1333,116 +2177,135 @@ export default {
   font-size: 1.1em;
 }
 
-/* Модальные окна */
+/* Модальное окно */
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid #e6e6e6;
-
+  z-index: 10000;
+  backdrop-filter: blur(1px);
+  animation: overlayAppear 0.3s ease-out;
 }
 
-.horizontal-modal {
-  width: 1050px;
-  height: 400px;
-  max-width: 1050px;
-  display: flex;
-  flex-direction: column;
+@keyframes overlayAppear {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(1px);
+  }
+}
+
+.modal-content {
   background: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
+  padding: 0;
+  width: 420px;
+  max-width: 90vw;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  animation: modalAppear 0.3s ease-out;
+}
+
+.modal-content.horizontal-modal {
+  width: 900px;
+  max-width: 90vw;
+}
+
+.modal-content.photo-view-modal {
+  width: 800px;
+  max-width: 90vw;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1.1em;
+  font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: #333;
 }
 
 .modal-close {
   background: none;
   border: none;
-  font-size: 20px;
   cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  padding: 6px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s;
-  border-radius: 50%;
+  transition: background-color 0.2s ease;
 }
 
 .modal-close:hover {
-  background: #f5f5f5;
-  color: #000;
+  background-color: #f5f5f5;
 }
 
 .modal-body-horizontal {
   display: flex;
-  flex: 1;
+  height: 400px;
   overflow: hidden;
-  padding: 0;
 }
 
 .modal-main-info {
-  width: 30%;
-  padding: 16px;
+  width: 35%;
+  padding: 20px;
   border-right: 1px solid #e6e6e6;
   background: #fafafa;
-  display: flex;
-  flex-direction: column;
+  overflow-y: auto;
 }
 
 .main-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .form-group-compact {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .form-label-compact {
-  font-size: 0.8em;
-  color: #000;
+  font-size: 12px;
   font-weight: 500;
+  color: #555;
 }
 
 .input-compact {
   padding: 8px 10px;
   border: 1px solid #e6e6e6;
   border-radius: 8px;
-  font-size: 0.85em;
+  font-size: 13px;
   background: #fff;
   transition: border-color 0.2s;
-  height: 32px;
+  height: 35px;
 }
 
 .input-compact:focus {
@@ -1451,51 +2314,47 @@ export default {
 }
 
 .form-hint {
-  font-size: 0.7em;
+  font-size: 11px;
   color: #999;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .form-error {
-  font-size: 0.7em;
+  font-size: 11px;
   color: #ef4444;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .modal-cells-section {
-  width: 70%;
+  width: 65%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .cells-header-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid #e6e6e6;
   background: #fff;
-  flex-shrink: 0;
 }
 
 .cells-title-compact {
   margin: 0;
-  font-size: 1em;
+  font-size: 14px;
   font-weight: 600;
-  color: #000;
+  color: #333;
 }
 
 .cells-scroll-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 20px;
 }
 
 .settings-grid {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .setting-item {
@@ -1511,50 +2370,56 @@ export default {
   cursor: pointer;
 }
 
+.setting-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+}
+
 .setting-text {
-  font-size: 0.85em;
+  font-size: 13px;
   font-weight: 500;
-  color: #000;
+  color: #333;
 }
 
 .setting-hint {
-  font-size: 0.75em;
+  font-size: 11px;
   color: #666;
   line-height: 1.4;
 }
 
 .fields-preview-title {
-  margin: 0;
-  font-size: 0.9em;
+  margin: 0 0 8px 0;
+  font-size: 13px;
   font-weight: 600;
-  color: #000;
+  color: #333;
 }
 
 .fields-preview {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .preview-field {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
+  padding: 4px 8px;
   background: #f8f9fa;
   border: 1px solid #e6e6e6;
   border-radius: 6px;
+  font-size: 12px;
 }
 
 .preview-field-name {
-  font-size: 0.8em;
-  font-weight: 500;
-  color: #000;
+  color: #333;
 }
 
 .preview-field-type {
-  font-size: 0.7em;
   color: #666;
+  font-size: 10px;
   background: #e9ecef;
   padding: 2px 6px;
   border-radius: 4px;
@@ -1564,42 +2429,90 @@ export default {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.modal-cancel {
-  padding: 8px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.modal-cancel:hover {
-  background: #e9ecef;
-}
-
-.modal-confirm {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+.modal-btn {
+  padding: 8px 20px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   transition: background-color 0.2s ease;
+  min-width: 90px;
 }
 
-.modal-confirm:hover {
+.modal-btn--cancel {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.modal-btn--cancel:hover {
+  background: #e9ecef;
+}
+
+.modal-btn--confirm {
+  background: #4F5BDF;
+  color: white;
+}
+
+.modal-btn--confirm:hover:not(:disabled) {
   background: #3a45b2;
+}
+
+.modal-btn--disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.photo-view-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: #f0f0f0;
+}
+
+.full-photo {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+/* Анимации */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active .modal-overlay,
+.modal-fade-leave-active .modal-overlay {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from .modal-overlay,
+.modal-fade-leave-to .modal-overlay {
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+}
+
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.8) translateY(-20px);
 }
 
 /* Стили для уведомлений */
@@ -1648,32 +2561,41 @@ export default {
   }
 }
 
+/* Скроллбары */
+.table-body::-webkit-scrollbar,
+.cells-scroll-container::-webkit-scrollbar,
+.fields-list::-webkit-scrollbar,
+.photos-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table-body::-webkit-scrollbar-track,
+.cells-scroll-container::-webkit-scrollbar-track,
+.fields-list::-webkit-scrollbar-track,
+.photos-grid::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.table-body::-webkit-scrollbar-thumb,
+.cells-scroll-container::-webkit-scrollbar-thumb,
+.fields-list::-webkit-scrollbar-thumb,
+.photos-grid::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.table-body::-webkit-scrollbar-thumb:hover,
+.cells-scroll-container::-webkit-scrollbar-thumb:hover,
+.fields-list::-webkit-scrollbar-thumb:hover,
+.photos-grid::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
 @media (max-width: 768px) {
-  .content-container {
-    flex-direction: column;
-    height: auto;
-  }
-  
-  .table-section,
-  .details-section,
-  .no-selection-message {
-    width: 100% !important;
-  }
-  
-  .table-section.with-details {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-    height: 255px;
-  }
-  
-  .horizontal-modal {
-    height: auto;
-    max-height: 80vh;
-    width: 95%;
-  }
-  
   .modal-body-horizontal {
     flex-direction: column;
+    height: auto;
   }
   
   .modal-main-info,
@@ -1684,23 +2606,19 @@ export default {
   .modal-main-info {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
-    padding: 12px;
   }
   
-  .table-info-row {
+  .form-row {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
   }
   
-  .section-header-with-actions {
+  .map-link-group {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
   }
   
-  .editor-actions {
-    align-self: flex-end;
+  .map-link-btn {
+    width: 100%;
+    text-align: center;
   }
   
   .notification {

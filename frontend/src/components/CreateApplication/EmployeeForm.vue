@@ -7,7 +7,6 @@
             </button>
         </div>
 
-        <!-- Отображение количества выбранных существующих сотрудников -->
         <div v-if="selectedExistingEmployees.length > 0" class="existing-employees-info">
             <div class="existing-employees-header">
                 <span class="existing-employees-count">Сотрудников добавлено: {{ selectedExistingEmployees.length }}</span>
@@ -20,7 +19,6 @@
             </div>
         </div>
 
-        <!-- Форма для добавления нового сотрудника -->
         <div v-else>
             <div class="completion__citizenship">
                 <div class="citizenship__header">
@@ -38,7 +36,6 @@
                         >
                             {{ editingEmployee ? 'Применить' : 'Добавить' }}
                         </button>
-                        <!-- Подсказка для кнопки -->
                         <div v-if="showTooltip && !canAddEmployee" class="tooltip">
                             <div class="tooltip-content">
                                 {{ getTooltipMessage }}
@@ -74,7 +71,6 @@
             </div>
             
             <div class="completion__fields">
-                <!-- Первая строка: Фамилия и Имя -->
                 <div class="completion__name-row">
                     <div class="completion__last-name">
                         <div class="completion__last-name-header">
@@ -102,7 +98,6 @@
                     </div>
                 </div>
                 
-                <!-- Вторая строка: Отчество и Должность -->
                 <div class="completion__name-row">
                     <div class="completion__middle-name">
                         <div class="completion__middle-name-header">
@@ -130,7 +125,6 @@
                     </div>
                 </div>
                 
-                <!-- Третья строка: Паспорт и Номер патента -->
                 <div class="completion__name-row">
                     <div class="completion__passport">
                         <div class="completion__passport-header">
@@ -157,7 +151,6 @@
                     </div>
                 </div>
                 
-                <!-- Четвертая строка: Иное разрешение -->
                 <div class="completion__permission" :class="{ 'disabled-field': !isPatentRequired }">
                     <div class="completion__permission-header">
                         <label class="input__label">Иное разрешение на работы</label>
@@ -186,7 +179,6 @@
                     </div>
                 </div>
                 
-                <!-- Загрузка файлов -->
                 <div class="completion__files" v-if="isPatentRequired">
                     <div class="completion__files-header">
                         <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
@@ -219,21 +211,23 @@
             </div>
         </div>
 
-        <!-- Места прохода -->
         <div class="completion__passage">
             <label class="input__label">Места прохода (целевые таблицы) <span class="required">*</span></label>
-            <div class="passage__grid" v-if="!loadingPassageTables && allPassageTables.length > 0">
+            <div class="passage__grid" v-if="!loadingPassageTables && filteredPassageTables.length > 0">
                 <div 
-                    v-for="table in allPassageTables" 
-                    :key="table.id"
+                    v-for="table in filteredPassageTables" 
+                    :key="table.table.id"
                     class="passage__item"
                     :class="{ 
-                        'passage__item--active': selectedPassageTables.includes(table.id),
-                        'passage__item--attached': attachedTablesIds.includes(table.id)
+                        'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
+                        'passage__item--attached': attachedTablesIds.includes(table.table.id),
+                        'passage__item--inactive': table.table.status !== 'active'
                     }"
-                    @click="togglePassageTable(table.id)"
+                    @click="togglePassageTable(table)"
+                    @mouseenter="showTableTooltip(table, $event)"
+                    @mouseleave="hideTableTooltip"
                 >
-                    {{ table.display_name }}
+                    {{ table.table.display_name }}
                 </div>
             </div>
             <div v-else-if="loadingPassageTables" class="loading-message">
@@ -245,10 +239,17 @@
             <div v-if="errors.passageTables" class="error-message">{{ errors.passageTables }}</div>
         </div>
 
-        <!-- Модальное окно выбора существующих сотрудников -->
+        <div v-if="tableTooltip.visible" 
+             class="inactive-tooltip"
+             :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
+        >
+            <div class="inactive-tooltip-content">
+                {{ tableTooltip.text }}
+            </div>
+        </div>
+
         <div v-if="showExistingEmployeesModal" class="modal-overlay" @click="closeExistingEmployeesModal">
             <div class="modal-content" @click.stop>
-                <!-- Заголовок модалки -->
                 <div class="modal-header">
                     <h3>Выбор существующих сотрудников</h3>
                     <div class="header-right">
@@ -261,7 +262,6 @@
                     <button class="modal-close" @click="closeExistingEmployeesModal">×</button>
                 </div>
                 
-                <!-- Фильтры -->
                 <div class="filter-section">
                     <div class="filter-tabs">
                         <button 
@@ -292,10 +292,8 @@
                     </div>
                 </div>
 
-                <!-- Список сотрудников -->
                 <div class="employees-table-container">
                     <div class="employees-table">
-                        <!-- Заголовки таблицы -->
                         <div class="table-header">
                             <div class="header-cell select-cell"></div>
                             <div class="header-cell number-cell">№</div>
@@ -305,7 +303,6 @@
                             <div class="header-cell status-cell">Статус</div>
                         </div>
                         
-                        <!-- Тело таблицы -->
                         <div class="table-body">
                             <div 
                                 v-for="employee in displayedEmployees" 
@@ -342,7 +339,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Состояния загрузки/пусто -->
                             <div v-if="loadingEmployees" class="loading-state">
                                 <div class="spinner"></div>
                                 <span>Загрузка сотрудников...</span>
@@ -354,7 +350,6 @@
                     </div>
                 </div>
 
-                <!-- Кнопки действий -->
                 <div class="modal-actions">
                     <button class="btn btn-secondary" @click="closeExistingEmployeesModal">
                         Отмена
@@ -404,7 +399,6 @@ export default {
     },
     data() {
         return {
-            // Основные поля
             lastName: '',
             firstName: '',
             middleName: '',
@@ -412,12 +406,10 @@ export default {
             passportSeriesNumber: '',
             patentNumber: '',
             
-            // Гражданство
             availableCitizenships: [],
             selectedCitizenship: null,
             isCitizenshipDropdownOpen: false,
             
-            // Разрешения
             selectedPermission: '',
             isPermissionDropdownOpen: false,
             availablePermissions: [
@@ -439,21 +431,17 @@ export default {
                 'Творческие работники, учёные и педагоги, прибывшие по приглашению госучреждений культуры и искусства для участия в мероприятиях — до 30 календарных дней'
             ],
             
-            // Файлы
             uploadedFiles: [],
             
-            // Места прохода
             allPassageTables: [],
             attachedPassageTables: [],
             selectedPassageTables: [],
             loadingPassageTables: false,
             
-            // Валидация
             errors: {
                 passageTables: ''
             },
             
-            // Существующие сотрудники
             showExistingEmployeesModal: false,
             filteredEmployees: [],
             displayedEmployees: [],
@@ -463,11 +451,16 @@ export default {
             loadingEmployees: false,
             searchQuery: '',
             
-            // Редактирование
             editingEmployee: null,
 
-            // Tooltip
-            showTooltip: false
+            showTooltip: false,
+            
+            tableTooltip: {
+                visible: false,
+                text: '',
+                x: 0,
+                y: 0
+            }
         }
     },
     computed: {
@@ -484,12 +477,10 @@ export default {
             return this.patentNumber.trim() !== '';
         },
         canAddEmployee() {
-            // Если выбраны существующие сотрудники
             if (this.selectedExistingEmployees.length > 0) {
                 return this.selectedPassageTables.length > 0;
             }
 
-            // Если добавляется новый сотрудник
             if (!this.lastName.trim() || !this.firstName.trim()) {
                 return false;
             }
@@ -506,7 +497,6 @@ export default {
                 return false;
             }
             
-            // Если требуется патент, проверяем дополнительные поля
             if (this.isPatentRequired) {
                 if (!this.patentNumber.trim() && !this.selectedPermission) {
                     return false;
@@ -549,6 +539,18 @@ export default {
             }
             
             return `Заполните: ${missingFields.join(', ')}`;
+        },
+        filteredPassageTables() {
+            return this.allPassageTables.filter(item => {
+                const table = item.table || item;
+                return table && table.table_type === 'people';
+            }).map(item => {
+                if (item.table) {
+                    return item;
+                } else {
+                    return { table: item };
+                }
+            });
         }
     },
     methods: {
@@ -564,7 +566,6 @@ export default {
 
                 if (response.ok) {
                     this.availableCitizenships = await response.json();
-                    // Выбираем гражданство по умолчанию или первое гражданство
                     const defaultCitizenship = this.availableCitizenships.find(c => c.is_default);
                     this.selectedCitizenship = defaultCitizenship || this.availableCitizenships[0];
                 } else {
@@ -576,71 +577,188 @@ export default {
         },
 
         async loadPassageTables() {
-            this.loadingPassageTables = true;
-            this.allPassageTables = [];
-            this.attachedPassageTables = [];
-            this.selectedPassageTables = [];
-            
-            try {
-                const token = localStorage.getItem("token");
-                if (!token) {
-                    console.error("Токен не найден");
-                    return;
-                }
+    this.loadingPassageTables = true;
+    this.allPassageTables = [];
+    this.attachedPassageTables = [];
+    this.selectedPassageTables = [];
+    
+    try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            console.error("Токен не найден");
+            return;
+        }
 
-                // Загружаем все доступные системные таблицы
-                const allTablesResponse = await fetch("http://localhost:8080/system-tables", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
+        // Загружаем все доступные системные таблицы
+        const allTablesResponse = await fetch("http://localhost:8080/system-tables", {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        if (allTablesResponse.ok) {
+            const tables = await allTablesResponse.json();
+            console.log('RAW DATA from /system-tables:', JSON.stringify(tables, null, 2));
+            
+            if (tables && tables.length > 0) {
+    console.log('First table structure:', tables[0]);
+    console.log('Has table field:', 'table' in tables[0]);
+    console.log('Has id field directly:', 'id' in tables[0]);
+}
+            
+            // Нормализуем данные
+            this.allPassageTables = tables.map(table => {
+                // Если данные уже в правильном формате
+                if (table.table) {
+                    return table;
+                }
+                // Если данные в плоском формате
+                else {
+                    return {
+                        table: {
+                            id: table.id,
+                            name: table.name,
+                            display_name: table.display_name,
+                            table_type: table.table_type,
+                            status: table.status || 'active',
+                            status_comment: table.status_comment,
+                            location_description: table.location_description,
+                            map_link: table.map_link
+                        },
+                        time_slots: table.time_slots || [],
+                        photos: table.photos || [],
+                        current_status: table.current_status || 'closed'
+                    };
+                }
+            });
+            
+            console.log('NORMALIZED allPassageTables:', this.allPassageTables);
+        } else {
+            const errorText = await allTablesResponse.text();
+            console.error("Ошибка при загрузке системных таблиц:", errorText);
+        }
+
+        // Загружаем привязанные таблицы организации
+        if (this.userOrganizationId) {
+            const orgTablesResponse = await fetch(`http://localhost:8080/organizations/${this.userOrganizationId}/tables`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            if (orgTablesResponse.ok) {
+                const orgTables = await orgTablesResponse.json();
+                console.log('Organization tables:', orgTables);
+                
+                this.attachedPassageTables = orgTables.map(table => {
+                    if (table.table) {
+                        return table;
+                    } else {
+                        return {
+                            table: {
+                                id: table.id,
+                                name: table.name,
+                                display_name: table.display_name,
+                                table_type: table.table_type,
+                                status: table.status || 'active',
+                                status_comment: table.status_comment,
+                                location_description: table.location_description,
+                                map_link: table.map_link
+                            },
+                            time_slots: table.time_slots || [],
+                            photos: table.photos || [],
+                            current_status: table.current_status || 'closed'
+                        };
                     }
                 });
-
-                if (allTablesResponse.ok) {
-                    this.allPassageTables = await allTablesResponse.json();
-                }
-
-                // Загружаем привязанные таблицы организации
-                if (this.userOrganizationId) {
-                    const orgTablesResponse = await fetch(`http://localhost:8080/organizations/${this.userOrganizationId}/tables`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
-
-                    if (orgTablesResponse.ok) {
-                        this.attachedPassageTables = await orgTablesResponse.json();
-                        // Автоматически выбираем привязанные таблицы
-                        this.selectedPassageTables = this.attachedPassageTables.map(table => table.id);
-                    }
-                }
-
-                // Если нет привязанных таблиц организации, пробуем компанию
-                if (this.attachedPassageTables.length === 0 && this.userCompanyId) {
-                    const companyTablesResponse = await fetch(`http://localhost:8080/companies/${this.userCompanyId}/tables`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
-
-                    if (companyTablesResponse.ok) {
-                        this.attachedPassageTables = await companyTablesResponse.json();
-                        // Автоматически выбираем привязанные таблицы
-                        this.selectedPassageTables = this.attachedPassageTables.map(table => table.id);
-                    }
-                }
-
-                this.validatePassageTables();
-
-            } catch (error) {
-                console.error("Ошибка при загрузке мест прохода:", error);
-                this.allPassageTables = [];
-                this.attachedPassageTables = [];
-            } finally {
-                this.loadingPassageTables = false;
+                
+                const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
+                this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
             }
+        }
+
+        // Если нет привязанных таблиц организации, пробуем компанию
+        if (this.attachedPassageTables.length === 0 && this.userCompanyId) {
+            const companyTablesResponse = await fetch(`http://localhost:8080/companies/${this.userCompanyId}/tables`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            if (companyTablesResponse.ok) {
+                const companyTables = await companyTablesResponse.json();
+                console.log('Company tables:', companyTables);
+                
+                this.attachedPassageTables = companyTables.map(table => {
+                    if (table.table) {
+                        return table;
+                    } else {
+                        return {
+                            table: {
+                                id: table.id,
+                                name: table.name,
+                                display_name: table.display_name,
+                                table_type: table.table_type,
+                                status: table.status || 'active',
+                                status_comment: table.status_comment,
+                                location_description: table.location_description,
+                                map_link: table.map_link
+                            },
+                            time_slots: table.time_slots || [],
+                            photos: table.photos || [],
+                            current_status: table.current_status || 'closed'
+                        };
+                    }
+                });
+                
+                const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
+                this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
+            }
+        }
+
+        this.validatePassageTables();
+
+    } catch (error) {
+        console.error("Ошибка при загрузке мест прохода:", error);
+        this.allPassageTables = [];
+        this.attachedPassageTables = [];
+    } finally {
+        this.loadingPassageTables = false;
+    }
+},
+
+        getTableTooltip(table) {
+            if (table.table.status !== 'active') {
+                if (table.table.status_comment) {
+                    return `Недоступно: ${table.table.status_comment}`;
+                }
+                return 'Недоступно';
+            }
+            return '';
+        },
+
+        showTableTooltip(table, event) {
+            if (table.table.status !== 'active') {
+                const tooltipText = table.table.status_comment 
+                    ? `Недоступно: ${table.table.status_comment}`
+                    : 'Недоступно';
+                
+                this.tableTooltip.text = tooltipText;
+                this.tableTooltip.visible = true;
+                
+                this.$nextTick(() => {
+                    const rect = event.target.getBoundingClientRect();
+                    this.tableTooltip.x = rect.left + rect.width / 2;
+                    this.tableTooltip.y = rect.top - 10;
+                });
+            }
+        },
+
+        hideTableTooltip() {
+            this.tableTooltip.visible = false;
         },
 
         async loadEmployeesByFilter(filterType) {
@@ -715,12 +833,16 @@ export default {
             return parts.join(' ') || 'Не указано';
         },
         
-        togglePassageTable(tableId) {
-            const index = this.selectedPassageTables.indexOf(tableId);
+        togglePassageTable(table) {
+            if (table.table.status !== 'active') {
+                return;
+            }
+            
+            const index = this.selectedPassageTables.indexOf(table.table.id);
             if (index > -1) {
                 this.selectedPassageTables.splice(index, 1);
             } else {
-                this.selectedPassageTables.push(tableId);
+                this.selectedPassageTables.push(table.table.id);
             }
         },
         
@@ -732,8 +854,8 @@ export default {
             if (this.selectedPassageTables.length === 0) return '';
             
             const tableNames = this.selectedPassageTables.map(tableId => {
-                const table = this.allPassageTables.find(t => t.id === tableId);
-                return table ? table.display_name : '';
+                const table = this.allPassageTables.find(t => t.table.id === tableId);
+                return table ? table.table.display_name : '';
             }).filter(name => name);
             
             if (tableNames.length > 1) {
@@ -748,13 +870,11 @@ export default {
                 return;
             }
             
-            // Если выбраны существующие сотрудники
             if (this.selectedExistingEmployees.length > 0) {
                 this.addExistingEmployees();
                 return;
             }
             
-            // Если добавляется новый сотрудник
             const newEmployee = {
                 lastName: this.lastName.trim(),
                 firstName: this.firstName.trim(),
@@ -781,7 +901,6 @@ export default {
         },
         
         clearEmployeeFormPartial() {
-            // Очищаем только основные поля, места прохода остаются выбранными
             this.lastName = '';
             this.firstName = '';
             this.middleName = '';
@@ -807,7 +926,6 @@ export default {
             this.editingEmployee = null;
         },
 
-        // Методы для существующих сотрудников
         openExistingEmployeesModal() {
             this.showExistingEmployeesModal = true;
             this.tempSelectedEmployees = [...this.selectedExistingEmployees];
@@ -849,7 +967,6 @@ export default {
         },
 
         isEmployeeDisabled(employee) {
-            // Проверяем, не добавлен ли уже сотрудник в список
             return this.existingEmployees.some(emp => 
                 (emp.isExisting && emp.existingEmployeeId === employee.id) ||
                 (!emp.isExisting && emp.passportSeriesNumber === employee.passport_series_number)
@@ -897,13 +1014,11 @@ export default {
             this.selectedExistingEmployees = [];
         },
 
-        // Методы редактирования
         editEmployee(employee) {
             this.editingEmployee = employee;
             this.selectedExistingEmployees = [];
             
             if (employee.isExisting) {
-                // Загружаем данные существующего сотрудника
                 this.lastName = employee.lastName;
                 this.firstName = employee.firstName;
                 this.middleName = employee.middleName;
@@ -913,7 +1028,6 @@ export default {
                 this.selectedPermission = employee.otherPermission;
                 this.selectedPassageTables = employee.targetTables || [];
                 
-                // Для существующих сотрудников находим гражданство
                 if (employee.citizenshipId) {
                     const citizenship = this.availableCitizenships.find(c => c.id === employee.citizenshipId);
                     if (citizenship) {
@@ -921,7 +1035,6 @@ export default {
                     }
                 }
             } else {
-                // Загружаем данные нового сотрудника
                 this.lastName = employee.lastName;
                 this.firstName = employee.firstName;
                 this.middleName = employee.middleName;
@@ -931,7 +1044,6 @@ export default {
                 this.selectedPermission = employee.otherPermission;
                 this.selectedPassageTables = employee.targetTables || [];
                 
-                // Находим гражданство
                 if (employee.citizenshipId) {
                     const citizenship = this.availableCitizenships.find(c => c.id === employee.citizenshipId);
                     if (citizenship) {
@@ -947,7 +1059,6 @@ export default {
             this.clearEmployeeForm();
         },
         
-        // Dropdown методы
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
         },
@@ -955,7 +1066,6 @@ export default {
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
-            // Сбрасываем поля патента и разрешения при смене гражданства
             if (!citizenship.patent_required) {
                 this.patentNumber = '';
                 this.selectedPermission = '';
@@ -969,18 +1079,15 @@ export default {
         selectPermission(permission) {
             this.selectedPermission = permission;
             this.isPermissionDropdownOpen = false;
-            // Очищаем поле патента при выборе разрешения
             this.patentNumber = '';
         },
 
         handlePatentInput() {
-            // Очищаем выбранное разрешение при вводе патента
             if (this.patentNumber.trim() !== '') {
                 this.selectedPermission = '';
             }
         },
 
-        // Загрузка файлов
         triggerFileInput() {
             this.$refs.fileInput.click();
         },
@@ -1028,7 +1135,6 @@ export default {
         }
     },
     async mounted() {
-        // Загружаем гражданства и места прохода
         await Promise.all([
             this.loadCitizenships(),
             this.loadPassageTables()
@@ -1046,7 +1152,6 @@ export default {
     }
 }
 </script>
-
 <style scoped>
 .input__label {
     font-size: 13px;
@@ -1581,7 +1686,7 @@ export default {
     text-overflow: ellipsis;
 }
 
-.passage__item:hover:not(.passage__item--active) {
+.passage__item:hover:not(.passage__item--active):not(.passage__item--inactive) {
     background: #e8e8e8;
 }
 
@@ -1589,6 +1694,18 @@ export default {
     background: #4F5BDF;
     color: #fff;
     border-color: #4F5BDF;
+}
+
+.passage__item--inactive {
+    background: #ffe6e6;
+    color: #ff6b6b;
+    border-color: #ffcccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.passage__item--attached {
+    border-left: 3px solid #4F5BDF;
 }
 
 .error-message {
@@ -1690,6 +1807,35 @@ export default {
     background: #a2a2a2;
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+/* Tooltip для неактивных таблиц */
+.inactive-tooltip {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    z-index: 10000;
+    pointer-events: none;
+}
+
+.inactive-tooltip-content {
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 300px;
+
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.inactive-tooltip-content::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
 }
 
 /* Модальное окно */
@@ -1881,8 +2027,8 @@ export default {
 .position-col {
     flex: 2;
     min-width: 140px;
-    white-space: nowrap; /* Текст не переносится */
-    overflow: hidden; /* Обрезаем всё за пределами блока */
+    white-space: nowrap;
+    overflow: hidden;
     text-overflow: ellipsis;
 }
 

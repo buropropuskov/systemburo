@@ -24,20 +24,20 @@
       <div class="select-tables-container">
         <div class="tables-grid">
           <div 
-            v-for="table in allTables" 
-            :key="table.id"
+            v-for="table in filteredTables" 
+            :key="getTableId(table)"
             class="table-item"
             :class="{
-              'selected': isTableSelected(table.id)
+              'selected': isTableSelected(getTableId(table))
             }"
             @click="toggleTable(table)"
           >
-            {{ table.display_name }}
+            {{ getTableName(table) }}
           </div>
         </div>
 
-        <div v-if="allTables.length === 0" class="no-tables-message">
-          <p>Нет доступных таблиц</p>
+        <div v-if="filteredTables.length === 0" class="no-tables-message">
+          <p>Нет доступных таблиц для людей</p>
         </div>
       </div>
     </div>
@@ -67,6 +67,14 @@ export default {
     };
   },
   computed: {
+    // Фильтруем таблицы, оставляем только те, у которых table_type НЕ 'cars'
+    filteredTables() {
+      return this.allTables.filter(table => {
+        const tableType = this.getTableType(table);
+        return tableType !== 'cars';
+      });
+    },
+    
     hasSelectedTables() {
       return JSON.stringify(this.selectedTables.map(t => t.id).sort()) !== 
              JSON.stringify(this.originalSelectedTables.map(t => t.id).sort());
@@ -83,6 +91,44 @@ export default {
     }
   },
   methods: {
+    getTableId(table) {
+      if (table.table && table.table.id) {
+        return table.table.id;
+      }
+      return table.id;
+    },
+
+    getTableName(table) {
+      if (table.table && table.table.display_name) {
+        return table.table.display_name;
+      }
+      return table.display_name || 'Без названия';
+    },
+
+    getTableType(table) {
+      if (table.table && table.table.table_type) {
+        return table.table.table_type;
+      }
+      return table.table_type;
+    },
+
+    getTableObject(table) {
+      if (table.table) {
+        return {
+          id: table.table.id,
+          display_name: table.table.display_name,
+          name: table.table.name,
+          table_type: table.table.table_type
+        };
+      }
+      return {
+        id: table.id,
+        display_name: table.display_name,
+        name: table.name,
+        table_type: table.table_type
+      };
+    },
+
     async fetchAllTables() {
       try {
         const token = localStorage.getItem("token");
@@ -92,7 +138,10 @@ export default {
           },
         });
         if (response.ok) {
-          this.allTables = await response.json();
+          const data = await response.json();
+          console.log('Fetched all tables:', data);
+          console.log('Filtered tables (excluding cars):', data.filter(t => this.getTableType(t) !== 'cars'));
+          this.allTables = data;
         }
       } catch (error) {
         console.error("Error fetching tables:", error);
@@ -114,8 +163,26 @@ export default {
         });
         if (response.ok) {
           const tables = await response.json();
-          this.selectedTables = tables;
-          this.originalSelectedTables = [...tables];
+          console.log(`Fetched ${this.entityType} tables:`, tables);
+          
+          this.selectedTables = tables.map(table => {
+            if (table.table) {
+              return {
+                id: table.table.id,
+                display_name: table.table.display_name,
+                name: table.table.name,
+                table_type: table.table.table_type
+              };
+            }
+            return {
+              id: table.id,
+              display_name: table.display_name,
+              name: table.name,
+              table_type: table.table_type
+            };
+          });
+          
+          this.originalSelectedTables = JSON.parse(JSON.stringify(this.selectedTables));
         } else {
           this.selectedTables = [];
           this.originalSelectedTables = [];
@@ -149,7 +216,7 @@ export default {
         });
         
         if (response.ok) {
-          this.originalSelectedTables = [...this.selectedTables];
+          this.originalSelectedTables = JSON.parse(JSON.stringify(this.selectedTables));
           this.showNotification("Таблицы по умолчанию успешно обновлены", "success");
           this.$emit('tables-updated');
         } else {
@@ -167,15 +234,18 @@ export default {
     },
 
     cancelTablesChanges() {
-      this.selectedTables = [...this.originalSelectedTables];
+      this.selectedTables = JSON.parse(JSON.stringify(this.originalSelectedTables));
     },
 
     toggleTable(table) {
-      const index = this.selectedTables.findIndex(t => t.id === table.id);
+      const tableId = this.getTableId(table);
+      const tableObj = this.getTableObject(table);
+      
+      const index = this.selectedTables.findIndex(t => t.id === tableId);
       if (index > -1) {
         this.selectedTables.splice(index, 1);
       } else {
-        this.selectedTables.push(table);
+        this.selectedTables.push(tableObj);
       }
     },
 
