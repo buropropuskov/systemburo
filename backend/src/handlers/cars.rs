@@ -3,7 +3,7 @@ use sqlx::{PgPool};
 use serde_json::json;
 use log;
 use serde::{Deserialize};
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{NaiveDate, NaiveTime, NaiveDateTime, Utc};
 
 use crate::auth::decode_token;
 
@@ -32,8 +32,18 @@ pub async fn create_car(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let _claims = decode_token(token)
+    let claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    // Получаем ID пользователя из токена
+    let user_id = sqlx::query!(
+        "SELECT id FROM users WHERE username = $1",
+        claims.sub
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|_| error::ErrorUnauthorized("User not found"))?
+    .id;
 
     // Конвертируем строки в NaiveDate и NaiveTime
     let entry_date_from: Option<NaiveDate> = car_data.entry_date_from.as_ref()
@@ -65,9 +75,10 @@ pub async fn create_car(
             entry_time_from,
             entry_date_to,
             entry_time_to,
-            status
+            status,
+            territory_status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 0)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0)
         RETURNING id
         "#,
         car_data.car_number,
@@ -105,6 +116,30 @@ pub async fn create_car(
         })?;
     }
 
+    // Добавляем запись в историю о создании автомобиля
+    sqlx::query!(
+        r#"
+        INSERT INTO cars_history (
+            car_id,
+            user_id,
+            action_type,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, NOW())
+        "#,
+        car_id,
+        user_id,
+        "create",
+        format!("Автомобиль {} {} создан", car_data.car_number, car_data.car_brand)
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add car history entry: {}", e);
+        error::ErrorInternalServerError("Error adding car history entry")
+    })?;
+
     // Фиксируем транзакцию
     transaction.commit().await.map_err(|e| {
         log::error!("Failed to commit transaction: {}", e);
@@ -141,6 +176,9 @@ pub async fn get_active_cars_for_tables(
         car_number: String,
         car_brand: String,
         organization: Option<String>,
+        organization_id: Option<i32>,
+        company: Option<String>,
+        company_id: Option<i32>,
         unload_place: Option<String>,
         unload_places: Vec<String>,
         entry_date_to: Option<chrono::NaiveDate>,
@@ -148,17 +186,23 @@ pub async fn get_active_cars_for_tables(
         entry_time_to: Option<chrono::NaiveTime>,
         status: i32,
         application_id: Option<i32>,
+        territory_status: Option<i32>,
+        territory_entry_time: Option<chrono::NaiveDateTime>,
     }
 
-    // Получаем ВСЕ активные машины из согласованных заявок
     let rows = sqlx::query!(
         r#"
         SELECT 
             c.id,
             c.car_number,
             c.car_brand,
-            c.unload_place, 
-            COALESCE(o.name, co.name) as organization,
+            c.unload_place,
+            c.territory_status,
+            c.territory_entry_time,
+            o.name as organization,
+            o.id as organization_id,
+            c2.name as company,
+            c2.id as company_id,
             c.entry_date_to,
             c.entry_time_from,
             c.entry_time_to,
@@ -168,7 +212,7 @@ pub async fn get_active_cars_for_tables(
         JOIN attachments a ON c.attachment_id = a.id
         JOIN applications app ON a.application_id = app.id
         LEFT JOIN organizations o ON app.organization_id = o.id
-        LEFT JOIN companies co ON app.company_id = co.id
+        LEFT JOIN companies c2 ON app.company_id = c2.id
         WHERE c.status = 1
         AND app.confirmation = 'Согласовано'
         AND app.status IN ('В работе', 'Завершено')
@@ -185,7 +229,6 @@ pub async fn get_active_cars_for_tables(
 
     log::info!("Found {} active cars (excluding 'по факту' numbers)", rows.len());
 
-    // Для каждой машины получаем места разгрузки отдельно
     let mut cars: Vec<TableCar> = Vec::new();
     
     for row in rows {
@@ -211,14 +254,19 @@ pub async fn get_active_cars_for_tables(
             id: row.id,
             car_number: row.car_number,
             car_brand: row.car_brand,
+            organization: Some(row.organization),
+            organization_id: Some(row.organization_id),
+            company: Some(row.company),
+            company_id: Some(row.company_id),
             unload_place: row.unload_place,
-            organization: row.organization,
             unload_places,
             entry_date_to: Some(row.entry_date_to),
             entry_time_from: Some(row.entry_time_from),
             entry_time_to: Some(row.entry_time_to),
             status: row.status.unwrap_or(0),
             application_id: Some(row.application_id),
+            territory_status: row.territory_status,
+            territory_entry_time: row.territory_entry_time,
         });
     }
 
@@ -245,21 +293,36 @@ pub async fn get_fact_cars_for_tables(
     #[derive(Debug, serde::Serialize)]
     struct FactCar {
         id: i32,
+        car_number: String,
+        car_brand: String,
         organization: Option<String>,
+        organization_id: Option<i32>,
+        company: Option<String>,
+        company_id: Option<i32>,
         unload_place: Option<String>,
+        unload_places: Vec<String>,
         entry_date_to: Option<chrono::NaiveDate>,
         entry_time_from: Option<chrono::NaiveTime>,
         entry_time_to: Option<chrono::NaiveTime>,
         status: i32,
         application_id: Option<i32>,
+        territory_status: Option<i32>,
+        territory_entry_time: Option<chrono::NaiveDateTime>,
     }
 
     let rows = sqlx::query!(
         r#"
         SELECT 
             c.id,
+            c.car_number,
+            c.car_brand,
             c.unload_place,
-            COALESCE(o.name, co.name) as organization,
+            c.territory_status,
+            c.territory_entry_time,
+            o.name as organization,
+            o.id as organization_id,
+            c2.name as company,
+            c2.id as company_id,
             c.entry_date_to,
             c.entry_time_from,
             c.entry_time_to,
@@ -269,7 +332,7 @@ pub async fn get_fact_cars_for_tables(
         JOIN attachments a ON c.attachment_id = a.id
         JOIN applications app ON a.application_id = app.id
         LEFT JOIN organizations o ON app.organization_id = o.id
-        LEFT JOIN companies co ON app.company_id = co.id
+        LEFT JOIN companies c2 ON app.company_id = c2.id
         WHERE c.status = 1
         AND LOWER(TRIM(c.car_number)) = 'по факту'
         AND app.confirmation = 'Согласовано'
@@ -294,8 +357,15 @@ pub async fn get_fact_cars_for_tables(
             r#"
             SELECT 
                 c.id,
+                c.car_number,
+                c.car_brand,
                 c.unload_place,
-                COALESCE(o.name, co.name) as organization,
+                c.territory_status,
+                c.territory_entry_time,
+                o.name as organization,
+                o.id as organization_id,
+                c2.name as company,
+                c2.id as company_id,
                 c.entry_date_to,
                 c.entry_time_from,
                 c.entry_time_to,
@@ -305,7 +375,7 @@ pub async fn get_fact_cars_for_tables(
             JOIN attachments a ON c.attachment_id = a.id
             JOIN applications app ON a.application_id = app.id
             LEFT JOIN organizations o ON app.organization_id = o.id
-            LEFT JOIN companies co ON app.company_id = co.id
+            LEFT JOIN companies c2 ON app.company_id = c2.id
             WHERE c.status = 1
             AND (
                 c.car_number ILIKE '%по факту%' OR 
@@ -326,34 +396,90 @@ pub async fn get_fact_cars_for_tables(
         
         log::info!("Alternative search found {} cars", alt_rows.len());
         
-        let cars: Vec<FactCar> = alt_rows.into_iter().map(|row| {
-            FactCar {
+        let mut cars: Vec<FactCar> = Vec::new();
+        
+        for row in alt_rows {
+            let places_rows = sqlx::query!(
+                r#"
+                SELECT up.name
+                FROM car_unload_places cup
+                JOIN unload_places up ON cup.unload_place_id = up.id
+                WHERE cup.car_id = $1
+                ORDER BY cup.order_index
+                "#,
+                row.id
+            )
+            .fetch_all(pool.get_ref())
+            .await
+            .unwrap_or_else(|_| Vec::new());
+            
+            let unload_places: Vec<String> = places_rows.iter()
+                .filter_map(|p| Some(p.name.clone()))
+                .collect();
+            
+            cars.push(FactCar {
                 id: row.id,
-                organization: row.organization,
+                car_number: row.car_number,
+                car_brand: row.car_brand,
+                organization: Some(row.organization),
+                organization_id: Some(row.organization_id),
+                company: Some(row.company),
+                company_id: Some(row.company_id),
                 unload_place: row.unload_place,
+                unload_places,
                 entry_date_to: Some(row.entry_date_to),
                 entry_time_from: Some(row.entry_time_from),
                 entry_time_to: Some(row.entry_time_to),
                 status: row.status.unwrap_or(0),
                 application_id: Some(row.application_id),
-            }
-        }).collect();
+                territory_status: row.territory_status,
+                territory_entry_time: row.territory_entry_time,
+            });
+        }
         
         return Ok(HttpResponse::Ok().json(cars));
     }
 
-    let cars: Vec<FactCar> = rows.into_iter().map(|row| {
-        FactCar {
+    let mut cars: Vec<FactCar> = Vec::new();
+    
+    for row in rows {
+        let places_rows = sqlx::query!(
+            r#"
+            SELECT up.name
+            FROM car_unload_places cup
+            JOIN unload_places up ON cup.unload_place_id = up.id
+            WHERE cup.car_id = $1
+            ORDER BY cup.order_index
+            "#,
+            row.id
+        )
+        .fetch_all(pool.get_ref())
+        .await
+        .unwrap_or_else(|_| Vec::new());
+        
+        let unload_places: Vec<String> = places_rows.iter()
+            .filter_map(|p| Some(p.name.clone()))
+            .collect();
+        
+        cars.push(FactCar {
             id: row.id,
-            organization: row.organization,
+            car_number: row.car_number,
+            car_brand: row.car_brand,
+            organization: Some(row.organization),
+            organization_id: Some(row.organization_id),
+            company: Some(row.company),
+            company_id: Some(row.company_id),
             unload_place: row.unload_place,
+            unload_places,
             entry_date_to: Some(row.entry_date_to),
             entry_time_from: Some(row.entry_time_from),
             entry_time_to: Some(row.entry_time_to),
             status: row.status.unwrap_or(0),
             application_id: Some(row.application_id),
-        }
-    }).collect();
+            territory_status: row.territory_status,
+            territory_entry_time: row.territory_entry_time,
+        });
+    }
 
     Ok(HttpResponse::Ok().json(cars))
 }
@@ -479,4 +605,103 @@ pub async fn get_fact_car_unload_places(
     log::info!("Found {} fact car unload place records", places.len());
 
     Ok(HttpResponse::Ok().json(places))
+}
+
+/// Проверка активности автомобиля по номеру, марке, организации и компании
+pub async fn check_active_car(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<CheckActiveCarQuery>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let _claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    log::info!("Checking active car: number={}, brand={}, org_id={:?}, company_id={:?}", 
+               query.car_number, query.car_brand, query.organization_id, query.company_id);
+
+    let now = Utc::now();
+    let today = now.date_naive();
+    let current_time = now.time();
+
+    let car = sqlx::query!(
+        r#"
+        SELECT 
+            c.id,
+            c.car_number,
+            c.car_brand,
+            c.entry_date_to,
+            c.entry_time_to,
+            a.application_id,
+            app.application_number,
+            COALESCE(o.name, '') as organization_name,
+            COALESCE(comp.name, '') as company_name
+        FROM cars c
+        JOIN attachments a ON c.attachment_id = a.id
+        JOIN applications app ON a.application_id = app.id
+        LEFT JOIN organizations o ON app.organization_id = o.id
+        LEFT JOIN companies comp ON app.company_id = comp.id
+        WHERE c.status = 1
+        AND LOWER(TRIM(c.car_number)) = LOWER(TRIM($1))
+        AND LOWER(TRIM(c.car_brand)) = LOWER(TRIM($2))
+        AND (
+            ($3::integer IS NULL AND app.organization_id IS NULL)
+            OR app.organization_id = $3
+        )
+        AND (
+            ($4::integer IS NULL AND app.company_id IS NULL)
+            OR app.company_id = $4
+        )
+        AND (
+            c.entry_date_to > $5
+            OR (c.entry_date_to = $5 AND c.entry_time_to > $6)
+        )
+        LIMIT 1
+        "#,
+        query.car_number,
+        query.car_brand,
+        query.organization_id,
+        query.company_id,
+        today,
+        current_time
+    )
+    .fetch_optional(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to check active car: {}", e);
+        error::ErrorInternalServerError("Error checking active car")
+    })?;
+
+    if let Some(car) = car {
+        Ok(HttpResponse::Ok().json(json!({
+            "active": true,
+            "car_id": car.id,
+            "car_number": car.car_number,
+            "car_brand": car.car_brand,
+            "entry_date_to": car.entry_date_to,
+            "entry_time_to": car.entry_time_to,
+            "application_id": car.application_id,
+            "application_number": car.application_number,
+            "organization_name": car.organization_name,
+            "company_name": car.company_name
+        })))
+    } else {
+        Ok(HttpResponse::Ok().json(json!({
+            "active": false
+        })))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CheckActiveCarQuery {
+    pub car_number: String,
+    pub car_brand: String,
+    pub organization_id: Option<i32>,
+    pub company_id: Option<i32>,
 }

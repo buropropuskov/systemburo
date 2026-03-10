@@ -148,9 +148,8 @@ async fn main() -> std::io::Result<()> {
     // Создаем директорию для загрузок, если её нет
     std::fs::create_dir_all("./uploads/unload_places").expect("Failed to create upload directory");
 
-    println!("🚀 Server starting on http://127.0.0.1:8080");
-    println!("📊 Rate limit: 10 requests/minute per IP/user");
-    println!("📁 Upload directory: ./uploads/unload_places");
+    println!("Server starting on http://127.0.0.1:8080");
+
 
     HttpServer::new(move || {
         let limiter = rate_limiter.clone();

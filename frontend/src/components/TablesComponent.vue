@@ -87,13 +87,16 @@
             <!-- Таблица по факту с подсказкой -->
             <div v-if="showFactTable" class="fact-section">
                 <FactTable 
+                    v-if="currentUserId" 
                     :table-type="tableType"
                     :search-query="searchQuery"
-                    :selected-organization-id="selectedOrganizationId"
-                    :selected-unloading-place-id="selectedUnloadingPlaceId"
+                    :selected-organization="selectedOrganizationName"
+                    :selected-unloading-place="selectedUnloadingPlaceName"
                     :date-range-start="dateRangeStart"
                     :date-range-end="dateRangeEnd"
                     :selected-date="selectedDate"
+                    :current-user-id="currentUserId"
+                    :current-user-name="currentUserName"
                     @refresh-data="refreshData"
                 />
                 <!-- Подсказка на синем фоне -->
@@ -104,7 +107,7 @@
             
             <!-- Основная таблица - разные компоненты для разных типов -->
             <CarsTable 
-                v-if="tableType === 'cars'"
+                v-if="tableType === 'cars' && currentUserId" 
                 :table-name="tableSystemName"
                 :search-query="searchQuery"
                 :selected-organization-id="selectedOrganizationId"
@@ -112,6 +115,8 @@
                 :date-range-start="dateRangeStart"
                 :date-range-end="dateRangeEnd"
                 :selected-date="selectedDate"
+                :current-user-id="currentUserId"
+                :current-user-name="currentUserName"
                 @refresh-data="refreshData"
             />
             
@@ -124,6 +129,8 @@
                 :date-range-start="dateRangeStart"
                 :date-range-end="dateRangeEnd"
                 :selected-date="selectedDate"
+                :current-user-id="currentUserId"
+                :current-user-name="currentUserName"
                 @refresh-data="refreshData"
             />
         </div>
@@ -152,7 +159,7 @@ export default {
     },
     data() {
         return {
-            tableData: null, // Здесь будут все данные с сервера
+            tableData: null,
             searchQuery: '',
             selectedOrganizationId: null,
             selectedOrganizationName: '',
@@ -164,11 +171,13 @@ export default {
             showInstruction: false,
             selectedDate: null,
             dateRangeStart: null,
-            dateRangeEnd: null
+            dateRangeEnd: null,
+            
+            currentUserId: null,
+            currentUserName: ''
         };
     },
     computed: {
-        // Извлекаем данные из tableData
         tableSystemName() {
             return this.tableData?.table?.name || '';
         },
@@ -223,6 +232,27 @@ export default {
             this.refreshData();
         },
 
+        async fetchCurrentUser() {
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/users/me", {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    this.currentUserId = userData.id;
+
+                    const nameParts = [userData.last_name, userData.first_name, userData.middle_name].filter(Boolean);
+                    this.currentUserName = nameParts.join(' ') || userData.username;
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке данных пользователя:", error);
+            }
+        },
+
         refreshData() {
             this.fetchTableData();
             this.$emit('refresh-data');
@@ -268,7 +298,6 @@ export default {
                     console.log('Table data received:', data);
                     this.tableData = data;
                     
-                    // Загружаем организации для этой таблицы
                     await this.fetchOrganizationsForTable();
                 } else {
                     console.error('Table not found');
@@ -364,8 +393,9 @@ export default {
             }
         }
     },
-    mounted() {
-        this.fetchTableData();
+    async mounted() {
+        await this.fetchCurrentUser();  // Ждём загрузки пользователя
+        this.fetchTableData();          // потом таблицы
     },
     watch: {
         '$route.params.tableName': {

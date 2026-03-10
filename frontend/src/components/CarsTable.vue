@@ -16,7 +16,10 @@
       </div>
       <div class="card-header__settings">
         <span class="items-count">
-          Машин на территории: {{ activeItemsCount }}
+          Машин на территории: {{ carsOnTerritory }}
+          <button class="history-btn" @click="openCarsTableHistory">
+            История
+          </button>
         </span>
         <RefreshButton @refresh="loadData" :disabled="isLoading" />
       </div>
@@ -25,36 +28,41 @@
     <div class="card-content">
       <div class="items-header">
         <div class="header-row">
-          <div class="header-col checkbox-col"></div>
-          <div class="header-col number-col" @click="sortBy('car_number')">
-            <p :class="{ 'active-sort': sortField === 'car_number' }">Номер машины</p>
+          <!-- Въезд - отдельная колонка -->
+          <div class="col entry-col">Въезд</div>
+          <!-- Выезд - отдельная колонка -->
+          <div class="col exit-col">Выезд</div>
+          <div class="col number-col" @click="sortBy('car_number')">
+            <p :class="{ 'active-sort': sortField === 'car_number' }">Номер Т/С</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'car_number', 'desc': sortField === 'car_number' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col brand-col" @click="sortBy('car_brand')">
+          <div class="col brand-col" @click="sortBy('car_brand')">
             <p :class="{ 'active-sort': sortField === 'car_brand' }">Марка</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'car_brand', 'desc': sortField === 'car_brand' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col organization-col" @click="sortBy('organization')">
+          <div class="col organization-col" @click="sortBy('organization')">
             <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col place-col" @click="sortBy('unload_place')">
+          <!-- Компания скрыта, но класс оставлен для возможного использования -->
+          <div class="col company-col" style="display: none;"></div>
+          <div class="col place-col" @click="sortBy('unload_place')">
             <p :class="{ 'active-sort': sortField === 'unload_place' }">Место разгрузки</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'unload_place', 'desc': sortField === 'unload_place' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col date-col" @click="sortBy('entry_date_to')">
+          <div class="col date-col" @click="sortBy('entry_date_to')">
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col time-col" @click="sortBy('entry_time')">
+          <div class="col time-col" @click="sortBy('entry_time')">
             <p :class="{ 'active-sort': sortField === 'entry_time' }">Время</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'entry_time', 'desc': sortField === 'entry_time' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col status-col" @click="sortBy('status')">
+          <div class="col status-col" @click="sortBy('status')">
             <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col actions-col"></div>
+          <div class="col actions-col"></div>
         </div>
       </div>
       
@@ -71,26 +79,43 @@
               :key="item.id" 
               class="item-row"
               :style="{ animationDelay: `${index * 0.05}s` }"
+              @click="openVehicleDetails(item)"
             >
               <div class="item-data">
-                <div class="item-col checkbox-col">
-                  <input 
-                    type="checkbox" 
-                    v-model="item.checked"
-                    class="checkbox-input"
-                    @change="updateActiveItemsCount"
-                  />
+                <!-- Въезд - кнопка -->
+                <div class="col entry-col" @click.stop>
+                  <button 
+                    class="action-btn entry-btn" 
+                    :class="{ 'active': item.entry_checked }"
+                    :disabled="item.entry_checked"
+                    @click="handleEntryExit(item, 'entry')"
+                  >
+                    Въезд
+                  </button>
                 </div>
-                <div class="item-col number-col">{{ item.car_number }}</div>
-                <div class="item-col brand-col">{{ item.car_brand }}</div>
-                <div class="item-col organization-col">{{ item.organization_name }}</div>
-                <div class="item-col place-col">{{ item.unload_place || '-' }}</div>
-                <div class="item-col date-col">{{ formatDate(item.entry_date_to) }}</div>
-                <div class="item-col time-col">{{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}</div>
-                <div class="item-col status-col">
+                <!-- Выезд - кнопка -->
+                <div class="col exit-col" @click.stop>
+                  <button 
+                    class="action-btn exit-btn" 
+                    :class="{ 'active': item.exit_checked }"
+                    :disabled="!item.entry_checked || item.exit_checked"
+                    @click="handleEntryExit(item, 'exit')"
+                  >
+                    Выезд
+                  </button>
+                </div>
+                <div class="col number-col">{{ item.car_number }}</div>
+                <div class="col brand-col">{{ item.car_brand }}</div>
+                <div class="col organization-col">{{ item.organization_name }}</div>
+                <!-- Компания скрыта -->
+                <div class="col company-col" style="display: none;"></div>
+                <div class="col place-col">{{ formatUnloadPlaces(item) }}</div>
+                <div class="col date-col">{{ formatDate(item.entry_date_to) }}</div>
+                <div class="col time-col">{{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}</div>
+                <div class="col status-col">
                   <span class="status-text">{{ item.status }}</span>
                 </div>
-                <div class="item-col actions-col">
+                <div class="col actions-col" @click.stop>
                   <button @click="removeItemWithNotification(item)" class="delete-btn" :disabled="isLoading">
                     <img src="@/assets/icons/trashcan.png" alt="Удалить" class="delete-icon" />
                   </button>
@@ -105,16 +130,42 @@
         </div>
       </div>
     </div>
+
+    <!-- Модальное окно с деталями автомобиля -->
+    <VehicleDetailsModal
+      :show="showVehicleDetails"
+      :vehicle="selectedVehicle"
+      :all-unloading-places="allUnloadingPlaces"
+      :license-plate-formats="licensePlateFormats"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :show-car-features="true"
+      :source="'carstable'"
+      @close="closeVehicleDetails"
+    />
+
+    <!-- Модальное окно истории всех машин -->
+    <CarsTableHistoryModal
+      v-if="showCarsTableHistory"
+      :cars="itemsData"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      @close="showCarsTableHistory = false"
+    />
   </div>
 </template>
 
 <script>
 import RefreshButton from './RefreshButton.vue';
+import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
+import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
 
 export default {
   name: 'CarsTable',
   components: {
-    RefreshButton
+    RefreshButton,
+    VehicleDetailsModal,
+    CarsTableHistoryModal
   },
   props: {
     tableName: {
@@ -144,6 +195,14 @@ export default {
     selectedDate: {
       type: Date,
       default: null
+    },
+    currentUserId: {
+      type: Number,
+      default: null
+    },
+    currentUserName: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -154,17 +213,20 @@ export default {
       notification: { message: null, item: null },
       progress: 100,
       progressInterval: null,
-      activeItemsCount: 0,
       isLoading: false,
       organizationsMap: {},
-      carUnloadPlacesMap: {}
+      carUnloadPlacesMap: {},
+      allUnloadingPlaces: [],
+      licensePlateFormats: [],
+      showVehicleDetails: false,
+      selectedVehicle: null,
+      showCarsTableHistory: false
     };
   },
   computed: {
     displayItems() {
       let filtered = [...this.itemsData];
       
-      // Поиск
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase().trim();
         filtered = filtered.filter(item => {
@@ -172,7 +234,8 @@ export default {
             item.car_number,
             item.car_brand,
             item.organization_name,
-            item.unload_place || '',
+            item.company,
+            this.formatUnloadPlaces(item),
             this.formatDate(item.entry_date_to),
             item.status
           ];
@@ -183,12 +246,10 @@ export default {
         });
       }
 
-      // Фильтр по организации (теперь по organization_id)
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
 
-      // Фильтр по месту разгрузки (по ID из car_unload_places)
       if (this.selectedUnloadingPlaceId) {
         filtered = filtered.filter(item => {
           const carId = item.id;
@@ -197,7 +258,6 @@ export default {
         });
       }
 
-      // Фильтр по дате
       if (this.selectedDate) {
         const selectedDateStr = this.selectedDate.toISOString().split('T')[0];
         filtered = filtered.filter(item => item.entry_date_to === selectedDateStr);
@@ -208,7 +268,6 @@ export default {
         });
       }
 
-      // Сортировка
       if (this.sortField) {
         filtered.sort((a, b) => {
           let valueA, valueB;
@@ -217,14 +276,15 @@ export default {
             case 'car_number':
             case 'car_brand':
             case 'organization':
+            case 'company':
             case 'status':
               valueA = (a[this.sortField] || '').toString().toLowerCase();
               valueB = (b[this.sortField] || '').toString().toLowerCase();
               break;
               
             case 'unload_place':
-              valueA = (a.unload_place || '').toString().toLowerCase();
-              valueB = (b.unload_place || '').toString().toLowerCase();
+              valueA = this.formatUnloadPlaces(a).toLowerCase();
+              valueB = this.formatUnloadPlaces(b).toLowerCase();
               break;
               
             case 'entry_date_to':
@@ -253,6 +313,11 @@ export default {
 
       return filtered;
     },
+
+    carsOnTerritory() {
+      return this.itemsData.filter(item => item.entry_checked && !item.exit_checked).length;
+    },
+
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
@@ -265,79 +330,159 @@ export default {
   },
   methods: {
     async loadData() {
-  if (this.isLoading) return;
-  
-  this.isLoading = true;
-  
-  try {
-    await this.fetchCarsData();
-    await this.fetchCarUnloadPlaces();
-    this.updateActiveItemsCount();
-  } catch (error) {
-    console.error('Ошибка при загрузке машин:', error);
-  } finally {
-    this.isLoading = false;
-  }
-},
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
+      
+      try {
+        await this.fetchUnloadingPlaces();
+        await this.fetchLicensePlateFormats();
+        await this.fetchCarsData();
+        await this.fetchCarUnloadPlaces();
+        await this.fetchCarHistoryStatus();
+      } catch (error) {
+        console.error('Ошибка при загрузке машин:', error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async fetchUnloadingPlaces() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/unload-places", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          this.allUnloadingPlaces = await response.json();
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке мест разгрузки:", error);
+      }
+    },
+
+    async fetchLicensePlateFormats() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/license-plate-formats", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          this.licensePlateFormats = await response.json();
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке форматов номеров:", error);
+      }
+    },
 
     async fetchCarsData() {
-  try {
-    const token = localStorage.getItem("token");
-    
-    const response = await fetch("http://localhost:8080/cars/active-for-tables", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
+      try {
+        const token = localStorage.getItem("token");
+        
+        const response = await fetch("http://localhost:8080/cars/active-for-tables", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const cars = await response.json();
+        
+        await this.fetchOrganizations();
+        
+        const nameToIdMap = {};
+        Object.keys(this.organizationsMap).forEach(id => {
+          nameToIdMap[this.organizationsMap[id]] = id;
+        });
+        
+        const regularCars = cars.filter(car => {
+          if (car.status !== 1) return false;
+          const carNumber = car.car_number?.toLowerCase().trim();
+          return carNumber !== 'по факту';
+        });
+        
+        this.itemsData = regularCars.map(car => {
+          const orgName = car.organization || '';
+          const orgId = nameToIdMap[orgName] || car.organization_id;
+          
+          return {
+            id: car.id,
+            car_number: car.car_number || '',
+            car_brand: car.car_brand || '',
+            organization_id: orgId,
+            organization_name: orgName || 'Не указана',
+            company: car.company || null,
+            company_id: car.company_id, // добавляем company_id
+            unload_place: car.unload_place || '-',
+            unload_place_ids: car.unload_place_ids || [],
+            entry_date_to: car.entry_date_to || '',
+            entry_time_from: car.entry_time_from || '',
+            entry_time_to: car.entry_time_to || '',
+            status: 'В работе',
+            checked: false,
+            entry_checked: false,
+            exit_checked: false,
+            entry_time: null,
+            exit_time: null,
+            applicationId: car.application_id,
+            territory_status: car.territory_status || 0,
+            plateNumber: car.car_number,
+            mark: car.car_brand,
+            formatId: null,
+            unloadPlaces: car.unload_place_ids || []
+          };
+        });
+        
+      } catch (error) {
+        console.error("Ошибка при загрузке данных машин:", error);
+        this.itemsData = [];
+        throw error;
       }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const cars = await response.json();
-    
-    await this.fetchOrganizations();
-    
-    const nameToIdMap = {};
-    Object.keys(this.organizationsMap).forEach(id => {
-      nameToIdMap[this.organizationsMap[id]] = id;
-    });
-    
-    const regularCars = cars.filter(car => {
-      if (car.status !== 1) return false;
-      const carNumber = car.car_number?.toLowerCase().trim();
-      return carNumber !== 'по факту';
-    });
-    
-    this.itemsData = regularCars.map(car => {
-      const orgName = car.organization || '';
-      const orgId = nameToIdMap[orgName] || car.organization_id;
-      
-      return {
-        id: car.id,
-        car_number: car.car_number || '',
-        car_brand: car.car_brand || '',
-        organization_id: orgId,
-        organization_name: orgName || 'Не указана',
-        unload_place: car.unload_place || '-',
-        entry_date_to: car.entry_date_to || '',
-        entry_time_from: car.entry_time_from || '',
-        entry_time_to: car.entry_time_to || '',
-        status: 'В работе',
-        checked: false,
-        applicationId: car.application_id
-      };
-    });
-    
-    console.log('Загружены машины:', this.itemsData);
-    
-  } catch (error) {
-    console.error("Ошибка при загрузке данных машин:", error);
-    this.itemsData = [];
-    throw error;
-  }
-},
+    },
+
+    async fetchCarHistoryStatus() {
+      try {
+        const token = localStorage.getItem("token");
+        
+        const response = await fetch("http://localhost:8080/cars/history/current-status", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          const statuses = await response.json();
+          
+          const statusMap = {};
+          statuses.forEach(status => {
+            statusMap[status.car_id] = status;
+          });
+          
+          this.itemsData.forEach(item => {
+            const status = statusMap[item.id];
+            if (status) {
+              item.entry_checked = status.territory_status === 1;
+              item.exit_checked = status.territory_status === 2;
+              item.entry_time = status.entry_time;
+              item.exit_time = status.last_exit_time;
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке статусов въезда/выезда:", error);
+      }
+    },
 
     async fetchCarUnloadPlaces() {
       try {
@@ -363,15 +508,19 @@ export default {
               id: cup.unload_place_id,
               name: cup.unload_place_name || `Место #${cup.unload_place_id}`
             });
+            
+            const car = this.itemsData.find(c => c.id === cup.car_id);
+            if (car) {
+              if (!car.unload_place_ids) car.unload_place_ids = [];
+              if (!car.unload_place_ids.includes(cup.unload_place_id)) {
+                car.unload_place_ids.push(cup.unload_place_id);
+                car.unloadPlaces = car.unload_place_ids;
+              }
+            }
           });
-          
-          console.log('Загружены связи машин с местами разгрузки:', this.carUnloadPlacesMap);
-        } else {
-          console.error("Ошибка при загрузке связей машин с местами разгрузки");
-          this.carUnloadPlacesMap = {};
         }
       } catch (error) {
-        console.error("Ошибка сети при загрузке связей машин с местами разгрузки:", error);
+        console.error("Ошибка при загрузке связей машин с местами разгрузки:", error);
         this.carUnloadPlacesMap = {};
       }
     },
@@ -392,17 +541,26 @@ export default {
           data.forEach(org => {
             this.organizationsMap[org.id] = org.name;
           });
-        } else {
-          console.error("Ошибка при загрузке организаций");
         }
       } catch (error) {
-        console.error("Ошибка сети при загрузке организаций:", error);
+        console.error("Ошибка при загрузке организаций:", error);
       }
     },
 
-    getOrganizationName(organizationId) {
-      if (!organizationId) return 'Не указана';
-      return this.organizationsMap[organizationId] || `Организация ID: ${organizationId}`;
+    formatUnloadPlaces(item) {
+      if (item.unload_place_ids && item.unload_place_ids.length > 0) {
+        const placeNames = item.unload_place_ids
+          .map(id => {
+            const place = this.allUnloadingPlaces.find(p => p.id === id);
+            return place ? place.name : null;
+          })
+          .filter(name => name);
+        
+        if (placeNames.length === 0) return '-';
+        if (placeNames.length === 1) return placeNames[0];
+        return `${placeNames[0]} и др.`;
+      }
+      return item.unload_place || '-';
     },
 
     formatDate(dateString) {
@@ -412,7 +570,6 @@ export default {
         const date = new Date(year, month - 1, day);
         return date.toLocaleDateString('ru-RU');
       } catch (error) {
-        console.error('Ошибка форматирования даты:', error);
         return '';
       }
     },
@@ -457,6 +614,62 @@ export default {
       return 0;
     },
 
+    async handleEntryExit(item, type) {
+      if (!this.currentUserId) {
+        console.error('Нет ID текущего пользователя');
+        return;
+      }
+      try {
+        const token = localStorage.getItem("token");
+        
+        let territory_status = 0;
+        if (type === 'entry') {
+          territory_status = 1;
+        } else if (type === 'exit') {
+          territory_status = 2;
+        }
+        
+        const response = await fetch(`http://localhost:8080/cars/${item.id}/territory-status`, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            territory_status: territory_status,
+            user_id: this.currentUserId
+          })
+        });
+        
+        if (response.ok) {
+          const index = this.itemsData.findIndex(i => i.id === item.id);
+          
+          if (index !== -1) {
+            const updatedItem = { ...this.itemsData[index] };
+            
+            if (type === 'entry') {
+              updatedItem.entry_checked = true;
+              updatedItem.exit_checked = false;
+            } else if (type === 'exit') {
+              updatedItem.entry_checked = false;
+              updatedItem.exit_checked = true;
+            }
+            
+            this.itemsData.splice(index, 1, updatedItem);
+          }
+          
+          this.showNotification(`Машина ${item.car_number} ${type === 'entry' ? 'отмечена о прибытии' : 'уехала'}`, 'success');
+        } else {
+          const errorText = await response.text();
+          console.error('Ошибка при обновлении статуса:', errorText);
+          this.showNotification(`Ошибка: ${errorText}`, 'error');
+        }
+      } catch (error) {
+        console.error('Ошибка сети:', error);
+        this.showNotification('Ошибка сети', 'error');
+      }
+    },
+
     removeItemWithNotification(item) {
       if (this.isLoading) return;
       
@@ -474,15 +687,13 @@ export default {
         itemIndex: itemIndex,
         undoFunction: () => {
           if (itemIndex !== -1) {
-            this.itemsData[itemIndex] = { ...originalItem };
-            this.updateActiveItemsCount();
+            this.itemsData.splice(itemIndex, 1, { ...originalItem });
           }
         }
       };
 
       item.status = 'Удален';
       item.checked = false;
-      this.updateActiveItemsCount();
 
       this.progress = 100;
       clearInterval(this.progressInterval);
@@ -500,21 +711,24 @@ export default {
 
     async actuallyDeleteItem(item, originalItem, itemIndex) {
       try {
-        const response = await fetch(`http://localhost:8080/applications/${item.applicationId}/cars/${item.id}`, {
+        const token = localStorage.getItem("token");
+        
+        const response = await fetch(`http://localhost:8080/cars/${item.id}/deactivate`, {
           method: "PUT",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("token")}`
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
           },
-          body: JSON.stringify({ 
-            car: { ...originalItem, status: 0 }
+          body: JSON.stringify({
+            status: 0,
+            user_id: this.currentUserId
           })
         });
         
         if (!response.ok) {
           console.error("Ошибка при удалении");
           if (itemIndex !== -1) {
-            this.itemsData[itemIndex] = { ...originalItem };
+            this.itemsData.splice(itemIndex, 1, { ...originalItem });
           }
           return;
         }
@@ -523,11 +737,10 @@ export default {
           this.itemsData.splice(itemIndex, 1);
         }
         
-        this.updateActiveItemsCount();
       } catch (error) {
         console.error("Ошибка сети при удалении:", error);
         if (itemIndex !== -1) {
-          this.itemsData[itemIndex] = { ...originalItem };
+          this.itemsData.splice(itemIndex, 1, { ...originalItem });
         }
       }
     },
@@ -540,10 +753,39 @@ export default {
       this.notification = { message: null, item: null };
     },
 
-    updateActiveItemsCount() {
-      this.activeItemsCount = this.itemsData.filter(item => 
-        item.checked && item.status !== 'Удален'
-      ).length;
+    openVehicleDetails(item) {
+      this.selectedVehicle = {
+        ...item,
+        plateNumber: item.car_number,
+        mark: item.car_brand,
+        formatId: null,
+        organization: item.organization_name,
+        organizationId: item.organization_id,
+        company: item.company,
+        companyId: item.company_id,
+        isExisting: true,
+        unloadPlaces: item.unload_place_ids || [],
+        entry_date_to: item.entry_date_to,
+        entry_time_from: item.entry_time_from,
+        entry_time_to: item.entry_time_to,
+        applicationId: item.applicationId,
+        entry_checked: item.entry_checked,
+        exit_checked: item.exit_checked
+      };
+      this.showVehicleDetails = true;
+    },
+
+    closeVehicleDetails() {
+      this.showVehicleDetails = false;
+      this.selectedVehicle = null;
+    },
+
+    openCarsTableHistory() {
+      this.showCarsTableHistory = true;
+    },
+
+    showNotification(message, type = 'success') {
+      console.log(`[${type}] ${message}`);
     }
   },
   mounted() {
@@ -553,20 +795,10 @@ export default {
     tableName: {
       immediate: true,
       handler(newVal) {
-        console.log('Имя таблицы машин:', newVal);
         if (newVal) {
           this.loadData();
         }
       }
-    },
-    selectedOrganizationId(newVal) {
-      console.log('Фильтр по организации ID:', newVal);
-    },
-    selectedUnloadingPlaceId(newVal) {
-      console.log('Фильтр по месту разгрузки ID:', newVal);
-    },
-    searchQuery(newVal) {
-      console.log('Поисковый запрос:', newVal);
     }
   },
   beforeUnmount() {
@@ -578,6 +810,7 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются без изменений (как в оригинале) */
 .selected-table-card {
   background-color: #fff;
   border-radius: 30px;
@@ -627,6 +860,25 @@ export default {
   color: #4F5BDF;
   font-weight: 500;
   font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-btn {
+  padding: 4px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.history-btn:hover {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
 }
 
 .card-content {
@@ -637,16 +889,9 @@ export default {
   overflow: hidden;
 }
 
-.items-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
 .items-header {
+  padding: 10px 16px;
   border-bottom: 1px solid #e6e6e6;
-  padding: 12px 16px;
   flex-shrink: 0;
 }
 
@@ -654,27 +899,46 @@ export default {
   display: flex;
   width: 100%;
   align-items: center;
+  gap: 4px;
 }
 
-.header-col {
+.col {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  text-align: left;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-col { width: 6.5%; }
+.exit-col { width: 8%; }
+.number-col { width: 10%; }
+.brand-col { width: 8.5%; }
+.organization-col { width: 18%; }
+.company-col { width: 0%; }
+.place-col { width: 15%; }
+.date-col { width: 11.5%; }
+.time-col { width: 10%; }
+.status-col { width: 7%; }
+.actions-col { width: 2%; }
+
+.header-row .col {
   font-weight: 500;
   color: #a2a2a2;
-  text-align: left;
-  padding: 0 4px;
-  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: .2s;
-  cursor: pointer;
-  user-select: none;
 }
 
-.header-col:hover {
+.header-row .col:hover {
   color: #333;
 }
 
-.header-col:hover .sort-icon {
+.header-row .col:hover .sort-icon {
   filter: brightness(0);
 }
 
@@ -697,60 +961,13 @@ export default {
   font-weight: 500 !important;
 }
 
-/* Колонки с фиксированной шириной */
-.checkbox-col {
-  width: 3%;
-  min-width: 25px;
+.items-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-.number-col {
-  width: 18%;
-  min-width: 90px;
-}
-
-
-
-.brand-col {
-  width: 12%;
-  min-width: 80px;
-}
-
-.name-col {
-  width: 12%;
-  min-width: 80px;
-}
-
-.organization-col {
-  width: 25%;
-  min-width: 100px;
-}
-
-.place-col {
-  width: 20%;
-  min-width: 110px;
-}
-
-.date-col {
-  width: 15%;
-  min-width: 90px;
-}
-
-.time-col {
-  width: 15%;
-  min-width: 90px;
-}
-
-.status-col {
-  width: 12%;
-  min-width: 90px;
-}
-
-.actions-col {
-  width: 9%;
-  min-width: 40px;
-}
-
-/* Тело таблицы */
 .items-body {
   overflow-y: auto;
   flex-grow: 1;
@@ -764,6 +981,11 @@ export default {
   opacity: 0;
   transform: translateY(10px);
   animation: fadeInUp 0.3s ease forwards;
+  cursor: pointer;
+}
+
+.item-row:hover {
+  background-color: #f5f5f5;
 }
 
 @keyframes fadeInUp {
@@ -777,31 +999,58 @@ export default {
   }
 }
 
-.item-row:hover {
-  background-color: #fafafa;
-}
-
 .item-data {
   display: flex;
   width: 100%;
   padding: 10px 16px;
   align-items: center;
   border-bottom: 1px solid #e6e6e6;
+  gap: 4px;
 }
 
-.item-col {
-  padding: 0 4px;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
+.entry-col, .exit-col {
+  display: flex;
 }
 
-.checkbox-input {
-  width: 13px;
-  height: 13px;
+.action-btn {
+  width: 70px;
+  height: 30px;
+  border-radius: 50px;
+  border: 1px solid #e6e6e6;
+  background: white;
+  color: #000;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #a2a2a2;
+}
+
+.action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.action-btn.entry-btn.active {
+  background: #e6f7e6;
+  color: #2e7d32;
+  border-color: #a5d6a7;
+  font-weight: 600;
+}
+
+.action-btn.exit-btn.active {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #ef9a9a;
+  font-weight: 600;
 }
 
 .status-text {
@@ -879,7 +1128,6 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
-/* Анимация для списка */
 .fade-list-enter-active,
 .fade-list-leave-active {
   transition: all 0.3s ease;
@@ -895,7 +1143,6 @@ export default {
   transition: transform 0.3s ease;
 }
 
-/* Стили для уведомления */
 .notification {
   position: fixed;
   top: 20px;
@@ -957,11 +1204,11 @@ export default {
   .header-row,
   .item-data {
     flex-wrap: wrap;
+    gap: 8px;
   }
   
-  .header-col,
-  .item-col {
-    width: 50% !important;
+  .col {
+    width: calc(50% - 4px) !important;
     margin-bottom: 4px;
   }
   
@@ -983,7 +1230,16 @@ export default {
     right: 20px;
     min-width: auto;
   }
+  
+  .entry-col, .exit-col {
+    width: calc(50% - 4px) !important;
+    justify-content: flex-start;
+  }
+  
+  .action-btn {
+    width: 60px;
+    height: 28px;
+    font-size: 11px;
+  }
 }
-
-
 </style>

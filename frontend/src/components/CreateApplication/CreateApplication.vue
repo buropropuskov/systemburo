@@ -469,26 +469,73 @@ export default {
         }
     },
     methods: {
+        
         async loadPassageTables() {
-    try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/system-tables", {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${token}`
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/system-tables", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const tables = await response.json();
+                    console.log('Загруженные таблицы в CreateApplication:', tables);
+                    this.allPassageTables = tables;
+                } else {
+                    console.error("Ошибка при загрузке системных таблиц");
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке таблиц:", error);
             }
+        },
+        async checkVehiclesBeforeSubmit() {
+  const activeVehicles = [];
+  const token = localStorage.getItem("token");
+  
+  for (const attachment of this.attachments) {
+    if (attachment.attachment_type !== 'cars') continue;
+    
+    const vehicles = this.vehiclesByAttachment[attachment.id] || [];
+    
+    for (const vehicle of vehicles) {
+      try {
+        const url = new URL('http://localhost:8080/cars/check-active');
+        url.searchParams.append('car_number', vehicle.plateNumber);
+        url.searchParams.append('car_brand', vehicle.mark);
+        
+        if (this.organizationId) {
+          url.searchParams.append('organization_id', this.organizationId);
+        }
+        
+        if (this.companyId) {
+          url.searchParams.append('company_id', this.companyId);
+        }
+
+        const response = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
         });
 
         if (response.ok) {
-            const tables = await response.json();
-            console.log('Загруженные таблицы в CreateApplication:', tables);
-            this.allPassageTables = tables;
-        } else {
-            console.error("Ошибка при загрузке системных таблиц");
+          const data = await response.json();
+          if (data.active) {
+            activeVehicles.push({
+              ...vehicle,
+              activeInfo: data
+            });
+          }
         }
-    } catch (error) {
-        console.error("Ошибка при загрузке таблиц:", error);
+      } catch (error) {
+        console.error('Ошибка при проверке авто:', error);
+      }
     }
+  }
+  
+  return activeVehicles;
 },
         async loadLicensePlateFormats() {
             try {
@@ -1162,6 +1209,15 @@ export default {
                 alert('Заполните все обязательные поля во всех вложениях');
                 return;
             }
+
+            // Проверяем активные машины
+  const activeVehicles = await this.checkVehiclesBeforeSubmit();
+  
+  if (activeVehicles.length > 0) {
+    const vehicleList = activeVehicles.map(v => `${v.plateNumber} ${v.mark}`).join('\n');
+    alert(`Невозможно отправить заявку. Следующие автомобили уже имеют активные заявки:\n${vehicleList}`);
+    return;
+  }
 
             let hasDateErrors = false;
             let errorMessage = '';

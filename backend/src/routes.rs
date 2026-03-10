@@ -14,12 +14,12 @@ use crate::handlers::table_constructor::*;
 use crate::handlers::citizenship::*;
 use crate::handlers::unique_attachments::*;
 use crate::handlers::cars::*;
+use crate::handlers::cars_history::*; // Импортируем новые обработчики
 use crate::handlers::employees::*;
 use crate::handlers::feedback::*;
 use crate::handlers::application_approvers::*;
 use crate::handlers::application_history::*;
 use crate::handlers::application_viewers::*;
-
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -86,6 +86,17 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/fact-for-tables", web::get().to(get_fact_cars_for_tables))
                 .route("/unload-places", web::get().to(get_car_unload_places))
                 .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
+                .route("/check-active", web::get().to(check_active_car))
+                // Новые маршруты для истории машин
+                .route("/{id}/history", web::get().to(get_car_history))
+                .route("/{id}/history", web::post().to(add_car_history_entry))
+                .route("/history/all", web::get().to(get_all_cars_history))
+                .route("/history/current-status", web::get().to(get_cars_current_status))
+                .route("/{id}/territory-status", web::put().to(update_car_territory_status))
+                .route("/{id}/deactivate", web::put().to(deactivate_car))
+                .route("/{id}/activate", web::put().to(activate_car))           // Новый маршрут
+                .route("/history/unified", web::get().to(get_unified_car_history))
+                .route("/{id}/restore", web::put().to(restore_car))             // Новый маршрут
         )
 
         // Сотрудники

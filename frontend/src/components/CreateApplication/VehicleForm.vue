@@ -113,6 +113,9 @@
                     <div v-else class="no-format-message">
                         Выберите формат номера
                     </div>
+
+                    <!-- Блок предупреждения об активной заявке для номера -->
+                    
                 </div>
                 
                 <div class="completion__mark">
@@ -168,7 +171,20 @@
                         </div>
                     </div>
                 </div>
+                
             </div>
+            <div v-if="activeCarInfo && !isNumberByFact" class="active-warning">
+                     
+                        <div class="warning-text">
+                            <p class="warning-title">На это авто уже есть активная заявка!</p>
+                            <p class="warning-details">
+                                Действует до: {{ formatDate(activeCarInfo.entry_date_to) }} {{ formatTime(activeCarInfo.entry_time_to) }}<br>
+                                Заявка {{ activeCarInfo.application_number }}<br>
+                                Организация: {{ activeCarInfo.organization_name || 'Не указана' }}<br>
+                                Компания: {{ activeCarInfo.company_name || 'Не указана' }}
+                            </p>
+                        </div>
+                    </div>
         </div>
 
         <!-- Места разгрузки -->
@@ -185,7 +201,7 @@
                         'unloading__item--inactive': place.status !== 'active'
                     }"
                     @click="toggleUnloadingPlace(place)"
-                    @mouseenter="showInactiveTooltip(place)"
+                    @mouseenter="showInactiveTooltip(place, $event)"
                     @mouseleave="hideInactiveTooltip"
                 >
                     {{ place.name }}
@@ -412,7 +428,10 @@ export default {
                 text: '',
                 x: 0,
                 y: 0
-            }
+            },
+            // Новые поля для проверки активных заявок
+            activeCarInfo: null,
+            checkingTimeout: null
         }
     },
     computed: {
@@ -420,6 +439,11 @@ export default {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
         },
         canAddVehicle() {
+            // Проверка активной заявки
+            if (this.activeCarInfo && !this.isNumberByFact) {
+                return false;
+            }
+
             if (this.selectedExistingCars.length > 0) {
                 return this.selectedUnloadingPlaces.length > 0;
             }
@@ -478,6 +502,11 @@ export default {
         getTooltipMessage() {
             const missingFields = [];
             
+            // Проверка активной заявки
+            if (this.activeCarInfo && !this.isNumberByFact) {
+                return 'На этот автомобиль уже есть активная заявка';
+            }
+            
             // Проверяем наличие неактивных мест
             const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
                 const place = this.allUnloadingPlaces.find(p => p.id === placeId);
@@ -517,6 +546,59 @@ export default {
         }
     },
     methods: {
+        // Новый метод для проверки активной заявки
+        async checkVehicleActive() {
+            // Отменяем предыдущий таймаут
+            if (this.checkingTimeout) {
+                clearTimeout(this.checkingTimeout);
+            }
+
+            // Если не заполнены обязательные поля или выбрано "по факту", не проверяем
+            if (this.isNumberByFact || !this.selectedFormat || !this.numberParts.every(part => part)) {
+                this.activeCarInfo = null;
+                return;
+            }
+
+            // Собираем номер из частей
+            const plateNumber = this.numberParts.join(' ');
+
+            // Ждем небольшую паузу, чтобы не дёргать сервер на каждый символ
+            this.checkingTimeout = setTimeout(async () => {
+                try {
+                    const token = localStorage.getItem("token");
+                    const url = new URL('http://localhost:8080/cars/check-active');
+                    url.searchParams.append('car_number', plateNumber);
+                    url.searchParams.append('car_brand', this.selectedMark || '');
+                    
+                    if (this.userOrganizationId) {
+                        url.searchParams.append('organization_id', this.userOrganizationId);
+                    }
+                    
+                    if (this.userCompanyId) {
+                        url.searchParams.append('company_id', this.userCompanyId);
+                    }
+
+                    const response = await fetch(url, {
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.active) {
+                            this.activeCarInfo = data;
+                        } else {
+                            this.activeCarInfo = null;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Ошибка при проверке активности авто:', error);
+                    this.activeCarInfo = null;
+                }
+            }, 500);
+        },
+
         async loadLicensePlateFormats() {
             try {
                 const token = localStorage.getItem("token");
@@ -617,7 +699,7 @@ export default {
             return '';
         },
 
-        showInactiveTooltip(place) {
+        showInactiveTooltip(place, event) {
             if (place.status !== 'active') {
                 const tooltipText = place.status_comment 
                     ? `Недоступно: ${place.status_comment}`
@@ -778,6 +860,9 @@ export default {
             
             this.numberParts[index] = value;
             event.target.value = value;
+
+            // Проверяем активность после изменения номера
+            this.checkVehicleActive();
         },
 
         formatPart(index, cell) {
@@ -845,6 +930,7 @@ export default {
         handleNumberByFactChange() {
             if (this.isNumberByFact) {
                 this.numberParts = [];
+                this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
             } else {
                 this.initializeNumberParts();
             }
@@ -888,9 +974,26 @@ export default {
             
             return placeNames[0] || '';
         },
+
+        formatDate(dateString) {
+            if (!dateString) return '';
+            const [year, month, day] = dateString.split('-');
+            return `${day}.${month}.${year}`;
+        },
+
+        formatTime(timeString) {
+            if (!timeString) return '';
+            return timeString.substring(0, 5);
+        },
         
         addVehicle() {
             if (!this.canAddVehicle) {
+                return;
+            }
+
+            // Проверка активной заявки
+            if (this.activeCarInfo && !this.isNumberByFact) {
+                alert('Невозможно добавить автомобиль, на который уже есть активная заявка');
                 return;
             }
             
@@ -932,6 +1035,7 @@ export default {
             this.selectedMark = '';
             this.isNumberByFact = false;
             this.isMarkByFact = false;
+            this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
         },
         
         clearVehicleForm() {
@@ -943,6 +1047,7 @@ export default {
             this.errors.unloadingPlaces = '';
             this.selectedExistingCars = [];
             this.editingVehicle = null;
+            this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
         },
 
         openExistingCarsModal() {
@@ -1030,6 +1135,7 @@ export default {
         editVehicle(vehicle) {
             this.editingVehicle = vehicle;
             this.selectedExistingCars = [];
+            this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
             
             if (vehicle.isExisting) {
                 this.selectedMark = vehicle.mark;
@@ -1094,6 +1200,9 @@ export default {
             this.selectedMark = mark;
             this.isMarkDropdownOpen = false;
             this.markSearch = '';
+
+            // Проверяем активность после выбора марки
+            this.checkVehicleActive();
         },
         
         toggleFormatDropdown() {
@@ -1104,6 +1213,18 @@ export default {
             this.selectedFormat = format;
             this.initializeNumberParts();
             this.isFormatDropdownOpen = false;
+
+            // Проверяем активность после смены формата
+            this.checkVehicleActive();
+        }
+    },
+    watch: {
+        // Следим за изменениями частей номера для проверки активности
+        numberParts: {
+            deep: true,
+            handler() {
+                this.checkVehicleActive();
+            }
         }
     },
     async mounted() {
@@ -1123,6 +1244,11 @@ export default {
                 this.isMarkDropdownOpen = false;
             }
         });
+    },
+    beforeUnmount() {
+        if (this.checkingTimeout) {
+            clearTimeout(this.checkingTimeout);
+        }
     }
 }
 </script>
@@ -1260,6 +1386,41 @@ export default {
     transform: translateX(-50%);
     border: 5px solid transparent;
     border-top-color: #333;
+}
+
+.active-warning {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 10px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.warning-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.warning-text {
+    flex: 1;
+}
+
+.warning-title {
+    font-weight: 600;
+    color: #856404;
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.warning-details {
+    color: #856404;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
 }
 
 .format__dropdown {

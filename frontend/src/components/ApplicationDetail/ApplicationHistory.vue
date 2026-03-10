@@ -916,6 +916,7 @@ export default {
 .modal-content {
     padding: 20px 25px;
     overflow-y: auto;
+    height: calc(80vh - 150px);
     max-height: calc(80vh - 150px);
     scrollbar-width: none;
     -ms-overflow-style: none;

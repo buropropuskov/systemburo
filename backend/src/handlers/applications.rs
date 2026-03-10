@@ -2311,62 +2311,90 @@ pub async fn submit_complete_application(
         // 3. Создаем данные в зависимости от типа вложения
         match attachment.attachment_type.as_str() {
             "cars" => {
-                if let Some(vehicles) = &attachment.data.vehicles {
-                    for vehicle in vehicles {
-                        let car_result = sqlx::query!(
-                            r#"
-                            INSERT INTO cars (
-                                attachment_id,
-                                car_number,
-                                car_brand,
-                                unload_place,
-                                entry_date_from,
-                                entry_time_from,
-                                entry_date_to,
-                                entry_time_to,
-                                status
-                            )
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)
-                            RETURNING id
-                            "#,
-                            attachment_id,
-                            vehicle.car_number,
-                            vehicle.car_brand,
-                            vehicle.unload_place.as_deref(),
-                            entry_date_from,
-                            entry_time_from,
-                            entry_date_to,
-                            entry_time_to
-                        )
-                        .fetch_one(&mut *transaction)
-                        .await
-                        .map_err(|e| {
-                            log::error!("Failed to create car: {}", e);
-                            error::ErrorInternalServerError("Error creating car")
-                        })?;
+    if let Some(vehicles) = &attachment.data.vehicles {
+        for vehicle in vehicles {
+            let car_result = sqlx::query!(
+                r#"
+                INSERT INTO cars (
+                    attachment_id,
+                    car_number,
+                    car_brand,
+                    unload_place,
+                    entry_date_from,
+                    entry_time_from,
+                    entry_date_to,
+                    entry_time_to,
+                    status
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)
+                RETURNING id
+                "#,
+                attachment_id,
+                vehicle.car_number,
+                vehicle.car_brand,
+                vehicle.unload_place.as_deref(),
+                entry_date_from,
+                entry_time_from,
+                entry_date_to,
+                entry_time_to
+            )
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to create car: {}", e);
+                error::ErrorInternalServerError("Error creating car")
+            })?;
 
-                        let car_id = car_result.id;
+            let car_id = car_result.id;
 
-                        // Создаем связи с местами разгрузки
-                        for &place_id in &vehicle.unload_places {
-                            sqlx::query!(
-                                r#"
-                                INSERT INTO car_unload_places (car_id, unload_place_id, order_index)
-                                VALUES ($1, $2, 1)
-                                "#,
-                                car_id,
-                                place_id
-                            )
-                            .execute(&mut *transaction)
-                            .await
-                            .map_err(|e| {
-                                log::error!("Failed to create car unload place: {}", e);
-                                error::ErrorInternalServerError("Error creating car unload place")
-                            })?;
-                        }
-                    }
-                }
+            // ДОБАВЛЯЕМ ЗАПИСЬ В ИСТОРИЮ АВТОМОБИЛЯ
+            // Преобразуем DateTime<Utc> в NaiveDateTime
+            let car_history_time = (base_time + chrono::Duration::milliseconds(1)).naive_utc();
+            
+            sqlx::query!(
+                r#"
+                INSERT INTO cars_history (
+                    car_id,
+                    user_id,
+                    action_type,
+                    comment,
+                    created_at
+                )
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+                car_id,
+                user_id,
+                "create",
+                format!("Автомобиль {} {} создан", vehicle.car_number, vehicle.car_brand),
+                car_history_time
+            )
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to add car history entry: {}", e);
+                error::ErrorInternalServerError("Error adding car history entry")
+            })?;
+
+            // Создаем связи с местами разгрузки
+            for &place_id in &vehicle.unload_places {
+                sqlx::query!(
+                    r#"
+                    INSERT INTO car_unload_places (car_id, unload_place_id, order_index)
+                    VALUES ($1, $2, 1)
+                    "#,
+                    car_id,
+                    place_id
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to create car unload place: {}", e);
+                    error::ErrorInternalServerError("Error creating car unload place")
+                })?;
             }
+        }
+    }
+}
             "people" => {
                 if let Some(employees) = &attachment.data.employees {
                     for employee in employees {

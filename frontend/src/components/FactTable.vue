@@ -13,10 +13,11 @@
       <!-- Заголовок таблицы -->
       <div class="fact-header">
         <div class="header-row">
-          <div class="header-col checkbox-col" v-if="tableType === 'cars'">
-            <!-- Пустой заголовок для чекбокса -->
-          </div>
-          <div class="header-col organization-col" @click="sortBy('organization')">
+          <!-- Въезд - отдельная колонка (только для машин) -->
+          <div class="col entry-col" v-if="tableType === 'cars'">Въезд</div>
+          <!-- Выезд - отдельная колонка (только для машин) -->
+          <div class="col exit-col" v-if="tableType === 'cars'">Выезд</div>
+          <div class="col organization-col" @click="sortBy('organization')">
             <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
             <img 
               src="@/assets/icons/sort.png" 
@@ -27,7 +28,20 @@
               }" 
             />
           </div>
-          <div class="header-col place-col" @click="sortBy('unload_place')" v-if="tableType === 'cars'">
+          <div class="col brand-col" v-if="tableType === 'cars'" @click="sortBy('car_brand')">
+            <p :class="{ 'active-sort': sortField === 'car_brand' }">Марка</p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'car_brand',
+                'desc': sortField === 'car_brand' && sortDirection === 'desc'
+              }" 
+            />
+          </div>
+          <!-- Компания скрыта -->
+          <div class="col company-col" v-if="tableType === 'cars'" style="display: none;"></div>
+          <div class="col place-col" @click="sortBy('unload_place')" v-if="tableType === 'cars'">
             <p :class="{ 'active-sort': sortField === 'unload_place' }">Место разгрузки</p>
             <img 
               src="@/assets/icons/sort.png" 
@@ -38,7 +52,7 @@
               }" 
             />
           </div>
-          <div class="header-col date-col" @click="sortBy('entry_date_to')">
+          <div class="col date-col" @click="sortBy('entry_date_to')">
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
             <img 
               src="@/assets/icons/sort.png" 
@@ -49,7 +63,7 @@
               }" 
             />
           </div>
-          <div class="header-col time-col" @click="sortBy('entry_time')">
+          <div class="col time-col" @click="sortBy('entry_time')">
             <p :class="{ 'active-sort': sortField === 'entry_time' }">{{ tableType === 'cars' ? 'Время' : 'Время прохода' }}</p>
             <img 
               src="@/assets/icons/sort.png" 
@@ -60,7 +74,7 @@
               }" 
             />
           </div>
-          <div class="header-col status-col" @click="sortBy('status')">
+          <div class="col status-col" @click="sortBy('status')">
             <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
             <img 
               src="@/assets/icons/sort.png" 
@@ -71,7 +85,7 @@
               }" 
             />
           </div>
-          <div class="header-col actions-col">
+          <div class="col actions-col">
             <!-- Пустой заголовок для действий -->
           </div>
         </div>
@@ -86,36 +100,57 @@
               :key="item.id" 
               class="fact-item"
               :style="{ animationDelay: `${index * 0.1}s` }"
+              @click="openItemDetails(item)"
             >
               <div class="fact-row">
-                <div class="fact-col checkbox-col" v-if="tableType === 'cars'">
-                  <input 
-                    type="checkbox" 
-                    v-model="item.checked"
-                    class="checkbox-input"
-                  />
+                <!-- Въезд - кнопка (только для машин) -->
+                <div v-if="tableType === 'cars'" class="col entry-col" @click.stop>
+                  <button 
+                    class="action-btn entry-btn" 
+                    :class="{ 'active': item.entry_checked }"
+                    :disabled="item.entry_checked"
+                    @click="handleEntryExit(item, 'entry')"
+                  >
+                    Въезд
+                  </button>
                 </div>
-                <div class="fact-col organization-col">
+                <!-- Выезд - кнопка (только для машин) -->
+                <div v-if="tableType === 'cars'" class="col exit-col" @click.stop>
+                  <button 
+                    class="action-btn exit-btn" 
+                    :class="{ 'active': item.exit_checked }"
+                    :disabled="!item.entry_checked || item.exit_checked"
+                    @click="handleEntryExit(item, 'exit')"
+                  >
+                    Выезд
+                  </button>
+                </div>
+                <div class="col organization-col">
                   {{ item.organization_name }}
                 </div>
-                <div class="fact-col place-col" v-if="tableType === 'cars'">
-                  {{ item.unload_place || '-' }}
+                <div v-if="tableType === 'cars'" class="col brand-col">
+                  {{ item.car_brand || '-' }}
                 </div>
-                <div class="fact-col date-col">
+                <!-- Компания скрыта -->
+                <div v-if="tableType === 'cars'" class="col company-col" style="display: none;"></div>
+                <div v-if="tableType === 'cars'" class="col place-col">
+                  {{ formatUnloadPlaces(item) }}
+                </div>
+                <div class="col date-col">
                   {{ formatDate(item.entry_date_to) }}
                 </div>
-                <div class="fact-col time-col">
+                <div class="col time-col">
                   {{ tableType === 'cars' 
                     ? formatTimeRange(item.entry_time_from, item.entry_time_to)
                     : formatPassTime(item.pass_time)
                   }}
                 </div>
-                <div class="fact-col status-col">
+                <div class="col status-col">
                   <span class="status-text">
                     {{ item.status }}
                   </span>
                 </div>
-                <div class="fact-col actions-col">
+                <div class="col actions-col" @click.stop>
                   <button 
                     @click="deleteItem(item)" 
                     class="delete-btn"
@@ -136,15 +171,32 @@
         </p>
       </div>
     </div>
+
+    <!-- Модальное окно с деталями автомобиля (для машин) -->
+    <VehicleDetailsModal
+      v-if="tableType === 'cars'"
+      :show="showDetailsModal"
+      :vehicle="selectedVehicle"
+      :all-unloading-places="allUnloadingPlaces"
+      :license-plate-formats="licensePlateFormats"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :show-car-features="true"
+      :source="'facttable'"
+      @close="closeDetailsModal"
+    />
   </div>
 </template>
 
 <script>
 import RefreshButton from './RefreshButton.vue';
+import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 
 export default {
+  name: 'FactTable',
   components: {
-    RefreshButton
+    RefreshButton,
+    VehicleDetailsModal
   },
   props: {
     tableType: {
@@ -175,6 +227,14 @@ export default {
     selectedDate: {
       type: Date,
       default: null
+    },
+    currentUserId: {
+      type: Number,
+      default: null
+    },
+    currentUserName: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -183,19 +243,24 @@ export default {
       sortDirection: 'desc',
       factData: [],
       organizationsMap: {},
-      factCarUnloadPlacesMap: {}
+      factCarUnloadPlacesMap: {},
+      allUnloadingPlaces: [],
+      licensePlateFormats: [],
+      showDetailsModal: false,
+      selectedVehicle: null
     };
   },
   computed: {
     filteredData() {
       let filtered = [...this.factData];
 
-      // Поиск по всем полям
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         filtered = filtered.filter(item => 
           item.organization_name.toLowerCase().includes(query) ||
-          (this.tableType === 'cars' && (item.unload_place || '-').toLowerCase().includes(query)) ||
+          (this.tableType === 'cars' && item.car_brand?.toLowerCase().includes(query)) ||
+          (this.tableType === 'cars' && (item.company || '').toLowerCase().includes(query)) ||
+          (this.tableType === 'cars' && this.formatUnloadPlaces(item).toLowerCase().includes(query)) ||
           item.status.toLowerCase().includes(query) ||
           (this.tableType === 'cars' 
             ? this.formatTimeRange(item.entry_time_from, item.entry_time_to).toLowerCase().includes(query)
@@ -205,12 +270,10 @@ export default {
         );
       }
 
-      // Фильтр по организации (теперь по organization_id)
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
 
-      // Фильтр по месту разгрузки (только для машин, по ID из car_unload_places)
       if (this.selectedUnloadingPlaceId && this.tableType === 'cars') {
         filtered = filtered.filter(item => {
           const carId = item.id;
@@ -219,7 +282,6 @@ export default {
         });
       }
 
-      // Фильтр по дате
       if (this.selectedDate) {
         const selectedDateStr = this.selectedDate.toISOString().split('T')[0];
         filtered = filtered.filter(item => item.entry_date_to === selectedDateStr);
@@ -246,13 +308,15 @@ export default {
         switch (this.sortField) {
           case 'organization':
           case 'status':
-            valueA = a[this.sortField]?.toLowerCase() || '';
-            valueB = b[this.sortField]?.toLowerCase() || '';
+          case 'car_brand':
+          case 'company':
+            valueA = (a[this.sortField] || '').toString().toLowerCase();
+            valueB = (b[this.sortField] || '').toString().toLowerCase();
             break;
             
           case 'unload_place':
-            valueA = a.unload_place?.toLowerCase() || '';
-            valueB = b.unload_place?.toLowerCase() || '';
+            valueA = this.formatUnloadPlaces(a).toLowerCase();
+            valueB = this.formatUnloadPlaces(b).toLowerCase();
             break;
             
           case 'entry_date_to':
@@ -297,16 +361,53 @@ export default {
   methods: {
     async fetchData() {
       try {
+        await this.fetchUnloadingPlaces();
+        await this.fetchLicensePlateFormats();
         await this.fetchOrganizations();
         
         if (this.tableType === 'cars') {
           await this.fetchCarsData();
           await this.fetchFactCarUnloadPlaces();
+          await this.fetchCarHistoryStatus();
         } else {
           await this.fetchPeopleData();
         }
       } catch (error) {
         console.error(`Ошибка при загрузке данных по факту (${this.tableType}):`, error);
+      }
+    },
+
+    async fetchUnloadingPlaces() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/unload-places", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          this.allUnloadingPlaces = await response.json();
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке мест разгрузки:", error);
+      }
+    },
+
+    async fetchLicensePlateFormats() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/license-plate-formats", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          this.licensePlateFormats = await response.json();
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке форматов номеров:", error);
       }
     },
 
@@ -340,49 +441,91 @@ export default {
     },
 
     async fetchCarsData() {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await fetch("http://localhost:8080/cars/fact-for-tables", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const factCars = await response.json();
-    console.log('Получены машины "по факту":', factCars);
-    
-    const nameToIdMap = {};
-    Object.keys(this.organizationsMap).forEach(id => {
-      nameToIdMap[this.organizationsMap[id]] = id;
-    });
-    
-    this.factData = factCars.map(car => {
-      const orgName = car.organization || '';
-      const orgId = nameToIdMap[orgName] || car.organization_id;
-      
-      return {
-        id: car.id,
-        organization_id: orgId,
-        organization_name: orgName || 'Не указана',
-        unload_place: car.unload_place || '-',
-        entry_date_to: car.entry_date_to || '',
-        entry_time_from: car.entry_time_from || '',
-        entry_time_to: car.entry_time_to || '',
-        status: 'В работе',
-        checked: false,
-        applicationId: car.application_id
-      };
-    });
-    
-  } catch (error) {
-    console.error("Ошибка при загрузке данных по факту:", error);
-  }
-},
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8080/cars/fact-for-tables", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const factCars = await response.json();
+        console.log('Получены машины "по факту":', factCars);
+        
+        const nameToIdMap = {};
+        Object.keys(this.organizationsMap).forEach(id => {
+          nameToIdMap[this.organizationsMap[id]] = id;
+        });
+        
+        this.factData = factCars.map(car => {
+          const orgName = car.organization || '';
+          const orgId = nameToIdMap[orgName] || car.organization_id;
+          
+          return {
+            id: car.id,
+            car_number: car.car_number || 'по факту',
+            car_brand: car.car_brand || '',
+            organization_id: orgId,
+            organization_name: orgName || 'Не указана',
+            company: car.company || null,
+            company_id: car.company_id, // добавляем company_id
+            unload_place: car.unload_place || '-',
+            unload_place_ids: car.unload_place_ids || [],
+            entry_date_to: car.entry_date_to || '',
+            entry_time_from: car.entry_time_from || '',
+            entry_time_to: car.entry_time_to || '',
+            status: 'В работе',
+            entry_checked: false,
+            exit_checked: false,
+            applicationId: car.application_id,
+            plateNumber: car.car_number,
+            mark: car.car_brand,
+            formatId: null,
+            unloadPlaces: car.unload_place_ids || []
+          };
+        });
+        
+      } catch (error) {
+        console.error("Ошибка при загрузке данных по факту:", error);
+      }
+    },
+
+    async fetchCarHistoryStatus() {
+      try {
+        const token = localStorage.getItem("token");
+        
+        const response = await fetch("http://localhost:8080/cars/history/current-status", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          const statuses = await response.json();
+          
+          const statusMap = {};
+          statuses.forEach(status => {
+            statusMap[status.car_id] = status;
+          });
+          
+          this.factData.forEach(item => {
+            const status = statusMap[item.id];
+            if (status) {
+              item.entry_checked = status.territory_status === 1;
+              item.exit_checked = status.territory_status === 2;
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке статусов въезда/выезда:", error);
+      }
+    },
 
     async fetchFactCarUnloadPlaces() {
       try {
@@ -408,6 +551,15 @@ export default {
               id: cup.unload_place_id,
               name: cup.unload_place_name || `Место #${cup.unload_place_id}`
             });
+            
+            const car = this.factData.find(c => c.id === cup.car_id);
+            if (car) {
+              if (!car.unload_place_ids) car.unload_place_ids = [];
+              if (!car.unload_place_ids.includes(cup.unload_place_id)) {
+                car.unload_place_ids.push(cup.unload_place_id);
+                car.unloadPlaces = car.unload_place_ids;
+              }
+            }
           });
           
           console.log('Загружены связи факт-машин с местами разгрузки:', this.factCarUnloadPlacesMap);
@@ -422,25 +574,23 @@ export default {
     },
 
     async fetchPeopleData() {
-      // Заглушка для данных о людях (аналогично нужно будет адаптировать API)
-      this.factData = [
-        {
-          id: 1,
-          organization_id: 1,
-          organization_name: 'ООО "Ромашка"',
-          entry_date_to: '2024-12-31',
-          pass_time: '08:00-17:00',
-          status: 'Активен'
-        },
-        {
-          id: 2,
-          organization_id: 2,
-          organization_name: 'ИП Иванов',
-          entry_date_to: '2024-11-30',
-          pass_time: '09:00-18:00',
-          status: 'Активен'
-        }
-      ];
+      this.factData = [];
+    },
+
+    formatUnloadPlaces(item) {
+      if (item.unload_place_ids && item.unload_place_ids.length > 0) {
+        const placeNames = item.unload_place_ids
+          .map(id => {
+            const place = this.allUnloadingPlaces.find(p => p.id === id);
+            return place ? place.name : null;
+          })
+          .filter(name => name);
+        
+        if (placeNames.length === 0) return '-';
+        if (placeNames.length === 1) return placeNames[0];
+        return `${placeNames[0]} и др.`;
+      }
+      return item.unload_place || '-';
     },
 
     formatDate(dateString) {
@@ -473,26 +623,98 @@ export default {
       return passTime || '-';
     },
     
+    async handleEntryExit(item, type) {
+      if (!this.currentUserId) {
+        console.error('Нет ID текущего пользователя');
+        return;
+      }
+      try {
+        const token = localStorage.getItem("token");
+        
+        let territory_status = 0;
+        if (type === 'entry') {
+          territory_status = 1;
+        } else if (type === 'exit') {
+          territory_status = 2;
+        }
+        
+        const response = await fetch(`http://localhost:8080/cars/${item.id}/territory-status`, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            territory_status: territory_status,
+            user_id: this.currentUserId
+          })
+        });
+        
+        if (response.ok) {
+          const index = this.factData.findIndex(i => i.id === item.id);
+          
+          if (index !== -1) {
+            const updatedItem = { ...this.factData[index] };
+            
+            if (type === 'entry') {
+              updatedItem.entry_checked = true;
+              updatedItem.exit_checked = false;
+            } else if (type === 'exit') {
+              updatedItem.entry_checked = false;
+              updatedItem.exit_checked = true;
+            }
+            
+            this.factData.splice(index, 1, updatedItem);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('Ошибка при обновлении статуса:', errorText);
+        }
+      } catch (error) {
+        console.error('Ошибка сети:', error);
+      }
+    },
+
     async deleteItem(item) {
+      if (!confirm(`Удалить запись?`)) return;
+      
       try {
         if (this.tableType === 'cars') {
-          const response = await fetch(`http://localhost:8080/applications/${item.applicationId}/cars/${item.id}`, {
+          const token = localStorage.getItem("token");
+          
+          // УДАЛЯЕМ лишний вызов истории
+          // await fetch(`http://localhost:8080/cars/${item.id}/history`, {
+          //   method: "POST",
+          //   headers: {
+          //     "Authorization": `Bearer ${token}`,
+          //     "Content-Type": "application/json"
+          //   },
+          //   body: JSON.stringify({
+          //     user_id: this.currentUserId,
+          //     action_type: "delete",
+          //     old_value: JSON.stringify({
+          //       car_number: item.car_number,
+          //       car_brand: item.car_brand,
+          //       organization: item.organization_name
+          //     }),
+          //     comment: "Автомобиль по факту удален из таблицы"
+          //   })
+          // });
+          
+          const response = await fetch(`http://localhost:8080/cars/${item.id}/deactivate`, {
             method: "PUT",
-            headers: { 
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("token")}`
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
             },
-            body: JSON.stringify({ 
-              car: {
-                ...item,
-                status: 0
-              },
-              unload_places: item.unload_places || []
+            body: JSON.stringify({
+              status: 0,
+              user_id: this.currentUserId
             })
           });
           
           if (response.ok) {
-            this.fetchData();
+            this.factData = this.factData.filter(i => i.id !== item.id);
           }
         } else {
           this.factData = this.factData.filter(i => i.id !== item.id);
@@ -527,16 +749,41 @@ export default {
       const [hours, minutes] = startTime.split(':').map(Number);
       
       return hours * 60 + minutes;
+    },
+
+    openItemDetails(item) {
+      if (this.tableType !== 'cars') return;
+      
+      this.selectedVehicle = {
+        id: item.id,
+        plateNumber: item.car_number,
+        mark: item.car_brand,
+        formatId: null,
+        organization: item.organization_name,
+        organizationId: item.organization_id,
+        company: item.company,
+        companyId: item.company_id,
+        isExisting: true,
+        unloadPlaces: item.unload_place_ids || [],
+        entry_date_to: item.entry_date_to,
+        entry_time_from: item.entry_time_from,
+        entry_time_to: item.entry_time_to,
+        applicationId: item.applicationId,
+        entry_checked: item.entry_checked,
+        exit_checked: item.exit_checked,
+        car_number: item.car_number,
+        car_brand: item.car_brand
+      };
+      this.showDetailsModal = true;
+    },
+
+    closeDetailsModal() {
+      this.showDetailsModal = false;
+      this.selectedVehicle = null;
     }
   },
   mounted() {
     this.fetchData();
-    
-    setTimeout(() => {
-      document.querySelectorAll('.fact-item').forEach(item => {
-        item.classList.add('animate-in');
-      });
-    }, 100);
   },
   watch: {
     tableType: {
@@ -544,22 +791,12 @@ export default {
         this.fetchData();
       },
       immediate: true
-    },
-    selectedOrganizationId(newVal) {
-      console.log('Фильтр FactTable по организации ID:', newVal);
-    },
-    selectedUnloadingPlaceId(newVal) {
-      console.log('Фильтр FactTable по месту разгрузки ID:', newVal);
-    },
-    searchQuery(newVal) {
-      console.log('Поисковый запрос FactTable:', newVal);
     }
   }
 };
 </script>
 
 <style scoped>
-/* Стили остаются без изменений */
 .fact-table-card {
   background-color: #fff;
   border-radius: 30px;
@@ -610,17 +847,9 @@ export default {
   flex-direction: column;
 }
 
-.fact-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow-y: auto;
-}
-
-/* Заголовок таблицы */
 .fact-header {
+  padding: 10px 16px;
   border-bottom: 1px solid #e6e6e6;
-  padding: 12px 16px;
   flex-shrink: 0;
 }
 
@@ -628,29 +857,45 @@ export default {
   display: flex;
   width: 100%;
   align-items: center;
+  gap: 4px;
 }
 
-.header-col {
+.col {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  text-align: left;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-col { width: 14%; }
+.exit-col { width: 15.5%; }
+.organization-col { width: 50%; }
+.brand-col { width: 8%; }
+.company-col { width: 0%; }
+.place-col { width: 12%; }
+.date-col { width: 8%; }
+.time-col { width: 8%; }
+.status-col { width: 7%; }
+.actions-col { width: 5%; }
+
+.header-row .col {
   font-weight: 500;
   color: #a2a2a2;
-  text-align: left;
-  padding: 0 0px;
-  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: .2s;
-  cursor: pointer;
-  user-select: none;
-  height: 20px;
-  box-sizing: border-box;
 }
 
-.header-col:hover {
+.header-row .col:hover {
   color: #333;
 }
 
-.header-col:hover .sort-icon {
+.header-row .col:hover .sort-icon {
   filter: brightness(0);
 }
 
@@ -673,45 +918,13 @@ export default {
   font-weight: 500 !important;
 }
 
-/* Колонки с фиксированной шириной */
-.checkbox-col {
-  width: 4%;
-  min-width: 25px;
-  justify-content: center;
+.fact-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-.organization-col {
-  width: 35%;
-  min-width: 95px;
-}
-
-.place-col {
-  width: 30%;
-  min-width: 115px;
-}
-
-.date-col {
-  width: 22%;
-  min-width: 90px;
-}
-
-.time-col {
-  width: 18%;
-  min-width: 90px;
-}
-
-.status-col {
-  width: 15%;
-  min-width: 90px;
-}
-
-.actions-col {
-  width: 2%;
-  min-width: 40px;
-  justify-content: center;
-}
-
-/* Тело таблицы */
 .fact-body {
   overflow-y: auto;
   flex-grow: 1;
@@ -725,6 +938,11 @@ export default {
   opacity: 0;
   transform: translateY(10px);
   animation: fadeInUp 0.5s ease forwards;
+  cursor: pointer;
+}
+
+.fact-item:hover {
+  background-color: #fafafa;
 }
 
 @keyframes fadeInUp {
@@ -738,41 +956,59 @@ export default {
   }
 }
 
-.fact-item:hover {
-  background-color: #fafafa;
-}
-
 .fact-row {
   display: flex;
   width: 100%;
   padding: 10px 16px;
   align-items: center;
-  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #e6e6e6;
+  gap: 4px;
 }
 
-.fact-col {
-  padding: 0 8px;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
+.entry-col, .exit-col {
   display: flex;
-  align-items: center;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-/* Выравнивание содержимого колонок */
-.checkbox-col .fact-col,
-.actions-col .fact-col {
   justify-content: center;
 }
 
-.checkbox-input {
-  width: 13px;
-  height: 13px;
+.action-btn {
+  width: 70px;
+  height: 30px;
+  border-radius: 50px;
+  border: 1px solid #e6e6e6;
+  background: white;
+  color: #000;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #a2a2a2;
+}
+
+.action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.action-btn.entry-btn.active {
+  background: #e6f7e6;
+  color: #2e7d32;
+  border-color: #a5d6a7;
+  font-weight: 600;
+}
+
+.action-btn.exit-btn.active {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #ef9a9a;
+  font-weight: 600;
 }
 
 .status-text {
@@ -788,12 +1024,15 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
 }
 
-.delete-btn:hover {
-  background-color: #f5f5f5;
+.delete-btn:hover:not(:disabled) {
+  background-color: transparent;
+}
+
+.delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .delete-icon {
@@ -803,7 +1042,7 @@ export default {
   transition: opacity 0.2s ease;
 }
 
-.delete-btn:hover .delete-icon {
+.delete-btn:hover:not(:disabled) .delete-icon {
   opacity: 1;
 }
 
@@ -819,7 +1058,6 @@ export default {
   justify-content: center;
 }
 
-/* Стилизация скроллбара */
 .fact-body::-webkit-scrollbar {
   width: 6px;
 }
@@ -852,7 +1090,6 @@ export default {
   overscroll-behavior: contain;
 }
 
-/* Анимация для списка */
 .fade-list-enter-active,
 .fade-list-leave-active {
   transition: all 0.5s ease;
@@ -872,16 +1109,17 @@ export default {
   .fact-table-card {
     width: 100%;
     height: auto;
+    max-height: none;
   }
   
   .header-row,
   .fact-row {
     flex-wrap: wrap;
+    gap: 8px;
   }
   
-  .header-col,
-  .fact-col {
-    width: 50% !important;
+  .col {
+    width: calc(50% - 4px) !important;
     margin-bottom: 4px;
   }
   
@@ -896,6 +1134,17 @@ export default {
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
+  }
+  
+  .entry-col, .exit-col {
+    width: calc(50% - 4px) !important;
+    justify-content: flex-start;
+  }
+  
+  .action-btn {
+    width: 60px;
+    height: 28px;
+    font-size: 11px;
   }
 }
 </style>
