@@ -2,16 +2,17 @@ use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::{PgPool};
 use serde_json::json;
 use log;
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use serde::{Serialize, Deserialize};
 
 use crate::auth::decode_token;
+use crate::models::cars_history::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CarHistoryItem {
     pub id: i32,
     pub car_id: i32,
-    pub user_id: i32,
+    pub user_id: Option<i32>,
     pub user_name: String,
     pub last_name: Option<String>,
     pub first_name: Option<String>,
@@ -31,7 +32,7 @@ pub struct CarHistoryItem {
 
 #[derive(Debug, Deserialize)]
 pub struct AddCarHistoryRequest {
-    pub user_id: i32,
+    pub user_id: Option<i32>,
     pub action_type: String,
     pub field_name: Option<String>,
     pub old_value: Option<String>,
@@ -43,23 +44,23 @@ pub struct AddCarHistoryRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateTerritoryStatusRequest {
     pub territory_status: i32,
-    pub user_id: i32,
+    pub user_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DeactivateCarRequest {
     pub status: i32,
-    pub user_id: i32,
+    pub user_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ActivateCarRequest {
-    pub user_id: i32,
+    pub user_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RestoreCarRequest {
-    pub user_id: i32,
+    pub user_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -164,7 +165,7 @@ pub async fn get_unified_car_history(
             COALESCE(o.name, '') as organization,
             COALESCE(c2.name, '') as company
         FROM cars_history h
-        JOIN users u ON h.user_id = u.id
+        LEFT JOIN users u ON h.user_id = u.id
         JOIN cars c ON h.car_id = c.id
         LEFT JOIN attachments a ON c.attachment_id = a.id
         LEFT JOIN applications app ON a.application_id = app.id
@@ -182,12 +183,16 @@ pub async fn get_unified_car_history(
         error::ErrorInternalServerError("Error fetching unified car history")
     })?;
 
-    let items: Vec<CarHistoryItem> = history.into_iter().map(|row| {
-        CarHistoryItem {
+    let items: Vec<crate::models::cars_history::CarHistoryItem> = history.into_iter().map(|row| {
+        // Преобразуем UTC время в московское (+3) и форматируем
+        let msk_time = row.created_at + chrono::Duration::hours(3);
+        let created_at_str = msk_time.format("%Y-%m-%dT%H:%M:%S+03:00").to_string();
+
+        crate::models::cars_history::CarHistoryItem {
             id: row.id,
             car_id: row.car_id,
             user_id: row.user_id,
-            user_name: row.user_name,
+            user_name: if row.user_name.is_empty() { "Система".to_string() } else { row.user_name.clone() },
             last_name: row.last_name,
             first_name: row.first_name,
             middle_name: row.middle_name,
@@ -196,7 +201,7 @@ pub async fn get_unified_car_history(
             old_value: row.old_value,
             new_value: row.new_value,
             comment: row.comment,
-            created_at: row.created_at,
+            created_at: created_at_str,
             metadata: row.metadata,
             car_number: Some(row.car_number),
             car_brand: Some(row.car_brand),
@@ -258,7 +263,7 @@ pub async fn get_car_history(
             h.created_at as "created_at!",
             h.metadata as "metadata?"
         FROM cars_history h
-        JOIN users u ON h.user_id = u.id
+        LEFT JOIN users u ON h.user_id = u.id
         WHERE h.car_id = $1
         ORDER BY h.created_at DESC
         "#,
@@ -271,12 +276,15 @@ pub async fn get_car_history(
         error::ErrorInternalServerError("Error fetching car history")
     })?;
 
-    let items: Vec<CarHistoryItem> = history.into_iter().map(|row| {
-        CarHistoryItem {
+    let items: Vec<crate::models::cars_history::CarHistoryItem> = history.into_iter().map(|row| {
+        let msk_time = row.created_at + chrono::Duration::hours(3);
+        let created_at_str = msk_time.format("%Y-%m-%dT%H:%M:%S+03:00").to_string();
+
+        crate::models::cars_history::CarHistoryItem {
             id: row.id,
             car_id: row.car_id,
             user_id: row.user_id,
-            user_name: row.user_name,
+            user_name: if row.user_name.is_empty() { "Система".to_string() } else { row.user_name.clone() },
             last_name: row.last_name,
             first_name: row.first_name,
             middle_name: row.middle_name,
@@ -285,7 +293,7 @@ pub async fn get_car_history(
             old_value: row.old_value,
             new_value: row.new_value,
             comment: row.comment,
-            created_at: row.created_at,
+            created_at: created_at_str,
             metadata: row.metadata,
             car_number: None,
             car_brand: None,
@@ -311,12 +319,12 @@ pub async fn add_car_history_entry(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let claims = decode_token(token)
+    let _claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
 
     let car_id = path.into_inner();
 
-    log::info!("Adding history entry for car {} by user {}", car_id, form.user_id);
+    log::info!("Adding history entry for car {} by user {:?}", car_id, form.user_id);
 
     sqlx::query!(
         r#"
@@ -399,7 +407,7 @@ pub async fn get_all_cars_history(
             COALESCE(o.name, '') as organization,
             COALESCE(c2.name, '') as company
         FROM cars_history h
-        JOIN users u ON h.user_id = u.id
+        LEFT JOIN users u ON h.user_id = u.id
         JOIN cars c ON h.car_id = c.id
         LEFT JOIN attachments a ON c.attachment_id = a.id
         LEFT JOIN applications app ON a.application_id = app.id
@@ -417,14 +425,17 @@ pub async fn get_all_cars_history(
     })?;
 
     let items: Vec<serde_json::Value> = history.into_iter().map(|row| {
+        let msk_time = row.created_at + chrono::Duration::hours(3);
+        let created_at_str = msk_time.format("%Y-%m-%dT%H:%M:%S+03:00").to_string();
+
         json!({
             "id": row.id,
             "car_id": row.car_id,
             "user_id": row.user_id,
-            "user_name": row.user_name,
+            "user_name": if row.user_name.is_empty() { "Система".to_string() } else { row.user_name.clone() },
             "action_type": row.action_type,
             "comment": row.comment,
-            "created_at": row.created_at,
+            "created_at": created_at_str,
             "car_number": row.car_number,
             "car_brand": row.car_brand,
             "organization": row.organization,
@@ -477,17 +488,28 @@ pub async fn get_cars_current_status(
     })?;
 
     let items: Vec<serde_json::Value> = statuses.into_iter().map(|row| {
+        let entry_time = row.territory_entry_time.map(|t| {
+            // Явно указываем тип Utc
+            (chrono::DateTime::<Utc>::from_naive_utc_and_offset(t, Utc) + chrono::Duration::hours(3))
+                .format("%Y-%m-%dT%H:%M:%S+03:00")
+                .to_string()
+        });
+        let last_exit_time = row.last_exit_time.map(|t| {
+            (chrono::DateTime::<Utc>::from_naive_utc_and_offset(t, Utc) + chrono::Duration::hours(3))
+                .format("%Y-%m-%dT%H:%M:%S+03:00")
+                .to_string()
+        });
+
         json!({
             "car_id": row.id,
             "territory_status": row.territory_status.unwrap_or(0),
-            "entry_time": row.territory_entry_time,
-            "last_exit_time": row.last_exit_time
+            "entry_time": entry_time,
+            "last_exit_time": last_exit_time
         })
     }).collect();
 
     Ok(HttpResponse::Ok().json(items))
 }
-
 /// Обновление статуса нахождения на территории (въезд/выезд)
 pub async fn update_car_territory_status(
     pool: web::Data<PgPool>,
@@ -509,7 +531,7 @@ pub async fn update_car_territory_status(
     let now = Utc::now();
     let action_type = if form.territory_status == 1 { "entry" } else if form.territory_status == 2 { "exit" } else { "unknown" };
 
-    log::info!("Updating car {} territory status to {} by user {}", car_id, form.territory_status, form.user_id);
+    log::info!("Updating car {} territory status to {} by user {:?}", car_id, form.territory_status, form.user_id);
 
     // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
@@ -617,12 +639,12 @@ pub async fn deactivate_car(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let claims = decode_token(token)
+    let _claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
 
     let car_id = path.into_inner();
 
-    log::info!("Deactivating car {} by user {}", car_id, form.user_id);
+    log::info!("Deactivating car {} by user {:?}", car_id, form.user_id);
 
     // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
@@ -711,12 +733,12 @@ pub async fn activate_car(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let claims = decode_token(token)
+    let _claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
 
     let car_id = path.into_inner();
 
-    log::info!("Activating car {} by user {}", car_id, form.user_id);
+    log::info!("Activating car {} by user {:?}", car_id, form.user_id);
 
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
@@ -802,12 +824,12 @@ pub async fn restore_car(
         .strip_prefix("Bearer ")
         .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
 
-    let claims = decode_token(token)
+    let _claims = decode_token(token)
         .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
 
     let car_id = path.into_inner();
 
-    log::info!("Restoring car {} by user {}", car_id, form.user_id);
+    log::info!("Restoring car {} by user {:?}", car_id, form.user_id);
 
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
@@ -878,4 +900,3 @@ pub async fn restore_car(
         "message": "Car restored successfully"
     })))
 }
-

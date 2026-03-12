@@ -444,17 +444,18 @@ export default {
     },
 
     formatDateTime(dateTimeString) {
-      if (!dateTimeString) return '';
-      const date = new Date(dateTimeString);
-      return date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).replace(',', '');
-    },
+  if (!dateTimeString) return '';
+  // Строка приходит в формате с часовым поясом (например, "2026-03-11T02:59:07+03:00")
+  const date = new Date(dateTimeString);
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).replace(',', '');
+},
 
     toggleSortOrder() {
       this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';

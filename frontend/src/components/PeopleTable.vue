@@ -285,7 +285,11 @@ export default {
       throw new Error(`Failed to get table: ${tableResponse.status}`);
     }
     
-    const table = await tableResponse.json();
+    const responseData = await tableResponse.json();
+    const table = responseData.table; // извлекаем вложенный объект
+    if (!table || !table.id) {
+      throw new Error('Table ID not found in response');
+    }
     this.currentTableId = table.id;
     
     // Получаем карту организаций

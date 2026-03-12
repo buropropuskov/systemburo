@@ -6,17 +6,17 @@
             {{ notification.message }}
         </div>
 
-        <!-- В ApplicationDetail.vue, в секции с ForwardModal -->
-<ForwardModal
-    v-if="showForwardModal"
-    :all-users="allUsers"
-    :responsible-users="responsibleUsers"
-    :existing-approvers="approvers"  
-    :existing-viewers="viewers"       
-    :is-sending="isForwarding"
-    @close="closeForwardModal"
-    @send="sendForwardRequest"
-/>
+        <!-- Модальное окно пересылки -->
+        <ForwardModal
+            v-if="showForwardModal"
+            :all-users="allUsers"
+            :responsible-users="responsibleUsers"
+            :existing-approvers="approvers"  
+            :existing-viewers="viewers"       
+            :is-sending="isForwarding"
+            @close="closeForwardModal"
+            @send="sendForwardRequest"
+        />
 
         <div class="application-detail">
             <!-- Заголовок и кнопки -->
@@ -47,8 +47,8 @@
                         <template v-if="isApprover && isResponsibleUser">
                             <!-- Если пользователь еще не голосовал -->
                             <template v-if="!hasUserVoted">
-                                <!-- Показываем кнопки согласования, если заявка не отклонена окончательно -->
-                                <template v-if="applicationData.confirmation !== 'Не согласовано'">
+                                <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
+                                <template v-if="applicationData.confirmation !== 'Не согласовано' && applicationData.status !== 'Завершено'">
                                     <button 
                                         class="accept-btn" 
                                         @click="handleCombinedAction('accept')"
@@ -66,6 +66,10 @@
                                         <span v-else>Отказать</span>
                                     </button>
                                 </template>
+                                <!-- Если заявка завершена -->
+                                <div v-else-if="applicationData.status === 'Завершено'" class="status-badge status-completed-badge">
+                                    Завершено
+                                </div>
                                 <!-- Если заявка отклонена окончательно -->
                                 <div v-else class="info-badge">
                                     Заявка отклонена
@@ -102,7 +106,13 @@
                                         Отказано
                                     </div>
                                 </template>
-                                <!-- Если заявка не в работе и не отказана, но согласована - показываем кнопки принять/отказать -->
+                                <!-- Если заявка завершена - просто показываем статус -->
+                                <template v-else-if="applicationData.status === 'Завершено'">
+                                    <div class="status-badge status-completed-badge">
+                                        Завершено
+                                    </div>
+                                </template>
+                                <!-- Если заявка не в работе, не отказана и не завершена, но согласована - показываем кнопки принять/отказать -->
                                 <template v-else-if="applicationData.confirmation === 'Согласовано'">
                                     <button 
                                         class="accept-btn" 
@@ -158,6 +168,12 @@
                                     Отказано
                                 </div>
                             </template>
+                            <!-- Если заявка завершена -->
+                            <template v-else-if="applicationData.status === 'Завершено'">
+                                <div class="status-badge status-completed-badge">
+                                    Завершено
+                                </div>
+                            </template>
                             <!-- Если заявка не в работе и согласована - показываем кнопки принять/отказать -->
                             <template v-else-if="applicationData.confirmation === 'Согласовано'">
                                 <button 
@@ -187,8 +203,8 @@
                         <template v-else-if="isResponsibleUser">
                             <!-- Если пользователь еще не голосовал -->
                             <template v-if="!hasUserVoted">
-                                <!-- Показываем кнопки согласования ВСЕГДА, когда заявка не отклонена окончательно -->
-                                <template v-if="applicationData.confirmation !== 'Не согласовано'">
+                                <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
+                                <template v-if="applicationData.confirmation !== 'Не согласовано' && applicationData.status !== 'Завершено'">
                                     <button 
                                         class="confirm-btn" 
                                         @click="updateConfirmation('Согласовано')"
@@ -206,6 +222,10 @@
                                         <span v-else>Отказать</span>
                                     </button>
                                 </template>
+                                <!-- Если заявка завершена -->
+                                <div v-else-if="applicationData.status === 'Завершено'" class="status-badge status-completed-badge">
+                                    Завершено
+                                </div>
                                 <!-- Если заявка отклонена окончательно -->
                                 <div v-else class="info-badge">
                                     Заявка отклонена
@@ -220,7 +240,13 @@
                                         {{ userVoteStatus.text }}
                                     </div>
                                 </template>
-                                <!-- Если заявка не в работе - показываем кнопку отзыва согласования -->
+                                <!-- Если заявка завершена -->
+                                <template v-else-if="applicationData.status === 'Завершено'">
+                                    <div class="status-badge status-completed-badge">
+                                        Завершено
+                                    </div>
+                                </template>
+                                <!-- Если заявка не в работе и не завершена - показываем кнопку отзыва согласования -->
                                 <template v-else>
                                     <button 
                                         class="revoke-approval-btn subtle-btn" 
@@ -244,6 +270,9 @@
                             </div>
                             <div v-else-if="applicationData.status === 'Отказано'" class="status-badge status-rejected-badge">
                                 Отказано
+                            </div>
+                            <div v-else-if="applicationData.status === 'Завершено'" class="status-badge status-completed-badge">
+                                Завершено
                             </div>
                             <div v-else-if="applicationData.confirmation === 'Согласовано'" class="status-badge status-approved-badge">
                                 Согласовано
@@ -442,8 +471,8 @@
                         </div>
                     </div>
 
-                    <!-- Блок статуса заявки (для принятых/отказанных) -->
-                    <div v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'" class="application-status-section">
+                    <!-- Блок статуса заявки (для принятых/отказанных/завершенных) -->
+                    <div v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано' || applicationData.status === 'Завершено'" class="application-status-section">
                         <div class="status-header">
                             <h4>Статус заявки</h4>
                             <span class="status-mini-badge" :class="getStatusBadgeClass(applicationData.status)">
@@ -451,8 +480,9 @@
                             </span>
                         </div>
                         
-                        <div class="status-info" v-if="applicationData.responsible_user_id">
-                            <div class="status-info-row">
+                        <!-- Для статусов В работе и Отказано -->
+                        <div class="status-info" v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'">
+                            <div class="status-info-row" v-if="applicationData.responsible_user_id">
                                 <span class="status-info-label">{{ applicationData.status === 'В работе' ? 'Принял(-а):' : 'Отказал(а):' }}</span>
                                 <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
                             </div>
@@ -463,6 +493,33 @@
                             <div class="status-info-row comment-row">
                                 <span class="status-info-label">Комментарий:</span>
                                 <div class="status-info-value comment-text">{{ applicationData.responsible_comment || 'Комментария нет' }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Для статуса Завершено (показываем и принятие, и завершение) -->
+                        <div class="status-info" v-else-if="applicationData.status === 'Завершено'">
+                            <!-- Информация о принятии -->
+                            <div class="status-info-row" v-if="applicationData.responsible_name">
+                                <span class="status-info-label">Принял(-а):</span>
+                                <span class="status-info-value">{{ applicationData.responsible_name }}</span>
+                            </div>
+                            <div v-if="applicationData.confirmation_datetime" class="status-info-row">
+                                <span class="status-info-label">Время принятия:</span>
+                                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+                            </div>
+                            <!-- Информация о завершении -->
+                            <div class="status-info-row" v-if="applicationData.completed_by_name">
+                                <span class="status-info-label">Завершил(-а):</span>
+                                <span class="status-info-value">{{ applicationData.completed_by_name }}</span>
+                            </div>
+                            <div v-if="applicationData.completed_at" class="status-info-row">
+                                <span class="status-info-label">Время завершения:</span>
+                                <span class="status-info-value">{{ formatDateTime(applicationData.completed_at) }}</span>
+                            </div>
+                            <!-- Комментарий к завершению (или общий) -->
+                            <div class="status-info-row comment-row">
+                                <span class="status-info-label">Комментарий:</span>
+                                <div class="status-info-value comment-text">{{ applicationData.completion_comment || 'Комментария нет' }}</div>
                             </div>
                         </div>
                     </div>
@@ -546,8 +603,7 @@ export default {
             attachmentEmployees: [],
             attachmentItems: [],
             responsibleUsers: [],
-     
-        viewers: [],              // Добавляем для читателей
+            viewers: [],              // читатели
             updatingConfirmation: false,
             processingApplication: false,
             loadingAttachmentDetails: false,
@@ -585,7 +641,7 @@ export default {
 
         isApproverActionDone() {
             if (!this.isApprover || this.isResponsibleUser) return false;
-            return this.applicationData.status === 'В работе' || this.applicationData.status === 'Отказано';
+            return this.applicationData.status === 'В работе' || this.applicationData.status === 'Отказано' || this.applicationData.status === 'Завершено';
         },
 
         userVoteStatus() {
@@ -647,6 +703,10 @@ export default {
             if (this.applicationData.status === 'Отказано') {
                 return 'Заявка отклонена';
             }
+
+            if (this.applicationData.status === 'Завершено') {
+                return 'Заявка завершена';
+            }
             
             if (this.applicationData.confirmation !== 'Согласовано') {
                 if (!this.canUserApprove) {
@@ -676,7 +736,8 @@ export default {
         getStatusBadgeClass(status) {
             const classes = {
                 'В работе': 'status-mini-work',
-                'Отказано': 'status-mini-rejected'
+                'Отказано': 'status-mini-rejected',
+                'Завершено': 'status-mini-completed'
             };
             return classes[status] || '';
         },
@@ -704,84 +765,83 @@ export default {
         },
 
         async loadApplicationDetails(application) {
-    try {
-        const token = localStorage.getItem("token");
-        
-        const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
-            fetch(`http://localhost:8080/applications/${application.id}/details`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-            }),
-            fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-            }),
-            fetch(`http://localhost:8080/applications/${application.id}/viewers`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-            })
-        ]);
-
-        if (appResponse.ok) {
-            const appData = await appResponse.json();
-            
-            this.applicationData = {
-                ...this.applicationData,
-                ...appData
-            };
-            
-            if (appData.responsible_users) {
-                this.responsibleUsers = appData.responsible_users.map(user => ({
-                    ...user,
-                    approval_status: user.approval_status || 'pending'
-                }));
+            try {
+                const token = localStorage.getItem("token");
                 
-                if (this.currentUserId) {
-                    const currentUser = this.responsibleUsers.find(u => u.id === this.currentUserId);
-                    if (currentUser && currentUser.approval_comment) {
-                        this.actionComment = currentUser.approval_comment;
-                        this.lastUserComment = currentUser.approval_comment;
-                        this.saveCommentToLocalStorage();
-                    } else {
-                        this.loadCommentFromLocalStorage();
+                const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
+                    fetch(`http://localhost:8080/applications/${application.id}/details`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                    }),
+                    fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                    }),
+                    fetch(`http://localhost:8080/applications/${application.id}/viewers`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                    })
+                ]);
+
+                if (appResponse.ok) {
+                    const appData = await appResponse.json();
+                    
+                    this.applicationData = {
+                        ...this.applicationData,
+                        ...appData
+                    };
+                    
+                    if (appData.responsible_users) {
+                        this.responsibleUsers = appData.responsible_users.map(user => ({
+                            ...user,
+                            approval_status: user.approval_status || 'pending'
+                        }));
+                        
+                        if (this.currentUserId) {
+                            const currentUser = this.responsibleUsers.find(u => u.id === this.currentUserId);
+                            if (currentUser && currentUser.approval_comment) {
+                                this.actionComment = currentUser.approval_comment;
+                                this.lastUserComment = currentUser.approval_comment;
+                                this.saveCommentToLocalStorage();
+                            } else {
+                                this.loadCommentFromLocalStorage();
+                            }
+                        }
+                    }
+                    
+                    if (this.$refs.confirmationComponent) {
+                        this.$refs.confirmationComponent.$forceUpdate();
                     }
                 }
+
+                if (attachmentsResponse.ok) {
+                    this.attachments = await attachmentsResponse.json();
+                    if (this.attachments.length > 0) {
+                        this.selectedAttachment = this.attachments[0];
+                        await this.loadAttachmentDetails(this.selectedAttachment.id);
+                    }
+                }
+
+                if (viewersResponse.ok) {
+                    this.viewers = await viewersResponse.json();
+                }
+
+                await this.fetchAllUsers();
+                await this.fetchApprovers();
+
+            } catch (error) {
+                console.error("Ошибка при загрузке деталей заявки:", error);
             }
-            
-            if (this.$refs.confirmationComponent) {
-                this.$refs.confirmationComponent.$forceUpdate();
-            }
-        }
-
-        if (attachmentsResponse.ok) {
-            this.attachments = await attachmentsResponse.json();
-            if (this.attachments.length > 0) {
-                this.selectedAttachment = this.attachments[0];
-                await this.loadAttachmentDetails(this.selectedAttachment.id);
-            }
-        }
-
-        if (viewersResponse.ok) {
-            this.viewers = await viewersResponse.json();
-            console.log('Loaded viewers:', this.viewers); // Для отладки
-        }
-
-        await this.fetchAllUsers();
-        await this.fetchApprovers();
-
-    } catch (error) {
-        console.error("Ошибка при загрузке деталей заявки:", error);
-    }
-},
+        },
 
         async fetchAllUsers() {
             try {
@@ -800,21 +860,20 @@ export default {
         },
 
         async fetchApprovers() {
-    try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/application-approvers", {
-            headers: {
-                "Authorization": `Bearer ${token}`,
-            },
-        });
-        if (response.ok) {
-            this.approvers = await response.json();
-            console.log('Loaded approvers:', this.approvers); // Для отладки
-        }
-    } catch (error) {
-        console.error("Error fetching approvers:", error);
-    }
-},
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch("http://localhost:8080/application-approvers", {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+                if (response.ok) {
+                    this.approvers = await response.json();
+                }
+            } catch (error) {
+                console.error("Error fetching approvers:", error);
+            }
+        },
 
         async loadAttachmentDetails(attachmentId) {
             if (!attachmentId) return;
@@ -1273,61 +1332,53 @@ export default {
             this.showForwardModal = false;
         },
 
-        // В ApplicationDetail.vue, метод sendForwardRequest:
-
-async sendForwardRequest(selectedUsers) {
-    if (selectedUsers.length === 0) return;
-    
-    console.log('Selected users before sending:', selectedUsers); // Для отладки
-    
-    this.isForwarding = true;
-    try {
-        const token = localStorage.getItem("token");
-        
-        // Преобразуем данные в нужный формат для сервера
-        const usersToSend = selectedUsers.map(user => ({
-            user_id: user.user_id,
-            required_approval: user.required_approval || false,
-            can_view: user.can_view !== undefined ? user.can_view : !user.required_approval
-        }));
-        
-        console.log('Sending to server:', usersToSend); // Для отладки
-        
-        const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/forward`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                users: usersToSend
-            })
-        });
-
-        if (response.ok) {
-            this.showNotification("Заявка успешно переслана", "success");
-            this.closeForwardModal();
+        async sendForwardRequest(selectedUsers) {
+            if (selectedUsers.length === 0) return;
             
-            await this.loadApplicationDetails(this.applicationData);
-            
-            if (this.$refs.historyComponent) {
-                this.$refs.historyComponent.loadHistory();
+            this.isForwarding = true;
+            try {
+                const token = localStorage.getItem("token");
+                
+                const usersToSend = selectedUsers.map(user => ({
+                    user_id: user.user_id,
+                    required_approval: user.required_approval || false,
+                    can_view: user.can_view !== undefined ? user.can_view : !user.required_approval
+                }));
+                
+                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/forward`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        users: usersToSend
+                    })
+                });
+
+                if (response.ok) {
+                    this.showNotification("Заявка успешно переслана", "success");
+                    this.closeForwardModal();
+                    
+                    await this.loadApplicationDetails(this.applicationData);
+                    
+                    if (this.$refs.historyComponent) {
+                        this.$refs.historyComponent.loadHistory();
+                    }
+                    
+                    this.$emit('application-changed', this.applicationData);
+                    
+                } else {
+                    const errorText = await response.text();
+                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                console.error("Ошибка при пересылке заявки:", error);
+                this.showNotification("Ошибка сети", 'error');
+            } finally {
+                this.isForwarding = false;
             }
-            
-            this.$emit('application-changed', this.applicationData);
-            
-        } else {
-            const errorText = await response.text();
-            console.error('Server error response:', errorText); // Для отладки
-            this.showNotification(`Ошибка: ${errorText}`, 'error');
-        }
-    } catch (error) {
-        console.error("Ошибка при пересылке заявки:", error);
-        this.showNotification("Ошибка сети", 'error');
-    } finally {
-        this.isForwarding = false;
-    }
-},
+        },
 
         duplicateApplication() {
             console.log('Дублирование заявки:', this.applicationData.application_number);
@@ -1531,6 +1582,12 @@ async sendForwardRequest(selectedUsers) {
     background-color: rgba(220, 38, 38, 0.1);
     color: #dc2626;
     border-color: rgba(220, 38, 38, 0.3);
+}
+
+.status-mini-completed {
+    background-color: rgba(5, 150, 105, 0.1);
+    color: #059669;
+    border-color: rgba(5, 150, 105, 0.3);
 }
 
 .status-info {
@@ -2322,6 +2379,18 @@ async sendForwardRequest(selectedUsers) {
     background: rgba(217, 119, 6, 0.1);
     color: #d97706;
     border: 1px solid rgba(217, 119, 6, 0.3);
+    padding: 6px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.status-completed-badge {
+    background: rgba(5, 150, 105, 0.1);
+    color: #059669;
+    border: 1px solid rgba(5, 150, 105, 0.3);
     padding: 6px 24px;
     border-radius: 50px;
     font-size: 14px;

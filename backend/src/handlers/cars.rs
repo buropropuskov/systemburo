@@ -1,3 +1,4 @@
+// handlers/cars.rs
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::{PgPool};
 use serde_json::json;
@@ -6,6 +7,7 @@ use serde::{Deserialize};
 use chrono::{NaiveDate, NaiveTime, NaiveDateTime, Utc};
 
 use crate::auth::decode_token;
+use crate::handlers::applications::check_expired_attachments; 
 
 #[derive(Debug, Deserialize)]
 pub struct CarData {
@@ -158,6 +160,12 @@ pub async fn get_active_cars_for_tables(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, Error> {
+    // Проверяем и обновляем истекшие вложения перед выдачей данных
+    if let Err(e) = check_expired_attachments(pool.get_ref()).await {
+        log::error!("Failed to check expired attachments in get_active_cars_for_tables: {}", e);
+        // не прерываем выполнение, продолжаем
+    }
+
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
         .to_str()
@@ -278,6 +286,12 @@ pub async fn get_fact_cars_for_tables(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, Error> {
+    // Проверяем и обновляем истекшие вложения перед выдачей данных
+    if let Err(e) = check_expired_attachments(pool.get_ref()).await {
+        log::error!("Failed to check expired attachments in get_fact_cars_for_tables: {}", e);
+        // не прерываем выполнение
+    }
+
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
         .to_str()

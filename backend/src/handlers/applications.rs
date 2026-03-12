@@ -111,6 +111,163 @@ pub struct UserApprovalRequest {
     pub comment: Option<String>,
 }
 
+/// Проверяет истекшие вложения и обновляет статусы
+pub async fn check_expired_attachments(pool: &PgPool) -> Result<(), Error> {
+    log::info!("Checking expired attachments...");
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Находим истекшие вложения
+    let expired_attachments = sqlx::query!(
+        r#"
+        SELECT id, application_id
+        FROM attachments
+        WHERE status = 1
+        AND (
+            (entry_date_to IS NOT NULL AND entry_date_to < CURRENT_DATE)
+            OR
+            (entry_date_to IS NOT NULL AND entry_time_to IS NOT NULL 
+             AND ((entry_date_to + entry_time_to) AT TIME ZONE 'Europe/Moscow') < CURRENT_TIMESTAMP)
+        )
+        "#,
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch expired attachments: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    if expired_attachments.is_empty() {
+        log::info!("No expired attachments found.");
+        return Ok(());
+    }
+
+    log::info!("Found {} expired attachments", expired_attachments.len());
+
+    let attachment_ids: Vec<i32> = expired_attachments.iter().map(|a| a.id).collect();
+    let application_ids: Vec<i32> = expired_attachments.iter().map(|a| a.application_id).collect();
+
+    // Получаем список всех машин, которые будут деактивированы
+    let cars_to_deactivate = sqlx::query!(
+        r#"
+        SELECT c.id, c.car_number, c.car_brand
+        FROM cars c
+        WHERE c.attachment_id = ANY($1)
+        "#,
+        &attachment_ids[..]
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch cars to deactivate: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    log::info!("Found {} cars to deactivate", cars_to_deactivate.len());
+
+    // Обновляем статус вложений
+    sqlx::query!(
+        "UPDATE attachments SET status = 0 WHERE id = ANY($1)",
+        &attachment_ids[..]
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update attachments status: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Обновляем статус связанных машин
+    sqlx::query!(
+        "UPDATE cars SET status = 0 WHERE attachment_id = ANY($1)",
+        &attachment_ids[..]
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update cars status: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Обновляем статус сотрудников
+    sqlx::query!(
+        "UPDATE employees SET status = 0 WHERE attachment_id = ANY($1)",
+        &attachment_ids[..]
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update employees status: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    // Записываем в историю для каждой деактивированной машины
+    for car in &cars_to_deactivate {
+        sqlx::query!(
+            r#"
+            INSERT INTO cars_history (
+                car_id,
+                user_id,
+                action_type,
+                comment,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, NOW())
+            "#,
+            car.id,
+            None::<i32>,
+            "deactivate",
+            format!("Срок действия заявки на автомобиль {} {} истёк", car.car_number, car.car_brand)
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add car history entry for expired car {}: {}", car.id, e);
+            error::ErrorInternalServerError("Database error")
+        })?;
+    }
+
+    // Для каждой заявки, у которой все вложения стали неактивными, обновляем статус на 'Завершено'
+    for app_id in application_ids {
+        let active_count = sqlx::query!(
+            "SELECT COUNT(*) as count FROM attachments WHERE application_id = $1 AND status = 1",
+            app_id
+        )
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to count active attachments: {}", e);
+            error::ErrorInternalServerError("Database error")
+        })?;
+
+        if active_count.count.unwrap_or(0) == 0 {
+            sqlx::query!(
+                "UPDATE applications SET status = 'Завершено' WHERE id = $1",
+                app_id
+            )
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to update application status to Completed: {}", e);
+                error::ErrorInternalServerError("Database error")
+            })?;
+            log::info!("Updated application {} to status 'Завершено'", app_id);
+        }
+    }
+
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    log::info!("Expired attachments check completed successfully.");
+    Ok(())
+}
+
 /// Функция для согласования заявки отдельным пользователем
 pub async fn approve_application_by_user(
     pool: web::Data<PgPool>,
@@ -2280,13 +2437,14 @@ pub async fn submit_complete_application(
                 attachment_type,
                 attachment_name,
                 attachment_display_name,
-                unique_attachment_id,   
+                unique_attachment_id,
                 entry_date_from,
                 entry_date_to,
                 entry_time_from,
-                entry_time_to
+                entry_time_to,
+                status
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
             RETURNING id
             "#,
             application_id,
@@ -3555,56 +3713,6 @@ pub async fn get_attachment_items(
     Ok(HttpResponse::Ok().json(item_infos))
 }
 
-/* 
-/// Получение информации о текущем пользователе
-pub async fn get_current_user(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> Result<HttpResponse, Error> {
-    let token = req.headers().get("Authorization")
-        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
-        .to_str()
-        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
-
-    let claims = decode_token(token)
-        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
-
-    let username = &claims.sub;
-
-    #[derive(Debug, Serialize)]
-    struct UserInfo {
-        id: i32,
-        username: String,
-        last_name: Option<String>,
-        first_name: Option<String>,
-        middle_name: Option<String>,
-        position: Option<String>,
-    }
-
-    let user = sqlx::query_as!(
-        UserInfo,
-        r#"
-        SELECT id, username, last_name, first_name, middle_name, position
-        FROM users
-        WHERE username = $1
-        "#,
-        username
-    )
-    .fetch_optional(pool.get_ref())
-    .await
-    .map_err(|e| {
-        log::error!("Failed to fetch user: {}", e);
-        error::ErrorInternalServerError("Database error")
-    })?;
-
-    match user {
-        Some(user) => Ok(HttpResponse::Ok().json(user)),
-        None => Err(error::ErrorUnauthorized("User not found")),
-    }
-}*/
-
 /// Получение заявки по ID с расширенной информацией (включая ответственных с информацией о согласовании)
 pub async fn get_application_details(
     pool: web::Data<PgPool>,
@@ -4085,9 +4193,9 @@ pub async fn update_responsible_users_for_entity(
                 }
             }
             
-            // Обновляем is_primary на false для удаленного пользователя в application_responsible_users
+            // Удаляем пользователя из списка ответственных
             let result = sqlx::query!(
-                "UPDATE application_responsible_users SET is_primary = false WHERE application_id = $1 AND user_id = $2",
+                "DELETE FROM application_responsible_users WHERE application_id = $1 AND user_id = $2",
                 application_id,
                 user_id
             )
@@ -4097,7 +4205,7 @@ pub async fn update_responsible_users_for_entity(
             if let Ok(r) = result {
                 if r.rows_affected() > 0 {
                     app_updated = true;
-                    log::debug!("Set is_primary=false for removed user {} in application {}", 
+                    log::debug!("Removed user {} from application {}", 
                                user_id, application_id);
                 }
             }

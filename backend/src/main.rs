@@ -7,17 +7,21 @@ mod auth;
 mod database;
 
 use actix_web::{App, HttpServer, middleware::Logger, web, HttpResponse};
-use actix_files as fs; // Добавить этот импорт
+use actix_files as fs;
 use actix_cors::Cors;
 use std::sync::Arc;
 use dashmap::DashMap;
 use database::get_pool;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use std::future::{ready, Ready};
 use std::task::{Context, Poll};
 use std::pin::Pin;
 use futures::future::LocalBoxFuture;
+use tokio::time::sleep;
+use env_logger; // <-- ДОБАВЛЕНО
+
+use crate::handlers::applications::check_expired_attachments;
 
 #[derive(Clone)]
 struct RateLimiter {
@@ -94,12 +98,8 @@ where
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        // Извлекаем RateLimiter из app_data
         let limiter_data = req.app_data::<web::Data<RateLimiter>>();
-        
-        // Проверяем rate limit только для определенных путей
         let path = req.path();
-        
         let check_rate_limit = path == "/login" || path.starts_with("/api/");
         
         if check_rate_limit {
@@ -131,15 +131,16 @@ where
         }
 
         let fut = self.service.call(req);
-        
-        Box::pin(async move {
-            fut.await
-        })
+        Box::pin(async move { fut.await })
     }
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Инициализация логгера
+    std::env::set_var("RUST_LOG", "info");
+    env_logger::init();
+
     dotenv::dotenv().ok();
     
     let pool = get_pool().await;
@@ -148,8 +149,26 @@ async fn main() -> std::io::Result<()> {
     // Создаем директорию для загрузок, если её нет
     std::fs::create_dir_all("./uploads/unload_places").expect("Failed to create upload directory");
 
-    println!("Server starting on http://127.0.0.1:8080");
+    let pool_clone = pool.clone();
 
+    // Фоновая задача: проверка истекших вложений каждые 60 секунд
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            log::info!("Running background check for expired attachments...");
+            if let Err(e) = check_expired_attachments(&pool_clone).await {
+                log::error!("Error in background task check_expired_attachments: {}", e);
+            }
+        }
+    });
+
+    // Первоначальная проверка при старте
+    if let Err(e) = check_expired_attachments(&pool).await {
+        log::error!("Initial check_expired_attachments failed: {}", e);
+    }
+
+    println!("Server starting on http://127.0.0.1:8080");
 
     HttpServer::new(move || {
         let limiter = rate_limiter.clone();
@@ -157,7 +176,6 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(Logger::default())
-            // CORS должен быть ПЕРЕД rate limit middleware
             .wrap(
                 Cors::default()
                     .allow_any_origin()
@@ -167,7 +185,6 @@ async fn main() -> std::io::Result<()> {
                     .max_age(3600)
             )
             .wrap(RateLimitMiddleware)
-            // Добавляем обслуживание статических файлов из папки uploads
             .service(fs::Files::new("/uploads", "./uploads").show_files_listing())
             .app_data(web::Data::new(limiter.clone()))
             .app_data(web::Data::new(pool.clone()))

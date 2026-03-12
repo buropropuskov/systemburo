@@ -41,6 +41,7 @@
           </div>
           <!-- Компания скрыта -->
           <div class="col company-col" v-if="tableType === 'cars'" style="display: none;"></div>
+          <!-- Место разгрузки – закомментировано по требованию
           <div class="col place-col" @click="sortBy('unload_place')" v-if="tableType === 'cars'">
             <p :class="{ 'active-sort': sortField === 'unload_place' }">Место разгрузки</p>
             <img 
@@ -52,6 +53,7 @@
               }" 
             />
           </div>
+          -->
           <div class="col date-col" @click="sortBy('entry_date_to')">
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
             <img 
@@ -74,7 +76,7 @@
               }" 
             />
           </div>
-          <div class="col status-col" @click="sortBy('status')">
+          <!--<div class="col status-col" @click="sortBy('status')">
             <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
             <img 
               src="@/assets/icons/sort.png" 
@@ -84,7 +86,7 @@
                 'desc': sortField === 'status' && sortDirection === 'desc'
               }" 
             />
-          </div>
+          </div>-->
           <div class="col actions-col">
             <!-- Пустой заголовок для действий -->
           </div>
@@ -133,9 +135,11 @@
                 </div>
                 <!-- Компания скрыта -->
                 <div v-if="tableType === 'cars'" class="col company-col" style="display: none;"></div>
+                <!-- Место разгрузки – закомментировано по требованию
                 <div v-if="tableType === 'cars'" class="col place-col">
                   {{ formatUnloadPlaces(item) }}
                 </div>
+                -->
                 <div class="col date-col">
                   {{ formatDate(item.entry_date_to) }}
                 </div>
@@ -145,11 +149,11 @@
                     : formatPassTime(item.pass_time)
                   }}
                 </div>
-                <div class="col status-col">
+                <!--<div class="col status-col">
                   <span class="status-text">
                     {{ item.status }}
                   </span>
-                </div>
+                </div>-->
                 <div class="col actions-col" @click.stop>
                   <button 
                     @click="deleteItem(item)" 
@@ -199,43 +203,15 @@ export default {
     VehicleDetailsModal
   },
   props: {
-    tableType: {
-      type: String,
-      default: 'cars',
-      validator: (value) => ['cars', 'people'].includes(value)
-    },
-    searchQuery: {
-      type: String,
-      default: ''
-    },
-    selectedOrganizationId: {
-      type: [Number, String],
-      default: null
-    },
-    selectedUnloadingPlaceId: {
-      type: [Number, String],
-      default: null
-    },
-    dateRangeStart: {
-      type: Date,
-      default: null
-    },
-    dateRangeEnd: {
-      type: Date,
-      default: null
-    },
-    selectedDate: {
-      type: Date,
-      default: null
-    },
-    currentUserId: {
-      type: Number,
-      default: null
-    },
-    currentUserName: {
-      type: String,
-      default: ''
-    }
+    tableType: { type: String, default: 'cars', validator: (v) => ['cars', 'people'].includes(v) },
+    searchQuery: { type: String, default: '' },
+    selectedOrganizationId: { type: [Number, String], default: null },
+    selectedUnloadingPlaceId: { type: [Number, String], default: null },
+    dateRangeStart: { type: Date, default: null },
+    dateRangeEnd: { type: Date, default: null },
+    selectedDate: { type: Date, default: null },
+    currentUserId: { type: Number, default: null },
+    currentUserName: { type: String, default: '' }
   },
   data() {
     return {
@@ -247,20 +223,20 @@ export default {
       allUnloadingPlaces: [],
       licensePlateFormats: [],
       showDetailsModal: false,
-      selectedVehicle: null
+      selectedVehicle: null,
+      pollingInterval: null
     };
   },
   computed: {
     filteredData() {
       let filtered = [...this.factData];
-
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         filtered = filtered.filter(item => 
           item.organization_name.toLowerCase().includes(query) ||
           (this.tableType === 'cars' && item.car_brand?.toLowerCase().includes(query)) ||
           (this.tableType === 'cars' && (item.company || '').toLowerCase().includes(query)) ||
-          (this.tableType === 'cars' && this.formatUnloadPlaces(item).toLowerCase().includes(query)) ||
+          // (this.tableType === 'cars' && this.formatUnloadPlaces(item).toLowerCase().includes(query)) || // Место разгрузки закомментировано
           item.status.toLowerCase().includes(query) ||
           (this.tableType === 'cars' 
             ? this.formatTimeRange(item.entry_time_from, item.entry_time_to).toLowerCase().includes(query)
@@ -269,11 +245,9 @@ export default {
           this.formatDate(item.entry_date_to).toLowerCase().includes(query)
         );
       }
-
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
-
       if (this.selectedUnloadingPlaceId && this.tableType === 'cars') {
         filtered = filtered.filter(item => {
           const carId = item.id;
@@ -281,7 +255,6 @@ export default {
           return unloadPlaces.some(place => place.id == this.selectedUnloadingPlaceId);
         });
       }
-
       if (this.selectedDate) {
         const selectedDateStr = this.selectedDate.toISOString().split('T')[0];
         filtered = filtered.filter(item => item.entry_date_to === selectedDateStr);
@@ -291,20 +264,14 @@ export default {
           return itemDate >= this.dateRangeStart && itemDate <= this.dateRangeEnd;
         });
       }
-
       return filtered;
     },
 
     sortedData() {
       const data = [...this.filteredData];
-      
-      if (!this.sortField) {
-        return data;
-      }
-      
+      if (!this.sortField) return data;
       return data.sort((a, b) => {
         let valueA, valueB;
-        
         switch (this.sortField) {
           case 'organization':
           case 'status':
@@ -313,17 +280,16 @@ export default {
             valueA = (a[this.sortField] || '').toString().toLowerCase();
             valueB = (b[this.sortField] || '').toString().toLowerCase();
             break;
-            
           case 'unload_place':
-            valueA = this.formatUnloadPlaces(a).toLowerCase();
-            valueB = this.formatUnloadPlaces(b).toLowerCase();
-            break;
-            
+            // Сортировка по месту разгрузки закомментирована вместе с колонкой
+            // valueA = this.formatUnloadPlaces(a).toLowerCase();
+            // valueB = this.formatUnloadPlaces(b).toLowerCase();
+            // break;
+            return 0;
           case 'entry_date_to':
             valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
             valueB = b.entry_date_to ? new Date(b.entry_date_to) : new Date(0);
             break;
-            
           case 'entry_time':
             if (this.tableType === 'cars') {
               valueA = this.extractStartTime(a.entry_time_from);
@@ -333,17 +299,10 @@ export default {
               valueB = this.extractPassTime(b.pass_time);
             }
             break;
-            
-          default:
-            return 0;
+          default: return 0;
         }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
+        if (valueA < valueB) return this.sortDirection === 'asc' ? -1 : 1;
+        if (valueA > valueB) return this.sortDirection === 'asc' ? 1 : -1;
         return 0;
       });
     },
@@ -359,12 +318,11 @@ export default {
     }
   },
   methods: {
-    async fetchData() {
+    async _loadData() {
       try {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
         await this.fetchOrganizations();
-        
         if (this.tableType === 'cars') {
           await this.fetchCarsData();
           await this.fetchFactCarUnloadPlaces();
@@ -377,18 +335,21 @@ export default {
       }
     },
 
+    async loadData() {
+      await this._loadData(false);
+    },
+
+    async silentRefresh() {
+      await this._loadData(true);
+    },
+
     async fetchUnloadingPlaces() {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/unload-places", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
-        
-        if (response.ok) {
-          this.allUnloadingPlaces = await response.json();
-        }
+        if (response.ok) this.allUnloadingPlaces = await response.json();
       } catch (error) {
         console.error("Ошибка при загрузке мест разгрузки:", error);
       }
@@ -398,14 +359,9 @@ export default {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/license-plate-formats", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
-        
-        if (response.ok) {
-          this.licensePlateFormats = await response.json();
-        }
+        if (response.ok) this.licensePlateFormats = await response.json();
       } catch (error) {
         console.error("Ошибка при загрузке форматов номеров:", error);
       }
@@ -415,23 +371,15 @@ export default {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/organizations", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+          headers: { "Authorization": `Bearer ${token}` }
         });
-
         if (response.ok) {
           const data = await response.json();
           this.organizationsMap = {};
-          data.forEach(org => {
-            this.organizationsMap[org.id] = org.name;
-          });
-        } else {
-          console.error("Ошибка при загрузке организаций");
+          data.forEach(org => { this.organizationsMap[org.id] = org.name; });
         }
       } catch (error) {
-        console.error("Ошибка сети при загрузке организаций:", error);
+        console.error("Ошибка при загрузке организаций:", error);
       }
     },
 
@@ -444,28 +392,17 @@ export default {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/cars/fact-for-tables", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+          headers: { "Authorization": `Bearer ${token}` }
         });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const factCars = await response.json();
-        console.log('Получены машины "по факту":', factCars);
-        
         const nameToIdMap = {};
         Object.keys(this.organizationsMap).forEach(id => {
           nameToIdMap[this.organizationsMap[id]] = id;
         });
-        
-        this.factData = factCars.map(car => {
+        const newData = factCars.map(car => {
           const orgName = car.organization || '';
           const orgId = nameToIdMap[orgName] || car.organization_id;
-          
           return {
             id: car.id,
             car_number: car.car_number || 'по факту',
@@ -473,7 +410,7 @@ export default {
             organization_id: orgId,
             organization_name: orgName || 'Не указана',
             company: car.company || null,
-            company_id: car.company_id, // добавляем company_id
+            company_id: car.company_id,
             unload_place: car.unload_place || '-',
             unload_place_ids: car.unload_place_ids || [],
             entry_date_to: car.entry_date_to || '',
@@ -489,7 +426,7 @@ export default {
             unloadPlaces: car.unload_place_ids || []
           };
         });
-        
+        this.factData = newData;
       } catch (error) {
         console.error("Ошибка при загрузке данных по факту:", error);
       }
@@ -498,22 +435,13 @@ export default {
     async fetchCarHistoryStatus() {
       try {
         const token = localStorage.getItem("token");
-        
         const response = await fetch("http://localhost:8080/cars/history/current-status", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
-        
         if (response.ok) {
           const statuses = await response.json();
-          
           const statusMap = {};
-          statuses.forEach(status => {
-            statusMap[status.car_id] = status;
-          });
-          
+          statuses.forEach(status => { statusMap[status.car_id] = status; });
           this.factData.forEach(item => {
             const status = statusMap[item.id];
             if (status) {
@@ -530,28 +458,18 @@ export default {
     async fetchFactCarUnloadPlaces() {
       try {
         const token = localStorage.getItem("token");
-        
         const response = await fetch("http://localhost:8080/cars/fact-unload-places", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
-        
         if (response.ok) {
           const carUnloadPlaces = await response.json();
-          
           this.factCarUnloadPlacesMap = {};
-          
           carUnloadPlaces.forEach(cup => {
-            if (!this.factCarUnloadPlacesMap[cup.car_id]) {
-              this.factCarUnloadPlacesMap[cup.car_id] = [];
-            }
+            if (!this.factCarUnloadPlacesMap[cup.car_id]) this.factCarUnloadPlacesMap[cup.car_id] = [];
             this.factCarUnloadPlacesMap[cup.car_id].push({
               id: cup.unload_place_id,
               name: cup.unload_place_name || `Место #${cup.unload_place_id}`
             });
-            
             const car = this.factData.find(c => c.id === cup.car_id);
             if (car) {
               if (!car.unload_place_ids) car.unload_place_ids = [];
@@ -561,14 +479,9 @@ export default {
               }
             }
           });
-          
-          console.log('Загружены связи факт-машин с местами разгрузки:', this.factCarUnloadPlacesMap);
-        } else {
-          console.error("Ошибка при загрузке связей факт-машин с местами разгрузки");
-          this.factCarUnloadPlacesMap = {};
         }
       } catch (error) {
-        console.error("Ошибка сети при загрузке связей факт-машин с местами разгрузки:", error);
+        console.error("Ошибка при загрузке связей факт-машин с местами разгрузки:", error);
         this.factCarUnloadPlacesMap = {};
       }
     },
@@ -585,7 +498,6 @@ export default {
             return place ? place.name : null;
           })
           .filter(name => name);
-        
         if (placeNames.length === 0) return '-';
         if (placeNames.length === 1) return placeNames[0];
         return `${placeNames[0]} и др.`;
@@ -602,68 +514,44 @@ export default {
 
     formatTimeRange(timeFrom, timeTo) {
       if (!timeFrom && !timeTo) return '-';
-      
       const formatTime = (timeStr) => {
         if (!timeStr) return '';
-        if (timeStr.includes(':') && timeStr.split(':').length === 3) {
-          return timeStr.substring(0, 5);
-        }
+        if (timeStr.includes(':') && timeStr.split(':').length === 3) return timeStr.substring(0, 5);
         return timeStr;
       };
-
       const formattedTimeFrom = formatTime(timeFrom);
       const formattedTimeTo = formatTime(timeTo);
-      
       if (!formattedTimeTo) return formattedTimeFrom;
       if (!formattedTimeFrom) return formattedTimeTo;
       return `${formattedTimeFrom} - ${formattedTimeTo}`;
     },
 
-    formatPassTime(passTime) {
-      return passTime || '-';
-    },
+    formatPassTime(passTime) { return passTime || '-'; },
     
     async handleEntryExit(item, type) {
-      if (!this.currentUserId) {
-        console.error('Нет ID текущего пользователя');
-        return;
-      }
+      if (!this.currentUserId) return;
       try {
         const token = localStorage.getItem("token");
-        
-        let territory_status = 0;
-        if (type === 'entry') {
-          territory_status = 1;
-        } else if (type === 'exit') {
-          territory_status = 2;
-        }
-        
+        let territory_status = type === 'entry' ? 1 : 2;
         const response = await fetch(`http://localhost:8080/cars/${item.id}/territory-status`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            territory_status: territory_status,
-            user_id: this.currentUserId
-          })
+          body: JSON.stringify({ territory_status, user_id: this.currentUserId })
         });
-        
         if (response.ok) {
           const index = this.factData.findIndex(i => i.id === item.id);
-          
           if (index !== -1) {
             const updatedItem = { ...this.factData[index] };
-            
             if (type === 'entry') {
               updatedItem.entry_checked = true;
               updatedItem.exit_checked = false;
-            } else if (type === 'exit') {
+            } else {
               updatedItem.entry_checked = false;
               updatedItem.exit_checked = true;
             }
-            
             this.factData.splice(index, 1, updatedItem);
           }
         } else {
@@ -677,45 +565,18 @@ export default {
 
     async deleteItem(item) {
       if (!confirm(`Удалить запись?`)) return;
-      
       try {
         if (this.tableType === 'cars') {
           const token = localStorage.getItem("token");
-          
-          // УДАЛЯЕМ лишний вызов истории
-          // await fetch(`http://localhost:8080/cars/${item.id}/history`, {
-          //   method: "POST",
-          //   headers: {
-          //     "Authorization": `Bearer ${token}`,
-          //     "Content-Type": "application/json"
-          //   },
-          //   body: JSON.stringify({
-          //     user_id: this.currentUserId,
-          //     action_type: "delete",
-          //     old_value: JSON.stringify({
-          //       car_number: item.car_number,
-          //       car_brand: item.car_brand,
-          //       organization: item.organization_name
-          //     }),
-          //     comment: "Автомобиль по факту удален из таблицы"
-          //   })
-          // });
-          
           const response = await fetch(`http://localhost:8080/cars/${item.id}/deactivate`, {
             method: "PUT",
             headers: {
               "Authorization": `Bearer ${token}`,
               "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-              status: 0,
-              user_id: this.currentUserId
-            })
+            body: JSON.stringify({ status: 0, user_id: this.currentUserId })
           });
-          
-          if (response.ok) {
-            this.factData = this.factData.filter(i => i.id !== item.id);
-          }
+          if (response.ok) this.factData = this.factData.filter(i => i.id !== item.id);
         } else {
           this.factData = this.factData.filter(i => i.id !== item.id);
         }
@@ -735,25 +596,20 @@ export default {
     
     extractStartTime(timeString) {
       if (!timeString || timeString === '-') return 0;
-      
       const timeWithoutSeconds = timeString.split(':').slice(0, 2).join(':');
       const [hours, minutes] = timeWithoutSeconds.split(':').map(Number);
-      
       return hours * 60 + minutes;
     },
 
     extractPassTime(passTime) {
       if (!passTime || passTime === '-') return 0;
-      
       const startTime = passTime.split('-')[0];
       const [hours, minutes] = startTime.split(':').map(Number);
-      
       return hours * 60 + minutes;
     },
 
     openItemDetails(item) {
       if (this.tableType !== 'cars') return;
-      
       this.selectedVehicle = {
         id: item.id,
         plateNumber: item.car_number,
@@ -780,18 +636,37 @@ export default {
     closeDetailsModal() {
       this.showDetailsModal = false;
       this.selectedVehicle = null;
+    },
+
+    startPolling() {
+      if (this.pollingInterval) return;
+      this.silentRefresh();
+      this.pollingInterval = setInterval(() => {
+        this.silentRefresh();
+      }, 10000);
+    },
+
+    stopPolling() {
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
     }
   },
   mounted() {
-    this.fetchData();
+    this.startPolling();
   },
   watch: {
     tableType: {
       handler() {
-        this.fetchData();
+        this.stopPolling();
+        this.startPolling();
       },
       immediate: true
     }
+  },
+  beforeUnmount() {
+    this.stopPolling();
   }
 };
 </script>
@@ -870,16 +745,17 @@ export default {
   white-space: nowrap;
 }
 
-.entry-col { width: 14%; }
-.exit-col { width: 15.5%; }
-.organization-col { width: 50%; }
-.brand-col { width: 8%; }
+/* Размеры колонок приведены в соответствие с CarsTable */
+.entry-col { width: 10%; }
+.exit-col { width: 12%; }
+.organization-col { width: 27%; }
+.brand-col { width: 15%; }
 .company-col { width: 0%; }
-.place-col { width: 12%; }
-.date-col { width: 8%; }
-.time-col { width: 8%; }
-.status-col { width: 7%; }
-.actions-col { width: 5%; }
+/* .place-col { width: 15%; }  Закомментировано вместе с колонкой */
+.date-col { width: 18%; }
+.time-col { width: 13%; }
+/* .status-col { width: 7%; } */
+.actions-col { width: 3%; }
 
 .header-row .col {
   font-weight: 500;
@@ -967,7 +843,6 @@ export default {
 
 .entry-col, .exit-col {
   display: flex;
-  justify-content: center;
 }
 
 .action-btn {

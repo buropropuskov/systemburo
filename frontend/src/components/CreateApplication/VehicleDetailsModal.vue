@@ -11,7 +11,7 @@
                         <h3 class="modal-title">{{ modalTitle }}</h3>
                         <div class="header-actions" v-if="showCarFeatures">
                             <button class="history-btn" @click="openCarHistory">
-                                <span>История автомобиля</span>
+                                <span>Полная история</span>
                             </button>
                             <button class="application-btn" @click="openApplication">
                                 <span>Открыть заявку</span>
@@ -115,11 +115,11 @@
                                 </div>
                             </div>
 
-                            <!-- Секция История въездов и выездов (только для автомобилей) -->
+                            <!-- Секция История въездов и выездов (только entry/exit) -->
                             <div v-if="showCarFeatures" class="details-section">
                                 <div class="section-header">
                                     <h4 class="section-title">История въездов и выездов</h4>
-                                    <button class="export-btn" @click="exportHistory" :disabled="history.length === 0 || isExporting">
+                                    <button class="export-btn" @click="exportHistory" :disabled="entryExitHistory.length === 0 || isExporting">
                                         <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
                                         <span v-if="!isExporting">Экспорт</span>
                                         <div v-else class="export-loader"></div>
@@ -131,18 +131,18 @@
                                         <span>Загрузка истории...</span>
                                     </div>
                                     
-                                    <div v-else-if="history.length === 0" class="no-history">
-                                        История отсутствует
+                                    <div v-else-if="entryExitHistory.length === 0" class="no-history">
+                                        История въездов и выездов отсутствует
                                     </div>
                                     
                                     <div v-else class="history-timeline">
                                         <div 
-                                            v-for="(item, index) in history" 
+                                            v-for="(item, index) in entryExitHistory" 
                                             :key="item.id" 
                                             class="history-item"
                                         >
-                                            <div class="timeline-dot" :class="getActionClass(item.action_type)"></div>
-                                            <div class="timeline-line" v-if="index < history.length - 1"></div>
+                                            <div class="timeline-dot" :class="getActionClass(item)"></div>
+                                            <div class="timeline-line" v-if="index < entryExitHistory.length - 1"></div>
                                             
                                             <div class="history-content">
                                                 <div class="history-header">
@@ -152,22 +152,8 @@
                                                 
                                                 <div class="action-text">{{ getActionText(item) }}</div>
                                                 
-                                                <div class="action-comment" v-if="item.action_type === 'entry' || item.action_type === 'exit'">
+                                                <div class="action-comment">
                                                     {{ getActionComment(item) }}
-                                                </div>
-                                                
-                                                <div v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'" class="action-comment">
-                                                    {{ item.comment }}
-                                                </div>
-                                                
-                                                <div v-if="item.old_value && item.new_value && item.old_value !== item.new_value" class="value-change">
-                                                    <span class="old-value">{{ item.old_value }}</span>
-                                                    <span class="arrow">→</span>
-                                                    <span class="new-value">{{ item.new_value }}</span>
-                                                </div>
-                                                
-                                                <div v-if="item.field_name" class="field-name">
-                                                    Поле: {{ item.field_name }}
                                                 </div>
                                             </div>
                                         </div>
@@ -195,7 +181,7 @@
         </div>
     </transition>
 
-    <!-- Модальное окно истории автомобиля -->
+    <!-- Модальное окно полной истории автомобиля -->
     <CarHistoryModal
         v-if="showCarHistoryModal"
         :car-id="vehicle?.id"
@@ -267,7 +253,7 @@ export default {
             showPlaceModal: false,
             isMainShifted: false,
             shiftTimer: null,
-            history: [],
+            history: [],          // полная история (все действия)
             loadingHistory: false,
             isExporting: false,
             showCarHistoryModal: false
@@ -289,6 +275,10 @@ export default {
             if (this.vehicle?.entry_checked && !this.vehicle?.exit_checked) return 'На территории';
             if (this.vehicle?.exit_checked) return 'Выехал';
             return 'Не въезжал';
+        },
+        // Только события въезда/выезда
+        entryExitHistory() {
+            return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
         }
     },
     methods: {
@@ -399,20 +389,19 @@ export default {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
-            });
+            }).replace(',', '');
         },
 
-        getActionClass(actionType) {
+        getActionClass(item) {
+            // Если пользователь не указан (системное действие), делаем точку фиолетовой
+            if (!item.user_id) {
+                return 'dot-system';
+            }
             const classes = {
-                'create': 'dot-create',
                 'entry': 'dot-entry',
-                'exit': 'dot-exit',
-                'update': 'dot-update',
-                'delete': 'dot-delete',
-                'activate': 'dot-activate',
-                'deactivate': 'dot-deactivate'
+                'exit': 'dot-exit'
             };
-            return classes[actionType] || 'dot-default';
+            return classes[item.action_type] || 'dot-default';
         },
 
         getActionText(item) {
@@ -421,23 +410,18 @@ export default {
             } else if (item.action_type === 'exit') {
                 return 'Машина уехала';
             }
-            
-            const texts = {
-                'create': 'Автомобиль создан',
-                'update': 'Данные обновлены',
-                'delete': 'Автомобиль удален',
-                'activate': 'Автомобиль активирован',
-                'deactivate': 'Автомобиль деактивирован'
-            };
-            
-            return texts[item.action_type] || item.action_type;
+            return item.action_type; // на всякий случай
         },
 
         getActionComment(item) {
+            const userName = item.user_name || 'Система';
+            const carNumber = item.car_number || this.vehicle?.plateNumber || this.vehicle?.car_number || '';
+            const carBrand = item.car_brand || this.vehicle?.mark || this.vehicle?.car_brand || '';
+            
             if (item.action_type === 'entry') {
-                return `Пользователь ${item.user_name || 'Система'} отметил о прибытии автомобиля ${this.vehicle?.plateNumber || this.vehicle?.car_number || ''} ${this.vehicle?.mark || this.vehicle?.car_brand || ''} на территорию`.trim();
+                return `Пользователь ${userName} отметил о прибытии автомобиля ${carNumber} ${carBrand} на территорию`;
             } else if (item.action_type === 'exit') {
-                return `Пользователь ${item.user_name || 'Система'} отметил об убытии автомобиля ${this.vehicle?.plateNumber || this.vehicle?.car_number || ''} ${this.vehicle?.mark || this.vehicle?.car_brand || ''} с территории`.trim();
+                return `Пользователь ${userName} отметил об убытии автомобиля ${carNumber} ${carBrand} с территории`;
             }
             return item.comment || '';
         },
@@ -448,7 +432,18 @@ export default {
             this.loadingHistory = true;
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch(`http://localhost:8080/cars/${this.vehicle.id}/history`, {
+                // Используем unified endpoint, как в CarHistoryModal
+                const url = new URL('http://localhost:8080/cars/history/unified');
+                url.searchParams.append('car_number', this.vehicle.plateNumber || this.vehicle.car_number || '');
+                url.searchParams.append('car_brand', this.vehicle.mark || this.vehicle.car_brand || '');
+                if (this.vehicle.organizationId) {
+                    url.searchParams.append('organization_id', this.vehicle.organizationId);
+                }
+                if (this.vehicle.companyId) {
+                    url.searchParams.append('company_id', this.vehicle.companyId);
+                }
+
+                const response = await fetch(url, {
                     headers: {
                         "Authorization": `Bearer ${token}`,
                     }
@@ -456,9 +451,7 @@ export default {
                 
                 if (response.ok) {
                     const allHistory = await response.json();
-                    this.history = allHistory.filter(item => 
-                        item.action_type === 'entry' || item.action_type === 'exit'
-                    );
+                    this.history = allHistory; // сохраняем всё, но показываем только entry/exit через computed
                 }
             } catch (error) {
                 console.error('Ошибка сети при загрузке истории:', error);
@@ -468,7 +461,8 @@ export default {
         },
 
         async exportHistory() {
-            if (this.history.length === 0) return;
+            const dataToExport = this.entryExitHistory;
+            if (dataToExport.length === 0) return;
             
             this.isExporting = true;
             
@@ -506,7 +500,7 @@ export default {
                     };
                 });
                 
-                this.history.forEach((item, index) => {
+                dataToExport.forEach((item, index) => {
                     const row = worksheet.addRow([
                         this.formatDateTime(item.created_at),
                         item.user_name || 'Система',
@@ -538,7 +532,7 @@ export default {
                     });
                 });
                 
-                const lastDataRow = this.history.length;
+                const lastDataRow = dataToExport.length;
                 
                 for (let row = 1; row <= lastDataRow + 1; row++) {
                     const rightCell = worksheet.getCell(row, 4);
@@ -587,7 +581,8 @@ export default {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 
-                a.download = `Istoriya_avtomobilya_${this.vehicle?.car_number || 'auto'}_${new Date().toLocaleString().replace(/[.:,]/g, '-')}.xlsx`;
+                const carNumberSafe = (this.vehicle?.plateNumber || this.vehicle?.car_number || 'auto').replace(/[^a-zA-Z0-9]/g, '_');
+                a.download = `Istoriya_viezdov_${carNumberSafe}_${new Date().toLocaleString().replace(/[.:,]/g, '-')}.xlsx`;
                 a.href = url;
                 a.click();
                 window.URL.revokeObjectURL(url);
@@ -606,6 +601,7 @@ export default {
 
         openApplication() {
             console.log('Открыть заявку', this.vehicle?.applicationId || this.vehicle?.application_id);
+            // Здесь можно добавить переход к заявке
         }
     },
     watch: {
@@ -638,6 +634,16 @@ export default {
 </script>
 
 <style scoped>
+/* Все предыдущие стили остаются, добавляем новый класс для системной точки */
+.dot-system {
+    background: #8b5cf6; /* фиолетовый */
+}
+
+.dot-entry { background: #059669; }
+.dot-exit { background: #dc2626; }
+.dot-default { background: #9ca3af; }
+
+/* Остальные стили без изменений */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1009,15 +1015,6 @@ export default {
   background: #e6e6e6;
 }
 
-.dot-create { background: #4F5BDF; }
-.dot-entry { background: #059669; }
-.dot-exit { background: #dc2626; }
-.dot-update { background: #f59e0b; }
-.dot-delete { background: #6b7280; }
-.dot-activate { background: #10b981; }
-.dot-deactivate { background: #9ca3af; }
-.dot-default { background: #9ca3af; }
-
 .history-content {
   flex: 1;
 }
@@ -1053,41 +1050,6 @@ export default {
   margin-top: 2px;
   padding-left: 6px;
   border-left: 2px solid #e6e6e6;
-}
-
-.value-change {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  background: #f9f9f9;
-  padding: 3px 8px;
-  border-radius: 16px;
-  display: inline-flex;
-  margin-top: 4px;
-}
-
-.old-value {
-  color: #dc2626;
-  text-decoration: line-through;
-  font-size: 11px;
-}
-
-.arrow {
-  color: #a2a2a2;
-  font-size: 10px;
-}
-
-.new-value {
-  color: #059669;
-  font-weight: 500;
-  font-size: 11px;
-}
-
-.field-name {
-  font-size: 11px;
-  color: #8b5cf6;
-  margin-top: 2px;
 }
 
 .loading-container {
