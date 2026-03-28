@@ -1,17 +1,11 @@
 #![allow(warnings)]
 
-mod models;
-mod routes;
-mod handlers;
-mod auth;
-mod database;
-
 use actix_web::{App, HttpServer, middleware::Logger, web, HttpResponse};
 use actix_files as fs;
 use actix_cors::Cors;
 use std::sync::Arc;
 use dashmap::DashMap;
-use database::get_pool;
+use backend::database::get_pool;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use std::future::{ready, Ready};
@@ -19,9 +13,9 @@ use std::task::{Context, Poll};
 use std::pin::Pin;
 use futures::future::LocalBoxFuture;
 use tokio::time::sleep;
-use env_logger; // <-- ДОБАВЛЕНО
+use env_logger;
 
-use crate::handlers::applications::check_expired_attachments;
+use backend::handlers::applications::check_expired_attachments;
 
 #[derive(Clone)]
 struct RateLimiter {
@@ -192,7 +186,7 @@ async fn main() -> std::io::Result<()> {
             .service(fs::Files::new("/uploads", "./uploads").show_files_listing())
             .app_data(web::Data::new(limiter.clone()))
             .app_data(web::Data::new(pool.clone()))
-            .configure(routes::config)
+            .configure(backend::routes::config)
     })
     .bind((
         std::env::var("BIND_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),

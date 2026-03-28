@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────
 # Dev stage: hot-reload with cargo-watch
 # ──────────────────────────────────────────────
-FROM rust:1.82-bookworm AS dev
+FROM rust:1.88-bookworm AS dev
 
 RUN cargo install cargo-watch
 
@@ -10,8 +10,8 @@ WORKDIR /app
 # Copy manifests first for dependency caching
 COPY Cargo.toml Cargo.lock ./
 
-# Create a dummy main.rs so cargo can resolve and build dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
+# Create dummy source files so cargo can resolve and build dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
 RUN cargo build && rm -rf src
 
 # Copy the real source code
@@ -24,7 +24,7 @@ CMD ["cargo", "watch", "-x", "run"]
 # ──────────────────────────────────────────────
 # Builder stage: compile the release binary
 # ──────────────────────────────────────────────
-FROM rust:1.82-bookworm AS builder
+FROM rust:1.88-bookworm AS builder
 
 WORKDIR /app
 

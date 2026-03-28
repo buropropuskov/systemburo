@@ -48,5 +48,31 @@ services:
     depends_on:
       - backend
 
+  test:
+    build:
+      context: ./backend
+      target: dev
+    environment:
+      DATABASE_URL: postgres://postgres:${DB_PASSWORD:-123}@db/${DB_NAME:-auto_registry}
+      DB_TEST_HOST: db
+      DB_TEST_USER: postgres
+      DB_TEST_PASS: ${DB_PASSWORD:-123}
+      SQLX_OFFLINE: "false"
+      RUST_LOG: info
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/tests:/app/tests
+      - ./backend/migrations:/app/migrations
+      - ./backend/Cargo.toml:/app/Cargo.toml
+      - ./backend/Cargo.lock:/app/Cargo.lock
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["cargo", "test", "--test", "auth_test", "--", "--test-threads=1"]
+    profiles:
+      - test
+
 volumes:
   pgdata:
