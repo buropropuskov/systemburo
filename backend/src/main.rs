@@ -138,7 +138,9 @@ where
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализация логгера
-    std::env::set_var("RUST_LOG", "info");
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
     env_logger::init();
 
     dotenv::dotenv().ok();
@@ -168,7 +170,9 @@ async fn main() -> std::io::Result<()> {
         log::error!("Initial check_expired_attachments failed: {}", e);
     }
 
-    println!("Server starting on http://127.0.0.1:8080");
+    let host = std::env::var("BIND_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("BIND_PORT").unwrap_or_else(|_| "8080".to_string());
+    println!("Server starting on http://{}:{}", host, port);
 
     HttpServer::new(move || {
         let limiter = rate_limiter.clone();
@@ -190,7 +194,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(pool.clone()))
             .configure(routes::config)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((
+        std::env::var("BIND_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+        std::env::var("BIND_PORT").unwrap_or_else(|_| "8080".to_string()).parse::<u16>().unwrap_or(8080),
+    ))?
     .run()
     .await
 }
