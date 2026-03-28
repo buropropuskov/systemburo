@@ -554,14 +554,17 @@ pub async fn update_company(
         form.name,
         id
     )
-    .fetch_one(pool.get_ref())
+    .fetch_optional(pool.get_ref())
     .await
     .map_err(|e| {
         log::error!("Failed to update company: {}", e);
         error::ErrorInternalServerError("Error updating company")
     })?;
 
-    Ok(HttpResponse::Ok().json(company))
+    match company {
+        Some(company) => Ok(HttpResponse::Ok().json(company)),
+        None => Err(error::ErrorNotFound("Company not found")),
+    }
 }
 
 /// Удалить компанию (нельзя удалить если есть пользователи)

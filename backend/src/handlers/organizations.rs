@@ -607,14 +607,17 @@ pub async fn update_organization(
         form.name,
         id
     )
-    .fetch_one(pool.get_ref())
+    .fetch_optional(pool.get_ref())
     .await
     .map_err(|e| {
         log::error!("Failed to update organization: {}", e);
         error::ErrorInternalServerError("Error updating organization")
     })?;
 
-    Ok(HttpResponse::Ok().json(org))
+    match org {
+        Some(org) => Ok(HttpResponse::Ok().json(org)),
+        None => Err(error::ErrorNotFound("Organization not found")),
+    }
 }
 
 /// Удалить организацию (нельзя удалить если есть пользователи)

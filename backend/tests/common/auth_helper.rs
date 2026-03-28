@@ -2,6 +2,18 @@ use crate::common::setup::TestApp;
 use serde_json::{json, Value};
 
 pub async fn register_user(app: &TestApp, username: &str, password: &str) -> reqwest::Response {
+    register_user_with_type(app, username, password, 1).await
+}
+
+pub async fn register_admin(app: &TestApp, username: &str, password: &str) -> reqwest::Response {
+    register_user_with_type(app, username, password, 6).await // buropropuskov
+}
+
+pub async fn register_manager(app: &TestApp, username: &str, password: &str) -> reqwest::Response {
+    register_user_with_type(app, username, password, 5).await // manager
+}
+
+pub async fn register_user_with_type(app: &TestApp, username: &str, password: &str, type_id: i32) -> reqwest::Response {
     app.api_client
         .post(&format!("{}/register", app.address))
         .json(&json!({
@@ -9,11 +21,11 @@ pub async fn register_user(app: &TestApp, username: &str, password: &str) -> req
             "password": password,
             "organization_id": 1,
             "company_id": 1,
-            "type_id": 1,
-            "last_name": null,
-            "first_name": null,
+            "type_id": type_id,
+            "last_name": "Test",
+            "first_name": "User",
             "middle_name": null,
-            "position": null,
+            "position": "Tester",
             "email": null,
             "phone": null
         }))
@@ -40,6 +52,14 @@ pub async fn create_authenticated_user(app: &TestApp, suffix: &str) -> (String, 
     let username = format!("testuser_{}", suffix);
     let password = "TestPassword123!";
     register_user(app, &username, password).await;
+    let (token, refresh) = login(app, &username, password).await;
+    (token, refresh, username)
+}
+
+pub async fn create_admin_user(app: &TestApp, suffix: &str) -> (String, String, String) {
+    let username = format!("admin_{}", suffix);
+    let password = "AdminPass123!";
+    register_admin(app, &username, password).await;
     let (token, refresh) = login(app, &username, password).await;
     (token, refresh, username)
 }

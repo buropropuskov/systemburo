@@ -2,7 +2,7 @@
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::PgPool;
 use log;
-use chrono::{Utc, NaiveDateTime};
+use chrono::Utc;
 
 use crate::models::feedback::*;
 use crate::models::feedback::FeedbackWithUser;
@@ -48,7 +48,7 @@ pub async fn create_feedback(
                             return Err(error::ErrorBadRequest("Message cannot exceed 1000 characters"));
                         }
 
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
 
                         let feedback_record = sqlx::query!(
                             r#"
@@ -261,7 +261,7 @@ pub async fn update_feedback_status(
                         }
 
                         let feedback_id = path.into_inner();
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
 
                         // Проверяем существование обращения
                         let existing_feedback = sqlx::query!(
@@ -421,7 +421,7 @@ pub async fn mark_feedback_as_read(
                         }
 
                         let feedback_id = path.into_inner();
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
 
                         // Обновляем только is_read, но не updated_at для read/unread
                         sqlx::query!(
