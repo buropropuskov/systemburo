@@ -45,6 +45,7 @@ func AllModels() []interface{} {
 
 		// Applications (depends on User, Organization, Company)
 		&models.Application{},
+		&models.ApplicationRead{},
 		&models.ApplicationHistory{},
 		&models.ApplicationStatusHistory{},
 		&models.ApplicationResponsibleUser{},
@@ -109,6 +110,15 @@ func AutoMigrate(db *gorm.DB) error {
 
 // Seed inserts initial data if tables are empty.
 func Seed(db *gorm.DB) error {
+	// Миграция: переводим заявки "Непрочитано" → "В обработке"
+	if result := db.Model(&models.Application{}).
+		Where("status = ?", models.StatusUnread).
+		Update("status", models.StatusProcessing); result.Error != nil {
+		slog.Error("failed to migrate unread status", "error", result.Error)
+	} else if result.RowsAffected > 0 {
+		slog.Info("migrated unread applications to processing", "count", result.RowsAffected)
+	}
+
 	var count int64
 	db.Model(&models.UserType{}).Count(&count)
 	if count == 0 {

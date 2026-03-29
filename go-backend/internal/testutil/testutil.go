@@ -105,7 +105,7 @@ func CleanDB(t *testing.T, db *gorm.DB) {
 		"car_unload_places", "cars_history", "cars",
 		"attachments",
 		"unique_employees", "unique_cars", "unique_attachments",
-		"application_viewers", "application_approvers", "application_responsible_users",
+		"application_reads", "application_viewers", "application_approvers", "application_responsible_users",
 		"application_status_history", "application_history", "applications",
 		"companies_unload_places", "organization_unload_places",
 		"unload_place_time_slots", "unload_place_photos", "unload_places",

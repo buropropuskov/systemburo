@@ -665,6 +665,78 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 	return c.JSON(http.StatusOK, items)
 }
 
+// MarkAsRead godoc
+// @Summary      Отметить заявку прочитанной
+// @Description  Текущий пользователь отмечает заявку как прочитанную (идемпотентно).
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/read [post]
+func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	if err := h.service.MarkAsRead(c.Request().Context(), id, username); err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "Application marked as read",
+	})
+}
+
+// GetReads godoc
+// @Summary      Прочтения заявки
+// @Description  Возвращает список пользователей, прочитавших заявку, с датами.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {array}  models.ApplicationReadResponse
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/reads [get]
+func (h *ApplicationHandler) GetReads(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	reads, err := h.service.GetReads(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, reads)
+}
+
+// GetUnreadCount godoc
+// @Summary      Количество непрочитанных заявок
+// @Description  Возвращает количество непрочитанных активных заявок для текущего пользователя.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} models.UnreadCountResponse
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/unread-count [get]
+func (h *ApplicationHandler) GetUnreadCount(c echo.Context) error {
+	username := c.Get("username").(string)
+
+	resp, err := h.service.GetUnreadCount(c.Request().Context(), username)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
 // UpdateApplicationItemsStatus godoc
 // @Summary      Обновление статусов элементов заявки
 // @Description  Активирует все машины и сотрудников во вложениях заявки (status = 1).
