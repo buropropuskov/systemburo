@@ -87,6 +87,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   name: 'FeedbackModal',
   
@@ -273,12 +274,8 @@ export default {
           return;
         }
         
-        const response = await fetch("http://localhost:8080/feedback", {
+        const response = await apiRequest("/feedback", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             message: trimmedMessage,
             timestamp: new Date().toISOString(),

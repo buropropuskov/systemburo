@@ -197,6 +197,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
@@ -473,12 +474,8 @@ export default {
         async loadPassageTables() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/system-tables", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/system-tables", {
+                    method: "GET"});
 
                 if (response.ok) {
                     const tables = await response.json();
@@ -502,7 +499,7 @@ export default {
     
     for (const vehicle of vehicles) {
       try {
-        const url = new URL('http://localhost:8080/cars/check-active');
+        const url = new URL('/cars/check-active', window.location.origin);
         url.searchParams.append('car_number', vehicle.plateNumber);
         url.searchParams.append('car_brand', vehicle.mark);
         
@@ -514,11 +511,7 @@ export default {
           url.searchParams.append('company_id', this.companyId);
         }
 
-        const response = await fetch(url, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
+        const response = await apiRequest(url, {});
 
         if (response.ok) {
           const data = await response.json();
@@ -540,12 +533,8 @@ export default {
         async loadLicensePlateFormats() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/license-plate-formats", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/license-plate-formats", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.licensePlateFormats = await response.json();
@@ -560,12 +549,8 @@ export default {
         async loadAllUnloadingPlaces() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unload-places", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/unload-places", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.allUnloadingPlaces = await response.json();
@@ -700,12 +685,8 @@ export default {
             }
 
             try {
-                const response = await fetch("http://localhost:8080/user-data", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/user-data", {
+                    method: "GET"});
 
                 if (response.ok) {
                     const userData = await response.json();
@@ -1320,12 +1301,8 @@ export default {
         async loadExistingVehicles() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unique-cars?filter_type=all", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/unique-cars?filter_type=all", {
+                    method: "GET"});
 
                 if (response.ok) {
                     return await response.json();
@@ -1340,12 +1317,8 @@ export default {
         async loadExistingEmployees() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unique-employees?filter_type=all", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/unique-employees?filter_type=all", {
+                    method: "GET"});
 
                 if (response.ok) {
                     return await response.json();
@@ -1377,12 +1350,8 @@ export default {
                                 format_id: vehicle.formatId
                             };
 
-                            return fetch("http://localhost:8080/unique-cars", {
+                            return apiRequest("/unique-cars", {
                                 method: "POST",
-                                headers: {
-                                    "Authorization": `Bearer ${token}`,
-                                    "Content-Type": "application/json"
-                                },
                                 body: JSON.stringify(vehicleData)
                             });
                         });
@@ -1412,12 +1381,8 @@ export default {
                                 company_id: bindingData.employees.bindToCompany ? this.companyId : null
                             };
 
-                            return fetch("http://localhost:8080/unique-employees", {
+                            return apiRequest("/unique-employees", {
                                 method: "POST",
-                                headers: {
-                                    "Authorization": `Bearer ${token}`,
-                                    "Content-Type": "application/json"
-                                },
                                 body: JSON.stringify(employeeData)
                             });
                         });
@@ -1563,11 +1528,7 @@ export default {
                 
                 if (this.organizationId) {
                     try {
-                        const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
-                            headers: {
-                                "Authorization": `Bearer ${token}`
-                            }
-                        });
+                        const orgResponse = await apiRequest(`/organizations/${this.organizationId}/users`, {});
                         
                         if (orgResponse.ok) {
                             const orgUsers = await orgResponse.json();
@@ -1587,11 +1548,7 @@ export default {
                 
                 if (this.companyId) {
                     try {
-                        const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
-                            headers: {
-                                "Authorization": `Bearer ${token}`
-                            }
-                        });
+                        const companyResponse = await apiRequest(`/companies/${this.companyId}/users`, {});
                         
                         if (companyResponse.ok) {
                             const companyUsers = await companyResponse.json();
@@ -1615,12 +1572,8 @@ export default {
                     required_users: requiredUsers
                 };
 
-                const response = await fetch("http://localhost:8080/applications/submit-complete-application", {
+                const response = await apiRequest("/applications/submit-complete-application", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    },
                     body: JSON.stringify(finalRequestData)
                 });
 
@@ -1645,11 +1598,7 @@ export default {
             
             if (this.organizationId) {
                 try {
-                    const orgResponse = await fetch(`http://localhost:8080/organizations/${this.organizationId}/users`, {
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const orgResponse = await apiRequest(`/organizations/${this.organizationId}/users`, {});
                     
                     if (orgResponse.ok) {
                         const orgUsers = await orgResponse.json();
@@ -1669,11 +1618,7 @@ export default {
             
             if (this.companyId) {
                 try {
-                    const companyResponse = await fetch(`http://localhost:8080/companies/${this.companyId}/users`, {
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const companyResponse = await apiRequest(`/companies/${this.companyId}/users`, {});
                     
                     if (companyResponse.ok) {
                         const companyUsers = await companyResponse.json();
@@ -1824,11 +1769,7 @@ export default {
         async loadApplication(applicationId) {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch(`http://localhost:8080/application/${applicationId}`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest(`/application/${applicationId}`, {});
 
                 if (response.ok) {
                     const data = await response.json();

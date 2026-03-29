@@ -214,6 +214,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
@@ -299,11 +300,7 @@ export default {
     },
     async fetchOrganizationsWithUsers() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations/with-users-extended", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/organizations/with-users-extended", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -329,13 +326,8 @@ export default {
       this.isLoading = true;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations", {
+        const response = await apiRequest("/organizations", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: this.newOrganizationName.trim(),
           }),
@@ -370,13 +362,8 @@ export default {
       if (org.name === org.originalName) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${org.id}`, {
+        const response = await apiRequest(`/organizations/${org.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: org.name,
           }),
@@ -416,12 +403,8 @@ export default {
       if (!this.organizationToDelete) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${this.organizationToDelete.id}`, {
+        const response = await apiRequest(`/organizations/${this.organizationToDelete.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

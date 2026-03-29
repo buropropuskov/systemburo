@@ -108,6 +108,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import vSelect from "vue-select";
 import "vue-select/dist/vue-select.css";
 
@@ -168,12 +169,8 @@ export default {
       }
 
       try {
-        const response = await fetch("http://localhost:8080/get-organization", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
+        const response = await apiRequest("/get-organization", {
+          method: "GET"});
 
         if (response.ok) {
           const data = await response.json();
@@ -190,11 +187,7 @@ export default {
     async fetchExistingCars() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/applications/active-cars", {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
+        const response = await apiRequest("/applications/active-cars", {});
         
         if (response.ok) {
           const data = await response.json();
@@ -254,12 +247,8 @@ export default {
 
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/submit", {
+        const response = await apiRequest("/submit", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
           body: JSON.stringify(this.formData)
         });
         

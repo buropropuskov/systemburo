@@ -173,6 +173,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
@@ -298,7 +299,7 @@ export default {
           return;
         }
 
-        let url = "http://localhost:8080/applications/user";
+        let url = "/applications/user";
         const params = new URLSearchParams();
         
         if (this.searchQuery) {
@@ -310,7 +311,7 @@ export default {
           url += '?' + queryString;
         }
 
-        const response = await fetch(url, {
+        const response = await apiRequest(url, {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -347,7 +348,7 @@ export default {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const response = await fetch(`http://localhost:8080/applications/${applicationId}/responsible-users`, {
+        const response = await apiRequest(`/applications/${applicationId}/responsible-users`, {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -453,11 +454,8 @@ export default {
     async getCurrentUser() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/users/me", {
+        const response = await apiRequest("/users/me", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
 
         if (response.ok) {

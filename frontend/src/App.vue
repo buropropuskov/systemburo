@@ -21,6 +21,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import SessionExpiredModal from './components/SessionExpiredModal.vue';
@@ -160,11 +161,8 @@ export default {
           
           console.log('📤 Sending refresh request:', requestBody);
           
-          const response = await fetch("http://localhost:8080/refresh-token", {
+          const response = await apiRequest("/refresh-token", {
               method: "POST",
-              headers: { 
-                  "Content-Type": "application/json"
-              },
               body: JSON.stringify(requestBody)
           });
 
@@ -198,12 +196,8 @@ export default {
     if (token && refreshToken) {
       console.log('🔄 Sending logout request with specific refresh token');
       
-      await fetch("http://localhost:8080/logout", {
+      await apiRequest("/logout", {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({
           refresh_token: refreshToken  // Отправляем конкретный refresh token для удаления
         })

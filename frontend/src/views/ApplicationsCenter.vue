@@ -254,6 +254,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
@@ -656,7 +657,7 @@ export default {
                     return;
                 }
 
-                let url = "http://localhost:8080/applications";
+                let url = "/applications";
                 const params = new URLSearchParams();
                 
                 if (this.searchQuery) {
@@ -686,12 +687,8 @@ export default {
                     url += '?' + queryString;
                 }
 
-                const response = await fetch(url, {
+                const response = await apiRequest(url, {
                     method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                 });
 
                 if (response.ok) {
@@ -708,11 +705,8 @@ export default {
         async fetchOrganizations() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/organizations", {
+                const response = await apiRequest("/organizations", {
                     method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
                 });
 
                 if (response.ok) {
@@ -736,12 +730,8 @@ export default {
             if (application.status === 'Непрочитано') {
                 try {
                     const token = localStorage.getItem("token");
-                    const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
+                    const response = await apiRequest(`/applications/${application.id}`, {
                         method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                         body: JSON.stringify({
                             status: "В обработке"
                         })
@@ -819,11 +809,8 @@ export default {
         async getCurrentUser() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/users/me", {
+                const response = await apiRequest("/users/me", {
                     method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
                 });
 
                 if (response.ok) {

@@ -412,6 +412,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -596,11 +597,7 @@ export default {
     
     async fetchAllAttachments() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/attachments/all", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/attachments/all", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -664,13 +661,8 @@ export default {
       this.newAttachment.title = this.newAttachment.title.toUpperCase();
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/attachments", {
+        const response = await apiRequest("/attachments", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(this.newAttachment),
         });
         
@@ -708,13 +700,8 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/attachments/${attachment.id}`, {
+        const response = await apiRequest(`/attachments/${attachment.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(attachment),
         });
         
@@ -778,12 +765,8 @@ export default {
       if (!confirm(`Переместить вложение "${attachment.display_name}" в архив?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/attachments/${attachment.id}`, {
+        const response = await apiRequest(`/attachments/${attachment.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {
@@ -802,12 +785,8 @@ export default {
     
     async restoreAttachment(attachment) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/attachments/${attachment.id}/restore`, {
+        const response = await apiRequest(`/attachments/${attachment.id}/restore`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

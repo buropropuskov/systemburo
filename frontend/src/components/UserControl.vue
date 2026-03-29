@@ -589,6 +589,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import { ref } from 'vue';
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
@@ -927,13 +928,8 @@ export default {
       if (!this.canCreateUser) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/register", {
+        const response = await apiRequest("/register", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             username: this.newUser.username,
             password: this.newUser.password,
@@ -964,15 +960,9 @@ export default {
     
     async updateUserInfo(user) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/users/${user.username}/info`,
+        const response = await apiRequest(`/users/${user.username}/info`,
           {
             method: "PUT",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({ 
               last_name: user.last_name || null,
               first_name: user.first_name || null,
@@ -1001,14 +991,9 @@ export default {
     async confirmDeleteUser(user) {
       if (confirm(`Вы уверены, что хотите удалить аккаунт «${user.username}»?`)) {
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(
-            `http://localhost:8080/users/${user.username}`,
+          const response = await apiRequest(`/users/${user.username}`,
             {
               method: "DELETE",
-              headers: {
-                "Authorization": `Bearer ${token}`,
-              },
             }
           );
 
@@ -1043,11 +1028,7 @@ export default {
     
     async fetchUserTypes() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/user-types", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/user-types", {
         });
         if (response.ok) {
           this.userTypes = await response.json();
@@ -1059,11 +1040,7 @@ export default {
     
     async fetchOrganizations() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/organizations", {
         });
         if (response.ok) {
           this.organizations = await response.json();
@@ -1075,11 +1052,7 @@ export default {
     
     async fetchCompanies() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/companies", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/companies", {
         });
         if (response.ok) {
           this.companies = await response.json();
@@ -1099,15 +1072,9 @@ export default {
     
     async updateUserType(user) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/users/${user.username}/type`,
+        const response = await apiRequest(`/users/${user.username}/type`,
           {
             method: "PUT",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({ type_id: user.type_id }),
           }
         );
@@ -1130,15 +1097,9 @@ export default {
     
     async updateUserOrganization(user) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/users/${user.username}/organization`,
+        const response = await apiRequest(`/users/${user.username}/organization`,
           {
             method: "PUT",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({ organization_id: user.organization_id }),
           }
         );
@@ -1161,15 +1122,9 @@ export default {
     
     async updateUserCompany(user) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/users/${user.username}/company`,
+        const response = await apiRequest(`/users/${user.username}/company`,
           {
             method: "PUT",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({ company_id: user.company_id }),
           }
         );
@@ -1197,15 +1152,9 @@ export default {
       }
 
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/users/${user.username}/password`,
+        const response = await apiRequest(`/users/${user.username}/password`,
           {
             method: "PUT",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({ password: user.newPassword }),
           }
         );

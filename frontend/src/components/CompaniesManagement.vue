@@ -194,6 +194,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
@@ -279,11 +280,7 @@ export default {
     },
     async fetchCompaniesWithUsers() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/companies/with-users-extended", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/companies/with-users-extended", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -308,13 +305,8 @@ export default {
       this.isLoading = true;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/companies", {
+        const response = await apiRequest("/companies", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: this.newCompanyName.trim(),
           }),
@@ -348,13 +340,8 @@ export default {
       if (comp.name === comp.originalName) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}`, {
+        const response = await apiRequest(`/companies/${comp.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: comp.name,
           }),
@@ -393,12 +380,8 @@ export default {
       if (!this.companyToDelete) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${this.companyToDelete.id}`, {
+        const response = await apiRequest(`/companies/${this.companyToDelete.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

@@ -550,6 +550,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -690,10 +691,7 @@ export default {
     async fetchTables() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/system-tables", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/system-tables", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -710,10 +708,7 @@ export default {
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/system-tables/${this.selectedTable.table.id}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}`, {
         });
         if (response.ok) {
           const data = await response.json();
@@ -722,7 +717,7 @@ export default {
           if (data.photos) {
             data.photos = data.photos.map(photo => ({
               ...photo,
-              photo_url: photo.photo_url.replace('localhost:8081', 'localhost:8080')
+              photo_url: photo.photo_url
             }));
           }
           
@@ -761,12 +756,8 @@ export default {
     const token = localStorage.getItem("token");
     console.log("Token:", token ? "exists" : "missing");
     
-    const response = await fetch("http://localhost:8080/system-tables", {
+    const response = await apiRequest("/system-tables", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(this.newTable),
     });
     
@@ -843,12 +834,8 @@ export default {
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/system-tables/${this.selectedTable.table.id}`, {
+        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(updateData),
         });
         
@@ -893,11 +880,8 @@ export default {
     const token = localStorage.getItem("token");
     console.log("Deleting table ID:", table.table.id);
     
-    const response = await fetch(`http://localhost:8080/system-tables/${table.table.id}`, {
+    const response = await apiRequest(`/system-tables/${table.table.id}`, {
       method: "DELETE",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
     });
     
     console.log("Response status:", response.status);
@@ -1115,12 +1099,10 @@ export default {
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/system-tables/${this.selectedTable.table.id}/photos`, {
+        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
           body: formData,
+          headers: {},
         });
         
         if (response.ok) {
@@ -1130,7 +1112,7 @@ export default {
           if (this.selectedTable && this.selectedTable.photos) {
             this.selectedTable.photos = this.selectedTable.photos.map(photo => ({
               ...photo,
-              photo_url: photo.photo_url.replace('localhost:8081', 'localhost:8080')
+              photo_url: photo.photo_url
             }));
           }
           
@@ -1150,13 +1132,9 @@ export default {
       
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/system-tables/${this.selectedTable.table.id}/photos/${photo.id}`, 
+        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos/${photo.id}`,
           {
             method: "DELETE",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
           }
         );
         
@@ -1176,13 +1154,9 @@ export default {
     async setMainPhoto(photo) {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/system-tables/${this.selectedTable.table.id}/photos/${photo.id}/main`, 
+        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos/${photo.id}/main`,
           {
             method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
           }
         );
         

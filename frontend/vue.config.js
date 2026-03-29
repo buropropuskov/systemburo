@@ -5,11 +5,11 @@ module.exports = defineConfig({
   devServer: {
     proxy: {
       '/uploads': {
-        target: 'http://localhost:8080',
+        target: process.env.VUE_APP_API_BASE_URL || 'http://localhost:8080',
         changeOrigin: true
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VUE_APP_API_BASE_URL || 'http://localhost:8080',
         changeOrigin: true
       }
     }

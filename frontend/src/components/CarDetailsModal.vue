@@ -263,6 +263,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import CarHistoryModal from './CarHistoryModal.vue';
 import ExcelJS from 'exceljs';
 
@@ -702,12 +703,7 @@ export default {
     async loadCarHistory() {
       this.loadingHistory = true;
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/cars/${this.car.id}/history`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
-        });
+        const response = await apiRequest(`/cars/${this.car.id}/history`, {});
         
         if (response.ok) {
           const allHistory = await response.json();

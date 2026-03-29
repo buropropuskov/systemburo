@@ -210,6 +210,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 
 export default {
@@ -316,12 +317,8 @@ export default {
           return;
         }
 
-        const response = await fetch("http://localhost:8080/feedback/all", {
+        const response = await apiRequest("/feedback/all", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
         });
 
         if (response.ok) {
@@ -357,23 +354,19 @@ export default {
         let url, method, body;
         
         if ('is_read' in updates) {
-          url = `http://localhost:8080/feedback/${feedbackId}/read`;
+          url = `/feedback/${feedbackId}/read`;
           method = 'PUT';
           body = JSON.stringify({ is_read: updates.is_read });
         } else if ('status' in updates) {
-          url = `http://localhost:8080/feedback/${feedbackId}/status`;
+          url = `/feedback/${feedbackId}/status`;
           method = 'PUT';
           body = JSON.stringify({ status: updates.status });
         } else {
           throw new Error('Неизвестное обновление');
         }
         
-        const response = await fetch(url, {
+        const response = await apiRequest(url, {
           method,
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
           body
         });
 

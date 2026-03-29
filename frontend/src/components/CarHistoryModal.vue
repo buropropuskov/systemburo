@@ -140,6 +140,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import ExcelJS from 'exceljs';
 
 export default {
@@ -309,9 +310,7 @@ export default {
     async loadHistory() {
       this.loading = true;
       try {
-        const token = localStorage.getItem("token");
-        
-        const url = new URL('http://localhost:8080/cars/history/unified');
+        const url = new URL('/cars/history/unified', window.location.origin);
         url.searchParams.append('car_number', this.carNumber);
         url.searchParams.append('car_brand', this.carBrand || '');
         
@@ -325,11 +324,7 @@ export default {
 
         console.log('Запрос истории по URL:', url.toString());
 
-        const response = await fetch(url, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
-        });
+        const response = await apiRequest(url, {});
 
         if (response.ok) {
           this.history = await response.json();

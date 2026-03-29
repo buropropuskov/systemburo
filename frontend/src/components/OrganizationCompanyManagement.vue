@@ -174,6 +174,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 
@@ -223,11 +224,7 @@ export default {
     },
     async fetchOrganizationsWithUsers() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations/with-users", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/organizations/with-users", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -243,11 +240,7 @@ export default {
     },
     async fetchCompaniesWithUsers() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/companies/with-users", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/companies/with-users", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -268,13 +261,8 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations", {
+        const response = await apiRequest("/organizations", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: this.newOrganizationName,
           }),
@@ -297,13 +285,8 @@ export default {
       if (org.name === org.originalName) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${org.id}`, {
+        const response = await apiRequest(`/organizations/${org.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: org.name,
           }),
@@ -332,12 +315,8 @@ export default {
       if (!confirm(`Вы уверены, что хотите удалить организацию "${org.name}"?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/organizations/${org.id}`, {
+        const response = await apiRequest(`/organizations/${org.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {
@@ -359,13 +338,8 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/companies", {
+        const response = await apiRequest("/companies", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: this.newCompanyName,
           }),
@@ -388,13 +362,8 @@ export default {
       if (comp.name === comp.originalName) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}`, {
+        const response = await apiRequest(`/companies/${comp.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: comp.name,
           }),
@@ -423,12 +392,8 @@ export default {
       if (!confirm(`Вы уверены, что хотите удалить компанию "${comp.name}"?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/companies/${comp.id}`, {
+        const response = await apiRequest(`/companies/${comp.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

@@ -156,6 +156,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
@@ -313,10 +314,7 @@ export default {
 
     async fetchUnloadingPlaces() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/unload-places", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
+        const response = await apiRequest("/unload-places", {});
         if (response.ok) this.allUnloadingPlaces = await response.json();
       } catch (error) {
         console.error("Ошибка при загрузке мест разгрузки:", error);
@@ -325,10 +323,7 @@ export default {
 
     async fetchLicensePlateFormats() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/license-plate-formats", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
+        const response = await apiRequest("/license-plate-formats", {});
         if (response.ok) this.licensePlateFormats = await response.json();
       } catch (error) {
         console.error("Ошибка при загрузке форматов номеров:", error);
@@ -337,10 +332,7 @@ export default {
 
     async fetchCarsData() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/cars/active-for-tables", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
+        const response = await apiRequest("/cars/active-for-tables", {});
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const cars = await response.json();
         await this.fetchOrganizations();
@@ -395,10 +387,7 @@ export default {
 
     async fetchCarHistoryStatus() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/cars/history/current-status", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
+        const response = await apiRequest("/cars/history/current-status", {});
         if (response.ok) {
           const statuses = await response.json();
           const statusMap = {};
@@ -420,10 +409,7 @@ export default {
 
     async fetchCarUnloadPlaces() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/cars/unload-places", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
+        const response = await apiRequest("/cars/unload-places", {});
         if (response.ok) {
           const carUnloadPlaces = await response.json();
           this.carUnloadPlacesMap = {};
@@ -451,10 +437,7 @@ export default {
 
     async fetchOrganizations() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
+        const response = await apiRequest("/organizations", {});
         if (response.ok) {
           const data = await response.json();
           this.organizationsMap = {};
@@ -529,14 +512,9 @@ export default {
     async handleEntryExit(item, type) {
       if (!this.currentUserId) return;
       try {
-        const token = localStorage.getItem("token");
         let territory_status = type === 'entry' ? 1 : 2;
-        const response = await fetch(`http://localhost:8080/cars/${item.id}/territory-status`, {
+        const response = await apiRequest(`/cars/${item.id}/territory-status`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
           body: JSON.stringify({ territory_status, user_id: this.currentUserId })
         });
         if (response.ok) {
@@ -594,13 +572,8 @@ export default {
 
     async actuallyDeleteItem(item, originalItem, itemIndex) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/cars/${item.id}/deactivate`, {
+        const response = await apiRequest(`/cars/${item.id}/deactivate`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
           body: JSON.stringify({ status: 0, user_id: this.currentUserId })
         });
         if (!response.ok) {

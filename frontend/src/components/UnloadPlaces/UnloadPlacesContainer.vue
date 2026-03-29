@@ -334,6 +334,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
 import ScheduleTab from './ScheduleTab.vue';
@@ -426,11 +427,7 @@ export default {
     
     async fetchUnloadPlaces() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/unload-places", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/unload-places", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -453,11 +450,7 @@ export default {
   if (!this.selectedPlace) return;
   
   try {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`http://localhost:8080/unload-places/${this.selectedPlace.id}`, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
+    const response = await apiRequest(`/unload-places/${this.selectedPlace.id}`, {
     });
     if (response.ok) {
       const data = await response.json();
@@ -466,7 +459,7 @@ export default {
       if (data.photos) {
         data.photos = data.photos.map(photo => ({
           ...photo,
-          photo_url: photo.photo_url.replace('localhost:8081', 'localhost:8080')
+          photo_url: photo.photo_url
         }));
       }
       
@@ -497,13 +490,8 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/unload-places", {
+        const response = await apiRequest("/unload-places", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: this.newPlaceName,
             description: this.newPlaceDescription || null,
@@ -546,13 +534,8 @@ export default {
       if (!hasChanges) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/unload-places/${place.id}`, {
+        const response = await apiRequest(`/unload-places/${place.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: place.name,
             description: place.description,
@@ -608,12 +591,8 @@ export default {
       if (!confirm(`Вы уверены, что хотите удалить место разгрузки "${place.name}"?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/unload-places/${place.id}`, {
+        const response = await apiRequest(`/unload-places/${place.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {
@@ -664,13 +643,10 @@ async uploadPhotos(event) {
   }
   
   try {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`http://localhost:8080/unload-places/${this.selectedPlace.id}/photos`, {
+    const response = await apiRequest(`/unload-places/${this.selectedPlace.id}/photos`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
       body: formData,
+      headers: {},
     });
     
     if (response.ok) {
@@ -680,7 +656,7 @@ async uploadPhotos(event) {
       if (this.selectedPlace && this.selectedPlace.photos) {
         this.selectedPlace.photos = this.selectedPlace.photos.map(photo => ({
           ...photo,
-          photo_url: photo.photo_url.replace('localhost:8081', 'localhost:8080')
+          photo_url: photo.photo_url
         }));
       }
       
@@ -699,14 +675,9 @@ async uploadPhotos(event) {
       if (!confirm(`Удалить фотографию?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/unload-places/${this.selectedPlace.id}/photos/${photo.id}`, 
+        const response = await apiRequest(`/unload-places/${this.selectedPlace.id}/photos/${photo.id}`,
           {
             method: "DELETE",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
           }
         );
         
@@ -725,14 +696,9 @@ async uploadPhotos(event) {
     
     async setMainPhoto(photo) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `http://localhost:8080/unload-places/${this.selectedPlace.id}/photos/${photo.id}/main`, 
+        const response = await apiRequest(`/unload-places/${this.selectedPlace.id}/photos/${photo.id}/main`,
           {
             method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
           }
         );
         

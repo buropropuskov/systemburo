@@ -213,6 +213,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
@@ -316,11 +317,7 @@ export default {
     },
     async fetchTypes() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/user-types-management", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/user-types-management", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -342,13 +339,8 @@ export default {
       this.isLoading = true;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/user-types-management", {
+        const response = await apiRequest("/user-types-management", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(this.newType),
         });
         
@@ -378,13 +370,8 @@ export default {
     },
     async updateType(type) {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/user-types-management/${type.id}`, {
+        const response = await apiRequest(`/user-types-management/${type.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             name: type.name,
             code: type.code
@@ -422,12 +409,8 @@ export default {
       if (!this.typeToDelete) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/user-types-management/${this.typeToDelete.id}`, {
+        const response = await apiRequest(`/user-types-management/${this.typeToDelete.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

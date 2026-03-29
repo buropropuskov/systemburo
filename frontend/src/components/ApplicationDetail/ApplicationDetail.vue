@@ -563,6 +563,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
@@ -769,26 +770,14 @@ export default {
                 const token = localStorage.getItem("token");
                 
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
-                    fetch(`http://localhost:8080/applications/${application.id}/details`, {
+                    apiRequest(`/applications/${application.id}/details`, {
                         method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                     }),
-                    fetch(`http://localhost:8080/applications/${application.id}/attachments`, {
+                    apiRequest(`/applications/${application.id}/attachments`, {
                         method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                     }),
-                    fetch(`http://localhost:8080/applications/${application.id}/viewers`, {
+                    apiRequest(`/applications/${application.id}/viewers`, {
                         method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                     })
                 ]);
 
@@ -846,10 +835,7 @@ export default {
         async fetchAllUsers() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/users/all", {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
+                const response = await apiRequest("/users/all", {
                 });
                 if (response.ok) {
                     this.allUsers = await response.json();
@@ -862,10 +848,7 @@ export default {
         async fetchApprovers() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/application-approvers", {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
+                const response = await apiRequest("/application-approvers", {
                 });
                 if (response.ok) {
                     this.approvers = await response.json();
@@ -891,11 +874,8 @@ export default {
 
                 switch (attachment.attachment_type) {
                     case 'cars': {
-                        const carsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/cars`, {
+                        const carsResponse = await apiRequest(`/attachments/${attachmentId}/cars`, {
                             method: "GET",
-                            headers: {
-                                "Authorization": `Bearer ${token}`,
-                            },
                         });
                         if (carsResponse.ok) {
                             this.attachmentCars = await carsResponse.json();
@@ -904,11 +884,8 @@ export default {
                     }
                     
                     case 'people': {
-                        const employeesResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/employees`, {
+                        const employeesResponse = await apiRequest(`/attachments/${attachmentId}/employees`, {
                             method: "GET",
-                            headers: {
-                                "Authorization": `Bearer ${token}`,
-                            },
                         });
                         if (employeesResponse.ok) {
                             this.attachmentEmployees = await employeesResponse.json();
@@ -917,11 +894,8 @@ export default {
                     }
                     
                     case 'items': {
-                        const itemsResponse = await fetch(`http://localhost:8080/attachments/${attachmentId}/items`, {
+                        const itemsResponse = await apiRequest(`/attachments/${attachmentId}/items`, {
                             method: "GET",
-                            headers: {
-                                "Authorization": `Bearer ${token}`,
-                            },
                         });
                         if (itemsResponse.ok) {
                             this.attachmentItems = await itemsResponse.json();
@@ -948,12 +922,8 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/revoke-approval`, {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/revoke-approval`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         comment: null
                     })
@@ -999,7 +969,7 @@ export default {
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
-                const approvalResponse = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/approve`, {
+                const approvalResponse = await apiRequest(`/applications/${this.applicationData.id}/approve`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("token")}`,
@@ -1054,12 +1024,8 @@ export default {
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/take-to-work`, {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/take-to-work`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
                         action: 'accept',
@@ -1103,12 +1069,8 @@ export default {
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/take-to-work`, {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/take-to-work`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
                         action: 'reject',
@@ -1150,12 +1112,8 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/revoke-from-work`, {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/revoke-from-work`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
                         comment: null
@@ -1201,12 +1159,8 @@ export default {
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/restore-to-work`, {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/restore-to-work`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
                         comment: commentToSend || null
@@ -1260,12 +1214,8 @@ export default {
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
-                const userApprovalResponse = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/approve`, {
+                const userApprovalResponse = await apiRequest(`/applications/${this.applicationData.id}/approve`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         user_id: this.currentUserId,
                         status: confirmation === 'Согласовано' ? 'approved' : 'rejected',
@@ -1278,12 +1228,8 @@ export default {
                     throw new Error(errorText || "Error updating application confirmation");
                 }
 
-                const checkResponse = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/check-approval-status`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    }
-                });
+                const checkResponse = await apiRequest(`/applications/${this.applicationData.id}/check-approval-status`, {
+                    method: "GET"});
 
                 if (checkResponse.ok) {
                     const approvalStatus = await checkResponse.json();
@@ -1345,12 +1291,8 @@ export default {
                     can_view: user.can_view !== undefined ? user.can_view : !user.required_approval
                 }));
                 
-                const response = await fetch(`http://localhost:8080/applications/${this.applicationData.id}/forward`, {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/forward`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                        "Content-Type": "application/json"
-                    },
                     body: JSON.stringify({
                         users: usersToSend
                     })

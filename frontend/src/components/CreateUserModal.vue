@@ -198,6 +198,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   props: {
     organizations: {
@@ -244,7 +245,6 @@ export default {
   methods: {
     async createNewUser() {
       try {
-        const token = localStorage.getItem("token");
         const userData = {
           username: this.newUser.username,
           password: this.newUser.password,
@@ -259,12 +259,8 @@ export default {
           phone: this.newUser.phone || null
         };
 
-        const response = await fetch("http://localhost:8080/register", {
+        const response = await apiRequest("/register", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
           body: JSON.stringify(userData)
         });
 

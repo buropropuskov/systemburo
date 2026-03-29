@@ -1,0 +1,8 @@
+frontend/
+backend/
+.claude/
+.git/
+docs/superpowers/
+dump-*.sql
+*.docx
+*.md

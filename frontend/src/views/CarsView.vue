@@ -368,6 +368,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 
@@ -541,13 +542,8 @@ export default {
     methods: {
         async fetchCars() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${this.currentFilter}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest(`/unique-cars?filter_type=${this.currentFilter}`, {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.carsData = await response.json();
@@ -563,13 +559,8 @@ export default {
 
         async fetchOwnershipInfo() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unique-cars/ownership-info", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/unique-cars/ownership-info", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.ownershipInfo = await response.json();
@@ -581,13 +572,8 @@ export default {
 
         async fetchFormats() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/license-plate-formats", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/license-plate-formats", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.availableFormats = await response.json();
@@ -604,13 +590,8 @@ export default {
         async deleteCar(car) {
             if (confirm(`Вы уверены, что хотите удалить автомобиль ${car.number}?`)) {
                 try {
-                    const token = localStorage.getItem("token");
-                    const response = await fetch(`http://localhost:8080/unique-cars/${car.id}`, {
-                        method: "DELETE",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const response = await apiRequest(`/unique-cars/${car.id}`, {
+                        method: "DELETE"});
 
                     if (response.ok) {
                         await this.fetchCars();
@@ -945,8 +926,6 @@ export default {
             }
 
             try {
-                const token = localStorage.getItem("token");
-                
                 // Формируем номер из частей
                 const number = this.numberParts.join(' ');
                 
@@ -963,22 +942,14 @@ export default {
                 let response;
                 if (this.editingCar) {
                     // Редактирование существующей машины
-                    response = await fetch(`http://localhost:8080/unique-cars/${this.editingCar.id}`, {
+                    response = await apiRequest(`/unique-cars/${this.editingCar.id}`, {
                         method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                         body: JSON.stringify(carData)
                     });
                 } else {
                     // Создание новой машины
-                    response = await fetch("http://localhost:8080/unique-cars", {
+                    response = await apiRequest("/unique-cars", {
                         method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                         body: JSON.stringify(carData)
                     });
                 }

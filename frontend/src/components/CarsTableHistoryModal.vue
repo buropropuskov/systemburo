@@ -163,6 +163,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import ExcelJS from 'exceljs';
 
 export default {
@@ -352,12 +353,7 @@ export default {
     async loadHistory() {
       this.loading = true;
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/cars/history/all`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          }
-        });
+        const response = await apiRequest(`/cars/history/all`, {});
 
         if (response.ok) {
           const data = await response.json();

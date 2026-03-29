@@ -360,6 +360,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from './SearchComponent.vue';
 
 export default {
@@ -406,7 +407,6 @@ export default {
     async fetchLogs() {
       this.isLoading = true;
       try {
-        const token = localStorage.getItem("token");
         const params = new URLSearchParams({
           page: this.pagination.page,
           limit: this.pagination.limit,
@@ -417,10 +417,7 @@ export default {
           ...(this.filterEndDate && { end_date: this.filterEndDate })
         });
 
-        const response = await fetch(`http://localhost:8080/request-logs?${params}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest(`/request-logs?${params}`, {
         });
 
         if (response.ok) {
@@ -448,16 +445,12 @@ export default {
 
     async fetchStats() {
       try {
-        const token = localStorage.getItem("token");
         const params = new URLSearchParams({
           ...(this.filterStartDate && { start_date: this.filterStartDate }),
           ...(this.filterEndDate && { end_date: this.filterEndDate })
         });
 
-        const response = await fetch(`http://localhost:8080/request-logs/stats?${params}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest(`/request-logs/stats?${params}`, {
         });
 
         if (response.ok) {

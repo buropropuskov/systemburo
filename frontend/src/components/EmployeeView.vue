@@ -399,6 +399,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 
@@ -600,13 +601,8 @@ export default {
     methods: {
         async fetchEmployees() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`http://localhost:8080/unique-employees?filter_type=${this.currentFilter}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest(`/unique-employees?filter_type=${this.currentFilter}`, {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.employeesData = await response.json();
@@ -622,24 +618,15 @@ export default {
 
         async fetchOwnershipInfo() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unique-employees/ownership-info", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/unique-employees/ownership-info", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.ownershipInfo = await response.json();
                 } else {
                     // Если эндпоинт не существует, используем эндпоинт для машин (они используют одну логику)
-                    const carResponse = await fetch("http://localhost:8080/unique-cars/ownership-info", {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const carResponse = await apiRequest("/unique-cars/ownership-info", {
+                        method: "GET"});
                     
                     if (carResponse.ok) {
                         this.ownershipInfo = await carResponse.json();
@@ -652,13 +639,8 @@ export default {
 
         async fetchCitizenships() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/citizenships", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/citizenships", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.availableCitizenships = await response.json();
@@ -674,13 +656,8 @@ export default {
         async deleteEmployee(employee) {
             if (confirm(`Вы уверены, что хотите удалить сотрудника ${this.formatFullName(employee)}?`)) {
                 try {
-                    const token = localStorage.getItem("token");
-                    const response = await fetch(`http://localhost:8080/unique-employees/${employee.id}`, {
-                        method: "DELETE",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const response = await apiRequest(`/unique-employees/${employee.id}`, {
+                        method: "DELETE"});
 
                     if (response.ok) {
                         await this.fetchEmployees();
@@ -963,8 +940,6 @@ export default {
             }
 
             try {
-                const token = localStorage.getItem("token");
-                
                 // Формируем данные для отправки
                 const employeeData = {
                     last_name: this.lastName.trim(),
@@ -983,22 +958,14 @@ export default {
                 let response;
                 if (this.editingEmployee) {
                     // Редактирование существующего сотрудника
-                    response = await fetch(`http://localhost:8080/unique-employees/${this.editingEmployee.id}`, {
+                    response = await apiRequest(`/unique-employees/${this.editingEmployee.id}`, {
                         method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                         body: JSON.stringify(employeeData)
                     });
                 } else {
                     // Создание нового сотрудника
-                    response = await fetch("http://localhost:8080/unique-employees", {
+                    response = await apiRequest("/unique-employees", {
                         method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
                         body: JSON.stringify(employeeData)
                     });
                 }
@@ -1053,7 +1020,6 @@ export default {
 
         async uploadEmployeeFiles(employeeId) {
             try {
-                const token = localStorage.getItem("token");
                 const formData = new FormData();
                 
                 this.uploadedFiles.forEach(file => {
@@ -1061,12 +1027,10 @@ export default {
                     formData.append('file_types', file.type);
                 });
                 
-                const response = await fetch(`http://localhost:8080/unique-employees/${employeeId}/files`, {
+                const response = await apiRequest(`/unique-employees/${employeeId}/files`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    },
-                    body: formData
+                    body: formData,
+                    headers: {},
                 });
                 
                 if (!response.ok) {

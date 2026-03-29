@@ -46,6 +46,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   name: 'SelectUnloadPlaces',
   props: {
@@ -86,11 +87,7 @@ export default {
   methods: {
     async fetchAllUnloadPlaces() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/unload-places", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/unload-places", {
         });
         if (response.ok) {
           this.allUnloadPlaces = await response.json();
@@ -102,15 +99,11 @@ export default {
 
     async fetchEntityUnloadPlaces(entityId) {
       try {
-        const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization' 
-          ? `http://localhost:8080/organizations/${entityId}/unload-places`
-          : `http://localhost:8080/companies/${entityId}/unload-places`;
+          ? `/organizations/${entityId}/unload-places`
+          : `/companies/${entityId}/unload-places`;
         
-        const response = await fetch(endpoint, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest(endpoint, {
         });
         if (response.ok) {
           const places = await response.json();
@@ -132,17 +125,12 @@ export default {
       
       this.isSaving = true;
       try {
-        const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization'
-          ? `http://localhost:8080/organizations/${this.entity.id}/unload-places`
-          : `http://localhost:8080/companies/${this.entity.id}/unload-places`;
+          ? `/organizations/${this.entity.id}/unload-places`
+          : `/companies/${this.entity.id}/unload-places`;
         
-        const response = await fetch(endpoint, {
+        const response = await apiRequest(endpoint, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             unload_place_ids: this.selectedUnloadPlaces.map(p => p.id),
           }),

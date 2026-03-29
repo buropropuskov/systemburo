@@ -38,6 +38,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 
 export default {
@@ -88,11 +89,8 @@ export default {
           return;
         }
 
-        const response = await fetch("http://localhost:8080/users/me", {
+        const response = await apiRequest("/users/me", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
 
         if (response.ok) {

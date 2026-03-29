@@ -360,6 +360,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 
 export default {
@@ -566,7 +567,7 @@ export default {
             this.checkingTimeout = setTimeout(async () => {
                 try {
                     const token = localStorage.getItem("token");
-                    const url = new URL('http://localhost:8080/cars/check-active');
+                    const url = new URL('/cars/check-active', window.location.origin);
                     url.searchParams.append('car_number', plateNumber);
                     url.searchParams.append('car_brand', this.selectedMark || '');
                     
@@ -578,11 +579,7 @@ export default {
                         url.searchParams.append('company_id', this.userCompanyId);
                     }
 
-                    const response = await fetch(url, {
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const response = await apiRequest(url, {});
 
                     if (response.ok) {
                         const data = await response.json();
@@ -602,12 +599,8 @@ export default {
         async loadLicensePlateFormats() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/license-plate-formats", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/license-plate-formats", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.availableFormats = await response.json();
@@ -635,24 +628,16 @@ export default {
                     return;
                 }
 
-                const allPlacesResponse = await fetch("http://localhost:8080/unload-places", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const allPlacesResponse = await apiRequest("/unload-places", {
+                    method: "GET"});
 
                 if (allPlacesResponse.ok) {
                     this.allUnloadingPlaces = await allPlacesResponse.json();
                 }
 
                 if (this.userOrganizationId) {
-                    const orgPlacesResponse = await fetch(`http://localhost:8080/organizations/${this.userOrganizationId}/unload-places`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const orgPlacesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, {
+                        method: "GET"});
 
                     if (orgPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await orgPlacesResponse.json();
@@ -663,12 +648,8 @@ export default {
                 }
 
                 if (this.attachedUnloadingPlaces.length === 0 && this.userCompanyId) {
-                    const companyPlacesResponse = await fetch(`http://localhost:8080/companies/${this.userCompanyId}/unload-places`, {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+                    const companyPlacesResponse = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, {
+                        method: "GET"});
 
                     if (companyPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await companyPlacesResponse.json();
@@ -730,12 +711,8 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${filterType}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest(`/unique-cars?filter_type=${filterType}`, {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.filteredCars = await response.json();

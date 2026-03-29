@@ -109,6 +109,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 
 export default {
@@ -267,19 +268,13 @@ export default {
 
     async fetchPeopleData() {
   try {
-    const token = localStorage.getItem("token");
-    
     if (!this.tableName) {
       throw new Error('Table name is required');
     }
     
     // Получаем ID таблицы по имени
-    const tableResponse = await fetch(`http://localhost:8080/system-tables/name/${this.tableName}`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      }
-    });
+    const tableResponse = await apiRequest(`/system-tables/name/${this.tableName}`, {
+      method: "GET"});
     
     if (!tableResponse.ok) {
       throw new Error(`Failed to get table: ${tableResponse.status}`);
@@ -302,12 +297,8 @@ export default {
     });
     
     // Получаем сотрудников для этой таблицы
-    const response = await fetch(`http://localhost:8080/employees/active-for-table/${table.id}`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      }
-    });
+    const response = await apiRequest(`/employees/active-for-table/${table.id}`, {
+      method: "GET"});
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -344,12 +335,8 @@ export default {
 
     async fetchOrganizations() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/organizations", {
+        const response = await apiRequest("/organizations", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
 
         if (response.ok) {

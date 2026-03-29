@@ -137,6 +137,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 
 export default {
@@ -282,7 +283,7 @@ export default {
   methods: {
     async fetchUnloadingPlaces() {
       try {
-        const response = await fetch("http://localhost:8080/unload-places");
+        const response = await apiRequest("/unload-places");
         const places = await response.json();
         
         places.forEach(place => {
@@ -295,7 +296,7 @@ export default {
 
     async fetchCars() {
       try {
-        const response = await fetch("http://localhost:8080/applications/active-cars");
+        const response = await apiRequest("/applications/active-cars");
         const applications = await response.json();
         
         if (this.unloadingPlacesMap.size === 0) {
@@ -412,7 +413,7 @@ export default {
     
     async deleteCar(car) {
       try {
-        const response = await fetch(`http://localhost:8080/applications/${car.applicationId}/cars/${car.id}`, {
+        const response = await apiRequest(`/applications/${car.applicationId}/cars/${car.id}`, {
           method: "PUT",
           headers: { 
             "Content-Type": "application/json",

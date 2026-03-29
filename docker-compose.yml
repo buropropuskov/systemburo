@@ -18,19 +18,13 @@ services:
 
   go-backend:
     build:
-      context: ./go-backend
+      context: .
       target: dev
-    environment:
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-123}@db/${DB_NAME:-auto_registry}
-      BIND_HOST: "0.0.0.0"
-      BIND_PORT: "8090"
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+    env_file: .env
     ports:
-      - "8090:8090"
+      - "${BIND_PORT:-8080}:${BIND_PORT:-8080}"
     volumes:
-      - ./go-backend:/app
+      - .:/app
       - go_mod_cache:/go/pkg/mod
     depends_on:
       db:
@@ -41,6 +35,7 @@ services:
     build:
       context: ./frontend
       target: dev
+    env_file: .env
     ports:
       - "8081:8081"
     volumes:

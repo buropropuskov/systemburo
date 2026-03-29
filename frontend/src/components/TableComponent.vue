@@ -61,6 +61,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   data() {
     return {
@@ -93,9 +94,8 @@ export default {
   methods: {
     async actuallyDeleteCar(applicationId, car) {
   try {
-    const response = await fetch(`http://localhost:8080/applications/${applicationId}/cars/${car.id}`, {
+    const response = await apiRequest(`/applications/${applicationId}/cars/${car.id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...car, status: 0 })
     });
     
@@ -112,7 +112,7 @@ export default {
 },
     async fetchApplications() {
       try {
-        const response = await fetch("http://localhost:8080/applications/active-cars");
+        const response = await apiRequest("/applications/active-cars");
         const data = await response.json();
         this.applications = data;
       } catch (error) {
@@ -121,9 +121,8 @@ export default {
     },
     async updateApplication(application) {
       try {
-        const response = await fetch(`http://localhost:8080/applications/${application.id}`, {
+        const response = await apiRequest(`/applications/${application.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             entry_date: application.entry_date,
             entry_time: application.entry_time
@@ -141,9 +140,8 @@ export default {
     },
     async updateCar(applicationId, car) {
       try {
-        const response = await fetch(`http://localhost:8080/applications/${applicationId}/cars/${car.id}`, {
+        const response = await apiRequest(`/applications/${applicationId}/cars/${car.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(car)
         });
 
@@ -200,9 +198,8 @@ export default {
     undoFunction: async () => {
       try {
         car.status = originalCar.status;
-        const response = await fetch(`http://localhost:8080/applications/${applicationId}/cars/${car.id}`, {
+        const response = await apiRequest(`/applications/${applicationId}/cars/${car.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...car, status: originalCar.status })
         });
         

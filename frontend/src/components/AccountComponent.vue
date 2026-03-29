@@ -83,6 +83,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import UserControl from './UserControl.vue';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
@@ -150,11 +151,8 @@ export default {
           return;
         }
 
-        const response = await fetch("http://localhost:8080/users/me", {
+        const response = await apiRequest("/users/me", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
 
         if (response.ok) {
@@ -191,11 +189,8 @@ export default {
     async fetchAllUsers() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/users/all", {
+        const response = await apiRequest("/users/all", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
 
         if (response.ok) {

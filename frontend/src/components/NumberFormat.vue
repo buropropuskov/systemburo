@@ -425,6 +425,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 
@@ -511,11 +512,7 @@ export default {
     },
     async fetchFormats() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/license-plate-formats", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/license-plate-formats", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -557,13 +554,8 @@ export default {
       };
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/license-plate-formats", {
+        const response = await apiRequest("/license-plate-formats", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(formatData),
         });
         
@@ -614,14 +606,8 @@ export default {
             padding_side: cell.cell_type === 'numbers' ? cell.padding_side : null
           }))
         };
-        
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/license-plate-formats/${format.format.id}`, {
+        const response = await apiRequest(`/license-plate-formats/${format.format.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(formatData),
         });
         
@@ -691,14 +677,8 @@ export default {
             padding_side: cell.cell_type === 'numbers' ? cell.padding_side : null
           }))
         };
-        
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/license-plate-formats/${format.format.id}`, {
+        const response = await apiRequest(`/license-plate-formats/${format.format.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(formatData),
         });
         
@@ -716,14 +696,9 @@ export default {
     },
     async clearDefaultFormats() {
       try {
-        const token = localStorage.getItem("token");
         // Снимаем статус default со всех форматов
-        await fetch("http://localhost:8080/license-plate-formats/clear-default", {
+        await apiRequest("/license-plate-formats/clear-default", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
         });
       } catch (error) {
         console.error("Error clearing default formats:", error);
@@ -733,12 +708,8 @@ export default {
       if (!confirm(`Вы уверены, что хотите удалить формат "${format.name}"?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/license-plate-formats/${format.id}`, {
+        const response = await apiRequest(`/license-plate-formats/${format.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

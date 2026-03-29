@@ -45,6 +45,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   name: 'SelectTables',
   props: {
@@ -131,11 +132,7 @@ export default {
 
     async fetchAllTables() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/system-tables", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/system-tables", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -151,15 +148,11 @@ export default {
 
     async fetchEntityTables(entityId) {
       try {
-        const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization' 
-          ? `http://localhost:8080/organizations/${entityId}/tables`
-          : `http://localhost:8080/companies/${entityId}/tables`;
+          ? `/organizations/${entityId}/tables`
+          : `/companies/${entityId}/tables`;
         
-        const response = await fetch(endpoint, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest(endpoint, {
         });
         if (response.ok) {
           const tables = await response.json();
@@ -199,17 +192,12 @@ export default {
       
       this.isSaving = true;
       try {
-        const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization'
-          ? `http://localhost:8080/organizations/${this.entity.id}/tables`
-          : `http://localhost:8080/companies/${this.entity.id}/tables`;
+          ? `/organizations/${this.entity.id}/tables`
+          : `/companies/${this.entity.id}/tables`;
         
-        const response = await fetch(endpoint, {
+        const response = await apiRequest(endpoint, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             table_ids: this.selectedTables.map(t => t.id),
           }),

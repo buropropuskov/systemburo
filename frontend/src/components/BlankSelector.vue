@@ -63,6 +63,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
@@ -118,11 +119,7 @@ export default {
         
         async fetchTemplates() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/attachments", {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
+                const response = await apiRequest("/attachments", {
                 });
                 if (response.ok) {
                     const data = await response.json();

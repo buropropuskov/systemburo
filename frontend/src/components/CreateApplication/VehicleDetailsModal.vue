@@ -198,6 +198,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import ExcelJS from 'exceljs';
@@ -431,9 +432,8 @@ export default {
             
             this.loadingHistory = true;
             try {
-                const token = localStorage.getItem("token");
                 // Используем unified endpoint, как в CarHistoryModal
-                const url = new URL('http://localhost:8080/cars/history/unified');
+                const url = new URL('/cars/history/unified', window.location.origin);
                 url.searchParams.append('car_number', this.vehicle.plateNumber || this.vehicle.car_number || '');
                 url.searchParams.append('car_brand', this.vehicle.mark || this.vehicle.car_brand || '');
                 if (this.vehicle.organizationId) {
@@ -443,11 +443,7 @@ export default {
                     url.searchParams.append('company_id', this.vehicle.companyId);
                 }
 
-                const response = await fetch(url, {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    }
-                });
+                const response = await apiRequest(url, {});
                 
                 if (response.ok) {
                     const allHistory = await response.json();

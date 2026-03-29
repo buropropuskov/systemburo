@@ -136,6 +136,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   name: 'ResponsibleUsersSection',
   props: {
@@ -231,11 +232,7 @@ export default {
   methods: {
     async fetchAllUsers() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/users/all", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/users/all", {
         });
         if (response.ok) {
           const users = await response.json();
@@ -255,16 +252,11 @@ export default {
         if (this.allUsers.length === 0) {
           await this.fetchAllUsers();
         }
-
-        const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization'
-          ? `http://localhost:8080/organizations/${entityId}/users`
-          : `http://localhost:8080/companies/${entityId}/users`;
+          ? `/organizations/${entityId}/users`
+          : `/companies/${entityId}/users`;
         
-        const response = await fetch(endpoint, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest(endpoint, {
         });
         if (response.ok) {
           const users = await response.json();
@@ -317,10 +309,9 @@ export default {
       
       this.isSavingUsers = true;
       try {
-        const token = localStorage.getItem("token");
         const endpoint = this.entityType === 'organization'
-          ? `http://localhost:8080/organizations/${this.entity.id}/users`
-          : `http://localhost:8080/companies/${this.entity.id}/users`;
+          ? `/organizations/${this.entity.id}/users`
+          : `/companies/${this.entity.id}/users`;
         
         const usersData = this.selectedUsers.map(user => ({
           username: user.username,
@@ -328,12 +319,8 @@ export default {
           required_approval: user.required_approval || false
         }));
         
-        const response = await fetch(endpoint, {
+        const response = await apiRequest(endpoint, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             users: usersData
           }),

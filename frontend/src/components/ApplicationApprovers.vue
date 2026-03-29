@@ -231,6 +231,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 
@@ -403,10 +404,7 @@ export default {
 
     async fetchApprovers() {
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:8080/application-approvers', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await apiRequest('/application-approvers', {});
         if (response.ok) {
           this.approvers = await response.json();
         }
@@ -417,10 +415,7 @@ export default {
 
     async fetchAllUsers() {
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:8080/users/all', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await apiRequest('/users/all', {});
         if (response.ok) {
           this.allUsers = await response.json();
         }
@@ -438,13 +433,8 @@ export default {
 
       for (const user of this.selectedUsers) {
         try {
-          const token = localStorage.getItem('token');
-          const response = await fetch('http://localhost:8080/application-approvers', {
+          const response = await apiRequest('/application-approvers', {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
             body: JSON.stringify({ user_id: user.id })
           });
 
@@ -482,11 +472,8 @@ export default {
 
     async deleteApprover(approver) {
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:8080/application-approvers/${approver.id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await apiRequest(`/application-approvers/${approver.id}`, {
+          method: 'DELETE'});
 
         if (response.ok) {
           if (this.selectedApprover && this.selectedApprover.id === approver.id) {

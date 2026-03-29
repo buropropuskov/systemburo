@@ -140,6 +140,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   name: 'SystemTableScheduleTab',
   props: {
@@ -343,14 +344,9 @@ export default {
     },
 
     async updateSlotActivity(slotId, isActive) {
-      const response = await fetch(
-        `http://localhost:8080/system-tables/${this.tableId}/time-slots/${slotId}`,
+      const response = await apiRequest(`/system-tables/${this.tableId}/time-slots/${slotId}`,
         {
           method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({ is_active: isActive }),
         }
       );
@@ -411,17 +407,13 @@ export default {
         }
 
         const url = this.editingSlotId
-          ? `http://localhost:8080/system-tables/${this.tableId}/time-slots/${this.editingSlotId}`
-          : `http://localhost:8080/system-tables/${this.tableId}/time-slots`;
+          ? `/system-tables/${this.tableId}/time-slots/${this.editingSlotId}`
+          : `/system-tables/${this.tableId}/time-slots`;
 
         const method = this.editingSlotId ? 'PUT' : 'POST';
 
-        const response = await fetch(url, {
+        const response = await apiRequest(url, {
           method,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             day_of_week: this.modalDay,
             open_time: this.modalOpenTime,
@@ -462,7 +454,7 @@ export default {
     },
 
     async deleteTimeSlot(slotId) {
-      const response = await fetch(`http://localhost:8080/system-tables/${this.tableId}/time-slots/${slotId}`, {
+      const response = await apiRequest(`/system-tables/${this.tableId}/time-slots/${slotId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
@@ -473,12 +465,8 @@ export default {
     },
 
     async createSlot(day, open, close, isNextDay) {
-      const response = await fetch(`http://localhost:8080/system-tables/${this.tableId}/time-slots`, {
+      const response = await apiRequest(`/system-tables/${this.tableId}/time-slots`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           day_of_week: day,
           open_time: open,

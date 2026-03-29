@@ -227,6 +227,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 
@@ -302,11 +303,7 @@ export default {
     },
     async fetchCitizenships() {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/citizenships", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/citizenships", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -324,13 +321,8 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/citizenships", {
+        const response = await apiRequest("/citizenships", {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(this.newCitizenship),
         });
         
@@ -360,14 +352,8 @@ export default {
           is_default: citizenship.is_default,
           patent_required: citizenship.patent_required
         };
-        
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/citizenships/${citizenship.id}`, {
+        const response = await apiRequest(`/citizenships/${citizenship.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(citizenshipData),
         });
         
@@ -417,14 +403,8 @@ export default {
           is_default: true,
           patent_required: citizenship.patent_required
         };
-        
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/citizenships/${citizenship.id}`, {
+        const response = await apiRequest(`/citizenships/${citizenship.id}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(citizenshipData),
         });
         
@@ -449,12 +429,8 @@ export default {
       if (!confirm(`Вы уверены, что хотите удалить гражданство "${citizenship.name}"?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8080/citizenships/${citizenship.id}`, {
+        const response = await apiRequest(`/citizenships/${citizenship.id}`, {
           method: "DELETE",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
         });
         
         if (response.ok) {

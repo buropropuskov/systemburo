@@ -368,6 +368,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 
 export default {
@@ -557,12 +558,8 @@ export default {
         async loadCitizenships() {
             try {
                 const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/citizenships", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest("/citizenships", {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.availableCitizenships = await response.json();
@@ -590,12 +587,8 @@ export default {
         }
 
         // Загружаем все доступные системные таблицы
-        const allTablesResponse = await fetch("http://localhost:8080/system-tables", {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        });
+        const allTablesResponse = await apiRequest("/system-tables", {
+            method: "GET"});
 
         if (allTablesResponse.ok) {
             const tables = await allTablesResponse.json();
@@ -641,12 +634,8 @@ export default {
 
         // Загружаем привязанные таблицы организации
         if (this.userOrganizationId) {
-            const orgTablesResponse = await fetch(`http://localhost:8080/organizations/${this.userOrganizationId}/tables`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            });
+            const orgTablesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/tables`, {
+                method: "GET"});
 
             if (orgTablesResponse.ok) {
                 const orgTables = await orgTablesResponse.json();
@@ -681,12 +670,8 @@ export default {
 
         // Если нет привязанных таблиц организации, пробуем компанию
         if (this.attachedPassageTables.length === 0 && this.userCompanyId) {
-            const companyTablesResponse = await fetch(`http://localhost:8080/companies/${this.userCompanyId}/tables`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            });
+            const companyTablesResponse = await apiRequest(`/companies/${this.userCompanyId}/tables`, {
+                method: "GET"});
 
             if (companyTablesResponse.ok) {
                 const companyTables = await companyTablesResponse.json();
@@ -770,12 +755,8 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 
-                const response = await fetch(`http://localhost:8080/unique-employees?filter_type=${filterType}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+                const response = await apiRequest(`/unique-employees?filter_type=${filterType}`, {
+                    method: "GET"});
 
                 if (response.ok) {
                     this.filteredEmployees = await response.json();

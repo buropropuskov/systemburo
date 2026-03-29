@@ -153,6 +153,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
   name: 'NavMenu',
   data() {
@@ -280,10 +281,7 @@ export default {
     async fetchSystemTables() {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:8080/system-tables", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await apiRequest("/system-tables", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -305,7 +303,7 @@ export default {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const response = await fetch("http://localhost:8080/applications/user", {
+        const response = await apiRequest("/applications/user", {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Accept": "application/json"

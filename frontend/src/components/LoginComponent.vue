@@ -106,6 +106,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
     data() {
         return {
@@ -320,7 +321,7 @@ export default {
         const controller = new AbortController();
         timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд таймаут
         
-        const response = await fetch("http://localhost:8080/login", {
+        const response = await apiRequest("/login", {
             method: "POST",
             headers: { 
                 "Content-Type": "application/json",

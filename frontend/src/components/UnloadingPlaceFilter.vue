@@ -58,6 +58,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 export default {
     name: 'UnloadingPlaceFilter',
     props: {
@@ -123,12 +124,8 @@ export default {
         async fetchUnloadingPlaces() {
             this.isLoading = true;
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/unload-places", {
+                const response = await apiRequest("/unload-places", {
                     method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
                 });
 
                 if (response.ok) {

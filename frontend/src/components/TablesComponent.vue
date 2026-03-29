@@ -138,6 +138,7 @@
 </template>
 
 <script>
+import { apiRequest } from '@/api/client'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
 import RefreshButton from './RefreshButton.vue';
@@ -234,11 +235,7 @@ export default {
 
         async fetchCurrentUser() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/users/me", {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
+                const response = await apiRequest("/users/me", {
                 });
 
                 if (response.ok) {
@@ -286,11 +283,7 @@ export default {
             if (!tableName) return;
             
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch(`http://localhost:8080/system-tables/name/${tableName}`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
+                const response = await apiRequest(`/system-tables/name/${tableName}`, {
                 });
                 
                 if (response.ok) {
@@ -310,12 +303,8 @@ export default {
 
         async fetchOrganizationsForTable() {
             try {
-                const token = localStorage.getItem("token");
-                const response = await fetch("http://localhost:8080/organizations", {
+                const response = await apiRequest("/organizations", {
                     method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`,
-                    },
                 });
 
                 if (response.ok) {
