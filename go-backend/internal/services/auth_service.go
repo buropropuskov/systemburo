@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -141,7 +142,10 @@ func (s *authService) Register(ctx context.Context, req models.RegisterRequest) 
 		Phone:          req.Phone,
 	}
 	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
+		}
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	return nil
 }
@@ -193,7 +197,8 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 }
 
 func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error) {
-	claims, err := s.decodeRefreshToken(req.RefreshToken)
+	refreshToken := req.GetRefreshToken()
+	claims, err := s.decodeRefreshToken(refreshToken)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
 	}
@@ -206,7 +211,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	}
 
 	// Find and validate stored token
-	tokenHash := hashRefreshToken(req.RefreshToken)
+	tokenHash := hashRefreshToken(refreshToken)
 	var storedToken models.RefreshToken
 	err = s.db.WithContext(ctx).
 		Where("user_id = ? AND token_hash = ? AND is_revoked = false", user.ID, tokenHash).
@@ -215,8 +220,8 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
 	}
 
-	// Delete old token (one-time use)
-	s.db.WithContext(ctx).Delete(&storedToken)
+	// Revoke old token (one-time use)
+	s.db.WithContext(ctx).Model(&storedToken).Update("is_revoked", true)
 
 	// Create new pair
 	newAccess, err := s.createAccessToken(username, user.TypeID)
@@ -249,7 +254,7 @@ func (s *authService) Logout(ctx context.Context, username string, req models.Lo
 		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
 
-	tokenHash := hashRefreshToken(req.RefreshToken)
+	tokenHash := hashRefreshToken(req.GetRefreshToken())
 	s.db.WithContext(ctx).
 		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
 		Delete(&models.RefreshToken{})
@@ -313,7 +318,7 @@ func (s *authService) GetCurrentUser(ctx context.Context, username string) (*mod
 }
 
 func (s *authService) GetUserTypes(ctx context.Context) ([]models.UserType, error) {
-	var types []models.UserType
+	types := make([]models.UserType, 0)
 	if err := s.db.WithContext(ctx).Order("id").Find(&types).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user types")
 	}

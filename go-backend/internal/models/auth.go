@@ -22,11 +22,29 @@ type LoginRequest struct {
 }
 
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken      string `json:"refreshToken"`
+	RefreshTokenSnake string `json:"refresh_token"`
+}
+
+// GetRefreshToken returns the refresh token from either camelCase or snake_case field.
+func (r RefreshTokenRequest) GetRefreshToken() string {
+	if r.RefreshToken != "" {
+		return r.RefreshToken
+	}
+	return r.RefreshTokenSnake
 }
 
 type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken      string `json:"refreshToken"`
+	RefreshTokenSnake string `json:"refresh_token"`
+}
+
+// GetRefreshToken returns the refresh token from either camelCase or snake_case field.
+func (r LogoutRequest) GetRefreshToken() string {
+	if r.RefreshToken != "" {
+		return r.RefreshToken
+	}
+	return r.RefreshTokenSnake
 }
 
 // --- Responses ---

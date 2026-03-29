@@ -27,7 +27,7 @@ func NewLicensePlateFormatService(db *gorm.DB) LicensePlateFormatService {
 }
 
 func (s *licensePlateFormatService) GetAll(ctx context.Context) ([]models.LicensePlateFormatWithCells, error) {
-	var formats []models.LicensePlateFormat
+	formats := make([]models.LicensePlateFormat, 0)
 	if err := s.db.WithContext(ctx).
 		Where("is_active = ?", true).
 		Order("name").
@@ -37,7 +37,7 @@ func (s *licensePlateFormatService) GetAll(ctx context.Context) ([]models.Licens
 
 	result := make([]models.LicensePlateFormatWithCells, 0, len(formats))
 	for _, f := range formats {
-		var cells []models.LicensePlateFormatCell
+		cells := make([]models.LicensePlateFormatCell, 0)
 		if err := s.db.WithContext(ctx).
 			Where("format_id = ?", f.ID).
 			Order("cell_order").
@@ -73,7 +73,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 			IsDefault:   req.IsDefault != nil && *req.IsDefault,
 		}
 		if err := tx.Create(&format).Error; err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating license plate format")
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 		formatID = format.ID
 
@@ -91,7 +91,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 				PaddingSide:    ptrOrDefault(c.PaddingSide, "left"),
 			}
 			if err := tx.Create(&cell).Error; err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating format cells")
+				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 			}
 		}
 
@@ -148,7 +148,7 @@ func (s *licensePlateFormatService) Update(ctx context.Context, id int, req mode
 				PaddingSide:    ptrOrDefault(c.PaddingSide, "left"),
 			}
 			if err := tx.Create(&cell).Error; err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating format cells")
+				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 			}
 		}
 

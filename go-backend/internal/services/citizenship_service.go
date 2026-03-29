@@ -48,7 +48,7 @@ func (s *citizenshipService) checkAdmin(ctx context.Context, typeID int) error {
 }
 
 func (s *citizenshipService) GetAll(ctx context.Context) ([]models.Citizenship, error) {
-	var citizenships []models.Citizenship
+	citizenships := make([]models.Citizenship, 0)
 	if err := s.db.WithContext(ctx).Order("name").Find(&citizenships).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching citizenships")
 	}

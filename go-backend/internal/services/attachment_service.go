@@ -39,7 +39,7 @@ func NewAttachmentService(db *gorm.DB) AttachmentService {
 }
 
 func (s *attachmentService) GetActive(ctx context.Context) ([]models.UniqueAttachment, error) {
-	var attachments []models.UniqueAttachment
+	attachments := make([]models.UniqueAttachment, 0)
 	err := s.db.WithContext(ctx).
 		Where("is_active = ?", true).
 		Order("title, display_name").
@@ -51,7 +51,7 @@ func (s *attachmentService) GetActive(ctx context.Context) ([]models.UniqueAttac
 }
 
 func (s *attachmentService) GetAll(ctx context.Context) ([]models.UniqueAttachment, error) {
-	var attachments []models.UniqueAttachment
+	attachments := make([]models.UniqueAttachment, 0)
 	err := s.db.WithContext(ctx).
 		Order("is_active DESC, title, display_name").
 		Find(&attachments).Error
@@ -100,7 +100,7 @@ func (s *attachmentService) Create(ctx context.Context, req models.CreateUniqueA
 	}
 
 	if err := s.db.WithContext(ctx).Create(&attachment).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating attachment")
+		return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	return &models.CreateUniqueAttachmentResponse{

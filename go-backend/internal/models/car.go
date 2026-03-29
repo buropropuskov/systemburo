@@ -52,7 +52,7 @@ type UniqueCar struct {
 	FormatID       *int          `json:"format_id"`
 	UserID         *int          `gorm:"index" json:"user_id"`
 	User           *User         `json:"-"`
-	Status         *int          `json:"status"`
+	Status         *bool         `gorm:"default:false" json:"status"`
 	CreatedAt      time.Time     `json:"created_at"`
 }
 

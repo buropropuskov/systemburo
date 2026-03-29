@@ -86,7 +86,7 @@ func main() {
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
 	e.Use(mw.CORS())
-	e.Use(mw.RateLimit(10, 60))
+	e.Use(mw.RateLimit(200, 60))
 
 	// Services
 	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret)
@@ -96,6 +96,16 @@ func main() {
 	citizenshipService := services.NewCitizenshipService(db)
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
+	userService := services.NewUserService(db)
+	unloadPlaceService := services.NewUnloadPlaceService(db)
+	carService := services.NewCarService(db)
+	employeeService := services.NewEmployeeService(db)
+	systemTableService := services.NewSystemTableService(db)
+	uniqueCarService := services.NewUniqueCarService(db)
+	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
+	feedbackService := services.NewFeedbackService(db)
+	applicationService := services.NewApplicationService(db)
+	approverService := services.NewApproverService(db)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -105,12 +115,22 @@ func main() {
 	citizenshipHandler := handlers.NewCitizenshipHandler(citizenshipService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
+	usersHandler := handlers.NewUsersHandler(userService)
+	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService)
+	carHandler := handlers.NewCarHandler(carService)
+	employeeHandler := handlers.NewEmployeeHandler(employeeService)
+	systemTableHandler := handlers.NewSystemTableHandler(systemTableService)
+	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
+	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
+	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
+	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	approverHandler := handlers.NewApproverHandler(approverService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, []byte(cfg.JWTSecret))
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, []byte(cfg.JWTSecret))
 
 	// Start server
 	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.BindPort)

@@ -19,8 +19,18 @@ func NewUserTypesHandler(service services.UserTypeService) *UserTypesHandler {
 	return &UserTypesHandler{service: service}
 }
 
-// GetAll возвращает все типы пользователей с количеством связанных пользователей.
-// GET /user-types-management
+// GetAll godoc
+// @Summary      Получить все типы пользователей
+// @Description  Возвращает список всех типов пользователей с количеством связанных пользователей
+// @Tags         user-types-management
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} services.UserTypeWithCount
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /user-types-management [get]
 func (h *UserTypesHandler) GetAll(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	result, err := h.service.GetAllWithCount(c.Request().Context(), typeID)
@@ -30,8 +40,19 @@ func (h *UserTypesHandler) GetAll(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-// Create создаёт новый тип пользователя.
-// POST /user-types-management
+// Create godoc
+// @Summary      Создать тип пользователя
+// @Description  Создаёт новый тип пользователя с указанными именем и кодом
+// @Tags         user-types-management
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.CreateUserTypeRequest true "Данные нового типа пользователя"
+// @Success      200 {object} map[string]interface{} "id и message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /user-types-management [post]
 func (h *UserTypesHandler) Create(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	var req services.CreateUserTypeRequest
@@ -48,8 +69,20 @@ func (h *UserTypesHandler) Create(c echo.Context) error {
 	})
 }
 
-// Update обновляет тип пользователя по ID.
-// PUT /user-types-management/:id
+// Update godoc
+// @Summary      Обновить тип пользователя
+// @Description  Обновляет имя и код типа пользователя по указанному ID
+// @Tags         user-types-management
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID типа пользователя"
+// @Param        request body services.UpdateUserTypeRequest true "Обновлённые данные типа пользователя"
+// @Success      200 {string} string "Тип пользователя успешно обновлен"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /user-types-management/{id} [put]
 func (h *UserTypesHandler) Update(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
@@ -66,8 +99,19 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Тип пользователя успешно обновлен")
 }
 
-// Delete удаляет тип пользователя по ID.
-// DELETE /user-types-management/:id
+// Delete godoc
+// @Summary      Удалить тип пользователя
+// @Description  Удаляет тип пользователя по указанному ID. Нельзя удалить если есть связанные пользователи
+// @Tags         user-types-management
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID типа пользователя"
+// @Success      200 {string} string "Тип пользователя успешно удален"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /user-types-management/{id} [delete]
 func (h *UserTypesHandler) Delete(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))

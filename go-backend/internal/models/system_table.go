@@ -73,3 +73,57 @@ type TableField struct {
 	IsVisible    bool        `gorm:"default:true" json:"is_visible"`
 	CreatedAt    time.Time   `json:"created_at"`
 }
+
+// SystemTableWithDetails -- таблица с полями, слотами, фото и текущим статусом (открыто/закрыто).
+type SystemTableWithDetails struct {
+	Table         SystemTable          `json:"table"`
+	Fields        []TableField         `json:"fields"`
+	TimeSlots     []SystemTableTimeSlot `json:"time_slots"`
+	Photos        []SystemTablePhoto   `json:"photos"`
+	CurrentStatus string               `json:"current_status"`
+}
+
+// CreateSystemTableRequest -- запрос на создание системной таблицы.
+type CreateSystemTableRequest struct {
+	Name                string  `json:"name" validate:"required"`
+	DisplayName         string  `json:"display_name" validate:"required"`
+	TableType           string  `json:"table_type" validate:"required"`
+	ShowFactTable       *bool   `json:"show_fact_table"`
+	FactTableHint       *string `json:"fact_table_hint"`
+	Instruction         *string `json:"instruction"`
+	MapLink             *string `json:"map_link"`
+	Status              *string `json:"status"`
+	StatusComment       *string `json:"status_comment"`
+	LocationDescription *string `json:"location_description"`
+}
+
+// UpdateSystemTableRequest -- запрос на обновление системной таблицы (все поля опциональные).
+type UpdateSystemTableRequest struct {
+	DisplayName         *string `json:"display_name"`
+	TableType           *string `json:"table_type"`
+	ShowFactTable       *bool   `json:"show_fact_table"`
+	FactTableHint       *string `json:"fact_table_hint"`
+	Instruction         *string `json:"instruction"`
+	MapLink             *string `json:"map_link"`
+	Status              *string `json:"status"`
+	StatusComment       *string `json:"status_comment"`
+	LocationDescription *string `json:"location_description"`
+}
+
+// CreateTimeSlotRequest -- запрос на создание временного слота.
+type CreateTimeSlotRequest struct {
+	DayOfWeek int     `json:"day_of_week" validate:"required"`
+	OpenTime  string  `json:"open_time" validate:"required"`
+	CloseTime string  `json:"close_time" validate:"required"`
+	IsNextDay *bool   `json:"is_next_day"`
+	IsActive  *bool   `json:"is_active"`
+}
+
+// UpdateTimeSlotRequest -- запрос на обновление временного слота (все поля опциональные).
+type UpdateTimeSlotRequest struct {
+	DayOfWeek *int    `json:"day_of_week"`
+	OpenTime  *string `json:"open_time"`
+	CloseTime *string `json:"close_time"`
+	IsNextDay *bool   `json:"is_next_day"`
+	IsActive  *bool   `json:"is_active"`
+}

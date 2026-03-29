@@ -1,0 +1,249 @@
+package handlers_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"testing"
+
+	"systemburo/internal/testutil"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFeedback_Unauthorized(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	rec := testutil.POST(t, e, "/feedback", `{"message":"test"}`, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestFeedback_Create(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "fbuser", "password123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"message":"This is a test feedback message for the system"}`
+	rec := testutil.POST(t, e, "/feedback", body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.NotNil(t, resp["id"])
+	assert.Greater(t, int(resp["id"].(float64)), 0)
+}
+
+func TestFeedback_Create_TooShort(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "fbuser2", "password123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Less than 10 characters
+	rec := testutil.POST(t, e, "/feedback", `{"message":"short"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestFeedback_GetMy(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "myuser", "password123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create feedback
+	rec := testutil.POST(t, e, "/feedback",
+		`{"message":"My feedback message for testing purposes"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Get my feedback
+	rec = testutil.GET(t, e, "/feedback/my", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var feedbacks []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &feedbacks))
+	assert.GreaterOrEqual(t, len(feedbacks), 1)
+
+	fb := feedbacks[0]
+	assert.Contains(t, fb, "id")
+	assert.Contains(t, fb, "message")
+	assert.Contains(t, fb, "status")
+	assert.Contains(t, fb, "is_read")
+	assert.Contains(t, fb, "created_at")
+	assert.Equal(t, "Нерешено", fb["status"])
+	assert.Equal(t, false, fb["is_read"])
+}
+
+func TestFeedback_GetAll_AdminOnly(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Regular user should get 403
+	userToken := testutil.RegisterAndLogin(t, e, "regularuser", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/feedback/all", testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Admin should succeed
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec = testutil.GET(t, e, "/feedback/all", testutil.AuthHeader(adminToken))
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestFeedback_GetStats_AdminOnly(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Regular user should get 403
+	userToken := testutil.RegisterAndLogin(t, e, "statsuser", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/feedback/stats", testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Admin should succeed
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec = testutil.GET(t, e, "/feedback/stats", testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var stats map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &stats))
+	assert.Contains(t, stats, "total")
+	assert.Contains(t, stats, "resolved")
+	assert.Contains(t, stats, "unresolved")
+	assert.Contains(t, stats, "unread")
+}
+
+func TestFeedback_UpdateStatus(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Create feedback as regular user
+	userToken := testutil.RegisterAndLogin(t, e, "statususer", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, "/feedback",
+		`{"message":"Feedback to update status on"}`,
+		testutil.AuthHeader(userToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var createResp map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	fbID := int(createResp["id"].(float64))
+
+	// Admin updates status
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminH := testutil.AuthHeader(adminToken)
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
+		`{"status":"Решено"}`, adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Regular user cannot update status
+	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
+		`{"status":"Нерешено"}`, testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestFeedback_UpdateStatus_InvalidStatus(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Create feedback
+	userToken := testutil.RegisterAndLogin(t, e, "invalidstatus", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, "/feedback",
+		`{"message":"Feedback for invalid status test"}`,
+		testutil.AuthHeader(userToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var createResp map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	fbID := int(createResp["id"].(float64))
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
+		`{"status":"InvalidStatus"}`, testutil.AuthHeader(adminToken))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestFeedback_UpdateStatus_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.PUT(t, e, "/feedback/99999/status",
+		`{"status":"Решено"}`, testutil.AuthHeader(adminToken))
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestFeedback_MarkAsRead(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Create feedback
+	userToken := testutil.RegisterAndLogin(t, e, "readuser", "password123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, "/feedback",
+		`{"message":"Feedback to mark as read later"}`,
+		testutil.AuthHeader(userToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var createResp map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	fbID := int(createResp["id"].(float64))
+
+	// Admin marks as read
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminH := testutil.AuthHeader(adminToken)
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/read", fbID),
+		`{"is_read":true}`, adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Regular user cannot mark as read
+	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/read", fbID),
+		`{"is_read":false}`, testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestFeedback_Stats_AfterCreation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	userToken := testutil.RegisterAndLogin(t, e, "statscount", "password123", 1, td.OrgID, td.CompanyID)
+
+	// Create 2 feedbacks
+	for i := 0; i < 2; i++ {
+		rec := testutil.POST(t, e, "/feedback",
+			fmt.Sprintf(`{"message":"Stats feedback number %d for testing"}`, i),
+			testutil.AuthHeader(userToken))
+		require.Equal(t, http.StatusOK, rec.Code)
+	}
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/feedback/stats", testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var stats map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &stats))
+	assert.GreaterOrEqual(t, stats["total"].(float64), float64(2))
+	assert.GreaterOrEqual(t, stats["unresolved"].(float64), float64(2))
+	assert.GreaterOrEqual(t, stats["unread"].(float64), float64(2))
+}

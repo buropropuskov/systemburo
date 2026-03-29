@@ -16,26 +16,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  backend:
-    build:
-      context: ./backend
-      target: dev
-    environment:
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-123}@db/${DB_NAME:-auto_registry}
-      BIND_HOST: "0.0.0.0"
-      BIND_PORT: "8080"
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
-      RUST_LOG: ${RUST_LOG:-info}
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./backend/src:/app/src
-      - ./backend/uploads:/app/uploads
-    depends_on:
-      db:
-        condition: service_healthy
-
   go-backend:
     build:
       context: ./go-backend
@@ -67,47 +47,8 @@ services:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
     depends_on:
-      - backend
-
-  test:
-    build:
-      context: ./backend
-      target: dev
-    environment:
-      DATABASE_URL: postgres://postgres:${DB_PASSWORD:-123}@db/${DB_NAME:-auto_registry}
-      DB_TEST_HOST: db
-      DB_TEST_USER: postgres
-      DB_TEST_PASS: ${DB_PASSWORD:-123}
-      SQLX_OFFLINE: "false"
-      RUST_LOG: info
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
-      CARGO_BUILD_JOBS: "2"
-    mem_limit: 3g
-    memswap_limit: 4g
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-    volumes:
-      - ./backend/src:/app/src
-      - ./backend/tests:/app/tests
-      - ./backend/migrations:/app/migrations
-      - ./backend/Cargo.toml:/app/Cargo.toml
-      - ./backend/Cargo.lock:/app/Cargo.lock
-      - cargo_registry:/usr/local/cargo/registry
-      - cargo_git:/usr/local/cargo/git
-      - test_target:/app/target
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["cargo", "test", "--", "--test-threads=2"]
-    profiles:
-      - test
+      - go-backend
 
 volumes:
   pgdata:
-  cargo_registry:
-  cargo_git:
-  test_target:
   go_mod_cache:

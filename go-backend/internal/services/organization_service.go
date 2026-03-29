@@ -163,7 +163,7 @@ func CheckAdminPermissions(db *gorm.DB, ctx context.Context, username string) er
 }
 
 func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoResponse, error) {
-	var orgs []OrganizationInfoResponse
+	orgs := make([]OrganizationInfoResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("organizations").
 		Select("id, name").
@@ -222,7 +222,7 @@ func (s *organizationService) Delete(ctx context.Context, id int) error {
 }
 
 func (s *organizationService) GetWithUsers(ctx context.Context) ([]OrganizationWithUsersResponse, error) {
-	var orgs []OrganizationWithUsersResponse
+	orgs := make([]OrganizationWithUsersResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("organizations o").
 		Select("o.id, o.name, COUNT(u.id) as user_count").
@@ -239,7 +239,7 @@ func (s *organizationService) GetWithUsers(ctx context.Context) ([]OrganizationW
 
 func (s *organizationService) GetWithUsersExtended(ctx context.Context) ([]map[string]any, error) {
 	// Получаем базовые данные организаций
-	var orgs []OrganizationWithUsersResponse
+	orgs := make([]OrganizationWithUsersResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("organizations o").
 		Select("o.id, o.name, COUNT(u.id) as user_count").
@@ -255,7 +255,7 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context) ([]map[s
 	result := make([]map[string]any, 0, len(orgs))
 	for _, org := range orgs {
 		// Для каждой организации получаем места разгрузки
-		var places []OrganizationUnloadPlaceResponse
+		places := make([]OrganizationUnloadPlaceResponse, 0)
 		s.db.WithContext(ctx).
 			Table("unload_places up").
 			Select("up.id, up.name, up.description").
@@ -263,10 +263,6 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context) ([]map[s
 			Where("oup.organization_id = ?", org.ID).
 			Order("up.name").
 			Scan(&places)
-
-		if places == nil {
-			places = []OrganizationUnloadPlaceResponse{}
-		}
 
 		result = append(result, map[string]any{
 			"id":            org.ID,
@@ -294,7 +290,7 @@ func (s *organizationService) GetMyOrganization(ctx context.Context, username st
 }
 
 func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID int) ([]OrganizationUserResponse, error) {
-	var users []OrganizationUserResponse
+	users := make([]OrganizationUserResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("users u").
 		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position, ou.is_primary, ou.required_approval").
@@ -361,7 +357,7 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, orgID
 }
 
 func (s *organizationService) GetOrganizationTables(ctx context.Context, orgID int) ([]OrganizationTableResponse, error) {
-	var tables []OrganizationTableResponse
+	tables := make([]OrganizationTableResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("system_tables st").
 		Select("st.id, st.name, st.display_name, st.table_type").
@@ -400,7 +396,7 @@ func (s *organizationService) UpdateOrganizationTables(ctx context.Context, orgI
 }
 
 func (s *organizationService) GetOrganizationUnloadPlaces(ctx context.Context, orgID int) ([]OrganizationUnloadPlaceResponse, error) {
-	var places []OrganizationUnloadPlaceResponse
+	places := make([]OrganizationUnloadPlaceResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("unload_places up").
 		Select("up.id, up.name, up.description").

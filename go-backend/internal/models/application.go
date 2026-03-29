@@ -56,9 +56,9 @@ func (ApplicationStatusHistory) TableName() string { return "application_status_
 
 type ApplicationResponsibleUser struct {
 	ID               int         `json:"id"`
-	ApplicationID    int         `gorm:"index" json:"application_id"`
+	ApplicationID    int         `gorm:"uniqueIndex:idx_app_resp_user" json:"application_id"`
 	Application      Application `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	UserID           int         `gorm:"index" json:"user_id"`
+	UserID           int         `gorm:"uniqueIndex:idx_app_resp_user" json:"user_id"`
 	User             User        `json:"-"`
 	CreatedAt        time.Time   `json:"created_at"`
 	IsPrimary        bool        `gorm:"default:false" json:"is_primary"`
@@ -75,6 +75,37 @@ type ApplicationApprover struct {
 	User      User      `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	CreatedAt time.Time `json:"created_at"`
 	CreatedBy *int      `json:"created_by"`
+}
+
+// ApplicationApproverWithUser — ответ GET /application-approvers с данными пользователя.
+type ApplicationApproverWithUser struct {
+	ID           int        `json:"id"`
+	UserID       int        `json:"user_id"`
+	Username     string     `json:"username"`
+	LastName     *string    `json:"last_name"`
+	FirstName    *string    `json:"first_name"`
+	MiddleName   *string    `json:"middle_name"`
+	Position     *string    `json:"position"`
+	Organization *string    `json:"organization"`
+	Company      *string    `json:"company"`
+	CreatedAt    *time.Time `json:"created_at"`
+}
+
+// AvailableApproverUser — пользователь, доступный для назначения утверждающим.
+type AvailableApproverUser struct {
+	ID           int     `json:"id"`
+	Username     string  `json:"username"`
+	LastName     *string `json:"last_name"`
+	FirstName    *string `json:"first_name"`
+	MiddleName   *string `json:"middle_name"`
+	Position     *string `json:"position"`
+	Organization *string `json:"organization"`
+	Company      *string `json:"company"`
+}
+
+// CreateApproverRequest — запрос POST /application-approvers.
+type CreateApproverRequest struct {
+	UserID int `json:"user_id"`
 }
 
 type ApplicationViewer struct {

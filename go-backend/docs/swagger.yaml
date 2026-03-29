@@ -1,5 +1,201 @@
 basePath: /
 definitions:
+  models.ApplicationApproverWithUser:
+    properties:
+      company:
+        type: string
+      created_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization:
+        type: string
+      position:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  models.AvailableApproverUser:
+    properties:
+      company:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization:
+        type: string
+      position:
+        type: string
+      username:
+        type: string
+    type: object
+  models.Citizenship:
+    properties:
+      created_at:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      name:
+        type: string
+      patent_required:
+        type: boolean
+      updated_at:
+        type: string
+    type: object
+  models.Company:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  models.CreateApproverRequest:
+    properties:
+      user_id:
+        type: integer
+    type: object
+  models.CreateCitizenshipRequest:
+    properties:
+      icon:
+        type: string
+      is_default:
+        type: boolean
+      name:
+        type: string
+      patent_required:
+        type: boolean
+    type: object
+  models.CreateFeedbackRequest:
+    properties:
+      message:
+        type: string
+    type: object
+  models.CreateFormatCellRequest:
+    properties:
+      allowed_letters:
+        type: string
+      alphabet_type:
+        type: string
+      cell_order:
+        type: integer
+      cell_type:
+        type: string
+      language:
+        type: string
+      max_length:
+        type: integer
+      min_length:
+        type: integer
+      padding_char:
+        type: string
+      padding_side:
+        type: string
+    type: object
+  models.CreateFormatResponse:
+    properties:
+      id:
+        type: integer
+      message:
+        type: string
+    type: object
+  models.CreateLicensePlateFormatRequest:
+    properties:
+      cells:
+        items:
+          $ref: '#/definitions/models.CreateFormatCellRequest'
+        type: array
+      country_code:
+        type: string
+      icon:
+        type: string
+      is_default:
+        type: boolean
+      name:
+        type: string
+    type: object
+  models.CreateSystemTableRequest:
+    properties:
+      display_name:
+        type: string
+      fact_table_hint:
+        type: string
+      instruction:
+        type: string
+      location_description:
+        type: string
+      map_link:
+        type: string
+      name:
+        type: string
+      show_fact_table:
+        type: boolean
+      status:
+        type: string
+      status_comment:
+        type: string
+      table_type:
+        type: string
+    required:
+    - display_name
+    - name
+    - table_type
+    type: object
+  models.CreateTimeSlotRequest:
+    properties:
+      close_time:
+        type: string
+      day_of_week:
+        type: integer
+      is_active:
+        type: boolean
+      is_next_day:
+        type: boolean
+      open_time:
+        type: string
+    required:
+    - close_time
+    - day_of_week
+    - open_time
+    type: object
+  models.CreateUniqueAttachmentRequest:
+    properties:
+      attachment_type:
+        type: string
+      display_name:
+        type: string
+      instruction:
+        type: string
+      name:
+        type: string
+      title:
+        type: string
+    type: object
+  models.CreateUniqueAttachmentResponse:
+    properties:
+      id:
+        type: integer
+      message:
+        type: string
+    type: object
   models.CurrentUserResponse:
     properties:
       company:
@@ -33,11 +229,94 @@ definitions:
       username:
         type: string
     type: object
+  models.FeedbackStats:
+    properties:
+      resolved:
+        type: integer
+      total:
+        type: integer
+      unread:
+        type: integer
+      unresolved:
+        type: integer
+    type: object
+  models.FeedbackWithUser:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_read:
+        type: boolean
+      message:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
+    type: object
   models.HTTPError:
     properties:
       message:
         example: Error description
         type: string
+    type: object
+  models.LicensePlateFormat:
+    properties:
+      country_code:
+        type: string
+      created_at:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      name:
+        type: string
+    type: object
+  models.LicensePlateFormatCell:
+    properties:
+      allowed_letters:
+        type: string
+      alphabet_type:
+        type: string
+      cell_order:
+        type: integer
+      cell_type:
+        type: string
+      created_at:
+        type: string
+      format_id:
+        type: integer
+      id:
+        type: integer
+      language:
+        type: string
+      max_length:
+        type: integer
+      min_length:
+        type: integer
+      padding_char:
+        type: string
+      padding_side:
+        type: string
+    type: object
+  models.LicensePlateFormatWithCells:
+    properties:
+      cells:
+        items:
+          $ref: '#/definitions/models.LicensePlateFormatCell'
+        type: array
+      format:
+        $ref: '#/definitions/models.LicensePlateFormat'
     type: object
   models.LoginRequest:
     properties:
@@ -67,12 +346,34 @@ definitions:
     type: object
   models.LogoutRequest:
     properties:
-      refresh_token:
+      refreshToken:
         type: string
+    type: object
+  models.MarkAsReadRequest:
+    properties:
+      is_read:
+        type: boolean
+    type: object
+  models.MyFeedback:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_read:
+        type: boolean
+      message:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
     type: object
   models.RefreshTokenRequest:
     properties:
-      refresh_token:
+      refreshToken:
         type: string
     type: object
   models.RegisterRequest:
@@ -100,12 +401,327 @@ definitions:
       username:
         type: string
     type: object
+  models.SystemTable:
+    properties:
+      created_at:
+        type: string
+      display_name:
+        type: string
+      fact_table_hint:
+        type: string
+      id:
+        type: integer
+      instruction:
+        type: string
+      is_active:
+        type: boolean
+      location_description:
+        type: string
+      map_link:
+        type: string
+      name:
+        type: string
+      show_fact_table:
+        type: boolean
+      status:
+        description: active, inactive, maintenance
+        type: string
+      status_comment:
+        type: string
+      table_type:
+        description: cars, people
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.SystemTablePhoto:
+    properties:
+      file_name:
+        type: string
+      file_size:
+        type: integer
+      id:
+        type: integer
+      is_main:
+        type: boolean
+      mime_type:
+        type: string
+      photo_url:
+        type: string
+      table_id:
+        type: integer
+      uploaded_at:
+        type: string
+      uploaded_by:
+        type: integer
+    type: object
+  models.SystemTableTimeSlot:
+    properties:
+      close_time:
+        type: string
+      created_at:
+        type: string
+      day_of_week:
+        description: 0-6
+        type: integer
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_next_day:
+        type: boolean
+      open_time:
+        type: string
+      table_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.SystemTableWithDetails:
+    properties:
+      current_status:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.TableField'
+        type: array
+      photos:
+        items:
+          $ref: '#/definitions/models.SystemTablePhoto'
+        type: array
+      table:
+        $ref: '#/definitions/models.SystemTable'
+      time_slots:
+        items:
+          $ref: '#/definitions/models.SystemTableTimeSlot'
+        type: array
+    type: object
+  models.TableField:
+    properties:
+      created_at:
+        type: string
+      display_order:
+        type: integer
+      field_name:
+        type: string
+      field_type:
+        type: string
+      id:
+        type: integer
+      is_visible:
+        type: boolean
+      table_id:
+        type: integer
+    type: object
   models.TokenPairResponse:
     properties:
       refreshToken:
         type: string
       token:
         type: string
+    type: object
+  models.UniqueAttachment:
+    properties:
+      attachment_type:
+        description: cars, people, items
+        type: string
+      created_at:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: integer
+      instruction:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.UnloadPlacePhoto:
+    properties:
+      file_name:
+        type: string
+      file_size:
+        type: integer
+      id:
+        type: integer
+      is_main:
+        type: boolean
+      mime_type:
+        type: string
+      photo_url:
+        type: string
+      unload_place_id:
+        type: integer
+      uploaded_at:
+        type: string
+      uploaded_by:
+        type: integer
+    type: object
+  models.UnloadPlaceTimeSlot:
+    properties:
+      close_time:
+        type: string
+      created_at:
+        type: string
+      day_of_week:
+        description: 0-6
+        type: integer
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_next_day:
+        type: boolean
+      open_time:
+        type: string
+      unload_place_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.UpdateCitizenshipRequest:
+    properties:
+      icon:
+        type: string
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      name:
+        type: string
+      patent_required:
+        type: boolean
+    type: object
+  models.UpdateFeedbackStatusRequest:
+    properties:
+      status:
+        type: string
+    type: object
+  models.UpdateFormatCellRequest:
+    properties:
+      allowed_letters:
+        type: string
+      alphabet_type:
+        type: string
+      cell_order:
+        type: integer
+      cell_type:
+        type: string
+      id:
+        type: integer
+      language:
+        type: string
+      max_length:
+        type: integer
+      min_length:
+        type: integer
+      padding_char:
+        type: string
+      padding_side:
+        type: string
+    type: object
+  models.UpdateLicensePlateFormatRequest:
+    properties:
+      cells:
+        items:
+          $ref: '#/definitions/models.UpdateFormatCellRequest'
+        type: array
+      country_code:
+        type: string
+      icon:
+        type: string
+      is_default:
+        type: boolean
+      name:
+        type: string
+    type: object
+  models.UpdatePasswordRequest:
+    properties:
+      password:
+        type: string
+    type: object
+  models.UpdateSystemTableRequest:
+    properties:
+      display_name:
+        type: string
+      fact_table_hint:
+        type: string
+      instruction:
+        type: string
+      location_description:
+        type: string
+      map_link:
+        type: string
+      show_fact_table:
+        type: boolean
+      status:
+        type: string
+      status_comment:
+        type: string
+      table_type:
+        type: string
+    type: object
+  models.UpdateTimeSlotRequest:
+    properties:
+      close_time:
+        type: string
+      day_of_week:
+        type: integer
+      is_active:
+        type: boolean
+      is_next_day:
+        type: boolean
+      open_time:
+        type: string
+    type: object
+  models.UpdateUniqueAttachmentRequest:
+    properties:
+      attachment_type:
+        type: string
+      display_name:
+        type: string
+      instruction:
+        type: string
+      name:
+        type: string
+      title:
+        type: string
+    type: object
+  models.UpdateUserCompanyRequest:
+    properties:
+      company_id:
+        type: integer
+    type: object
+  models.UpdateUserInfoRequest:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      phone:
+        type: string
+      position:
+        type: string
+    type: object
+  models.UpdateUserOrganizationRequest:
+    properties:
+      organization_id:
+        type: integer
+    type: object
+  models.UpdateUserTypeRequest:
+    properties:
+      type_id:
+        type: integer
     type: object
   models.UserDataResponse:
     properties:
@@ -128,6 +744,37 @@ definitions:
       username:
         type: string
     type: object
+  models.UserInfoResponse:
+    properties:
+      company:
+        type: string
+      company_id:
+        type: integer
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization:
+        type: string
+      organization_id:
+        type: integer
+      phone:
+        type: string
+      position:
+        type: string
+      type_id:
+        type: integer
+      user_type:
+        type: string
+      username:
+        type: string
+    type: object
   models.UserType:
     properties:
       code:
@@ -137,6 +784,1218 @@ definitions:
       name:
         type: string
     type: object
+  services.ActivateCarRequest:
+    properties:
+      user_id:
+        type: integer
+    type: object
+  services.AddCarHistoryRequest:
+    properties:
+      action_type:
+        type: string
+      comment:
+        type: string
+      field_name:
+        type: string
+      metadata:
+        type: object
+      new_value:
+        type: string
+      old_value:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  services.AddHistoryEntryRequest:
+    properties:
+      action_status:
+        type: string
+      action_type:
+        type: string
+      application_id:
+        type: integer
+      comment:
+        type: string
+      metadata:
+        type: object
+      new_value:
+        type: string
+      old_value:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  services.AllCarsHistoryItem:
+    properties:
+      action_type:
+        type: string
+      car_brand:
+        type: string
+      car_id:
+        type: integer
+      car_number:
+        type: string
+      comment:
+        type: string
+      company:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      organization:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
+    type: object
+  services.ApplicationCreateRequest:
+    properties:
+      company_id:
+        type: integer
+      data_approval:
+        type: boolean
+      message:
+        type: string
+      organization_id:
+        type: integer
+    type: object
+  services.ApplicationCreateResponse:
+    properties:
+      application_id:
+        type: integer
+      application_number:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  services.ApplicationHistoryItem:
+    properties:
+      action_status:
+        type: string
+      action_type:
+        type: string
+      application_id:
+        type: integer
+      comment:
+        type: string
+      created_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      metadata:
+        type: object
+      middle_name:
+        type: string
+      new_value:
+        type: string
+      old_value:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
+    type: object
+  services.ApplicationUpdateRequest:
+    properties:
+      confirmation:
+        type: string
+      responsible_comment:
+        type: string
+      status:
+        type: string
+    type: object
+  services.ApplicationUpdateResponse:
+    properties:
+      message:
+        type: string
+      rows_affected:
+        type: integer
+      success:
+        type: boolean
+    type: object
+  services.ApplicationWithDetails:
+    properties:
+      application_number:
+        type: string
+      company_id:
+        type: integer
+      company_name:
+        type: string
+      confirmation:
+        type: string
+      confirmation_datetime:
+        type: string
+      data_approval:
+        type: boolean
+      id:
+        type: integer
+      message:
+        type: string
+      organization_id:
+        type: integer
+      organization_name:
+        type: string
+      reading_datetime:
+        type: string
+      responsible_comment:
+        type: string
+      responsible_full_name:
+        type: string
+      responsible_name:
+        type: string
+      responsible_user_id:
+        type: integer
+      sender_full_name:
+        type: string
+      sender_name:
+        type: string
+      sender_user_id:
+        type: integer
+      sending_datetime:
+        type: string
+      status:
+        type: string
+    type: object
+  services.ApprovalStatusResponse:
+    properties:
+      confirmation:
+        type: string
+      status:
+        type: string
+    type: object
+  services.AttachmentContentData:
+    properties:
+      employees:
+        items:
+          $ref: '#/definitions/services.EmployeeInput'
+        type: array
+      items:
+        items:
+          $ref: '#/definitions/services.ItemInput'
+        type: array
+      vehicles:
+        items:
+          $ref: '#/definitions/services.VehicleInput'
+        type: array
+    type: object
+  services.AttachmentData:
+    properties:
+      attachment_display_name:
+        type: string
+      attachment_name:
+        type: string
+      attachment_type:
+        type: string
+      data:
+        $ref: '#/definitions/services.AttachmentContentData'
+      entry_date_from:
+        type: string
+      entry_date_to:
+        type: string
+      entry_time_from:
+        type: string
+      entry_time_to:
+        type: string
+      unique_attachment_id:
+        type: integer
+    type: object
+  services.AttachmentInfo:
+    properties:
+      attachment_display_name:
+        type: string
+      attachment_name:
+        type: string
+      attachment_type:
+        type: string
+      created_at:
+        type: string
+      entry_date_from:
+        type: string
+      entry_date_to:
+        type: string
+      entry_time_from:
+        type: string
+      entry_time_to:
+        type: string
+      id:
+        type: integer
+      unique_attachment_display_name:
+        type: string
+      unique_attachment_id:
+        type: integer
+      unique_attachment_title:
+        type: string
+    type: object
+  services.BatchCreateCarsResponse:
+    properties:
+      created_cars:
+        items:
+          $ref: '#/definitions/services.UniqueCarResponse'
+        type: array
+      error_count:
+        type: integer
+      errors:
+        items:
+          type: string
+        type: array
+      success_count:
+        type: integer
+    type: object
+  services.CarCurrentStatus:
+    properties:
+      car_id:
+        type: integer
+      entry_time:
+        type: string
+      last_exit_time:
+        type: string
+      territory_status:
+        type: integer
+    type: object
+  services.CarHistoryItemResponse:
+    properties:
+      action_type:
+        type: string
+      car_brand:
+        type: string
+      car_id:
+        type: integer
+      car_number:
+        type: string
+      comment:
+        type: string
+      company:
+        type: string
+      created_at:
+        type: string
+      field_name:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      metadata:
+        type: object
+      middle_name:
+        type: string
+      new_value:
+        type: string
+      old_value:
+        type: string
+      organization:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
+    type: object
+  services.CarOwnerInfo:
+    properties:
+      company_id:
+        type: integer
+      has_company:
+        type: boolean
+      has_organization:
+        type: boolean
+      organization_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  services.CarUnloadPlaceInfo:
+    properties:
+      car_id:
+        type: integer
+      unload_place_id:
+        type: integer
+      unload_place_name:
+        type: string
+    type: object
+  services.CarWithPlaces:
+    properties:
+      car_brand:
+        type: string
+      car_number:
+        type: string
+      entry_date_from:
+        type: string
+      entry_date_to:
+        type: string
+      entry_time_from:
+        type: string
+      entry_time_to:
+        type: string
+      id:
+        type: integer
+      unload_place:
+        type: string
+      unload_places:
+        items:
+          $ref: '#/definitions/services.UnloadPlaceRef'
+        type: array
+    type: object
+  services.CheckActiveCarResponse:
+    properties:
+      active:
+        type: boolean
+      application_id:
+        type: integer
+      application_number:
+        type: string
+      car_brand:
+        type: string
+      car_id:
+        type: integer
+      car_number:
+        type: string
+      company_name:
+        type: string
+      entry_date_to:
+        type: string
+      entry_time_to:
+        type: string
+      organization_name:
+        type: string
+    type: object
+  services.CompanyTableResponse:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      table_type:
+        type: string
+    type: object
+  services.CompanyUnloadPlaceResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  services.CompanyUserRequest:
+    properties:
+      is_primary:
+        type: boolean
+      required_approval:
+        type: boolean
+      username:
+        type: string
+    type: object
+  services.CompanyUserResponse:
+    properties:
+      first_name:
+        type: string
+      id:
+        type: integer
+      is_primary:
+        type: boolean
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      position:
+        type: string
+      required_approval:
+        type: boolean
+      username:
+        type: string
+    type: object
+  services.CompanyWithUsersExtendedResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      unload_places:
+        items:
+          $ref: '#/definitions/services.CompanyUnloadPlaceResponse'
+        type: array
+      user_count:
+        type: integer
+    type: object
+  services.CompanyWithUsersResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      user_count:
+        type: integer
+    type: object
+  services.CompleteApplicationRequest:
+    properties:
+      attachments:
+        items:
+          $ref: '#/definitions/services.AttachmentData'
+        type: array
+      company:
+        type: string
+      contact_phone:
+        type: string
+      data_approval:
+        type: boolean
+      message:
+        type: string
+      organization:
+        type: string
+      required_users:
+        items:
+          $ref: '#/definitions/services.RequiredUserInput'
+        type: array
+      responsible_person:
+        type: string
+    type: object
+  services.CompleteApplicationResponse:
+    properties:
+      application_id:
+        type: integer
+      application_number:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  services.CreateCompanyRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  services.CreateEmployeeRequest:
+    properties:
+      citizenship_id:
+        type: integer
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      other_permission:
+        type: string
+      passport_series_number:
+        type: string
+      patent_number:
+        type: string
+      position:
+        type: string
+      target_tables:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.CreateEmployeeResponse:
+    properties:
+      employee_id:
+        type: integer
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  services.CreateOrganizationRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  services.CreateTimeSlotRequest:
+    properties:
+      close_time:
+        type: string
+      day_of_week:
+        type: integer
+      is_active:
+        type: boolean
+      is_next_day:
+        type: boolean
+      open_time:
+        type: string
+    type: object
+  services.CreateUnloadPlaceRequest:
+    properties:
+      description:
+        type: string
+      map_link:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      status_comment:
+        type: string
+    type: object
+  services.CreateUserTypeRequest:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+    type: object
+  services.DeactivateCarRequest:
+    properties:
+      status:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  services.EmployeeInput:
+    properties:
+      citizenship_id:
+        type: integer
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      other_permission:
+        type: string
+      passport_series_number:
+        type: string
+      patent_number:
+        type: string
+      position:
+        type: string
+      target_tables:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.EmployeeOwnerInfo:
+    properties:
+      company_id:
+        type: integer
+      has_company:
+        type: boolean
+      has_organization:
+        type: boolean
+      organization_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  services.EmployeeWithTables:
+    properties:
+      citizenship_id:
+        type: integer
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      other_permission:
+        type: string
+      passport_series_number:
+        type: string
+      patent_number:
+        type: string
+      position:
+        type: string
+      target_tables:
+        items:
+          $ref: '#/definitions/services.TableInfoRef'
+        type: array
+    type: object
+  services.ForwardApplicationRequest:
+    properties:
+      users:
+        items:
+          $ref: '#/definitions/services.ForwardUser'
+        type: array
+    type: object
+  services.ForwardUser:
+    properties:
+      can_view:
+        type: boolean
+      required_approval:
+        type: boolean
+      user_id:
+        type: integer
+    type: object
+  services.ItemInfo:
+    properties:
+      count:
+        type: integer
+      date_created:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  services.ItemInput:
+    properties:
+      count:
+        type: integer
+      name:
+        type: string
+      order_index:
+        type: integer
+    type: object
+  services.MyOrganizationResponse:
+    properties:
+      organization:
+        type: string
+      organization_id:
+        type: integer
+    type: object
+  services.NewUniqueCarRequest:
+    properties:
+      company_id:
+        type: integer
+      format_id:
+        type: integer
+      mark:
+        type: string
+      number:
+        type: string
+      organization_id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  services.NewUniqueEmployeeRequest:
+    properties:
+      citizenship_id:
+        type: integer
+      company_id:
+        type: integer
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization_id:
+        type: integer
+      other_permission:
+        type: string
+      passport_series_number:
+        type: string
+      patent_number:
+        type: string
+      position:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  services.OrganizationInfoResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  services.OrganizationTableResponse:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      table_type:
+        type: string
+    type: object
+  services.OrganizationUnloadPlaceResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  services.OrganizationUserRequest:
+    properties:
+      is_primary:
+        type: boolean
+      required_approval:
+        type: boolean
+      username:
+        type: string
+    type: object
+  services.OrganizationUserResponse:
+    properties:
+      first_name:
+        type: string
+      id:
+        type: integer
+      is_primary:
+        type: boolean
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      position:
+        type: string
+      required_approval:
+        type: boolean
+      username:
+        type: string
+    type: object
+  services.OrganizationWithUsersResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      user_count:
+        type: integer
+    type: object
+  services.RequiredUserInput:
+    properties:
+      required_approval:
+        type: boolean
+      user_id:
+        type: integer
+    type: object
+  services.ResponsibleUserInfo:
+    properties:
+      approval_comment:
+        type: string
+      approval_datetime:
+        type: string
+      approval_status:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      is_primary:
+        type: boolean
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      position:
+        type: string
+      required_approval:
+        type: boolean
+      username:
+        type: string
+    type: object
+  services.RestoreCarRequest:
+    properties:
+      user_id:
+        type: integer
+    type: object
+  services.RevokeApprovalRequest:
+    properties:
+      comment:
+        type: string
+    type: object
+  services.RevokeApprovalResponse:
+    properties:
+      confirmation:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+      success:
+        type: boolean
+    type: object
+  services.RevokeFromWorkRequest:
+    properties:
+      comment:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  services.TableCarResponse:
+    properties:
+      application_id:
+        type: integer
+      car_brand:
+        type: string
+      car_number:
+        type: string
+      company:
+        type: string
+      company_id:
+        type: integer
+      entry_date_to:
+        type: string
+      entry_time_from:
+        type: string
+      entry_time_to:
+        type: string
+      id:
+        type: integer
+      organization:
+        type: string
+      organization_id:
+        type: integer
+      status:
+        type: integer
+      territory_entry_time:
+        type: string
+      territory_status:
+        type: integer
+      unload_place:
+        type: string
+      unload_places:
+        items:
+          type: string
+        type: array
+    type: object
+  services.TableEmployeeResponse:
+    properties:
+      entry_date_to:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization:
+        type: string
+      pass_time:
+        type: string
+      status:
+        type: integer
+    type: object
+  services.TableInfoRef:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  services.TakeToWorkRequest:
+    properties:
+      action:
+        type: string
+      comment:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  services.UniqueCarResponse:
+    properties:
+      company_id:
+        type: integer
+      created_at:
+        type: string
+      format_id:
+        type: integer
+      id:
+        type: integer
+      mark:
+        type: string
+      number:
+        type: string
+      organization_id:
+        type: integer
+      status:
+        type: boolean
+      user_id:
+        type: integer
+    type: object
+  services.UniqueCarWithRelations:
+    properties:
+      company_id:
+        type: integer
+      company_name:
+        type: string
+      created_at:
+        type: string
+      format_id:
+        type: integer
+      format_name:
+        type: string
+      id:
+        type: integer
+      mark:
+        type: string
+      number:
+        type: string
+      organization_id:
+        type: integer
+      organization_name:
+        type: string
+      status:
+        type: boolean
+      user_id:
+        type: integer
+      user_name:
+        type: string
+    type: object
+  services.UniqueEmployeeResponse:
+    properties:
+      citizenship_id:
+        type: integer
+      company_id:
+        type: integer
+      created_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization_id:
+        type: integer
+      other_permission:
+        type: string
+      passport_series_number:
+        type: string
+      patent_number:
+        type: string
+      position:
+        type: string
+      status:
+        type: boolean
+      user_id:
+        type: integer
+    type: object
+  services.UniqueEmployeeWithRelations:
+    properties:
+      citizenship_id:
+        type: integer
+      citizenship_name:
+        type: string
+      company_id:
+        type: integer
+      company_name:
+        type: string
+      created_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization_id:
+        type: integer
+      organization_name:
+        type: string
+      other_permission:
+        type: string
+      passport_series_number:
+        type: string
+      patent_number:
+        type: string
+      position:
+        type: string
+      status:
+        type: boolean
+      user_id:
+        type: integer
+    type: object
+  services.UnloadPlaceRef:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  services.UnloadPlaceWithDetails:
+    properties:
+      created_at:
+        type: string
+      current_status:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      map_link:
+        type: string
+      name:
+        type: string
+      photos:
+        items:
+          $ref: '#/definitions/models.UnloadPlacePhoto'
+        type: array
+      status:
+        type: string
+      status_comment:
+        type: string
+      time_slots:
+        items:
+          $ref: '#/definitions/models.UnloadPlaceTimeSlot'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  services.UpdateCarByNumberRequest:
+    properties:
+      mark:
+        type: string
+      number:
+        type: string
+      update_data:
+        $ref: '#/definitions/services.NewUniqueCarRequest'
+    type: object
+  services.UpdateCompanyTablesRequest:
+    properties:
+      table_ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.UpdateCompanyUnloadPlacesRequest:
+    properties:
+      unload_place_ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.UpdateCompanyUsersRequest:
+    properties:
+      users:
+        items:
+          $ref: '#/definitions/services.CompanyUserRequest'
+        type: array
+    type: object
+  services.UpdateOrganizationTablesRequest:
+    properties:
+      table_ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.UpdateOrganizationUnloadPlacesRequest:
+    properties:
+      unload_place_ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.UpdateOrganizationUsersRequest:
+    properties:
+      users:
+        items:
+          $ref: '#/definitions/services.OrganizationUserRequest'
+        type: array
+    type: object
+  services.UpdateTerritoryStatusRequest:
+    properties:
+      territory_status:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  services.UpdateTimeSlotRequest:
+    properties:
+      close_time:
+        type: string
+      day_of_week:
+        type: integer
+      is_active:
+        type: boolean
+      is_next_day:
+        type: boolean
+      open_time:
+        type: string
+    type: object
+  services.UpdateUnloadPlaceRequest:
+    properties:
+      description:
+        type: string
+      map_link:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      status_comment:
+        type: string
+    type: object
+  services.UpdateUserTypeRequest:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+    type: object
+  services.UserApprovalRequest:
+    properties:
+      comment:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  services.UserTypeWithCount:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      users_count:
+        type: integer
+    type: object
+  services.VehicleInput:
+    properties:
+      car_brand:
+        type: string
+      car_number:
+        type: string
+      unload_place:
+        type: string
+      unload_places:
+        items:
+          type: integer
+        type: array
+    type: object
+  services.ViewerWithUser:
+    properties:
+      created_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      position:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
 host: localhost:8090
 info:
   contact: {}
@@ -144,6 +2003,2503 @@ info:
   title: Systemburo API
   version: "1.0"
 paths:
+  /application-approvers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ApplicationApproverWithUser'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Список утверждающих заявок
+      tags:
+      - application-approvers
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateApproverRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Добавить утверждающего
+      tags:
+      - application-approvers
+  /application-approvers/{id}:
+    delete:
+      parameters:
+      - description: Approver ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить утверждающего
+      tags:
+      - application-approvers
+  /application-approvers/available-users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.AvailableApproverUser'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Пользователи, доступные для назначения утверждающими
+      tags:
+      - application-approvers
+  /applications:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает заявки с фильтрацией. Принимающие видят все, обычные
+        пользователи -- только свои.
+      parameters:
+      - description: Поисковый запрос
+        in: query
+        name: search_query
+        type: string
+      - description: ID организации
+        in: query
+        name: organization_id
+        type: integer
+      - description: ID компании
+        in: query
+        name: company_id
+        type: integer
+      - description: Статус согласования
+        in: query
+        name: confirmation
+        type: string
+      - description: Статус заявки
+        in: query
+        name: status
+        type: string
+      - description: Дата от (YYYY-MM-DD)
+        in: query
+        name: date_from
+        type: string
+      - description: Дата до (YYYY-MM-DD)
+        in: query
+        name: date_to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ApplicationWithDetails'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Список заявок для Центра заявок
+      tags:
+      - applications
+    post:
+      consumes:
+      - application/json
+      description: Создаёт заявку с автоматическим назначением ответственных из организации/компании.
+      parameters:
+      - description: Данные заявки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.ApplicationCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.ApplicationCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание простой заявки
+      tags:
+      - applications
+  /applications/{id}:
+    get:
+      description: Возвращает заявку с обновлением статуса при первом прочтении не
+        отправителем.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение заявки по ID
+      tags:
+      - applications
+    put:
+      consumes:
+      - application/json
+      description: Обновляет confirmation, status и/или responsible_comment заявки.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновляемые поля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.ApplicationUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.ApplicationUpdateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление заявки
+      tags:
+      - applications
+  /applications/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Пользователь голосует за согласование или отказ заявки.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 'Голос: approved или rejected'
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UserApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Согласование заявки пользователем
+      tags:
+      - applications
+  /applications/{id}/attachments:
+    get:
+      description: Возвращает вложения заявки с информацией из шаблонов (unique_attachments).
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.AttachmentInfo'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Вложения заявки
+      tags:
+      - applications
+  /applications/{id}/check-approval-status:
+    get:
+      description: Возвращает текущие confirmation и status заявки.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.ApprovalStatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Проверка статуса согласования
+      tags:
+      - applications
+  /applications/{id}/details:
+    get:
+      description: Возвращает детальную информацию о заявке с ответственными пользователями.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Расширенная информация о заявке
+      tags:
+      - applications
+  /applications/{id}/forward:
+    post:
+      consumes:
+      - application/json
+      description: Назначает ответственных и просматривающих для заявки.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список пользователей
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.ForwardApplicationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Пересылка заявки
+      tags:
+      - applications
+  /applications/{id}/history:
+    get:
+      description: Возвращает записи истории заявки в обратном хронологическом порядке.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ApplicationHistoryItem'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: История заявки
+      tags:
+      - applications
+  /applications/{id}/responsible-users:
+    get:
+      description: Возвращает список ответственных с информацией о согласовании.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ResponsibleUserInfo'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Ответственные пользователи заявки
+      tags:
+      - applications
+  /applications/{id}/restore-to-work:
+    post:
+      consumes:
+      - application/json
+      description: Принимающий возвращает заявку в статус "В обработке" для повторного
+        рассмотрения.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Комментарий
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.RevokeFromWorkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Возврат заявки в обработку
+      tags:
+      - applications
+  /applications/{id}/revoke-approval:
+    post:
+      consumes:
+      - application/json
+      description: Пользователь отзывает ранее данное согласование/отказ.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Комментарий
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.RevokeApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.RevokeApprovalResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Отзыв согласования
+      tags:
+      - applications
+  /applications/{id}/revoke-from-work:
+    post:
+      consumes:
+      - application/json
+      description: Принимающий возвращает заявку в статус "В обработке", деактивируя
+        все элементы.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Комментарий
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.RevokeFromWorkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Отзыв заявки из работы
+      tags:
+      - applications
+  /applications/{id}/take-to-work:
+    post:
+      consumes:
+      - application/json
+      description: Принимающий пользователь принимает (accept) или отклоняет (reject)
+        заявку.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 'Действие: accept или reject'
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.TakeToWorkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Принятие заявки в работу
+      tags:
+      - applications
+  /applications/{id}/update-items-status:
+    post:
+      description: Активирует все машины и сотрудников во вложениях заявки (status
+        = 1).
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление статусов элементов заявки
+      tags:
+      - applications
+  /applications/{id}/viewers:
+    get:
+      description: Возвращает список просматривающих с информацией о пользователе.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ViewerWithUser'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Просматривающие заявки
+      tags:
+      - applications
+  /applications/history:
+    post:
+      consumes:
+      - application/json
+      description: Ручное добавление записи в историю заявки.
+      parameters:
+      - description: Запись истории
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.AddHistoryEntryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success + message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Добавление записи в историю
+      tags:
+      - applications
+  /applications/submit-complete-application:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт заявку вместе с вложениями (машины, сотрудники, ТМЦ) в
+        одной транзакции.
+      parameters:
+      - description: Полные данные заявки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CompleteApplicationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CompleteApplicationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание полной заявки с вложениями
+      tags:
+      - applications
+  /applications/user:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает все заявки для текущего пользователя с фильтрацией.
+      parameters:
+      - description: Поисковый запрос
+        in: query
+        name: search_query
+        type: string
+      - description: Статус согласования
+        in: query
+        name: confirmation
+        type: string
+      - description: Статус заявки
+        in: query
+        name: status
+        type: string
+      - description: Дата от (YYYY-MM-DD)
+        in: query
+        name: date_from
+        type: string
+      - description: Дата до (YYYY-MM-DD)
+        in: query
+        name: date_to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ApplicationWithDetails'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Заявки текущего пользователя
+      tags:
+      - applications
+  /attachments:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список активных шаблонов вложений (is_active = true)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UniqueAttachment'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить активные шаблоны вложений
+      tags:
+      - attachments
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый шаблон вложения с указанными параметрами
+      parameters:
+      - description: Данные нового шаблона вложения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUniqueAttachmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CreateUniqueAttachmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создать шаблон вложения
+      tags:
+      - attachments
+  /attachments/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Мягкое удаление шаблона вложения по указанному ID (is_active =
+        false)
+      parameters:
+      - description: ID шаблона вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Вложение успешно удалено
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить шаблон вложения
+      tags:
+      - attachments
+    get:
+      consumes:
+      - application/json
+      description: Возвращает шаблон вложения по указанному идентификатору
+      parameters:
+      - description: ID шаблона вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UniqueAttachment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить шаблон вложения по ID
+      tags:
+      - attachments
+    put:
+      consumes:
+      - application/json
+      description: Обновляет данные шаблона вложения по указанному ID
+      parameters:
+      - description: ID шаблона вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновлённые данные шаблона
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUniqueAttachmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Вложение успешно обновлено
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить шаблон вложения
+      tags:
+      - attachments
+  /attachments/{id}/cars:
+    get:
+      description: Возвращает автомобили вложения с привязанными местами разгрузки.
+      parameters:
+      - description: ID вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CarWithPlaces'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Автомобили вложения
+      tags:
+      - applications
+  /attachments/{id}/employees:
+    get:
+      description: Возвращает сотрудников вложения с привязанными таблицами.
+      parameters:
+      - description: ID вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.EmployeeWithTables'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сотрудники вложения
+      tags:
+      - applications
+  /attachments/{id}/items:
+    get:
+      description: Возвращает товарно-материальные ценности вложения.
+      parameters:
+      - description: ID вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.ItemInfo'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: ТМЦ вложения
+      tags:
+      - applications
+  /attachments/{id}/restore:
+    put:
+      consumes:
+      - application/json
+      description: Восстанавливает ранее удалённый шаблон вложения (is_active = true)
+      parameters:
+      - description: ID шаблона вложения
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Вложение успешно восстановлено
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Восстановить шаблон вложения
+      tags:
+      - attachments
+  /attachments/all:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает полный список шаблонов вложений, включая неактивные
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UniqueAttachment'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить все шаблоны вложений
+      tags:
+      - attachments
+  /cars/{id}/activate:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные активации
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.ActivateCarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Активация автомобиля (ввод в работу)
+      tags:
+      - cars
+  /cars/{id}/deactivate:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные деактивации
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.DeactivateCarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Деактивация автомобиля
+      tags:
+      - cars
+  /cars/{id}/history:
+    get:
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CarHistoryItemResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение истории конкретного автомобиля
+      tags:
+      - cars
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные записи истории
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.AddCarHistoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Добавление записи в историю автомобиля
+      tags:
+      - cars
+  /cars/{id}/restore:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные восстановления
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.RestoreCarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Восстановление удалённого автомобиля
+      tags:
+      - cars
+  /cars/{id}/territory-status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID автомобиля
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Новый территориальный статус
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateTerritoryStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Обновление статуса нахождения автомобиля на территории
+      tags:
+      - cars
+  /cars/active-for-tables:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.TableCarResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение активных машин для таблиц
+      tags:
+      - cars
+  /cars/check-active:
+    get:
+      parameters:
+      - description: Номер автомобиля
+        in: query
+        name: car_number
+        required: true
+        type: string
+      - description: Марка автомобиля
+        in: query
+        name: car_brand
+        required: true
+        type: string
+      - description: ID организации
+        in: query
+        name: organization_id
+        type: integer
+      - description: ID компании
+        in: query
+        name: company_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CheckActiveCarResponse'
+      security:
+      - BearerAuth: []
+      summary: Проверка наличия активной машины по параметрам
+      tags:
+      - cars
+  /cars/fact-for-tables:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.TableCarResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение машин «по факту» для таблиц
+      tags:
+      - cars
+  /cars/fact-unload-places:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CarUnloadPlaceInfo'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение связей машин «по факту» с местами разгрузки
+      tags:
+      - cars
+  /cars/history/all:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.AllCarsHistoryItem'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение истории въездов/выездов всех автомобилей
+      tags:
+      - cars
+  /cars/history/current-status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CarCurrentStatus'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение текущего территориального статуса активных автомобилей
+      tags:
+      - cars
+  /cars/history/unified:
+    get:
+      parameters:
+      - description: Номер автомобиля
+        in: query
+        name: car_number
+        required: true
+        type: string
+      - description: Марка автомобиля
+        in: query
+        name: car_brand
+        required: true
+        type: string
+      - description: ID организации
+        in: query
+        name: organization_id
+        type: integer
+      - description: ID компании
+        in: query
+        name: company_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CarHistoryItemResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение объединённой истории для всех машин с одинаковыми параметрами
+      tags:
+      - cars
+  /cars/unload-places:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CarUnloadPlaceInfo'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение связей активных машин с местами разгрузки
+      tags:
+      - cars
+  /citizenships:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех гражданств в системе
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Citizenship'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить все гражданства
+      tags:
+      - citizenships
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новое гражданство с указанными параметрами
+      parameters:
+      - description: Данные нового гражданства
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateCitizenshipRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id и message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создать гражданство
+      tags:
+      - citizenships
+  /citizenships/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет гражданство по указанному ID
+      parameters:
+      - description: ID гражданства
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Гражданство успешно удалено
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить гражданство
+      tags:
+      - citizenships
+    put:
+      consumes:
+      - application/json
+      description: Обновляет данные гражданства по указанному ID
+      parameters:
+      - description: ID гражданства
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновлённые данные гражданства
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateCitizenshipRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Гражданство успешно обновлено
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить гражданство
+      tags:
+      - citizenships
+  /citizenships/clear-default:
+    post:
+      consumes:
+      - application/json
+      description: Сбрасывает флаг is_default у всех гражданств
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Все гражданства по умолчанию сброшены
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Сбросить гражданства по умолчанию
+      tags:
+      - citizenships
+  /companies:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех компаний, отсортированных по имени
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Company'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить все компании
+      tags:
+      - companies
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую компанию. Требуются права buropropuskov
+      parameters:
+      - description: Данные новой компании
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateCompanyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Company'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создать компанию
+      tags:
+      - companies
+  /companies/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет компанию по ID. Нельзя удалить если есть привязанные пользователи.
+        Требуются права buropropuskov
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить компанию
+      tags:
+      - companies
+    put:
+      consumes:
+      - application/json
+      description: Обновляет название компании по ID. Требуются права buropropuskov
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновлённые данные компании
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateCompanyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Company'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить компанию
+      tags:
+      - companies
+  /companies/{id}/tables:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список активных таблиц, привязанных к компании
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CompanyTableResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить таблицы компании
+      tags:
+      - companies
+    put:
+      consumes:
+      - application/json
+      description: Обновляет привязку таблиц к компании. Требуются права buropropuskov
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список ID таблиц
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateCompanyTablesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить таблицы компании
+      tags:
+      - companies
+  /companies/{id}/unload-places:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список активных мест разгрузки, привязанных к компании
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CompanyUnloadPlaceResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить места разгрузки компании
+      tags:
+      - companies
+    put:
+      consumes:
+      - application/json
+      description: Обновляет привязку мест разгрузки к компании. Требуются права buropropuskov
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список ID мест разгрузки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateCompanyUnloadPlacesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить места разгрузки компании
+      tags:
+      - companies
+  /companies/{id}/users:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список ответственных пользователей компании
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CompanyUserResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить пользователей компании
+      tags:
+      - companies
+    put:
+      consumes:
+      - application/json
+      description: Заменяет список ответственных пользователей компании с поддержкой
+        обязательного согласования
+      parameters:
+      - description: ID компании
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список ответственных пользователей
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateCompanyUsersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить пользователей компании
+      tags:
+      - companies
+  /companies/with-users:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список компаний с количеством привязанных пользователей
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CompanyWithUsersResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить компании с количеством пользователей
+      tags:
+      - companies
+  /companies/with-users-extended:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает компании с количеством пользователей и местами разгрузки
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.CompanyWithUsersExtendedResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить компании с расширенной информацией
+      tags:
+      - companies
+  /employees:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные сотрудника
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CreateEmployeeResponse'
+      security:
+      - BearerAuth: []
+      summary: Создание сотрудника
+      tags:
+      - employees
+  /employees/active-for-table/{table_id}:
+    get:
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: table_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.TableEmployeeResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получение активных сотрудников для таблицы
+      tags:
+      - employees
+  /feedback:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Текст обращения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateFeedbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id и message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание нового обращения
+      tags:
+      - feedback
+  /feedback/{id}/read:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID обращения
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Статус прочтения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.MarkAsReadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Статус прочтения обновлен
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Отметить обращение как прочитанное/непрочитанное
+      tags:
+      - feedback
+  /feedback/{id}/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID обращения
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Новый статус
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateFeedbackStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Статус обращения успешно обновлен
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление статуса обращения
+      tags:
+      - feedback
+  /feedback/all:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.FeedbackWithUser'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение всех обращений (для администраторов)
+      tags:
+      - feedback
+  /feedback/my:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.MyFeedback'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение обращений текущего пользователя
+      tags:
+      - feedback
+  /feedback/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.FeedbackStats'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение статистики по обращениям
+      tags:
+      - feedback
+  /get-organization:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает организацию, к которой привязан текущий авторизованный
+        пользователь
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.MyOrganizationResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить организацию текущего пользователя
+      tags:
+      - organizations
+  /license-plate-formats:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех форматов номерных знаков с их ячейками
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.LicensePlateFormatWithCells'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить все форматы номерных знаков
+      tags:
+      - license-formats
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый формат номерного знака с ячейками
+      parameters:
+      - description: Данные нового формата
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateLicensePlateFormatRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CreateFormatResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создать формат номерного знака
+      tags:
+      - license-formats
+  /license-plate-formats/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет формат номерного знака по указанному ID
+      parameters:
+      - description: ID формата
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Формат номеров успешно удален
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить формат номерного знака
+      tags:
+      - license-formats
+    put:
+      consumes:
+      - application/json
+      description: Обновляет формат номерного знака и его ячейки по указанному ID
+      parameters:
+      - description: ID формата
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновлённые данные формата
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateLicensePlateFormatRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Формат номеров успешно обновлен
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить формат номерного знака
+      tags:
+      - license-formats
   /login:
     post:
       consumes:
@@ -198,6 +4554,426 @@ paths:
       summary: Выход из системы
       tags:
       - auth
+  /organizations:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех организаций (id, name)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.OrganizationInfoResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить все организации
+      tags:
+      - organizations
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую организацию. Требует права buropropuskov
+      parameters:
+      - description: Данные новой организации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateOrganizationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OrganizationInfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создать организацию
+      tags:
+      - organizations
+  /organizations/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет организацию по ID. Нельзя удалить если есть привязанные
+        пользователи. Требует права buropropuskov
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить организацию
+      tags:
+      - organizations
+    put:
+      consumes:
+      - application/json
+      description: Обновляет название организации по ID. Требует права buropropuskov
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновлённые данные организации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateOrganizationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OrganizationInfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить организацию
+      tags:
+      - organizations
+  /organizations/{id}/tables:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список таблиц, привязанных к организации
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.OrganizationTableResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить таблицы организации
+      tags:
+      - organizations
+    put:
+      consumes:
+      - application/json
+      description: Заменяет привязку таблиц к организации. Требует права buropropuskov
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список ID таблиц
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateOrganizationTablesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить таблицы организации
+      tags:
+      - organizations
+  /organizations/{id}/unload-places:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список мест разгрузки, привязанных к организации
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.OrganizationUnloadPlaceResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить места разгрузки организации
+      tags:
+      - organizations
+    put:
+      consumes:
+      - application/json
+      description: Заменяет привязку мест разгрузки к организации. Требует права buropropuskov
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список ID мест разгрузки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateOrganizationUnloadPlacesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить места разгрузки организации
+      tags:
+      - organizations
+  /organizations/{id}/users:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список ответственных пользователей организации
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.OrganizationUserResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить пользователей организации
+      tags:
+      - organizations
+    put:
+      consumes:
+      - application/json
+      description: Заменяет список ответственных пользователей организации (replace-стратегия)
+      parameters:
+      - description: ID организации
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Список ответственных пользователей
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateOrganizationUsersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить пользователей организации
+      tags:
+      - organizations
+  /organizations/with-users:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список организаций с количеством привязанных пользователей
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.OrganizationWithUsersResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить организации с количеством пользователей
+      tags:
+      - organizations
+  /organizations/with-users-extended:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает организации с количеством пользователей и местами разгрузки
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить организации с расширенной информацией
+      tags:
+      - organizations
   /refresh-token:
     post:
       consumes:
@@ -250,6 +5026,1329 @@ paths:
       summary: Регистрация пользователя
       tags:
       - auth
+  /system-tables:
+    get:
+      description: Возвращает все активные системные таблицы с полями, слотами, фото
+        и текущим статусом (open/closed)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SystemTableWithDetails'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение всех системных таблиц
+      tags:
+      - system-tables
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую системную таблицу с полями по умолчанию на основе
+        table_type
+      parameters:
+      - description: Данные таблицы
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateSystemTableRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id, message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание системной таблицы
+      tags:
+      - system-tables
+  /system-tables/{id}:
+    delete:
+      description: Мягкое удаление (is_active=false). Проверяет привязки к организациям
+        и компаниям
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Системная таблица успешно удалена
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление системной таблицы
+      tags:
+      - system-tables
+    get:
+      description: Возвращает системную таблицу с полями, слотами, фото и текущим
+        статусом
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SystemTableWithDetails'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение системной таблицы по ID
+      tags:
+      - system-tables
+    put:
+      consumes:
+      - application/json
+      description: Обновляет поля системной таблицы (частичное обновление)
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные для обновления
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateSystemTableRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Системная таблица успешно обновлена
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление системной таблицы
+      tags:
+      - system-tables
+  /system-tables/{id}/photos:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Загружает фотографию для системной таблицы (multipart/form-data,
+        поле "file"). Первая фотография автоматически становится главной
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Файл фотографии (макс. 10MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message, photo_ids
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Загрузка фотографии таблицы
+      tags:
+      - system-tables
+  /system-tables/{id}/time-slots:
+    get:
+      description: Возвращает все временные слоты для указанной системной таблицы
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SystemTableTimeSlot'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение временных слотов таблицы
+      tags:
+      - system-tables
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый временной слот для системной таблицы
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные слота
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateTimeSlotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id, message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Добавление временного слота
+      tags:
+      - system-tables
+  /system-tables/{table_id}/photos/{photo_id}:
+    delete:
+      description: Удаляет фотографию и файл. Если удалена главная -- следующая по
+        дате становится главной
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: table_id
+        required: true
+        type: integer
+      - description: ID фотографии
+        in: path
+        name: photo_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Фотография успешно удалена
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление фотографии таблицы
+      tags:
+      - system-tables
+  /system-tables/{table_id}/photos/{photo_id}/main:
+    post:
+      description: Устанавливает указанную фотографию как главную для таблицы, сбрасывая
+        флаг у остальных
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: table_id
+        required: true
+        type: integer
+      - description: ID фотографии
+        in: path
+        name: photo_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Главная фотография успешно установлена
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Установка главной фотографии
+      tags:
+      - system-tables
+  /system-tables/{table_id}/time-slots/{slot_id}:
+    delete:
+      description: Удаляет временной слот системной таблицы
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: table_id
+        required: true
+        type: integer
+      - description: ID слота
+        in: path
+        name: slot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Временной слот успешно удален
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление временного слота
+      tags:
+      - system-tables
+    put:
+      consumes:
+      - application/json
+      description: Обновляет временной слот системной таблицы (частичное обновление)
+      parameters:
+      - description: ID таблицы
+        in: path
+        name: table_id
+        required: true
+        type: integer
+      - description: ID слота
+        in: path
+        name: slot_id
+        required: true
+        type: integer
+      - description: Данные для обновления
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateTimeSlotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Временной слот успешно обновлен
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление временного слота
+      tags:
+      - system-tables
+  /system-tables/name/{name}:
+    get:
+      description: Возвращает системную таблицу с полями, слотами, фото и текущим
+        статусом
+      parameters:
+      - description: Имя таблицы
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SystemTableWithDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение системной таблицы по имени
+      tags:
+      - system-tables
+  /unique-cars:
+    get:
+      description: Возвращает список уникальных машин с фильтрацией по владельцу
+      parameters:
+      - description: 'Тип фильтра: user, organization, company, all, all_system'
+        in: query
+        name: filter_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.UniqueCarWithRelations'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение уникальных машин
+      tags:
+      - unique-cars
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую уникальную машину с проверкой уникальности
+      parameters:
+      - description: Данные машины
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.NewUniqueCarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.UniqueCarResponse'
+        "400":
+          description: Дубликат
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание уникальной машины
+      tags:
+      - unique-cars
+  /unique-cars/{id}:
+    delete:
+      description: Удаляет уникальную машину по ID с проверкой прав
+      parameters:
+      - description: ID машины
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Car deleted successfully'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Нет прав
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Не найдена
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление уникальной машины
+      tags:
+      - unique-cars
+    put:
+      consumes:
+      - application/json
+      description: Обновляет данные уникальной машины по ID
+      parameters:
+      - description: ID машины
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные машины
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.NewUniqueCarRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.UniqueCarResponse'
+        "400":
+          description: Дубликат
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Нет прав
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Не найдена
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление уникальной машины
+      tags:
+      - unique-cars
+  /unique-cars/batch:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт несколько уникальных машин, пропуская дубликаты
+      parameters:
+      - description: Массив данных машин
+        in: body
+        name: request
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/services.NewUniqueCarRequest'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.BatchCreateCarsResponse'
+        "207":
+          description: Частичный успех
+          schema:
+            $ref: '#/definitions/services.BatchCreateCarsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Пакетное создание уникальных машин
+      tags:
+      - unique-cars
+  /unique-cars/by-number:
+    put:
+      consumes:
+      - application/json
+      description: Находит машину по номеру и марке, обновляет данные
+      parameters:
+      - description: Номер, марка и новые данные
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateCarByNumberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.UniqueCarResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Нет прав
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Не найдена
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление уникальной машины по номеру
+      tags:
+      - unique-cars
+  /unique-cars/ownership-info:
+    get:
+      description: Возвращает данные о привязке пользователя к организации/компании
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CarOwnerInfo'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Информация о владельце для машин
+      tags:
+      - unique-cars
+  /unique-employees:
+    get:
+      description: Возвращает список уникальных сотрудников с фильтрацией по владельцу
+      parameters:
+      - description: 'Тип фильтра: user, organization, company, all'
+        in: query
+        name: filter_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.UniqueEmployeeWithRelations'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение уникальных сотрудников
+      tags:
+      - unique-employees
+    post:
+      consumes:
+      - application/json
+      description: Создаёт нового уникального сотрудника с проверкой уникальности
+        паспортных данных
+      parameters:
+      - description: Данные сотрудника
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.NewUniqueEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.UniqueEmployeeResponse'
+        "400":
+          description: Дубликат
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание уникального сотрудника
+      tags:
+      - unique-employees
+  /unique-employees/{id}:
+    delete:
+      description: Удаляет уникального сотрудника по ID с проверкой прав
+      parameters:
+      - description: ID сотрудника
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Employee deleted successfully'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Нет прав
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Не найден
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление уникального сотрудника
+      tags:
+      - unique-employees
+    put:
+      consumes:
+      - application/json
+      description: Обновляет данные уникального сотрудника по ID
+      parameters:
+      - description: ID сотрудника
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные сотрудника
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.NewUniqueEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.UniqueEmployeeResponse'
+        "400":
+          description: Дубликат
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Нет прав
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Не найден
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление уникального сотрудника
+      tags:
+      - unique-employees
+  /unique-employees/ownership-info:
+    get:
+      description: Возвращает данные о привязке пользователя к организации/компании
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.EmployeeOwnerInfo'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Информация о владельце для сотрудников
+      tags:
+      - unique-employees
+  /unload-places:
+    get:
+      description: Возвращает список мест разгрузки с расписанием, фото и текущим
+        статусом (open/closed)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.UnloadPlaceWithDetails'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение всех мест разгрузки
+      tags:
+      - unload-places
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новое место разгрузки с указанными параметрами
+      parameters:
+      - description: Данные места разгрузки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateUnloadPlaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id и message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создание места разгрузки
+      tags:
+      - unload-places
+  /unload-places/{id}:
+    delete:
+      description: Удаляет место разгрузки. Нельзя удалить если привязано к организациям
+        или компаниям
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Место разгрузки успешно удалено
+          schema:
+            type: string
+        "400":
+          description: Привязано к организациям/компаниям
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление места разгрузки
+      tags:
+      - unload-places
+    get:
+      description: Возвращает место разгрузки с расписанием, фото и текущим статусом
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.UnloadPlaceWithDetails'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение места разгрузки по ID
+      tags:
+      - unload-places
+    put:
+      consumes:
+      - application/json
+      description: Обновляет поля места разгрузки (только переданные)
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновляемые поля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateUnloadPlaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Место разгрузки успешно обновлено
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление места разгрузки
+      tags:
+      - unload-places
+  /unload-places/{id}/photos:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Загружает фотографию (multipart/form-data). Первая фотография становится
+        главной
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Файл фотографии (макс. 10MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message и photo_ids
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Загрузка фотографии
+      tags:
+      - unload-places
+  /unload-places/{id}/time-slots:
+    get:
+      description: Возвращает все временные слоты для указанного места разгрузки
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UnloadPlaceTimeSlot'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение временных слотов
+      tags:
+      - unload-places
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый временной слот для места разгрузки
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные временного слота
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateTimeSlotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id и message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Добавление временного слота
+      tags:
+      - unload-places
+  /unload-places/{place_id}/photos/{photo_id}:
+    delete:
+      description: Удаляет фотографию. Если удалена главная, следующая по дате загрузки
+        становится главной
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: place_id
+        required: true
+        type: integer
+      - description: ID фотографии
+        in: path
+        name: photo_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Фотография успешно удалена
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление фотографии
+      tags:
+      - unload-places
+  /unload-places/{place_id}/photos/{photo_id}/main:
+    post:
+      description: Устанавливает указанную фотографию как главную, сбрасывая флаг
+        у остальных
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: place_id
+        required: true
+        type: integer
+      - description: ID фотографии
+        in: path
+        name: photo_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Главная фотография успешно установлена
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Установка главной фотографии
+      tags:
+      - unload-places
+  /unload-places/{place_id}/time-slots/{slot_id}:
+    delete:
+      description: Удаляет временной слот из места разгрузки
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: place_id
+        required: true
+        type: integer
+      - description: ID временного слота
+        in: path
+        name: slot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Временной слот успешно удален
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление временного слота
+      tags:
+      - unload-places
+    put:
+      consumes:
+      - application/json
+      description: Обновляет поля временного слота (только переданные)
+      parameters:
+      - description: ID места разгрузки
+        in: path
+        name: place_id
+        required: true
+        type: integer
+      - description: ID временного слота
+        in: path
+        name: slot_id
+        required: true
+        type: integer
+      - description: Обновляемые поля
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateTimeSlotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Временной слот успешно обновлен
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление временного слота
+      tags:
+      - unload-places
   /user-data:
     get:
       description: Возвращает основные данные авторизованного пользователя
@@ -284,6 +6383,420 @@ paths:
       summary: Список типов пользователей
       tags:
       - auth
+  /user-types-management:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех типов пользователей с количеством связанных
+        пользователей
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.UserTypeWithCount'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получить все типы пользователей
+      tags:
+      - user-types-management
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новый тип пользователя с указанными именем и кодом
+      parameters:
+      - description: Данные нового типа пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateUserTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: id и message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Создать тип пользователя
+      tags:
+      - user-types-management
+  /user-types-management/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет тип пользователя по указанному ID. Нельзя удалить если
+        есть связанные пользователи
+      parameters:
+      - description: ID типа пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Тип пользователя успешно удален
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удалить тип пользователя
+      tags:
+      - user-types-management
+    put:
+      consumes:
+      - application/json
+      description: Обновляет имя и код типа пользователя по указанному ID
+      parameters:
+      - description: ID типа пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновлённые данные типа пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateUserTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Тип пользователя успешно обновлен
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновить тип пользователя
+      tags:
+      - user-types-management
+  /users/{username}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Удаление пользователя
+      tags:
+      - users
+  /users/{username}/company:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: Новый company_id
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserCompanyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Company updated successfully
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление компании пользователя
+      tags:
+      - users
+  /users/{username}/info:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: ФИО, должность, email, телефон
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserInfoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User info updated successfully
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление персональных данных пользователя
+      tags:
+      - users
+  /users/{username}/organization:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: Новый organization_id
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserOrganizationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Organization updated successfully
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление организации пользователя
+      tags:
+      - users
+  /users/{username}/password:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: Новый пароль
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password updated successfully
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление пароля пользователя
+      tags:
+      - users
+  /users/{username}/type:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Имя пользователя
+        in: path
+        name: username
+        required: true
+        type: string
+      - description: Новый type_id
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User type updated successfully
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Обновление типа пользователя
+      tags:
+      - users
+  /users/all:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UserInfoResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Получение списка всех пользователей
+      tags:
+      - users
   /users/me:
     get:
       description: Возвращает все данные авторизованного пользователя включая тип

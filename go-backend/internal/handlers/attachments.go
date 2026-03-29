@@ -20,7 +20,17 @@ func NewAttachmentHandler(service services.AttachmentService) *AttachmentHandler
 	return &AttachmentHandler{service: service}
 }
 
-// GetActive обрабатывает GET /attachments.
+// GetActive godoc
+// @Summary      Получить активные шаблоны вложений
+// @Description  Возвращает список активных шаблонов вложений (is_active = true)
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.UniqueAttachment
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /attachments [get]
 func (h *AttachmentHandler) GetActive(c echo.Context) error {
 	attachments, err := h.service.GetActive(c.Request().Context())
 	if err != nil {
@@ -29,7 +39,17 @@ func (h *AttachmentHandler) GetActive(c echo.Context) error {
 	return c.JSON(http.StatusOK, attachments)
 }
 
-// GetAll обрабатывает GET /attachments/all.
+// GetAll godoc
+// @Summary      Получить все шаблоны вложений
+// @Description  Возвращает полный список шаблонов вложений, включая неактивные
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.UniqueAttachment
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /attachments/all [get]
 func (h *AttachmentHandler) GetAll(c echo.Context) error {
 	attachments, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
@@ -38,7 +58,19 @@ func (h *AttachmentHandler) GetAll(c echo.Context) error {
 	return c.JSON(http.StatusOK, attachments)
 }
 
-// GetByID обрабатывает GET /attachments/:id.
+// GetByID godoc
+// @Summary      Получить шаблон вложения по ID
+// @Description  Возвращает шаблон вложения по указанному идентификатору
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID шаблона вложения"
+// @Success      200 {object} models.UniqueAttachment
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /attachments/{id} [get]
 func (h *AttachmentHandler) GetByID(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -51,7 +83,18 @@ func (h *AttachmentHandler) GetByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, attachment)
 }
 
-// Create обрабатывает POST /attachments.
+// Create godoc
+// @Summary      Создать шаблон вложения
+// @Description  Создаёт новый шаблон вложения с указанными параметрами
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.CreateUniqueAttachmentRequest true "Данные нового шаблона вложения"
+// @Success      200 {object} models.CreateUniqueAttachmentResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /attachments [post]
 func (h *AttachmentHandler) Create(c echo.Context) error {
 	var req models.CreateUniqueAttachmentRequest
 	if err := c.Bind(&req); err != nil {
@@ -64,7 +107,19 @@ func (h *AttachmentHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-// Update обрабатывает PUT /attachments/:id.
+// Update godoc
+// @Summary      Обновить шаблон вложения
+// @Description  Обновляет данные шаблона вложения по указанному ID
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID шаблона вложения"
+// @Param        request body models.UpdateUniqueAttachmentRequest true "Обновлённые данные шаблона"
+// @Success      200 {string} string "Вложение успешно обновлено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /attachments/{id} [put]
 func (h *AttachmentHandler) Update(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -80,7 +135,18 @@ func (h *AttachmentHandler) Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Вложение успешно обновлено")
 }
 
-// Delete обрабатывает DELETE /attachments/:id.
+// Delete godoc
+// @Summary      Удалить шаблон вложения
+// @Description  Мягкое удаление шаблона вложения по указанному ID (is_active = false)
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID шаблона вложения"
+// @Success      200 {string} string "Вложение успешно удалено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /attachments/{id} [delete]
 func (h *AttachmentHandler) Delete(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -92,7 +158,18 @@ func (h *AttachmentHandler) Delete(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Вложение успешно удалено")
 }
 
-// Restore обрабатывает PUT /attachments/:id/restore.
+// Restore godoc
+// @Summary      Восстановить шаблон вложения
+// @Description  Восстанавливает ранее удалённый шаблон вложения (is_active = true)
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID шаблона вложения"
+// @Success      200 {string} string "Вложение успешно восстановлено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /attachments/{id}/restore [put]
 func (h *AttachmentHandler) Restore(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

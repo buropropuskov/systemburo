@@ -19,7 +19,17 @@ func NewCompanyHandler(service services.CompanyService) *CompanyHandler {
 	return &CompanyHandler{service: service}
 }
 
-// GetAll обрабатывает GET /companies -- список всех компаний.
+// GetAll godoc
+// @Summary      Получить все компании
+// @Description  Возвращает список всех компаний, отсортированных по имени
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.Company
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /companies [get]
 func (h *CompanyHandler) GetAll(c echo.Context) error {
 	companies, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
@@ -28,7 +38,17 @@ func (h *CompanyHandler) GetAll(c echo.Context) error {
 	return c.JSON(http.StatusOK, companies)
 }
 
-// GetWithUsers обрабатывает GET /companies/with-users -- компании с количеством пользователей.
+// GetWithUsers godoc
+// @Summary      Получить компании с количеством пользователей
+// @Description  Возвращает список компаний с количеством привязанных пользователей
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} services.CompanyWithUsersResponse
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /companies/with-users [get]
 func (h *CompanyHandler) GetWithUsers(c echo.Context) error {
 	companies, err := h.service.GetWithUsers(c.Request().Context())
 	if err != nil {
@@ -37,7 +57,17 @@ func (h *CompanyHandler) GetWithUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, companies)
 }
 
-// GetWithUsersExtended обрабатывает GET /companies/with-users-extended -- расширенная информация.
+// GetWithUsersExtended godoc
+// @Summary      Получить компании с расширенной информацией
+// @Description  Возвращает компании с количеством пользователей и местами разгрузки
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} services.CompanyWithUsersExtendedResponse
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /companies/with-users-extended [get]
 func (h *CompanyHandler) GetWithUsersExtended(c echo.Context) error {
 	companies, err := h.service.GetWithUsersExtended(c.Request().Context())
 	if err != nil {
@@ -46,7 +76,19 @@ func (h *CompanyHandler) GetWithUsersExtended(c echo.Context) error {
 	return c.JSON(http.StatusOK, companies)
 }
 
-// Create обрабатывает POST /companies -- создание компании (требуются права buropropuskov).
+// Create godoc
+// @Summary      Создать компанию
+// @Description  Создаёт новую компанию. Требуются права buropropuskov
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.CreateCompanyRequest true "Данные новой компании"
+// @Success      200 {object} models.Company
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies [post]
 func (h *CompanyHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
 
@@ -62,7 +104,20 @@ func (h *CompanyHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusOK, company)
 }
 
-// Update обрабатывает PUT /companies/:id -- обновление компании (требуются права buropropuskov).
+// Update godoc
+// @Summary      Обновить компанию
+// @Description  Обновляет название компании по ID. Требуются права buropropuskov
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Param        request body services.CreateCompanyRequest true "Обновлённые данные компании"
+// @Success      200 {object} models.Company
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/{id} [put]
 func (h *CompanyHandler) Update(c echo.Context) error {
 	username := c.Get("username").(string)
 
@@ -83,7 +138,20 @@ func (h *CompanyHandler) Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, company)
 }
 
-// Delete обрабатывает DELETE /companies/:id -- удаление компании (требуются права buropropuskov).
+// Delete godoc
+// @Summary      Удалить компанию
+// @Description  Удаляет компанию по ID. Нельзя удалить если есть привязанные пользователи. Требуются права buropropuskov
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {object} map[string]string "message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Router       /companies/{id} [delete]
 func (h *CompanyHandler) Delete(c echo.Context) error {
 	username := c.Get("username").(string)
 
@@ -98,7 +166,18 @@ func (h *CompanyHandler) Delete(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "Company deleted"})
 }
 
-// GetUsers обрабатывает GET /companies/:id/users -- ответственные пользователи компании.
+// GetUsers godoc
+// @Summary      Получить пользователей компании
+// @Description  Возвращает список ответственных пользователей компании
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {array} services.CompanyUserResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /companies/{id}/users [get]
 func (h *CompanyHandler) GetUsers(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -112,7 +191,19 @@ func (h *CompanyHandler) GetUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, users)
 }
 
-// UpdateUsers обрабатывает PUT /companies/:id/users -- обновление ответственных пользователей.
+// UpdateUsers godoc
+// @Summary      Обновить пользователей компании
+// @Description  Заменяет список ответственных пользователей компании с поддержкой обязательного согласования
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Param        request body services.UpdateCompanyUsersRequest true "Список ответственных пользователей"
+// @Success      200 {object} map[string]string "message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /companies/{id}/users [put]
 func (h *CompanyHandler) UpdateUsers(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -130,7 +221,18 @@ func (h *CompanyHandler) UpdateUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "Company users updated successfully"})
 }
 
-// GetUnloadPlaces обрабатывает GET /companies/:id/unload-places -- места разгрузки компании.
+// GetUnloadPlaces godoc
+// @Summary      Получить места разгрузки компании
+// @Description  Возвращает список активных мест разгрузки, привязанных к компании
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {array} services.CompanyUnloadPlaceResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /companies/{id}/unload-places [get]
 func (h *CompanyHandler) GetUnloadPlaces(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -144,7 +246,20 @@ func (h *CompanyHandler) GetUnloadPlaces(c echo.Context) error {
 	return c.JSON(http.StatusOK, places)
 }
 
-// UpdateUnloadPlaces обрабатывает PUT /companies/:id/unload-places -- обновление мест разгрузки (buropropuskov).
+// UpdateUnloadPlaces godoc
+// @Summary      Обновить места разгрузки компании
+// @Description  Обновляет привязку мест разгрузки к компании. Требуются права buropropuskov
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Param        request body services.UpdateCompanyUnloadPlacesRequest true "Список ID мест разгрузки"
+// @Success      200 {object} map[string]string "message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/{id}/unload-places [put]
 func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
 	username := c.Get("username").(string)
 
@@ -164,7 +279,18 @@ func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "Unload places updated successfully"})
 }
 
-// GetTables обрабатывает GET /companies/:id/tables -- таблицы компании.
+// GetTables godoc
+// @Summary      Получить таблицы компании
+// @Description  Возвращает список активных таблиц, привязанных к компании
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {array} services.CompanyTableResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /companies/{id}/tables [get]
 func (h *CompanyHandler) GetTables(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -178,7 +304,20 @@ func (h *CompanyHandler) GetTables(c echo.Context) error {
 	return c.JSON(http.StatusOK, tables)
 }
 
-// UpdateTables обрабатывает PUT /companies/:id/tables -- обновление таблиц компании (buropropuskov).
+// UpdateTables godoc
+// @Summary      Обновить таблицы компании
+// @Description  Обновляет привязку таблиц к компании. Требуются права buropropuskov
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Param        request body services.UpdateCompanyTablesRequest true "Список ID таблиц"
+// @Success      200 {object} map[string]string "message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/{id}/tables [put]
 func (h *CompanyHandler) UpdateTables(c echo.Context) error {
 	username := c.Get("username").(string)
 

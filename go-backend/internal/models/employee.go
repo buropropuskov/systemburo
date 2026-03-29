@@ -4,8 +4,8 @@ import "time"
 
 type Employee struct {
 	ID                   int          `json:"id"`
-	AttachmentID         int          `gorm:"index" json:"attachment_id"`
-	Attachment           Attachment   `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	AttachmentID         *int         `gorm:"index" json:"attachment_id"`
+	Attachment           *Attachment  `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	LastName             *string      `gorm:"size:100" json:"last_name"`
 	FirstName            *string      `gorm:"size:100" json:"first_name"`
 	MiddleName           *string      `gorm:"size:100" json:"middle_name"`
@@ -59,7 +59,7 @@ type UniqueEmployee struct {
 	Company              *Company      `json:"-"`
 	UserID               *int          `gorm:"index" json:"user_id"`
 	User                 *User         `json:"-"`
-	Status               *int          `json:"status"`
+	Status               *bool         `gorm:"default:false" json:"status"`
 	CreatedAt            time.Time     `json:"created_at"`
 	UpdatedAt            time.Time     `json:"updated_at"`
 }

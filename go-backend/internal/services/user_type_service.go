@@ -74,7 +74,7 @@ func (s *userTypeService) GetAllWithCount(ctx context.Context, typeID int) ([]Us
 		return nil, err
 	}
 
-	var result []UserTypeWithCount
+	result := make([]UserTypeWithCount, 0)
 	err := s.db.WithContext(ctx).
 		Table("user_types ut").
 		Select("ut.id, ut.name, ut.code, COUNT(u.username) as users_count").

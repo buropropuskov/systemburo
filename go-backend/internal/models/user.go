@@ -37,6 +37,56 @@ type UserType struct {
 	Code string `gorm:"uniqueIndex;size:20" json:"code"`
 }
 
+// --- Users management DTOs ---
+
+// UserInfoResponse — ответ с полной информацией о пользователе (JSON поля совпадают с Rust UserInfo).
+type UserInfoResponse struct {
+	ID             int     `json:"id"`
+	Username       string  `json:"username"`
+	Organization   *string `json:"organization"`
+	OrganizationID *int    `json:"organization_id"`
+	Company        *string `json:"company"`
+	CompanyID      *int    `json:"company_id"`
+	TypeID         int     `json:"type_id"`
+	UserType       string  `json:"user_type"`
+	LastName       *string `json:"last_name"`
+	FirstName      *string `json:"first_name"`
+	MiddleName     *string `json:"middle_name"`
+	Position       *string `json:"position"`
+	Email          *string `json:"email"`
+	Phone          *string `json:"phone"`
+}
+
+// UpdateUserTypeRequest — запрос на обновление типа пользователя.
+type UpdateUserTypeRequest struct {
+	TypeID int `json:"type_id"`
+}
+
+// UpdatePasswordRequest — запрос на обновление пароля пользователя.
+type UpdatePasswordRequest struct {
+	Password string `json:"password"`
+}
+
+// UpdateUserInfoRequest — запрос на обновление персональных данных пользователя.
+type UpdateUserInfoRequest struct {
+	LastName   *string `json:"last_name"`
+	FirstName  *string `json:"first_name"`
+	MiddleName *string `json:"middle_name"`
+	Position   *string `json:"position"`
+	Email      *string `json:"email"`
+	Phone      *string `json:"phone"`
+}
+
+// UpdateUserOrganizationRequest — запрос на обновление организации пользователя.
+type UpdateUserOrganizationRequest struct {
+	OrganizationID int `json:"organization_id"`
+}
+
+// UpdateUserCompanyRequest — запрос на обновление компании пользователя.
+type UpdateUserCompanyRequest struct {
+	CompanyID int `json:"company_id"`
+}
+
 // Junction tables
 
 type OrganizationUser struct {

@@ -135,7 +135,7 @@ func NewCompanyService(db *gorm.DB) CompanyService {
 }
 
 func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
-	var companies []models.Company
+	companies := make([]models.Company, 0)
 	if err := s.db.WithContext(ctx).Order("name").Find(&companies).Error; err != nil {
 		slog.Error("не удалось получить компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching companies")
@@ -144,7 +144,7 @@ func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 }
 
 func (s *companyService) GetWithUsers(ctx context.Context) ([]CompanyWithUsersResponse, error) {
-	var result []CompanyWithUsersResponse
+	result := make([]CompanyWithUsersResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("companies c").
 		Select("c.id, c.name, COUNT(u.id) as user_count").
@@ -166,7 +166,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWit
 		Name      string
 		UserCount *int64
 	}
-	var companies []companyRow
+	companies := make([]companyRow, 0)
 	err := s.db.WithContext(ctx).
 		Table("companies c").
 		Select("c.id, c.name, COUNT(u.id) as user_count").
@@ -182,7 +182,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWit
 	result := make([]CompanyWithUsersExtendedResponse, 0, len(companies))
 	for _, c := range companies {
 		// Для каждой компании получаем места разгрузки
-		var places []CompanyUnloadPlaceResponse
+		places := make([]CompanyUnloadPlaceResponse, 0)
 		err := s.db.WithContext(ctx).
 			Table("unload_places up").
 			Select("up.id, up.name, up.description").
@@ -192,9 +192,6 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWit
 			Scan(&places).Error
 		if err != nil {
 			slog.Warn("не удалось получить места разгрузки компании", "company_id", c.ID, "error", err)
-			places = []CompanyUnloadPlaceResponse{}
-		}
-		if places == nil {
 			places = []CompanyUnloadPlaceResponse{}
 		}
 
@@ -262,7 +259,7 @@ func (s *companyService) Delete(ctx context.Context, username string, companyID 
 }
 
 func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]CompanyUserResponse, error) {
-	var users []CompanyUserResponse
+	users := make([]CompanyUserResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("users u").
 		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position, cu.is_primary, cu.required_approval").
@@ -340,7 +337,7 @@ func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req Upd
 }
 
 func (s *companyService) GetUnloadPlaces(ctx context.Context, companyID int) ([]CompanyUnloadPlaceResponse, error) {
-	var places []CompanyUnloadPlaceResponse
+	places := make([]CompanyUnloadPlaceResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("unload_places up").
 		Select("up.id, up.name, up.description").
@@ -394,7 +391,7 @@ func (s *companyService) UpdateUnloadPlaces(ctx context.Context, username string
 }
 
 func (s *companyService) GetTables(ctx context.Context, companyID int) ([]CompanyTableResponse, error) {
-	var tables []CompanyTableResponse
+	tables := make([]CompanyTableResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("system_tables st").
 		Select("st.id, st.name, st.display_name, st.table_type").
