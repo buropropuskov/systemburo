@@ -36,6 +36,27 @@ services:
       db:
         condition: service_healthy
 
+  go-backend:
+    build:
+      context: ./go-backend
+      target: dev
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-123}@db/${DB_NAME:-auto_registry}
+      BIND_HOST: "0.0.0.0"
+      BIND_PORT: "8090"
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./go-backend:/app
+      - go_mod_cache:/go/pkg/mod
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-c", "go mod tidy && swag init -g cmd/server/main.go -o docs 2>/dev/null; go run ./cmd/server"]
+
   frontend:
     build:
       context: ./frontend
@@ -89,3 +110,4 @@ volumes:
   cargo_registry:
   cargo_git:
   test_target:
+  go_mod_cache:

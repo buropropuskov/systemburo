@@ -1,0 +1,78 @@
+package models
+
+// --- Requests ---
+
+type RegisterRequest struct {
+	Username       string  `json:"username"`
+	Password       string  `json:"password"`
+	OrganizationID int     `json:"organization_id"`
+	CompanyID      int     `json:"company_id"`
+	TypeID         int     `json:"type_id"`
+	LastName       *string `json:"last_name"`
+	FirstName      *string `json:"first_name"`
+	MiddleName     *string `json:"middle_name"`
+	Position       *string `json:"position"`
+	Email          *string `json:"email"`
+	Phone          *string `json:"phone"`
+}
+
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// --- Responses ---
+
+type LoginResponse struct {
+	Token          string `json:"token"`
+	RefreshToken   string `json:"refreshToken"`
+	Organization   string `json:"organization"`
+	OrganizationID int    `json:"organization_id"`
+	Company        string `json:"company"`
+	CompanyID      int    `json:"company_id"`
+	TypeID         int    `json:"type_id"`
+	UserType       string `json:"user_type"`
+}
+
+type TokenPairResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
+}
+
+type UserDataResponse struct {
+	Username       string  `json:"username"`
+	Organization   string  `json:"organization"`
+	OrganizationID int     `json:"organization_id"`
+	Company        string  `json:"company"`
+	CompanyID      int     `json:"company_id"`
+	LastName       *string `json:"last_name"`
+	FirstName      *string `json:"first_name"`
+	MiddleName     *string `json:"middle_name"`
+	Phone          *string `json:"phone"`
+}
+
+type CurrentUserResponse struct {
+	ID             int     `json:"id"`
+	Username       string  `json:"username"`
+	Organization   string  `json:"organization"`
+	OrganizationID int     `json:"organization_id"`
+	Company        string  `json:"company"`
+	CompanyID      int     `json:"company_id"`
+	TypeID         int     `json:"type_id"`
+	UserType       string  `json:"user_type"`
+	UserTypeCode   string  `json:"user_type_code"`
+	LastName       *string `json:"last_name"`
+	FirstName      *string `json:"first_name"`
+	MiddleName     *string `json:"middle_name"`
+	Position       *string `json:"position"`
+	Email          *string `json:"email"`
+	Phone          *string `json:"phone"`
+}

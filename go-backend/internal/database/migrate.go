@@ -1,0 +1,131 @@
+package database
+
+import (
+	"log/slog"
+
+	"systemburo/internal/models"
+
+	"gorm.io/gorm"
+)
+
+// AllModels returns all GORM models for AutoMigrate.
+// Order matters: referenced tables first, then dependents.
+func AllModels() []interface{} {
+	return []interface{}{
+		// Core (no FK dependencies)
+		&models.UserType{},
+		&models.Organization{},
+		&models.Company{},
+		&models.Citizenship{},
+		&models.LicensePlateFormat{},
+		&models.UnloadPlace{},
+		&models.SystemTable{},
+
+		// Users (depends on UserType, Organization, Company)
+		&models.User{},
+		&models.RefreshToken{},
+		&models.OrganizationUser{},
+		&models.CompaniesUser{},
+
+		// License plate cells (depends on LicensePlateFormat)
+		&models.LicensePlateFormatCell{},
+
+		// System tables relations
+		&models.SystemTablePhoto{},
+		&models.SystemTableTimeSlot{},
+		&models.OrganizationTable{},
+		&models.CompaniesTable{},
+		&models.TableField{},
+
+		// Unload places relations
+		&models.UnloadPlacePhoto{},
+		&models.UnloadPlaceTimeSlot{},
+		&models.OrganizationUnloadPlace{},
+		&models.CompaniesUnloadPlace{},
+
+		// Applications (depends on User, Organization, Company)
+		&models.Application{},
+		&models.ApplicationHistory{},
+		&models.ApplicationStatusHistory{},
+		&models.ApplicationResponsibleUser{},
+		&models.ApplicationApprover{},
+		&models.ApplicationViewer{},
+
+		// Unique records
+		&models.UniqueAttachment{},
+		&models.UniqueCar{},
+		&models.UniqueEmployee{},
+
+		// Attachments (depends on Application, UniqueAttachment)
+		&models.Attachment{},
+
+		// Cars (depends on Attachment)
+		&models.Car{},
+		&models.CarHistory{},
+		&models.CarUnloadPlace{},
+
+		// Employees (depends on Attachment, Citizenship)
+		&models.Employee{},
+		&models.EmployeeHistory{},
+		&models.ApplicationEmployee{},
+		&models.EmployeeFile{},
+		&models.EmployeeTargetTable{},
+
+		// Items (depends on Attachment)
+		&models.Item{},
+		&models.ApplicationItem{},
+
+		// Feedback & notifications
+		&models.Feedback{},
+		&models.FeedbackMessage{},
+		&models.Notification{},
+
+		// News
+		&models.News{},
+		&models.Announcement{},
+
+		// Logging
+		&models.RequestLog{},
+		&models.RequestLogs{},
+	}
+}
+
+// AutoMigrate creates/updates all tables from GORM models.
+// If tables already exist (created by Rust backend) — skips safely.
+// On a fresh DB — creates everything from models (like Laravel Schema::create).
+func AutoMigrate(db *gorm.DB) error {
+	// Check if DB already has tables (Rust backend schema)
+	if db.Migrator().HasTable("users") {
+		slog.Info("database already has tables (Rust schema), skipping AutoMigrate")
+		return nil
+	}
+
+	slog.Info("fresh database detected, running AutoMigrate for all models")
+	if err := db.AutoMigrate(AllModels()...); err != nil {
+		return err
+	}
+	slog.Info("AutoMigrate completed — all 48 tables created")
+	return nil
+}
+
+// Seed inserts initial data if tables are empty.
+func Seed(db *gorm.DB) error {
+	var count int64
+	db.Model(&models.UserType{}).Count(&count)
+	if count == 0 {
+		slog.Info("seeding user_types")
+		types := []models.UserType{
+			{Name: "Пользователь", Code: "user"},
+			{Name: "Арендатор", Code: "renter"},
+			{Name: "Подрядчик", Code: "contractor"},
+			{Name: "Охранник", Code: "security"},
+			{Name: "Руководитель", Code: "manager"},
+			{Name: "Бюро пропусков", Code: "buropropuskov"},
+		}
+		if err := db.Create(&types).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

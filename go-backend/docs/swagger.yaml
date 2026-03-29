@@ -1,0 +1,313 @@
+basePath: /
+definitions:
+  models.CurrentUserResponse:
+    properties:
+      company:
+        type: string
+      company_id:
+        type: integer
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization:
+        type: string
+      organization_id:
+        type: integer
+      phone:
+        type: string
+      position:
+        type: string
+      type_id:
+        type: integer
+      user_type:
+        type: string
+      user_type_code:
+        type: string
+      username:
+        type: string
+    type: object
+  models.HTTPError:
+    properties:
+      message:
+        example: Error description
+        type: string
+    type: object
+  models.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  models.LoginResponse:
+    properties:
+      company:
+        type: string
+      company_id:
+        type: integer
+      organization:
+        type: string
+      organization_id:
+        type: integer
+      refreshToken:
+        type: string
+      token:
+        type: string
+      type_id:
+        type: integer
+      user_type:
+        type: string
+    type: object
+  models.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  models.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  models.RegisterRequest:
+    properties:
+      company_id:
+        type: integer
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization_id:
+        type: integer
+      password:
+        type: string
+      phone:
+        type: string
+      position:
+        type: string
+      type_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  models.TokenPairResponse:
+    properties:
+      refreshToken:
+        type: string
+      token:
+        type: string
+    type: object
+  models.UserDataResponse:
+    properties:
+      company:
+        type: string
+      company_id:
+        type: integer
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      organization:
+        type: string
+      organization_id:
+        type: integer
+      phone:
+        type: string
+      username:
+        type: string
+    type: object
+  models.UserType:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+host: localhost:8090
+info:
+  contact: {}
+  description: API системы управления пропусками (Бюро пропусков)
+  title: Systemburo API
+  version: "1.0"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет credentials и возвращает access + refresh токены
+      parameters:
+      - description: Логин и пароль
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      summary: Авторизация
+      tags:
+      - auth
+  /logout:
+    post:
+      consumes:
+      - application/json
+      description: Отзывает refresh token
+      parameters:
+      - description: Refresh token для отзыва
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logged out successfully
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Выход из системы
+      tags:
+      - auth
+  /refresh-token:
+    post:
+      consumes:
+      - application/json
+      description: Выдаёт новую пару access + refresh токенов по refresh token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TokenPairResponse'
+        "401":
+          description: Invalid refresh token
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      summary: Обновление токена
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт нового пользователя с указанными данными
+      parameters:
+      - description: Данные регистрации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User registered successfully
+          schema:
+            type: string
+        "400":
+          description: Username already exists
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+  /user-data:
+    get:
+      description: Возвращает основные данные авторизованного пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserDataResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Данные текущего пользователя (краткие)
+      tags:
+      - auth
+  /user-types:
+    get:
+      description: Возвращает все типы пользователей (публичный эндпоинт)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UserType'
+            type: array
+      summary: Список типов пользователей
+      tags:
+      - auth
+  /users/me:
+    get:
+      description: Возвращает все данные авторизованного пользователя включая тип
+        и организацию
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CurrentUserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Полный профиль текущего пользователя
+      tags:
+      - auth
+securityDefinitions:
+  BearerAuth:
+    description: 'JWT токен в формате: Bearer {token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
