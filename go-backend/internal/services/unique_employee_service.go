@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -283,9 +284,11 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	}
 
 	if err := s.db.WithContext(ctx).Create(&employee).Error; err != nil {
+		slog.Error("не удалось создать уникального сотрудника", "error", err)
 		return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	slog.Info("уникальный сотрудник создан", "id", employee.ID)
 	return employeeToResponse(&employee), nil
 }
 
@@ -368,8 +371,10 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 			"user_id":               userID,
 		})
 	if result.Error != nil {
+		slog.Error("не удалось обновить уникального сотрудника", "id", id, "error", result.Error)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating employee")
 	}
+	slog.Info("уникальный сотрудник обновлён", "id", id)
 
 	var updated models.UniqueEmployee
 	if err := s.db.WithContext(ctx).First(&updated, id).Error; err != nil {
@@ -400,12 +405,14 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 
 	result := s.db.WithContext(ctx).Delete(&models.UniqueEmployee{}, id)
 	if result.Error != nil {
+		slog.Error("не удалось удалить уникального сотрудника", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting employee")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
 	}
 
+	slog.Info("уникальный сотрудник удалён", "id", id)
 	return nil
 }
 

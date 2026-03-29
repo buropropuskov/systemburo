@@ -142,14 +142,14 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		LEFT JOIN companies co ON app.company_id = co.id
 		WHERE ett.table_id = ?
 		AND e.status = 1
-		AND app.confirmation = 'Согласовано'
-		AND app.status IN ('В работе', 'Завершено')
+		AND app.confirmation = ?
+		AND app.status IN (?, ?)
 		AND CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date
 		GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
 				 o.name, co.name, a.entry_date_to, a.entry_time_from,
 				 a.entry_time_to, e.status
 		ORDER BY e.last_name, e.first_name
-	`, tableID).Scan(&rows).Error
+	`, tableID, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active employees")
 	}

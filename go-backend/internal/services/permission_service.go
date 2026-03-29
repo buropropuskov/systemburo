@@ -214,13 +214,16 @@ func (s *permissionService) AutoGenerateForTable(ctx context.Context, tableID in
 		},
 	}
 
-	for _, p := range permissions {
-		// Use FirstOrCreate to avoid duplicate key errors
-		result := s.db.WithContext(ctx).
-			Where("key = ?", p.Key).
-			FirstOrCreate(&p)
-		if result.Error != nil {
-			slog.Error("не удалось создать разрешение", "key", p.Key, "error", result.Error)
+	for i := range permissions {
+		var existing models.Permission
+		err := s.db.WithContext(ctx).Where("key = ?", permissions[i].Key).First(&existing).Error
+		if err == gorm.ErrRecordNotFound {
+			if err := s.db.WithContext(ctx).Create(&permissions[i]).Error; err != nil {
+				slog.Error("не удалось создать разрешение", "key", permissions[i].Key, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания разрешений")
+			}
+		} else if err != nil {
+			slog.Error("не удалось проверить разрешение", "key", permissions[i].Key, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания разрешений")
 		}
 	}

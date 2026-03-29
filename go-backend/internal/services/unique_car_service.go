@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -275,9 +276,11 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	}
 
 	if err := s.db.WithContext(ctx).Create(&car).Error; err != nil {
+		slog.Error("не удалось создать уникальный автомобиль", "error", err)
 		return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	slog.Info("уникальный автомобиль создан", "id", car.ID)
 	return carToResponse(&car), nil
 }
 
@@ -440,8 +443,10 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 			"user_id":         userID,
 		})
 	if result.Error != nil {
+		slog.Error("не удалось обновить уникальный автомобиль", "id", id, "error", result.Error)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating car")
 	}
+	slog.Info("уникальный автомобиль обновлён", "id", id)
 
 	var updated models.UniqueCar
 	if err := s.db.WithContext(ctx).First(&updated, id).Error; err != nil {
@@ -518,12 +523,14 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 
 	result := s.db.WithContext(ctx).Delete(&models.UniqueCar{}, id)
 	if result.Error != nil {
+		slog.Error("не удалось удалить уникальный автомобиль", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting car")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Car not found")
 	}
 
+	slog.Info("уникальный автомобиль удалён", "id", id)
 	return nil
 }
 

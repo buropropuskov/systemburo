@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -73,6 +74,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 			IsDefault:   req.IsDefault != nil && *req.IsDefault,
 		}
 		if err := tx.Create(&format).Error; err != nil {
+			slog.Error("не удалось создать формат номеров", "error", err)
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 		formatID = format.ID
@@ -101,6 +103,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 	if err != nil {
 		return 0, err
 	}
+	slog.Info("формат номеров создан", "id", formatID)
 	return formatID, nil
 }
 
@@ -124,11 +127,13 @@ func (s *licensePlateFormatService) Update(ctx context.Context, id int, req mode
 				"is_default":   isDefault,
 			})
 		if result.Error != nil {
+			slog.Error("не удалось обновить формат номеров", "id", id, "error", result.Error)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating license plate format")
 		}
 		if result.RowsAffected == 0 {
 			return echo.NewHTTPError(http.StatusNotFound, "Формат номеров не найден")
 		}
+		slog.Info("формат номеров обновлён", "id", id)
 
 		if err := tx.Where("format_id = ?", id).Delete(&models.LicensePlateFormatCell{}).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating format cells")
@@ -159,11 +164,13 @@ func (s *licensePlateFormatService) Update(ctx context.Context, id int, req mode
 func (s *licensePlateFormatService) Delete(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).Delete(&models.LicensePlateFormat{}, id)
 	if result.Error != nil {
+		slog.Error("не удалось удалить формат номеров", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting license plate format")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Формат номеров не найден")
 	}
+	slog.Info("формат номеров удалён", "id", id)
 	return nil
 }
 

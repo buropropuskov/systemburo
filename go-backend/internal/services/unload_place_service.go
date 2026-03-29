@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -209,8 +210,10 @@ func (s *unloadPlaceService) Create(ctx context.Context, req CreateUnloadPlaceRe
 	}
 
 	if err := s.db.WithContext(ctx).Create(&place).Error; err != nil {
+		slog.Error("не удалось создать место разгрузки", "error", err)
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error creating unload place")
 	}
+	slog.Info("место разгрузки создано", "id", place.ID)
 	return place.ID, nil
 }
 
@@ -244,11 +247,13 @@ func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloa
 
 	result := s.db.WithContext(ctx).Model(&models.UnloadPlace{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {
+		slog.Error("не удалось обновить место разгрузки", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating unload place")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
+	slog.Info("место разгрузки обновлено", "id", id)
 	return nil
 }
 
@@ -298,11 +303,13 @@ func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 
 	result := s.db.WithContext(ctx).Delete(&models.UnloadPlace{}, id)
 	if result.Error != nil {
+		slog.Error("не удалось удалить место разгрузки", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting unload place")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
+	slog.Info("место разгрузки удалено", "id", id)
 	return nil
 }
 
@@ -355,8 +362,10 @@ func (s *unloadPlaceService) AddTimeSlot(ctx context.Context, placeID int, req C
 	}
 
 	if err := s.db.WithContext(ctx).Create(&slot).Error; err != nil {
+		slog.Error("не удалось добавить временной слот", "place_id", placeID, "error", err)
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error adding time slot")
 	}
+	slog.Info("временной слот добавлен", "id", slot.ID, "place_id", placeID)
 	return slot.ID, nil
 }
 
@@ -418,11 +427,13 @@ func (s *unloadPlaceService) UpdateTimeSlot(ctx context.Context, placeID, slotID
 			"updated_at":  time.Now(),
 		})
 	if result.Error != nil {
+		slog.Error("не удалось обновить временной слот", "slot_id", slotID, "place_id", placeID, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating time slot")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Временной слот не найден")
 	}
+	slog.Info("временной слот обновлён", "slot_id", slotID, "place_id", placeID)
 	return nil
 }
 
@@ -431,11 +442,13 @@ func (s *unloadPlaceService) DeleteTimeSlot(ctx context.Context, placeID, slotID
 		Where("id = ? AND unload_place_id = ?", slotID, placeID).
 		Delete(&models.UnloadPlaceTimeSlot{})
 	if result.Error != nil {
+		slog.Error("не удалось удалить временной слот", "slot_id", slotID, "place_id", placeID, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting time slot")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Временной слот не найден")
 	}
+	slog.Info("временной слот удалён", "slot_id", slotID, "place_id", placeID)
 	return nil
 }
 
@@ -482,8 +495,10 @@ func (s *unloadPlaceService) UploadPhoto(ctx context.Context, placeID int, usern
 	}
 
 	if err := s.db.WithContext(ctx).Create(&photo).Error; err != nil {
+		slog.Error("не удалось загрузить фото", "place_id", placeID, "error", err)
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
+	slog.Info("фото загружено", "id", photo.ID, "place_id", placeID)
 	return photo.ID, nil
 }
 
@@ -505,11 +520,13 @@ func (s *unloadPlaceService) DeletePhoto(ctx context.Context, placeID, photoID i
 		Where("id = ? AND unload_place_id = ?", photoID, placeID).
 		Delete(&models.UnloadPlacePhoto{})
 	if result.Error != nil {
+		slog.Error("не удалось удалить фото", "photo_id", photoID, "place_id", placeID, "error", result.Error)
 		return "", echo.NewHTTPError(http.StatusInternalServerError, "Error deleting photo")
 	}
 	if result.RowsAffected == 0 {
 		return "", echo.NewHTTPError(http.StatusNotFound, "Фотография не найдена")
 	}
+	slog.Info("фото удалено", "photo_id", photoID, "place_id", placeID)
 
 	// Если удалили главную, назначаем следующую
 	if wasMain {

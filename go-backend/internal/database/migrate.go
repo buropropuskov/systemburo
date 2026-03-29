@@ -100,7 +100,16 @@ func AllModels() []interface{} {
 func AutoMigrate(db *gorm.DB) error {
 	// Check if DB already has tables (Rust backend schema)
 	if db.Migrator().HasTable("users") {
-		slog.Info("database already has tables (Rust schema), skipping AutoMigrate")
+		slog.Info("database already has tables (Rust schema), skipping full AutoMigrate")
+		// Always migrate new tables that don't exist in Rust schema
+		newModels := []interface{}{
+			&models.Permission{},
+			&models.UserPermission{},
+			&models.ApplicationRead{},
+		}
+		if err := db.AutoMigrate(newModels...); err != nil {
+			return err
+		}
 		return nil
 	}
 

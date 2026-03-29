@@ -45,6 +45,11 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	if archiveStr := c.QueryParam("archive"); archiveStr != "" {
+		archive := archiveStr == "true"
+		filter.Archive = &archive
+	}
+
 	apps, err := h.service.GetApplications(c.Request().Context(), username, filter)
 	if err != nil {
 		return err

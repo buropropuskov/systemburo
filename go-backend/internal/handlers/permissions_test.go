@@ -241,8 +241,9 @@ func TestPermissions_AutoGenerate(t *testing.T) {
 	assert.Equal(t, "table", perm.Category)
 	assert.Contains(t, perm.DisplayName, "test_table")
 
-	require.NoError(t, db.Where("key = ?", "table.test_table.edit").First(&perm).Error)
-	assert.Equal(t, "table", perm.Category)
+	var editPerm models.Permission
+	require.NoError(t, db.Where("key = ?", "table.test_table.edit").First(&editPerm).Error)
+	assert.Equal(t, "table", editPerm.Category)
 }
 
 func TestPermissions_AutoGenerate_Idempotent(t *testing.T) {

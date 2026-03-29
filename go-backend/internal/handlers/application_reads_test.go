@@ -11,7 +11,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func makeApprover(t *testing.T, db *gorm.DB, username string) {
+	t.Helper()
+	var user models.User
+	require.NoError(t, db.Where("username = ?", username).First(&user).Error)
+	db.Create(&models.ApplicationApprover{UserID: user.ID})
+}
 
 // --- Part 1: Individual Reads ---
 
@@ -152,6 +160,7 @@ func TestGetApplications_ArchiveDefault_ExcludesArchived(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
 
 	// Create an application that will be archived
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl", "Cars")
@@ -185,6 +194,7 @@ func TestGetApplications_ArchiveTrue_ShowsOnlyArchived(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
 
 	// Create an archived application
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl2", "Cars2")

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -76,11 +77,13 @@ func (s *citizenshipService) Create(ctx context.Context, typeID int, req models.
 			if err := tx.Model(&models.Citizenship{}).
 				Where("is_default = ?", true).
 				Update("is_default", false).Error; err != nil {
+				slog.Error("не удалось сбросить гражданства по умолчанию", "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error clearing default citizenships")
 			}
 		}
 
 		if err := tx.Create(&citizenship).Error; err != nil {
+			slog.Error("не удалось создать гражданство", "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating citizenship")
 		}
 		return nil
@@ -89,6 +92,7 @@ func (s *citizenshipService) Create(ctx context.Context, typeID int, req models.
 		return 0, err
 	}
 
+	slog.Info("гражданство создано", "id", citizenship.ID)
 	return citizenship.ID, nil
 }
 
@@ -107,6 +111,7 @@ func (s *citizenshipService) Update(ctx context.Context, typeID int, id int, req
 			if err := tx.Model(&models.Citizenship{}).
 				Where("is_default = ? AND id != ?", true, id).
 				Update("is_default", false).Error; err != nil {
+				slog.Error("не удалось сбросить гражданства по умолчанию", "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error clearing default citizenships")
 			}
 		}
@@ -121,11 +126,13 @@ func (s *citizenshipService) Update(ctx context.Context, typeID int, id int, req
 				"patent_required": patentRequired,
 			})
 		if result.Error != nil {
+			slog.Error("не удалось обновить гражданство", "id", id, "error", result.Error)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating citizenship")
 		}
 		if result.RowsAffected == 0 {
 			return echo.NewHTTPError(http.StatusNotFound, "Гражданство не найдено")
 		}
+		slog.Info("гражданство обновлено", "id", id)
 		return nil
 	})
 }
@@ -137,11 +144,13 @@ func (s *citizenshipService) Delete(ctx context.Context, typeID int, id int) err
 
 	result := s.db.WithContext(ctx).Delete(&models.Citizenship{}, id)
 	if result.Error != nil {
+		slog.Error("не удалось удалить гражданство", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting citizenship")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Гражданство не найдено")
 	}
+	slog.Info("гражданство удалено", "id", id)
 	return nil
 }
 
@@ -154,7 +163,9 @@ func (s *citizenshipService) ClearDefaults(ctx context.Context, typeID int) erro
 		Model(&models.Citizenship{}).
 		Where("is_default = ?", true).
 		Update("is_default", false).Error; err != nil {
+		slog.Error("не удалось сбросить гражданства по умолчанию", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error clearing default citizenships")
 	}
+	slog.Info("гражданства по умолчанию сброшены")
 	return nil
 }

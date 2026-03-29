@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
@@ -40,7 +39,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	}
 
 	// Create all services (same wiring as cmd/server/main.go)
-	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 120*time.Minute, 24*time.Hour)
+	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -48,7 +47,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
 	userService := services.NewUserService(db)
-	unloadPlaceService := services.NewUnloadPlaceService(db, "./uploads")
+	unloadPlaceService := services.NewUnloadPlaceService(db)
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
 	permissionService := services.NewPermissionService(db)
@@ -68,7 +67,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
-	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, "./uploads")
+	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService)

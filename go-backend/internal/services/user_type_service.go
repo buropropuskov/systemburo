@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -112,9 +113,11 @@ func (s *userTypeService) Create(ctx context.Context, typeID int, req CreateUser
 		Row().
 		Scan(&id)
 	if err != nil {
+		slog.Error("не удалось создать тип пользователя", "error", err)
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error creating user type")
 	}
 
+	slog.Info("тип пользователя создан", "id", id)
 	return id, nil
 }
 
@@ -134,9 +137,11 @@ func (s *userTypeService) Update(ctx context.Context, typeID int, id int, req Up
 	}
 
 	if err := s.db.WithContext(ctx).Table("user_types").Where("id = ?", id).Update("name", req.Name).Error; err != nil {
+		slog.Error("не удалось обновить тип пользователя", "id", id, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user type")
 	}
 
+	slog.Info("тип пользователя обновлён", "id", id)
 	return nil
 }
 
@@ -156,8 +161,10 @@ func (s *userTypeService) Delete(ctx context.Context, typeID int, id int) error 
 	}
 
 	if err := s.db.WithContext(ctx).Table("user_types").Where("id = ?", id).Delete(nil).Error; err != nil {
+		slog.Error("не удалось удалить тип пользователя", "id", id, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting user type")
 	}
 
+	slog.Info("тип пользователя удалён", "id", id)
 	return nil
 }

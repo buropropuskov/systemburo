@@ -1,9 +1,26 @@
 package models
 
-// Status constants for applications.
+// Application statuses
 const (
 	StatusUnread     = "Непрочитано"
 	StatusProcessing = "В обработке"
-	StatusCompleted  = "Завершено"
+	StatusApproval   = "Согласование"
+	StatusApproved   = "Согласовано"
 	StatusRejected   = "Не согласовано"
+	StatusInWork     = "В работе"
+	StatusCompleted  = "Завершено"
+	StatusRefused    = "Отказано"
+)
+
+// Application confirmations
+const (
+	ConfirmationPending  = "Согласование"
+	ConfirmationApproved = "Согласовано"
+	ConfirmationRejected = "Не согласовано"
+)
+
+// Feedback statuses
+const (
+	FeedbackOpen     = "Нерешено"
+	FeedbackResolved = "Решено"
 )

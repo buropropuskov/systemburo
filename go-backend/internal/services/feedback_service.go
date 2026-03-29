@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -133,9 +134,10 @@ func (s *feedbackService) GetStats(ctx context.Context, typeID int) (*models.Fee
 	err := s.db.WithContext(ctx).
 		Table("feedback").
 		Select(`COUNT(*) AS total,
-			COUNT(CASE WHEN status = 'Решено' THEN 1 END) AS resolved,
-			COUNT(CASE WHEN status = 'Нерешено' THEN 1 END) AS unresolved,
-			COUNT(CASE WHEN is_read = false THEN 1 END) AS unread`).
+			COUNT(CASE WHEN status = ? THEN 1 END) AS resolved,
+			COUNT(CASE WHEN status = ? THEN 1 END) AS unresolved,
+			COUNT(CASE WHEN is_read = false THEN 1 END) AS unread`,
+			models.FeedbackResolved, models.FeedbackOpen).
 		Row().
 		Scan(&stats.Total, &stats.Resolved, &stats.Unresolved, &stats.Unread)
 	if err != nil {
@@ -180,8 +182,8 @@ func (s *feedbackService) UpdateStatus(ctx context.Context, typeID int, id int, 
 	}
 
 	// Проверяем допустимость статуса
-	if req.Status != "Решено" && req.Status != "Нерешено" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be 'Решено' or 'Нерешено'")
+	if req.Status != models.FeedbackResolved && req.Status != models.FeedbackOpen {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid status. Must be '%s' or '%s'", models.FeedbackResolved, models.FeedbackOpen))
 	}
 
 	now := time.Now().UTC()

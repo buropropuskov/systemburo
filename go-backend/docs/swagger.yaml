@@ -23,6 +23,19 @@ definitions:
       username:
         type: string
     type: object
+  models.ApplicationReadResponse:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      read_at:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
   models.AvailableApproverUser:
     properties:
       company:
@@ -346,6 +359,8 @@ definitions:
     type: object
   models.LogoutRequest:
     properties:
+      refresh_token:
+        type: string
       refreshToken:
         type: string
     type: object
@@ -373,6 +388,8 @@ definitions:
     type: object
   models.RefreshTokenRequest:
     properties:
+      refresh_token:
+        type: string
       refreshToken:
         type: string
     type: object
@@ -584,6 +601,11 @@ definitions:
         type: integer
       updated_at:
         type: string
+    type: object
+  models.UnreadCountResponse:
+    properties:
+      count:
+        type: integer
     type: object
   models.UpdateCitizenshipRequest:
     properties:
@@ -2497,6 +2519,71 @@ paths:
       summary: История заявки
       tags:
       - applications
+  /applications/{id}/read:
+    post:
+      description: Текущий пользователь отмечает заявку как прочитанную (идемпотентно).
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Отметить заявку прочитанной
+      tags:
+      - applications
+  /applications/{id}/reads:
+    get:
+      description: Возвращает список пользователей, прочитавших заявку, с датами.
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ApplicationReadResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Прочтения заявки
+      tags:
+      - applications
   /applications/{id}/responsible-users:
     get:
       description: Возвращает список ответственных с информацией о согласовании.
@@ -2852,6 +2939,30 @@ paths:
       security:
       - BearerAuth: []
       summary: Создание полной заявки с вложениями
+      tags:
+      - applications
+  /applications/unread-count:
+    get:
+      description: Возвращает количество непрочитанных активных заявок для текущего
+        пользователя.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UnreadCountResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.HTTPError'
+      security:
+      - BearerAuth: []
+      summary: Количество непрочитанных заявок
       tags:
       - applications
   /applications/user:
