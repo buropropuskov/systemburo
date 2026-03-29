@@ -186,6 +186,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	apg.POST("", app.CreateApplication)
 	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
 	apg.GET("/user", app.GetUserApplications)
+	apg.GET("/unread-count", app.GetUnreadCount)
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
@@ -202,6 +203,8 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	apg.POST("/:id/revoke-approval", app.RevokeApproval)
 	apg.POST("/history", app.AddHistoryEntry)
 	apg.GET("/:id/viewers", app.GetApplicationViewers)
+	apg.POST("/:id/read", app.MarkAsRead)
+	apg.GET("/:id/reads", app.GetReads)
 
 	// Вложения заявок (cars/employees/items внутри вложений)
 	att.GET("/:id/cars", app.GetAttachmentCars)

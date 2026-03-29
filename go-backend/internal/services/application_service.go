@@ -88,6 +88,15 @@ type ApplicationService interface {
 
 	// CheckExpiredAttachments проверяет и деактивирует истекшие вложения.
 	CheckExpiredAttachments(ctx context.Context) error
+
+	// MarkAsRead фиксирует прочтение заявки пользователем.
+	MarkAsRead(ctx context.Context, applicationID int, username string) error
+
+	// GetReads возвращает список пользователей, прочитавших заявку.
+	GetReads(ctx context.Context, applicationID int) ([]models.ApplicationReadResponse, error)
+
+	// GetUnreadCount возвращает количество непрочитанных заявок для пользователя.
+	GetUnreadCount(ctx context.Context, username string) (*models.UnreadCountResponse, error)
 }
 
 // --- DTO: запросы ---
@@ -101,6 +110,7 @@ type ApplicationFilter struct {
 	Status         *string `query:"status"`
 	DateFrom       *string `query:"date_from"`
 	DateTo         *string `query:"date_to"`
+	Archive        *bool   `query:"archive"`
 }
 
 // ApplicationCreateRequest тело запроса на создание простой заявки.
@@ -740,6 +750,20 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	}
 	if filter.DateTo != nil && *filter.DateTo != "" {
 		query = query.Where("a.sending_datetime <= ?", *filter.DateTo+" 23:59:59")
+	}
+
+	// Archive filter: by default exclude archived, archive=true shows only archived
+	archiveCondition := `
+		(a.status IN (?, ?) AND EXISTS(
+			SELECT 1 FROM attachments att WHERE att.application_id = a.id
+			AND att.entry_date_to IS NOT NULL
+			AND CAST(att.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()
+		))
+	`
+	if filter.Archive != nil && *filter.Archive {
+		query = query.Where(archiveCondition, models.StatusCompleted, models.StatusRejected)
+	} else {
+		query = query.Where("NOT "+archiveCondition, models.StatusCompleted, models.StatusRejected)
 	}
 
 	return query
@@ -1413,6 +1437,10 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 }
 
 func (s *applicationService) ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error {
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return err
+	}
+
 	var user struct {
 		ID         int
 		LastName   *string
@@ -1569,6 +1597,10 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 }
 
 func (s *applicationService) ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error {
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return err
+	}
+
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return err
@@ -1683,6 +1715,10 @@ func (s *applicationService) CheckApprovalStatus(ctx context.Context, applicatio
 }
 
 func (s *applicationService) TakeApplicationToWork(ctx context.Context, username string, applicationID int, req TakeToWorkRequest) error {
+	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return err
+	}
+
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return err
