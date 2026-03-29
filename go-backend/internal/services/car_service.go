@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -275,6 +276,7 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 			TerritoryStatus: &statusZero,
 		}
 		if err := tx.Create(&car).Error; err != nil {
+			slog.Error("не удалось создать автомобиль", "car_number", req.CarNumber, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
 		}
 		carID = car.ID
@@ -287,6 +289,7 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 				OrderIndex:    &orderIdx,
 			}
 			if err := tx.Create(&cup).Error; err != nil {
+				slog.Error("не удалось создать связь автомобиля с местом разгрузки", "car_id", carID, "unload_place_id", placeID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating car unload place")
 			}
 		}
@@ -300,6 +303,7 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 			Comment:    &comment,
 		}
 		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
 
@@ -309,6 +313,7 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 		return nil, err
 	}
 
+	slog.Info("автомобиль создан", "id", carID, "car_number", req.CarNumber, "user_id", userID)
 	return &CreateCarResponse{
 		Success: true,
 		Message: "Car created successfully",
@@ -318,34 +323,24 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 
 func (s *carService) GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error) {
 	rows := make([]tableCarRow, 0)
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT
-			c.id,
-			c.car_number,
-			c.car_brand,
-			c.unload_place,
-			c.territory_status,
-			c.territory_entry_time,
-			o.name AS organization,
-			o.id AS organization_id,
-			c2.name AS company,
-			c2.id AS company_id,
-			c.entry_date_to,
-			c.entry_time_from,
-			c.entry_time_to,
-			c.status,
-			app.id AS application_id
-		FROM cars c
-		JOIN attachments a ON c.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies c2 ON app.company_id = c2.id
-		WHERE c.status = 1
-		AND app.confirmation = 'Согласовано'
-		AND app.status IN ('В работе', 'Завершено')
-		AND LOWER(TRIM(c.car_number)) != 'по факту'
-		ORDER BY c.car_number
-	`).Scan(&rows).Error
+	err := s.db.WithContext(ctx).
+		Table("cars c").
+		Select(`c.id, c.car_number, c.car_brand, c.unload_place,
+			c.territory_status, c.territory_entry_time,
+			o.name AS organization, o.id AS organization_id,
+			c2.name AS company, c2.id AS company_id,
+			c.entry_date_to, c.entry_time_from, c.entry_time_to,
+			c.status, app.id AS application_id`).
+		Joins("JOIN attachments a ON c.attachment_id = a.id").
+		Joins("JOIN applications app ON a.application_id = app.id").
+		Joins("LEFT JOIN organizations o ON app.organization_id = o.id").
+		Joins("LEFT JOIN companies c2 ON app.company_id = c2.id").
+		Where("c.status = ?", 1).
+		Where("app.confirmation = ?", models.ConfirmationApproved).
+		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+		Where("LOWER(TRIM(c.car_number)) != ?", "по факту").
+		Order("c.car_number").
+		Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active cars")
 	}
@@ -355,72 +350,38 @@ func (s *carService) GetActiveCarsForTables(ctx context.Context) ([]TableCarResp
 
 func (s *carService) GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error) {
 	rows := make([]tableCarRow, 0)
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT
-			c.id,
-			c.car_number,
-			c.car_brand,
-			c.unload_place,
-			c.territory_status,
-			c.territory_entry_time,
-			o.name AS organization,
-			o.id AS organization_id,
-			c2.name AS company,
-			c2.id AS company_id,
-			c.entry_date_to,
-			c.entry_time_from,
-			c.entry_time_to,
-			c.status,
-			app.id AS application_id
-		FROM cars c
-		JOIN attachments a ON c.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies c2 ON app.company_id = c2.id
-		WHERE c.status = 1
-		AND LOWER(TRIM(c.car_number)) = 'по факту'
-		AND app.confirmation = 'Согласовано'
-		AND app.status IN ('В работе', 'Завершено')
-		ORDER BY organization, c.entry_date_to
-	`).Scan(&rows).Error
+
+	baseQuery := func() *gorm.DB {
+		return s.db.WithContext(ctx).
+			Table("cars c").
+			Select(`c.id, c.car_number, c.car_brand, c.unload_place,
+				c.territory_status, c.territory_entry_time,
+				o.name AS organization, o.id AS organization_id,
+				c2.name AS company, c2.id AS company_id,
+				c.entry_date_to, c.entry_time_from, c.entry_time_to,
+				c.status, app.id AS application_id`).
+			Joins("JOIN attachments a ON c.attachment_id = a.id").
+			Joins("JOIN applications app ON a.application_id = app.id").
+			Joins("LEFT JOIN organizations o ON app.organization_id = o.id").
+			Joins("LEFT JOIN companies c2 ON app.company_id = c2.id").
+			Where("c.status = ?", 1).
+			Where("app.confirmation = ?", models.ConfirmationApproved).
+			Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+			Order("organization, c.entry_date_to")
+	}
+
+	err := baseQuery().
+		Where("LOWER(TRIM(c.car_number)) = ?", "по факту").
+		Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching fact cars")
 	}
 
-	// Если пустой результат — пробуем альтернативный поиск
 	if len(rows) == 0 {
-		err = s.db.WithContext(ctx).Raw(`
-			SELECT
-				c.id,
-				c.car_number,
-				c.car_brand,
-				c.unload_place,
-				c.territory_status,
-				c.territory_entry_time,
-				o.name AS organization,
-				o.id AS organization_id,
-				c2.name AS company,
-				c2.id AS company_id,
-				c.entry_date_to,
-				c.entry_time_from,
-				c.entry_time_to,
-				c.status,
-				app.id AS application_id
-			FROM cars c
-			JOIN attachments a ON c.attachment_id = a.id
-			JOIN applications app ON a.application_id = app.id
-			LEFT JOIN organizations o ON app.organization_id = o.id
-			LEFT JOIN companies c2 ON app.company_id = c2.id
-			WHERE c.status = 1
-			AND (
-				c.car_number ILIKE '%по факту%' OR
-				c.car_number ILIKE '%пофакту%' OR
-				c.car_number ILIKE '%факт%'
-			)
-			AND app.confirmation = 'Согласовано'
-			AND app.status IN ('В работе', 'Завершено')
-			ORDER BY organization, c.entry_date_to
-		`).Scan(&rows).Error
+		err = baseQuery().
+			Where("c.car_number ILIKE ? OR c.car_number ILIKE ? OR c.car_number ILIKE ?",
+				"%по факту%", "%пофакту%", "%факт%").
+			Scan(&rows).Error
 		if err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching alternative fact cars")
 		}
@@ -431,17 +392,39 @@ func (s *carService) GetFactCarsForTables(ctx context.Context) ([]TableCarRespon
 
 // enrichTableCars добавляет unload_places к каждому автомобилю.
 func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([]TableCarResponse, error) {
+	if len(rows) == 0 {
+		return []TableCarResponse{}, nil
+	}
+
+	carIDs := make([]int, len(rows))
+	for i, row := range rows {
+		carIDs[i] = row.ID
+	}
+
+	type placeRow struct {
+		CarID int
+		Name  string
+	}
+	var allPlaces []placeRow
+	err := s.db.WithContext(ctx).
+		Table("car_unload_places cup").
+		Select("cup.car_id, up.name").
+		Joins("JOIN unload_places up ON cup.unload_place_id = up.id").
+		Where("cup.car_id IN ?", carIDs).
+		Order("cup.car_id, cup.order_index").
+		Scan(&allPlaces).Error
+	if err != nil {
+		slog.Error("не удалось загрузить места разгрузки", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching unload places")
+	}
+
+	placesByCarID := make(map[int][]string)
+	for _, p := range allPlaces {
+		placesByCarID[p.CarID] = append(placesByCarID[p.CarID], p.Name)
+	}
+
 	cars := make([]TableCarResponse, 0, len(rows))
 	for _, row := range rows {
-		placeNames := make([]string, 0)
-		s.db.WithContext(ctx).Raw(`
-			SELECT up.name
-			FROM car_unload_places cup
-			JOIN unload_places up ON cup.unload_place_id = up.id
-			WHERE cup.car_id = ?
-			ORDER BY cup.order_index
-		`, row.ID).Scan(&placeNames)
-
 		status := 0
 		if row.Status != nil {
 			status = *row.Status
@@ -453,6 +436,11 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			territoryEntryTimeStr = &s
 		}
 
+		places := placesByCarID[row.ID]
+		if places == nil {
+			places = []string{}
+		}
+
 		cars = append(cars, TableCarResponse{
 			ID:                 row.ID,
 			CarNumber:          row.CarNumber,
@@ -462,7 +450,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			Company:            row.Company,
 			CompanyID:          row.CompanyID,
 			UnloadPlace:        row.UnloadPlace,
-			UnloadPlaces:       placeNames,
+			UnloadPlaces:       places,
 			EntryDateTo:        row.EntryDateTo,
 			EntryTimeFrom:      row.EntryTimeFrom,
 			EntryTimeTo:        row.EntryTimeTo,
@@ -477,21 +465,18 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 
 func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error) {
 	places := make([]CarUnloadPlaceInfo, 0)
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT
-			cup.car_id,
-			cup.unload_place_id,
-			up.name AS unload_place_name
-		FROM car_unload_places cup
-		JOIN unload_places up ON cup.unload_place_id = up.id
-		JOIN cars c ON cup.car_id = c.id
-		JOIN attachments a ON c.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
-		WHERE c.status = 1
-		AND app.confirmation = 'Согласовано'
-		AND app.status IN ('В работе', 'Завершено')
-		ORDER BY cup.car_id, cup.order_index
-	`).Scan(&places).Error
+	err := s.db.WithContext(ctx).
+		Table("car_unload_places cup").
+		Select("cup.car_id, cup.unload_place_id, up.name AS unload_place_name").
+		Joins("JOIN unload_places up ON cup.unload_place_id = up.id").
+		Joins("JOIN cars c ON cup.car_id = c.id").
+		Joins("JOIN attachments a ON c.attachment_id = a.id").
+		Joins("JOIN applications app ON a.application_id = app.id").
+		Where("c.status = ?", 1).
+		Where("app.confirmation = ?", models.ConfirmationApproved).
+		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+		Order("cup.car_id, cup.order_index").
+		Scan(&places).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car unload places")
 	}
@@ -500,22 +485,19 @@ func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceIn
 
 func (s *carService) GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error) {
 	places := make([]CarUnloadPlaceInfo, 0)
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT
-			cup.car_id,
-			cup.unload_place_id,
-			up.name AS unload_place_name
-		FROM car_unload_places cup
-		JOIN unload_places up ON cup.unload_place_id = up.id
-		JOIN cars c ON cup.car_id = c.id
-		JOIN attachments a ON c.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
-		WHERE c.status = 1
-		AND app.confirmation = 'Согласовано'
-		AND app.status IN ('В работе', 'Завершено')
-		AND LOWER(TRIM(c.car_number)) = 'по факту'
-		ORDER BY cup.car_id, cup.order_index
-	`).Scan(&places).Error
+	err := s.db.WithContext(ctx).
+		Table("car_unload_places cup").
+		Select("cup.car_id, cup.unload_place_id, up.name AS unload_place_name").
+		Joins("JOIN unload_places up ON cup.unload_place_id = up.id").
+		Joins("JOIN cars c ON cup.car_id = c.id").
+		Joins("JOIN attachments a ON c.attachment_id = a.id").
+		Joins("JOIN applications app ON a.application_id = app.id").
+		Where("c.status = ?", 1).
+		Where("app.confirmation = ?", models.ConfirmationApproved).
+		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+		Where("LOWER(TRIM(c.car_number)) = ?", "по факту").
+		Order("cup.car_id, cup.order_index").
+		Scan(&places).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching fact car unload places")
 	}
@@ -653,8 +635,10 @@ func (s *carService) AddCarHistoryEntry(ctx context.Context, carID int, req AddC
 		Metadata:   metadataStr,
 	}
 	if err := s.db.WithContext(ctx).Create(&history).Error; err != nil {
+		slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", req.ActionType, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 	}
+	slog.Info("запись в историю автомобиля добавлена", "car_id", carID, "action_type", req.ActionType)
 	return nil
 }
 
@@ -810,6 +794,7 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 			updates["territory_entry_time"] = now
 		}
 		if err := tx.Model(&models.Car{}).Where("id = ?", carID).Updates(updates).Error; err != nil {
+			slog.Error("не удалось обновить территориальный статус автомобиля", "car_id", carID, "status", req.TerritoryStatus, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating car territory status")
 		}
 
@@ -832,8 +817,10 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 			CreatedAt:  now,
 		}
 		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
+		slog.Info("территориальный статус автомобиля обновлён", "car_id", carID, "action_type", actionType, "status", req.TerritoryStatus)
 		return nil
 	})
 }
@@ -856,6 +843,7 @@ func (s *carService) DeactivateCar(ctx context.Context, carID int, req Deactivat
 			"date_removed": today,
 			"updated_at":   now,
 		}).Error; err != nil {
+			slog.Error("не удалось деактивировать автомобиль", "car_id", carID, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error deactivating car")
 		}
 
@@ -877,8 +865,10 @@ func (s *carService) DeactivateCar(ctx context.Context, carID int, req Deactivat
 			CreatedAt:  now,
 		}
 		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
+		slog.Info("автомобиль деактивирован", "car_id", carID)
 		return nil
 	})
 }
@@ -900,6 +890,7 @@ func (s *carService) ActivateCar(ctx context.Context, carID int, req ActivateCar
 			"date_removed": nil,
 			"updated_at":   now,
 		}).Error; err != nil {
+			slog.Error("не удалось активировать автомобиль", "car_id", carID, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error activating car")
 		}
 
@@ -921,8 +912,10 @@ func (s *carService) ActivateCar(ctx context.Context, carID int, req ActivateCar
 			CreatedAt:  now,
 		}
 		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
+		slog.Info("автомобиль активирован", "car_id", carID)
 		return nil
 	})
 }
@@ -944,6 +937,7 @@ func (s *carService) RestoreCar(ctx context.Context, carID int, req RestoreCarRe
 			"date_removed": nil,
 			"updated_at":   now,
 		}).Error; err != nil {
+			slog.Error("не удалось восстановить автомобиль", "car_id", carID, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring car")
 		}
 
@@ -965,8 +959,10 @@ func (s *carService) RestoreCar(ctx context.Context, carID int, req RestoreCarRe
 			CreatedAt:  now,
 		}
 		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
+		slog.Info("автомобиль восстановлен", "car_id", carID)
 		return nil
 	})
 }
