@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -18,9 +19,7 @@ import (
 )
 
 const (
-	maxFileSize             = 10 * 1024 * 1024 // 10 MB
-	systemTableUploadDir    = "./uploads/system_tables"
-	systemTableUploadPrefix = "/uploads/system_tables"
+	maxFileSize = 10 * 1024 * 1024 // 10 MB
 )
 
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
@@ -45,12 +44,18 @@ type SystemTableService interface {
 }
 
 type systemTableService struct {
-	db *gorm.DB
+	db        *gorm.DB
+	uploadDir string
+	permSvc   PermissionService
 }
 
 // NewSystemTableService создаёт реализацию SystemTableService.
-func NewSystemTableService(db *gorm.DB) SystemTableService {
-	return &systemTableService{db: db}
+func NewSystemTableService(db *gorm.DB, uploadDir string, permSvc ...PermissionService) SystemTableService {
+	s := &systemTableService{db: db, uploadDir: uploadDir}
+	if len(permSvc) > 0 && permSvc[0] != nil {
+		s.permSvc = permSvc[0]
+	}
+	return s
 }
 
 // computeCurrentStatus вычисляет текущий статус (open/closed) на основании расписания и статуса таблицы.
@@ -140,13 +145,65 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system tables")
 	}
 
+	if len(tables) == 0 {
+		return []models.SystemTableWithDetails{}, nil
+	}
+
+	tableIDs := make([]int, len(tables))
+	for i, t := range tables {
+		tableIDs[i] = t.ID
+	}
+
+	// Batch load fields, time slots and photos (4 queries instead of 3N+1)
+	allFields := make([]models.TableField, 0)
+	s.db.WithContext(ctx).Where("table_id IN ?", tableIDs).Order("display_order").Find(&allFields)
+
+	allSlots := make([]models.SystemTableTimeSlot, 0)
+	s.db.WithContext(ctx).Where("table_id IN ?", tableIDs).Order("day_of_week, open_time").Find(&allSlots)
+
+	allPhotos := make([]models.SystemTablePhoto, 0)
+	s.db.WithContext(ctx).Where("table_id IN ?", tableIDs).Order("is_main DESC, uploaded_at DESC").Find(&allPhotos)
+
+	fieldsByTable := make(map[int][]models.TableField)
+	for _, f := range allFields {
+		fieldsByTable[f.TableID] = append(fieldsByTable[f.TableID], f)
+	}
+	slotsByTable := make(map[int][]models.SystemTableTimeSlot)
+	for _, s := range allSlots {
+		slotsByTable[s.TableID] = append(slotsByTable[s.TableID], s)
+	}
+	photosByTable := make(map[int][]models.SystemTablePhoto)
+	for _, p := range allPhotos {
+		photosByTable[p.TableID] = append(photosByTable[p.TableID], p)
+	}
+
 	result := make([]models.SystemTableWithDetails, 0, len(tables))
 	for _, t := range tables {
-		details, err := s.loadTableDetails(ctx, t)
-		if err != nil {
-			return nil, err
+		fields := fieldsByTable[t.ID]
+		if fields == nil {
+			fields = []models.TableField{}
 		}
-		result = append(result, *details)
+		slots := slotsByTable[t.ID]
+		if slots == nil {
+			slots = []models.SystemTableTimeSlot{}
+		}
+		photos := photosByTable[t.ID]
+		if photos == nil {
+			photos = []models.SystemTablePhoto{}
+		}
+
+		status := "active"
+		if t.Status != "" {
+			status = t.Status
+		}
+
+		result = append(result, models.SystemTableWithDetails{
+			Table:         t,
+			Fields:        fields,
+			TimeSlots:     slots,
+			Photos:        photos,
+			CurrentStatus: computeCurrentStatus(status, slots),
+		})
 	}
 
 	return result, nil
@@ -251,6 +308,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&table).Error; err != nil {
+			slog.Error("не удалось создать системную таблицу", "name", req.Name, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating system table")
 		}
 
@@ -266,6 +324,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 				IsVisible:    true,
 			}
 			if err := tx.Create(&tf).Error; err != nil {
+				slog.Error("не удалось создать поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating table fields")
 			}
 		}
@@ -275,6 +334,18 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 		return 0, err
 	}
 
+	// Auto-generate permissions for the new table
+	if s.permSvc != nil {
+		displayName := req.DisplayName
+		if displayName == "" {
+			displayName = req.Name
+		}
+		if err := s.permSvc.AutoGenerateForTable(ctx, table.ID, req.Name); err != nil {
+			slog.Error("не удалось автогенерировать разрешения для таблицы", "table_id", table.ID, "error", err)
+		}
+	}
+
+	slog.Info("системная таблица создана", "id", table.ID, "name", req.Name)
 	return table.ID, nil
 }
 
@@ -330,12 +401,14 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 		Where("id = ?", id).
 		Updates(updates)
 	if result.Error != nil {
+		slog.Error("не удалось обновить системную таблицу", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating system table")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 	}
 
+	slog.Info("системная таблица обновлена", "id", id)
 	return nil
 }
 
@@ -379,12 +452,14 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 		Where("id = ?", id).
 		Update("is_active", false)
 	if result.Error != nil {
+		slog.Error("не ��далось удалить системную таблицу", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting system table")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 	}
 
+	slog.Info("сист��мная таблица удалена (мягко)", "id", id)
 	return nil
 }
 
@@ -544,7 +619,8 @@ func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, usern
 	}
 
 	// Создаём директорию
-	if err := os.MkdirAll(systemTableUploadDir, 0o755); err != nil {
+	uploadDir := filepath.Join(s.uploadDir, "system_tables")
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create upload directory")
 	}
 
@@ -553,8 +629,8 @@ func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, usern
 		ext = ".jpg"
 	}
 	uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), tableID, ext)
-	savePath := filepath.Join(systemTableUploadDir, uniqueName)
-	fileURL := fmt.Sprintf("%s/%s", systemTableUploadPrefix, uniqueName)
+	savePath := filepath.Join(uploadDir, uniqueName)
+	fileURL := fmt.Sprintf("/uploads/system_tables/%s", uniqueName)
 
 	src, err := file.Open()
 	if err != nil {
@@ -616,7 +692,8 @@ func (s *systemTableService) DeletePhoto(ctx context.Context, tableID, photoID i
 	}
 
 	// Удаляем файл
-	filePath := "." + photo.PhotoURL
+	fileName := filepath.Base(photo.PhotoURL)
+	filePath := filepath.Join(s.uploadDir, "system_tables", fileName)
 	if _, err := os.Stat(filePath); err == nil {
 		_ = os.Remove(filePath)
 	}

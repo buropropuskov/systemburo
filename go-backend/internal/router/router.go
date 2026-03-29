@@ -7,7 +7,12 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, jwtSecret []byte) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, jwtSecret []byte) {
+	// Health check
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(200, map[string]string{"status": "ok"})
+	})
+
 	// Public routes
 	e.POST("/register", auth.Register)
 	e.POST("/login", auth.Login)
@@ -209,4 +214,12 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	aag.GET("/available-users", approvers.GetAvailableUsers)
 	aag.POST("", approvers.Create)
 	aag.DELETE("/:id", approvers.Delete)
+
+	// Разрешения
+	permGroup := protected.Group("/permissions")
+	permGroup.GET("/my", permissions.GetMyPermissions)
+	permGroup.GET("/user/:id", permissions.GetUserPermissions)
+	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
+	permGroup.GET("/tree", permissions.GetPermissionTree)
+	permGroup.POST("/auto-generate", permissions.AutoGenerate)
 }

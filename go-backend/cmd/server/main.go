@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	_ "systemburo/docs"
 	"systemburo/internal/config"
@@ -85,11 +90,11 @@ func main() {
 	// Global middleware
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
-	e.Use(mw.CORS())
+	e.Use(mw.CORS(cfg.ParseAllowedOrigins()))
 	e.Use(mw.RateLimit(200, 60))
 
 	// Services
-	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret)
+	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -97,10 +102,11 @@ func main() {
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
 	userService := services.NewUserService(db)
-	unloadPlaceService := services.NewUnloadPlaceService(db)
+	unloadPlaceService := services.NewUnloadPlaceService(db, cfg.UploadDir)
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
-	systemTableService := services.NewSystemTableService(db)
+	permissionService := services.NewPermissionService(db)
+	systemTableService := services.NewSystemTableService(db, cfg.UploadDir, permissionService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
@@ -116,7 +122,7 @@ func main() {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
-	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService)
+	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadDir)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService)
@@ -125,18 +131,33 @@ func main() {
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	approverHandler := handlers.NewApproverHandler(approverService)
+	permissionHandler := handlers.NewPermissionHandler(permissionService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, []byte(cfg.JWTSecret))
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, []byte(cfg.JWTSecret))
+
+	// Graceful shutdown
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		<-quit
+		slog.Info("shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := e.Shutdown(ctx); err != nil {
+			slog.Error("server shutdown error", "error", err)
+		}
+	}()
 
 	// Start server
 	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.BindPort)
 	slog.Info("starting server", "addr", addr)
-	if err := e.Start(addr); err != nil {
+	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("server stopped")
 }

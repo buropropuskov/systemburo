@@ -5,11 +5,13 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
+	appvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/postgres"
@@ -38,7 +40,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	}
 
 	// Create all services (same wiring as cmd/server/main.go)
-	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret)
+	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 120*time.Minute, 24*time.Hour)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -46,10 +48,11 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
 	userService := services.NewUserService(db)
-	unloadPlaceService := services.NewUnloadPlaceService(db)
+	unloadPlaceService := services.NewUnloadPlaceService(db, "./uploads")
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
-	systemTableService := services.NewSystemTableService(db)
+	permissionService := services.NewPermissionService(db)
+	systemTableService := services.NewSystemTableService(db, "./uploads", permissionService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
@@ -65,7 +68,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
-	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService)
+	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, "./uploads")
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService)
@@ -74,15 +77,17 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	approverHandler := handlers.NewApproverHandler(approverService)
+	permissionHandler := handlers.NewPermissionHandler(permissionService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
 	e.HideBanner = true
+	e.Validator = appvalidator.New()
 	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler,
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, []byte(TestJWTSecret))
+		applicationHandler, approverHandler, permissionHandler, []byte(TestJWTSecret))
 
 	cleanup := func() {
 		sqlDB, _ := db.DB()
@@ -99,6 +104,7 @@ func CleanDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
 	tables := []string{
+		"user_permissions", "permissions",
 		"request_log", "request_logs", "notifications", "news", "announcements",
 		"feedback", "application_items", "items",
 		"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",

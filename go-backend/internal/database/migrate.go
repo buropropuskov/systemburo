@@ -86,6 +86,10 @@ func AllModels() []interface{} {
 		// Logging
 		&models.RequestLog{},
 		&models.RequestLogs{},
+
+		// Permissions
+		&models.Permission{},
+		&models.UserPermission{},
 	}
 }
 
@@ -103,7 +107,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(AllModels()...); err != nil {
 		return err
 	}
-	slog.Info("AutoMigrate completed — all 48 tables created")
+	slog.Info("AutoMigrate completed — all tables created")
 	return nil
 }
 
@@ -123,6 +127,24 @@ func Seed(db *gorm.DB) error {
 		}
 		if err := db.Create(&types).Error; err != nil {
 			return err
+		}
+	}
+
+	// Seed default tab permissions
+	if db.Migrator().HasTable("permissions") {
+		var permCount int64
+		db.Model(&models.Permission{}).Count(&permCount)
+		if permCount == 0 {
+			slog.Info("seeding default permissions")
+			permissions := []models.Permission{
+				{Key: "tab.cars.view", Category: "tab", DisplayName: "Автомобили"},
+				{Key: "tab.employees.view", Category: "tab", DisplayName: "Сотрудники"},
+				{Key: "tab.overview.view", Category: "tab", DisplayName: "Обзор и новости"},
+				{Key: "tab.profile.view", Category: "tab", DisplayName: "ЛК"},
+			}
+			if err := db.Create(&permissions).Error; err != nil {
+				return err
+			}
 		}
 	}
 
