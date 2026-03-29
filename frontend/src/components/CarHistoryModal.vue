@@ -130,7 +130,10 @@
                 Поле: {{ item.field_name }}
               </div>
               
-              <!-- УДАЛЕН блок с "Запись #..." -->
+              <!-- Отображение места проезда -->
+              <div v-if="item.table_name" class="place-name">
+                {{ item.table_name }}
+              </div>
             </div>
           </div>
         </div>
@@ -279,7 +282,8 @@ export default {
         'Номер': item.car_number || '',
         'Марка': item.car_brand || '',
         'Организация': item.organization || '',
-        'Компания': item.company || ''
+        'Компания': item.company || '',
+        'Место': item.table_name || ''
       }));
     },
 
@@ -444,18 +448,17 @@ export default {
     },
 
     formatDateTime(dateTimeString) {
-  if (!dateTimeString) return '';
-  // Строка приходит в формате с часовым поясом (например, "2026-03-11T02:59:07+03:00")
-  const date = new Date(dateTimeString);
-  return date.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  }).replace(',', '');
-},
+      if (!dateTimeString) return '';
+      const date = new Date(dateTimeString);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(',', '');
+    },
 
     toggleSortOrder() {
       this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
@@ -501,7 +504,8 @@ export default {
           'Номер',
           'Марка',
           'Организация',
-          'Компания'
+          'Компания',
+          'Место'
         ];
         
         const headerRow = worksheet.addRow(headers);
@@ -541,7 +545,8 @@ export default {
             item['Номер'],
             item['Марка'],
             item['Организация'],
-            item['Компания']
+            item['Компания'],
+            item['Место']
           ]);
           
           row.height = 20;
@@ -571,18 +576,18 @@ export default {
         const lastDataRow = this.exportData.length;
         
         for (let row = 1; row <= lastDataRow + 1; row++) {
-          const rightCell = worksheet.getCell(row, 13);
+          const rightCell = worksheet.getCell(row, 14);
           rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
           const leftCell = worksheet.getCell(row, 1);
           leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
         }
         
-        for (let col = 1; col <= 13; col++) {
+        for (let col = 1; col <= 14; col++) {
           const topCell = worksheet.getCell(1, col);
           topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
         }
         
-        for (let col = 1; col <= 13; col++) {
+        for (let col = 1; col <= 14; col++) {
           const bottomCell = worksheet.getCell(lastDataRow + 1, col);
           bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
         }
@@ -617,6 +622,7 @@ export default {
           { width: 15 },
           { width: 20 },
           { width: 20 },
+          { width: 30 },
           { width: 30 },
           { width: 30 }
         ];
@@ -660,6 +666,15 @@ export default {
 </script>
 
 <style scoped>
+/* Добавляем стиль для места */
+.place-name {
+  font-size: 11px;
+  color: #4F5BDF;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Остальные стили без изменений */
 .modal-overlay {
   position: fixed;
   top: 0;

@@ -1,4 +1,3 @@
-// handlers/cars.rs
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::{PgPool};
 use serde_json::json;
@@ -7,7 +6,7 @@ use serde::{Deserialize};
 use chrono::{NaiveDate, NaiveTime, NaiveDateTime, Utc};
 
 use crate::auth::decode_token;
-use crate::handlers::applications::check_expired_attachments; 
+use crate::handlers::applications::check_expired_attachments;
 
 #[derive(Debug, Deserialize)]
 pub struct CarData {
@@ -19,6 +18,37 @@ pub struct CarData {
     pub entry_date_to: Option<String>,
     pub entry_time_to: Option<String>,
     pub unload_places: Vec<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CheckActiveCarQuery {
+    pub car_number: String,
+    pub car_brand: String,
+    pub organization_id: Option<i32>,
+    pub company_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTerritoryStatusRequest {
+    pub territory_status: i32,
+    pub user_id: Option<i32>,
+    pub table_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeactivateCarRequest {
+    pub status: i32,
+    pub user_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ActivateCarRequest {
+    pub user_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RestoreCarRequest {
+    pub user_id: Option<i32>,
 }
 
 /// Создание автомобиля
@@ -124,14 +154,16 @@ pub async fn create_car(
         INSERT INTO cars_history (
             car_id,
             user_id,
+            table_id,
             action_type,
             comment,
             created_at
         )
-        VALUES ($1, $2, $3, $4, NOW())
+        VALUES ($1, $2, $3, $4, $5, NOW())
         "#,
         car_id,
-        user_id,
+        Some(user_id),
+        None::<i32>,
         "create",
         format!("Автомобиль {} {} создан", car_data.car_number, car_data.car_brand)
     )
@@ -712,10 +744,400 @@ pub async fn check_active_car(
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CheckActiveCarQuery {
-    pub car_number: String,
-    pub car_brand: String,
-    pub organization_id: Option<i32>,
-    pub company_id: Option<i32>,
+/// Обновление статуса нахождения на территории (въезд/выезд)
+pub async fn update_car_territory_status(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<UpdateTerritoryStatusRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let car_id = path.into_inner();
+    let now = Utc::now();
+    let action_type = if form.territory_status == 1 { "entry" } else if form.territory_status == 2 { "exit" } else { "unknown" };
+
+    log::info!("Updating car {} territory status to {} by user {:?}, table_id={:?}", 
+               car_id, form.territory_status, form.user_id, form.table_id);
+
+    // Начинаем транзакцию
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Получаем текущий статус машины
+    let current_car = sqlx::query!(
+        "SELECT car_number, car_brand, territory_status FROM cars WHERE id = $1",
+        car_id
+    )
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch car: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let car = match current_car {
+        Some(c) => c,
+        None => return Err(error::ErrorNotFound("Car not found")),
+    };
+
+    // Обновляем статус в таблице cars
+    sqlx::query!(
+        r#"
+        UPDATE cars 
+        SET territory_status = $1,
+            territory_entry_time = CASE 
+                WHEN $2 = 1 THEN NOW()
+                ELSE territory_entry_time
+            END,
+            updated_at = NOW()
+        WHERE id = $3
+        "#,
+        form.territory_status,
+        form.territory_status,
+        car_id
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update car territory status: {}", e);
+        error::ErrorInternalServerError("Error updating car territory status")
+    })?;
+
+    // Добавляем запись в историю
+    let comment = if form.territory_status == 1 {
+        format!("Автомобиль {} въехал на территорию", car.car_number)
+    } else if form.territory_status == 2 {
+        format!("Автомобиль {} выехал с территории", car.car_number)
+    } else {
+        String::new()
+    };
+
+    sqlx::query!(
+        r#"
+        INSERT INTO cars_history (
+            car_id,
+            user_id,
+            table_id,
+            action_type,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        car_id,
+        form.user_id,
+        form.table_id,
+        action_type,
+        comment,
+        now.naive_utc()
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add car history entry: {}", e);
+        error::ErrorInternalServerError("Error adding car history entry")
+    })?;
+
+    // Фиксируем транзакцию
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Car territory status updated successfully",
+        "territory_status": form.territory_status
+    })))
+}
+
+/// Деактивация автомобиля (удаление из таблицы)
+pub async fn deactivate_car(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<DeactivateCarRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let car_id = path.into_inner();
+
+    log::info!("Deactivating car {} by user {:?}", car_id, form.user_id);
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Получаем информацию о машине
+    let current_car = sqlx::query!(
+        "SELECT car_number, car_brand FROM cars WHERE id = $1",
+        car_id
+    )
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch car: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let car = match current_car {
+        Some(c) => c,
+        None => return Err(error::ErrorNotFound("Car not found")),
+    };
+
+    // Обновляем статус
+    sqlx::query!(
+        "UPDATE cars SET status = $1, date_removed = CURRENT_DATE, updated_at = NOW() WHERE id = $2",
+        form.status,
+        car_id
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to deactivate car: {}", e);
+        error::ErrorInternalServerError("Error deactivating car")
+    })?;
+
+    // Добавляем запись в историю
+    sqlx::query!(
+        r#"
+        INSERT INTO cars_history (
+            car_id,
+            user_id,
+            table_id,
+            action_type,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        car_id,
+        form.user_id,
+        None::<i32>, // table_id не привязан
+        "delete",
+        format!("Автомобиль {} {} удалён пользователем", car.car_number, car.car_brand),
+        Utc::now().naive_utc()
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add car history entry: {}", e);
+        error::ErrorInternalServerError("Error adding car history entry")
+    })?;
+
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Car deactivated successfully"
+    })))
+}
+
+/// Активация автомобиля (ввод в работу)
+pub async fn activate_car(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<ActivateCarRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let car_id = path.into_inner();
+
+    log::info!("Activating car {} by user {:?}", car_id, form.user_id);
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Получаем информацию о машине
+    let current_car = sqlx::query!(
+        "SELECT car_number, car_brand FROM cars WHERE id = $1",
+        car_id
+    )
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch car: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let car = match current_car {
+        Some(c) => c,
+        None => return Err(error::ErrorNotFound("Car not found")),
+    };
+
+    // Обновляем статус на активный (1)
+    sqlx::query!(
+        "UPDATE cars SET status = 1, date_removed = NULL, updated_at = NOW() WHERE id = $1",
+        car_id
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to activate car: {}", e);
+        error::ErrorInternalServerError("Error activating car")
+    })?;
+
+    // Добавляем запись в историю
+    sqlx::query!(
+        r#"
+        INSERT INTO cars_history (
+            car_id,
+            user_id,
+            table_id,
+            action_type,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        car_id,
+        form.user_id,
+        None::<i32>,
+        "activate",
+        format!("Автомобиль {} {} введён в работу", car.car_number, car.car_brand),
+        Utc::now().naive_utc()
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add car history entry: {}", e);
+        error::ErrorInternalServerError("Error adding car history entry")
+    })?;
+
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Car activated successfully"
+    })))
+}
+
+/// Восстановление автомобиля
+pub async fn restore_car(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<i32>,
+    form: web::Json<RestoreCarRequest>,
+) -> Result<HttpResponse, Error> {
+    let token = req.headers().get("Authorization")
+        .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
+        .to_str()
+        .map_err(|_| error::ErrorUnauthorized("Invalid Authorization header"))?
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| error::ErrorUnauthorized("Invalid token format"))?;
+
+    let claims = decode_token(token)
+        .map_err(|_| error::ErrorUnauthorized("Invalid token"))?;
+
+    let car_id = path.into_inner();
+
+    log::info!("Restoring car {} by user {:?}", car_id, form.user_id);
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        log::error!("Failed to start transaction: {}", e);
+        error::ErrorInternalServerError("Failed to start transaction")
+    })?;
+
+    // Получаем информацию о машине
+    let current_car = sqlx::query!(
+        "SELECT car_number, car_brand FROM cars WHERE id = $1",
+        car_id
+    )
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch car: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let car = match current_car {
+        Some(c) => c,
+        None => return Err(error::ErrorNotFound("Car not found")),
+    };
+
+    // Восстанавливаем статус на активный (1) и убираем дату удаления
+    sqlx::query!(
+        "UPDATE cars SET status = 1, date_removed = NULL, updated_at = NOW() WHERE id = $1",
+        car_id
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to restore car: {}", e);
+        error::ErrorInternalServerError("Error restoring car")
+    })?;
+
+    // Добавляем запись в историю
+    sqlx::query!(
+        r#"
+        INSERT INTO cars_history (
+            car_id,
+            user_id,
+            table_id,
+            action_type,
+            comment,
+            created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        car_id,
+        form.user_id,
+        None::<i32>,
+        "restore",
+        format!("Автомобиль {} {} восстановлен", car.car_number, car.car_brand),
+        Utc::now().naive_utc()
+    )
+    .execute(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to add car history entry: {}", e);
+        error::ErrorInternalServerError("Error adding car history entry")
+    })?;
+
+    transaction.commit().await.map_err(|e| {
+        log::error!("Failed to commit transaction: {}", e);
+        error::ErrorInternalServerError("Failed to commit transaction")
+    })?;
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Car restored successfully"
+    })))
 }

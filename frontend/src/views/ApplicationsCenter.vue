@@ -638,11 +638,11 @@ export default {
 
         getStatusClass(status) {
             const statusClasses = {
-                'Непрочитано': 'status-unread',
-                'В обработке': 'status-processing',
-                'В работе': 'status-in-progress',
-                'Завершено': 'status-completed',
-                'Отказано': 'status-rejected'
+                'Непрочитано': 'status-unread-badge',
+                'В обработке': 'status-processing-badge',
+                'В работе': 'status-in-work-badge',
+                'Завершено': 'status-completed-badge',
+                'Отказано': 'status-rejected-badge'
             };
             return statusClasses[status] || 'status-default';
         },
@@ -1339,49 +1339,52 @@ export default {
     color: #a2a2a2;
 }
 
+/* Общие стили для бейджей статуса */
 .status-badge {
-    padding: 4px 8px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 50px;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 80px;
+    text-align: center;
     display: inline-block;
     border: 1px solid;
 }
 
-.status-unread {
-    background-color: #fff7ed;
-    color: #ea580c;
-    border-color: #fed7aa;
+.status-unread-badge {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+    border-color: rgba(217, 119, 6, 0.3);
 }
 
-.status-processing {
-    background-color: #fff3e0;
-    color: #ef6c00;
-    border-color: #ffe0b2;
+.status-processing-badge {
+    background: rgba(235, 186, 79, 0.199);
+    color: #d97706;
+    border-color: rgba(223, 177, 79, 0.3);
 }
 
-.status-in-progress {
-    background-color: #e3f2fd;
-    color: #1565c0;
-    border-color: #bbdefb;
+.status-in-work-badge {
+    background: rgba(79, 91, 223, 0.1);
+    color: #4F5BDF;
+    border-color: rgba(79, 91, 223, 0.3);
 }
 
-.status-completed {
-    background-color: #e8f5e8;
-    color: #2e7d32;
-    border-color: #c8e6c9;
+.status-completed-badge {
+    background: rgba(5, 150, 105, 0.1);
+    color: #059669;
+    border-color: rgba(5, 150, 105, 0.3);
 }
 
-.status-rejected {
-    background-color: #ffebee;
-    color: #c62828;
-    border-color: #ffcdd2;
+.status-rejected-badge {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.3);
 }
 
 .status-default {
-    background-color: #f5f5f5;
-    color: #616161;
-    border-color: #e0e0e0;
+    background: rgba(128, 128, 128, 0.1);
+    color: #666;
+    border-color: rgba(128, 128, 128, 0.3);
 }
 
 .no-data-message {

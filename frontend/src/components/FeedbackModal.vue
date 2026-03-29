@@ -1,5 +1,4 @@
 <template>
-  <!-- Модальное окно обратной связи -->
   <teleport to="body">
     <transition name="modal-overlay" @after-leave="handleAfterLeave">
       <div 
@@ -50,10 +49,6 @@
                   <span class="error-icon">⚠</span>
                   {{ error }}
                 </div>
-                <div v-if="success" class="success-message" role="alert">
-                  <span class="success-icon">✓</span>
-                  {{ success }}
-                </div>
               </div>
             </div>
             <div class="modal__footer">
@@ -84,6 +79,19 @@
       </div>
     </transition>
   </teleport>
+
+  <teleport to="body">
+    <transition name="notification">
+      <div 
+        v-if="notification.show" 
+        class="notification" 
+        :class="notification.type"
+        @click="hideNotification"
+      >
+        {{ notification.message }}
+      </div>
+    </transition>
+  </teleport>
 </template>
 
 <script>
@@ -99,7 +107,6 @@ export default {
       type: Boolean,
       default: true
     },
-    // Сохранять ли текст при закрытии
     preserveTextOnClose: {
       type: Boolean,
       default: true
@@ -113,16 +120,19 @@ export default {
       message: '',
       isSubmitting: false,
       error: '',
-      success: '',
       showContent: false,
       minLength: 10,
       maxLength: 1000,
       warningThreshold: 800,
       escListener: null,
-      // Сохраняем текст при закрытии
       savedMessage: '',
-      // Флаг, что нужно сохранить текст при следующем закрытии
-      shouldSaveOnClose: true
+      shouldSaveOnClose: true,
+      notification: {
+        show: false,
+        message: '',
+        type: 'success'
+      },
+      notificationTimer: null
     };
   },
   
@@ -178,19 +188,36 @@ export default {
     
     message() {
       this.error = '';
-      this.success = '';
     }
   },
   
   created() {
-    // При создании компонента восстанавливаем сохраненное сообщение
     this.message = this.savedMessage;
   },
   
   methods: {
+    showNotification(message, type = 'success', duration = 5000) {
+      this.notification.message = message;
+      this.notification.type = type;
+      this.notification.show = true;
+      
+      if (this.notificationTimer) clearTimeout(this.notificationTimer);
+      this.notificationTimer = setTimeout(() => {
+        this.notification.show = false;
+        this.notificationTimer = null;
+      }, duration);
+    },
+
+    hideNotification() {
+      if (this.notificationTimer) {
+        clearTimeout(this.notificationTimer);
+        this.notificationTimer = null;
+      }
+      this.notification.show = false;
+    },
+    
     resetErrors() {
       this.error = '';
-      this.success = '';
       this.isSubmitting = false;
     },
     
@@ -224,7 +251,6 @@ export default {
     },
     
     handleAfterLeave() {
-      // Восстанавливаем прокрутку после завершения анимации
       document.body.style.overflow = '';
     },
     
@@ -237,10 +263,8 @@ export default {
     
     handleEnterKey(event) {
       if (event.shiftKey) {
-        // Shift+Enter - новая строка
         this.message += '\n';
       } else if (!this.isSubmitDisabled) {
-        // Enter - отправить
         this.submitFeedback();
       }
     },
@@ -263,7 +287,6 @@ export default {
       
       this.isSubmitting = true;
       this.error = '';
-      this.success = '';
       
       try {
         const token = localStorage.getItem("token");
@@ -287,15 +310,22 @@ export default {
         });
         
         if (response.ok) {
-          this.success = "Сообщение отправлено успешно! Мы рассмотрим его в ближайшее время.";
-          this.shouldSaveOnClose = false; // Не сохраняем текст после успешной отправки
+          const data = await response.json();
+          const feedbackId = data.id; // сервер возвращает { id, message }
           
-          // Автоматически закрываем модалку через 2 секунды после успешной отправки
+          this.showNotification(
+            `Обращение #${feedbackId} отправлено! Мы рассмотрим вашу проблему в ближайшее время.`,
+            'success',
+            5000
+          );
+          
+          this.shouldSaveOnClose = false;
+          
           setTimeout(() => {
             this.clearSavedMessage();
             this.closeModal();
             this.$emit('submitted', trimmedMessage);
-          }, 2000);
+          }, 5000);
           
         } else {
           let errorMessage = "Ошибка при отправке сообщения";
@@ -307,11 +337,14 @@ export default {
           }
           
           this.error = errorMessage;
+          this.showNotification(errorMessage, 'error', 5000);
           this.isSubmitting = false;
         }
       } catch (error) {
         console.error("Ошибка при отправке обратной связи:", error);
-        this.error = "Ошибка сети. Пожалуйста, проверьте подключение к интернету и попробуйте позже.";
+        const errorMsg = "Ошибка сети. Пожалуйста, проверьте подключение к интернету и попробуйте позже.";
+        this.error = errorMsg;
+        this.showNotification(errorMsg, 'error', 5000);
         this.isSubmitting = false;
       }
     },
@@ -335,7 +368,6 @@ export default {
   },
   
   mounted() {
-    
     this.$watch(
       () => this.show,
       (newVal) => {
@@ -349,14 +381,13 @@ export default {
   
   beforeUnmount() {
     this.removeEscListener();
-    // Восстанавливаем прокрутку при размонтировании
     document.body.style.overflow = '';
+    if (this.notificationTimer) clearTimeout(this.notificationTimer);
   }
 };
 </script>
 
 <style scoped>
-/* Анимации оверлея */
 .modal-overlay-enter-active,
 .modal-overlay-leave-active {
   transition: opacity 0.3s ease;
@@ -367,7 +398,6 @@ export default {
   opacity: 0;
 }
 
-/* Анимации модального окна */
 .modal-enter-active,
 .modal-leave-active {
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -385,7 +415,6 @@ export default {
   transform: translateY(0) scale(1);
 }
 
-/* Для мобильных устройств */
 @media (max-width: 768px) {
   .modal-enter-active,
   .modal-leave-active {
@@ -415,13 +444,12 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   padding: 20px;
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .modal {
@@ -518,7 +546,7 @@ export default {
   font-size: 15px;
   font-family: inherit;
   line-height: 1.5;
-  resize: vertical;
+  resize: none;
   min-height: 140px;
   max-height: 300px;
   transition: all 0.2s ease;
@@ -527,7 +555,7 @@ export default {
   background: #fff;
   color: #1a1a1a;
   display: block;
-  padding-bottom: 30px; /* Добавляем отступ снизу для счетчика */
+  padding-bottom: 30px;
 }
 
 .feedback-textarea:focus {
@@ -572,7 +600,6 @@ export default {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   transition: all 0.2s ease;
-  backdrop-filter: blur(2px);
 }
 
 .textarea-counter-wrapper--warning {
@@ -601,25 +628,6 @@ export default {
 }
 
 .error-icon {
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.success-message {
-  color: #28a745;
-  font-size: 14px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  background-color: #f8fff9;
-  border-radius: 6px;
-  border-left: 3px solid #28a745;
-  animation: success-appear 0.4s ease;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.success-icon {
   font-size: 16px;
   flex-shrink: 0;
 }
@@ -715,38 +723,77 @@ export default {
 }
 
 @keyframes error-shake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-4px);
-  }
-  75% {
-    transform: translateX(4px);
-  }
-}
-
-@keyframes success-appear {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
 }
 
 @keyframes spinner-rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* Адаптивность для мобильных устройств */
+.notification-enter-active,
+.notification-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.notification-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -100%);
+}
+
+.notification-enter-to {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.notification-leave-from {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.notification-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -100%);
+}
+
+.notification {
+  position: fixed;
+  top: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding:6px 24px;
+  border-radius: 50px;
+  z-index: 29000;
+  min-width: 300px;
+  max-width: 550px;
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: normal;
+  word-wrap: break-word;
+  cursor: pointer;
+}
+
+.notification.success {
+  background: #4CAF50;
+  color: white;
+  border: 1px solid #45a049;
+}
+
+.notification.error {
+  background: #f44336;
+  color: white;
+  border: 1px solid #d32f2f;
+}
+
 @media (max-width: 768px) {
   .modal {
     max-width: 100%;
@@ -797,6 +844,14 @@ export default {
     bottom: 6px;
     right: 10px;
     font-size: 11px;
+  }
+
+  .notification {
+    top: 20px;
+    min-width: 280px;
+    max-width: 90%;
+    padding: 10px 16px;
+    font-size: 14px;
   }
 }
 

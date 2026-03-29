@@ -1,45 +1,72 @@
 <template>
     <div class="selector">
-        <div 
-            v-for="category in uniqueCategories" 
-            :key="category"
-            class="category"
-        >
-            <div class="category-header">
-                <div class="category-title">{{ category }}</div>
-            </div>
-            
-            <div class="attachments-list">
-                <div
-                    v-for="attachment in getCategoryAttachments(category)"
-                    :key="attachment.local_id || attachment.id"
-                    class="attachment"
-                    :class="{ selected: selectedAttachment && (selectedAttachment.local_id || selectedAttachment.id) === (attachment.local_id || attachment.id) }"
-                    @click="selectAttachment(attachment)"
-                    @mouseenter="handleMouseEnter(attachment, $event)"
-                    @mouseleave="handleMouseLeave"
-                >
-                    <span class="attachment-name">{{ attachment.display_name }}</span>
-                    
-                    <button 
-                        v-if="hoveredAttachment === (attachment.local_id || attachment.id)"
-                        class="delete-btn"
-                        @click.stop="confirmDelete(attachment)"
-                    >
-                        ×
-                    </button>
-                </div>
-            </div>
-
-            <button 
-                class="add-btn"
-                @click="addAttachment(category)"
+        <div class="categories-container">
+            <div 
+                v-for="category in uniqueCategories" 
+                :key="category"
+                class="category"
             >
-                Добавить
+                <div class="category-header">
+                    <div class="category-title">{{ category }}</div>
+                    <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
+                </div>
+                
+                <transition-group name="attachment" tag="div" class="attachments-list">
+                    <div
+                        v-for="attachment in getCategoryAttachments(category)"
+                        :key="getAttachmentKey(attachment)"
+                        class="attachment"
+                        :class="{ selected: isSelected(attachment) }"
+                        @click="selectAttachment(attachment)"
+                        @mouseenter="handleMouseEnter(attachment, $event)"
+                        @mouseleave="handleMouseLeave"
+                    >
+                        <input 
+                            type="checkbox" 
+                            :value="getAttachmentKey(attachment)"
+                            v-model="selectedAttachments"
+                            @click.stop
+                            class="attachment-checkbox"
+                        >
+                        <span class="attachment-name">{{ attachment.display_name }}</span>
+                        
+                        <button 
+                            v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                            class="delete-btn"
+                            @click.stop="confirmDelete(attachment)"
+                        >
+                            ×
+                        </button>
+                    </div>
+                </transition-group>
+
+                <button 
+                    class="add-btn"
+                    :disabled="getCategoryAttachments(category).length >= 10"
+                    @click="addAttachment(category)"
+                >
+                    Добавить
+                </button>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button 
+                class="action-btn delete-selected" 
+                :disabled="selectedAttachments.length === 0"
+                @click="confirmDeleteMultiple"
+            >
+                Удалить выбранные
+            </button>
+            <button 
+                class="action-btn delete-all" 
+                :disabled="attachments.length === 0"
+                @click="confirmDeleteAll"
+            >
+                Удалить все
             </button>
         </div>
 
-        <!-- Modal for delete confirmation -->
         <ConfirmationModal
             :show="showDeleteModal"
             title="Подтверждение удаления"
@@ -47,11 +74,10 @@
             confirm-text="Удалить"
             cancel-text="Отмена"
             :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
-            @confirm="deleteAttachment"
+            @confirm="deleteAttachments"
             @cancel="cancelDelete"
         />
 
-        <!-- Tooltip -->
         <div 
             v-if="showTooltip" 
             class="tooltip"
@@ -71,6 +97,10 @@ export default {
         ConfirmationModal
     },
     props: {
+        attachments: {
+            type: Array,
+            default: () => []
+        },
         currentApplicationData: {
             type: Object,
             default: () => ({})
@@ -78,23 +108,27 @@ export default {
     },
     data() {
         return {
-            attachments: [],
             allTemplates: [],
             selectedAttachment: null,
             hoveredAttachment: null,
             showDeleteModal: false,
-            attachmentToDelete: null,
+            attachmentsToDelete: [],
             showTooltip: false,
             tooltipText: '',
             tooltipStyle: {},
             tooltipTimeout: null,
-            // Для хранения данных форм вложений
-            attachmentData: {}
+            selectedAttachments: []
         }
     },
     computed: {
         deleteMessage() {
-            return `Вы точно хотите удалить "${this.attachmentToDelete?.display_name}"?`;
+            if (this.attachmentsToDelete.length === 1) {
+                return `Вы точно хотите удалить "${this.attachmentsToDelete[0]?.display_name}"?`;
+            } else if (this.attachmentsToDelete.length === this.attachments.length && this.attachments.length > 0) {
+                return `Вы точно хотите удалить ВСЕ бланки (${this.attachments.length})?`;
+            } else {
+                return `Вы точно хотите удалить выбранные бланки (${this.attachmentsToDelete.length})?`;
+            }
         },
         uniqueCategories() {
             const categories = new Set();
@@ -106,14 +140,69 @@ export default {
             return Array.from(categories);
         }
     },
+    watch: {
+        attachments: {
+            handler(newAttachments) {
+                const existingIds = new Set(newAttachments.map(a => this.getAttachmentKey(a)));
+                this.selectedAttachments = this.selectedAttachments.filter(id => existingIds.has(id));
+                
+                if (this.selectedAttachment && !existingIds.has(this.getAttachmentKey(this.selectedAttachment))) {
+                    this.selectedAttachment = null;
+                    this.$emit('attachment-selected', null);
+                } else if (this.selectedAttachment && existingIds.has(this.getAttachmentKey(this.selectedAttachment))) {
+                    const currentAttachment = newAttachments.find(a => 
+                        this.getAttachmentKey(a) === this.getAttachmentKey(this.selectedAttachment)
+                    );
+                    if (currentAttachment && currentAttachment !== this.selectedAttachment) {
+                        this.selectedAttachment = currentAttachment;
+                    }
+                }
+            },
+            deep: true,
+            immediate: true
+        }
+    },
     methods: {
+        getAttachmentKey(attachment) {
+            return attachment.local_id || attachment.id;
+        },
+        
+        isSelected(attachment) {
+            if (!this.selectedAttachment) return false;
+            return this.getAttachmentKey(this.selectedAttachment) === this.getAttachmentKey(attachment);
+        },
+        
+        setSelectedAttachment(attachment) {
+            if (attachment) {
+                const currentAttachment = this.attachments.find(a => 
+                    this.getAttachmentKey(a) === this.getAttachmentKey(attachment)
+                );
+                this.selectedAttachment = currentAttachment || null;
+            } else {
+                this.selectedAttachment = null;
+            }
+        },
+        
         getCategoryAttachments(category) {
             return this.attachments.filter(attachment => attachment.title === category);
         },
         
         getNextAttachmentNumber(category) {
             const categoryAttachments = this.getCategoryAttachments(category);
-            return categoryAttachments.length + 1;
+            const existingNumbers = new Set();
+            
+            categoryAttachments.forEach(attachment => {
+                const match = attachment.display_name.match(/\d+$/);
+                if (match) {
+                    existingNumbers.add(parseInt(match[0]));
+                }
+            });
+            
+            let number = 1;
+            while (existingNumbers.has(number)) {
+                number++;
+            }
+            return number;
         },
         
         async fetchTemplates() {
@@ -127,9 +216,6 @@ export default {
                 if (response.ok) {
                     const data = await response.json();
                     this.allTemplates = data;
-                    
-                    // После загрузки шаблонов пытаемся восстановить данные из localStorage
-                    this.restoreFromLocalStorage();
                 }
             } catch (error) {
                 console.error("Error fetching attachment templates:", error);
@@ -137,6 +223,12 @@ export default {
         },
         
         addAttachment(category) {
+            const categoryAttachments = this.getCategoryAttachments(category);
+            if (categoryAttachments.length >= 10) {
+                alert(`Максимальное количество бланков в категории "${category}" — 10.`);
+                return;
+            }
+
             const template = this.allTemplates.find(t => t.title === category);
             
             if (!template) {
@@ -146,11 +238,11 @@ export default {
             
             const nextNumber = this.getNextAttachmentNumber(category);
             const newAttachment = {
-                id: template.id, // ID уникального бланка из базы
-                local_id: Date.now() + Math.random(), // Локальный ID для интерфейса
+                id: template.id,
+                local_id: Date.now() + Math.random(),
                 template_id: template.id,
                 title: category,
-                name: `${template.name}_copy_${nextNumber}`,
+                name: `${template.name}_${nextNumber}`,
                 display_name: `${template.display_name} №${nextNumber}`,
                 attachment_type: template.attachment_type,
                 instruction: template.instruction,
@@ -158,12 +250,7 @@ export default {
                 is_active: true
             };
             
-            this.attachments.push(newAttachment);
-            this.selectAttachment(newAttachment);
             this.$emit('attachment-added', newAttachment);
-            
-            // Сохраняем в localStorage
-            this.saveToLocalStorage();
         },
         
         selectAttachment(attachment) {
@@ -172,45 +259,52 @@ export default {
         },
         
         confirmDelete(attachment) {
-            this.attachmentToDelete = attachment;
+            this.attachmentsToDelete = [attachment];
+            this.showDeleteModal = true;
+        },
+        
+        confirmDeleteMultiple() {
+            if (this.selectedAttachments.length === 0) return;
+            
+            this.attachmentsToDelete = this.attachments.filter(
+                a => this.selectedAttachments.includes(this.getAttachmentKey(a))
+            );
+            this.showDeleteModal = true;
+        },
+        
+        confirmDeleteAll() {
+            if (this.attachments.length === 0) return;
+            this.attachmentsToDelete = [...this.attachments];
             this.showDeleteModal = true;
         },
         
         cancelDelete() {
             this.showDeleteModal = false;
-            this.attachmentToDelete = null;
+            this.attachmentsToDelete = [];
         },
         
-        deleteAttachment() {
-            if (this.attachmentToDelete) {
-                // Удаляем данные вложения из хранилища
-                const deleteId = this.attachmentToDelete.local_id || this.attachmentToDelete.id;
-                if (this.attachmentData[deleteId]) {
-                    delete this.attachmentData[deleteId];
-                }
-                
-                // Remove attachment from local array
-                this.attachments = this.attachments.filter(
-                    attachment => (attachment.local_id || attachment.id) !== deleteId
-                );
-                
-                // Clear selection if deleted attachment was selected
-                if (this.selectedAttachment && (this.selectedAttachment.local_id || this.selectedAttachment.id) === deleteId) {
-                    this.selectedAttachment = null;
-                    this.$emit('attachment-selected', null);
-                }
-                
-                this.$emit('attachment-removed', this.attachmentToDelete);
-                this.showDeleteModal = false;
-                this.attachmentToDelete = null;
-                
-                // Сохраняем в localStorage
-                this.saveToLocalStorage();
+        deleteAttachments() {
+            if (this.attachmentsToDelete.length === 0) return;
+            
+            const keysToDelete = new Set(this.attachmentsToDelete.map(a => this.getAttachmentKey(a)));
+            
+            // Эмитим событие удаления для каждого вложения
+            this.attachmentsToDelete.forEach(attachment => {
+                this.$emit('attachment-removed', attachment);
+            });
+            
+            if (this.selectedAttachment && keysToDelete.has(this.getAttachmentKey(this.selectedAttachment))) {
+                this.selectedAttachment = null;
+                this.$emit('attachment-selected', null);
             }
+            
+            this.selectedAttachments = this.selectedAttachments.filter(id => !keysToDelete.has(id));
+            this.showDeleteModal = false;
+            this.attachmentsToDelete = [];
         },
-
+        
         handleMouseEnter(attachment, event) {
-            this.hoveredAttachment = attachment.local_id || attachment.id;
+            this.hoveredAttachment = this.getAttachmentKey(attachment);
             
             if (this.tooltipTimeout) {
                 clearTimeout(this.tooltipTimeout);
@@ -222,7 +316,7 @@ export default {
                 this.updateTooltipPosition(event);
             }, 800);
         },
-
+        
         handleMouseLeave() {
             this.hoveredAttachment = null;
             this.showTooltip = false;
@@ -233,118 +327,21 @@ export default {
                 this.tooltipTimeout = null;
             }
         },
-
+        
         updateTooltipPosition(event) {
             if (event && event.target) {
                 const rect = event.target.getBoundingClientRect();
                 this.tooltipStyle = {
                     left: `${rect.left + rect.width / 2}px`,
-                    top: `${rect.bottom + 5}px`,
+                    top: `${rect.bottom + 7}px`,
                     transform: 'translateX(-50%)'
                 };
             }
         },
         
-        // Методы для работы с данными вложений
-        saveAttachmentData(attachmentId, data) {
-            this.attachmentData[attachmentId] = {
-                ...data,
-                savedAt: new Date().toISOString()
-            };
-            this.saveToLocalStorage();
-        },
-        
-        getAttachmentData(attachmentId) {
-            return this.attachmentData[attachmentId] || null;
-        },
-        
-        clearAttachmentData(attachmentId) {
-            if (this.attachmentData[attachmentId]) {
-                delete this.attachmentData[attachmentId];
-                this.saveToLocalStorage();
-            }
-        },
-        
-        // Сохранение в localStorage
-        saveToLocalStorage() {
-            try {
-                const savedData = {
-                    attachments: this.attachments,
-                    attachmentData: this.attachmentData,
-                    selectedAttachment: this.selectedAttachment,
-                    savedAt: new Date().toISOString()
-                };
-                localStorage.setItem('draftApplication', JSON.stringify(savedData));
-            } catch (error) {
-                console.error('Ошибка сохранения в localStorage:', error);
-            }
-        },
-        
-        // Восстановление из localStorage
-        restoreFromLocalStorage() {
-            try {
-                const savedData = localStorage.getItem('draftApplication');
-                if (savedData) {
-                    const parsedData = JSON.parse(savedData);
-                    
-                    // Восстанавливаем вложения
-                    if (parsedData.attachments && Array.isArray(parsedData.attachments)) {
-                        this.attachments = parsedData.attachments;
-                    }
-                    
-                    // Восстанавливаем данные вложений
-                    if (parsedData.attachmentData) {
-                        this.attachmentData = parsedData.attachmentData;
-                    }
-                    
-                    // Восстанавливаем выбранное вложение
-                    if (parsedData.selectedAttachment && this.attachments.length > 0) {
-                        const foundAttachment = this.attachments.find(
-                            a => (a.local_id || a.id) === (parsedData.selectedAttachment.local_id || parsedData.selectedAttachment.id)
-                        );
-                        if (foundAttachment) {
-                            this.selectedAttachment = foundAttachment;
-                            this.$emit('attachment-selected', foundAttachment);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Ошибка восстановления из localStorage:', error);
-            }
-        },
-        
-        // Метод для загрузки существующих вложений заявки
-        loadAttachments(existingAttachments) {
-            this.attachments = existingAttachments || [];
-            if (this.attachments.length > 0) {
-                this.selectedAttachment = this.attachments[0];
-                this.$emit('attachment-selected', this.selectedAttachment);
-            }
-            this.saveToLocalStorage();
-        },
-        
-        // Метод для очистки всех вложений
-        clearAttachments() {
-            this.attachments = [];
+        clearSelection() {
+            this.selectedAttachments = [];
             this.selectedAttachment = null;
-            this.attachmentData = {};
-            this.$emit('attachment-selected', null);
-            localStorage.removeItem('draftApplication');
-        },
-        
-        // Получить текущее выбранное вложение
-        getSelectedAttachment() {
-            return this.selectedAttachment;
-        },
-        
-        // Получить все вложения
-        getAllAttachments() {
-            return this.attachments;
-        },
-        
-        // Получить данные всех вложений
-        getAllAttachmentData() {
-            return this.attachmentData;
         }
     },
     mounted() {
@@ -354,20 +351,70 @@ export default {
 </script>
 
 <style scoped>
-/* Стили остаются без изменений */
 .selector {
     width: 200px;
-    height: 490px;
+    height:490px;
     border-radius: 30px;
     border: 1px solid #e6e6e6;
     padding: 15px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    transition: 0.4s;
+}
+
+.categories-container {
+    flex: 1;
     overflow-y: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e6e6e6;
 }
 
-.selector::-webkit-scrollbar {
+.categories-container::-webkit-scrollbar {
     display: none;
+}
+
+.actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    flex-direction: column;
+    margin-top: 10px;
+    background: white;
+    z-index: 10;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid #e6e6e6;
+    background: white;
+    color: #333;
+}
+
+.action-btn.delete-selected:hover:not(:disabled) {
+    background: #ff4444;
+    color: white;
+    border-color: #ff4444;
+}
+
+.action-btn.delete-all:hover:not(:disabled) {
+    background: #ff4444;
+    color: white;
+    border-color: #ff4444;
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .category {
@@ -375,21 +422,26 @@ export default {
     display: flex;
     flex-direction: column;
     min-height: 0;
-}
-
-.category:last-child {
-    margin-bottom: 0;
+    transition: 0.4s;
 }
 
 .category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
     margin-bottom: 5px;
 }
 
 .category-title {
     font-size: 10px;
-    font-weight: bold;
+    font-weight: 700;
     color: #a2a2a2;
     text-transform: uppercase;
+}
+
+.attachment-count {
+    font-size: 9px;
+    color: #a2a2a2;
 }
 
 .attachments-list {
@@ -407,6 +459,25 @@ export default {
     display: none;
 }
 
+.attachment-enter-active,
+.attachment-leave-active {
+    transition: all 0.2s ease;
+}
+
+.attachment-enter-from {
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+.attachment-leave-to {
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+.attachment-move {
+    transition: transform 0.2s ease;
+}
+
 .add-btn {
     width: 85px;
     height: 25px;
@@ -417,18 +488,23 @@ export default {
     font-weight: 500;
     color: #fff;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition:  0.4s ease;
     margin-top: 8px;
     flex-shrink: 0;
 }
 
-.add-btn:hover {
+.add-btn:hover:not(:disabled) {
     background: rgba(79, 91, 223, 1);
 }
 
+.add-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .attachment {
-    width: 125px;
-    height: 25px;
+    width: 139px;
+    min-height: 25px;
     border: 1px solid #e6e6e6;
     border-radius: 10px;
     font-size: 12px;
@@ -436,7 +512,7 @@ export default {
     color: #000;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 4px;
     padding: 0 8px;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -451,6 +527,14 @@ export default {
 .attachment.selected {
     border-color: #4F5BDF;
     background-color: rgba(79, 91, 223, 0.1);
+}
+
+.attachment-checkbox {
+    margin: 0;
+    width: 12px;
+    height: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
 }
 
 .attachment-name {
@@ -474,19 +558,19 @@ export default {
     justify-content: center;
     border-radius: 50%;
     transition: background-color 0.3s ease;
+    flex-shrink: 0;
 }
 
 .delete-btn:hover {
     background-color: rgba(255, 68, 68, 0.1);
 }
 
-/* Tooltip styles */
 .tooltip {
     position: fixed;
     background: rgba(0, 0, 0, 0.8);
     color: white;
     padding: 6px 10px;
-    border-radius: 4px;
+    border-radius: 15px;
     font-size: 11px;
     white-space: nowrap;
     z-index: 1001;

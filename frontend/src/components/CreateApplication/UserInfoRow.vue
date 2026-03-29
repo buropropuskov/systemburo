@@ -52,6 +52,7 @@
 <script>
 export default {
     name: 'UserInfoRow',
+    
     props: {
         organization: String,
         company: String,

@@ -12,6 +12,9 @@ use crate::auth::decode_token;
 use crate::models::applications::{ForwardApplicationRequest, ForwardUser};
 use crate::models::application_viewers::ApplicationViewer;
 
+use crate::handlers::notifications::create_notification;
+use crate::models::notifications::CreateNotificationRequest;
+
 // Структура для полной заявки с вложениями
 #[derive(Debug, Deserialize)]
 pub struct CompleteApplicationRequest {
@@ -169,6 +172,24 @@ pub async fn check_expired_attachments(pool: &PgPool) -> Result<(), Error> {
 
     log::info!("Found {} cars to deactivate", cars_to_deactivate.len());
 
+    // Получаем список всех сотрудников, которые будут деактивированы
+    let employees_to_deactivate = sqlx::query!(
+        r#"
+        SELECT e.id, e.last_name, e.first_name, e.middle_name
+        FROM employees e
+        WHERE e.attachment_id = ANY($1)
+        "#,
+        &attachment_ids[..]
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch employees to deactivate: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    log::info!("Found {} employees to deactivate", employees_to_deactivate.len());
+
     // Обновляем статус вложений
     sqlx::query!(
         "UPDATE attachments SET status = 0 WHERE id = ANY($1)",
@@ -205,20 +226,22 @@ pub async fn check_expired_attachments(pool: &PgPool) -> Result<(), Error> {
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Записываем в историю для каждой деактивированной машины
+    // Записываем в историю для каждой деактивированной машины (с table_id = NULL)
     for car in &cars_to_deactivate {
         sqlx::query!(
             r#"
             INSERT INTO cars_history (
                 car_id,
                 user_id,
+                table_id,
                 action_type,
                 comment,
                 created_at
             )
-            VALUES ($1, $2, $3, $4, NOW())
+            VALUES ($1, $2, $3, $4, $5, NOW())
             "#,
             car.id,
+            None::<i32>,
             None::<i32>,
             "deactivate",
             format!("Срок действия заявки на автомобиль {} {} истёк", car.car_number, car.car_brand)
@@ -227,6 +250,40 @@ pub async fn check_expired_attachments(pool: &PgPool) -> Result<(), Error> {
         .await
         .map_err(|e| {
             log::error!("Failed to add car history entry for expired car {}: {}", car.id, e);
+            error::ErrorInternalServerError("Database error")
+        })?;
+    }
+
+    // Записываем в историю для каждого деактивированного сотрудника
+    for emp in &employees_to_deactivate {
+        let full_name = format!("{} {} {}", 
+            emp.last_name,
+            emp.first_name,
+            emp.middle_name.as_deref().unwrap_or("")
+        ).trim().to_string();
+
+        sqlx::query!(
+            r#"
+            INSERT INTO employees_history (
+                employee_id,
+                user_id,
+                table_id,
+                action_type,
+                comment,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            "#,
+            emp.id,
+            None::<i32>,
+            None::<i32>,
+            "deactivate",
+            format!("Срок действия заявки на сотрудника {} истёк", full_name)
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to add employee history entry for expired employee {}: {}", emp.id, e);
             error::ErrorInternalServerError("Database error")
         })?;
     }
@@ -268,7 +325,6 @@ pub async fn check_expired_attachments(pool: &PgPool) -> Result<(), Error> {
     Ok(())
 }
 
-/// Функция для согласования заявки отдельным пользователем
 pub async fn approve_application_by_user(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -287,7 +343,6 @@ pub async fn approve_application_by_user(
 
     let username = &claims.sub;
     
-    // Получаем ID текущего пользователя
     let current_user_row = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         username
@@ -304,7 +359,6 @@ pub async fn approve_application_by_user(
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
-    // Проверяем, что user_id соответствует текущему пользователю
     if form.user_id != current_user_id {
         return Err(error::ErrorForbidden("You can only approve for yourself"));
     }
@@ -313,18 +367,15 @@ pub async fn approve_application_by_user(
 
     log::info!("User {} approving application {} with status {}", form.user_id, application_id, form.status);
 
-    // Проверяем, что статус валидный
     if form.status != "approved" && form.status != "rejected" {
         return Err(error::ErrorBadRequest("Invalid status. Must be 'approved' or 'rejected'"));
     }
 
-    // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Проверяем, что пользователь является ответственным для этой заявки
     let responsible = sqlx::query!(
         r#"
         SELECT id, approval_status, required_approval
@@ -346,12 +397,10 @@ pub async fn approve_application_by_user(
         None => return Err(error::ErrorForbidden("You are not responsible for this application")),
     };
 
-    // Проверяем, не голосовал ли уже пользователь
     if responsible.approval_status != Some("pending".to_string()) {
         return Err(error::ErrorBadRequest("You have already voted on this application"));
     }
 
-    // Получаем текущий confirmation до обновления
     let old_confirmation = sqlx::query!(
         "SELECT confirmation FROM applications WHERE id = $1",
         application_id
@@ -363,11 +412,9 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Базовое время для операций
     let now_utc = Utc::now();
     let mut history_time = now_utc;
 
-    // Обновляем статус согласования для пользователя
     sqlx::query!(
         r#"
         UPDATE application_responsible_users 
@@ -389,7 +436,6 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Error updating approval status")
     })?;
 
-    // Записываем в историю действие пользователя (согласование/отказ)
     sqlx::query!(
         r#"
         INSERT INTO application_history (
@@ -418,13 +464,11 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Error adding history")
     })?;
 
-    // Обновляем общий статус заявки на основе новых правил
     if let Err(e) = update_application_confirmation_based_on_approvals(&mut transaction, application_id).await {
         log::error!("Failed to update application confirmation: {}", e);
         return Err(e);
     }
 
-    // Получаем новый confirmation после обновления
     let new_confirmation = sqlx::query!(
         "SELECT confirmation FROM applications WHERE id = $1",
         application_id
@@ -436,7 +480,6 @@ pub async fn approve_application_by_user(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Если confirmation изменился, записываем в историю (с временем на 1 мс позже)
     if old_confirmation.confirmation != new_confirmation.confirmation {
         let status_change_time = history_time + chrono::Duration::milliseconds(1);
         
@@ -467,11 +510,83 @@ pub async fn approve_application_by_user(
         })?;
     }
 
-    // Фиксируем транзакцию
     transaction.commit().await.map_err(|e| {
         log::error!("Failed to commit transaction: {}", e);
         error::ErrorInternalServerError("Failed to commit transaction")
     })?;
+
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЯ ОТПРАВИТЕЛЮ ==========
+    // Получаем отправителя и номер заявки
+    let app_info = sqlx::query!(
+        "SELECT sender_user_id, application_number FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application info: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let sender_id = app_info.sender_user_id;
+    let app_number = app_info.application_number;
+
+    let current_user_name_row = sqlx::query!(
+        "SELECT last_name, first_name, middle_name FROM users WHERE id = $1",
+        current_user_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch current user name: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let user_name = format!("{} {} {}", 
+        current_user_name_row.last_name.unwrap_or_default(),
+        current_user_name_row.first_name.unwrap_or_default(),
+        current_user_name_row.middle_name.unwrap_or_default()
+    ).trim().to_string();
+
+    let old_confirm = old_confirmation.confirmation;
+    let new_confirm = new_confirmation.confirmation;
+    if old_confirm != new_confirm {
+        let (title, message, type_) = if new_confirm == "Согласовано" {
+            (
+                "Заявка согласована".to_string(),
+                format!("Ваша заявка № {} согласована пользователем {}.", app_number, user_name),
+                "application_approved".to_string()
+            )
+        } else if new_confirm == "Не согласовано" {
+            (
+                "Заявка отклонена".to_string(),
+                format!("Ваша заявка № {} не согласована пользователем {}.", app_number, user_name),
+                "application_rejected".to_string()
+            )
+        } else {
+            return Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": "Approval status updated successfully"
+            })));
+        };
+
+        let data = serde_json::json!({
+            "application_id": application_id,
+            "application_number": app_number,
+            "user_name": user_name,
+            "comment": form.comment,
+        });
+
+        let notif_req = CreateNotificationRequest {
+            user_id: sender_id,
+            type_,
+            title,
+            message,
+            data: Some(data),
+        };
+        create_notification(pool.get_ref(), notif_req).await?;
+    }
+    // ====================================================
 
     log::info!("Successfully updated approval status for user {} in application {}", form.user_id, application_id);
 
@@ -522,7 +637,6 @@ pub async fn check_approval_status(
     }
 }
 
-/// Функция для принятия заявки в работу
 pub async fn take_application_to_work(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -541,7 +655,6 @@ pub async fn take_application_to_work(
 
     let username = &claims.sub;
     
-    // Получаем ID текущего пользователя
     let user_row = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         username
@@ -558,7 +671,6 @@ pub async fn take_application_to_work(
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
-    // Проверяем, что пользователь является принимающим
     let is_approver = sqlx::query!(
         "SELECT EXISTS(SELECT 1 FROM application_approvers WHERE user_id = $1) as exists",
         current_user_id
@@ -579,13 +691,11 @@ pub async fn take_application_to_work(
 
     log::info!("User {} taking application {} to work with action: {}", current_user_id, application_id, action);
 
-    // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Получаем текущий статус заявки
     let application = sqlx::query!(
         "SELECT status FROM applications WHERE id = $1",
         application_id
@@ -605,16 +715,14 @@ pub async fn take_application_to_work(
     let old_status = application.status.clone();
 
     if action == "accept" {
-        // Принимаем заявку в работу
         if application.status == "В работе" {
             return Err(error::ErrorBadRequest("Application is already in work"));
         }
 
-        // Обновляем статус заявки и сохраняем комментарий
         sqlx::query!(
             "UPDATE applications SET status = 'В работе', responsible_user_id = $1, responsible_comment = $2 WHERE id = $3",
             current_user_id,
-            form.comment, // Сохраняем комментарий в responsible_comment
+            form.comment,
             application_id
         )
         .execute(&mut *transaction)
@@ -624,7 +732,6 @@ pub async fn take_application_to_work(
             error::ErrorInternalServerError("Error updating application status")
         })?;
 
-        // ПИШЕМ ИСТОРИЮ
         sqlx::query!(
             r#"
             INSERT INTO application_history (
@@ -643,7 +750,7 @@ pub async fn take_application_to_work(
             "take_to_work",
             old_status,
             "В работе",
-            form.comment // Сохраняем комментарий в историю
+            form.comment
         )
         .execute(&mut *transaction)
         .await
@@ -652,11 +759,9 @@ pub async fn take_application_to_work(
             error::ErrorInternalServerError("Error adding history")
         })?;
 
-        // Активируем все машины и сотрудники
-        activate_application_items(&mut transaction, application_id, true).await?;
+        activate_application_items(&mut transaction, application_id, true, Some(current_user_id), "activate").await?;
 
     } else if action == "reject" {
-        // Отказываем заявку
         if application.status == "Отказано" {
             return Err(error::ErrorBadRequest("Application is already rejected"));
         }
@@ -664,7 +769,7 @@ pub async fn take_application_to_work(
         sqlx::query!(
             "UPDATE applications SET status = 'Отказано', responsible_user_id = $1, responsible_comment = $2 WHERE id = $3",
             current_user_id,
-            form.comment, // Сохраняем комментарий в responsible_comment
+            form.comment,
             application_id
         )
         .execute(&mut *transaction)
@@ -674,7 +779,6 @@ pub async fn take_application_to_work(
             error::ErrorInternalServerError("Error updating application status")
         })?;
 
-        // ПИШЕМ ИСТОРИЮ
         sqlx::query!(
             r#"
             INSERT INTO application_history (
@@ -693,7 +797,7 @@ pub async fn take_application_to_work(
             "reject",
             old_status,
             "Отказано",
-            form.comment // Сохраняем комментарий в историю
+            form.comment
         )
         .execute(&mut *transaction)
         .await
@@ -702,8 +806,7 @@ pub async fn take_application_to_work(
             error::ErrorInternalServerError("Error adding history")
         })?;
 
-        // Деактивируем все машины и сотрудники
-        activate_application_items(&mut transaction, application_id, false).await?;
+        activate_application_items(&mut transaction, application_id, false, Some(current_user_id), "deactivate").await?;
     }
 
     transaction.commit().await.map_err(|e| {
@@ -711,13 +814,76 @@ pub async fn take_application_to_work(
         error::ErrorInternalServerError("Failed to commit transaction")
     })?;
 
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЯ ОТПРАВИТЕЛЮ ==========
+    // Получаем отправителя и номер заявки
+    let app_info = sqlx::query!(
+        "SELECT sender_user_id, application_number FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application info: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let sender_id = app_info.sender_user_id;
+    let app_number = app_info.application_number;
+
+    let current_user_name_row = sqlx::query!(
+        "SELECT last_name, first_name, middle_name FROM users WHERE id = $1",
+        current_user_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch current user name: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let user_name = format!("{} {} {}", 
+        current_user_name_row.last_name.unwrap_or_default(),
+        current_user_name_row.first_name.unwrap_or_default(),
+        current_user_name_row.middle_name.unwrap_or_default()
+    ).trim().to_string();
+
+    let (title, message, type_) = if action == "accept" {
+        (
+            "Заявка принята".to_string(),
+            format!("Ваша заявка № {} принята в работу и передана на посты охраны.", app_number),
+            "application_taken".to_string()
+        )
+    } else {
+        (
+            "Заявка отклонена".to_string(),
+            format!("Ваша заявка № {} отклонена.", app_number),
+            "application_rejected".to_string()
+        )
+    };
+
+    let data = serde_json::json!({
+        "application_id": application_id,
+        "application_number": app_number,
+        "action": action,
+        "comment": form.comment,
+    });
+
+    let notif_req = CreateNotificationRequest {
+        user_id: sender_id,
+        type_,
+        title,
+        message,
+        data: Some(data),
+    };
+    create_notification(pool.get_ref(), notif_req).await?;
+    // ====================================================
+
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
         "message": if action == "accept" { "Application taken to work" } else { "Application rejected" }
     })))
 }
 
-/// Функция для отзыва заявки из работы
 pub async fn revoke_application_from_work(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -736,7 +902,6 @@ pub async fn revoke_application_from_work(
 
     let username = &claims.sub;
     
-    // Получаем ID текущего пользователя
     let user_row = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         username
@@ -753,7 +918,6 @@ pub async fn revoke_application_from_work(
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
-    // Проверяем, что пользователь является принимающим
     let is_approver = sqlx::query!(
         "SELECT EXISTS(SELECT 1 FROM application_approvers WHERE user_id = $1) as exists",
         current_user_id
@@ -773,13 +937,11 @@ pub async fn revoke_application_from_work(
 
     log::info!("Approver {} revoking application {} from work", current_user_id, application_id);
 
-    // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Получаем текущий статус заявки
     let application = sqlx::query!(
         "SELECT status FROM applications WHERE id = $1",
         application_id
@@ -798,7 +960,6 @@ pub async fn revoke_application_from_work(
 
     let old_status = application.status.clone();
 
-    // Обновляем статус заявки и очищаем комментарий ответственного
     sqlx::query!(
         "UPDATE applications SET status = 'В обработке', responsible_user_id = NULL, responsible_comment = NULL WHERE id = $1",
         application_id
@@ -810,7 +971,6 @@ pub async fn revoke_application_from_work(
         error::ErrorInternalServerError("Error updating application status")
     })?;
 
-    // ПИШЕМ ИСТОРИЮ С КОММЕНТАРИЕМ
     sqlx::query!(
         r#"
         INSERT INTO application_history (
@@ -829,7 +989,7 @@ pub async fn revoke_application_from_work(
         "revoke_from_work",
         old_status,
         "В обработке",
-        form.comment // Сохраняем комментарий в историю
+        form.comment
     )
     .execute(&mut *transaction)
     .await
@@ -838,13 +998,38 @@ pub async fn revoke_application_from_work(
         error::ErrorInternalServerError("Error adding history")
     })?;
 
-    // Деактивируем все машины и сотрудники
-    activate_application_items(&mut transaction, application_id, false).await?;
+    activate_application_items(&mut transaction, application_id, false, Some(current_user_id), "deactivate").await?;
 
     transaction.commit().await.map_err(|e| {
         log::error!("Failed to commit transaction: {}", e);
         error::ErrorInternalServerError("Failed to commit transaction")
     })?;
+
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЯ ОТПРАВИТЕЛЮ ==========
+    let app_info = sqlx::query!(
+        "SELECT sender_user_id, application_number FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application info: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let notif_req = CreateNotificationRequest {
+        user_id: app_info.sender_user_id,
+        type_: "application_revoked".to_string(),
+        title: "Заявка отозвана".to_string(),
+        message: format!("Ваша заявка № {} отозвана из работы.", app_info.application_number),
+        data: Some(serde_json::json!({
+            "application_id": application_id,
+            "application_number": app_info.application_number,
+            "comment": form.comment,
+        })),
+    };
+    create_notification(pool.get_ref(), notif_req).await?;
+    // ====================================================
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
@@ -852,7 +1037,6 @@ pub async fn revoke_application_from_work(
     })))
 }
 
-/// Функция для возврата заявки в работу
 pub async fn restore_application_to_work(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -871,7 +1055,6 @@ pub async fn restore_application_to_work(
 
     let username = &claims.sub;
     
-    // Получаем ID текущего пользователя
     let user_row = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         username
@@ -888,7 +1071,6 @@ pub async fn restore_application_to_work(
         None => return Err(error::ErrorUnauthorized("User not found")),
     };
 
-    // Проверяем, что пользователь является принимающим
     let is_approver = sqlx::query!(
         "SELECT EXISTS(SELECT 1 FROM application_approvers WHERE user_id = $1) as exists",
         current_user_id
@@ -908,13 +1090,11 @@ pub async fn restore_application_to_work(
 
     log::info!("Approver {} restoring application {} to work", current_user_id, application_id);
 
-    // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Получаем текущий статус заявки
     let application = sqlx::query!(
         "SELECT status FROM applications WHERE id = $1",
         application_id
@@ -933,7 +1113,6 @@ pub async fn restore_application_to_work(
 
     let old_status = application.status.clone();
 
-    // Обновляем статус заявки и очищаем комментарий ответственного
     sqlx::query!(
         "UPDATE applications SET status = 'В обработке', responsible_user_id = NULL, responsible_comment = NULL WHERE id = $1",
         application_id
@@ -945,7 +1124,6 @@ pub async fn restore_application_to_work(
         error::ErrorInternalServerError("Error updating application status")
     })?;
 
-    // ПИШЕМ ИСТОРИЮ С КОММЕНТАРИЕМ
     sqlx::query!(
         r#"
         INSERT INTO application_history (
@@ -964,7 +1142,7 @@ pub async fn restore_application_to_work(
         "restore_to_work",
         old_status,
         "В обработке",
-        form.comment // Сохраняем комментарий в историю
+        form.comment
     )
     .execute(&mut *transaction)
     .await
@@ -973,13 +1151,36 @@ pub async fn restore_application_to_work(
         error::ErrorInternalServerError("Error adding history")
     })?;
 
-    // Деактивируем все машины и сотрудники
-    activate_application_items(&mut transaction, application_id, false).await?;
-
     transaction.commit().await.map_err(|e| {
         log::error!("Failed to commit transaction: {}", e);
         error::ErrorInternalServerError("Failed to commit transaction")
     })?;
+
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЯ ОТПРАВИТЕЛЮ ==========
+    let app_info = sqlx::query!(
+        "SELECT sender_user_id, application_number FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application info: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?;
+
+    let notif_req = CreateNotificationRequest {
+        user_id: app_info.sender_user_id,
+        type_: "application_restored".to_string(),
+        title: "Заявка возвращена".to_string(),
+        message: format!("Ваша заявка № {} возвращена в работу.", app_info.application_number),
+        data: Some(serde_json::json!({
+            "application_id": application_id,
+            "application_number": app_info.application_number,
+            "comment": form.comment,
+        })),
+    };
+    create_notification(pool.get_ref(), notif_req).await?;
+    // ====================================================
 
     Ok(HttpResponse::Ok().json(json!({
         "success": true,
@@ -987,11 +1188,13 @@ pub async fn restore_application_to_work(
     })))
 }
 
-/// Вспомогательная функция для активации/деактивации элементов заявки
+/// Вспомогательная функция для активации/деактивации элементов заявки и записи в историю
 async fn activate_application_items(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     application_id: i32,
     activate: bool,
+    user_id: Option<i32>,          // кто выполняет действие (для истории)
+    action_type: &str,              // 'activate' или 'deactivate'
 ) -> Result<(), Error> {
     let new_status = if activate { 1 } else { 0 };
     
@@ -1010,6 +1213,18 @@ async fn activate_application_items(
     for attachment in attachments {
         match attachment.attachment_type.as_str() {
             "cars" => {
+                // Получаем список автомобилей с номерами и марками
+                let cars = sqlx::query!(
+                    "SELECT id, car_number, car_brand FROM cars WHERE attachment_id = $1",
+                    attachment.id
+                )
+                .fetch_all(&mut **transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to fetch cars for history: {}", e);
+                    error::ErrorInternalServerError("Error fetching cars")
+                })?;
+
                 // Обновляем статусы машин
                 sqlx::query!(
                     "UPDATE cars SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = $2",
@@ -1024,8 +1239,55 @@ async fn activate_application_items(
                 })?;
                 
                 log::info!("Updated cars status to {} for attachment {}", new_status, attachment.id);
+
+                // Записываем в историю для каждого автомобиля
+                for car in cars {
+                    let comment = if activate {
+                        format!("Заявка на автомобиль {} {} принята в работу", car.car_number, car.car_brand)
+                    } else {
+                        format!("Заявка на автомобиль {} {} отклонена/отозвана", car.car_number, car.car_brand)
+                    };
+                    sqlx::query!(
+                        r#"
+                        INSERT INTO cars_history (
+                            car_id,
+                            user_id,
+                            action_type,
+                            comment,
+                            created_at
+                        )
+                        VALUES ($1, $2, $3, $4, NOW())
+                        "#,
+                        car.id,
+                        user_id,
+                        action_type,
+                        comment
+                    )
+                    .execute(&mut **transaction)
+                    .await
+                    .map_err(|e| {
+                        log::error!("Failed to add car history entry for car {}: {}", car.id, e);
+                        error::ErrorInternalServerError("Error adding car history entry")
+                    })?;
+                }
             },
             "people" => {
+                // Получаем список сотрудников с ФИО
+                let employees = sqlx::query!(
+                    r#"
+                    SELECT id, last_name, first_name, middle_name 
+                    FROM employees 
+                    WHERE attachment_id = $1
+                    "#,
+                    attachment.id
+                )
+                .fetch_all(&mut **transaction)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to fetch employees for history: {}", e);
+                    error::ErrorInternalServerError("Error fetching employees")
+                })?;
+
                 // Обновляем статусы сотрудников
                 sqlx::query!(
                     "UPDATE employees SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = $2",
@@ -1040,6 +1302,43 @@ async fn activate_application_items(
                 })?;
                 
                 log::info!("Updated employees status to {} for attachment {}", new_status, attachment.id);
+
+                // Записываем в историю для каждого сотрудника
+                for emp in employees {
+                    let full_name = format!("{} {} {}", 
+                        emp.last_name,
+                        emp.first_name,
+                        emp.middle_name.as_deref().unwrap_or("")
+                    ).trim().to_string();
+
+                    let comment = if activate {
+                        format!("Заявка на сотрудника {} принята в работу", full_name)
+                    } else {
+                        format!("Заявка на сотрудника {} отклонена/отозвана", full_name)
+                    };
+                    sqlx::query!(
+                        r#"
+                        INSERT INTO employees_history (
+                            employee_id,
+                            user_id,
+                            action_type,
+                            comment,
+                            created_at
+                        )
+                        VALUES ($1, $2, $3, $4, NOW())
+                        "#,
+                        emp.id,
+                        user_id,
+                        action_type,
+                        comment
+                    )
+                    .execute(&mut **transaction)
+                    .await
+                    .map_err(|e| {
+                        log::error!("Failed to add employee history entry for employee {}: {}", emp.id, e);
+                        error::ErrorInternalServerError("Error adding employee history entry")
+                    })?;
+                }
             },
             _ => {} // Для других типов вложений ничего не делаем
         }
@@ -1160,7 +1459,6 @@ pub async fn update_application_confirmation_based_on_approvals(
     Ok(())
 }
 
-/// Функция для пересылки заявки (обновленная)
 pub async fn forward_application(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -1179,7 +1477,6 @@ pub async fn forward_application(
 
     let username = &claims.sub;
     
-    // Получаем ID и имя текущего пользователя
     let user_row = sqlx::query!(
         r#"SELECT id, 
             last_name,
@@ -1216,13 +1513,11 @@ pub async fn forward_application(
         current_user_name
     );
 
-    // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Проверяем существование заявки
     let application_exists = sqlx::query!(
         "SELECT EXISTS(SELECT 1 FROM applications WHERE id = $1) as exists",
         application_id
@@ -1238,7 +1533,6 @@ pub async fn forward_application(
         return Err(error::ErrorNotFound("Application not found"));
     }
 
-    // Проверяем права пользователя
     let can_forward = sqlx::query!(
         r#"
         SELECT EXISTS(
@@ -1266,7 +1560,6 @@ pub async fn forward_application(
         return Err(error::ErrorForbidden("You don't have permission to forward this application"));
     }
 
-    // Получаем текущий confirmation до изменений
     let old_confirmation = sqlx::query!(
         "SELECT confirmation FROM applications WHERE id = $1",
         application_id
@@ -1278,17 +1571,13 @@ pub async fn forward_application(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // Базовое время для операций
     let base_time = Utc::now();
     let mut history_time = base_time;
 
-    // Векторы для хранения данных о добавленных пользователях
-    let mut added_responsible_users = Vec::new(); // (user_id, required_approval)
-    let mut added_viewers = Vec::new();           // user_id
+    let mut added_responsible_users = Vec::new();
+    let mut added_viewers = Vec::new();
 
-    // ЭТАП 1: Добавляем пользователей (только в БД)
     for forward_user in &form.users {
-        // Проверяем существование пользователя
         let user_exists = sqlx::query!(
             "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1) as exists",
             forward_user.user_id
@@ -1305,7 +1594,6 @@ pub async fn forward_application(
             continue;
         }
 
-        // Проверяем корректность параметров
         if forward_user.required_approval && forward_user.can_view {
             log::warn!("User {} cannot be both responsible and viewer, skipping", forward_user.user_id);
             continue;
@@ -1315,7 +1603,6 @@ pub async fn forward_application(
                    forward_user.user_id, forward_user.required_approval, forward_user.can_view);
 
         if forward_user.required_approval {
-            // Добавляем как ответственного с обязательным согласованием
             let already_added = sqlx::query!(
                 "SELECT EXISTS(SELECT 1 FROM application_responsible_users WHERE application_id = $1 AND user_id = $2) as exists",
                 application_id,
@@ -1329,7 +1616,6 @@ pub async fn forward_application(
             })?;
 
             if already_added.exists.unwrap_or(false) {
-                // Обновляем только поле required_approval, если пользователь уже добавлен
                 sqlx::query!(
                     r#"
                     UPDATE application_responsible_users 
@@ -1351,7 +1637,6 @@ pub async fn forward_application(
                 
                 log::info!("Updated existing responsible user {} with required_approval=true", forward_user.user_id);
             } else {
-                // Добавляем нового пользователя
                 sqlx::query!(
                     r#"
                     INSERT INTO application_responsible_users (
@@ -1384,7 +1669,6 @@ pub async fn forward_application(
             added_responsible_users.push((forward_user.user_id, forward_user.required_approval));
         } 
         else if forward_user.can_view {
-            // Добавляем как просматривающего
             let already_added = sqlx::query!(
                 "SELECT EXISTS(SELECT 1 FROM application_viewers WHERE application_id = $1 AND user_id = $2) as exists",
                 application_id,
@@ -1426,9 +1710,6 @@ pub async fn forward_application(
             added_viewers.push(forward_user.user_id);
         }
         else {
-            // Случай: пользователь должен быть ответственным, но с required_approval = false
-            // (т.е. на фронтенде выбрали только "Требуется согласование", но не "Согласование обязательно")
-            
             log::info!("Adding user {} as responsible with required_approval=false", forward_user.user_id);
             
             let already_added = sqlx::query!(
@@ -1444,7 +1725,6 @@ pub async fn forward_application(
             })?;
 
             if already_added.exists.unwrap_or(false) {
-                // Обновляем запись, устанавливая required_approval = false
                 sqlx::query!(
                     r#"
                     UPDATE application_responsible_users 
@@ -1465,7 +1745,6 @@ pub async fn forward_application(
                 
                 log::info!("Updated existing responsible user {} with required_approval=false", forward_user.user_id);
             } else {
-                // Добавляем нового пользователя как ответственного с required_approval = false
                 sqlx::query!(
                     r#"
                     INSERT INTO application_responsible_users (
@@ -1498,8 +1777,6 @@ pub async fn forward_application(
         }
     }
 
-    // ЭТАП 2: Записываем историю о назначениях
-    // Сначала ответственные
     for (user_id, required_approval) in &added_responsible_users {
         history_time = history_time + chrono::Duration::milliseconds(1);
         
@@ -1533,7 +1810,6 @@ pub async fn forward_application(
         })?;
     }
 
-    // Потом просматривающие
     for user_id in &added_viewers {
         history_time = history_time + chrono::Duration::milliseconds(1);
         
@@ -1565,12 +1841,10 @@ pub async fn forward_application(
         })?;
     }
 
-    // ЭТАП 3: Обновляем общий статус заявки на основе новых правил (только если были добавлены ответственные)
     if !added_responsible_users.is_empty() {
         update_application_confirmation_based_on_approvals(&mut transaction, application_id).await?;
     }
 
-    // ЭТАП 4: Получаем новый confirmation после обновления
     let new_confirmation = sqlx::query!(
         "SELECT confirmation FROM applications WHERE id = $1",
         application_id
@@ -1582,7 +1856,6 @@ pub async fn forward_application(
         error::ErrorInternalServerError("Database error")
     })?;
 
-    // ЭТАП 5: Если confirmation изменился, записываем историю изменения статуса
     if old_confirmation.confirmation != new_confirmation.confirmation {
         let status_change_time = history_time + chrono::Duration::milliseconds(1);
         
@@ -1613,7 +1886,49 @@ pub async fn forward_application(
         })?;
     }
 
-    // Фиксируем транзакцию
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЙ НОВЫМ ПОЛЬЗОВАТЕЛЯМ ==========
+    let app_number = sqlx::query!(
+        "SELECT application_number FROM applications WHERE id = $1",
+        application_id
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to fetch application number: {}", e);
+        error::ErrorInternalServerError("Database error")
+    })?
+    .application_number;
+
+    for (user_id, required_approval) in &added_responsible_users {
+        let notif_req = CreateNotificationRequest {
+            user_id: *user_id,
+            type_: "application_received".to_string(),
+            title: "Новая заявка для согласования".to_string(),
+            message: format!("Вам назначена заявка № {} для согласования.", app_number),
+            data: Some(serde_json::json!({
+                "application_id": application_id,
+                "required_approval": *required_approval,
+                "application_number": app_number,
+            })),
+        };
+        create_notification(pool.get_ref(), notif_req).await?;
+    }
+
+    for user_id in &added_viewers {
+        let notif_req = CreateNotificationRequest {
+            user_id: *user_id,
+            type_: "application_shared".to_string(),
+            title: "Вам открыт доступ к заявке".to_string(),
+            message: format!("Вам предоставлен доступ к заявке № {}.", app_number),
+            data: Some(serde_json::json!({
+                "application_id": application_id,
+                "application_number": app_number,
+            })),
+        };
+        create_notification(pool.get_ref(), notif_req).await?;
+    }
+    // ===========================================================
+
     transaction.commit().await.map_err(|e| {
         log::error!("Failed to commit transaction: {}", e);
         error::ErrorInternalServerError("Failed to commit transaction")
@@ -2087,7 +2402,6 @@ pub async fn create_application(
     })))
 }
 
-/// Создание полной заявки с вложениями
 pub async fn submit_complete_application(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -2105,7 +2419,6 @@ pub async fn submit_complete_application(
 
     let username = &claims.sub;
     
-    // Получаем ID пользователя из базы данных
     let user_row = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         username
@@ -2132,17 +2445,14 @@ pub async fn submit_complete_application(
 
     log::info!("Creating complete application for user: {}", user_id);
 
-    // Начинаем транзакцию
     let mut transaction = pool.begin().await.map_err(|e| {
         log::error!("Failed to start transaction: {}", e);
         error::ErrorInternalServerError("Failed to start transaction")
     })?;
 
-    // Базовое время для всех операций
     let base_time = Utc::now();
     let mut history_time = base_time;
 
-    // 1. Создаем заявку в таблице applications
     let now_utc = Utc::now();
     let now_naive = now_utc.naive_utc(); 
     let today_local = now_utc.date_naive();
@@ -2161,7 +2471,6 @@ pub async fn submit_complete_application(
 
     let application_number = format!("№ {}/{:03}", date_part, count_result.count.unwrap_or(0) + 1);
 
-    // Получаем ID организации по имени
     let organization_row = sqlx::query!(
         "SELECT id FROM organizations WHERE name = $1",
         form.organization
@@ -2178,7 +2487,6 @@ pub async fn submit_complete_application(
         None => None
     };
 
-    // Получаем ID компании по имени (если указана)
     let company_id = if let Some(company_name) = &form.company {
         let company_row = sqlx::query!(
             "SELECT id FROM companies WHERE name = $1",
@@ -2229,7 +2537,6 @@ pub async fn submit_complete_application(
 
     let application_id = application_result.id;
 
-    // Записываем в историю создание заявки (с базовым временем)
     sqlx::query!(
         r#"
         INSERT INTO application_history (
@@ -2259,12 +2566,10 @@ pub async fn submit_complete_application(
         error::ErrorInternalServerError("Error adding history")
     })?;
 
-    // Получаем ответственных пользователей для организации и компании
-    let mut responsible_users: Vec<(i32, bool, bool)> = Vec::new(); // (user_id, is_primary, required_approval)
+    let mut responsible_users: Vec<(i32, bool, bool)> = Vec::new();
     let mut primary_responsible_id: Option<i32> = None;
 
     if let Some(org_id) = organization_id {
-        // Получаем ответственных для организации
         let org_responsibles = sqlx::query!(
             r#"
             SELECT user_id, is_primary, required_approval
@@ -2291,7 +2596,6 @@ pub async fn submit_complete_application(
     }
 
     if let Some(comp_id) = company_id {
-        // Получаем ответственных для компании
         let company_responsibles = sqlx::query!(
             r#"
             SELECT user_id, is_primary, required_approval
@@ -2308,7 +2612,6 @@ pub async fn submit_complete_application(
         })?;
 
         for row in company_responsibles {
-            // Проверяем, не добавлен ли уже этот пользователь из организации
             let exists = responsible_users.iter().any(|&(user_id, _, _)| user_id == row.user_id);
             if !exists {
                 let is_primary = row.is_primary.unwrap_or(false);
@@ -2321,15 +2624,12 @@ pub async fn submit_complete_application(
         }
     }
 
-    // Добавляем информацию об обязательных ответственных из запроса
     if let Some(required_users) = &form.required_users {
         for req_user in required_users {
-            // Проверяем, не добавлен ли уже этот пользователь
             let exists = responsible_users.iter().any(|&(user_id, _, _)| user_id == req_user.user_id);
             if !exists {
                 responsible_users.push((req_user.user_id, false, req_user.required_approval));
             } else {
-                // Если пользователь уже есть, обновляем флаг required_approval
                 if let Some(pos) = responsible_users.iter().position(|&(user_id, _, _)| user_id == req_user.user_id) {
                     responsible_users[pos].2 = req_user.required_approval;
                 }
@@ -2337,7 +2637,6 @@ pub async fn submit_complete_application(
         }
     }
 
-    // Обновляем поле responsible_user_id в заявке (главный ответственный)
     if let Some(primary_id) = primary_responsible_id {
         sqlx::query!(
             "UPDATE applications SET responsible_user_id = $1 WHERE id = $2",
@@ -2352,8 +2651,7 @@ pub async fn submit_complete_application(
         })?;
     }
 
-    // Добавляем всех ответственных в новую таблицу и записываем в историю
-    for (user_id, is_primary, required_approval) in responsible_users {
+    for (user_id, is_primary, required_approval) in &responsible_users {
         sqlx::query!(
             r#"
             INSERT INTO application_responsible_users (
@@ -2383,10 +2681,8 @@ pub async fn submit_complete_application(
             error::ErrorInternalServerError("Error inserting responsible user")
         })?;
         
-        // Увеличиваем время для следующей записи истории
         history_time = history_time + chrono::Duration::milliseconds(1);
         
-        // Записываем в историю назначение ответственного
         sqlx::query!(
             r#"
             INSERT INTO application_history (
@@ -2415,9 +2711,7 @@ pub async fn submit_complete_application(
         })?;
     }
 
-    // 2. Создаем вложения для заявки
     for attachment in &form.attachments {
-        // Конвертируем строки дат и времени
         let entry_date_from: Option<NaiveDate> = attachment.entry_date_from.as_ref()
             .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
         
@@ -2466,93 +2760,89 @@ pub async fn submit_complete_application(
 
         let attachment_id = attachment_result.id;
 
-        // 3. Создаем данные в зависимости от типа вложения
         match attachment.attachment_type.as_str() {
             "cars" => {
-    if let Some(vehicles) = &attachment.data.vehicles {
-        for vehicle in vehicles {
-            let car_result = sqlx::query!(
-                r#"
-                INSERT INTO cars (
-                    attachment_id,
-                    car_number,
-                    car_brand,
-                    unload_place,
-                    entry_date_from,
-                    entry_time_from,
-                    entry_date_to,
-                    entry_time_to,
-                    status
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)
-                RETURNING id
-                "#,
-                attachment_id,
-                vehicle.car_number,
-                vehicle.car_brand,
-                vehicle.unload_place.as_deref(),
-                entry_date_from,
-                entry_time_from,
-                entry_date_to,
-                entry_time_to
-            )
-            .fetch_one(&mut *transaction)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to create car: {}", e);
-                error::ErrorInternalServerError("Error creating car")
-            })?;
+                if let Some(vehicles) = &attachment.data.vehicles {
+                    for vehicle in vehicles {
+                        let car_result = sqlx::query!(
+                            r#"
+                            INSERT INTO cars (
+                                attachment_id,
+                                car_number,
+                                car_brand,
+                                unload_place,
+                                entry_date_from,
+                                entry_time_from,
+                                entry_date_to,
+                                entry_time_to,
+                                status
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0)
+                            RETURNING id
+                            "#,
+                            attachment_id,
+                            vehicle.car_number,
+                            vehicle.car_brand,
+                            vehicle.unload_place.as_deref(),
+                            entry_date_from,
+                            entry_time_from,
+                            entry_date_to,
+                            entry_time_to
+                        )
+                        .fetch_one(&mut *transaction)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to create car: {}", e);
+                            error::ErrorInternalServerError("Error creating car")
+                        })?;
 
-            let car_id = car_result.id;
+                        let car_id = car_result.id;
 
-            // ДОБАВЛЯЕМ ЗАПИСЬ В ИСТОРИЮ АВТОМОБИЛЯ
-            // Преобразуем DateTime<Utc> в NaiveDateTime
-            let car_history_time = (base_time + chrono::Duration::milliseconds(1)).naive_utc();
-            
-            sqlx::query!(
-                r#"
-                INSERT INTO cars_history (
-                    car_id,
-                    user_id,
-                    action_type,
-                    comment,
-                    created_at
-                )
-                VALUES ($1, $2, $3, $4, $5)
-                "#,
-                car_id,
-                user_id,
-                "create",
-                format!("Автомобиль {} {} создан", vehicle.car_number, vehicle.car_brand),
-                car_history_time
-            )
-            .execute(&mut *transaction)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to add car history entry: {}", e);
-                error::ErrorInternalServerError("Error adding car history entry")
-            })?;
+                        let car_history_time = (base_time + chrono::Duration::milliseconds(1)).naive_utc();
+                        
+                        sqlx::query!(
+                            r#"
+                            INSERT INTO cars_history (
+                                car_id,
+                                user_id,
+                                action_type,
+                                comment,
+                                created_at
+                            )
+                            VALUES ($1, $2, $3, $4, $5)
+                            "#,
+                            car_id,
+                            user_id,
+                            "create",
+                            format!("Автомобиль {} {} создан", vehicle.car_number, vehicle.car_brand),
+                            car_history_time
+                        )
+                        .execute(&mut *transaction)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to add car history entry: {}", e);
+                            error::ErrorInternalServerError("Error adding car history entry")
+                        })?;
 
-            // Создаем связи с местами разгрузки
-            for &place_id in &vehicle.unload_places {
-                sqlx::query!(
-                    r#"
-                    INSERT INTO car_unload_places (car_id, unload_place_id, order_index)
-                    VALUES ($1, $2, 1)
-                    "#,
-                    car_id,
-                    place_id
-                )
-                .execute(&mut *transaction)
-                .await
-                .map_err(|e| {
-                    log::error!("Failed to create car unload place: {}", e);
-                    error::ErrorInternalServerError("Error creating car unload place")
-                })?;
+                        for &place_id in &vehicle.unload_places {
+                            sqlx::query!(
+                                r#"
+                                INSERT INTO car_unload_places (car_id, unload_place_id, order_index)
+                                VALUES ($1, $2, 1)
+                                "#,
+                                car_id,
+                                place_id
+                            )
+                            .execute(&mut *transaction)
+                            .await
+                            .map_err(|e| {
+                                log::error!("Failed to create car unload place: {}", e);
+                                error::ErrorInternalServerError("Error creating car unload place")
+                            })?;
+                        }
+                    }
+                }
             }
-        }
-    }
-}
             "people" => {
                 if let Some(employees) = &attachment.data.employees {
                     for employee in employees {
@@ -2592,7 +2882,37 @@ pub async fn submit_complete_application(
 
                         let employee_id = employee_result.id;
 
-                        // Создаем связи с целевыми таблицами
+                        let emp_history_time = (base_time + chrono::Duration::milliseconds(1)).naive_utc();
+                        let full_name = format!("{} {} {}", 
+                            employee.last_name,
+                            employee.first_name,
+                            employee.middle_name.as_deref().unwrap_or("")
+                        ).trim().to_string();
+
+                        sqlx::query!(
+                            r#"
+                            INSERT INTO employees_history (
+                                employee_id,
+                                user_id,
+                                action_type,
+                                comment,
+                                created_at
+                            )
+                            VALUES ($1, $2, $3, $4, $5)
+                            "#,
+                            employee_id,
+                            user_id,
+                            "create",
+                            format!("Сотрудник {} создан", full_name),
+                            emp_history_time
+                        )
+                        .execute(&mut *transaction)
+                        .await
+                        .map_err(|e| {
+                            log::error!("Failed to add employee history entry: {}", e);
+                            error::ErrorInternalServerError("Error adding employee history entry")
+                        })?;
+
                         for &table_id in &employee.target_tables {
                             sqlx::query!(
                                 r#"
@@ -2647,7 +2967,55 @@ pub async fn submit_complete_application(
         }
     }
 
-    // Фиксируем транзакцию
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЙ ==========
+let approvers = sqlx::query!(
+    "SELECT user_id FROM application_approvers"
+)
+.fetch_all(&mut *transaction)
+.await
+.map_err(|e| {
+    log::error!("Failed to fetch approvers: {}", e);
+    error::ErrorInternalServerError("Error fetching approvers")
+})?;
+
+let mut notify_user_ids: Vec<i32> = approvers.iter().map(|a| a.user_id).collect();
+
+for (user_id, _, _) in &responsible_users {
+    if !notify_user_ids.contains(user_id) {
+        notify_user_ids.push(*user_id);
+    }
+}
+
+let org_name = form.organization.clone();
+let sender_name = form.responsible_person.clone();
+let app_number = application_result.application_number.clone();
+
+for user_id in notify_user_ids {
+    // Проверяем, является ли пользователь ответственным
+    let is_responsible = responsible_users.iter().any(|(uid, _, _)| *uid == user_id);
+    
+    let message = if is_responsible {
+        format!("Получена заявка {} от {} ({}) и требует вашего согласования.", app_number, org_name, sender_name)
+    } else {
+        format!("Получена заявка {} от {} ({}).", app_number, org_name, sender_name)
+    };
+    
+    let notif_req = CreateNotificationRequest {
+        user_id,
+        type_: "application_received".to_string(),
+        title: "Новая заявка".to_string(),
+        message,
+        data: Some(serde_json::json!({
+            "application_id": application_id,
+            "application_number": app_number,
+            "organization": org_name,
+            "sender": sender_name,
+        })),
+    };
+    create_notification(pool.get_ref(), notif_req).await?;
+}
+// ==========================================
+
     transaction.commit().await.map_err(|e| {
         log::error!("Failed to commit transaction: {}", e);
         error::ErrorInternalServerError("Failed to commit transaction")
@@ -3452,7 +3820,31 @@ pub async fn get_application_attachments(
     Ok(HttpResponse::Ok().json(attachments))
 }
 
-/// Получение автомобилей для вложения
+#[derive(Debug, Serialize)]
+struct UnloadPlaceInfo {
+    id: i32,
+    name: String,
+    description: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct CarWithPlaces {
+    id: i32,
+    car_number: String,
+    car_brand: String,
+    unload_place: Option<String>,
+    entry_date_from: Option<NaiveDate>,
+    entry_time_from: Option<NaiveTime>,
+    entry_date_to: Option<NaiveDate>,
+    entry_time_to: Option<NaiveTime>,
+    organization: Option<String>,
+    organization_id: Option<i32>,
+    company: Option<String>,
+    company_id: Option<i32>,
+    unload_places: Vec<UnloadPlaceInfo>,
+}
+
+
 pub async fn get_attachment_cars(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -3470,26 +3862,6 @@ pub async fn get_attachment_cars(
 
     let attachment_id = path.into_inner();
 
-    #[derive(Debug, Serialize)]
-    struct UnloadPlaceInfo {
-        id: i32,
-        name: String,
-        description: Option<String>,
-    }
-
-    #[derive(Debug, Serialize)]
-    struct CarWithPlaces {
-        id: i32,
-        car_number: String,
-        car_brand: String,
-        unload_place: Option<String>,
-        entry_date_from: Option<NaiveDate>,
-        entry_time_from: Option<NaiveTime>,
-        entry_date_to: Option<NaiveDate>,
-        entry_time_to: Option<NaiveTime>,
-        unload_places: Vec<UnloadPlaceInfo>,
-    }
-
     let cars = sqlx::query!(
         r#"
         SELECT 
@@ -3500,8 +3872,16 @@ pub async fn get_attachment_cars(
             c.entry_date_from,
             c.entry_time_from,
             c.entry_date_to,
-            c.entry_time_to
+            c.entry_time_to,
+            o.name as organization,
+            o.id as organization_id,
+            comp.name as company,
+            comp.id as company_id
         FROM cars c
+        JOIN attachments a ON c.attachment_id = a.id
+        JOIN applications app ON a.application_id = app.id
+        LEFT JOIN organizations o ON app.organization_id = o.id
+        LEFT JOIN companies comp ON app.company_id = comp.id
         WHERE c.attachment_id = $1
         "#,
         attachment_id
@@ -3547,13 +3927,16 @@ pub async fn get_attachment_cars(
             entry_time_from: Some(car.entry_time_from),
             entry_date_to: Some(car.entry_date_to),
             entry_time_to: Some(car.entry_time_to),
+            organization: Some(car.organization),
+            organization_id: Some(car.organization_id),
+            company: Some(car.company),
+            company_id: Some(car.company_id),
             unload_places: place_infos,
         });
     }
 
     Ok(HttpResponse::Ok().json(car_with_places))
 }
-
 /// Получение сотрудников для вложения
 pub async fn get_attachment_employees(
     pool: web::Data<PgPool>,
@@ -3587,9 +3970,16 @@ pub async fn get_attachment_employees(
         middle_name: Option<String>,
         position: Option<String>,
         citizenship_id: Option<i32>,
+        citizenship_name: Option<String>,
         passport_series_number: Option<String>,
         patent_number: Option<String>,
         other_permission: Option<String>,
+        entry_date_to: Option<NaiveDate>,
+        pass_time: Option<String>,
+        organization: Option<String>,
+        organization_id: Option<i32>,
+        company: Option<String>,
+        company_id: Option<i32>,
         target_tables: Vec<TableInfo>,
     }
 
@@ -3602,10 +3992,22 @@ pub async fn get_attachment_employees(
             e.middle_name,
             e.position,
             e.citizenship_id,
+            ci.name as citizenship_name,
             e.passport_series_number,
             e.patent_number,
-            e.other_permission
+            e.other_permission,
+            a.entry_date_to,
+            CONCAT(a.entry_time_from, ' - ', a.entry_time_to) as pass_time,
+            o.name as organization,
+            o.id as organization_id,
+            comp.name as company,
+            comp.id as company_id
         FROM employees e
+        JOIN attachments a ON e.attachment_id = a.id
+        LEFT JOIN citizenships ci ON e.citizenship_id = ci.id
+        LEFT JOIN applications app ON a.application_id = app.id
+        LEFT JOIN organizations o ON app.organization_id = o.id
+        LEFT JOIN companies comp ON app.company_id = comp.id
         WHERE e.attachment_id = $1
         "#,
         attachment_id
@@ -3649,9 +4051,16 @@ pub async fn get_attachment_employees(
             middle_name: employee.middle_name,
             position: employee.position,
             citizenship_id: employee.citizenship_id,
+            citizenship_name: Some(employee.citizenship_name),
             passport_series_number: employee.passport_series_number,
             patent_number: employee.patent_number,
             other_permission: employee.other_permission,
+            entry_date_to: employee.entry_date_to,
+            pass_time: employee.pass_time,
+            organization: Some(employee.organization),
+            organization_id: Some(employee.organization_id),
+            company: Some(employee.company),
+            company_id: Some(employee.company_id),
             target_tables: table_infos,
         });
     }

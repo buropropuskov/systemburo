@@ -72,7 +72,7 @@
                 </div>
                 
                 <div class="card-content">
-                    <!-- Заголовок таблицы всегда отображается -->
+                    <!-- Заголовок таблицы -->
                     <div class="cars-header">
                         <div class="header-row">
                             <div class="header-col number-col" @click="sortBy('id')">
@@ -183,7 +183,7 @@
                                         </button>
                                         <button 
                                             v-if="currentFilter !== 'all_system'"
-                                            @click="deleteCar(car)" 
+                                            @click="openDeleteCarConfirmation(car)" 
                                             class="delete-btn"
                                             title="Удалить"
                                         >
@@ -222,7 +222,7 @@
             </div>
         </div>
 
-        <!-- Модальное окно добавления машины -->
+        <!-- Модальное окно добавления/редактирования -->
         <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" @click="closeModal">
             <div class="modal-content" @click.stop>
                 <div class="modal-header">
@@ -270,8 +270,6 @@
                                 <div class="completion__number-header">
                                     <label class="input__label">Номер Т/C <span class="required">*</span></label>
                                 </div>
-                                
-                                <!-- Динамический формат из базы данных -->
                                 <div class="number__field" v-if="selectedFormat">
                                     <input 
                                         v-for="(cell, index) in selectedFormat.cells" 
@@ -364,17 +362,31 @@
                 </div>
             </div>
         </div>
+
+        <!-- Модальное окно подтверждения удаления -->
+        <ConfirmationModal
+            :show="showDeleteModal"
+            title="Удаление автомобиля"
+            :message="deleteMessage"
+            confirm-text="Удалить"
+            cancel-text="Отмена"
+            :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+            @confirm="confirmDeleteCar"
+            @cancel="cancelDeleteCar"
+        />
     </section>
 </template>
 
 <script>
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 export default {
     components: {
         SearchComponent,
-        RefreshButton
+        RefreshButton,
+        ConfirmationModal
     },
     data() {
         return {
@@ -388,7 +400,6 @@ export default {
             showModal: false,
             availableFormats: [],
 
-            
             // Формат номера
             selectedFormat: null,
             isFormatDropdownOpen: false,
@@ -413,12 +424,16 @@ export default {
             notification: {
                 show: false,
                 message: '',
-                type: 'success' // 'success' или 'error'
+                type: 'success'
             },
             
             // Редактирование
             editingCar: null,
-            originalCarData: null
+            originalCarData: null,
+
+            // Модальное окно удаления
+            showDeleteModal: false,
+            carToDelete: null
         };
     },
     computed: {
@@ -426,7 +441,6 @@ export default {
             if (!this.searchQuery.trim()) {
                 return this.carsData;
             }
-            
             const query = this.searchQuery.toLowerCase().trim();
             return this.carsData.filter(car => 
                 car.number.toLowerCase().includes(query) ||
@@ -438,50 +452,35 @@ export default {
 
         sortedCars() {
             const cars = [...this.filteredCars];
-            
-            if (!this.sortField) {
-                return cars;
-            }
-            
+            if (!this.sortField) return cars;
             return cars.sort((a, b) => {
                 let valueA, valueB;
-                
                 switch (this.sortField) {
                     case 'id':
                         valueA = a.id;
                         valueB = b.id;
                         break;
-                        
                     case 'number':
                         valueA = a.number?.toLowerCase() || '';
                         valueB = b.number?.toLowerCase() || '';
                         break;
-                        
                     case 'mark':
                         valueA = a.mark?.toLowerCase() || '';
                         valueB = b.mark?.toLowerCase() || '';
                         break;
-                        
                     case 'format_name':
                         valueA = a.format_name?.toLowerCase() || '';
                         valueB = b.format_name?.toLowerCase() || '';
                         break;
-                        
                     case 'status':
                         valueA = a.status;
                         valueB = b.status;
                         break;
-                        
                     default:
                         return 0;
                 }
-                
-                if (valueA < valueB) {
-                    return this.sortDirection === 'asc' ? -1 : 1;
-                }
-                if (valueA > valueB) {
-                    return this.sortDirection === 'asc' ? 1 : -1;
-                }
+                if (valueA < valueB) return this.sortDirection === 'asc' ? -1 : 1;
+                if (valueA > valueB) return this.sortDirection === 'asc' ? 1 : -1;
                 return 0;
             });
         },
@@ -495,66 +494,39 @@ export default {
         },
 
         canSaveCar() {
-            // Проверяем формат номера
-            if (!this.selectedFormat || !this.numberParts.length) {
-                return false;
-            }
-
-            // Проверяем каждую клетку формата
+            if (!this.selectedFormat || !this.numberParts.length) return false;
             for (let i = 0; i < this.selectedFormat.cells.length; i++) {
                 const cell = this.selectedFormat.cells[i];
                 const part = this.numberParts[i];
-                
-                if (!part || part.length < cell.min_length || part.length > cell.max_length) {
-                    return false;
-                }
+                if (!part || part.length < cell.min_length || part.length > cell.max_length) return false;
             }
-            
-            // Проверяем марку
-            if (!this.selectedMark) {
-                return false;
-            }
-            
+            if (!this.selectedMark) return false;
             return true;
+        },
+
+        deleteMessage() {
+            return this.carToDelete
+                ? `Вы уверены, что хотите удалить автомобиль ${this.carToDelete.number}?`
+                : '';
         }
     },
     watch: {
         searchQuery() {
             clearTimeout(this.searchTimeout);
-            this.searchTimeout = setTimeout(() => {
-                this.$forceUpdate();
-            }, 50);
+            this.searchTimeout = setTimeout(() => this.$forceUpdate(), 50);
         },
-        
-        bindToOrganization(newVal) {
-            if (newVal) {
-                this.bindToCompany = false;
-            }
-        },
-        
-        bindToCompany(newVal) {
-            if (newVal) {
-                this.bindToOrganization = false;
-            }
-        }
+        bindToOrganization(newVal) { if (newVal) this.bindToCompany = false; },
+        bindToCompany(newVal) { if (newVal) this.bindToOrganization = false; }
     },
     methods: {
         async fetchCars() {
             try {
                 const token = localStorage.getItem("token");
                 const response = await fetch(`http://localhost:8080/unique-cars?filter_type=${this.currentFilter}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-
-                if (response.ok) {
-                    this.carsData = await response.json();
-                } else {
-                    console.error("Ошибка при загрузке машин");
-                    this.carsData = [];
-                }
+                if (response.ok) this.carsData = await response.json();
+                else this.carsData = [];
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
                 this.carsData = [];
@@ -565,15 +537,9 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 const response = await fetch("http://localhost:8080/unique-cars/ownership-info", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-
-                if (response.ok) {
-                    this.ownershipInfo = await response.json();
-                }
+                if (response.ok) this.ownershipInfo = await response.json();
             } catch (error) {
                 console.error("Ошибка при загрузке информации о владельце:", error);
             }
@@ -583,15 +549,10 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 const response = await fetch("http://localhost:8080/license-plate-formats", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-
                 if (response.ok) {
                     this.availableFormats = await response.json();
-                    // Выбираем формат по умолчанию или первый формат
                     const defaultFormat = this.availableFormats.find(f => f.format.is_default);
                     this.selectedFormat = defaultFormat || this.availableFormats[0];
                     this.initializeNumberParts();
@@ -601,109 +562,41 @@ export default {
             }
         },
 
-        async deleteCar(car) {
-            if (confirm(`Вы уверены, что хотите удалить автомобиль ${car.number}?`)) {
-                try {
-                    const token = localStorage.getItem("token");
-                    const response = await fetch(`http://localhost:8080/unique-cars/${car.id}`, {
-                        method: "DELETE",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        await this.fetchCars();
-                        this.showNotification('Автомобиль успешно удален!', 'success');
-                    } else {
-                        alert("Ошибка при удалении автомобиля");
-                    }
-                } catch (error) {
-                    console.error("Ошибка при удалении автомобиля:", error);
-                    alert("Ошибка при удалении автомобиля");
-                }
-            }
+        // Модальное окно удаления
+        openDeleteCarConfirmation(car) {
+            if (this.currentFilter === 'all_system') return;
+            this.carToDelete = car;
+            this.showDeleteModal = true;
         },
 
-        editCar(car) {
-            if (this.currentFilter === 'all_system') {
-                return; // Запрещаем редактирование для вкладки "Все машины системы"
-            }
-            
-            this.editingCar = car;
-            
-            // Сохраняем оригинальные значения для сравнения
-            this.originalCarData = {
-                mark: car.mark,
-                format_id: car.format_id,
-                number: car.number,
-                organization_id: car.organization_id,
-                company_id: car.company_id
-            };
-            
-            // Устанавливаем текущие значения машины
-            this.selectedMark = car.mark;
-            
-            // Находим формат по format_id
-            if (car.format_id) {
-                const carFormat = this.availableFormats.find(f => f.format.id === car.format_id);
-                if (carFormat) {
-                    this.selectedFormat = carFormat;
-                    // Разбиваем номер на части согласно формату
-                    this.numberParts = car.number.split(' ');
+        async confirmDeleteCar() {
+            if (!this.carToDelete) return;
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`http://localhost:8080/unique-cars/${this.carToDelete.id}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    await this.fetchCars();
+                    this.showNotification('Автомобиль успешно удален!', 'success');
                 } else {
-                    // Если формат не найден, используем формат по умолчанию
-                    const defaultFormat = this.availableFormats.find(f => f.format.is_default) || this.availableFormats[0];
-                    this.selectedFormat = defaultFormat;
-                    this.initializeNumberParts();
+                    this.showNotification('Ошибка при удалении автомобиля', 'error');
                 }
+            } catch (error) {
+                console.error("Ошибка при удалении автомобиля:", error);
+                this.showNotification('Ошибка при удалении автомобиля', 'error');
+            } finally {
+                this.cancelDeleteCar();
             }
-            
-            // Устанавливаем привязки
-            this.bindToOrganization = !!car.organization_id;
-            this.bindToCompany = !!car.company_id;
-            
-            this.showModal = true;
-            this.hideNotification();
         },
 
-        // Проверка наличия изменений
-        hasChanges() {
-            if (!this.editingCar) {
-                return true; // Для новой машины всегда отправляем запрос
-            }
-
-            // Проверяем изменения в марке
-            if (this.selectedMark !== this.originalCarData.mark) {
-                return true;
-            }
-
-            // Проверяем изменения в формате
-            if (this.selectedFormat.format.id !== this.originalCarData.format_id) {
-                return true;
-            }
-
-            // Проверяем изменения в номере
-            const currentNumber = this.numberParts.join(' ');
-            if (currentNumber !== this.originalCarData.number) {
-                return true;
-            }
-
-            // Проверяем изменения в привязке к организации
-            const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
-            if (currentOrgId !== this.originalCarData.organization_id) {
-                return true;
-            }
-
-            // Проверяем изменения в привязке к компании
-            const currentCompanyId = this.bindToCompany ? this.ownershipInfo.company_id : null;
-            if (currentCompanyId !== this.originalCarData.company_id) {
-                return true;
-            }
-
-            return false;
+        cancelDeleteCar() {
+            this.showDeleteModal = false;
+            this.carToDelete = null;
         },
-        
+
+        // Остальные методы (сортировка, переключение фильтров, модалка добавления/редактирования и т.д.)
         sortBy(field) {
             if (this.sortField === field) {
                 this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -719,10 +612,7 @@ export default {
         },
 
         showAddCarModal() {
-            if (this.currentFilter === 'all_system') {
-                return; // Запрещаем добавление для вкладки "Все машины системы"
-            }
-            
+            if (this.currentFilter === 'all_system') return;
             this.editingCar = null;
             this.showModal = true;
             this.filteredMarks = this.marks;
@@ -748,39 +638,26 @@ export default {
         },
 
         clearFormFields() {
-            // Очищаем только номер и марку, чекбоксы остаются
             this.initializeNumberParts();
             this.selectedMark = '';
             this.markSearch = '';
             this.filteredMarks = this.marks;
-            
-            // Если это добавление новой машины (не редактирование), сбрасываем чекбоксы
             if (!this.editingCar) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
             }
-            // При редактировании поля НЕ очищаются - остаются текущие значения машины
         },
 
-        // Уведомления
         showNotification(message, type = 'success') {
-            this.notification = {
-                show: true,
-                message: message,
-                type: type
-            };
-            
-            // Автоматически скрываем уведомление через 3 секунды
-            setTimeout(() => {
-                this.hideNotification();
-            }, 3000);
+            this.notification = { show: true, message, type };
+            setTimeout(() => this.hideNotification(), 3000);
         },
 
         hideNotification() {
             this.notification.show = false;
         },
 
-        // Формат номера методы
+        // Методы формата номера
         initializeNumberParts() {
             if (this.selectedFormat) {
                 this.numberParts = new Array(this.selectedFormat.cells.length).fill('');
@@ -790,11 +667,8 @@ export default {
         },
 
         getPlaceholder(cell) {
-            if (cell.cell_type === 'numbers') {
-                return '0'.repeat(cell.max_length);
-            } else {
-                return 'A'.repeat(cell.max_length);
-            }
+            if (cell.cell_type === 'numbers') return '0'.repeat(cell.max_length);
+            else return 'A'.repeat(cell.max_length);
         },
 
         getInputWidth(cell) {
@@ -806,7 +680,6 @@ export default {
 
         validatePart(index, event, cell) {
             let value = event.target.value.toUpperCase();
-            
             if (cell.cell_type === 'numbers') {
                 value = value.replace(/\D/g, '');
             } else if (cell.cell_type === 'letters') {
@@ -826,11 +699,7 @@ export default {
                     value = this.filterMixedBoth(value, cell.allowed_letters);
                 }
             }
-            
-            if (value.length > cell.max_length) {
-                value = value.slice(0, cell.max_length);
-            }
-            
+            if (value.length > cell.max_length) value = value.slice(0, cell.max_length);
             this.numberParts[index] = value;
             event.target.value = value;
         },
@@ -839,7 +708,6 @@ export default {
             if (cell.cell_type === 'numbers' && cell.padding_side && this.numberParts[index]) {
                 let value = this.numberParts[index];
                 const targetLength = cell.max_length;
-                
                 if (value.length < targetLength) {
                     const paddingChar = cell.padding_char || '0';
                     if (cell.padding_side === 'left') {
@@ -897,7 +765,6 @@ export default {
             return numericPart + letterPart;
         },
 
-        // Dropdown методы
         toggleFormatDropdown() {
             this.isFormatDropdownOpen = !this.isFormatDropdownOpen;
         },
@@ -910,9 +777,7 @@ export default {
 
         toggleMarkDropdown() {
             this.isMarkDropdownOpen = !this.isMarkDropdownOpen;
-            if (this.isMarkDropdownOpen) {
-                this.filterMarks();
-            }
+            if (this.isMarkDropdownOpen) this.filterMarks();
         },
 
         filterMarks() {
@@ -920,9 +785,7 @@ export default {
                 this.filteredMarks = this.marks;
             } else {
                 const searchTerm = this.markSearch.toLowerCase();
-                this.filteredMarks = this.marks.filter(mark => 
-                    mark.toLowerCase().includes(searchTerm)
-                );
+                this.filteredMarks = this.marks.filter(mark => mark.toLowerCase().includes(searchTerm));
             }
         },
 
@@ -932,25 +795,59 @@ export default {
             this.markSearch = '';
         },
 
+        editCar(car) {
+            if (this.currentFilter === 'all_system') return;
+            this.editingCar = car;
+            this.originalCarData = {
+                mark: car.mark,
+                format_id: car.format_id,
+                number: car.number,
+                organization_id: car.organization_id,
+                company_id: car.company_id
+            };
+            this.selectedMark = car.mark;
+            if (car.format_id) {
+                const carFormat = this.availableFormats.find(f => f.format.id === car.format_id);
+                if (carFormat) {
+                    this.selectedFormat = carFormat;
+                    this.numberParts = car.number.split(' ');
+                } else {
+                    const defaultFormat = this.availableFormats.find(f => f.format.is_default) || this.availableFormats[0];
+                    this.selectedFormat = defaultFormat;
+                    this.initializeNumberParts();
+                }
+            }
+            this.bindToOrganization = !!car.organization_id;
+            this.bindToCompany = !!car.company_id;
+            this.showModal = true;
+            this.hideNotification();
+        },
+
+        hasChanges() {
+            if (!this.editingCar) return true;
+            if (this.selectedMark !== this.originalCarData.mark) return true;
+            if (this.selectedFormat.format.id !== this.originalCarData.format_id) return true;
+            const currentNumber = this.numberParts.join(' ');
+            if (currentNumber !== this.originalCarData.number) return true;
+            const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+            if (currentOrgId !== this.originalCarData.organization_id) return true;
+            const currentCompanyId = this.bindToCompany ? this.ownershipInfo.company_id : null;
+            if (currentCompanyId !== this.originalCarData.company_id) return true;
+            return false;
+        },
+
         async saveCar() {
             if (!this.canSaveCar) {
                 this.showNotification('Заполните все обязательные поля правильно', 'error');
                 return;
             }
-
-            // Проверяем изменения для редактирования
             if (this.editingCar && !this.hasChanges()) {
                 this.showNotification('Изменений не обнаружено', 'info');
                 return;
             }
-
             try {
                 const token = localStorage.getItem("token");
-                
-                // Формируем номер из частей
                 const number = this.numberParts.join(' ');
-                
-                // Формируем данные для отправки
                 const carData = {
                     number: number,
                     mark: this.selectedMark,
@@ -959,42 +856,27 @@ export default {
                     organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
                     company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
                 };
-
                 let response;
                 if (this.editingCar) {
-                    // Редактирование существующей машины
                     response = await fetch(`http://localhost:8080/unique-cars/${this.editingCar.id}`, {
                         method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
+                        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
                         body: JSON.stringify(carData)
                     });
                 } else {
-                    // Создание новой машины
                     response = await fetch("http://localhost:8080/unique-cars", {
                         method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
+                        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
                         body: JSON.stringify(carData)
                     });
                 }
-
                 if (response.ok) {
                     const action = this.editingCar ? 'обновлен' : 'добавлен';
                     this.showNotification(`Автомобиль успешно ${action}!`, 'success');
-                    
-                    // Обновляем список машин
                     this.fetchCars();
-                    
-                    // Очищаем форму только при добавлении новой машины
                     if (!this.editingCar) {
                         this.clearFormFields();
                     } else {
-                        // Обновляем оригинальные данные после успешного сохранения
                         this.originalCarData = {
                             mark: this.selectedMark,
                             format_id: this.selectedFormat.format.id,
@@ -1006,8 +888,6 @@ export default {
                 } else {
                     const errorData = await response.json();
                     const errorMessage = errorData.message || "Ошибка при сохранении автомобиля";
-                    
-                    // Специальные сообщения для дубликатов
                     if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
                         this.showNotification("Автомобиль уже привязан к вашему аккаунту", 'error');
                     } else {
@@ -1021,21 +901,11 @@ export default {
         }
     },
     async mounted() {
-        await Promise.all([
-            this.fetchOwnershipInfo(),
-            this.fetchFormats()
-        ]);
+        await Promise.all([this.fetchOwnershipInfo(), this.fetchFormats()]);
         await this.fetchCars();
-        
-        // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.format__dropdown')) {
-                this.isFormatDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.mark__dropdown')) {
-                this.isMarkDropdownOpen = false;
-            }
+            if (!e.target.closest('.format__dropdown')) this.isFormatDropdownOpen = false;
+            if (!e.target.closest('.mark__dropdown')) this.isMarkDropdownOpen = false;
         });
     }
 }
@@ -1053,7 +923,7 @@ export default {
 }
 
 .carsview__right-side {
-    width: 40%;
+    width: 35%;
 }
 
 .carsview__header {
@@ -1083,6 +953,7 @@ export default {
 .filter-tabs {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .filter-tab {
@@ -1116,8 +987,8 @@ export default {
     border-radius: 30px;
     border: 1px solid #e6e6e6;
     overflow: hidden;
-    width: 60%;
-    height: 450px;
+    width: 65%;
+    height: 500px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
@@ -1188,7 +1059,6 @@ export default {
     overflow-y: auto;
 }
 
-/* Заголовок таблицы */
 .cars-header {
     border-bottom: 1px solid #e6e6e6;
     padding: 12px 16px;
@@ -1242,39 +1112,37 @@ export default {
     font-weight: 500 !important;
 }
 
-/* Колонки с фиксированной шириной */
 .number-col {
     width: 8%;
     min-width: 40px;
 }
 
 .car-number-col {
-    width: 20%;
+    width: 18%;
     min-width: 120px;
 }
 
 .brand-col {
-    width: 20%;
+    width: 18%;
     min-width: 120px;
 }
 
 .format-col {
-    width: 25%;
+    width: 28%;
     min-width: 120px;
 }
 
 .status-col {
-    width: 18%;
-    min-width: 100px;
+    width: 15%;
+    min-width: 90px;
 }
 
 .actions-col {
     width: 10%;
-    min-width: 80px;
+    min-width: 70px;
     justify-content: center;
 }
 
-/* Тело таблицы */
 .cars-body {
     overflow-y: auto;
     flex-grow: 1;
@@ -1311,13 +1179,6 @@ export default {
     height: 100%;
 }
 
-/* Выравнивание содержимого колонок */
-.number-col .car-col,
-.actions-col .car-col {
-    justify-content: center;
-}
-
-/* Стилизация скроллбара */
 .cars-body::-webkit-scrollbar {
     width: 6px;
 }
@@ -1338,19 +1199,14 @@ export default {
 
 .cars-body::-webkit-scrollbar-thumb:hover {
     background: #C5D1FF;
-    border: 1px solid transparent;
-    background-clip: content-box;
-    transform: scale(1.1);
 }
 
 .cars-body {
     scrollbar-width: thin;
     scrollbar-color: #D9E2FF transparent;
     scroll-behavior: smooth;
-    overscroll-behavior: contain;
 }
 
-/* Стили для бейджей статуса */
 .status-badge {
     padding: 4px 12px;
     border-radius: 12px;
@@ -1371,7 +1227,6 @@ export default {
     border: 1px solid #fecaca;
 }
 
-/* Кнопки действий */
 .edit-btn, .delete-btn {
     background: none;
     border: none;
@@ -1405,12 +1260,6 @@ export default {
     opacity: 1;
 }
 
-.read-only-text {
-    font-size: 12px;
-    color: #a2a2a2;
-    font-style: italic;
-}
-
 .no-data-message {
     text-align: center;
     color: #a2a2a2;
@@ -1424,7 +1273,13 @@ export default {
 }
 
 .help__text {
-    line-height: 150%; font-size: 14px;
+    line-height: 150%;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.help__text strong {
+    color: #4F5BDF;
 }
 
 /* Модальное окно */
@@ -1465,6 +1320,7 @@ export default {
     justify-content: space-between;
     flex: 1;
     height: 25px;
+    gap: 15px;
 }
 
 .modal-header h3 {
@@ -1498,7 +1354,6 @@ export default {
     overflow-y: auto;
 }
 
-/* Бейдж уведомления */
 .notification-badge {
     padding: 6px 12px;
     border-radius: 12px;
@@ -1538,7 +1393,6 @@ export default {
     }
 }
 
-/* Стили формы добавления машины */
 .data__completion {
     padding: 0;
 }
@@ -1632,9 +1486,6 @@ export default {
 }
 
 .dropdown__item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     padding: 10px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
@@ -1642,14 +1493,6 @@ export default {
 
 .dropdown__item:hover {
     background-color: #f5f5f5;
-}
-
-.dropdown__item:first-child {
-    border-radius: 10px 10px 0 0;
-}
-
-.dropdown__item:last-child {
-    border-radius: 0 0 10px 10px;
 }
 
 .item__text {
@@ -1660,7 +1503,6 @@ export default {
 .completion__fields {
     display: flex;
     gap: 20px;
-    align-items: flex-start;
     margin-bottom: 15px;
 }
 
@@ -1729,7 +1571,6 @@ export default {
     background-color: #f8f8f8;
 }
 
-/* Mark dropdown styles */
 .mark__field {
     width: 100%;
     height: 40px;
@@ -1835,7 +1676,6 @@ export default {
     color: #333;
 }
 
-/* Анимации для dropdown */
 .dropdown-enter-active,
 .dropdown-leave-active {
     transition: all 0.2s ease;
@@ -1847,7 +1687,6 @@ export default {
     transform: translateY(-10px);
 }
 
-/* Привязка */
 .completion__binding {
     margin-top: 15px;
     padding-top: 15px;
@@ -1950,14 +1789,8 @@ export default {
         margin: 10px;
     }
     
-    .format-actions {
-        flex-direction: column;
-        width: 100%;
-    }
-    
-    .add-button,
-    .add-button-secondary {
-        width: 100%;
+    .filter-tabs {
+        flex-wrap: wrap;
     }
 }
 </style>

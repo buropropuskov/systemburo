@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Responder, HttpRequest, error, Error};
+use actix_web::{web, HttpResponse, HttpRequest, Responder, error, Error};
 use sqlx::PgPool;
 use serde_json::json;
 use log;
@@ -7,8 +7,9 @@ use chrono::{Utc};
 use crate::models::auth::*;
 use crate::models::user_types::UserType;
 use crate::auth::{hash_password, verify_password, create_token, decode_token, create_refresh_token, decode_refresh_token, hash_refresh_token};
+use crate::handlers::notifications::{create_notification};
+use crate::models::notifications::CreateNotificationRequest;
 
-/// Регистрация нового пользователя
 pub async fn register(pool: web::Data<PgPool>, form: web::Json<UserRegister>) -> impl Responder {
     let hashed_password = hash_password(&form.password);
     let result = sqlx::query!(
@@ -44,7 +45,6 @@ pub async fn register(pool: web::Data<PgPool>, form: web::Json<UserRegister>) ->
     }
 }
 
-/// Аутентификация пользователя
 pub async fn login(pool: web::Data<PgPool>, form: web::Json<UserLogin>) -> impl Responder {
     let user = sqlx::query!(
         r#"SELECT u.id, u.username, u.password, o.name as organization, 
@@ -63,12 +63,10 @@ pub async fn login(pool: web::Data<PgPool>, form: web::Json<UserLogin>) -> impl 
     match user {
         Ok(user) => {
             if verify_password(&user.password, &form.password) {
-                // Создаем токены
                 let token = create_token(&user.username, user.type_id);
                 let refresh_token = create_refresh_token(&user.username);
                 let refresh_token_hash = hash_refresh_token(&refresh_token);
                 
-                // Сохраняем refresh token в БД
                 let expires_at = Utc::now() + chrono::Duration::hours(24);
                 
                 let save_result = sqlx::query!(
@@ -113,7 +111,6 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
     println!("🔄 DEBUG: Starting refresh token process");
     println!("🔄 DEBUG: Refresh token received: {}", refresh_token);
     
-    // 1. Декодируем refresh token
     let claims = match decode_refresh_token(refresh_token) {
         Ok(claims) => {
             println!("✅ DEBUG: Token decoded successfully - user: {}", claims.sub);
@@ -125,7 +122,6 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
         }
     };
     
-    // 2. Проверяем expiration
     let current_time = Utc::now().timestamp() as usize;
     println!("🔄 DEBUG: Token exp: {}, Current: {}", claims.exp, current_time);
     if claims.exp < current_time {
@@ -133,7 +129,6 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
         return HttpResponse::Unauthorized().json("Refresh token expired");
     }
     
-    // 3. Находим пользователя
     let user = match sqlx::query!(
         r#"SELECT id, username, type_id FROM users WHERE username = $1"#,
         claims.sub
@@ -150,11 +145,9 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
         }
     };
     
-    // 4. Хэшируем полученный токен для поиска в БД
     let refresh_token_hash = hash_refresh_token(refresh_token);
     println!("🔄 DEBUG: Hashed token for search: {}", &refresh_token_hash[..50]);
     
-    // 5. Ищем конкретный токен в базе
     let stored_token = sqlx::query!(
         r#"SELECT id, token_hash, expires_at, is_revoked 
            FROM refresh_tokens 
@@ -169,13 +162,11 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
         Ok(Some(token_record)) => {
             println!("✅ DEBUG: Token found in DB, ID: {}", token_record.id);
             
-            // Проверяем не отозван ли токен
             if token_record.is_revoked.unwrap_or(false) {
                 println!("❌ DEBUG: Token revoked");
                 return HttpResponse::Unauthorized().json("Refresh token revoked");
             }
             
-            // Проверяем срок действия
             if token_record.expires_at < Utc::now() {
                 println!("❌ DEBUG: Token expired in DB");
                 return HttpResponse::Unauthorized().json("Refresh token expired");
@@ -183,7 +174,6 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
             
             println!("✅ DEBUG: Token validation successful");
             
-            // УДАЛЯЕМ ТОЛЬКО ЭТОТ КОНКРЕТНЫЙ ТОКЕН
             let delete_result = sqlx::query!(
                 "DELETE FROM refresh_tokens WHERE id = $1",
                 token_record.id
@@ -199,12 +189,10 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
                 }
             }
             
-            // Создаем новые токены
             let new_token = create_token(&user.username, user.type_id);
             let new_refresh_token = create_refresh_token(&user.username);
             let new_refresh_token_hash = hash_refresh_token(&new_refresh_token);
             
-            // Сохраняем новый refresh token
             let new_expires_at = Utc::now() + chrono::Duration::hours(24);
             
             let save_result = sqlx::query!(
@@ -232,7 +220,6 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
             }
         }
         Ok(None) => {
-            // Токен не найден в базе
             println!("❌ DEBUG: Token not found in database");
             HttpResponse::Unauthorized().json("Invalid refresh token")
         }
@@ -242,6 +229,7 @@ pub async fn refresh_token(pool: web::Data<PgPool>, form: web::Json<RefreshReque
         }
     }
 }
+
 pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest, form: web::Json<LogoutRequest>) -> Result<HttpResponse, Error> {
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
@@ -253,7 +241,6 @@ pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest, form: web::Json<L
     let claims = decode_token(token)
         .map_err(|e| error::ErrorUnauthorized(format!("Invalid token: {}", e)))?;
 
-    // Находим пользователя
     let user = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         claims.sub
@@ -265,10 +252,8 @@ pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest, form: web::Json<L
         error::ErrorInternalServerError("Error finding user")
     })?;
 
-    // Хэшируем refresh token для поиска
     let refresh_token_hash = hash_refresh_token(&form.refresh_token);
     
-    // УДАЛЯЕМ ТОЛЬКО КОНКРЕТНЫЙ REFRESH TOKEN, который был передан
     let delete_result = sqlx::query!(
         "DELETE FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2",
         refresh_token_hash,
@@ -293,7 +278,7 @@ pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest, form: web::Json<L
         }
     }
 }
-/// Получение всех типов пользователей (для регистрации)
+
 pub async fn get_user_types(pool: web::Data<PgPool>) -> impl Responder {
     match sqlx::query_as!(
         UserType,
@@ -309,8 +294,6 @@ pub async fn get_user_types(pool: web::Data<PgPool>) -> impl Responder {
     }
 }
 
-/// Получение информации о текущем пользователе
-// В методе get_current_user
 pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?
@@ -372,9 +355,8 @@ pub async fn get_current_user(pool: web::Data<PgPool>, req: HttpRequest) -> Resu
         "email": user.email,
         "phone": user.phone
     })))
-} 
+}
 
-/// Получение основных данных текущего пользователя
 pub async fn get_current_user_data(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let token = req.headers().get("Authorization")
         .ok_or_else(|| error::ErrorUnauthorized("Missing Authorization header"))?

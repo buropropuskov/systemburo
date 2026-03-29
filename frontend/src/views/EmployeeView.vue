@@ -36,6 +36,13 @@
                     >
                         Мои сотрудники
                     </button>
+                    <button 
+                        class="filter-tab"
+                        :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+                        @click="switchFilter('all_system')"
+                    >
+                        Все сотрудники системы
+                    </button>
                 </div>
             </div>
         </div>
@@ -48,11 +55,16 @@
                         <h3 class="card-title">
                             <span v-if="currentFilter === 'organization'" class="highlight-text">Сотрудники <span class="blue">организации</span></span>
                             <span v-else-if="currentFilter === 'company'" class="highlight-text">Сотрудники <span class="blue">компании</span></span>
+                            <span v-else-if="currentFilter === 'all_system'" class="highlight-text">Все <span class="blue">сотрудники системы</span></span>
                             <span v-else class="highlight-text">Мои <span class="blue">сотрудники</span></span>
                         </h3>
                     </div>
                     <div class="card-header__settings">
-                        <button class="add-button" @click="showAddEmployeeModal">
+                        <button 
+                            class="add-button" 
+                            @click="showAddEmployeeModal"
+                            v-if="currentFilter !== 'all_system'"
+                        >
                             Добавить
                         </button>
                         <RefreshButton @refresh="fetchEmployees" />
@@ -60,7 +72,7 @@
                 </div>
                 
                 <div class="card-content">
-                    <!-- Заголовок таблицы всегда отображается -->
+                    <!-- Заголовок таблицы -->
                     <div class="employees-header">
                         <div class="header-row">
                             <div class="header-col number-col" @click="sortBy('id')">
@@ -144,6 +156,7 @@
                                     </div>
                                     <div class="employee-col actions-col">
                                         <button 
+                                            v-if="currentFilter !== 'all_system'"
                                             @click="editEmployee(employee)" 
                                             class="edit-btn"
                                             title="Редактировать"
@@ -155,7 +168,8 @@
                                             />
                                         </button>
                                         <button 
-                                            @click="deleteEmployee(employee)" 
+                                            v-if="currentFilter !== 'all_system'"
+                                            @click="openDeleteEmployeeConfirmation(employee)" 
                                             class="delete-btn"
                                             title="Удалить"
                                         >
@@ -165,6 +179,9 @@
                                                 class="delete-icon"
                                             />
                                         </button>
+                                        <span v-if="currentFilter === 'all_system'" class="read-only-text">
+                                            Только просмотр
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -178,17 +195,20 @@
             
             <div class="employeesview__right-side">
                 <div class="employeesview__help">
-                    <p class="help__text">
+                    <p class="help__text" v-if="currentFilter === 'all_system'">
+                        Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление сотрудников недоступно.
+                    </p>
+                    <p class="help__text" v-else>
                         Здесь находятся сотрудники, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
                     </p>
-                    <p class="help__text">
+                    <p class="help__text" v-if="currentFilter !== 'all_system'">
                         Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
                     </p>
                 </div>
             </div>
         </div>
 
-        <!-- Модальное окно добавления сотрудника -->
+        <!-- Модальное окно добавления/редактирования -->
         <div v-if="showModal" class="modal-overlay" @click="closeModal">
             <div class="modal-content" @click.stop>
                 <div class="modal-header">
@@ -233,7 +253,7 @@
                         </div>
                         
                         <div class="completion__fields">
-                            <!-- Первая строка: Фамилия и Имя -->
+                            <!-- Фамилия и Имя -->
                             <div class="completion__name-row">
                                 <div class="completion__last-name">
                                     <div class="completion__last-name-header">
@@ -257,7 +277,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Вторая строка: Отчество и Должность -->
+                            <!-- Отчество и Должность -->
                             <div class="completion__name-row">
                                 <div class="completion__middle-name">
                                     <div class="completion__middle-name-header">
@@ -281,7 +301,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Третья строка: Паспорт и Номер патента -->
+                            <!-- Паспорт и Номер патента -->
                             <div class="completion__name-row">
                                 <div class="completion__passport">
                                     <div class="completion__passport-header">
@@ -308,7 +328,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Четвертая строка: Иное разрешение -->
+                            <!-- Иное разрешение -->
                             <div class="completion__permission" :class="{ 'disabled-field': !isPatentRequired }">
                                 <div class="completion__permission-header">
                                     <label class="input__label">Иное разрешение на работы</label>
@@ -395,17 +415,31 @@
                 </div>
             </div>
         </div>
+
+        <!-- Модальное окно подтверждения удаления -->
+        <ConfirmationModal
+            :show="showDeleteModal"
+            title="Удаление сотрудника"
+            :message="deleteMessage"
+            confirm-text="Удалить"
+            cancel-text="Отмена"
+            :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+            @confirm="confirmDeleteEmployee"
+            @cancel="cancelDeleteEmployee"
+        />
     </section>
 </template>
 
 <script>
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 export default {
     components: {
         SearchComponent,
-        RefreshButton
+        RefreshButton,
+        ConfirmationModal
     },
     data() {
         return {
@@ -459,65 +493,52 @@ export default {
             
             // Редактирование
             editingEmployee: null,
-            originalEmployeeData: null
+            originalEmployeeData: null,
+
+            // Модальное окно удаления
+            showDeleteModal: false,
+            employeeToDelete: null
         };
     },
     computed: {
         filteredEmployees() {
-            if (!this.searchQuery.trim()) {
-                return this.employeesData;
-            }
-            
+            if (!this.searchQuery.trim()) return this.employeesData;
             const query = this.searchQuery.toLowerCase().trim();
             return this.employeesData.filter(employee => {
                 const fullName = this.formatFullName(employee).toLowerCase();
                 return fullName.includes(query) ||
                        (employee.position && employee.position.toLowerCase().includes(query)) ||
-                       (employee.status ? 'активен' : 'неактивен').includes(query)
+                       (employee.status ? 'активен' : 'неактивен').includes(query);
             });
         },
 
         sortedEmployees() {
             const employees = [...this.filteredEmployees];
-            
-            if (!this.sortField) {
-                return employees;
-            }
-            
+            if (!this.sortField) return employees;
             return employees.sort((a, b) => {
                 let valueA, valueB;
-                
                 switch (this.sortField) {
                     case 'id':
                         valueA = a.id;
                         valueB = b.id;
                         break;
-                        
                     case 'last_name':
                         valueA = a.last_name?.toLowerCase() || '';
                         valueB = b.last_name?.toLowerCase() || '';
                         break;
-                        
                     case 'position':
                         valueA = a.position?.toLowerCase() || '';
                         valueB = b.position?.toLowerCase() || '';
                         break;
-                        
                     case 'status':
                         valueA = a.status;
                         valueB = b.status;
                         break;
-                        
                     default:
                         return 0;
                 }
-                
-                if (valueA < valueB) {
-                    return this.sortDirection === 'asc' ? -1 : 1;
-                }
-                if (valueA > valueB) {
-                    return this.sortDirection === 'asc' ? 1 : -1;
-                }
+                if (valueA < valueB) return this.sortDirection === 'asc' ? -1 : 1;
+                if (valueA > valueB) return this.sortDirection === 'asc' ? 1 : -1;
                 return 0;
             });
         },
@@ -535,66 +556,41 @@ export default {
         },
 
         canSaveEmployee() {
-            // Проверяем обязательные поля
-            if (!this.lastName.trim() || !this.firstName.trim()) {
-                return false;
-            }
-            
-            // Проверяем гражданство
-            if (!this.selectedCitizenship) {
-                return false;
-            }
-            
-            // Проверяем паспортные данные
-            if (!this.passportSeriesNumber.trim()) {
-                return false;
-            }
-            
-            // Проверяем должность
-            if (!this.position.trim()) {
-                return false;
-            }
-            
-            // Если требуется патент, проверяем дополнительные поля
+            if (!this.lastName.trim() || !this.firstName.trim()) return false;
+            if (!this.selectedCitizenship) return false;
+            if (!this.passportSeriesNumber.trim()) return false;
+            if (!this.position.trim()) return false;
             if (this.isPatentRequired) {
-                // Проверяем, что заполнен хотя бы один вариант: патент ИЛИ разрешение (кроме "Не выбрано")
                 if (!this.patentNumber.trim() && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
                     return false;
                 }
             }
-            
             return true;
+        },
+
+        deleteMessage() {
+            if (!this.employeeToDelete) return '';
+            const fullName = this.formatFullName(this.employeeToDelete);
+            return `Вы уверены, что хотите удалить сотрудника ${fullName}?`;
         }
     },
     watch: {
         searchQuery() {
             clearTimeout(this.searchTimeout);
-            this.searchTimeout = setTimeout(() => {
-                this.$forceUpdate();
-            }, 50);
+            this.searchTimeout = setTimeout(() => this.$forceUpdate(), 50);
         },
-        
         isPatentRequired(newVal) {
             if (!newVal) {
-                // Если патент не требуется, очищаем связанные поля
                 this.patentNumber = '';
                 this.selectedPermission = 'Не выбрано';
                 this.uploadedFiles = [];
             }
         },
-
         patentNumber(newVal) {
-            // Если введен номер патента, сбрасываем выбор разрешения
-            if (newVal.trim() !== '') {
-                this.selectedPermission = 'Не выбрано';
-            }
+            if (newVal.trim() !== '') this.selectedPermission = 'Не выбрано';
         },
-
         selectedPermission(newVal) {
-            // Если выбрано разрешение (кроме "Не выбрано"), очищаем поле патента
-            if (newVal !== 'Не выбрано' && newVal !== '') {
-                this.patentNumber = '';
-            }
+            if (newVal !== 'Не выбрано' && newVal !== '') this.patentNumber = '';
         }
     },
     methods: {
@@ -602,18 +598,10 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 const response = await fetch(`http://localhost:8080/unique-employees?filter_type=${this.currentFilter}`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-
-                if (response.ok) {
-                    this.employeesData = await response.json();
-                } else {
-                    console.error("Ошибка при загрузке сотрудников");
-                    this.employeesData = [];
-                }
+                if (response.ok) this.employeesData = await response.json();
+                else this.employeesData = [];
             } catch (error) {
                 console.error("Ошибка при загрузке сотрудников:", error);
                 this.employeesData = [];
@@ -624,26 +612,15 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 const response = await fetch("http://localhost:8080/unique-employees/ownership-info", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-
                 if (response.ok) {
                     this.ownershipInfo = await response.json();
                 } else {
-                    // Если эндпоинт не существует, используем эндпоинт для машин (они используют одну логику)
                     const carResponse = await fetch("http://localhost:8080/unique-cars/ownership-info", {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
+                        headers: { "Authorization": `Bearer ${token}` }
                     });
-                    
-                    if (carResponse.ok) {
-                        this.ownershipInfo = await carResponse.json();
-                    }
+                    if (carResponse.ok) this.ownershipInfo = await carResponse.json();
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке информации о владельце:", error);
@@ -654,15 +631,10 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 const response = await fetch("http://localhost:8080/citizenships", {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-
                 if (response.ok) {
                     this.availableCitizenships = await response.json();
-                    // Выбираем гражданство по умолчанию или первое гражданство
                     const defaultCitizenship = this.availableCitizenships.find(c => c.is_default);
                     this.selectedCitizenship = defaultCitizenship || this.availableCitizenships[0];
                 }
@@ -671,109 +643,41 @@ export default {
             }
         },
 
-        async deleteEmployee(employee) {
-            if (confirm(`Вы уверены, что хотите удалить сотрудника ${this.formatFullName(employee)}?`)) {
-                try {
-                    const token = localStorage.getItem("token");
-                    const response = await fetch(`http://localhost:8080/unique-employees/${employee.id}`, {
-                        method: "DELETE",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    });
+        // Модальное окно удаления
+        openDeleteEmployeeConfirmation(employee) {
+            if (this.currentFilter === 'all_system') return;
+            this.employeeToDelete = employee;
+            this.showDeleteModal = true;
+        },
 
-                    if (response.ok) {
-                        await this.fetchEmployees();
-                        this.showNotification('Сотрудник успешно удален!', 'success');
-                    } else {
-                        alert("Ошибка при удалении сотрудника");
-                    }
-                } catch (error) {
-                    console.error("Ошибка при удалении сотрудника:", error);
-                    alert("Ошибка при удалении сотрудника");
+        async confirmDeleteEmployee() {
+            if (!this.employeeToDelete) return;
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`http://localhost:8080/unique-employees/${this.employeeToDelete.id}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    await this.fetchEmployees();
+                    this.showNotification('Сотрудник успешно удален!', 'success');
+                } else {
+                    this.showNotification('Ошибка при удалении сотрудника', 'error');
                 }
+            } catch (error) {
+                console.error("Ошибка при удалении сотрудника:", error);
+                this.showNotification('Ошибка при удалении сотрудника', 'error');
+            } finally {
+                this.cancelDeleteEmployee();
             }
         },
 
-        editEmployee(employee) {
-            this.editingEmployee = employee;
-            
-            // Сохраняем оригинальные значения для сравнения
-            this.originalEmployeeData = {
-                last_name: employee.last_name,
-                first_name: employee.first_name,
-                middle_name: employee.middle_name,
-                position: employee.position,
-                citizenship_id: employee.citizenship_id,
-                passport_series_number: employee.passport_series_number,
-                patent_number: employee.patent_number,
-                other_permission: employee.other_permission,
-                organization_id: employee.organization_id,
-                company_id: employee.company_id
-            };
-            
-            // Устанавливаем текущие значения сотрудника
-            this.lastName = employee.last_name || '';
-            this.firstName = employee.first_name || '';
-            this.middleName = employee.middle_name || '';
-            this.position = employee.position || '';
-            this.passportSeriesNumber = employee.passport_series_number || '';
-            this.patentNumber = employee.patent_number || '';
-            this.selectedPermission = employee.other_permission || 'Не выбрано';
-            
-            // Находим гражданство по citizenship_id
-            if (employee.citizenship_id) {
-                const employeeCitizenship = this.availableCitizenships.find(c => c.id === employee.citizenship_id);
-                if (employeeCitizenship) {
-                    this.selectedCitizenship = employeeCitizenship;
-                }
-            }
-            
-            // Устанавливаем привязки (можно привязать и к организации и к компании вместе)
-            this.bindToOrganization = !!employee.organization_id;
-            this.bindToCompany = !!employee.company_id;
-            
-            this.showModal = true;
-            this.hideNotification();
+        cancelDeleteEmployee() {
+            this.showDeleteModal = false;
+            this.employeeToDelete = null;
         },
 
-        // Проверка наличия изменений
-        hasChanges() {
-            if (!this.editingEmployee) {
-                return true; // Для нового сотрудника всегда отправляем запрос
-            }
-
-            // Проверяем изменения в основных полях
-            if (this.lastName !== this.originalEmployeeData.last_name ||
-                this.firstName !== this.originalEmployeeData.first_name ||
-                this.middleName !== this.originalEmployeeData.middle_name ||
-                this.position !== this.originalEmployeeData.position ||
-                this.passportSeriesNumber !== this.originalEmployeeData.passport_series_number ||
-                this.patentNumber !== this.originalEmployeeData.patent_number ||
-                this.selectedPermission !== this.originalEmployeeData.other_permission) {
-                return true;
-            }
-
-            // Проверяем изменения в гражданстве
-            if (this.selectedCitizenship.id !== this.originalEmployeeData.citizenship_id) {
-                return true;
-            }
-
-            // Проверяем изменения в привязке к организации
-            const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
-            if (currentOrgId !== this.originalEmployeeData.organization_id) {
-                return true;
-            }
-
-            // Проверяем изменения в привязке к компании
-            const currentCompanyId = this.bindToCompany ? this.ownershipInfo.company_id : null;
-            if (currentCompanyId !== this.originalEmployeeData.company_id) {
-                return true;
-            }
-
-            return false;
-        },
-        
+        // Остальные методы
         sortBy(field) {
             if (this.sortField === field) {
                 this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -817,7 +721,6 @@ export default {
         },
 
         clearFormFields() {
-            // Очищаем только основные поля, чекбоксы остаются
             this.lastName = '';
             this.firstName = '';
             this.middleName = '';
@@ -826,32 +729,21 @@ export default {
             this.patentNumber = '';
             this.selectedPermission = 'Не выбрано';
             this.uploadedFiles = [];
-            
-            // Если это добавление нового сотрудника (не редактирование), сбрасываем чекбоксы
             if (!this.editingEmployee) {
                 this.bindToOrganization = false;
                 this.bindToCompany = false;
             }
         },
 
-        // Уведомления
         showNotification(message, type = 'success') {
-            this.notification = {
-                show: true,
-                message: message,
-                type: type
-            };
-            
-            setTimeout(() => {
-                this.hideNotification();
-            }, 3000);
+            this.notification = { show: true, message, type };
+            setTimeout(() => this.hideNotification(), 3000);
         },
 
         hideNotification() {
             this.notification.show = false;
         },
 
-        // Форматирование ФИО
         formatFullName(employee) {
             const parts = [];
             if (employee.last_name) parts.push(employee.last_name);
@@ -860,38 +752,24 @@ export default {
             return parts.join(' ') || 'Не указано';
         },
 
-        // Обрезка текста с добавлением точек
         truncateText(text, maxLength) {
             if (!text) return '';
             if (text.length <= maxLength) return text;
             return text.substring(0, maxLength) + '...';
         },
 
-        // Форматирование паспорта
         formatPassport(event) {
             let value = event.target.value.replace(/\D/g, '');
-            
-            if (value.length > 10) {
-                value = value.slice(0, 10);
-            }
-            
-            if (value.length > 4) {
-                value = value.slice(0, 4) + ' ' + value.slice(4);
-            }
-            
+            if (value.length > 10) value = value.slice(0, 10);
+            if (value.length > 4) value = value.slice(0, 4) + ' ' + value.slice(4);
             this.passportSeriesNumber = value;
             event.target.value = value;
         },
 
-        // Обработка ввода патента
         handlePatentInput() {
-            // Если введен патент, автоматически устанавливаем "Не выбрано" в разрешении
-            if (this.patentNumber.trim() !== '') {
-                this.selectedPermission = 'Не выбрано';
-            }
+            if (this.patentNumber.trim() !== '') this.selectedPermission = 'Не выбрано';
         },
 
-        // Dropdown методы
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
         },
@@ -899,7 +777,6 @@ export default {
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
-            // Если патент не требуется, очищаем связанные поля
             if (!citizenship.patent_required) {
                 this.patentNumber = '';
                 this.selectedPermission = 'Не выбрано';
@@ -914,13 +791,9 @@ export default {
         selectPermission(permission) {
             this.selectedPermission = permission;
             this.isPermissionDropdownOpen = false;
-            // Если выбрано разрешение (кроме "Не выбрано"), очищаем поле патента
-            if (permission !== 'Не выбрано') {
-                this.patentNumber = '';
-            }
+            if (permission !== 'Не выбрано') this.patentNumber = '';
         },
 
-        // Загрузка файлов
         triggerFileInput() {
             this.$refs.fileInput.click();
         },
@@ -934,8 +807,6 @@ export default {
                     type: this.getFileType(file)
                 });
             });
-            
-            // Очищаем input для возможности повторной загрузки тех же файлов
             event.target.value = '';
         },
 
@@ -950,22 +821,65 @@ export default {
             this.uploadedFiles.splice(index, 1);
         },
 
+        editEmployee(employee) {
+            this.editingEmployee = employee;
+            this.originalEmployeeData = {
+                last_name: employee.last_name,
+                first_name: employee.first_name,
+                middle_name: employee.middle_name,
+                position: employee.position,
+                citizenship_id: employee.citizenship_id,
+                passport_series_number: employee.passport_series_number,
+                patent_number: employee.patent_number,
+                other_permission: employee.other_permission,
+                organization_id: employee.organization_id,
+                company_id: employee.company_id
+            };
+            this.lastName = employee.last_name || '';
+            this.firstName = employee.first_name || '';
+            this.middleName = employee.middle_name || '';
+            this.position = employee.position || '';
+            this.passportSeriesNumber = employee.passport_series_number || '';
+            this.patentNumber = employee.patent_number || '';
+            this.selectedPermission = employee.other_permission || 'Не выбрано';
+            if (employee.citizenship_id) {
+                const employeeCitizenship = this.availableCitizenships.find(c => c.id === employee.citizenship_id);
+                if (employeeCitizenship) this.selectedCitizenship = employeeCitizenship;
+            }
+            this.bindToOrganization = !!employee.organization_id;
+            this.bindToCompany = !!employee.company_id;
+            this.showModal = true;
+            this.hideNotification();
+        },
+
+        hasChanges() {
+            if (!this.editingEmployee) return true;
+            if (this.lastName !== this.originalEmployeeData.last_name ||
+                this.firstName !== this.originalEmployeeData.first_name ||
+                this.middleName !== this.originalEmployeeData.middle_name ||
+                this.position !== this.originalEmployeeData.position ||
+                this.passportSeriesNumber !== this.originalEmployeeData.passport_series_number ||
+                this.patentNumber !== this.originalEmployeeData.patent_number ||
+                this.selectedPermission !== this.originalEmployeeData.other_permission) return true;
+            if (this.selectedCitizenship.id !== this.originalEmployeeData.citizenship_id) return true;
+            const currentOrgId = this.bindToOrganization ? this.ownershipInfo.organization_id : null;
+            if (currentOrgId !== this.originalEmployeeData.organization_id) return true;
+            const currentCompanyId = this.bindToCompany ? this.ownershipInfo.company_id : null;
+            if (currentCompanyId !== this.originalEmployeeData.company_id) return true;
+            return false;
+        },
+
         async saveEmployee() {
             if (!this.canSaveEmployee) {
                 this.showNotification('Заполните все обязательные поля правильно', 'error');
                 return;
             }
-
-            // Проверяем изменения для редактирования
             if (this.editingEmployee && !this.hasChanges()) {
                 this.showNotification('Изменений не обнаружено', 'info');
                 return;
             }
-
             try {
                 const token = localStorage.getItem("token");
-                
-                // Формируем данные для отправки
                 const employeeData = {
                     last_name: this.lastName.trim(),
                     first_name: this.firstName.trim(),
@@ -979,48 +893,31 @@ export default {
                     organization_id: this.bindToOrganization ? this.ownershipInfo.organization_id : null,
                     company_id: this.bindToCompany ? this.ownershipInfo.company_id : null
                 };
-
                 let response;
                 if (this.editingEmployee) {
-                    // Редактирование существующего сотрудника
                     response = await fetch(`http://localhost:8080/unique-employees/${this.editingEmployee.id}`, {
                         method: "PUT",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
+                        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
                         body: JSON.stringify(employeeData)
                     });
                 } else {
-                    // Создание нового сотрудника
                     response = await fetch("http://localhost:8080/unique-employees", {
                         method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
-                        },
+                        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
                         body: JSON.stringify(employeeData)
                     });
                 }
-
                 if (response.ok) {
                     const savedEmployee = await response.json();
                     const action = this.editingEmployee ? 'обновлен' : 'добавлен';
                     this.showNotification(`Сотрудник успешно ${action}!`, 'success');
-                    
-                    // Загружаем файлы если есть
                     if (this.uploadedFiles.length > 0 && savedEmployee.id) {
                         await this.uploadEmployeeFiles(savedEmployee.id);
                     }
-                    
-                    // Обновляем список сотрудников
                     this.fetchEmployees();
-                    
-                    // Очищаем форму только при добавлении нового сотрудника
                     if (!this.editingEmployee) {
                         this.clearFormFields();
                     } else {
-                        // Обновляем оригинальные данные после успешного сохранения
                         this.originalEmployeeData = {
                             last_name: this.lastName,
                             first_name: this.firstName,
@@ -1037,8 +934,6 @@ export default {
                 } else {
                     const errorData = await response.json();
                     const errorMessage = errorData.message || "Ошибка при сохранении сотрудника";
-                    
-                    // Специальные сообщения для дубликатов
                     if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
                         this.showNotification("Сотрудник уже привязан к вашему аккаунту", 'error');
                     } else {
@@ -1055,49 +950,31 @@ export default {
             try {
                 const token = localStorage.getItem("token");
                 const formData = new FormData();
-                
                 this.uploadedFiles.forEach(file => {
                     formData.append('files', file.file);
                     formData.append('file_types', file.type);
                 });
-                
                 const response = await fetch(`http://localhost:8080/unique-employees/${employeeId}/files`, {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    },
+                    headers: { "Authorization": `Bearer ${token}` },
                     body: formData
                 });
-                
-                if (!response.ok) {
-                    console.error("Ошибка при загрузке файлов");
-                }
+                if (!response.ok) console.error("Ошибка при загрузке файлов");
             } catch (error) {
                 console.error("Ошибка при загрузке файлов:", error);
             }
         }
     },
     async mounted() {
-        await Promise.all([
-            this.fetchOwnershipInfo(),
-            this.fetchCitizenships()
-        ]);
+        await Promise.all([this.fetchOwnershipInfo(), this.fetchCitizenships()]);
         await this.fetchEmployees();
-        
-        // Закрытие dropdown при клике вне
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.citizenship__dropdown')) {
-                this.isCitizenshipDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.permission__dropdown')) {
-                this.isPermissionDropdownOpen = false;
-            }
+            if (!e.target.closest('.citizenship__dropdown')) this.isCitizenshipDropdownOpen = false;
+            if (!e.target.closest('.permission__dropdown')) this.isPermissionDropdownOpen = false;
         });
     }
 }
 </script>
-
 <style scoped>
 .employeesview {
     padding: 20px;
@@ -1110,7 +987,7 @@ export default {
 }
 
 .employeesview__right-side {
-    width: 40%;
+    width: 35%;
 }
 
 .employeesview__header {
@@ -1140,6 +1017,7 @@ export default {
 .filter-tabs {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .filter-tab {
@@ -1173,8 +1051,8 @@ export default {
     border-radius: 30px;
     border: 1px solid #e6e6e6;
     overflow: hidden;
-    width: 60%;
-    height: 450px;
+    width: 65%;
+    height: 500px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
@@ -1306,23 +1184,23 @@ export default {
 }
 
 .name-col {
-    width: 35%;
-    min-width: 200px;
+    width: 37%;
+    min-width: 180px;
 }
 
 .position-col {
-    width: 25%;
+    width: 27%;
     min-width: 150px;
 }
 
 .status-col {
-    width: 17%;
-    min-width: 100px;
+    width: 15%;
+    min-width: 90px;
 }
 
 .actions-col {
-    width: 15%;
-    min-width: 100px;
+    width: 13%;
+    min-width: 70px;
     justify-content: center;
 }
 
@@ -1361,12 +1239,6 @@ export default {
     display: flex;
     align-items: center;
     height: 100%;
-}
-
-/* Выравнивание содержимого колонок */
-.number-col .employee-col,
-.actions-col .employee-col {
-    justify-content: center;
 }
 
 /* Стилизация скроллбара */
@@ -1470,7 +1342,13 @@ export default {
 }
 
 .help__text {
-    line-height: 150%; font-size: 14px;
+    line-height: 150%;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.help__text strong {
+    color: #4F5BDF;
 }
 
 /* Модальное окно */
@@ -1511,6 +1389,7 @@ export default {
     justify-content: space-between;
     flex: 1;
     height: 25px;
+    gap: 15px;
 }
 
 .modal-header h3 {
@@ -1768,7 +1647,6 @@ export default {
     cursor: not-allowed;
 }
 
-/* Disabled field styles */
 .disabled-field {
     opacity: 0.5;
 }
@@ -1779,7 +1657,6 @@ export default {
     cursor: not-allowed;
 }
 
-/* Permission dropdown styles */
 .completion__permission {
     width: 100%;
 }
@@ -1871,7 +1748,6 @@ export default {
     color: #333;
 }
 
-/* File upload styles */
 .completion__files {
     margin-top: 10px;
 }
@@ -1946,7 +1822,6 @@ export default {
     border-radius: 50%;
 }
 
-/* Привязка */
 .completion__binding {
     margin-top: 15px;
     padding-top: 15px;
@@ -2002,7 +1877,6 @@ export default {
     color: #ff4444;
 }
 
-/* Анимации для dropdown */
 .dropdown-enter-active,
 .dropdown-leave-active {
     transition: all 0.2s ease;
@@ -2059,6 +1933,10 @@ export default {
     .modal-content {
         width: 95vw;
         margin: 10px;
+    }
+    
+    .filter-tabs {
+        flex-wrap: wrap;
     }
 }
 </style>

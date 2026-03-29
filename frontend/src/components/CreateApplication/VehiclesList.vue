@@ -36,9 +36,7 @@
                         }" 
                     />
                 </div>
-                <div class="header-col status-col" v-if="showStatus">
-                    <p>Статус</p>
-                </div>
+                
                 <div class="header-col actions-col">
                     Действия
                 </div>
@@ -63,11 +61,7 @@
                             
                         </div>
                     </div>
-                    <div class="table-col status-col" v-if="showStatus">
-                        <span v-if="vehicle.activeInfo" class="active-badge">
-                            Есть активная заявка
-                        </span>
-                    </div>
+                    
                     <div class="table-col actions-col">
                         <button 
                             class="details-btn"

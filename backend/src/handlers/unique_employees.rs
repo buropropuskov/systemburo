@@ -45,7 +45,6 @@ async fn get_employee_owner_info(
     })
 }
 
-/// Получение сотрудников с фильтрацией по владельцу
 pub async fn get_unique_employees(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -62,171 +61,297 @@ pub async fn get_unique_employees(
                         
                         log::info!("Fetching employees for user: {}, filter_type: {}", owner_info.user_id, filter_type);
 
-                        // Определяем SQL запрос и параметры
-                        let (sql, param): (&str, i32) = match filter_type {
-                            "organization" if owner_info.has_organization => (
-                                r#"
-                                SELECT 
-                                    ue.id,
-                                    ue.last_name,
-                                    ue.first_name,
-                                    ue.middle_name,
-                                    ue.organization_id,
-                                    ue.company_id,
-                                    ue.citizenship_id,
-                                    ue.user_id,
-                                    ue.position,
-                                    ue.passport_series_number,
-                                    ue.patent_number,
-                                    ue.other_permission,
-                                    ue.status,
-                                    ue.created_at,
-                                    o.name as organization_name,
-                                    c.name as company_name,
-                                    cit.name as citizenship_name
-                                FROM unique_employees ue
-                                LEFT JOIN organizations o ON ue.organization_id = o.id
-                                LEFT JOIN companies c ON ue.company_id = c.id
-                                LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
-                                WHERE ue.organization_id = $1
-                                ORDER BY ue.last_name, ue.first_name, ue.middle_name
-                                "#,
-                                owner_info.organization_id.unwrap_or(0)
-                            ),
-                            "company" if owner_info.has_company => (
-                                r#"
-                                SELECT 
-                                    ue.id,
-                                    ue.last_name,
-                                    ue.first_name,
-                                    ue.middle_name,
-                                    ue.organization_id,
-                                    ue.company_id,
-                                    ue.citizenship_id,
-                                    ue.user_id,
-                                    ue.position,
-                                    ue.passport_series_number,
-                                    ue.patent_number,
-                                    ue.other_permission,
-                                    ue.status,
-                                    ue.created_at,
-                                    o.name as organization_name,
-                                    c.name as company_name,
-                                    cit.name as citizenship_name
-                                FROM unique_employees ue
-                                LEFT JOIN organizations o ON ue.organization_id = o.id
-                                LEFT JOIN companies c ON ue.company_id = c.id
-                                LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
-                                WHERE ue.company_id = $1
-                                ORDER BY ue.last_name, ue.first_name, ue.middle_name
-                                "#,
-                                owner_info.company_id.unwrap_or(0)
-                            ),
-                            "all" => (
-                                r#"
-                                SELECT 
-                                    ue.id,
-                                    ue.last_name,
-                                    ue.first_name,
-                                    ue.middle_name,
-                                    ue.organization_id,
-                                    ue.company_id,
-                                    ue.citizenship_id,
-                                    ue.user_id,
-                                    ue.position,
-                                    ue.passport_series_number,
-                                    ue.patent_number,
-                                    ue.other_permission,
-                                    ue.status,
-                                    ue.created_at,
-                                    o.name as organization_name,
-                                    c.name as company_name,
-                                    cit.name as citizenship_name
-                                FROM unique_employees ue
-                                LEFT JOIN organizations o ON ue.organization_id = o.id
-                                LEFT JOIN companies c ON ue.company_id = c.id
-                                LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
-                                WHERE ue.user_id = $1 OR ue.organization_id = $2 OR ue.company_id = $3
-                                ORDER BY ue.last_name, ue.first_name, ue.middle_name
-                                "#,
-                                owner_info.user_id
-                            ),
-                            _ => (
-                                r#"
-                                SELECT 
-                                    ue.id,
-                                    ue.last_name,
-                                    ue.first_name,
-                                    ue.middle_name,
-                                    ue.organization_id,
-                                    ue.company_id,
-                                    ue.citizenship_id,
-                                    ue.user_id,
-                                    ue.position,
-                                    ue.passport_series_number,
-                                    ue.patent_number,
-                                    ue.other_permission,
-                                    ue.status,
-                                    ue.created_at,
-                                    o.name as organization_name,
-                                    c.name as company_name,
-                                    cit.name as citizenship_name
-                                FROM unique_employees ue
-                                LEFT JOIN organizations o ON ue.organization_id = o.id
-                                LEFT JOIN companies c ON ue.company_id = c.id
-                                LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
-                                WHERE ue.user_id = $1
-                                ORDER BY ue.last_name, ue.first_name, ue.middle_name
-                                "#,
-                                owner_info.user_id
-                            )
-                        };
-
-                        let employees_rows = if filter_type == "all" {
-                            sqlx::query(sql)
-                                .bind(owner_info.user_id)
-                                .bind(owner_info.organization_id)
-                                .bind(owner_info.company_id)
+                        let employees = match filter_type {
+                            "organization" if owner_info.has_organization => {
+                                let org_id = owner_info.organization_id.unwrap_or(0);
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT 
+                                        ue.id,
+                                        ue.last_name,
+                                        ue.first_name,
+                                        ue.middle_name,
+                                        ue.organization_id,
+                                        ue.company_id,
+                                        ue.citizenship_id,
+                                        ue.user_id,
+                                        ue.position,
+                                        ue.passport_series_number,
+                                        ue.patent_number,
+                                        ue.other_permission,
+                                        ue.status,
+                                        ue.created_at,
+                                        COALESCE(o.name, '') as organization_name,
+                                        COALESCE(c.name, '') as company_name,
+                                        COALESCE(cit.name, '') as citizenship_name
+                                    FROM unique_employees ue
+                                    LEFT JOIN organizations o ON ue.organization_id = o.id
+                                    LEFT JOIN companies c ON ue.company_id = c.id
+                                    LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
+                                    WHERE ue.organization_id = $1
+                                    ORDER BY ue.last_name, ue.first_name, ue.middle_name
+                                    "#,
+                                    org_id
+                                )
                                 .fetch_all(pool.get_ref())
                                 .await
                                 .map_err(|e| {
-                                    log::error!("Failed to fetch unique employees: {}", e);
-                                    error::ErrorInternalServerError("Error fetching employees")
-                                })?
-                        } else {
-                            sqlx::query(sql)
-                                .bind(param)
-                                .fetch_all(pool.get_ref())
-                                .await
-                                .map_err(|e| {
-                                    log::error!("Failed to fetch unique employees: {}", e);
-                                    error::ErrorInternalServerError("Error fetching employees")
-                                })?
-                        };
-
-                        log::info!("Fetched {} employees for user {}", employees_rows.len(), owner_info.user_id);
-
-                        let employees: Vec<UniqueEmployeeWithRelations> = employees_rows.into_iter().map(|row| {
-                            UniqueEmployeeWithRelations {
-                                id: row.get("id"),
-                                last_name: row.get("last_name"),
-                                first_name: row.get("first_name"),
-                                middle_name: row.get("middle_name"),
-                                organization_id: row.get("organization_id"),
-                                company_id: row.get("company_id"),
-                                citizenship_id: row.get("citizenship_id"),
-                                user_id: row.get("user_id"),
-                                position: row.get("position"),
-                                passport_series_number: row.get("passport_series_number"),
-                                patent_number: row.get("patent_number"),
-                                other_permission: row.get("other_permission"),
-                                status: row.get::<Option<bool>, _>("status").unwrap_or(false),
-                                created_at: row.get("created_at"),
-                                organization_name: row.get("organization_name"),
-                                company_name: row.get("company_name"),
-                                citizenship_name: row.get("citizenship_name"),
+                                    log::error!("Failed to fetch organization employees: {}", e);
+                                    error::ErrorInternalServerError("Error fetching organization employees")
+                                })?;
+                                
+                                rows.into_iter().map(|row| UniqueEmployeeWithRelations {
+                                    id: row.id,
+                                    last_name: row.last_name,
+                                    first_name: row.first_name,
+                                    middle_name: row.middle_name,
+                                    organization_id: row.organization_id,
+                                    company_id: row.company_id,
+                                    citizenship_id: row.citizenship_id,
+                                    user_id: row.user_id,
+                                    position: row.position,
+                                    passport_series_number: row.passport_series_number,
+                                    patent_number: row.patent_number,
+                                    other_permission: row.other_permission,
+                                    status: row.status.unwrap_or(false),
+                                    created_at: row.created_at,
+                                    organization_name: row.organization_name,
+                                    company_name: row.company_name,
+                                    citizenship_name: row.citizenship_name,
+                                }).collect::<Vec<_>>()
                             }
-                        }).collect();
+                            "company" if owner_info.has_company => {
+                                let company_id = owner_info.company_id.unwrap_or(0);
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT 
+                                        ue.id,
+                                        ue.last_name,
+                                        ue.first_name,
+                                        ue.middle_name,
+                                        ue.organization_id,
+                                        ue.company_id,
+                                        ue.citizenship_id,
+                                        ue.user_id,
+                                        ue.position,
+                                        ue.passport_series_number,
+                                        ue.patent_number,
+                                        ue.other_permission,
+                                        ue.status,
+                                        ue.created_at,
+                                        COALESCE(o.name, '') as organization_name,
+                                        COALESCE(c.name, '') as company_name,
+                                        COALESCE(cit.name, '') as citizenship_name
+                                    FROM unique_employees ue
+                                    LEFT JOIN organizations o ON ue.organization_id = o.id
+                                    LEFT JOIN companies c ON ue.company_id = c.id
+                                    LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
+                                    WHERE ue.company_id = $1
+                                    ORDER BY ue.last_name, ue.first_name, ue.middle_name
+                                    "#,
+                                    company_id
+                                )
+                                .fetch_all(pool.get_ref())
+                                .await
+                                .map_err(|e| {
+                                    log::error!("Failed to fetch company employees: {}", e);
+                                    error::ErrorInternalServerError("Error fetching company employees")
+                                })?;
+                                
+                                rows.into_iter().map(|row| UniqueEmployeeWithRelations {
+                                    id: row.id,
+                                    last_name: row.last_name,
+                                    first_name: row.first_name,
+                                    middle_name: row.middle_name,
+                                    organization_id: row.organization_id,
+                                    company_id: row.company_id,
+                                    citizenship_id: row.citizenship_id,
+                                    user_id: row.user_id,
+                                    position: row.position,
+                                    passport_series_number: row.passport_series_number,
+                                    patent_number: row.patent_number,
+                                    other_permission: row.other_permission,
+                                    status: row.status.unwrap_or(false),
+                                    created_at: row.created_at,
+                                    organization_name: row.organization_name,
+                                    company_name: row.company_name,
+                                    citizenship_name: row.citizenship_name,
+                                }).collect()
+                            }
+                            "all_system" => {
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT 
+                                        ue.id,
+                                        ue.last_name,
+                                        ue.first_name,
+                                        ue.middle_name,
+                                        ue.organization_id,
+                                        ue.company_id,
+                                        ue.citizenship_id,
+                                        ue.user_id,
+                                        ue.position,
+                                        ue.passport_series_number,
+                                        ue.patent_number,
+                                        ue.other_permission,
+                                        ue.status,
+                                        ue.created_at,
+                                        COALESCE(o.name, '') as organization_name,
+                                        COALESCE(c.name, '') as company_name,
+                                        COALESCE(cit.name, '') as citizenship_name
+                                    FROM unique_employees ue
+                                    LEFT JOIN organizations o ON ue.organization_id = o.id
+                                    LEFT JOIN companies c ON ue.company_id = c.id
+                                    LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
+                                    ORDER BY ue.last_name, ue.first_name, ue.middle_name
+                                    "#
+                                )
+                                .fetch_all(pool.get_ref())
+                                .await
+                                .map_err(|e| {
+                                    log::error!("Failed to fetch all system employees: {}", e);
+                                    error::ErrorInternalServerError("Error fetching all system employees")
+                                })?;
+                                
+                                rows.into_iter().map(|row| UniqueEmployeeWithRelations {
+                                    id: row.id,
+                                    last_name: row.last_name,
+                                    first_name: row.first_name,
+                                    middle_name: row.middle_name,
+                                    organization_id: row.organization_id,
+                                    company_id: row.company_id,
+                                    citizenship_id: row.citizenship_id,
+                                    user_id: row.user_id,
+                                    position: row.position,
+                                    passport_series_number: row.passport_series_number,
+                                    patent_number: row.patent_number,
+                                    other_permission: row.other_permission,
+                                    status: row.status.unwrap_or(false),
+                                    created_at: row.created_at,
+                                    organization_name: row.organization_name,
+                                    company_name: row.company_name,
+                                    citizenship_name: row.citizenship_name,
+                                }).collect()
+                            }
+                            "all" => {
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT 
+                                        ue.id,
+                                        ue.last_name,
+                                        ue.first_name,
+                                        ue.middle_name,
+                                        ue.organization_id,
+                                        ue.company_id,
+                                        ue.citizenship_id,
+                                        ue.user_id,
+                                        ue.position,
+                                        ue.passport_series_number,
+                                        ue.patent_number,
+                                        ue.other_permission,
+                                        ue.status,
+                                        ue.created_at,
+                                        COALESCE(o.name, '') as organization_name,
+                                        COALESCE(c.name, '') as company_name,
+                                        COALESCE(cit.name, '') as citizenship_name
+                                    FROM unique_employees ue
+                                    LEFT JOIN organizations o ON ue.organization_id = o.id
+                                    LEFT JOIN companies c ON ue.company_id = c.id
+                                    LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
+                                    WHERE ue.user_id = $1 OR ue.organization_id = $2 OR ue.company_id = $3
+                                    ORDER BY ue.last_name, ue.first_name, ue.middle_name
+                                    "#,
+                                    owner_info.user_id,
+                                    owner_info.organization_id,
+                                    owner_info.company_id
+                                )
+                                .fetch_all(pool.get_ref())
+                                .await
+                                .map_err(|e| {
+                                    log::error!("Failed to fetch all related employees: {}", e);
+                                    error::ErrorInternalServerError("Error fetching all related employees")
+                                })?;
+                                
+                                rows.into_iter().map(|row| UniqueEmployeeWithRelations {
+                                    id: row.id,
+                                    last_name: row.last_name,
+                                    first_name: row.first_name,
+                                    middle_name: row.middle_name,
+                                    organization_id: row.organization_id,
+                                    company_id: row.company_id,
+                                    citizenship_id: row.citizenship_id,
+                                    user_id: row.user_id,
+                                    position: row.position,
+                                    passport_series_number: row.passport_series_number,
+                                    patent_number: row.patent_number,
+                                    other_permission: row.other_permission,
+                                    status: row.status.unwrap_or(false),
+                                    created_at: row.created_at,
+                                    organization_name: row.organization_name,
+                                    company_name: row.company_name,
+                                    citizenship_name: row.citizenship_name,
+                                }).collect()
+                            }
+                            _ => {
+                                let rows = sqlx::query!(
+                                    r#"
+                                    SELECT 
+                                        ue.id,
+                                        ue.last_name,
+                                        ue.first_name,
+                                        ue.middle_name,
+                                        ue.organization_id,
+                                        ue.company_id,
+                                        ue.citizenship_id,
+                                        ue.user_id,
+                                        ue.position,
+                                        ue.passport_series_number,
+                                        ue.patent_number,
+                                        ue.other_permission,
+                                        ue.status,
+                                        ue.created_at,
+                                        COALESCE(o.name, '') as organization_name,
+                                        COALESCE(c.name, '') as company_name,
+                                        COALESCE(cit.name, '') as citizenship_name
+                                    FROM unique_employees ue
+                                    LEFT JOIN organizations o ON ue.organization_id = o.id
+                                    LEFT JOIN companies c ON ue.company_id = c.id
+                                    LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id
+                                    WHERE ue.user_id = $1
+                                    ORDER BY ue.last_name, ue.first_name, ue.middle_name
+                                    "#,
+                                    owner_info.user_id
+                                )
+                                .fetch_all(pool.get_ref())
+                                .await
+                                .map_err(|e| {
+                                    log::error!("Failed to fetch user employees: {}", e);
+                                    error::ErrorInternalServerError("Error fetching user employees")
+                                })?;
+                                
+                                rows.into_iter().map(|row| UniqueEmployeeWithRelations {
+                                    id: row.id,
+                                    last_name: row.last_name,
+                                    first_name: row.first_name,
+                                    middle_name: row.middle_name,
+                                    organization_id: row.organization_id,
+                                    company_id: row.company_id,
+                                    citizenship_id: row.citizenship_id,
+                                    user_id: row.user_id,
+                                    position: row.position,
+                                    passport_series_number: row.passport_series_number,
+                                    patent_number: row.patent_number,
+                                    other_permission: row.other_permission,
+                                    status: row.status.unwrap_or(false),
+                                    created_at: row.created_at,
+                                    organization_name: row.organization_name,
+                                    company_name: row.company_name,
+                                    citizenship_name: row.citizenship_name,
+                                }).collect()
+                            }
+                        };
+
+                        log::info!("Fetched {} employees for user {}", employees.len(), owner_info.user_id);
 
                         Ok(HttpResponse::Ok().json(employees))
                     }

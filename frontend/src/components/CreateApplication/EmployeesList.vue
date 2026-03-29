@@ -112,7 +112,11 @@
             :show="showDetailsModal"
             :employee="selectedEmployee"
             :all-tables="allTables"
+            :current-user-id="currentUserId"
+            :current-user-name="currentUserName"
+            :source="'employeeslist'"
             @close="closeDetailsModal"
+            @open-application="handleOpenApplication"
         />
     </div>
 </template>
@@ -133,9 +137,17 @@ export default {
         allTables: {
             type: Array,
             default: () => []
+        },
+        currentUserId: {
+            type: Number,
+            default: null
+        },
+        currentUserName: {
+            type: String,
+            default: ''
         }
     },
-    emits: ['sort', 'edit-employee', 'delete-employee'],
+    emits: ['sort', 'edit-employee', 'delete-employee', 'open-application'],
     data() {
         return {
             showDetailsModal: false,
@@ -144,16 +156,40 @@ export default {
     },
     methods: {
         showEmployeeDetails(employee) {
-            this.selectedEmployee = employee;
+            this.selectedEmployee = {
+                id: employee.id,
+                last_name: employee.lastName,
+                first_name: employee.firstName,
+                middle_name: employee.middleName,
+                position: employee.position,
+                citizenshipName: employee.citizenshipName,
+                passport_series_number: employee.passport_series_number,
+                patent_number: employee.patent_number,
+                other_permission: employee.other_permission,
+                organization: employee.organization,
+                organizationId: employee.organizationId,
+                company: employee.company,
+                companyId: employee.companyId,
+                entry_date_to: employee.entry_date_to,
+                pass_time: employee.pass_time,
+                target_tables: employee.targetTables || [],
+                territory_status: employee.territory_status || 0,
+                applicationId: employee.applicationId
+            };
             this.showDetailsModal = true;
         },
         closeDetailsModal() {
             this.showDetailsModal = false;
             this.selectedEmployee = null;
+        },
+        handleOpenApplication(applicationId) {
+            // Убрано закрытие модалки сотрудника
+            this.$emit('open-application', applicationId);
         }
     }
 };
 </script>
+
 
 <style scoped>
 .data__list {
@@ -321,8 +357,8 @@ export default {
 }
 
 .details-icon, .edit-icon, .delete-icon {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
     opacity: 0.6;
     transition: opacity 0.2s ease;
 }

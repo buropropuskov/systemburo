@@ -1,3 +1,4 @@
+// src/main.rs
 #![allow(warnings)]
 
 mod models;
@@ -5,8 +6,10 @@ mod routes;
 mod handlers;
 mod auth;
 mod database;
+mod middleware;
+mod websocket;
 
-use actix_web::{App, HttpServer, middleware::Logger, web, HttpResponse};
+use actix_web::{App, HttpServer, middleware::Logger, web};
 use actix_files as fs;
 use actix_cors::Cors;
 use std::sync::Arc;
@@ -18,10 +21,11 @@ use std::future::{ready, Ready};
 use std::task::{Context, Poll};
 use std::pin::Pin;
 use futures::future::LocalBoxFuture;
-use tokio::time::sleep;
-use env_logger; // <-- ДОБАВЛЕНО
+use env_logger;
 
 use crate::handlers::applications::check_expired_attachments;
+use crate::middleware::request_logger::RequestLogger;
+use crate::websocket::{ws_logs, start_broadcast_tasks};
 
 #[derive(Clone)]
 struct RateLimiter {
@@ -59,7 +63,6 @@ impl RateLimiter {
     }
 }
 
-// Создаем свою middleware структуру
 pub struct RateLimitMiddleware;
 
 impl<S, B> Transform<S, ServiceRequest> for RateLimitMiddleware
@@ -101,11 +104,11 @@ where
         let limiter_data = req.app_data::<web::Data<RateLimiter>>();
         let path = req.path();
         let check_rate_limit = path == "/login" || path.starts_with("/api/");
-        
+
         if check_rate_limit {
             if let Some(limiter) = limiter_data {
                 let client_ip = req.connection_info().realip_remote_addr().unwrap_or("unknown").to_string();
-                
+
                 let key = if let Some(auth) = req.headers().get("Authorization") {
                     if let Ok(auth_str) = auth.to_str() {
                         if let Some(token) = auth_str.strip_prefix("Bearer ") {
@@ -137,21 +140,18 @@ where
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Инициализация логгера
     std::env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     dotenv::dotenv().ok();
-    
+
     let pool = get_pool().await;
     let rate_limiter = RateLimiter::new(10, 60);
 
-    // Создаем директорию для загрузок, если её нет
     std::fs::create_dir_all("./uploads/unload_places").expect("Failed to create upload directory");
 
     let pool_clone = pool.clone();
 
-    // Фоновая задача: проверка истекших вложений каждые 60 секунд
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(60));
         loop {
@@ -163,10 +163,14 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    // Первоначальная проверка при старте
     if let Err(e) = check_expired_attachments(&pool).await {
         log::error!("Initial check_expired_attachments failed: {}", e);
     }
+
+    let pool_data = web::Data::new(pool.clone());
+
+    // Запускаем периодическую рассылку статистики и таймлайна по WebSocket
+    start_broadcast_tasks(pool_data.clone());
 
     println!("Server starting on http://127.0.0.1:8080");
 
@@ -176,19 +180,19 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(Logger::default())
-            .wrap(
-                Cors::default()
-                    .allow_any_origin()
-                    .allow_any_method()
-                    .allow_any_header()
-                    .supports_credentials()
-                    .max_age(3600)
-            )
+            .wrap(Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header()
+                .supports_credentials()
+                .max_age(3600))
             .wrap(RateLimitMiddleware)
+            .wrap(RequestLogger)
             .service(fs::Files::new("/uploads", "./uploads").show_files_listing())
             .app_data(web::Data::new(limiter.clone()))
             .app_data(web::Data::new(pool.clone()))
             .configure(routes::config)
+            .route("/ws/logs", web::get().to(ws_logs))
     })
     .bind(("127.0.0.1", 8080))?
     .run()

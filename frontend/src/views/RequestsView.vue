@@ -1,1281 +1,948 @@
+<!-- src/views/RequestsView.vue -->
 <template>
-  <div class="requests-view dashboard-card">
-    <div class="management-header">
-      <h3 class="management-title">Мониторинг запросов</h3>
-      <div class="header-controls">
-        <div class="stats-summary">
-          <span class="stat-item">
-            <span class="stat-label">Всего:</span>
-            <span class="stat-value">{{ stats.total_requests || 0 }}</span>
-          </span>
-          <span class="stat-item">
-            <span class="stat-label">Среднее время:</span>
-            <span class="stat-value">{{ Math.round(stats.avg_duration_ms || 0) }}мс</span>
-          </span>
-          <span class="stat-item">
-            <span class="stat-label">Успешных:</span>
-            <span class="stat-value">{{ Math.round(stats.success_rate || 0) }}%</span>
-          </span>
+  <div class="requests-view">
+    <div class="requests-header">
+      <h2 class="requests-title">Журнал запросов</h2>
+      <div class="header-actions">
+        <button class="export-btn" @click="exportLogs" title="Экспорт в TXT">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3v12m0 0-3-3m3 3 3-3M5 21h14" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Всего запросов</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ stats.today }}</div>
+        <div class="stat-label">Сегодня</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ formatNumber(stats.avgDuration) }} мс</div>
+        <div class="stat-label">Среднее время</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ formatNumber(stats.errorRate) }}%</div>
+        <div class="stat-label">Ошибки (4xx/5xx)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ realtimeStats.lastSecondCount }}</div>
+        <div class="stat-label">Запросов/сек (последняя сек)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ realtimeStats.lastMinuteCount }}</div>
+        <div class="stat-label">Запросов/мин (последняя мин)</div>
+      </div>
+    </div>
+
+    <!-- Фильтры графика -->
+    <div class="timeline-filters">
+    <button
+      v-for="opt in timelineOptions"
+      :key="opt.label"
+      class="timeline-filter-btn"
+      :class="{ active: currentTimelineOption === opt.label }"
+      @click="setTimelineOption(opt)"
+    >
+      {{ opt.label }}
+    </button>
+  </div>
+
+  <div class="charts-container">
+    <div class="chart-card">
+      <h3>Динамика запросов</h3>
+      <RealTimeChart
+        ref="chart"
+        :data="timeline"
+        :color="'#4F5BDF'"
+        :interval-label="currentTimelineOption"
+        height="320"
+      />
+    </div>
+  </div>
+
+    <div class="filters-bar">
+      <div class="filters-row">
+        <div class="filter-group">
+          <label>Пользователь</label>
+          <select v-model="filters.user_id" class="filter-select">
+            <option :value="null">Все</option>
+            <option v-for="user in usersList" :key="user.id" :value="user.id">
+              {{ user.username }}
+            </option>
+          </select>
         </div>
-        <SearchComponent
-          :title="'Поиск по логам...'"
-          v-model="searchQuery"
-          @keyup.enter="refreshLogs"
-        />
-        <div class="filter-controls">
-          <select v-model="filterMethod" @change="refreshLogs" class="filter-select">
-            <option value="">Все методы</option>
+        <div class="filter-group">
+          <label>Метод</label>
+          <select v-model="filters.method" class="filter-select">
+            <option :value="null">Все</option>
             <option value="GET">GET</option>
             <option value="POST">POST</option>
             <option value="PUT">PUT</option>
             <option value="DELETE">DELETE</option>
-            <option value="PATCH">PATCH</option>
           </select>
-          <select v-model="filterStatus" @change="refreshLogs" class="filter-select">
-            <option value="">Все статусы</option>
+        </div>
+        <div class="filter-group">
+          <label>Статус</label>
+          <select v-model="filters.status" class="filter-select">
+            <option :value="null">Все</option>
             <option value="200">200 OK</option>
+            <option value="201">201 Created</option>
             <option value="400">400 Bad Request</option>
             <option value="401">401 Unauthorized</option>
             <option value="403">403 Forbidden</option>
             <option value="404">404 Not Found</option>
             <option value="500">500 Server Error</option>
           </select>
-          <input
-            type="date"
-            v-model="filterStartDate"
-            @change="refreshLogs"
-            class="date-input"
-          />
-          <input
-            type="date"
-            v-model="filterEndDate"
-            @change="refreshLogs"
-            class="date-input"
-          />
         </div>
-        <button @click="refreshLogs" class="refresh-button">
-          <img src="@/assets/icons/refresh.png" class="refresh-icon" />
-        </button>
-        <button @click="clearFilters" class="clear-filters-btn">
-          Сбросить
-        </button>
-        <button 
-          @click="showLive = !showLive" 
-          :class="['live-button', { 'live-active': showLive }]"
-        >
-          {{ showLive ? 'Стоп' : 'Live' }}
-        </button>
+        <div class="filter-group">
+          <label>Дата от</label>
+          <input type="datetime-local" v-model="filters.from_date" class="filter-input">
+        </div>
+        <div class="filter-group">
+          <label>Дата до</label>
+          <input type="datetime-local" v-model="filters.to_date" class="filter-input">
+        </div>
+        <div class="filter-group search-group">
+          <label>Поиск</label>
+          <input type="text" v-model="filters.search" placeholder="URL или пользователь..." class="filter-input">
+        </div>
       </div>
     </div>
 
-    <div class="content-container">
-      <!-- Левая часть - таблица логов -->
-      <div class="logs-table-section">
-        <div class="table-container">
-          <div class="table-header">
-            <div class="header-col time-col" @click="sortBy('timestamp')">
-              <p :class="{ 'active-sort': sortField === 'timestamp' }">Время</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'timestamp',
-                  'desc': sortField === 'timestamp' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col method-col" @click="sortBy('method')">
-              <p :class="{ 'active-sort': sortField === 'method' }">Метод</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'method',
-                  'desc': sortField === 'method' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col path-col" @click="sortBy('path')">
-              <p :class="{ 'active-sort': sortField === 'path' }">Путь</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'path',
-                  'desc': sortField === 'path' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col status-col" @click="sortBy('response_status')">
-              <p :class="{ 'active-sort': sortField === 'response_status' }">Статус</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'response_status',
-                  'desc': sortField === 'response_status' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col user-col" @click="sortBy('username')">
-              <p :class="{ 'active-sort': sortField === 'username' }">Пользователь</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'username',
-                  'desc': sortField === 'username' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-            <div class="header-col duration-col" @click="sortBy('duration_ms')">
-              <p :class="{ 'active-sort': sortField === 'duration_ms' }">Время</p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'duration_ms',
-                  'desc': sortField === 'duration_ms' && sortDirection === 'desc'
-                }" 
-              />
-            </div>
-          </div>
+    <!-- Таблица -->
+    <div class="table-container">
+      <table class="requests-table">
+        <thead>
+           …
+            <th>ID</th>
+            <th>Пользователь</th>
+            <th>Дата и время (МСК)</th>
+            <th>Метод</th>
+            <th>URL</th>
+            <th>Статус</th>
+            <th>Длительность (мс)</th>
+            <th>Детали</th>
+           </thead>
+        <tbody>
+          <tr v-for="log in logs" :key="log.id">
+              <td>{{ log.id }}</td>
+              <td>{{ log.username || 'Неавторизован' }}</td>
+              <td>{{ formatDateTime(log.created_at) }}</td>
+              <td><span class="method-badge" :class="methodClass(log.method)">{{ log.method }}</span></td>
+              <td class="url-cell" :title="log.url">{{ truncate(log.url, 50) }}</td>
+              <td><span class="status-badge" :class="statusClass(log.response_status)">{{ log.response_status }}</span></td>
+              <td>{{ log.duration_ms }}</td>
+              <td><button class="detail-btn" @click="showDetails(log)">Подробнее</button></td>
+            </tr>
+          <tr v-if="logs.length === 0"><td colspan="8" class="empty-state">Нет записей</td></tr>
+        </tbody>
+      </table>
+    </div>
 
-          <div class="table-body" ref="logsBody">
-            <div 
-              v-for="log in filteredLogs" 
-              :key="log.id" 
-              class="table-row"
-              :class="{
-                'selected': selectedLog && selectedLog.id === log.id,
-                'error-row': log.response_status && log.response_status >= 400,
-                'success-row': log.response_status && log.response_status < 400
-              }"
-              @click="selectLog(log)"
-            >
-              <div class="table-col time-col">
-                <span class="cell-content" :title="formatFullDate(log.timestamp)">
-                  {{ formatTime(log.timestamp) }}
-                </span>
-              </div>
-              <div class="table-col method-col">
-                <span class="method-badge" :class="getMethodClass(log.method)">
-                  {{ log.method }}
-                </span>
-              </div>
-              <div class="table-col path-col">
-                <span class="truncate-text" :title="log.path + (log.query_params ? '?' + log.query_params : '')">
-                  {{ truncatePath(log.path) }}
-                </span>
-              </div>
-              <div class="table-col status-col">
-                <span class="status-badge" :class="getStatusClass(log.response_status)">
-                  {{ log.response_status || 'N/A' }}
-                </span>
-              </div>
-              <div class="table-col user-col">
-                <span class="cell-content">
-                  {{ log.username || 'Аноним' }}
-                  <span v-if="log.user_id" class="user-id">(ID: {{ log.user_id }})</span>
-                </span>
-              </div>
-              <div class="table-col duration-col">
-                <span class="cell-content">
-                  {{ log.duration_ms || 0 }}мс
-                </span>
-              </div>
-            </div>
-          </div>
+    <div class="pagination" v-if="totalPages > 1">
+      <button class="page-btn" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">←</button>
+      <span class="page-info">{{ currentPage }} из {{ totalPages }}</span>
+      <button class="page-btn" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">→</button>
+    </div>
 
-          <div class="table-footer">
-            <div class="pagination-controls">
-              <button 
-                @click="prevPage" 
-                :disabled="pagination.page <= 1"
-                class="pagination-btn"
-              >
-                ←
-              </button>
-              <span class="page-info">
-                Страница {{ pagination.page }} из {{ pagination.pages || 1 }}
-              </span>
-              <button 
-                @click="nextPage" 
-                :disabled="pagination.page >= pagination.pages"
-                class="pagination-btn"
-              >
-                →
-              </button>
-              <select v-model="pageSize" @change="changePageSize" class="page-size-select">
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="200">200</option>
-              </select>
-            </div>
-            <span class="items-count">
-              Показано {{ filteredLogs.length }} из {{ pagination.total || 0 }} записей
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Правая часть - детали лога -->
-      <div class="log-details-section" :class="{'with-details': selectedLog}">
-        <div v-if="selectedLog" class="log-details-content">
-          <div class="details-header">
-            <h3 class="details-title">Детали запроса</h3>
-            <button @click="selectedLog = null" class="close-details-btn">
-              ×
+    <!-- Модальное окно деталей -->
+    <transition name="modal-fade">
+      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">Детали запроса #{{ selectedLog?.id }}</h3>
+            <button class="modal-close" @click="closeModal">
+              <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/></svg>
             </button>
           </div>
-          
-          <div class="details-body">
-            <div class="details-grid">
-              <div class="detail-group">
-                <label class="detail-label">ID запроса:</label>
-                <span class="detail-value">{{ selectedLog.id }}</span>
-              </div>
-              
-              <div class="detail-group">
-                <label class="detail-label">Время:</label>
-                <span class="detail-value">{{ formatFullDate(selectedLog.timestamp) }}</span>
-              </div>
-              
-              <div class="detail-group">
-                <label class="detail-label">Метод:</label>
-                <span class="detail-value method-value" :class="getMethodClass(selectedLog.method)">
-                  {{ selectedLog.method }}
-                </span>
-              </div>
-              
-              <div class="detail-group">
-                <label class="detail-label">Путь:</label>
-                <span class="detail-value path-value">
-                  {{ selectedLog.path }}
-                </span>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.query_params">
-                <label class="detail-label">Query параметры:</label>
-                <pre class="detail-value code-block">{{ selectedLog.query_params }}</pre>
-              </div>
-              
-              <div class="detail-group">
-                <label class="detail-label">Статус ответа:</label>
-                <span class="detail-value status-value" :class="getStatusClass(selectedLog.response_status)">
-                  {{ selectedLog.response_status || 'N/A' }}
-                </span>
-              </div>
-              
-              <div class="detail-group">
-                <label class="detail-label">Время выполнения:</label>
-                <span class="detail-value">{{ selectedLog.duration_ms || 0 }}мс</span>
-              </div>
-              
-              <div class="detail-group">
-                <label class="detail-label">Пользователь:</label>
-                <span class="detail-value">
-                  {{ selectedLog.username || 'Аноним' }}
-                  <span v-if="selectedLog.user_id" class="user-id">(ID: {{ selectedLog.user_id }})</span>
-                </span>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.ip_address">
-                <label class="detail-label">IP адрес:</label>
-                <span class="detail-value">{{ selectedLog.ip_address }}</span>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.user_agent">
-                <label class="detail-label">User-Agent:</label>
-                <span class="detail-value">{{ selectedLog.user_agent }}</span>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.request_body">
-                <label class="detail-label">Тело запроса:</label>
-                <pre class="detail-value code-block request-body">
-                  {{ formatJson(selectedLog.request_body) }}
-                </pre>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.response_body">
-                <label class="detail-label">Тело ответа:</label>
-                <pre class="detail-value code-block response-body">
-                  {{ formatJson(selectedLog.response_body) }}
-                </pre>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.error_message">
-                <label class="detail-label">Ошибка:</label>
-                <pre class="detail-value error-message">{{ selectedLog.error_message }}</pre>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.request_headers">
-                <label class="detail-label">Заголовки запроса:</label>
-                <pre class="detail-value code-block">{{ selectedLog.request_headers }}</pre>
-              </div>
-              
-              <div class="detail-group" v-if="selectedLog.response_headers">
-                <label class="detail-label">Заголовки ответа:</label>
-                <pre class="detail-value code-block">{{ selectedLog.response_headers }}</pre>
-              </div>
-            </div>
+          <div class="modal-body">
+            <div class="detail-row"><strong>Пользователь:</strong> {{ selectedLog?.username || 'Неавторизован' }}</div>
+            <div class="detail-row"><strong>Дата:</strong> {{ formatDateTime(selectedLog?.created_at) }}</div>
+            <div class="detail-row"><strong>Метод:</strong> {{ selectedLog?.method }}</div>
+            <div class="detail-row"><strong>URL:</strong> {{ selectedLog?.url }}</div>
+            <div class="detail-row"><strong>Статус:</strong> {{ selectedLog?.response_status }}</div>
+            <div class="detail-row"><strong>Длительность:</strong> {{ selectedLog?.duration_ms }} мс</div>
+            <div class="detail-row"><strong>Заголовки:</strong><pre class="json-preview">{{ formatHeaders(selectedLog?.headers) }}</pre></div>
           </div>
-        </div>
-        <div v-else class="no-selection-message">
-          <p>Выберите запрос для просмотра деталей</p>
+          <div class="modal-footer"><button class="btn close-modal-btn" @click="closeModal">Закрыть</button></div>
         </div>
       </div>
-    </div>
-
-    <!-- Статистика -->
-    <div class="stats-section">
-      <div class="stats-card">
-        <h4>Самые частые пути</h4>
-        <div class="top-paths">
-          <div v-for="path in stats.top_paths" :key="path.path" class="path-item">
-            <span class="path-name">{{ path.path }}</span>
-            <span class="path-count">{{ path.count }} запросов</span>
-            <span class="path-duration">{{ Math.round(path.avg_duration_ms) }}мс</span>
-          </div>
-        </div>
-      </div>
-      
-      <div class="stats-card">
-        <h4>Самые активные пользователи</h4>
-        <div class="top-users">
-          <div v-for="user in stats.top_users" :key="user.username" class="user-item">
-            <span class="user-name">{{ user.username }}</span>
-            <span class="user-count">{{ user.count }} запросов</span>
-            <span class="user-last">{{ formatTime(user.last_request) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="spinner"></div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <script>
-import SearchComponent from './SearchComponent.vue';
+import RealTimeChart from '@/components/RealTimeChart.vue'
 
 export default {
   name: 'RequestsView',
-  components: {
-    SearchComponent
-  },
+  components: { RealTimeChart },
   data() {
     return {
       logs: [],
-      selectedLog: null,
-      searchQuery: '',
-      filterMethod: '',
-      filterStatus: '',
-      filterStartDate: '',
-      filterEndDate: '',
-      sortField: 'timestamp',
-      sortDirection: 'desc',
-      pagination: {
-        page: 1,
-        limit: 50,
-        total: 0,
-        pages: 1
-      },
-      pageSize: '50',
-      isLoading: false,
-      showLive: false,
-      liveInterval: null,
+      usersList: [],
       stats: {
-        total_requests: 0,
-        avg_duration_ms: 0,
-        success_rate: 0,
-        top_paths: [],
-        top_users: []
-      }
-    };
-  },
-  computed: {
-    filteredLogs() {
-      return this.logs;
-    }
-  },
-  methods: {
-    async fetchLogs() {
-      this.isLoading = true;
-      try {
-        const token = localStorage.getItem("token");
-        const params = new URLSearchParams({
-          page: this.pagination.page,
-          limit: this.pagination.limit,
-          ...(this.searchQuery && { search: this.searchQuery }),
-          ...(this.filterMethod && { method: this.filterMethod }),
-          ...(this.filterStatus && { status: parseInt(this.filterStatus) }),
-          ...(this.filterStartDate && { start_date: this.filterStartDate }),
-          ...(this.filterEndDate && { end_date: this.filterEndDate })
-        });
+        total: 0,
+        today: 0,
+        avgDuration: 0,
+        errorRate: 0
+      },
+      realtimeStats: {
+        lastSecondCount: 0,
+        lastMinuteCount: 0
+      },
+      timeline: [],
+      filters: {
+        user_id: null,
+        method: null,
+        status: null,
+        from_date: null,
+        to_date: null,
+        search: ''
+      },
+      currentPage: 1,
+      totalPages: 1,
+      total: 0,
+      perPage: 20,
+      showModal: false,
+      selectedLog: null,
+      ws: null,
+      wsReconnectTimer: null,
 
-        const response = await fetch(`http://localhost:8080/request-logs?${params}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          this.logs = data.logs;
-          this.pagination = data.pagination;
-          
-          // Прокручиваем вверх при обновлении в режиме Live
-          if (this.showLive) {
-            this.$nextTick(() => {
-              const logsBody = this.$refs.logsBody;
-              if (logsBody) {
-                logsBody.scrollTop = 0;
-              }
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching logs:", error);
-        this.showNotification("Ошибка при загрузке логов", "error");
-      } finally {
-        this.isLoading = false;
-      }
-    },
-
-    async fetchStats() {
-      try {
-        const token = localStorage.getItem("token");
-        const params = new URLSearchParams({
-          ...(this.filterStartDate && { start_date: this.filterStartDate }),
-          ...(this.filterEndDate && { end_date: this.filterEndDate })
-        });
-
-        const response = await fetch(`http://localhost:8080/request-logs/stats?${params}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          this.stats = await response.json();
-        }
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-      }
-    },
-
-    refreshLogs() {
-      this.pagination.page = 1;
-      this.fetchLogs();
-      this.fetchStats();
-    },
-
-    startLiveUpdates() {
-      this.liveInterval = setInterval(() => {
-        this.fetchLogs();
-        this.fetchStats();
-      }, 3000); // Обновление каждые 3 секунды
-    },
-
-    stopLiveUpdates() {
-      if (this.liveInterval) {
-        clearInterval(this.liveInterval);
-        this.liveInterval = null;
-      }
-    },
-
-    sortBy(field) {
-      if (this.sortField === field) {
-        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        this.sortField = field;
-        this.sortDirection = 'desc';
-      }
-    },
-
-    selectLog(log) {
-      this.selectedLog = log;
-    },
-
-    prevPage() {
-      if (this.pagination.page > 1) {
-        this.pagination.page--;
-        this.fetchLogs();
-      }
-    },
-
-    nextPage() {
-      if (this.pagination.page < this.pagination.pages) {
-        this.pagination.page++;
-        this.fetchLogs();
-      }
-    },
-
-    changePageSize() {
-      this.pagination.limit = parseInt(this.pageSize);
-      this.pagination.page = 1;
-      this.fetchLogs();
-    },
-
-    clearFilters() {
-      this.searchQuery = '';
-      this.filterMethod = '';
-      this.filterStatus = '';
-      this.filterStartDate = '';
-      this.filterEndDate = '';
-      this.pagination.page = 1;
-      this.fetchLogs();
-      this.fetchStats();
-    },
-
-    formatTime(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    },
-
-    formatFullDate(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleString('ru-RU', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    },
-
-    truncatePath(path) {
-      if (path.length > 40) {
-        return path.substring(0, 37) + '...';
-      }
-      return path;
-    },
-
-    getMethodClass(method) {
-      const classes = {
-        'GET': 'method-get',
-        'POST': 'method-post',
-        'PUT': 'method-put',
-        'DELETE': 'method-delete',
-        'PATCH': 'method-patch'
-      };
-      return classes[method] || 'method-other';
-    },
-
-    getStatusClass(status) {
-      if (!status) return 'status-unknown';
-      if (status < 300) return 'status-success';
-      if (status < 400) return 'status-redirect';
-      if (status < 500) return 'status-client-error';
-      return 'status-server-error';
-    },
-
-    formatJson(text) {
-      try {
-        const obj = JSON.parse(text);
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return text;
-      }
-    },
-
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
+      // Опции временной шкалы
+      timelineOptions: [
+        { label: 'Минута', intervalSec: 60, limit: 60, dateFormat: 'HH:mm' },
+        { label: 'Час', intervalSec: 3600, limit: 24, dateFormat: 'HH:00' },
+        { label: 'День', intervalSec: 86400, limit: 30, dateFormat: 'DD MMM' },
+        { label: 'Неделя', intervalSec: 604800, limit: 52, dateFormat: 'DD MMM' },
+        { label: 'Месяц', intervalSec: 2592000, limit: 12, dateFormat: 'MMM YYYY' },
+        { label: 'Год', intervalSec: 31536000, limit: 10, dateFormat: 'YYYY' }
+      ],
+      currentTimelineOption: 'Час',
+      timelineInterval: 3600,
+      timelineLimit: 24
     }
   },
   watch: {
-    showLive(newVal) {
-      if (newVal) {
-        this.startLiveUpdates();
-      } else {
-        this.stopLiveUpdates();
+    filters: {
+      deep: true,
+      handler() {
+        this.currentPage = 1
+        this.fetchAllData()
       }
     }
   },
-  async mounted() {
-    await this.fetchLogs();
-    await this.fetchStats();
+  methods: {
+    async fetchAllData() {
+      await Promise.all([
+        this.fetchLogs(),
+        this.fetchStats(),
+        this.fetchRealtimeStats(),
+        this.fetchTimeline(),
+        this.fetchUsers()
+      ])
+    },
+    async fetchLogs() {
+      try {
+        const token = localStorage.getItem('token')
+        const params = new URLSearchParams()
+        if (this.filters.user_id) params.append('user_id', this.filters.user_id)
+        if (this.filters.method) params.append('method', this.filters.method)
+        if (this.filters.status) params.append('status', this.filters.status)
+        if (this.filters.from_date) params.append('from_date', this.filters.from_date)
+        if (this.filters.to_date) params.append('to_date', this.filters.to_date)
+        if (this.filters.search) params.append('search', this.filters.search)
+        params.append('page', this.currentPage)
+        params.append('per_page', this.perPage)
+
+        const response = await fetch(`http://localhost:8080/request-logs?${params}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          this.logs = data.logs
+          this.total = data.total
+          this.totalPages = data.total_pages
+        }
+      } catch (error) {
+        console.error('Error fetching logs:', error)
+      }
+    },
+    async fetchStats() {
+      try {
+        const token = localStorage.getItem('token')
+        const params = new URLSearchParams()
+        if (this.filters.from_date) params.append('from_date', this.filters.from_date)
+        if (this.filters.to_date) params.append('to_date', this.filters.to_date)
+        const response = await fetch(`http://localhost:8080/request-logs/stats?${params}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          this.stats = {
+            total: data.total,
+            today: data.today,
+            avgDuration: data.avg_duration,
+            errorRate: data.error_rate
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      }
+    },
+    async fetchRealtimeStats() {
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch('http://localhost:8080/request-logs/realtime', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          this.realtimeStats = {
+            lastSecondCount: data.last_second_count,
+            lastMinuteCount: data.last_minute_count
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching realtime stats:', error)
+      }
+    },
+    async fetchTimeline() {
+      try {
+        const token = localStorage.getItem('token')
+        const params = new URLSearchParams()
+        params.append('interval', this.timelineInterval)
+        params.append('limit', this.timelineLimit)
+        if (this.filters.from_date) params.append('from_date', this.filters.from_date)
+        if (this.filters.to_date) params.append('to_date', this.filters.to_date)
+        const response = await fetch(`http://localhost:8080/request-logs/timeline?${params}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          this.timeline = data
+        }
+      } catch (error) {
+        console.error('Error fetching timeline:', error)
+      }
+    },
+    async fetchUsers() {
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch('http://localhost:8080/request-logs/users', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          this.usersList = await response.json()
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error)
+      }
+    },
+    async exportLogs() {
+      try {
+        const token = localStorage.getItem('token')
+        const params = new URLSearchParams()
+        if (this.filters.user_id) params.append('user_id', this.filters.user_id)
+        if (this.filters.method) params.append('method', this.filters.method)
+        if (this.filters.status) params.append('status', this.filters.status)
+        if (this.filters.from_date) params.append('from_date', this.filters.from_date)
+        if (this.filters.to_date) params.append('to_date', this.filters.to_date)
+        if (this.filters.search) params.append('search', this.filters.search)
+        params.append('format', 'txt')
+
+        const response = await fetch(`http://localhost:8080/request-logs/export?${params}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `logs_${new Date().toISOString().slice(0,19)}.txt`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          window.URL.revokeObjectURL(url)
+        }
+      } catch (error) {
+        console.error('Error exporting logs:', error)
+      }
+    },
+    formatNumber(value) {
+      if (value === undefined || value === null) return '0'
+      return value.toFixed(2)
+    },
+    goToPage(page) {
+      this.currentPage = page
+      this.fetchLogs()
+    },
+    setTimelineOption(opt) {
+      this.currentTimelineOption = opt.label
+      this.timelineInterval = opt.intervalSec
+      this.timelineLimit = opt.limit
+      this.fetchTimeline()
+    },
+    formatDateTime(dateStr) {
+      if (!dateStr) return ''
+      const date = new Date(dateStr)
+      return date.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })
+    },
+    truncate(str, length) {
+      if (!str) return ''
+      return str.length > length ? str.substring(0, length) + '...' : str
+    },
+    methodClass(method) {
+      return {
+        'GET': 'method-get',
+        'POST': 'method-post',
+        'PUT': 'method-put',
+        'DELETE': 'method-delete'
+      }[method] || ''
+    },
+    statusClass(status) {
+      if (status >= 200 && status < 300) return 'status-success'
+      if (status >= 400 && status < 500) return 'status-client-error'
+      if (status >= 500) return 'status-server-error'
+      return ''
+    },
+    formatHeaders(headers) {
+      if (!headers) return 'Нет данных'
+      try {
+        return JSON.stringify(headers, null, 2)
+      } catch {
+        return headers
+      }
+    },
+    showDetails(log) {
+      this.selectedLog = log
+      this.showModal = true
+    },
+    closeModal() {
+      this.showModal = false
+      this.selectedLog = null
+    },
+    setupWebSocket() {
+      const token = localStorage.getItem('token')
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${protocol}//${window.location.hostname}:8080/ws/logs?token=${encodeURIComponent(token)}`
+      console.log('Connecting to WebSocket:', wsUrl)
+      this.ws = new WebSocket(wsUrl)
+      this.ws.onopen = () => console.log('WebSocket connected')
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log('WebSocket message received:', data)
+          if (data.type === 'new_log') {
+            const newLog = data.log
+            let matches = true
+            if (this.filters.user_id && newLog.user_id !== this.filters.user_id) matches = false
+            if (matches && this.filters.method && newLog.method !== this.filters.method) matches = false
+            if (matches && this.filters.status && newLog.response_status !== this.filters.status) matches = false
+            if (matches && this.filters.search && !(newLog.url.includes(this.filters.search) || (newLog.username && newLog.username.includes(this.filters.search)))) matches = false
+            if (matches && this.filters.from_date) {
+              const from = new Date(this.filters.from_date)
+              const logDate = new Date(newLog.created_at)
+              if (logDate < from) matches = false
+            }
+            if (matches && this.filters.to_date) {
+              const to = new Date(this.filters.to_date)
+              const logDate = new Date(newLog.created_at)
+              if (logDate > to) matches = false
+            }
+            if (matches && this.currentPage === 1) {
+              this.logs.unshift(newLog)
+              if (this.logs.length > this.perPage) this.logs.pop()
+            }
+          } else if (data.type === 'stats_update') {
+            this.stats = {
+              total: data.stats.total,
+              today: data.stats.today,
+              avgDuration: data.stats.avg_duration,
+              errorRate: data.stats.error_rate
+            }
+            this.realtimeStats = {
+              lastSecondCount: data.realtime.last_second_count,
+              lastMinuteCount: data.realtime.last_minute_count
+            }
+          } else if (data.type === 'timeline_update') {
+            this.timeline = data.timeline
+          }
+        } catch (e) {
+          console.error('Error parsing WebSocket message:', e)
+        }
+      }
+      this.ws.onerror = (err) => console.error('WebSocket error:', err)
+      this.ws.onclose = () => {
+        console.log('WebSocket closed, reconnecting...')
+        if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer)
+        this.wsReconnectTimer = setTimeout(() => this.setupWebSocket(), 5000)
+      }
+    }
+  },
+  mounted() {
+    this.fetchAllData()
+    this.setupWebSocket()
   },
   beforeUnmount() {
-    this.stopLiveUpdates();
+    if (this.ws) this.ws.close()
+    if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer)
   }
-};
+}
 </script>
 
 <style scoped>
-.requests-view {
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e6e6e6;
-  overflow: hidden;
-  min-height: 80vh;
-}
-
-.management-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border-bottom: 1px solid #e6e6e6;
-}
-
-.management-title {
-  font-size: 1.2em;
-  margin: 0;
-  font-weight: 600;
-  color: #000;
-}
-
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.stats-summary {
-  display: flex;
-  gap: 20px;
-  margin-right: auto;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stat-label {
-  font-size: 0.85em;
-  color: #666;
-}
-
-.stat-value {
-  font-size: 0.9em;
-  font-weight: 600;
-  color: #333;
-}
-
-.filter-controls {
+/* добавлено для фильтров графика */
+.timeline-filters {
   display: flex;
   gap: 8px;
-  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
-
-.filter-select {
-  padding: 6px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  font-size: 0.85em;
-  background: #fff;
-  min-width: 120px;
-}
-
-.date-input {
-  padding: 6px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  font-size: 0.85em;
-  width: 140px;
-}
-
-.refresh-button {
-  background: none;
+.timeline-filter-btn {
+  background: #f0f0f0;
   border: none;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-}
-
-.refresh-button:hover {
-  background-color: #f0f0f0;
-}
-
-.refresh-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.clear-filters-btn {
-  padding: 6px 12px;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.85em;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.clear-filters-btn:hover {
-  background: #4b5563;
-}
-
-.live-button {
-  padding: 6px 12px;
-  background: #dc2626;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.85em;
-  font-weight: 600;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  color: #666;
+}
+.timeline-filter-btn:hover {
+  background: #e0e0e0;
+}
+.timeline-filter-btn.active {
+  background: #4F5BDF;
+  color: white;
 }
 
-.live-button.live-active {
-  background: #10b981;
-  animation: pulse 2s infinite;
+/* стили остаются как в предыдущей версии, добавим только для графика */
+.charts-container {
+  margin-bottom: 20px;
 }
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.7; }
-  100% { opacity: 1; }
+.chart-card {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 24px;
+  padding: 20px;
 }
-
-.content-container {
-  display: flex;
-  height: 500px;
-  width: 100%;
-}
-
-.logs-table-section {
-  width: 65%;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-}
-
-.table-container {
-  background: #fff;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.table-header {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-  height: 43px;
-  align-items: center;
-}
-
-.header-col {
-  padding: 0 8px;
-  font-size: 12px;
-  color: #a2a2a2;
+.chart-card h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
   font-weight: 600;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: .2s;
-  cursor: pointer;
-  user-select: none;
-}
-
-.header-col:hover {
   color: #333;
 }
 
-.header-col:hover .sort-icon {
-  filter: brightness(0);
-}
-
-.sort-icon {
-  width: 12px;
-  height: 12px;
-  transition: .2s;
-}
-
-.sort-icon.sorted {
-  filter: brightness(0);
-}
-
-.sort-icon.desc {
-  transform: rotate(180deg);
-}
-
-.active-sort {
-  color: #333 !important;
-  font-weight: 600 !important;
-}
-
-.time-col { width: 12%; min-width: 80px; }
-.method-col { width: 8%; min-width: 70px; }
-.path-col { width: 30%; min-width: 150px; }
-.status-col { width: 8%; min-width: 70px; }
-.user-col { width: 20%; min-width: 120px; }
-.duration-col { width: 10%; min-width: 80px; }
-
-.table-body {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 500px;
-}
-
-.table-row {
-  display: flex;
-  padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
-  align-items: center;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-  height: 40px;
-  font-size: 12px;
-}
-
-.table-row:hover {
-  background-color: #fafafa;
-}
-
-.table-row.selected {
-  background-color: #f0f2ff;
-}
-
-.table-row.error-row {
-  background-color: #fff5f5;
-}
-
-.table-row.success-row {
-  background-color: #f0fff4;
-}
-
-.table-col {
-  padding: 0 8px;
-}
-
-.cell-content {
-  display: block;
-  padding: 4px 0;
-}
-
-.method-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  min-width: 50px;
-}
-
-.method-get { background: #10b981; color: white; }
-.method-post { background: #3b82f6; color: white; }
-.method-put { background: #f59e0b; color: white; }
-.method-delete { background: #ef4444; color: white; }
-.method-patch { background: #8b5cf6; color: white; }
-.method-other { background: #6b7280; color: white; }
-
-.status-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  min-width: 40px;
-}
-
-.status-success { background: #10b981; color: white; }
-.status-redirect { background: #3b82f6; color: white; }
-.status-client-error { background: #f59e0b; color: white; }
-.status-server-error { background: #ef4444; color: white; }
-.status-unknown { background: #6b7280; color: white; }
-
-.user-id {
-  font-size: 10px;
-  color: #666;
-  margin-left: 4px;
-}
-
-.truncate-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  display: block;
-}
-
-.table-footer {
-  padding: 12px 20px;
-  border-top: 1px solid #e6e6e6;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #f8fafc;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.pagination-btn {
-  padding: 4px 8px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.pagination-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-info {
-  font-size: 12px;
-  color: #666;
-}
-
-.page-size-select {
-  padding: 4px 8px;
-  border: 1px solid #e6e6e6;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.items-count {
-  font-size: 12px;
-  color: #a2a2a2;
-  font-weight: 500;
-}
-
-.log-details-section {
-  width: 35%;
-  overflow-y: auto;
-  background: #fafafa;
-  border-left: 1px solid #e6e6e6;
-}
-
-.log-details-content {
+.requests-view {
   padding: 20px;
+  font-family: 'Montserrat', sans-serif;
 }
 
-.details-header {
+.requests-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }
 
-.details-title {
-  margin: 0;
-  color: #000;
-  font-size: 1.1em;
-  font-weight: 600;
+.requests-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
 }
 
-.close-details-btn {
-  background: none;
-  border: none;
-  font-size: 1.5em;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+.header-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-}
-
-.close-details-btn:hover {
-  background-color: #f0f0f0;
-}
-
-.details-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.details-grid {
-  display: flex;
-  flex-direction: column;
   gap: 12px;
 }
 
-.detail-group {
+.refresh-btn, .export-btn {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 30px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #333;
+}
+
+.refresh-btn:hover, .export-btn:hover {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  padding: 12px 20px;
+  min-width: 140px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #4F5BDF;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #a2a2a2;
+}
+
+.charts-container {
+  margin-bottom: 20px;
+}
+
+.chart-card {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 24px;
+  padding: 20px;
+}
+
+.chart-card h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+.filters-bar {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: flex-end;
+}
+
+.filter-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
-.detail-label {
-  font-size: 0.8em;
+.filter-group label {
+  font-size: 12px;
   color: #a2a2a2;
-  font-weight: 500;
 }
 
-.detail-value {
-  font-size: 0.9em;
+.filter-select, .filter-input {
+  padding: 6px 10px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 13px;
+  outline: none;
+}
+
+.filter-select:focus, .filter-input:focus {
+  border-color: #4F5BDF;
+}
+
+.search-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.table-container {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 30px;
+  overflow-x: auto;
+}
+
+.requests-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.requests-table th,
+.requests-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.requests-table th {
+  background: #fafafa;
+  font-weight: 600;
   color: #333;
-  word-break: break-all;
+  padding: 10px 12px;
 }
 
-.method-value, .status-value {
+.requests-table tr:hover {
+  background: #fafafa;
+}
+
+.method-badge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.path-value {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.85em;
-}
-
-.code-block {
-  background: #f5f5f5;
-  padding: 8px;
-  border-radius: 6px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.85em;
-  overflow-x: auto;
-  max-height: 200px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-}
-
-.request-body {
-  background: #f0f9ff;
-  border-left: 3px solid #3b82f6;
-}
-
-.response-body {
-  background: #f0fff4;
-  border-left: 3px solid #10b981;
-}
-
-.error-message {
-  background: #fff5f5;
-  color: #dc2626;
-  padding: 8px;
-  border-radius: 6px;
-  border-left: 3px solid #dc2626;
-  font-size: 0.85em;
-}
-
-.no-selection-message {
-  color: #a2a2a2;
-  font-weight: 400;
-  font-size: 14px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
-.stats-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 20px;
-  border-top: 1px solid #e6e6e6;
-}
-
-.stats-card {
-  background: #f8fafc;
-  border: 1px solid #e6e6e6;
   border-radius: 12px;
-  padding: 16px;
-}
-
-.stats-card h4 {
-  margin: 0 0 12px 0;
-  font-size: 0.95em;
-  color: #333;
-  font-weight: 600;
-}
-
-.top-paths, .top-users {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.path-item, .user-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  background: #fff;
-  border-radius: 6px;
-  border: 1px solid #f0f0f0;
-}
-
-.path-name, .user-name {
-  font-size: 0.85em;
+  font-size: 11px;
   font-weight: 500;
-  color: #333;
-  flex: 1;
+}
+
+.method-get {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.method-post {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.method-put {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.method-delete {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.status-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-client-error {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.status-server-error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.url-cell {
+  max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.path-count, .user-count {
-  font-size: 0.8em;
-  color: #6b7280;
-  margin-left: 8px;
+.detail-btn {
+  background: none;
+  border: none;
+  color: #4F5BDF;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 15px;
+  transition: background 0.2s;
 }
 
-.path-duration, .user-last {
-  font-size: 0.75em;
+.detail-btn:hover {
+  background: #f0f4ff;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
   color: #a2a2a2;
-  margin-left: 8px;
-  min-width: 60px;
-  text-align: right;
 }
 
-.loading-overlay {
-  position: absolute;
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.page-btn {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: #4F5BDF;
+  color: #4F5BDF;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 14px;
+  color: #666;
+}
+
+.modal-overlay {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(1px);
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.4s ease;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 
-@media (max-width: 1200px) {
-  .content-container {
-    flex-direction: column;
-    height: auto;
-  }
-  
-  .logs-table-section,
-  .log-details-section {
-    width: 100% !important;
-  }
-  
-  .logs-table-section {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-    height: 400px;
-  }
-  
-  .stats-section {
-    grid-template-columns: 1fr;
-  }
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.9) translateY(-20px);
 }
 
-@media (max-width: 768px) {
-  .management-header {
-    padding: 16px;
-  }
-  
-  .header-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .stats-summary {
-    justify-content: space-between;
-    width: 100%;
-  }
-  
-  .filter-controls {
-    flex-wrap: wrap;
-  }
-  
-  .filter-select,
-  .date-input {
-    flex: 1;
-    min-width: auto;
-  }
-  
-  .table-header,
-  .table-row {
-    padding: 0 16px;
-  }
-  
-  .time-col { width: 15%; }
-  .method-col { width: 10%; }
-  .path-col { width: 35%; }
-  .status-col { width: 10%; }
-  .user-col { width: 20%; }
-  .duration-col { width: 10%; }
-  
-  .table-footer {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-  
-  .pagination-controls {
-    justify-content: center;
-  }
-  
-  .log-details-content {
-    padding: 16px;
-  }
-  
-  .code-block {
-    font-size: 0.75em;
-  }
+.modal-content {
+  background: #fff;
+  border-radius: 30px;
+  width: 700px;
+  max-width: 90vw;
+  max-height: 80vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+}
+
+.modal-body {
+  padding: 20px 30px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.detail-row {
+  margin-bottom: 16px;
+}
+
+.detail-row strong {
+  display: block;
+  font-size: 13px;
+  color: #a2a2a2;
+  margin-bottom: 4px;
+}
+
+.json-preview {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 12px;
+  font-family: monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal-footer {
+  padding: 16px 30px 24px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.close-modal-btn {
+  background: #4F5BDF;
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 8px 24px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.close-modal-btn:hover {
+  background: #3a45c0;
 }
 </style>

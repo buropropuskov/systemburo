@@ -107,33 +107,46 @@
             
             <!-- Основная таблица - разные компоненты для разных типов -->
             <CarsTable 
-                v-if="tableType === 'cars' && currentUserId" 
-                :table-name="tableSystemName"
-                :search-query="searchQuery"
-                :selected-organization-id="selectedOrganizationId"
-                :selected-unloading-place-id="selectedUnloadingPlaceId"
-                :date-range-start="dateRangeStart"
-                :date-range-end="dateRangeEnd"
-                :selected-date="selectedDate"
-                :current-user-id="currentUserId"
-                :current-user-name="currentUserName"
-                @refresh-data="refreshData"
-            />
+    v-if="tableType === 'cars' && currentUserId" 
+    :table-name="tableSystemName"
+    :table-id="tableData?.table?.id"
+    :search-query="searchQuery"
+    :selected-organization-id="selectedOrganizationId"
+    :selected-unloading-place-id="selectedUnloadingPlaceId"
+    :date-range-start="dateRangeStart"
+    :date-range-end="dateRangeEnd"
+    :selected-date="selectedDate"
+    :current-user-id="currentUserId"
+    :current-user-name="currentUserName"
+    @refresh-data="refreshData"
+    @open-application="handleOpenApplication"  
+/>
             
             <PeopleTable 
                 v-if="tableType === 'people'"
                 :table-name="tableSystemName"
                 :search-query="searchQuery"
                 :selected-organization-id="selectedOrganizationId"
-                :selected-unloading-place-id="selectedUnloadingPlaceId"
                 :date-range-start="dateRangeStart"
                 :date-range-end="dateRangeEnd"
                 :selected-date="selectedDate"
                 :current-user-id="currentUserId"
                 :current-user-name="currentUserName"
                 @refresh-data="refreshData"
+                @open-application="handleOpenApplication"
             />
         </div>
+
+        <!-- Модальное окно заявки -->
+        <ApplicationDetail
+            v-if="showApplicationDetail"
+            :application="selectedApplication"
+            :current-user-id="currentUserId"
+            :current-user-name="currentUserName"
+            :mode="'center'"
+            @close="closeApplicationDetail"
+            @application-changed="handleApplicationChanged"
+        />
     </div>
 </template>
 
@@ -145,6 +158,7 @@ import DateFilter from './DateFilter.vue';
 import FactTable from './FactTable.vue';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
+import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 
 export default {
     name: 'TablesComponent',
@@ -155,7 +169,8 @@ export default {
         DateFilter,
         FactTable,
         CarsTable,
-        PeopleTable
+        PeopleTable,
+        ApplicationDetail
     },
     data() {
         return {
@@ -174,7 +189,11 @@ export default {
             dateRangeEnd: null,
             
             currentUserId: null,
-            currentUserName: ''
+            currentUserName: '',
+            
+            // Для модального окна заявки
+            showApplicationDetail: false,
+            selectedApplication: null
         };
     },
     computed: {
@@ -391,11 +410,39 @@ export default {
             if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
                 this.$refs.dateFilter.clearSelection();
             }
+        },
+
+        // Новые методы для открытия заявки
+        async handleOpenApplication(applicationId) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`http://localhost:8080/applications/${applicationId}/details`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const appData = await response.json();
+                    this.selectedApplication = appData;
+                    this.showApplicationDetail = true;
+                } else {
+                    console.error('Не удалось загрузить заявку');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки заявки:', error);
+            }
+        },
+
+        closeApplicationDetail() {
+            this.showApplicationDetail = false;
+            this.selectedApplication = null;
+        },
+
+        handleApplicationChanged(updatedApp) {
+            console.log('Заявка обновлена', updatedApp);
         }
     },
     async mounted() {
-        await this.fetchCurrentUser();  // Ждём загрузки пользователя
-        this.fetchTableData();          // потом таблицы
+        await this.fetchCurrentUser();
+        this.fetchTableData();
     },
     watch: {
         '$route.params.tableName': {
@@ -707,7 +754,6 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.05);
     display: flex;
     align-items: center;
     justify-content: center;

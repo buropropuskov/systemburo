@@ -7,6 +7,9 @@ edition = "2021"
 # Web framework
 actix-web = "4"
 actix-cors = "0.7.0"
+actix = "0.13"
+actix-web-actors = "4.3"
+actix-rt = "2.9"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

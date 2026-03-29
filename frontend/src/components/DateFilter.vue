@@ -721,7 +721,7 @@ export default {
 
 .calendar-container {
     background: white;
-    border-radius: 12px;
+    border-radius: 22px;
     border: 1px solid #e6e6e6;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     overflow: hidden;

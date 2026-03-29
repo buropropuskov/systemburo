@@ -1,29 +1,34 @@
 <template>
-    <div class="modal-overlay" @click="$emit('close')">
-        <div class="modal-content" @click.stop>
+    <div v-if="show" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h3>Привязка новых данных</h3>
-                <button class="modal-close" @click="$emit('close')">×</button>
+                <h3 class="modal-title">Привязка новых данных</h3>
+                <button class="modal-close" @click="closeModal">
+                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                        <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
             </div>
-            
+
             <div class="modal-body">
-                <div class="binding-info">
-                    <p class="binding-description">
-                        Все добавленные данные будут <strong>автоматически привязаны</strong> к вашему аккаунту.
-                        Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
-                    </p>
-                    
-                    <!-- Секция для новых автомобилей -->
-                    <div v-if="newVehiclesToBind.length > 0" class="data-section vehicles-section">
-                        <div class="section-header">
-                            <h4>Новые автомобили ({{ newVehiclesToBind.length }})</h4>
-                        </div>
-                        
+                <!-- Описание -->
+                <div class="binding-description">
+                    Все добавленные данные будут <strong>автоматически привязаны</strong> к вашему аккаунту.
+                    Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
+                </div>
+
+                <!-- Секция: Новые автомобили -->
+                <div v-if="newVehiclesToBind.length > 0" class="data-section">
+                    <div class="section-header">
+                        <h4 class="section-title">Новые автомобили</h4>
+                        <span class="count-badge">{{ newVehiclesToBind.length }}</span>
+                    </div>
+                    <div class="section-body">
                         <div class="items-list">
-                            <div 
-                                v-for="vehicle in newVehiclesToBind" 
+                            <div
+                                v-for="vehicle in newVehiclesToBind"
                                 :key="vehicle.id"
-                                class="item vehicle-item"
+                                class="item"
                                 :class="{ 'item-fact': isVehicleByFact(vehicle) }"
                             >
                                 <div class="item-info">
@@ -34,41 +39,37 @@
                             </div>
                         </div>
 
-                        <div v-if="hasVehiclesForBinding" class="binding-options-section">
+                        <div v-if="hasVehiclesForBinding" class="binding-options">
                             <p class="options-title">Привязать автомобили к:</p>
-                            <div class="binding-options">
-                                <label class="binding-option" v-if="hasOrganization">
-                                    <input 
-                                        type="checkbox" 
-                                        v-model="vehiclesBindToOrganization"
-                                    />
-                                    <span>Организации "{{ organization }}"</span>
+                            <div class="options-group">
+                                <label v-if="hasOrganization" class="binding-option">
+                                    <input type="checkbox" v-model="vehiclesBindToOrganization" />
+                                    <span>Организации «{{ organization }}»</span>
                                 </label>
-                                <label class="binding-option" v-if="hasCompany">
-                                    <input 
-                                        type="checkbox" 
-                                        v-model="vehiclesBindToCompany"
-                                    />
-                                    <span>Компании "{{ company }}"</span>
+                                <label v-if="hasCompany" class="binding-option">
+                                    <input type="checkbox" v-model="vehiclesBindToCompany" />
+                                    <span>Компании «{{ company }}»</span>
                                 </label>
                             </div>
                         </div>
                         <div v-else class="no-binding-message">
-                            Автомобили "По факту" не требуют привязки к организации/компании
+                            Автомобили «По факту» не требуют привязки к организации/компании
                         </div>
                     </div>
-                    
-                    <!-- Секция для новых сотрудников -->
-                    <div v-if="newEmployeesToBind.length > 0" class="data-section employees-section">
-                        <div class="section-header">
-                            <h4>Новые сотрудники ({{ newEmployeesToBind.length }})</h4>
-                        </div>
-                        
+                </div>
+
+                <!-- Секция: Новые сотрудники -->
+                <div v-if="newEmployeesToBind.length > 0" class="data-section">
+                    <div class="section-header">
+                        <h4 class="section-title">Новые сотрудники</h4>
+                        <span class="count-badge">{{ newEmployeesToBind.length }}</span>
+                    </div>
+                    <div class="section-body">
                         <div class="items-list">
-                            <div 
-                                v-for="employee in newEmployeesToBind" 
+                            <div
+                                v-for="employee in newEmployeesToBind"
                                 :key="employee.id"
-                                class="item employee-item"
+                                class="item"
                                 :class="{ 'item-fact': isEmployeeByFact(employee) }"
                             >
                                 <div class="item-info">
@@ -79,41 +80,40 @@
                             </div>
                         </div>
 
-                        <div v-if="hasEmployeesForBinding" class="binding-options-section">
+                        <div v-if="hasEmployeesForBinding" class="binding-options">
                             <p class="options-title">Привязать сотрудников к:</p>
-                            <div class="binding-options">
-                                <label class="binding-option" v-if="hasOrganization">
-                                    <input 
-                                        type="checkbox" 
-                                        v-model="employeesBindToOrganization"
-                                    />
-                                    <span>Организации "{{ organization }}"</span>
+                            <div class="options-group">
+                                <label v-if="hasOrganization" class="binding-option">
+                                    <input type="checkbox" v-model="employeesBindToOrganization" />
+                                    <span>Организации «{{ organization }}»</span>
                                 </label>
-                                <label class="binding-option" v-if="hasCompany">
-                                    <input 
-                                        type="checkbox" 
-                                        v-model="employeesBindToCompany"
-                                    />
-                                    <span>Компании "{{ company }}"</span>
+                                <label v-if="hasCompany" class="binding-option">
+                                    <input type="checkbox" v-model="employeesBindToCompany" />
+                                    <span>Компании «{{ company }}»</span>
                                 </label>
                             </div>
                         </div>
                         <div v-else class="no-binding-message">
-                            Сотрудники "По факту" не требуют привязки к организации/компании
+                            Сотрудники «По факту» не требуют привязки к организации/компании
                         </div>
                     </div>
-
-                    <div class="warning-section">
-                        <p class="warning-text">
-                            <strong class="warning-strong">Внимание!</strong> При привязке данных к организации или компании, они будут доступны для отображения и использования для <strong>всех</strong> сотрудников, которые в них числятся.
-                        </p>
-                    </div>
                 </div>
-                
+
+                <!-- Предупреждение -->
+                <div class="warning-section">
+                    <p class="warning-text">
+                        <strong class="warning-strong">Внимание!</strong> При привязке данных к организации или компании,
+                        они будут доступны для отображения и использования <strong>всем</strong> сотрудникам, которые в них числятся.
+                    </p>
+                </div>
+
+                <!-- Кнопки действий -->
                 <div class="modal-actions">
                     <button class="btn skip-btn" @click="handleSkip">Отправить без привязки</button>
                     <button class="btn confirm-btn" @click="handleConfirm">
-                        {{ buttonText }}
+                        <transition name="fade" mode="out-in">
+                            <span :key="buttonText" class="button-text">{{ buttonText }}</span>
+                        </transition>
                     </button>
                 </div>
             </div>
@@ -148,6 +148,10 @@ export default {
         hasCompany: {
             type: Boolean,
             default: false
+        },
+        show: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['confirm-binding', 'skip-binding', 'close'],
@@ -161,22 +165,23 @@ export default {
     },
     computed: {
         buttonText() {
-            const hasAnyBinding = this.vehiclesBindToOrganization || this.vehiclesBindToCompany || 
+            const hasAnyBinding = this.vehiclesBindToOrganization || this.vehiclesBindToCompany ||
                                  this.employeesBindToOrganization || this.employeesBindToCompany;
-            
-            if (hasAnyBinding) {
-                return 'Привязать и отправить';
-            } else {
-                return 'Отправить заявку';
-            }
+            return hasAnyBinding ? 'Привязать и отправить' : 'Отправить заявку';
         },
-        
         hasVehiclesForBinding() {
             return this.newVehiclesToBind.some(vehicle => !this.isVehicleByFact(vehicle));
         },
-        
         hasEmployeesForBinding() {
             return this.newEmployeesToBind.some(employee => !this.isEmployeeByFact(employee));
+        }
+    },
+    watch: {
+        show: {
+            immediate: true,
+            handler(newVal) {
+                console.log('UniversalBindingModal show prop changed:', newVal);
+            }
         }
     },
     methods: {
@@ -187,17 +192,19 @@ export default {
             if (employee.middleName) parts.push(employee.middleName);
             return parts.join(' ') || 'Не указано';
         },
-        
         isVehicleByFact(vehicle) {
             return vehicle.plateNumber === 'По факту' || vehicle.mark === 'По факту';
         },
-        
         isEmployeeByFact(employee) {
-            return employee.passportSeriesNumber === 'По факту' || 
+            return employee.passportSeriesNumber === 'По факту' ||
                    employee.position === 'По факту';
         },
-        
+        closeModal() {
+            console.log('Closing modal');
+            this.$emit('close');
+        },
         handleConfirm() {
+            console.log('Confirm binding clicked');
             this.$emit('confirm-binding', {
                 vehicles: {
                     bindToOrganization: this.vehiclesBindToOrganization,
@@ -211,9 +218,8 @@ export default {
                 }
             });
         },
-        
         handleSkip() {
-            // Кнопка "Отправить без привязки" - отправляет данные без привязки к организации/компании
+            console.log('Skip binding clicked');
             this.$emit('skip-binding');
         }
     }
@@ -221,6 +227,24 @@ export default {
 </script>
 
 <style scoped>
+/* Анимация текста кнопки - как в UserProfileHeader */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.fade-enter-to,
+.fade-leave-from {
+    opacity: 1;
+    transform: scale(1);
+}
+
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -232,30 +256,57 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    backdrop-filter: blur(1px);
+    animation: overlayAppear 0.4s ease-out;
+}
+
+@keyframes overlayAppear {
+    from {
+        background: rgba(0, 0, 0, 0);
+        backdrop-filter: blur(0px);
+    }
+    to {
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(1px);
+    }
 }
 
 .modal-content {
-    background: white;
-    border-radius: 20px;
-    padding: 0;
+    background: #fff;
+    border-radius: 50px;
     width: 540px;
     max-width: 90vw;
     max-height: 80vh;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    animation: contentAppear 0.4s cubic-bezier(0.25, 0.1, 0.15, 1);
+}
+
+@keyframes contentAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 24px;
-    border-bottom: 1px solid #e8e8e8;
+    padding: 20px 30px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
 }
 
-.modal-header h3 {
+.modal-title {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: #1a1a1a;
 }
@@ -263,30 +314,29 @@ export default {
 .modal-close {
     background: none;
     border: none;
-    font-size: 24px;
-    line-height: 1;
     cursor: pointer;
-    color: #666;
-    padding: 0;
-    width: 24px;
-    height: 24px;
+    padding: 6px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.2s ease;
 }
 
 .modal-close:hover {
-    color: #333;
+    background-color: #f5f5f5;
 }
 
 .modal-body {
-    padding: 20px;
-    max-height: calc(80vh - 60px);
+    padding: 20px 30px;
     overflow-y: auto;
+    flex: 1;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-.binding-info {
-    margin-bottom: 20px;
+.modal-body::-webkit-scrollbar {
+    display: none;
 }
 
 .binding-description {
@@ -303,64 +353,59 @@ export default {
     font-weight: 600;
 }
 
+/* Секции данных */
 .data-section {
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    background: #fafafa;
     margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #f0f0f0;
+    overflow: hidden;
 }
 
 .data-section:last-of-type {
-    border-bottom: none;
     margin-bottom: 16px;
-    padding-bottom: 0;
 }
 
 .section-header {
-    margin-bottom: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid #e6e6e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.section-header h4 {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
+.section-title {
     margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
 }
 
-.vehicles-section .section-header h4 {
-    color: #4F5BDF;
-    border-left: 4px solid #4F5BDF;
-    padding-left: 10px;
+.count-badge {
+    background: #e6e6e6;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #666;
 }
 
-.employees-section .section-header h4 {
-    color: #2e7d32;
-    border-left: 4px solid #2e7d32;
-    padding-left: 10px;
+.section-body {
+    padding: 16px 20px;
 }
 
 .items-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    max-height: 120px;
-    overflow-y: auto;
+    gap: 8px;
     margin-bottom: 16px;
-    padding-right: 4px;
 }
 
 .item {
     padding: 10px 14px;
-    border: 1px solid #e8e8e8;
-    border-radius: 8px;
-    background: #fafafa;
-}
-
-.vehicle-item {
-    border-left: 3px solid #4F5BDF;
-}
-
-.employee-item {
-    border-left: 3px solid #2e7d32;
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    transition: all 0.2s ease;
 }
 
 .item-fact {
@@ -372,22 +417,22 @@ export default {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 14px;
+    font-size: 13px;
+    flex-wrap: wrap;
 }
 
 .item-number,
 .item-name {
-    font-weight: 600;
-    color: #1a1a1a;
-    min-width: 120px;
+    font-weight: 500;
+    color: #333;
 }
 
 .item-detail {
-    color: #595959;
+    color: #666;
     background: #f0f0f0;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 13px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 12px;
 }
 
 .fact-badge {
@@ -395,28 +440,28 @@ export default {
     color: white;
     font-size: 11px;
     font-weight: 500;
-    padding: 3px 8px;
-    border-radius: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
     margin-left: auto;
 }
 
-.binding-options-section {
+.binding-options {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid #e6e6e6;
 }
 
 .options-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 8px;
 }
 
-.binding-options {
+.options-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .binding-option {
@@ -424,16 +469,17 @@ export default {
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    font-size: 14px;
-    padding: 6px;
-    border-radius: 6px;
+    font-size: 13px;
+    padding: 4px;
+    border-radius: 20px;
+    transition: background 0.2s;
 }
 
 .binding-option:hover {
-    background-color: #f8f9fa;
+    background: #f0f0f0;
 }
 
-.binding-option input[type="checkbox"] {
+.binding-option input {
     width: 16px;
     height: 16px;
     cursor: pointer;
@@ -441,74 +487,78 @@ export default {
 }
 
 .binding-option span {
-    color: #1a1a1a;
+    color: #333;
 }
 
 .no-binding-message {
     font-size: 12px;
     color: #666;
     font-style: italic;
-    margin-top: 10px;
-    padding: 8px;
+    padding: 8px 12px;
     background: #f8f9fa;
-    border-radius: 6px;
+    border-radius: 20px;
     border-left: 3px solid #ff9800;
+    margin-top: 8px;
 }
 
+/* Предупреждение */
 .warning-section {
-    margin-top: 16px;
-    padding: 12px;
-    background: #fff5f5;
-    border-radius: 8px;
-    border: 1px solid #ffcdd2;
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 20px;
+    padding: 12px 20px;
+    margin: 8px 0 20px;
 }
 
 .warning-text {
+    margin: 0;
     font-size: 12px;
     line-height: 1.5;
-    color: #666;
-    margin: 0;
+    color: #856404;
 }
 
 .warning-strong {
-    color: #d32f2f;
+    font-weight: 600;
 }
 
+/* Кнопки действий */
 .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
-    padding-top: 16px;
-    border-top: 1px solid #f0f0f0;
+    gap: 12px;
+    margin-top: 16px;
 }
 
 .btn {
-    padding: 10px 20px;
-    font-size: 14px;
+    padding: 8px 20px;
+    font-size: 13px;
     font-weight: 500;
-    border-radius: 8px;
+    border-radius: 30px;
     cursor: pointer;
     border: 1px solid;
-    transition: all 0.2s;
-    min-width: 140px;
+    transition: all 0.2s ease;
 }
 
 .skip-btn {
     background: white;
-    color: #595959;
-    border-color: #d9d9d9;
+    color: #666;
+    border-color: #e6e6e6;
 }
 
 .skip-btn:hover {
-    background: #fafafa;
-    border-color: #bfbfbf;
-    color: #1a1a1a;
+    background: #f5f5f5;
+    border-color: #ccc;
+    color: #333;
 }
 
 .confirm-btn {
     background: #4F5BDF;
     color: white;
     border-color: #4F5BDF;
+    width: 205px;
+    min-width: 200px;
+    position: relative;
+    overflow: hidden;
 }
 
 .confirm-btn:hover {
@@ -516,41 +566,59 @@ export default {
     border-color: #3a45c0;
 }
 
+.button-text {
+    display: inline-block;
+}
+
+/* Адаптивность */
 @media (max-width: 768px) {
     .modal-content {
         width: 95vw;
         margin: 16px;
         max-height: 85vh;
+        border-radius: 30px;
     }
-    
+
+    .modal-header {
+        padding: 16px 20px;
+    }
+
     .modal-body {
-        max-height: calc(85vh - 60px);
-        padding: 16px;
+        padding: 16px 20px;
     }
-    
-    .modal-actions {
-        flex-direction: column;
+
+    .section-header {
+        padding: 10px 16px;
     }
-    
-    .btn {
-        width: 100%;
-        min-width: auto;
+
+    .section-body {
+        padding: 14px 16px;
     }
-    
+
     .item-info {
         flex-direction: column;
         align-items: flex-start;
         gap: 6px;
     }
-    
-    .item-number,
-    .item-name {
-        min-width: auto;
-    }
-    
+
     .fact-badge {
         margin-left: 0;
         align-self: flex-start;
+    }
+
+    .modal-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .btn {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .confirm-btn {
+        width: 100%;
+        min-width: auto;
     }
 }
 </style>

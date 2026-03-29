@@ -1,572 +1,1130 @@
 <template>
-    <div class="date-range-section">
-        <div class="date__input">
-            <label class="input__label">Дата действия <span class="required">*</span></label>
-            <div class="date-container">
-                <div class="date" v-if="!isOneDay">
-                    <p class="date__text">с</p>
-                    <div class="datepicker-wrapper">
-                        <input 
-                            class="input__date" 
-                            placeholder="дд.мм.гг" 
-                            :value="startDate"
-                            @input="$emit('update:start-date', $event.target.value)"
-                            @focus="openDatepicker('start')"
-                            @blur="$emit('validate-date-range')"
-                            :class="{ 'input--error': errors.startDate }"
-                            readonly
-                        />
-                        <div v-if="showStartDatepicker" class="datepicker">
-                            <div class="datepicker__header">
-                                <button @click="prevMonth" class="datepicker__nav">
-                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
-                                </button>
-                                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                <button @click="nextMonth" class="datepicker__nav">
-                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
-                                </button>
-                            </div>
-                            <div class="datepicker__weekdays">
-                                <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                            </div>
-                            <div class="datepicker__days">
-                                <div 
-                                    v-for="day in calendarDays" 
-                                    :key="day.date"
-                                    class="datepicker__day"
-                                    :class="{
-                                        'datepicker__day--selected': isSelectedDate(day.date),
-                                        'datepicker__day--other-month': !day.isCurrentMonth,
-                                        'datepicker__day--today': isToday(day.date)
-                                    }"
-                                    @click="selectStartDate(day.date)"
-                                >
-                                    {{ day.day }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <p class="date__text">по</p>
-                    <div class="datepicker-wrapper">
-                        <input 
-                            class="input__date" 
-                            placeholder="дд.мм.гг" 
-                            :value="endDate"
-                            @input="$emit('update:end-date', $event.target.value)"
-                            @focus="openDatepicker('end')"
-                            @blur="$emit('validate-date-range')"
-                            :class="{ 'input--error': errors.endDate }"
-                            readonly
-                        />
-                        <div v-if="showEndDatepicker" class="datepicker">
-                            <div class="datepicker__header">
-                                <button @click="prevMonth" class="datepicker__nav">
-                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
-                                </button>
-                                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                <button @click="nextMonth" class="datepicker__nav">
-                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
-                                </button>
-                            </div>
-                            <div class="datepicker__weekdays">
-                                <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                            </div>
-                            <div class="datepicker__days">
-                                <div 
-                                    v-for="day in calendarDays" 
-                                    :key="day.date"
-                                    class="datepicker__day"
-                                    :class="{
-                                        'datepicker__day--selected': isSelectedDate(day.date),
-                                        'datepicker__day--other-month': !day.isCurrentMonth,
-                                        'datepicker__day--today': isToday(day.date)
-                                    }"
-                                    @click="selectEndDate(day.date)"
-                                >
-                                    {{ day.day }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+  <div class="date-range-section">
+    <div class="date__input">
+      <label class="input__label">Дата действия <span class="required">*</span></label>
+      <div class="date-container">
+        <!-- Режим периода -->
+        <div class="date" v-if="!isOneDay">
+          <p class="date__text">с</p>
+          <div class="datepicker-wrapper">
+            <input
+              ref="startDateInput"
+              class="input__date"
+              placeholder="дд.мм.гггг"
+              :value="startDate"
+              @input="onStartDateInput"
+              @blur="handleDateBlur('start')"
+              @focus="openDatepicker('start')"
+              @keydown="preventNonNumeric"
+              @keydown.tab="onTabFromStart"
+              @paste="preventNonNumericPaste"
+              :class="{ 'input--error': errors.startDate }"
+              maxlength="10"
+            />
+            <transition name="calendar">
+              <div v-if="showStartDatepicker" class="datepicker" @click.stop>
+                <div class="datepicker__header">
+                  <button @click="prevMonth" class="datepicker__nav" tabindex="-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                  <button @click="nextMonth" class="datepicker__nav" tabindex="-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
-                <div v-else class="single-date">
-                    <div class="datepicker-wrapper">
-                        <input 
-                            class="input__date" 
-                            placeholder="дд.мм.гг" 
-                            :value="singleDate"
-                            @input="$emit('update:single-date', $event.target.value)"
-                            @focus="openDatepicker('single')"
-                            @blur="$emit('validate-field', 'singleDate')"
-                            :class="{ 'input--error': errors.singleDate }"
-                            readonly
-                        />
-                        <div v-if="showSingleDatepicker" class="datepicker">
-                            <div class="datepicker__header">
-                                <button @click="prevMonth" class="datepicker__nav">
-                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow datepicker__arrow--left" />
-                                </button>
-                                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                <button @click="nextMonth" class="datepicker__nav">
-                                    <img src="@/assets/icons/arrow.png" class="datepicker__arrow" />
-                                </button>
-                            </div>
-                            <div class="datepicker__weekdays">
-                                <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                            </div>
-                            <div class="datepicker__days">
-                                <div 
-                                    v-for="day in calendarDays" 
-                                    :key="day.date"
-                                    class="datepicker__day"
-                                    :class="{
-                                        'datepicker__day--selected': isSelectedDate(day.date),
-                                        'datepicker__day--other-month': !day.isCurrentMonth,
-                                        'datepicker__day--today': isToday(day.date)
-                                    }"
-                                    @click="selectSingleDate(day.date)"
-                                >
-                                    {{ day.day }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="datepicker__weekdays">
+                  <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
                 </div>
-                <div v-if="errors.startDate || errors.endDate || errors.singleDate" class="error-message">
-                    {{ errors.startDate || errors.endDate || errors.singleDate }}
+                <div class="datepicker__days">
+                  <div
+                    v-for="day in calendarDays"
+                    :key="day.date"
+                    class="datepicker__day"
+                    :class="getDayClass(day, startDate)"
+                    @click="selectStartDate(day)"
+                  >
+                    {{ day.day }}
+                  </div>
                 </div>
-            </div>
-            <div class="one-day">
-                <input 
-                    type="checkbox" 
-                    class="one-day__checkbox" 
-                    :checked="isOneDay"
-                    @change="$emit('update:is-one-day', $event.target.checked); $emit('validate-field', 'isOneDay')"
-                />
-                <p>однодневная заявка</p>
-            </div>
+              </div>
+            </transition>
+          </div>
+          <p class="date__text">по</p>
+          <div class="datepicker-wrapper">
+            <input
+              ref="endDateInput"
+              class="input__date"
+              placeholder="дд.мм.гггг"
+              :value="endDate"
+              @input="onEndDateInput"
+              @blur="handleDateBlur('end')"
+              @focus="openDatepicker('end')"
+              @keydown="preventNonNumeric"
+              @paste="preventNonNumericPaste"
+              :class="{ 'input--error': errors.endDate }"
+              maxlength="10"
+            />
+            <transition name="calendar">
+              <div v-if="showEndDatepicker" class="datepicker" @click.stop>
+                <div class="datepicker__header">
+                  <button @click="prevMonth" class="datepicker__nav" tabindex="-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                  <button @click="nextMonth" class="datepicker__nav" tabindex="-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="datepicker__weekdays">
+                  <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
+                </div>
+                <div class="datepicker__days">
+                  <div
+                    v-for="day in calendarDays"
+                    :key="day.date"
+                    class="datepicker__day"
+                    :class="getDayClass(day, endDate)"
+                    @click="selectEndDate(day)"
+                  >
+                    {{ day.day }}
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
-        <div class="date__input">
-            <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
-            <div class="date">
-                <p class="date__text">с</p>
-                <input 
-                    class="input__date" 
-                    placeholder="00:00" 
-                    :value="startTime"
-                    @input="$emit('update:start-time', $event.target.value)"
-                    @blur="$emit('validate-time-range')"
-                    :class="{ 'input--error': errors.startTime }"
-                    type="time"
-                />
-                <p class="date__text">по</p>
-                <input 
-                    class="input__date" 
-                    placeholder="00:00" 
-                    :value="endTime"
-                    @input="$emit('update:end-time', $event.target.value)"
-                    @blur="$emit('validate-time-range')"
-                    :class="{ 'input--error': errors.endTime }"
-                    type="time"
-                />
-            </div>
-            <p class="time-message"></p>
-            <div v-if="errors.startTime || errors.endTime" class="error-message">
-                {{ errors.startTime || errors.endTime }}
-            </div>
+
+        <!-- Режим одного дня -->
+        <div v-else class="single-date">
+          <div class="datepicker-wrapper">
+            <input
+              ref="singleDateInput"
+              class="input__date"
+              placeholder="дд.мм.гггг"
+              :value="singleDate"
+              @input="onSingleDateInput"
+              @blur="handleDateBlur('single')"
+              @focus="openDatepicker('single')"
+              @keydown="preventNonNumeric"
+              @paste="preventNonNumericPaste"
+              :class="{ 'input--error': errors.singleDate }"
+              maxlength="10"
+            />
+            <transition name="calendar">
+              <div v-if="showSingleDatepicker" class="datepicker" @click.stop>
+                <div class="datepicker__header">
+                  <button @click="prevMonth" class="datepicker__nav" tabindex="-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                  <button @click="nextMonth" class="datepicker__nav" tabindex="-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="datepicker__weekdays">
+                  <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
+                </div>
+                <div class="datepicker__days">
+                  <div
+                    v-for="day in calendarDays"
+                    :key="day.date"
+                    class="datepicker__day"
+                    :class="getDayClass(day, singleDate)"
+                    @click="selectSingleDate(day)"
+                  >
+                    {{ day.day }}
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
+
+        <!-- Сообщения об ошибках для дат – показываем только в режиме периода и если есть endDate -->
+        <div v-if="!isOneDay && endDate && (errors.startDate || errors.endDate || errors.singleDate)" class="error-message date-error">
+          {{ errors.startDate || errors.endDate || errors.singleDate }}
+        </div>
+      </div>
+      <div class="one-day">
+        <input
+          type="checkbox"
+          class="one-day__checkbox"
+          :checked="isOneDay"
+          @change="onCheckboxChange"
+        />
+        <p>однодневная заявка</p>
+      </div>
     </div>
+
+    <div class="date__input time-section">
+      <label class="input__label">Время пребывания (проезда, прохода) <span class="required">*</span></label>
+      <div class="time-wrapper">
+        <div class="time-input-group">
+          <p class="date__text">с</p>
+          <div class="time-input-container">
+            <input
+              ref="startTimeInput"
+              class="input__time"
+              placeholder="чч:мм"
+              :value="startTime"
+              @input="onStartTimeInput"
+              @blur="formatTimeField('start')"
+              @keydown="preventNonNumeric"
+              @paste="preventNonNumericPaste"
+              :class="{ 'input--error': errors.startTime }"
+              inputmode="numeric"
+              maxlength="5"
+            />
+          </div>
+        </div>
+        <div class="time-input-group">
+          <p class="date__text">по</p>
+          <div class="time-input-container">
+            <input
+              ref="endTimeInput"
+              class="input__time"
+              placeholder="чч:мм"
+              :value="endTime"
+              @input="onEndTimeInput"
+              @blur="formatTimeField('end')"
+              @keydown="preventNonNumeric"
+              @paste="preventNonNumericPaste"
+              :class="{ 'input--error': errors.endTime }"
+              inputmode="numeric"
+              maxlength="5"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="time-hint">Укажите время, в которое будет доступен проход/въезд на территорию</div>
+      <div v-if="errors.startTime || errors.endTime" class="error-message time-error">
+        {{ errors.startTime || errors.endTime }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
 export default {
-    name: 'DateRangeSection',
-    props: {
-        isOneDay: Boolean,
-        startDate: String,
-        endDate: String,
-        singleDate: String,
-        startTime: String,
-        endTime: String,
-        roofAccess: Boolean,
-        freeParking: Boolean,
-        notifySituationCenter: Boolean,
-        errors: Object
-    },
-    emits: [
-        'update:is-one-day',
-        'update:start-date',
-        'update:end-date',
-        'update:single-date',
-        'update:start-time',
-        'update:end-time',
-        'update:roof-access',
-        'update:free-parking',
-        'update:notify-situation-center',
-        'validate-field',
-        'validate-date-range',
-        'validate-time-range'
-    ],
-    data() {
-        const today = new Date();
-        return {
-            showStartDatepicker: false,
-            showEndDatepicker: false,
-            showSingleDatepicker: false,
-            currentDate: today,
-            weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-        }
-    },
-    computed: {
-        currentYear() {
-            return this.currentDate.getFullYear();
-        },
-        currentMonth() {
-            const months = [
-                'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-                'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-            ];
-            return months[this.currentDate.getMonth()];
-        },
-        calendarDays() {
-            const year = this.currentDate.getFullYear();
-            const month = this.currentDate.getMonth();
-            
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
-            
-            const days = [];
-            
-            const prevMonthLastDay = new Date(year, month, 0).getDate();
-            const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-            
-            for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-                const date = new Date(year, month - 1, prevMonthLastDay - i);
-                days.push({
-                    day: date.getDate(),
-                    date: this.formatDate(date),
-                    isCurrentMonth: false
-                });
-            }
-            
-            for (let i = 1; i <= lastDay.getDate(); i++) {
-                const date = new Date(year, month, i);
-                days.push({
-                    day: i,
-                    date: this.formatDate(date),
-                    isCurrentMonth: true
-                });
-            }
-            
-            const totalCells = 42;
-            const nextMonthDays = totalCells - days.length;
-            for (let i = 1; i <= nextMonthDays; i++) {
-                const date = new Date(year, month + 1, i);
-                days.push({
-                    day: i,
-                    date: this.formatDate(date),
-                    isCurrentMonth: false
-                });
-            }
-            
-            return days;
-        }
-    },
-    methods: {
-        formatDate(date) {
-            const day = date.getDate().toString().padStart(2, '0');
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}.${month}.${year}`;
-        },
-        
-        isSelectedDate(date) {
-            if (this.isOneDay) {
-                return date === this.singleDate;
-            } else {
-                return date === this.startDate || date === this.endDate;
-            }
-        },
-        
-        isToday(date) {
-            const today = this.formatDate(new Date());
-            return date === today;
-        },
-        
-        openDatepicker(type) {
-            this.showStartDatepicker = false;
-            this.showEndDatepicker = false;
-            this.showSingleDatepicker = false;
-            
-            if (type === 'start') {
-                this.showStartDatepicker = true;
-            } else if (type === 'end') {
-                this.showEndDatepicker = true;
-            } else if (type === 'single') {
-                this.showSingleDatepicker = true;
-            }
-        },
-        
-        selectStartDate(date) {
-            this.$emit('update:start-date', date);
-            this.showStartDatepicker = false;
-            this.$emit('validate-date-range');
-        },
-        
-        selectEndDate(date) {
-            this.$emit('update:end-date', date);
-            this.showEndDatepicker = false;
-            this.$emit('validate-date-range');
-        },
-        
-        selectSingleDate(date) {
-            this.$emit('update:single-date', date);
-            this.showSingleDatepicker = false;
-            this.$emit('validate-field', 'singleDate');
-        },
-        
-        prevMonth() {
-            this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
-        },
-        
-        nextMonth() {
-            this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
-        }
-    },
-    mounted() {
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.datepicker-wrapper')) {
-                this.showStartDatepicker = false;
-                this.showEndDatepicker = false;
-                this.showSingleDatepicker = false;
-            }
-        });
+  name: 'DateRangeSection',
+  props: {
+    isOneDay: Boolean,
+    startDate: String,
+    endDate: String,
+    singleDate: String,
+    startTime: String,
+    endTime: String,
+    roofAccess: Boolean,
+    freeParking: Boolean,
+    notifySituationCenter: Boolean,
+    errors: Object
+  },
+  emits: [
+    'update:is-one-day',
+    'update:start-date',
+    'update:end-date',
+    'update:single-date',
+    'update:start-time',
+    'update:end-time',
+    'validate-field',
+    'validate-date-range',
+    'validate-time-range'
+  ],
+  data() {
+    const today = new Date();
+    return {
+      showStartDatepicker: false,
+      showEndDatepicker: false,
+      showSingleDatepicker: false,
+      currentDate: today,
+      weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+      internalToggle: false
     }
+  },
+  computed: {
+    currentYear() {
+      return this.currentDate.getFullYear();
+    },
+    currentMonth() {
+      const months = [
+        'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+      ];
+      return months[this.currentDate.getMonth()];
+    },
+    calendarDays() {
+      const year = this.currentDate.getFullYear();
+      const month = this.currentDate.getMonth();
+      
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const days = [];
+      
+      const prevMonthLastDay = new Date(year, month, 0).getDate();
+      const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+      
+      for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+        const date = new Date(year, month - 1, prevMonthLastDay - i);
+        days.push({
+          day: date.getDate(),
+          date: this.formatDate(date),
+          isCurrentMonth: false
+        });
+      }
+      
+      for (let i = 1; i <= lastDay.getDate(); i++) {
+        const date = new Date(year, month, i);
+        days.push({
+          day: i,
+          date: this.formatDate(date),
+          isCurrentMonth: true
+        });
+      }
+      
+      const totalCells = 42;
+      const nextMonthDays = totalCells - days.length;
+      for (let i = 1; i <= nextMonthDays; i++) {
+        const date = new Date(year, month + 1, i);
+        days.push({
+          day: i,
+          date: this.formatDate(date),
+          isCurrentMonth: false
+        });
+      }
+      
+      return days;
+    }
+  },
+  methods: {
+    // ---------- Навигация по табу ----------
+    onTabFromStart(e) {
+      if (!e.shiftKey && this.$refs.endDateInput) {
+        e.preventDefault();
+        this.$refs.endDateInput.focus();
+      }
+    },
+
+    // ---------- Защита от нецифровых символов ----------
+    preventNonNumeric(e) {
+      const controlKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter', 'Escape'];
+      if (controlKeys.includes(e.key)) {
+        return;
+      }
+      
+      if (e.target.classList.contains('input__date')) {
+        const allowed = /^[0-9.]$/;
+        if (!allowed.test(e.key) && e.key.length === 1) {
+          e.preventDefault();
+        }
+      } else if (e.target.classList.contains('input__time')) {
+        const allowed = /^[0-9:]$/;
+        if (!allowed.test(e.key) && e.key.length === 1) {
+          e.preventDefault();
+        }
+      }
+    },
+    preventNonNumericPaste(e) {
+      const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+      let cleaned = '';
+      
+      if (e.target.classList.contains('input__date')) {
+        cleaned = pastedText.replace(/[^0-9.]/g, '');
+        if (cleaned !== pastedText) {
+          e.preventDefault();
+          const start = e.target.selectionStart;
+          const end = e.target.selectionEnd;
+          const currentValue = e.target.value;
+          const newValue = currentValue.slice(0, start) + cleaned + currentValue.slice(end);
+          
+          if (e.target.classList.contains('input__date')) {
+            this.$emit('update:start-date', newValue);
+          }
+        }
+      } else if (e.target.classList.contains('input__time')) {
+        cleaned = pastedText.replace(/[^0-9:]/g, '');
+        if (cleaned !== pastedText) {
+          e.preventDefault();
+          const start = e.target.selectionStart;
+          const end = e.target.selectionEnd;
+          const currentValue = e.target.value;
+          const newValue = currentValue.slice(0, start) + cleaned + currentValue.slice(end);
+          
+          if (e.target.placeholder === 'чч:мм' && this.startTime !== undefined) {
+            this.$emit('update:start-time', newValue);
+          } else {
+            this.$emit('update:end-time', newValue);
+          }
+        }
+      }
+    },
+
+    // ---------- Работа с датами ----------
+    formatDate(date) {
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}.${month}.${year}`;
+    },
+    parseDate(dateStr) {
+      if (!dateStr) return null;
+      const parts = dateStr.split('.');
+      if (parts.length !== 3) return null;
+      let day = parseInt(parts[0], 10);
+      let month = parseInt(parts[1], 10) - 1;
+      let year = parseInt(parts[2], 10);
+      if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+      if (year < 100) year += 2000;
+      const date = new Date(year, month, day);
+      if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) return null;
+      return date;
+    },
+    formatDateWithDots(input) {
+      if (!input) return '';
+      let digits = input.replace(/[^\d]/g, '');
+      if (digits.length === 0) return '';
+      
+      let result = '';
+      if (digits.length >= 1) {
+        result += digits.slice(0, 2);
+        if (digits.length >= 3) {
+          result += '.' + digits.slice(2, 4);
+          if (digits.length >= 5) {
+            result += '.' + digits.slice(4, 8);
+          }
+        }
+      }
+      return result;
+    },
+    validateDateParts(day, month) {
+      if (day < 1 || day > 31) return false;
+      if (month < 1 || month > 12) return false;
+      return true;
+    },
+    autoCompleteDate(input) {
+      if (!input) return '';
+      let digits = input.replace(/[^\d]/g, '');
+      if (digits.length === 0) return '';
+
+      // Случай: введена одна или две цифры (день месяца)
+      if (digits.length === 1 || digits.length === 2) {
+        const day = parseInt(digits, 10);
+        if (isNaN(day) || day < 1 || day > 31) return input;
+
+        const today = new Date();
+        let year = today.getFullYear();
+        let month = today.getMonth(); // 0-11
+        let candidate = new Date(year, month, day);
+
+        // Если дата прошла или день невалиден (например, 31 февраля), ищем следующий месяц
+        if (candidate < this.dateOnly(today) || candidate.getDate() !== day) {
+          let nextMonth = month + 1;
+          let nextYear = year;
+          if (nextMonth > 11) {
+            nextMonth = 0;
+            nextYear++;
+          }
+          candidate = new Date(nextYear, nextMonth, day);
+          // Если всё ещё невалидно (например, 31 апреля), берём последний день следующего месяца
+          if (candidate.getDate() !== day) {
+            candidate = new Date(nextYear, nextMonth + 1, 0);
+          }
+        }
+        return this.formatDate(candidate);
+      }
+
+      // Случай: две пары цифр (день + месяц) – 3-4 цифры
+      if (digits.length === 3 || digits.length === 4) {
+        let day = parseInt(digits.slice(0, 2), 10);
+        let month = parseInt(digits.slice(2, 4), 10);
+        if (isNaN(day) || isNaN(month) || day < 1 || day > 31 || month < 1 || month > 12) {
+          return input;
+        }
+        let year = new Date().getFullYear();
+        let candidate = new Date(year, month - 1, day);
+        if (candidate < this.dateOnly(new Date()) || candidate.getDate() !== day) {
+          candidate = new Date(year + 1, month - 1, day);
+          if (candidate.getDate() !== day) {
+            candidate = new Date(year + 1, month, 0);
+          }
+        }
+        return this.formatDate(candidate);
+      }
+
+      // Полная дата (5-8 цифр) – уже есть обработка через parseDate и проверку на прошлое
+      if (digits.length >= 5 && digits.length <= 8) {
+        const formatted = this.formatDateWithDots(digits);
+        const parsed = this.parseDate(formatted);
+        if (parsed) {
+          if (parsed < this.dateOnly(new Date())) {
+            // Если дата прошла, пытаемся найти ближайшую будущую с тем же днём и месяцем
+            let nextYear = parsed.getFullYear() + 1;
+            let candidate = new Date(nextYear, parsed.getMonth(), parsed.getDate());
+            if (candidate.getDate() !== parsed.getDate()) {
+              candidate = new Date(nextYear, parsed.getMonth() + 1, 0);
+            }
+            return this.formatDate(candidate);
+          }
+          return formatted;
+        }
+      }
+      return input;
+    },
+    dateOnly(date) {
+      if (!date) return null;
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    },
+    isPastDate(dateStr) {
+      const date = this.parseDate(dateStr);
+      if (!date) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return date < today;
+    },
+    isToday(dateStr) {
+      const today = this.formatDate(new Date());
+      return dateStr === today;
+    },
+    getDayClass(day, selectedDate) {
+      const isSelected = selectedDate === day.date;
+      const isPast = this.isPastDate(day.date);
+      const isToday = this.isToday(day.date);
+      
+      return {
+        'datepicker__day--other-month': !day.isCurrentMonth,
+        'datepicker__day--disabled': isPast,
+        'datepicker__day--today': isToday,
+        'datepicker__day--selected': isSelected
+      };
+    },
+
+    // ---------- Обработчики ввода дат ----------
+    onStartDateInput(e) {
+      let val = e.target.value;
+      val = val.replace(/[^\d]/g, '');
+      if (val.length > 8) val = val.slice(0, 8);
+      
+      if (val.length >= 2) {
+        const day = parseInt(val.slice(0, 2), 10);
+        if (day > 31) {
+          val = '31' + val.slice(2);
+        }
+      }
+      if (val.length >= 4) {
+        const month = parseInt(val.slice(2, 4), 10);
+        if (month > 12) {
+          val = val.slice(0, 2) + '12' + val.slice(4);
+        }
+      }
+      
+      const formatted = this.formatDateWithDots(val);
+      this.$emit('update:start-date', formatted);
+    },
+    onEndDateInput(e) {
+      let val = e.target.value;
+      val = val.replace(/[^\d]/g, '');
+      if (val.length > 8) val = val.slice(0, 8);
+      
+      if (val.length >= 2) {
+        const day = parseInt(val.slice(0, 2), 10);
+        if (day > 31) {
+          val = '31' + val.slice(2);
+        }
+      }
+      if (val.length >= 4) {
+        const month = parseInt(val.slice(2, 4), 10);
+        if (month > 12) {
+          val = val.slice(0, 2) + '12' + val.slice(4);
+        }
+      }
+      
+      const formatted = this.formatDateWithDots(val);
+      this.$emit('update:end-date', formatted);
+    },
+    onSingleDateInput(e) {
+      let val = e.target.value;
+      val = val.replace(/[^\d]/g, '');
+      if (val.length > 8) val = val.slice(0, 8);
+      
+      if (val.length >= 2) {
+        const day = parseInt(val.slice(0, 2), 10);
+        if (day > 31) {
+          val = '31' + val.slice(2);
+        }
+      }
+      if (val.length >= 4) {
+        const month = parseInt(val.slice(2, 4), 10);
+        if (month > 12) {
+          val = val.slice(0, 2) + '12' + val.slice(4);
+        }
+      }
+      
+      const formatted = this.formatDateWithDots(val);
+      this.$emit('update:single-date', formatted);
+      this.$emit('validate-field', 'singleDate');
+      // После обновления даты проверяем корректность времени (для однодневного режима)
+      this.validateTimeCrossing();
+    },
+    handleDateBlur(field) {
+      let dateStr = '';
+      if (field === 'start') dateStr = this.startDate;
+      else if (field === 'end') dateStr = this.endDate;
+      else if (field === 'single') dateStr = this.singleDate;
+      
+      if (!dateStr) {
+        this.$emit('validate-date-range');
+        return;
+      }
+      
+      const completed = this.autoCompleteDate(dateStr);
+      if (this.isPastDate(completed)) {
+        if (field === 'start') this.$emit('update:start-date', '');
+        else if (field === 'end') this.$emit('update:end-date', '');
+        else if (field === 'single') this.$emit('update:single-date', '');
+        this.$emit('validate-date-range');
+        return;
+      }
+      
+      if (completed !== dateStr) {
+        if (field === 'start') this.$emit('update:start-date', completed);
+        else if (field === 'end') this.$emit('update:end-date', completed);
+        else if (field === 'single') this.$emit('update:single-date', completed);
+      }
+      
+      if (field === 'start' || field === 'end') {
+        this.validateDateRange();
+      } else {
+        this.$emit('validate-field', 'singleDate');
+        // После автодополнения даты проверяем корректность времени
+        this.validateTimeCrossing();
+      }
+    },
+    validateDateRange() {
+      if (this.internalToggle) return;
+      if (this.startDate && this.endDate && this.startDate.length === 10 && this.endDate.length === 10) {
+        const start = this.parseDate(this.startDate);
+        const end = this.parseDate(this.endDate);
+        if (start && end && end < start) {
+          this.$emit('validate-date-range');
+          return;
+        }
+      }
+      if (this.startDate && this.endDate && this.startDate === this.endDate && !this.isOneDay) {
+        this.toggleOneDay(true);
+      }
+      this.$emit('validate-date-range');
+    },
+
+    // ---------- Умное форматирование времени ----------
+    formatTimeString(raw) {
+      if (!raw) return '';
+      let cleaned = raw.replace(/[^\d:]/g, '');
+      if (cleaned.includes(':')) {
+        let parts = cleaned.split(':');
+        let hours = parts[0].slice(0, 2);
+        let minutes = parts[1] ? parts[1].slice(0, 2) : '';
+        if (hours.length === 1) hours = '0' + hours;
+        if (minutes.length === 1) minutes = '0' + minutes;
+        if (minutes.length === 0) minutes = '00';
+        let h = parseInt(hours, 10);
+        if (isNaN(h)) h = 0;
+        if (h > 23) h = 23;
+        let m = parseInt(minutes, 10);
+        if (isNaN(m)) m = 0;
+        if (m > 59) m = 59;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      } else {
+        let hours = cleaned.slice(0, 2);
+        if (hours.length === 1) hours = '0' + hours;
+        let h = parseInt(hours, 10);
+        if (isNaN(h)) h = 0;
+        if (h > 23) h = 23;
+        return `${h.toString().padStart(2, '0')}:00`;
+      }
+    },
+    formatTimeField(field) {
+      let raw = field === 'start' ? this.startTime : this.endTime;
+      let formatted = this.formatTimeString(raw);
+      if (formatted !== raw) {
+        if (field === 'start') this.$emit('update:start-time', formatted);
+        else this.$emit('update:end-time', formatted);
+      }
+      this.validateTimeCrossing();
+    },
+    onStartTimeInput(e) {
+      let val = e.target.value;
+      val = val.replace(/[^\d:]/g, '');
+      
+      if (/^\d{2}$/.test(val) && !val.includes(':')) {
+        val = val + ':';
+      }
+      
+      if (val.length > 5) val = val.slice(0, 5);
+      
+      this.$emit('update:start-time', val);
+    },
+    onEndTimeInput(e) {
+      let val = e.target.value;
+      val = val.replace(/[^\d:]/g, '');
+      
+      if (/^\d{2}$/.test(val) && !val.includes(':')) {
+        val = val + ':';
+      }
+      
+      if (val.length > 5) val = val.slice(0, 5);
+      
+      this.$emit('update:end-time', val);
+    },
+    validateTimeCrossing() {
+      if (this.internalToggle) return;
+      const start = this.startTime;
+      const end = this.endTime;
+      if (!start || !end) {
+        this.$emit('validate-time-range');
+        return;
+      }
+      if (this.isOneDay && start > end) {
+        const dateStr = this.singleDate;
+        if (dateStr) {
+          const dateObj = this.parseDate(dateStr);
+          if (dateObj) {
+            const nextDay = new Date(dateObj);
+            nextDay.setDate(dateObj.getDate() + 1);
+            const newEndDate = this.formatDate(nextDay);
+            this.internalToggle = true;
+            this.$emit('update:is-one-day', false);
+            this.$emit('update:start-date', dateStr);
+            this.$emit('update:end-date', newEndDate);
+            this.$emit('update:single-date', '');
+            this.$nextTick(() => {
+              this.internalToggle = false;
+            });
+            return;
+          }
+        }
+      }
+      this.$emit('validate-time-range');
+    },
+
+    // ---------- Переключение режима ----------
+    onCheckboxChange(event) {
+      const newValue = event.target.checked;
+      this.toggleOneDay(newValue);
+    },
+    toggleOneDay(newValue) {
+      if (this.internalToggle) return;
+      this.internalToggle = true;
+      
+      const nowOneDay = newValue !== undefined ? newValue : !this.isOneDay;
+      
+      if (nowOneDay) {
+        let dateToUse = this.startDate || this.endDate;
+        if (!dateToUse && this.singleDate) dateToUse = this.singleDate;
+        if (dateToUse) {
+          this.$emit('update:single-date', dateToUse);
+        }
+        if (this.startDate) this.$emit('update:start-date', '');
+        if (this.endDate) this.$emit('update:end-date', '');
+      } else {
+        const dateToUse = this.singleDate;
+        if (dateToUse) {
+          this.$emit('update:start-date', dateToUse);
+          this.$emit('update:end-date', '');
+        }
+        if (this.singleDate) this.$emit('update:single-date', '');
+      }
+      
+      this.$emit('update:is-one-day', nowOneDay);
+      this.$emit('validate-field', 'isOneDay');
+      this.$emit('validate-date-range');
+      this.$emit('validate-time-range');
+      
+      this.$nextTick(() => {
+        this.internalToggle = false;
+      });
+    },
+
+    // ---------- Календарь ----------
+    openDatepicker(type) {
+      this.showStartDatepicker = false;
+      this.showEndDatepicker = false;
+      this.showSingleDatepicker = false;
+      
+      if (type === 'start') {
+        this.showStartDatepicker = true;
+        if (this.startDate) {
+          const parsed = this.parseDate(this.startDate);
+          if (parsed) this.currentDate = parsed;
+        }
+      } else if (type === 'end') {
+        this.showEndDatepicker = true;
+        if (this.endDate) {
+          const parsed = this.parseDate(this.endDate);
+          if (parsed) this.currentDate = parsed;
+        }
+      } else if (type === 'single') {
+        this.showSingleDatepicker = true;
+        if (this.singleDate) {
+          const parsed = this.parseDate(this.singleDate);
+          if (parsed) this.currentDate = parsed;
+        }
+      }
+    },
+    closeDatepicker() {
+      this.showStartDatepicker = false;
+      this.showEndDatepicker = false;
+      this.showSingleDatepicker = false;
+    },
+    selectStartDate(day) {
+      if (!day.isCurrentMonth || this.isPastDate(day.date)) return;
+      this.$emit('update:start-date', day.date);
+      this.showStartDatepicker = false;
+      this.validateDateRange();
+      if (this.$refs.endDateInput) {
+        this.$refs.endDateInput.focus();
+      }
+    },
+    selectEndDate(day) {
+      if (!day.isCurrentMonth || this.isPastDate(day.date)) return;
+      this.$emit('update:end-date', day.date);
+      this.showEndDatepicker = false;
+      this.validateDateRange();
+      if (this.$refs.startTimeInput) {
+        this.$refs.startTimeInput.focus();
+      }
+    },
+    selectSingleDate(day) {
+      if (!day.isCurrentMonth || this.isPastDate(day.date)) return;
+      this.$emit('update:single-date', day.date);
+      this.showSingleDatepicker = false;
+      this.$emit('validate-field', 'singleDate');
+      // После выбора даты из календаря проверяем корректность времени
+      this.validateTimeCrossing();
+      if (this.$refs.startTimeInput) {
+        this.$refs.startTimeInput.focus();
+      }
+    },
+    prevMonth() {
+      this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+    },
+    nextMonth() {
+      this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
+    }
+  },
+  mounted() {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.datepicker-wrapper')) {
+        this.closeDatepicker();
+      }
+    });
+    this.validateDateRange();
+    this.validateTimeCrossing();
+  },
+  watch: {
+    startDate(newVal) {
+      if (this.internalToggle) return;
+      if (newVal && this.endDate && newVal === this.endDate && !this.isOneDay) {
+        this.toggleOneDay(true);
+      }
+    },
+    endDate(newVal) {
+      if (this.internalToggle) return;
+      if (newVal && this.startDate && newVal === this.startDate && !this.isOneDay) {
+        this.toggleOneDay(true);
+      }
+    },
+    singleDate() {
+      if (this.internalToggle) return;
+      this.$emit('validate-field', 'singleDate');
+      // При изменении однодневной даты проверяем корректность времени
+      this.validateTimeCrossing();
+    },
+    startTime() {
+      if (this.internalToggle) return;
+      this.validateTimeCrossing();
+    },
+    endTime() {
+      if (this.internalToggle) return;
+      this.validateTimeCrossing();
+    }
+  }
 }
 </script>
 
 <style scoped>
+/* Стили остаются без изменений (полный набор стилей приведён в исходном вопросе) */
 .date-range-section {
-    display: flex;
-    gap: 30px;
-    align-items: flex-start;
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
 }
-
 .date__input {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
 }
-
 .date-container {
-    min-height: 40px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    width: 250px;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 250px;
 }
-
 .date {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
 }
-
 .input__date {
-    width: 105px;
-    height: 40px;
-    border: 1px solid #e6e6e6;
-    outline: none;
-    background: #FFF;
-    border-radius: 10px;
-    padding: 5px 10px;
+  width: 105px;
+  height: 40px;
+  border: 1px solid #e6e6e6;
+  outline: none;
+  background: #FFF;
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 0.2s ease;
 }
-
+.input__date:focus {
+  border-color: #4F5BDF;
+}
 .date__text {
-    color: #4F5BDF;
-    font-weight: 600;
-    white-space: nowrap;
+  color: #4F5BDF;
+  font-weight: 600;
+  white-space: nowrap;
 }
-
 .one-day {
-    display: flex;
-    gap: 5px;
-    align-items: center;
-    margin-top: 5px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 5px;
 }
-
 .one-day p {
-    font-size: 12px;
+  font-size: 12px;
 }
-
 .one-day__checkbox {
-    width: 13px;
-    height: 13px;
-    cursor: pointer;
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
 }
-
-/* Чекбоксы справа */
-.additional-options {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    height: 80px;
-    justify-content:center;
-}
-
-.option-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 12px;
-    line-height: 1.2;
-    height: 16px;
-}
-
-.option-checkbox input[type="checkbox"] {
-    width: 12px;
-    height: 12px;
-    cursor: pointer;
-    margin: 0;
-    flex-shrink: 0;
-}
-
-.option-text {
-    color: #333;
-    font-size: 13px;
-    white-space: nowrap;
-}
-
-/* Datepicker styles */
 .datepicker-wrapper {
-    position: relative;
-    display: inline-block;
+  position: relative;
+  display: inline-block;
 }
-
-.datepicker {
-    position: absolute;
-    top: calc(100% + 10px);
-    left: 0;
-    background: white;
-    border: 1px solid #e6e6e6;
-    border-radius: 10px;
-    padding: 10px;
-    z-index: 1000;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-    min-width: 250px;
-}
-
-.datepicker__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.datepicker__nav {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.datepicker__arrow {
-    width: 10px;
-    height: 10px;
-}
-
-.datepicker__arrow--left {
-    transform: rotate(180deg);
-}
-
-.datepicker__month {
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.datepicker__weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-    margin-bottom: 5px;
-}
-
-.datepicker__weekday {
-    text-align: center;
-    font-size: 12px;
-    color: #a2a2a2;
-    font-weight: 500;
-}
-
-.datepicker__days {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-}
-
-.datepicker__day {
-    text-align: center;
-    padding: 5px;
-    font-size: 12px;
-    cursor: pointer;
-    border-radius: 5px;
-    transition: background-color 0.2s;
-}
-
-.datepicker__day:hover {
-    background-color: #f0f0f0;
-}
-
-.datepicker__day--selected {
-    background-color: #4F5BDF;
-    color: white;
-}
-
-.datepicker__day--other-month {
-    color: #ccc;
-}
-
-.datepicker__day--today {
-    font-weight: bold;
-    border: 1px solid #4F5BDF;
-}
-
 .single-date {
-    display: flex;
-    align-items: center;
-    width: 100%;
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
-
-.time-message {
-    font-size: 10px;
-    width: 250px;
-}
-
 .input--error {
-    border-color: #ff4444;
+  border-color: #ff4444;
 }
-
-.error-message {
-    font-size: 11px;
-    color: #ff4444;
-    position: absolute;
-    bottom: -15px;
-    left: 0;
-}
-
 .input__label {
-    font-size: 13px;
-    color: #a2a2a2;
+  font-size: 13px;
+  color: #a2a2a2;
+}
+.required {
+  color: #ff4444;
 }
 
-.required {
-    color: #ff4444;
+/* ----- Стили для времени ----- */
+.time-section {
+  width: auto;
+}
+.time-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.time-input-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.time-input-container {
+  position: relative;
+  display: inline-block;
+}
+.input__time {
+  width: 65px;
+  height: 40px;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s ease;
+  background: #FFF;
+  text-align: center;
+}
+.input__time:focus {
+  border-color: #4F5BDF;
+}
+.time-hint {
+  font-size: 11px;
+  color: #a2a2a2;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* ----- Стили для сообщений об ошибках (как в LoginComponent) ----- */
+.error-message {
+  background: rgba(255, 45, 45, 0.4);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 24px;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(5px);
+  animation: errorFadeIn 0.5s ease-out;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 8px;
+  word-break: break-word;
+  line-height: 1.2;
+}
+.time-error {
+  margin-top: 5px;
+}
+
+@keyframes errorFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ----- Анимация появления/исчезновения календаря ----- */
+.calendar-enter-active,
+.calendar-leave-active {
+  transition: all 0.2s ease;
+}
+.calendar-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.calendar-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ----- Стили календаря ----- */
+.datepicker {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e6e6e6;
+  padding: 16px;
+  min-width: 260px;
+  z-index: 1000;
+}
+.datepicker__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.datepicker__nav {
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+.datepicker__nav:hover {
+  background-color: #f5f5f5;
+}
+.datepicker__nav svg {
+  width: 12px;
+  height: 12px;
+}
+.datepicker__month {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+.datepicker__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.datepicker__weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #8c8c8c;
+  padding: 6px 0;
+}
+.datepicker__days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.datepicker__day {
+  text-align: center;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+  color: #333;
+}
+.datepicker__day:hover:not(.datepicker__day--disabled):not(.datepicker__day--selected) {
+  background-color: #e8ebff;
+}
+.datepicker__day--selected {
+  background-color: #4F5BDF;
+  color: white;
+  font-weight: 600;
+}
+.datepicker__day--today {
+  font-weight: 700;
+  position: relative;
+}
+.datepicker__day--today::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background-color: #4F5BDF;
+  border-radius: 50%;
+}
+.datepicker__day--today.datepicker__day--selected::after {
+  background-color: white;
+}
+.datepicker__day--other-month {
+  color: #ccc;
+}
+.datepicker__day--disabled {
+  color: #e0e0e0;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 </style>

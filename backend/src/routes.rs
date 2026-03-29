@@ -14,12 +14,23 @@ use crate::handlers::table_constructor::*;
 use crate::handlers::citizenship::*;
 use crate::handlers::unique_attachments::*;
 use crate::handlers::cars::*;
-use crate::handlers::cars_history::*; // Импортируем новые обработчики
 use crate::handlers::employees::*;
+use crate::handlers::employees_history::*;
 use crate::handlers::feedback::*;
 use crate::handlers::application_approvers::*;
 use crate::handlers::application_history::*;
 use crate::handlers::application_viewers::*;
+use crate::handlers::notifications::*;  
+use crate::handlers::news::*;
+use crate::handlers::request_logs::*;
+
+use crate::handlers::cars_history::{
+    get_car_history,
+    add_car_history_entry,
+    get_all_cars_history,
+    get_cars_current_status,
+    get_unified_car_history,
+};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -32,6 +43,37 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(web::resource("/users/me").route(web::get().to(get_this_user)))
         .service(web::resource("/user-types").route(web::get().to(get_user_types)))
 
+        
+        // Новости и объявления
+        .service(
+            web::scope("/news")
+                .route("", web::get().to(get_news))
+                .route("", web::post().to(create_news))
+                .route("/all", web::get().to(get_all_news_for_manage))
+                .route("/{id}", web::put().to(update_news))
+                .route("/{id}", web::delete().to(delete_news))
+        )
+        .service(
+            web::scope("/announcements")
+                .route("/active", web::get().to(get_active_announcement))
+                .route("", web::post().to(create_announcement))
+                .route("/all", web::get().to(get_all_announcements))
+                .route("/set-active", web::post().to(set_active_announcement))
+                .route("/{id}", web::put().to(update_announcement))
+                .route("/{id}", web::delete().to(delete_announcement))
+        )
+// В функции config добавить:
+// src/routes.rs (добавить эндпоинты для request_logs)
+// В функции config добавить:
+.service(
+    web::scope("/request-logs")
+        .route("", web::get().to(get_request_logs))
+        .route("/users", web::get().to(get_logs_users))
+        .route("/stats", web::get().to(get_logs_stats))
+        .route("/realtime", web::get().to(get_realtime_stats))
+        .route("/timeline", web::get().to(get_request_timeline))
+        .route("/export", web::get().to(export_logs_txt))
+)
         // Обратная связь
         .service(
             web::scope("/feedback")
@@ -87,22 +129,32 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/unload-places", web::get().to(get_car_unload_places))
                 .route("/fact-unload-places", web::get().to(get_fact_car_unload_places))
                 .route("/check-active", web::get().to(check_active_car))
-                // Новые маршруты для истории машин
+                // Маршруты для истории машин (из cars_history)
                 .route("/{id}/history", web::get().to(get_car_history))
                 .route("/{id}/history", web::post().to(add_car_history_entry))
                 .route("/history/all", web::get().to(get_all_cars_history))
                 .route("/history/current-status", web::get().to(get_cars_current_status))
+                .route("/history/unified", web::get().to(get_unified_car_history))
+                // Эти маршруты используют функции из cars (обновление статуса, активация и т.д.)
                 .route("/{id}/territory-status", web::put().to(update_car_territory_status))
                 .route("/{id}/deactivate", web::put().to(deactivate_car))
-                .route("/{id}/activate", web::put().to(activate_car))           // Новый маршрут
-                .route("/history/unified", web::get().to(get_unified_car_history))
-                .route("/{id}/restore", web::put().to(restore_car))             // Новый маршрут
+                .route("/{id}/activate", web::put().to(activate_car))
+                .route("/{id}/restore", web::put().to(restore_car))
         )
 
         // Сотрудники
         .service(
             web::scope("/employees")
                 .route("/active-for-table/{table_id}", web::get().to(get_active_employees_for_table))
+                .route("/{id}/history", web::get().to(get_employee_history))
+                .route("/history/unified", web::get().to(get_unified_employee_history))
+                .route("/history/all", web::get().to(get_all_employees_entry_exit_history))
+                .route("/history/current-status", web::get().to(get_employees_current_status))
+                .route("/{id}/territory-status", web::put().to(update_employee_territory_status))
+                .route("/{id}/deactivate", web::put().to(deactivate_employee))
+                .route("/{id}/activate", web::put().to(activate_employee))
+                .route("/{id}/restore", web::put().to(restore_employee))
+                .route("/history/table/{table_id}", web::get().to(get_table_employees_history))
         )
 
         // Уникальные машины
@@ -268,5 +320,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route("/{id}/cars", web::get().to(get_attachment_cars))
                 .route("/{id}/employees", web::get().to(get_attachment_employees))
                 .route("/{id}/items", web::get().to(get_attachment_items))
+        )
+
+        // Уведомления
+        .service(
+            web::scope("/notifications")
+                .route("", web::get().to(get_notifications))
+                .route("", web::delete().to(clear_all_notifications))
+                .route("/{id}/read", web::put().to(mark_notification_read))
+                .route("/{id}", web::delete().to(delete_notification))
         );
 }

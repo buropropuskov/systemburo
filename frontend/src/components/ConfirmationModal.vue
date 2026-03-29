@@ -79,12 +79,11 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -167,19 +166,17 @@ export default {
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
     background: rgba(0, 0, 0, 0);
-    backdrop-filter: blur(0px);
 }
 
 .modal-fade-enter-from .modal,
 .modal-fade-leave-to .modal {
     opacity: 0;
-    transform: scale(0.8) translateY(-20px);
+    transform: scale(1) translateY(-20px);
 }
 
 .modal-fade-enter-to .modal-overlay,
 .modal-fade-leave-from .modal-overlay {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
 }
 
 .modal-fade-enter-to .modal,
@@ -192,11 +189,11 @@ export default {
 @keyframes overlayAppear {
   from {
     background: rgba(0, 0, 0, 0);
-    backdrop-filter: blur(0px);
+ 
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+
   }
 }
 </style>

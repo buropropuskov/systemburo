@@ -19,3 +19,7 @@ pub mod application_approvers;
 pub mod application_history;
 pub mod application_viewers;
 pub mod cars_history;
+pub mod employees_history;
+pub mod notifications;
+pub mod news;
+pub mod request_logs;

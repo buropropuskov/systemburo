@@ -7,9 +7,10 @@ import CarsView from './views/CarsView.vue';
 import ApplicationsCenter from './views/ApplicationsCenter.vue';
 import TableConstructor from './components/TableConstructor.vue';
 import NumberFormat from './components/NumberFormat.vue';
-import EmployeeView from './components/EmployeeView.vue';
+import EmployeeView from './views/EmployeeView.vue';
 import NewsAndReview from './views/NewsAndReview.vue';
 import FeedbackPage from './views/FeedbackPage.vue';
+import RequestsView from './views/RequestsView.vue';
 
 const routes = [
   { 
@@ -83,7 +84,14 @@ const routes = [
     name: 'FeedbackPage',
     component: FeedbackPage,
     meta: {requiresAuth: true, requiresBuro: true}
-  }
+  },
+  {
+    path: '/admin/requests',
+    name: 'RequestsView',
+    component: RequestsView,
+    meta: {requiresAuth: true, requiresBuro: true}
+  },
+
 ];
 
 const router = createRouter({
@@ -160,9 +168,9 @@ router.beforeEach((to, from, next) => {
     next('/personal-cabinet');
   } 
   else if (to.path === '/' && isAuthenticated) {
-    console.log('🔄 Redirect from login to cabinet');
-    next('/personal-cabinet');
-  } 
+    console.log('🔄 Redirect from login to news');
+    next('/news');
+}
   else {
     next();
   }

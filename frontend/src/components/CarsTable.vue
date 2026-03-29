@@ -142,6 +142,7 @@
       :show-car-features="true"
       :source="'carstable'"
       @close="closeVehicleDetails"
+      @open-application="handleOpenApplication"
     />
 
     <!-- Модальное окно истории всех машин -->
@@ -169,6 +170,7 @@ export default {
   },
   props: {
     tableName: { type: String, default: '' },
+    tableId: { type: Number, default: null },
     searchQuery: { type: String, default: '' },
     selectedOrganizationId: { type: [Number, String], default: null },
     selectedUnloadingPlaceId: { type: [Number, String], default: null },
@@ -178,6 +180,7 @@ export default {
     currentUserId: { type: Number, default: null },
     currentUserName: { type: String, default: '' }
   },
+  emits: ['refresh-data', 'open-application'], // добавлен emit
   data() {
     return {
       sortField: null,
@@ -200,6 +203,7 @@ export default {
   computed: {
     displayItems() {
       let filtered = [...this.itemsData];
+      
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase().trim();
         filtered = filtered.filter(item => {
@@ -212,14 +216,17 @@ export default {
             this.formatDate(item.entry_date_to),
             item.status
           ];
+
           return searchFields.some(field => 
             field && field.toString().toLowerCase().includes(query)
           );
         });
       }
+
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
+
       if (this.selectedUnloadingPlaceId) {
         filtered = filtered.filter(item => {
           const carId = item.id;
@@ -227,6 +234,7 @@ export default {
           return unloadPlaces.some(place => place.id == this.selectedUnloadingPlaceId);
         });
       }
+
       if (this.selectedDate) {
         const selectedDateStr = this.selectedDate.toISOString().split('T')[0];
         filtered = filtered.filter(item => item.entry_date_to === selectedDateStr);
@@ -236,9 +244,11 @@ export default {
           return itemDate >= this.dateRangeStart && itemDate <= this.dateRangeEnd;
         });
       }
+
       if (this.sortField) {
         filtered.sort((a, b) => {
           let valueA, valueB;
+          
           switch (this.sortField) {
             case 'car_number':
             case 'car_brand':
@@ -248,31 +258,43 @@ export default {
               valueA = (a[this.sortField] || '').toString().toLowerCase();
               valueB = (b[this.sortField] || '').toString().toLowerCase();
               break;
+              
             case 'unload_place':
               valueA = this.formatUnloadPlaces(a).toLowerCase();
               valueB = this.formatUnloadPlaces(b).toLowerCase();
               break;
+              
             case 'entry_date_to':
               valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
               valueB = b.entry_date_to ? new Date(b.entry_date_to) : new Date(0);
               break;
+              
             case 'entry_time':
               valueA = this.extractStartTime(a.entry_time_from);
               valueB = this.extractStartTime(b.entry_time_from);
               break;
+              
             default:
               return 0;
           }
-          if (valueA < valueB) return this.sortDirection === 'asc' ? -1 : 1;
-          if (valueA > valueB) return this.sortDirection === 'asc' ? 1 : -1;
+          
+          if (valueA < valueB) {
+            return this.sortDirection === 'asc' ? -1 : 1;
+          }
+          if (valueA > valueB) {
+            return this.sortDirection === 'asc' ? 1 : -1;
+          }
           return 0;
         });
       }
+
       return filtered;
     },
+
     carsOnTerritory() {
       return this.itemsData.filter(item => item.entry_checked && !item.exit_checked).length;
     },
+
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
@@ -284,7 +306,6 @@ export default {
     }
   },
   methods: {
-    // Основной метод загрузки данных с флагом silent (без показа лоадера)
     async _loadData(silent = false) {
       if (!silent && this.isLoading) return;
       if (!silent) this.isLoading = true;
@@ -301,12 +322,10 @@ export default {
       }
     },
 
-    // Для внешнего вызова (кнопка Refresh)
     async loadData() {
       await this._loadData(false);
     },
 
-    // Для тихого обновления по таймеру
     async silentRefresh() {
       await this._loadData(true);
     },
@@ -338,25 +357,37 @@ export default {
     async fetchCarsData() {
       try {
         const token = localStorage.getItem("token");
+        
         const response = await fetch("http://localhost:8080/cars/active-for-tables", {
-          headers: { "Authorization": `Bearer ${token}` }
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
         });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const cars = await response.json();
+        
         await this.fetchOrganizations();
+        
         const nameToIdMap = {};
         Object.keys(this.organizationsMap).forEach(id => {
           nameToIdMap[this.organizationsMap[id]] = id;
         });
+        
         const regularCars = cars.filter(car => {
           if (car.status !== 1) return false;
           const carNumber = car.car_number?.toLowerCase().trim();
           return carNumber !== 'по факту';
         });
-        // Преобразуем в нужный формат
-        const newItems = regularCars.map(car => {
+        
+        this.itemsData = regularCars.map(car => {
           const orgName = car.organization || '';
           const orgId = nameToIdMap[orgName] || car.organization_id;
+          
           return {
             id: car.id,
             car_number: car.car_number || '',
@@ -384,8 +415,7 @@ export default {
             unloadPlaces: car.unload_place_ids || []
           };
         });
-        // Заменяем массив целиком – Vue отреагирует оптимально
-        this.itemsData = newItems;
+        
       } catch (error) {
         console.error("Ошибка при загрузке данных машин:", error);
         this.itemsData = [];
@@ -396,13 +426,22 @@ export default {
     async fetchCarHistoryStatus() {
       try {
         const token = localStorage.getItem("token");
+        
         const response = await fetch("http://localhost:8080/cars/history/current-status", {
-          headers: { "Authorization": `Bearer ${token}` }
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
         });
+        
         if (response.ok) {
           const statuses = await response.json();
+          
           const statusMap = {};
-          statuses.forEach(status => { statusMap[status.car_id] = status; });
+          statuses.forEach(status => {
+            statusMap[status.car_id] = status;
+          });
+          
           this.itemsData.forEach(item => {
             const status = statusMap[item.id];
             if (status) {
@@ -421,18 +460,28 @@ export default {
     async fetchCarUnloadPlaces() {
       try {
         const token = localStorage.getItem("token");
+        
         const response = await fetch("http://localhost:8080/cars/unload-places", {
-          headers: { "Authorization": `Bearer ${token}` }
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
         });
+        
         if (response.ok) {
           const carUnloadPlaces = await response.json();
+          
           this.carUnloadPlacesMap = {};
+          
           carUnloadPlaces.forEach(cup => {
-            if (!this.carUnloadPlacesMap[cup.car_id]) this.carUnloadPlacesMap[cup.car_id] = [];
+            if (!this.carUnloadPlacesMap[cup.car_id]) {
+              this.carUnloadPlacesMap[cup.car_id] = [];
+            }
             this.carUnloadPlacesMap[cup.car_id].push({
               id: cup.unload_place_id,
               name: cup.unload_place_name || `Место #${cup.unload_place_id}`
             });
+            
             const car = this.itemsData.find(c => c.id === cup.car_id);
             if (car) {
               if (!car.unload_place_ids) car.unload_place_ids = [];
@@ -453,12 +502,18 @@ export default {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:8080/organizations", {
-          headers: { "Authorization": `Bearer ${token}` }
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
         });
+
         if (response.ok) {
           const data = await response.json();
           this.organizationsMap = {};
-          data.forEach(org => { this.organizationsMap[org.id] = org.name; });
+          data.forEach(org => {
+            this.organizationsMap[org.id] = org.name;
+          });
         }
       } catch (error) {
         console.error("Ошибка при загрузке организаций:", error);
@@ -473,6 +528,7 @@ export default {
             return place ? place.name : null;
           })
           .filter(name => name);
+        
         if (placeNames.length === 0) return '-';
         if (placeNames.length === 1) return placeNames[0];
         return `${placeNames[0]} и др.`;
@@ -493,14 +549,19 @@ export default {
 
     formatTimeRange(timeFrom, timeTo) {
       if (!timeFrom && !timeTo) return '-';
+      
       const formatTime = (timeStr) => {
         if (!timeStr) return '';
         const parts = timeStr.split(':');
-        if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
+        if (parts.length >= 2) {
+          return `${parts[0]}:${parts[1]}`;
+        }
         return timeStr;
       };
+
       const formattedTimeFrom = formatTime(timeFrom);
       const formattedTimeTo = formatTime(timeTo);
+      
       if (!formattedTimeTo) return formattedTimeFrom;
       if (!formattedTimeFrom) return formattedTimeTo;
       return `${formattedTimeFrom} - ${formattedTimeTo}`;
@@ -527,31 +588,54 @@ export default {
     },
 
     async handleEntryExit(item, type) {
-      if (!this.currentUserId) return;
+      if (!this.currentUserId) {
+        console.error('Нет ID текущего пользователя');
+        return;
+      }
+      if (!this.tableId) {
+        console.error('Нет ID таблицы');
+        return;
+      }
       try {
         const token = localStorage.getItem("token");
-        let territory_status = type === 'entry' ? 1 : 2;
+        
+        let territory_status = 0;
+        if (type === 'entry') {
+          territory_status = 1;
+        } else if (type === 'exit') {
+          territory_status = 2;
+        }
+        
         const response = await fetch(`http://localhost:8080/cars/${item.id}/territory-status`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ territory_status, user_id: this.currentUserId })
+          body: JSON.stringify({
+            territory_status: territory_status,
+            user_id: this.currentUserId,
+            table_id: this.tableId
+          })
         });
+        
         if (response.ok) {
           const index = this.itemsData.findIndex(i => i.id === item.id);
+          
           if (index !== -1) {
             const updatedItem = { ...this.itemsData[index] };
+            
             if (type === 'entry') {
               updatedItem.entry_checked = true;
               updatedItem.exit_checked = false;
-            } else {
+            } else if (type === 'exit') {
               updatedItem.entry_checked = false;
               updatedItem.exit_checked = true;
             }
+            
             this.itemsData.splice(index, 1, updatedItem);
           }
+          
           this.showNotification(`Машина ${item.car_number} ${type === 'entry' ? 'отмечена о прибытии' : 'уехала'}`, 'success');
         } else {
           const errorText = await response.text();
@@ -566,20 +650,29 @@ export default {
 
     removeItemWithNotification(item) {
       if (this.isLoading) return;
+      
       const originalItem = { ...item };
       const itemIndex = this.itemsData.findIndex(i => i.id === item.id);
-      if (this.notification.message) clearInterval(this.progressInterval);
+      
+      if (this.notification.message) {
+        clearInterval(this.progressInterval);
+      }
+      
       this.notification = { 
         message: `Машина ${item.car_number} удалена.`, 
         item,
-        originalItem,
-        itemIndex,
+        originalItem: originalItem,
+        itemIndex: itemIndex,
         undoFunction: () => {
-          if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1, { ...originalItem });
+          if (itemIndex !== -1) {
+            this.itemsData.splice(itemIndex, 1, { ...originalItem });
+          }
         }
       };
+
       item.status = 'Удален';
       item.checked = false;
+
       this.progress = 100;
       clearInterval(this.progressInterval);
       this.progressInterval = setInterval(() => {
@@ -587,7 +680,9 @@ export default {
         if (this.progress <= 0) {
           clearInterval(this.progressInterval);
           this.actuallyDeleteItem(item, originalItem, itemIndex);
-          if (this.notification.item?.id === item.id) this.notification = { message: null, item: null };
+          if (this.notification.item?.id === item.id) {
+            this.notification = { message: null, item: null };
+          }
         }
       }, 100);
     },
@@ -595,29 +690,44 @@ export default {
     async actuallyDeleteItem(item, originalItem, itemIndex) {
       try {
         const token = localStorage.getItem("token");
+        
         const response = await fetch(`http://localhost:8080/cars/${item.id}/deactivate`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ status: 0, user_id: this.currentUserId })
+          body: JSON.stringify({
+            status: 0,
+            user_id: this.currentUserId
+          })
         });
+        
         if (!response.ok) {
           console.error("Ошибка при удалении");
-          if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1, { ...originalItem });
+          if (itemIndex !== -1) {
+            this.itemsData.splice(itemIndex, 1, { ...originalItem });
+          }
           return;
         }
-        if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1);
+        
+        if (itemIndex !== -1) {
+          this.itemsData.splice(itemIndex, 1);
+        }
+        
       } catch (error) {
         console.error("Ошибка сети при удалении:", error);
-        if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1, { ...originalItem });
+        if (itemIndex !== -1) {
+          this.itemsData.splice(itemIndex, 1, { ...originalItem });
+        }
       }
     },
 
     undoDelete() {
       clearInterval(this.progressInterval);
-      if (this.notification.undoFunction) this.notification.undoFunction();
+      if (this.notification.undoFunction) {
+        this.notification.undoFunction();
+      }
       this.notification = { message: null, item: null };
     },
 
@@ -648,6 +758,11 @@ export default {
       this.selectedVehicle = null;
     },
 
+    handleOpenApplication(applicationId) {
+      // Пробрасываем событие дальше, не закрывая модалку машины
+      this.$emit('open-application', applicationId);
+    },
+
     openCarsTableHistory() {
       this.showCarsTableHistory = true;
     },
@@ -658,10 +773,10 @@ export default {
 
     startPolling() {
       if (this.pollingInterval) return;
-      this.silentRefresh(); // сразу загружаем без лоадера
+      this.silentRefresh();
       this.pollingInterval = setInterval(() => {
         this.silentRefresh();
-      }, 10000); // каждые 10 секунд
+      }, 10000);
     },
 
     stopPolling() {
@@ -676,13 +791,11 @@ export default {
   },
   watch: {
     tableName: {
-      immediate: true,
-      handler(newVal) {
-        if (newVal) {
-          this.stopPolling();
-          this.startPolling();
-        }
-      }
+      handler() {
+        this.stopPolling();
+        this.startPolling();
+      },
+      immediate: true
     }
   },
   beforeUnmount() {
@@ -691,6 +804,7 @@ export default {
   }
 };
 </script>
+
 
 <style scoped>
 /* Стили остаются без изменений (как в оригинале) */

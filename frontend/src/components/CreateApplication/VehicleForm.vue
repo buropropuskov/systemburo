@@ -1467,10 +1467,6 @@ export default {
     font-size: 14px;
     color: #000;
     font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
     display: block;
 }
 

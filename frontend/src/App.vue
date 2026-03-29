@@ -10,6 +10,9 @@
       <router-view class="content__container" @login-success="handleSuccessfulLogin" /> 
     </div>
     
+    <!-- Кнопка "Наверх" -->
+    <ScrollTopButton v-if="isAuthenticated" />
+    
     <!-- Модальное окно истекшей сессии -->
     <SessionExpiredModal 
       v-if="showSessionModal"
@@ -24,13 +27,15 @@
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import SessionExpiredModal from './components/SessionExpiredModal.vue';
+import ScrollTopButton from './components/ScrollTopButton.vue';
 
 export default {
   name: "App",
   components: {
     NavMenu,
     TheHeader,
-    SessionExpiredModal
+    SessionExpiredModal,
+    ScrollTopButton
   },
   data() {
     return {
@@ -62,12 +67,6 @@ export default {
           const currentTime = Math.floor(Date.now() / 1000);
           const timeUntilExpiry = payload.exp - currentTime;
           
-          /* console.log('Token expiry check:', {
-              timeUntilExpiry: timeUntilExpiry + ' seconds',
-              isExpired: timeUntilExpiry <= 0,
-              willExpireSoon: timeUntilExpiry <= 300
-          }); */
-          
           // Если токен уже истек - сразу выходим
           if (timeUntilExpiry <= 0) {
               console.log('Token expired, logging out...');
@@ -85,14 +84,12 @@ export default {
           
       } catch (e) {
           console.error("Token decode error:", e);
-          this.logout(); // При ошибке декодирования тоже выходим
+          this.logout();
       }
     },
     
     startExpirationTimer(timeUntilExpiry) {
       this.stopExpirationTimer();
-      
-      // console.log('Starting expiration timer:', timeUntilExpiry + ' seconds');
       
       // Если до истечения меньше или равно 30 секунд - показываем модалку
       if (timeUntilExpiry <= 300) {
@@ -120,7 +117,6 @@ export default {
       } else {
         // Запускаем таймер, который покажет модалку когда останется 30 секунд
         const delayToModal = (timeUntilExpiry - 300) * 1000;
-        // console.log('Will show modal in:', delayToModal + ' ms');
         
         this.expirationTimer = setTimeout(() => {
           this.checkAuthStatus(); // Перепроверим статус
@@ -191,41 +187,41 @@ export default {
     },
     
     async logout() {
-  try {
-    const token = localStorage.getItem("token");
-    const refreshToken = localStorage.getItem("refreshToken");
-    
-    if (token && refreshToken) {
-      console.log('🔄 Sending logout request with specific refresh token');
-      
-      await fetch("http://localhost:8080/logout", {
-        method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          refresh_token: refreshToken  // Отправляем конкретный refresh token для удаления
-        })
-      });
-    }
-  } catch (error) {
-    console.error("Logout error:", error);
-  } finally {
-    // Всегда очищаем localStorage
-    localStorage.removeItem("token");
-    localStorage.removeItem("refreshToken");
-    this.isAuthenticated = false;
-    this.isBuropropuskov = false;
-    this.showSessionModal = false;
-    this.stopExpirationTimer();
-    
-    // Перенаправляем на логин только если мы не уже на странице логина
-    if (this.$route.path !== '/') {
-      this.$router.push("/");
-    }
-  }
-},
+      try {
+        const token = localStorage.getItem("token");
+        const refreshToken = localStorage.getItem("refreshToken");
+        
+        if (token && refreshToken) {
+          console.log('🔄 Sending logout request with specific refresh token');
+          
+          await fetch("http://localhost:8080/logout", {
+            method: "POST",
+            headers: { 
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              refresh_token: refreshToken
+            })
+          });
+        }
+      } catch (error) {
+        console.error("Logout error:", error);
+      } finally {
+        // Всегда очищаем localStorage
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        this.isAuthenticated = false;
+        this.isBuropropuskov = false;
+        this.showSessionModal = false;
+        this.stopExpirationTimer();
+        
+        // Перенаправляем на логин только если мы не уже на странице логина
+        if (this.$route.path !== '/') {
+          this.$router.push("/");
+        }
+      }
+    },
     
     startTokenMonitoring() {
       // Проверяем токен каждые 10 секунд как fallback
@@ -264,7 +260,6 @@ export default {
 </script>
 
 <style>
-/* Стили остаются без изменений */
 * {
     font-family: 'Montserrat', sans-serif;
     padding: 0;
@@ -295,5 +290,9 @@ body:not(.auth-active) #app {
 
 .red {
   color: rgb(241, 76, 76);
+}
+
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
 }
 </style>

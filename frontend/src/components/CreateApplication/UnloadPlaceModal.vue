@@ -6,7 +6,6 @@
                 <span class="status-badge" :class="getPlaceStatusClass(place)">
                     {{ getPlaceStatusText(place) }}
                 </span>
-                <!-- Информация о времени до открытия/закрытия -->
                 <div v-if="place && place.status === 'active'" class="time-info">
                     {{ getTimeInfoText() }}
                 </div>
@@ -20,7 +19,7 @@
 
         <div class="modal-body">
             <div class="place-details" v-if="place">
-                <!-- Секция Основная информация (без статуса) -->
+                <!-- Секция Основная информация -->
                 <div class="details-section">
                     <div class="section-header">
                         <h4 class="section-title">Основная информация</h4>
@@ -100,9 +99,6 @@
                                 class="photo-wrapper" 
                                 ref="photoWrapper"
                                 @mousedown="startDrag"
-                                @mousemove="onDrag"
-                                @mouseup="stopDrag"
-                                @mouseleave="stopDrag"
                                 @wheel="onZoom"
                             >
                                 <img 
@@ -150,14 +146,18 @@ export default {
             photoTranslateX: 0,
             photoTranslateY: 0,
             isDragging: false,
-            lastDragX: 0,
-            lastDragY: 0,
+            dragStartX: 0,
+            dragStartY: 0,
+            initialTranslateX: 0,
+            initialTranslateY: 0,
             imageWidth: 0,
             imageHeight: 0,
             containerWidth: 0,
             containerHeight: 0,
             fullDayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
-            currentTime: new Date()
+            currentTime: new Date(),
+            windowMouseMoveHandler: null,
+            windowMouseUpHandler: null
         }
     },
     computed: {
@@ -369,6 +369,7 @@ export default {
             }
         },
 
+        // Фото
         updateImageDimensions(event) {
             const img = event.target;
             this.imageWidth = img.naturalWidth;
@@ -409,35 +410,44 @@ export default {
 
         clampTranslate() {
             const { maxX, maxY } = this.calculateMaxTranslate();
-            
             this.photoTranslateX = Math.max(-maxX, Math.min(maxX, this.photoTranslateX));
             this.photoTranslateY = Math.max(-maxY, Math.min(maxY, this.photoTranslateY));
         },
 
         startDrag(event) {
-            this.isDragging = true;
-            this.lastDragX = event.clientX;
-            this.lastDragY = event.clientY;
+            if (this.isDragging) return;
             event.preventDefault();
+            this.isDragging = true;
+            // Запоминаем начальную позицию курсора и текущие значения трансляции
+            this.dragStartX = event.clientX;
+            this.dragStartY = event.clientY;
+            this.initialTranslateX = this.photoTranslateX;
+            this.initialTranslateY = this.photoTranslateY;
+
+            // Добавляем обработчики на window для отслеживания движения за пределами контейнера
+            this.windowMouseMoveHandler = this.onDrag;
+            this.windowMouseUpHandler = this.stopDrag;
+            window.addEventListener('mousemove', this.windowMouseMoveHandler);
+            window.addEventListener('mouseup', this.windowMouseUpHandler);
         },
 
         onDrag(event) {
-            if (this.isDragging) {
-                const deltaX = event.clientX - this.lastDragX;
-                const deltaY = event.clientY - this.lastDragY;
-                
-                this.photoTranslateX += deltaX;
-                this.photoTranslateY += deltaY;
-                
-                this.clampTranslate();
-                
-                this.lastDragX = event.clientX;
-                this.lastDragY = event.clientY;
-                event.preventDefault();
-            }
+            if (!this.isDragging) return;
+            const deltaX = event.clientX - this.dragStartX;
+            const deltaY = event.clientY - this.dragStartY;
+            // Применяем дельту к начальным значениям трансляции
+            this.photoTranslateX = this.initialTranslateX + deltaX;
+            this.photoTranslateY = this.initialTranslateY + deltaY;
+            this.clampTranslate();
         },
 
         stopDrag() {
+            if (this.windowMouseMoveHandler) {
+                window.removeEventListener('mousemove', this.windowMouseMoveHandler);
+                window.removeEventListener('mouseup', this.windowMouseUpHandler);
+                this.windowMouseMoveHandler = null;
+                this.windowMouseUpHandler = null;
+            }
             this.isDragging = false;
         },
 
@@ -474,11 +484,19 @@ export default {
                 this.resetPhoto();
             }
         }
+    },
+    beforeUnmount() {
+        // Чистка обработчиков при уничтожении компонента
+        if (this.windowMouseMoveHandler) {
+            window.removeEventListener('mousemove', this.windowMouseMoveHandler);
+            window.removeEventListener('mouseup', this.windowMouseUpHandler);
+        }
     }
 }
 </script>
 
 <style scoped>
+/* все стили остаются без изменений – они идентичны предыдущей версии */
 .modal-content-inner {
     width: 100%;
     height: 450px;

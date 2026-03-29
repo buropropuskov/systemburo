@@ -1,4 +1,3 @@
-// handlers/users.rs
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::PgPool;
 use serde_json::json;
@@ -11,8 +10,9 @@ use crate::models::users::{
 };
 
 use crate::auth::{hash_password, decode_token};
+use crate::handlers::notifications::{create_notification};
+use crate::models::notifications::CreateNotificationRequest;
 
-/// Обновление типа пользователя
 pub async fn update_user_type(
     pool: web::Data<PgPool>,
     path: web::Path<String>,
@@ -53,6 +53,16 @@ pub async fn update_user_type(
                             return Err(error::ErrorBadRequest("Invalid user type"));
                         }
 
+                        // Получаем название нового типа
+                        let type_name = sqlx::query!(
+                            "SELECT name FROM user_types WHERE id = $1",
+                            form.type_id
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("Error fetching user type name"))?
+                        .name;
+
                         sqlx::query!(
                             "UPDATE users SET type_id = $1 WHERE username = $2",
                             form.type_id,
@@ -61,6 +71,23 @@ pub async fn update_user_type(
                         .execute(pool.get_ref())
                         .await
                         .map_err(|_| error::ErrorInternalServerError("Error updating user type"))?;
+
+                        let user_row = sqlx::query!(
+                            "SELECT id FROM users WHERE username = $1",
+                            username
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("User not found"))?;
+
+                        let notif_req = CreateNotificationRequest {
+                            user_id: user_row.id,
+                            type_: "user_type_change".to_string(),
+                            title: "Изменение типа пользователя".to_string(),
+                            message: format!("Ваш тип пользователя изменён на \"{}\".", type_name),
+                            data: None,
+                        };
+                        create_notification(pool.get_ref(), notif_req).await?;
 
                         Ok(HttpResponse::Ok().json("User type updated successfully"))
                     }
@@ -77,7 +104,184 @@ pub async fn update_user_type(
     }
 }
 
-/// Получение всех пользователей
+pub async fn update_user_organization(
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+    req: HttpRequest,
+    form: web::Json<UpdateOrganizationRequest>,
+) -> Result<HttpResponse, Error> {
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                match decode_token(&token) {
+                    Ok(claims) => {
+                        let user = sqlx::query!(
+                            r#"SELECT ut.code as user_type 
+                               FROM users u
+                               JOIN user_types ut ON u.type_id = ut.id
+                               WHERE u.username = $1"#,
+                            claims.sub
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorUnauthorized("User not found"))?;
+
+                        if user.user_type != "manager" && user.user_type != "buropropuskov" {
+                            return Err(error::ErrorForbidden("Insufficient permissions"));
+                        }
+
+                        let username = path.into_inner();
+
+                        let new_org_id = form.organization_id;
+                        let org_name = if let (org_id) = new_org_id {
+                            sqlx::query!(
+                                "SELECT name FROM organizations WHERE id = $1",
+                                org_id
+                            )
+                            .fetch_optional(pool.get_ref())
+                            .await
+                            .map_err(|_| error::ErrorInternalServerError("Error fetching organization name"))?
+                            .map(|row| row.name)
+                        } else {
+                            None
+                        };
+
+                        sqlx::query!(
+                            "UPDATE users SET organization_id = $1 WHERE username = $2",
+                            new_org_id,
+                            username
+                        )
+                        .execute(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("Error updating organization"))?;
+
+                        let user_row = sqlx::query!(
+                            "SELECT id FROM users WHERE username = $1",
+                            username
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("User not found"))?;
+
+                        let message = if let Some(name) = org_name {
+                            format!("Ваша организация / отдел изменено на \"{}\".", name)
+                        } else {
+                            "Ваша организация изменена (организация не указана).".to_string()
+                        };
+
+                        let notif_req = CreateNotificationRequest {
+                            user_id: user_row.id,
+                            type_: "organization_change".to_string(),
+                            title: "Смена организации".to_string(),
+                            message,
+                            data: None,
+                        };
+                        create_notification(pool.get_ref(), notif_req).await?;
+
+                        Ok(HttpResponse::Ok().json("Organization updated successfully"))
+                    }
+                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
+                }
+            } else {
+                Err(error::ErrorUnauthorized("Invalid or missing token"))
+            }
+        } else {
+            Err(error::ErrorUnauthorized("Invalid or missing token"))
+        }
+    } else {
+        Err(error::ErrorUnauthorized("Missing Authorization header"))
+    }
+}
+
+pub async fn update_user_company(
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+    req: HttpRequest,
+    form: web::Json<UpdateCompanyRequest>,
+) -> Result<HttpResponse, Error> {
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                match decode_token(&token) {
+                    Ok(claims) => {
+                        let user = sqlx::query!(
+                            r#"SELECT ut.code as user_type 
+                               FROM users u
+                               JOIN user_types ut ON u.type_id = ut.id
+                               WHERE u.username = $1"#,
+                            claims.sub
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorUnauthorized("User not found"))?;
+
+                        if user.user_type != "manager" && user.user_type != "buropropuskov" {
+                            return Err(error::ErrorForbidden("Insufficient permissions"));
+                        }
+
+                        let username = path.into_inner();
+
+                        let new_company_id = form.company_id;
+                        let company_name = if let (comp_id) = new_company_id {
+                            sqlx::query!(
+                                "SELECT name FROM companies WHERE id = $1",
+                                comp_id
+                            )
+                            .fetch_optional(pool.get_ref())
+                            .await
+                            .map_err(|_| error::ErrorInternalServerError("Error fetching company name"))?
+                            .map(|row| row.name)
+                        } else {
+                            None
+                        };
+
+                        sqlx::query!(
+                            "UPDATE users SET company_id = $1 WHERE username = $2",
+                            new_company_id,
+                            username
+                        )
+                        .execute(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("Error updating company"))?;
+
+                        let user_row = sqlx::query!(
+                            "SELECT id FROM users WHERE username = $1",
+                            username
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("User not found"))?;
+
+                        let message = if let Some(name) = company_name {
+                            format!("Ваша компания изменена на \"{}\".", name)
+                        } else {
+                            "Ваша компания изменена (компания не указана).".to_string()
+                        };
+
+                        let notif_req = CreateNotificationRequest {
+                            user_id: user_row.id,
+                            type_: "company_change".to_string(),
+                            title: "Смена компании".to_string(),
+                            message,
+                            data: None,
+                        };
+                        create_notification(pool.get_ref(), notif_req).await?;
+
+                        Ok(HttpResponse::Ok().json("Company updated successfully"))
+                    }
+                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
+                }
+            } else {
+                Err(error::ErrorUnauthorized("Invalid or missing token"))
+            }
+        } else {
+            Err(error::ErrorUnauthorized("Invalid or missing token"))
+        }
+    } else {
+        Err(error::ErrorUnauthorized("Missing Authorization header"))
+    }
+}
+
 pub async fn get_all_users(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, Error> {
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
@@ -146,7 +350,6 @@ pub async fn get_all_users(pool: web::Data<PgPool>, req: HttpRequest) -> Result<
     }
 }
 
-/// Обновление пароля
 pub async fn update_user_password(
     pool: web::Data<PgPool>,
     path: web::Path<String>,
@@ -185,6 +388,23 @@ pub async fn update_user_password(
                         .await
                         .map_err(|_| error::ErrorInternalServerError("Error updating password"))?;
 
+                        let user_row = sqlx::query!(
+                            "SELECT id FROM users WHERE username = $1",
+                            username
+                        )
+                        .fetch_one(pool.get_ref())
+                        .await
+                        .map_err(|_| error::ErrorInternalServerError("User not found"))?;
+
+                        let notif_req = CreateNotificationRequest {
+                            user_id: user_row.id,
+                            type_: "password_change".to_string(),
+                            title: "Изменение пароля".to_string(),
+                            message: "Ваш пароль от учётной записи был изменён.".to_string(),
+                            data: None,
+                        };
+                        create_notification(pool.get_ref(), notif_req).await?;
+
                         Ok(HttpResponse::Ok().json("Password updated successfully"))
                     }
                     Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
@@ -200,113 +420,6 @@ pub async fn update_user_password(
     }
 }
 
-/// Обновление организации
-pub async fn update_user_organization(
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-    req: HttpRequest,
-    form: web::Json<UpdateOrganizationRequest>,
-) -> Result<HttpResponse, Error> {
-    if let Some(auth_header) = req.headers().get("Authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                match decode_token(&token) {
-                    Ok(claims) => {
-                        let user = sqlx::query!(
-                            r#"SELECT ut.code as user_type 
-                               FROM users u
-                               JOIN user_types ut ON u.type_id = ut.id
-                               WHERE u.username = $1"#,
-                            claims.sub
-                        )
-                        .fetch_one(pool.get_ref())
-                        .await
-                        .map_err(|_| error::ErrorUnauthorized("User not found"))?;
-
-                        if user.user_type != "manager" && user.user_type != "buropropuskov" {
-                            return Err(error::ErrorForbidden("Insufficient permissions"));
-                        }
-
-                        let username = path.into_inner();
-
-                        sqlx::query!(
-                            "UPDATE users SET organization_id = $1 WHERE username = $2",
-                            form.organization_id,
-                            username
-                        )
-                        .execute(pool.get_ref())
-                        .await
-                        .map_err(|_| error::ErrorInternalServerError("Error updating organization"))?;
-
-                        Ok(HttpResponse::Ok().json("Organization updated successfully"))
-                    }
-                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
-                }
-            } else {
-                Err(error::ErrorUnauthorized("Invalid or missing token"))
-            }
-        } else {
-            Err(error::ErrorUnauthorized("Invalid or missing token"))
-        }
-    } else {
-        Err(error::ErrorUnauthorized("Missing Authorization header"))
-    }
-}
-
-/// Обновление компании
-pub async fn update_user_company(
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-    req: HttpRequest,
-    form: web::Json<UpdateCompanyRequest>,
-) -> Result<HttpResponse, Error> {
-    if let Some(auth_header) = req.headers().get("Authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                match decode_token(&token) {
-                    Ok(claims) => {
-                        let user = sqlx::query!(
-                            r#"SELECT ut.code as user_type 
-                               FROM users u
-                               JOIN user_types ut ON u.type_id = ut.id
-                               WHERE u.username = $1"#,
-                            claims.sub
-                        )
-                        .fetch_one(pool.get_ref())
-                        .await
-                        .map_err(|_| error::ErrorUnauthorized("User not found"))?;
-
-                        if user.user_type != "manager" && user.user_type != "buropropuskov" {
-                            return Err(error::ErrorForbidden("Insufficient permissions"));
-                        }
-
-                        let username = path.into_inner();
-
-                        sqlx::query!(
-                            "UPDATE users SET company_id = $1 WHERE username = $2",
-                            form.company_id,
-                            username
-                        )
-                        .execute(pool.get_ref())
-                        .await
-                        .map_err(|_| error::ErrorInternalServerError("Error updating company"))?;
-
-                        Ok(HttpResponse::Ok().json("Company updated successfully"))
-                    }
-                    Err(_) => Err(error::ErrorUnauthorized("Invalid or missing token")),
-                }
-            } else {
-                Err(error::ErrorUnauthorized("Invalid or missing token"))
-            }
-        } else {
-            Err(error::ErrorUnauthorized("Invalid or missing token"))
-        }
-    } else {
-        Err(error::ErrorUnauthorized("Missing Authorization header"))
-    }
-}
-
-/// Обновление общей информации
 pub async fn update_user_info(
     pool: web::Data<PgPool>,
     path: web::Path<String>,
@@ -371,7 +484,6 @@ pub async fn update_user_info(
     }
 }
 
-/// Удаление пользователя
 pub async fn delete_user(pool: web::Data<PgPool>, path: web::Path<String>, req: HttpRequest) -> Result<HttpResponse, Error> {
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
@@ -421,8 +533,6 @@ pub async fn delete_user(pool: web::Data<PgPool>, path: web::Path<String>, req: 
     }
 }
 
-/// Получение данных текущего пользователя
-/// Получение данных текущего пользователя
 pub async fn get_this_user(
     pool: web::Data<PgPool>,
     req: HttpRequest,

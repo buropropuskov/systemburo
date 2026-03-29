@@ -38,7 +38,7 @@ export default {
     timeRemaining: {
       type: Number,
       required: true,
-      default: 30
+      default: 300 // 5 minutes in seconds
     }
   },
   computed: {
@@ -48,10 +48,28 @@ export default {
       return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     },
     progressStyle() {
-      const progress = (this.timeRemaining / 2000) * 100;
+      // Maximum time is 300 seconds (5 minutes)
+      const maxTime = 300;
+      const progress = Math.max(0, Math.min(100, (this.timeRemaining / maxTime) * 100));
+      
+      // Calculate color based on progress percentage
+      // Green (0% progress? Actually we want green at 100% time remaining, red at 0%)
+      // So we interpolate from green (0,255,0) at 100% to red (255,0,0) at 0%
+      const percent = progress / 100; // 1 = full time (green), 0 = no time (red)
+      
+      // RGB interpolation
+      // Start: RGB(0, 255, 0) - Green
+      // End: RGB(255, 0, 0) - Red
+      const red = Math.floor(255 * (1 - percent));
+      const green = Math.floor(255 * percent);
+      const blue = 0;
+      
+      const color = `rgb(${red}, ${green}, ${blue})`;
+      
       return {
         width: `${progress}%`,
-        backgroundColor: progress > 50 ? '#4F5BDF' : progress > 20 ? '#FF9800' : '#f44336'
+        backgroundColor: color,
+        backgroundImage: `linear-gradient(90deg, ${color}, ${color})`
       };
     }
   },
@@ -144,7 +162,7 @@ export default {
 .countdown-progress {
   height: 100%;
   border-radius: 10px;
-  transition: width 1s linear, background-color 1s ease;
+  transition: width 1s linear, background-color 0.3s ease;
 }
 
 .modal-message {

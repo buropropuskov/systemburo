@@ -208,7 +208,7 @@ export default {
 }
 
 .select-text {
-    font-size: 13px;
+    font-size: 14px;
     color: #000;
     flex: 1;
     /* Обрезаем текст с многоточием в основном поле */

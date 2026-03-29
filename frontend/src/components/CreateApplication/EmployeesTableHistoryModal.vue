@@ -1,0 +1,1019 @@
+<template>
+  <div class="modal-overlay" @click.self="close">
+    <div class="employees-history-modal">
+      <div class="modal-header">
+        <h3>История проходов сотрудников (таблица)</h3>
+        <div class="header-actions">
+          <button class="export-btn" @click="exportToExcel" :disabled="filteredHistory.length === 0 || isExporting">
+            <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
+            <span v-if="!isExporting">Экспорт</span>
+            <div v-else class="export-loader"></div>
+          </button>
+          <button class="close-btn" @click="close">×</button>
+        </div>
+      </div>
+
+      <div class="history-filters">
+        <div class="filter-row">
+          <div class="search-filter">
+            <span class="filter-label">Поиск:</span>
+            <input 
+              type="text" 
+              v-model="searchQuery" 
+              class="search-input" 
+              placeholder="Поиск по сотруднику, пользователю..."
+              @input="applyFilters"
+            />
+          </div>
+          <div class="user-filter">
+            <span class="filter-label">Пользователь:</span>
+            <div class="custom-select" @click="toggleUserDropdown">
+              <div class="select-trigger">
+                <span class="selected-value">{{ selectedUserName }}</span>
+                <img 
+                  src="@/assets/icons/arrow.png" 
+                  class="select-arrow" 
+                  :class="{ 'arrow-open': userDropdownOpen }"
+                />
+              </div>
+              <transition name="fade">
+                <div v-if="userDropdownOpen" class="select-dropdown">
+                  <div 
+                    class="select-option"
+                    :class="{ 'selected': selectedUserId === null }"
+                    @click="selectUser(null)"
+                  >
+                    Все пользователи
+                  </div>
+                  <div 
+                    v-for="user in uniqueUsers" 
+                    :key="user.id"
+                    class="select-option"
+                    :class="{ 'selected': selectedUserId === user.id }"
+                    @click="selectUser(user.id)"
+                  >
+                    {{ user.name }}
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+          
+          <div class="employee-filter">
+            <span class="filter-label">Сотрудник:</span>
+            <div class="custom-select" @click="toggleEmployeeDropdown">
+              <div class="select-trigger">
+                <span class="selected-value">{{ selectedEmployeeName }}</span>
+                <img 
+                  src="@/assets/icons/arrow.png" 
+                  class="select-arrow" 
+                  :class="{ 'arrow-open': employeeDropdownOpen }"
+                />
+              </div>
+              <transition name="fade">
+                <div v-if="employeeDropdownOpen" class="select-dropdown">
+                  <div 
+                    class="select-option"
+                    :class="{ 'selected': selectedEmployeeId === null }"
+                    @click="selectEmployee(null)"
+                  >
+                    Все сотрудники
+                  </div>
+                  <div 
+                    v-for="emp in uniqueEmployees" 
+                    :key="emp.id"
+                    class="select-option"
+                    :class="{ 'selected': selectedEmployeeId === emp.id }"
+                    @click="selectEmployee(emp.id)"
+                  >
+                    {{ emp.name }}
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+          
+          <div class="date-filter">
+            <span class="filter-label">Период:</span>
+            <input 
+              type="date" 
+              v-model="dateFrom" 
+              class="date-input"
+              @change="applyFilters"
+            />
+            <span class="date-separator">—</span>
+            <input 
+              type="date" 
+              v-model="dateTo" 
+              class="date-input"
+              @change="applyFilters"
+            />
+          </div>
+          
+          <div class="sort-filter">
+            <span class="filter-label">Сортировка:</span>
+            <button class="sort-btn" @click="toggleSortOrder">
+              <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sort-asc': sortOrder === 'asc' }" />
+              <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-content" ref="scrollContainer">
+        <div v-if="loading" class="history-loading">
+          <div class="loader"></div>
+        </div>
+        
+        <div v-else-if="filteredHistory.length === 0" class="history-empty">
+          История пуста
+        </div>
+        
+        <div v-else class="history-timeline">
+          <div 
+            v-for="(item, index) in filteredHistory" 
+            :key="item.id" 
+            class="history-item"
+          >
+            <div class="timeline-dot" :class="getActionClass(item.action_type)"></div>
+            <div class="timeline-line" v-if="index < filteredHistory.length - 1"></div>
+            
+            <div class="history-content">
+              <div class="history-header">
+                <span class="employee-info">{{ getEmployeeName(item) }}</span>
+                <span v-if="item.table_name" class="table-name">{{ item.table_name }}</span>
+                <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+              </div>
+              
+              <div class="action-text">{{ getActionText(item) }}</div>
+              
+              <div class="action-comment">
+                {{ item.comment || getActionComment(item) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import ExcelJS from 'exceljs';
+
+export default {
+  name: 'EmployeesTableHistoryModal',
+  props: {
+    tableId: {
+      type: Number,
+      required: true
+    },
+    currentUserId: {
+      type: Number,
+      default: null
+    },
+    currentUserName: {
+      type: String,
+      default: ''
+    }
+  },
+  data() {
+    return {
+      loading: false,
+      history: [],
+      sortOrder: 'desc',
+      searchQuery: '',
+      selectedUserId: null,
+      selectedEmployeeId: null,
+      dateFrom: '',
+      dateTo: '',
+      userDropdownOpen: false,
+      employeeDropdownOpen: false,
+      isExporting: false
+    };
+  },
+  computed: {
+    uniqueUsers() {
+      const users = new Map();
+      this.history.forEach(item => {
+        if (item.user_id && !users.has(item.user_id)) {
+          users.set(item.user_id, {
+            id: item.user_id,
+            name: item.user_name || 'Система'
+          });
+        }
+      });
+      return Array.from(users.values()).sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    uniqueEmployees() {
+      const emps = new Map();
+      this.history.forEach(item => {
+        if (item.employee_id && !emps.has(item.employee_id)) {
+          const fullName = [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ');
+          emps.set(item.employee_id, {
+            id: item.employee_id,
+            name: fullName || `ID: ${item.employee_id}`
+          });
+        }
+      });
+      return Array.from(emps.values()).sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    selectedUserName() {
+      if (this.selectedUserId === null) return 'Все пользователи';
+      const user = this.uniqueUsers.find(u => u.id === this.selectedUserId);
+      return user ? user.name : 'Все пользователи';
+    },
+
+    selectedEmployeeName() {
+      if (this.selectedEmployeeId === null) return 'Все сотрудники';
+      const emp = this.uniqueEmployees.find(e => e.id === this.selectedEmployeeId);
+      return emp ? emp.name : 'Все сотрудники';
+    },
+
+    filteredHistory() {
+      let filtered = [...this.history];
+      
+      if (this.searchQuery && this.searchQuery.trim() !== '') {
+        const query = this.searchQuery.toLowerCase().trim();
+        filtered = filtered.filter(item => {
+          const employeeName = this.getEmployeeName(item).toLowerCase();
+          const userName = (item.user_name || '').toLowerCase();
+          const actionText = this.getActionText(item).toLowerCase();
+          const comment = (item.comment || '').toLowerCase();
+          
+          return employeeName.includes(query) || 
+                 userName.includes(query) || 
+                 actionText.includes(query) || 
+                 comment.includes(query);
+        });
+      }
+      
+      if (this.selectedUserId) {
+        filtered = filtered.filter(item => item.user_id === this.selectedUserId);
+      }
+      
+      if (this.selectedEmployeeId) {
+        filtered = filtered.filter(item => item.employee_id === this.selectedEmployeeId);
+      }
+      
+      if (this.dateFrom) {
+        const fromDate = new Date(this.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filtered = filtered.filter(item => new Date(item.created_at) >= fromDate);
+      }
+      
+      if (this.dateTo) {
+        const toDate = new Date(this.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(item => new Date(item.created_at) <= toDate);
+      }
+      
+      return filtered.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+      });
+    },
+
+    exportData() {
+      return this.filteredHistory.map(item => ({
+        'Дата и время': this.formatDateTime(item.created_at),
+        'Сотрудник': this.getEmployeeName(item),
+        'Пользователь': item.user_name || 'Система',
+        'Действие': this.getActionText(item),
+        'Комментарий': item.comment || this.getActionComment(item),
+        'Место': item.table_name || ''
+      }));
+    },
+
+    formattedCurrentDateTime() {
+      const now = new Date();
+      return now.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(',', '');
+    },
+
+    currentUserDisplayName() {
+      if (!this.currentUserName) return 'Пользователь';
+      const parts = this.currentUserName.split(' ').filter(part => part && part !== 'null' && part !== 'undefined');
+      return parts.length > 0 ? parts.join(' ') : 'Пользователь';
+    }
+  },
+  methods: {
+    async loadHistory() {
+      this.loading = true;
+      try {
+        const token = localStorage.getItem("token");
+        const url = `http://localhost:8080/employees/history/table/${this.tableId}`;
+        console.log('Loading table history from:', url);
+        const response = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          this.history = data;
+          console.log('Table history loaded:', this.history);
+        } else {
+          console.error('Ошибка загрузки истории таблицы:', response.status);
+        }
+      } catch (error) {
+        console.error("Error loading table history:", error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    getEmployeeName(item) {
+      return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ') || `ID: ${item.employee_id}`;
+    },
+
+    getActionClass(actionType) {
+      return actionType === 'entry' ? 'dot-entry' : 'dot-exit';
+    },
+
+    getActionText(item) {
+      if (item.action_type === 'entry') {
+        return 'Проход на территорию';
+      } else if (item.action_type === 'exit') {
+        return 'Выход с территории';
+      }
+      return item.action_type;
+    },
+
+    getActionComment(item) {
+      const fullName = this.getEmployeeName(item);
+      const userName = item.user_name || 'Система';
+      if (item.action_type === 'entry') {
+        return `Пользователь ${userName} отметил проход сотрудника ${fullName} на территорию`;
+      } else if (item.action_type === 'exit') {
+        return `Пользователь ${userName} отметил выход сотрудника ${fullName} с территории`;
+      }
+      return item.comment || '';
+    },
+
+    formatDateTime(dateTimeString) {
+      if (!dateTimeString) return '';
+      const date = new Date(dateTimeString);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(',', '');
+    },
+
+    toggleSortOrder() {
+      this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+    },
+
+    toggleUserDropdown() {
+      this.userDropdownOpen = !this.userDropdownOpen;
+      this.employeeDropdownOpen = false;
+    },
+
+    toggleEmployeeDropdown() {
+      this.employeeDropdownOpen = !this.employeeDropdownOpen;
+      this.userDropdownOpen = false;
+    },
+
+    selectUser(userId) {
+      this.selectedUserId = userId;
+      this.userDropdownOpen = false;
+    },
+
+    selectEmployee(employeeId) {
+      this.selectedEmployeeId = employeeId;
+      this.employeeDropdownOpen = false;
+    },
+
+    applyFilters() {},
+
+    handleClickOutside(event) {
+      const selects = this.$el.querySelectorAll('.custom-select');
+      let clickedInside = false;
+      selects.forEach(select => {
+        if (select.contains(event.target)) clickedInside = true;
+      });
+      
+      if (!clickedInside) {
+        this.userDropdownOpen = false;
+        this.employeeDropdownOpen = false;
+      }
+    },
+
+    async exportToExcel() {
+      if (this.filteredHistory.length === 0) return;
+      
+      this.isExporting = true;
+      
+      try {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Istoriya_prokhodov');
+        
+        const headers = [
+          'Дата и время',
+          'Сотрудник',
+          'Пользователь',
+          'Действие',
+          'Комментарий',
+          'Место'
+        ];
+        
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 25;
+        headerRow.eachCell((cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4F5BDF' }
+          };
+          cell.font = {
+            name: 'Verdana',
+            size: 11,
+            bold: true,
+            color: { argb: 'FFFFFFFF' }
+          };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+          };
+        });
+        
+        this.exportData.forEach((item, index) => {
+          const row = worksheet.addRow([
+            item['Дата и время'],
+            item['Сотрудник'],
+            item['Пользователь'],
+            item['Действие'],
+            item['Комментарий'],
+            item['Место']
+          ]);
+          
+          row.height = 20;
+          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+          
+          row.eachCell((cell) => {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: fillColor }
+            };
+            cell.font = {
+              name: 'Verdana',
+              size: 9,
+              color: { argb: 'FF333333' }
+            };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+            };
+          });
+        });
+        
+        const lastDataRow = this.exportData.length;
+        
+        for (let row = 1; row <= lastDataRow + 1; row++) {
+          const rightCell = worksheet.getCell(row, 6);
+          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
+          const leftCell = worksheet.getCell(row, 1);
+          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        
+        for (let col = 1; col <= 6; col++) {
+          const topCell = worksheet.getCell(1, col);
+          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        
+        for (let col = 1; col <= 6; col++) {
+          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
+          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        
+        worksheet.addRow([]);
+        
+        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
+        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
+        
+        [infoRow1, infoRow2].forEach(row => {
+          row.eachCell((cell) => {
+            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+            };
+          });
+        });
+        
+        worksheet.columns = [
+          { width: 25 },
+          { width: 40 },
+          { width: 40 },
+          { width: 30 },
+          { width: 60 },
+          { width: 30 }
+        ];
+        
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        
+        a.download = `Istoriya_prokhodov_tabl_${this.tableId}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
+        a.href = url;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+      } catch (error) {
+        console.error('Error exporting to Excel:', error);
+        alert('Ошибка при экспорте в Excel');
+      } finally {
+        this.isExporting = false;
+      }
+    },
+
+    close() {
+      this.$emit('close');
+    }
+  },
+  mounted() {
+    this.loadHistory();
+    document.addEventListener('click', this.handleClickOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
+  }
+};
+</script>
+
+<style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 13000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.employees-history-modal {
+  background: white;
+  border-radius: 30px;
+  width: 900px;
+  max-width: 95%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  border-bottom: 1px solid #e6e6e6;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 32px;
+}
+
+.export-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.export-loader {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e6e6e6;
+  border-top: 2px solid #4F5BDF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #a2a2a2;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.history-filters {
+  padding: 15px 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background-color: #fafafa;
+  flex-shrink: 0;
+}
+
+.filter-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-filter,
+.user-filter,
+.employee-filter,
+.date-filter,
+.sort-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 12px;
+  color: #a2a2a2;
+  white-space: nowrap;
+}
+
+.search-input {
+  padding: 6px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 12px;
+  width: 200px;
+  height: 32px;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+.custom-select {
+  position: relative;
+  width: 200px;
+  cursor: pointer;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  height: 32px;
+}
+
+.select-trigger:hover {
+  border-color: #4F5BDF;
+  background: #f5f5f5;
+}
+
+.selected-value {
+  font-size: 12px;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.select-arrow {
+  width: 8px;
+  height: 8px;
+  transition: transform 0.2s ease;
+}
+
+.select-arrow.arrow-open {
+  transform: rotate(90deg);
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.select-dropdown::-webkit-scrollbar {
+  width: 0px;
+}
+
+.select-option {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.select-option:last-child {
+  border-bottom: none;
+}
+
+.select-option:hover {
+  background-color: #f5f5f5;
+}
+
+.select-option.selected {
+  background-color: #f0f3ff;
+  font-weight: 500;
+}
+
+.date-input {
+  padding: 6px 8px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 12px;
+  width: 120px;
+  height: 32px;
+}
+
+.date-separator {
+  color: #a2a2a2;
+  font-size: 12px;
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 32px;
+  width: 150px;
+}
+
+.sort-btn:hover {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
+.sort-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.sort-icon.sort-asc {
+  transform: rotate(180deg);
+}
+
+.modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.history-loading,
+.history-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #a2a2a2;
+}
+
+.loader {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #4F5BDF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.history-timeline {
+  position: relative;
+  padding-left: 20px;
+}
+
+.history-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.history-item:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  z-index: 1;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 4px;
+  top: 18px;
+  width: 2px;
+  height: calc(100% + 2px);
+  background: #e6e6e6;
+}
+
+.dot-entry { background: #059669; }
+.dot-exit { background: #dc2626; }
+
+.history-content {
+  flex: 1;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.employee-info {
+  font-weight: 600;
+  color: #4F5BDF;
+  font-size: 13px;
+}
+
+.table-name {
+  font-weight: 500;
+  color: #8b5cf6;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 13px;
+}
+
+.action-time {
+  color: #a2a2a2;
+  font-size: 11px;
+}
+
+.action-text {
+  color: #666;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.action-comment {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid #e6e6e6;
+}
+
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .search-filter,
+  .user-filter,
+  .employee-filter,
+  .date-filter,
+  .sort-filter {
+    width: 100%;
+  }
+  
+  .custom-select,
+  .search-input,
+  .date-input,
+  .sort-btn {
+    width: 100%;
+  }
+  
+  .date-input {
+    width: calc(50% - 20px);
+  }
+}
+</style>

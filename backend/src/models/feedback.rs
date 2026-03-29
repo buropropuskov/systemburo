@@ -1,6 +1,5 @@
-// models/feedback.rs
 use serde::{Serialize, Deserialize};
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Feedback {
@@ -9,8 +8,10 @@ pub struct Feedback {
     pub message: String,
     pub status: String,
     pub is_read: bool,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub resolution_comment: Option<String>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,8 +22,10 @@ pub struct FeedbackWithUser {
     pub message: String,
     pub status: String,
     pub is_read: bool,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub resolution_comment: Option<String>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,6 +36,7 @@ pub struct CreateFeedbackRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateFeedbackStatusRequest {
     pub status: String,
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,6 +59,8 @@ pub struct MyFeedback {
     pub message: String,
     pub status: String,
     pub is_read: bool,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub resolution_comment: Option<String>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }

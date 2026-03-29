@@ -1,8 +1,6 @@
 <template>
   <div class="account-dashboard">
-    <!-- Первая строка: заголовок и заявки -->
     <div class="first-row">
-      <!-- Заголовок с информацией о пользователе -->
       <UserProfileHeader
         :organization="organization"
         :company="company"
@@ -17,11 +15,10 @@
         class="dashboard-card-animated"
       />
 
-      <UserNotifications />
+      <UserNotifications :userId="userId" />
     </div>
     
     <div class="dashboard-row">
-      <!-- Блок заявок -->
       <div class="applications-wrapper">
         <UserApplications 
           :user-organization-id="userOrganizationId"
@@ -34,12 +31,10 @@
       </div>
     </div>
     
-    <!-- Настройки системы -->
     <div class="settings">
       <AccountSettings v-if="isBuroPropuskov" />
     </div>
 
-    <!-- Вторая строка: управление пользователями (если доступно) -->
     <div class="dashboard-row" id="users" v-if="isBuroPropuskov">
       <UserControl 
         :allUsers="allUsers"
@@ -49,7 +44,6 @@
       />
     </div>
 
-    <!-- Третья строка: управление организациями (если доступно) -->
     <div class="dashboard-row" id="organizations" v-if="isBuroPropuskov">
       <OrganizationsManagement class="dashboard-card dashboard-card-animated"/>
     </div>
@@ -77,8 +71,6 @@
     <div class="dashboard-row" id="approvers" v-if="isBuroPropuskov">
       <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
     </div>
-
-    
   </div>
 </template>
 
@@ -127,7 +119,6 @@ export default {
       userOrganizationId: null,
       userCompanyId: null,
       
-      // Поля пользователя
       lastName: "",
       firstName: "",
       middleName: "",
@@ -177,7 +168,6 @@ export default {
       this.userOrganizationId = userData.organization_id || null;
       this.userCompanyId = userData.company_id || null;
       
-      // Дополнительные поля
       this.lastName = userData.last_name || "";
       this.firstName = userData.first_name || "";
       this.middleName = userData.middle_name || "";
@@ -186,7 +176,7 @@ export default {
       this.phone = userData.phone || "";
 
       console.log("userCompanyId set to:", this.userCompanyId);
-    console.log("userOrganizationId set to:", this.userOrganizationId);
+      console.log("userOrganizationId set to:", this.userOrganizationId);
     },
     async fetchAllUsers() {
       try {
@@ -242,7 +232,6 @@ export default {
   position: relative;
 }
 
-/* Стили для строк */
 .first-row {
   display: flex;
   gap: 15px;
@@ -257,7 +246,6 @@ export default {
   position: relative;
 }
 
-/* Стили для карточек */
 .dashboard-card {
   background: white;
   border-radius: 30px;
@@ -269,7 +257,7 @@ export default {
   opacity: 0;
   transform: translateY(20px);
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
 .dashboard-card h3 {
@@ -288,7 +276,6 @@ export default {
   margin-bottom: 35px;
 }
 
-/* Анимации */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -300,7 +287,6 @@ export default {
   }
 }
 
-/* Адаптивность */
 @media (max-width: 1200px) {
   .first-row {
     flex-direction: column;

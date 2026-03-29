@@ -1,16 +1,13 @@
-// handlers/feedback.rs
 use actix_web::{web, HttpResponse, HttpRequest, Error, error};
 use sqlx::PgPool;
 use log;
-use chrono::{Utc, NaiveDateTime};
+use chrono::{Utc, DateTime};
 
 use crate::models::feedback::*;
-use crate::models::feedback::FeedbackWithUser;
-
 use crate::auth::decode_token;
+use crate::handlers::notifications::{create_notification};
+use crate::models::notifications::CreateNotificationRequest;
 
-/// Создание нового обращения
-/// Создание нового обращения
 pub async fn create_feedback(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -21,7 +18,6 @@ pub async fn create_feedback(
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 match decode_token(&token) {
                     Ok(claims) => {
-                        // Получаем ID пользователя
                         let user_record = sqlx::query!(
                             r#"SELECT id FROM users WHERE username = $1"#,
                             claims.sub
@@ -38,17 +34,14 @@ pub async fn create_feedback(
                             None => return Err(error::ErrorUnauthorized("User not found")),
                         };
 
-                        // Проверяем минимальную длину сообщения
                         if feedback_data.message.trim().len() < 10 {
                             return Err(error::ErrorBadRequest("Message must be at least 10 characters"));
                         }
-
-                        // Проверяем максимальную длину сообщения
                         if feedback_data.message.len() > 1000 {
                             return Err(error::ErrorBadRequest("Message cannot exceed 1000 characters"));
                         }
 
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
 
                         let feedback_record = sqlx::query!(
                             r#"
@@ -58,8 +51,8 @@ pub async fn create_feedback(
                             "#,
                             user_id,
                             feedback_data.message.trim(),
-                            "Нерешено",
-                            false, // is_read = false по умолчанию
+                            "Не решено",
+                            false,
                             now,
                             now
                         )
@@ -88,8 +81,6 @@ pub async fn create_feedback(
     }
 }
 
-/// Получение всех обращений (для администраторов)
-/// Получение всех обращений (для администраторов)
 pub async fn get_all_feedback(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -99,7 +90,6 @@ pub async fn get_all_feedback(
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 match decode_token(&token) {
                     Ok(claims) => {
-                        // Проверяем права администратора
                         let user = sqlx::query!(
                             r#"SELECT ut.code as user_type 
                                FROM users u
@@ -124,6 +114,8 @@ pub async fn get_all_feedback(
                                 f.message,
                                 f.status,
                                 f.is_read,
+                                f.resolution_comment,
+                                f.resolved_at,
                                 f.created_at,
                                 f.updated_at
                             FROM feedback f
@@ -147,6 +139,8 @@ pub async fn get_all_feedback(
                                 message: record.message,
                                 status: record.status,
                                 is_read: record.is_read,
+                                resolution_comment: record.resolution_comment,
+                                resolved_at: record.resolved_at,
                                 created_at: record.created_at,
                                 updated_at: record.updated_at,
                             })
@@ -167,8 +161,6 @@ pub async fn get_all_feedback(
     }
 }
 
-/// Получение статистики по обращениям
-/// Получение статистики по обращениям
 pub async fn get_feedback_stats(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -178,7 +170,6 @@ pub async fn get_feedback_stats(
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 match decode_token(&token) {
                     Ok(claims) => {
-                        // Проверяем права администратора
                         let user = sqlx::query!(
                             r#"SELECT ut.code as user_type 
                                FROM users u
@@ -199,7 +190,7 @@ pub async fn get_feedback_stats(
                             SELECT 
                                 COUNT(*) as total,
                                 COUNT(CASE WHEN status = 'Решено' THEN 1 END) as resolved,
-                                COUNT(CASE WHEN status = 'Нерешено' THEN 1 END) as unresolved,
+                                COUNT(CASE WHEN status = 'Не решено' THEN 1 END) as unresolved,
                                 COUNT(CASE WHEN is_read = false THEN 1 END) as unread
                             FROM feedback
                             "#
@@ -232,7 +223,7 @@ pub async fn get_feedback_stats(
         Err(error::ErrorUnauthorized("Missing Authorization header"))
     }
 }
-/// Обновление статуса обращения
+
 pub async fn update_feedback_status(
     pool: web::Data<PgPool>,
     path: web::Path<i32>,
@@ -244,7 +235,6 @@ pub async fn update_feedback_status(
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 match decode_token(&token) {
                     Ok(claims) => {
-                        // Проверяем права администратора
                         let user = sqlx::query!(
                             r#"SELECT ut.code as user_type 
                                FROM users u
@@ -261,9 +251,8 @@ pub async fn update_feedback_status(
                         }
 
                         let feedback_id = path.into_inner();
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
 
-                        // Проверяем существование обращения
                         let existing_feedback = sqlx::query!(
                             "SELECT id FROM feedback WHERE id = $1",
                             feedback_id
@@ -276,27 +265,88 @@ pub async fn update_feedback_status(
                             return Err(error::ErrorNotFound("Feedback not found"));
                         }
 
-                        // Проверяем допустимость статуса
-                        if status_data.status != "Решено" && status_data.status != "Нерешено" {
-                            return Err(error::ErrorBadRequest("Invalid status. Must be 'Решено' or 'Нерешено'"));
+                        if status_data.status != "Решено" && status_data.status != "Не решено" {
+                            return Err(error::ErrorBadRequest("Invalid status. Must be 'Решено' or 'Не решено'"));
                         }
 
-                        sqlx::query!(
-                            r#"
-                            UPDATE feedback 
-                            SET status = $1, updated_at = $2 
-                            WHERE id = $3
-                            "#,
-                            status_data.status,
-                            now,
-                            feedback_id
-                        )
-                        .execute(pool.get_ref())
-                        .await
-                        .map_err(|e| {
-                            log::error!("Failed to update feedback status: {}", e);
-                            error::ErrorInternalServerError("Error updating feedback status")
-                        })?;
+                        if status_data.status == "Решено" {
+    // Преобразуем пустой комментарий в None
+    let comment = if status_data.comment.as_deref().map(|s| s.trim()).unwrap_or("") == "" {
+        None
+    } else {
+        status_data.comment.clone()
+    };
+
+    sqlx::query!(
+        r#"
+        UPDATE feedback 
+        SET status = $1, 
+            resolution_comment = $2, 
+            resolved_at = $3,
+            updated_at = $4
+        WHERE id = $5
+        "#,
+        status_data.status,
+        comment.as_deref(),
+        now,
+        now,
+        feedback_id
+    )
+    .execute(pool.get_ref())
+    .await
+    .map_err(|e| {
+        log::error!("Failed to update feedback status: {}", e);
+        error::ErrorInternalServerError("Error updating feedback status")
+    })?;
+
+    // Получаем user_id для уведомления
+    let feedback = sqlx::query!(
+        "SELECT user_id FROM feedback WHERE id = $1",
+        feedback_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|_| error::ErrorInternalServerError("Feedback not found"))?;
+
+    // Формируем сообщение уведомления
+    let mut message = format!("Ваше обращение #{} было рассмотрено и решено.", feedback_id);
+    if let Some(ref comm) = comment {
+        if !comm.trim().is_empty() {
+            message.push_str(&format!(" Комментарий: {}", comm));
+        }
+    }
+
+    let notif_req = CreateNotificationRequest {
+        user_id: feedback.user_id,
+        type_: "feedback_resolved".to_string(),
+        title: "Проблема решена".to_string(),
+        message,
+        data: Some(serde_json::json!({
+            "feedback_id": feedback_id
+        })),
+    };
+    create_notification(pool.get_ref(), notif_req).await?;
+} else {
+                            sqlx::query!(
+                                r#"
+                                UPDATE feedback 
+                                SET status = $1, 
+                                    resolution_comment = NULL, 
+                                    resolved_at = NULL,
+                                    updated_at = $2
+                                WHERE id = $3
+                                "#,
+                                status_data.status,
+                                now,
+                                feedback_id
+                            )
+                            .execute(pool.get_ref())
+                            .await
+                            .map_err(|e| {
+                                log::error!("Failed to update feedback status: {}", e);
+                                error::ErrorInternalServerError("Error updating feedback status")
+                            })?;
+                        }
 
                         Ok(HttpResponse::Ok().json("Статус обращения успешно обновлен"))
                     }
@@ -313,8 +363,6 @@ pub async fn update_feedback_status(
     }
 }
 
-/// Получение обращений текущего пользователя
-/// Получение обращений текущего пользователя
 pub async fn get_my_feedback(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -324,7 +372,6 @@ pub async fn get_my_feedback(
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 match decode_token(&token) {
                     Ok(claims) => {
-                        // Получаем ID пользователя
                         let user_record = sqlx::query!(
                             r#"SELECT id FROM users WHERE username = $1"#,
                             claims.sub
@@ -349,6 +396,8 @@ pub async fn get_my_feedback(
                                 message,
                                 status,
                                 is_read,
+                                resolution_comment,
+                                resolved_at,
                                 created_at,
                                 updated_at
                             FROM feedback
@@ -372,6 +421,8 @@ pub async fn get_my_feedback(
                                 message: record.message,
                                 status: record.status,
                                 is_read: record.is_read,
+                                resolution_comment: record.resolution_comment,
+                                resolved_at: record.resolved_at,
                                 created_at: record.created_at,
                                 updated_at: record.updated_at,
                             })
@@ -392,7 +443,6 @@ pub async fn get_my_feedback(
     }
 }
 
-/// Отметить обращение как прочитанное/непрочитанное
 pub async fn mark_feedback_as_read(
     pool: web::Data<PgPool>,
     path: web::Path<i32>,
@@ -404,7 +454,6 @@ pub async fn mark_feedback_as_read(
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 match decode_token(&token) {
                     Ok(claims) => {
-                        // Проверяем права администратора
                         let user = sqlx::query!(
                             r#"SELECT ut.code as user_type 
                                FROM users u
@@ -421,9 +470,7 @@ pub async fn mark_feedback_as_read(
                         }
 
                         let feedback_id = path.into_inner();
-                        let now = Utc::now().naive_utc();
 
-                        // Обновляем только is_read, но не updated_at для read/unread
                         sqlx::query!(
                             r#"
                             UPDATE feedback 

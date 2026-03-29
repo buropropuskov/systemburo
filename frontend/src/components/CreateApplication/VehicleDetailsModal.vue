@@ -13,7 +13,7 @@
                             <button class="history-btn" @click="openCarHistory">
                                 <span>Полная история</span>
                             </button>
-                            <button class="application-btn" @click="openApplication">
+                            <button v-if="source !== 'application'" class="application-btn" @click="openApplication">
                                 <span>Открыть заявку</span>
                             </button>
                         </div>
@@ -155,6 +155,9 @@
                                                 <div class="action-comment">
                                                     {{ getActionComment(item) }}
                                                 </div>
+                                                <div v-if="item.table_name" class="place-name">
+                                                    {{ item.table_name }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -246,7 +249,7 @@ export default {
             default: null
         }
     },
-    emits: ['close'],
+    emits: ['close', 'open-application'], // добавлен emit
     data() {
         return {
             selectedUnloadPlace: null,
@@ -256,7 +259,10 @@ export default {
             history: [],          // полная история (все действия)
             loadingHistory: false,
             isExporting: false,
-            showCarHistoryModal: false
+            showCarHistoryModal: false,
+            // локальная копия статуса для отображения
+            entryChecked: false,
+            exitChecked: false
         }
     },
     computed: {
@@ -267,13 +273,13 @@ export default {
             return 'Детальная информация о Т/С';
         },
         getStatusClass() {
-            if (this.vehicle?.entry_checked && !this.vehicle?.exit_checked) return 'status-on-territory';
-            if (this.vehicle?.exit_checked) return 'status-exited';
+            if (this.entryChecked && !this.exitChecked) return 'status-on-territory';
+            if (this.exitChecked) return 'status-exited';
             return 'status-not-entered';
         },
         getStatusText() {
-            if (this.vehicle?.entry_checked && !this.vehicle?.exit_checked) return 'На территории';
-            if (this.vehicle?.exit_checked) return 'Выехал';
+            if (this.entryChecked && !this.exitChecked) return 'На территории';
+            if (this.exitChecked) return 'Выехал';
             return 'Не въезжал';
         },
         // Только события въезда/выезда
@@ -283,13 +289,15 @@ export default {
     },
     methods: {
         close() {
-            this.$emit('close');
-            this.closeUnloadPlaceDetails();
-            if (this.shiftTimer) {
-                clearTimeout(this.shiftTimer);
-                this.shiftTimer = null;
-            }
-        },
+    this.$emit('close');
+    this.closeUnloadPlaceDetails();
+    if (this.shiftTimer) {
+        clearTimeout(this.shiftTimer);
+        this.shiftTimer = null;
+    }
+    this.isMainShifted = false;
+    this.selectedUnloadPlace = null;
+},
 
         showUnloadPlaceDetails(placeId) {
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);
@@ -426,6 +434,7 @@ export default {
             return item.comment || '';
         },
 
+        // Загрузка истории (унифицированная)
         async loadCarHistory() {
             if (!this.vehicle?.id || !this.showCarFeatures) return;
             
@@ -443,6 +452,7 @@ export default {
                     url.searchParams.append('company_id', this.vehicle.companyId);
                 }
 
+                console.log('VehicleDetailsModal loading history from:', url.toString());
                 const response = await fetch(url, {
                     headers: {
                         "Authorization": `Bearer ${token}`,
@@ -451,12 +461,44 @@ export default {
                 
                 if (response.ok) {
                     const allHistory = await response.json();
-                    this.history = allHistory; // сохраняем всё, но показываем только entry/exit через computed
+                    this.history = allHistory; // сохраняем всё
+                    console.log('VehicleDetailsModal history loaded:', this.history);
+                } else {
+                    console.error('Failed to load car history, status:', response.status);
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
                 }
             } catch (error) {
                 console.error('Ошибка сети при загрузке истории:', error);
             } finally {
                 this.loadingHistory = false;
+            }
+        },
+
+        // Загрузка текущего статуса территории
+        async loadCarStatus() {
+            if (!this.vehicle?.id) return;
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch('http://localhost:8080/cars/history/current-status', {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const statuses = await response.json();
+                    const status = statuses.find(s => s.car_id === this.vehicle.id);
+                    if (status) {
+                        this.entryChecked = status.territory_status === 1;
+                        this.exitChecked = status.territory_status === 2;
+                        console.log('VehicleDetailsModal status loaded:', { entryChecked: this.entryChecked, exitChecked: this.exitChecked });
+                    } else {
+                        this.entryChecked = false;
+                        this.exitChecked = false;
+                    }
+                } else {
+                    console.error('Failed to load car status, status:', response.status);
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке статуса:', error);
             }
         },
 
@@ -474,7 +516,8 @@ export default {
                     'Дата и время',
                     'Пользователь',
                     'Действие',
-                    'Комментарий'
+                    'Комментарий',
+                    'Место'
                 ];
                 
                 const headerRow = worksheet.addRow(headers);
@@ -505,7 +548,8 @@ export default {
                         this.formatDateTime(item.created_at),
                         item.user_name || 'Система',
                         this.getActionText(item),
-                        this.getActionComment(item)
+                        this.getActionComment(item),
+                        item.table_name || ''
                     ]);
                     
                     row.height = 20;
@@ -535,18 +579,18 @@ export default {
                 const lastDataRow = dataToExport.length;
                 
                 for (let row = 1; row <= lastDataRow + 1; row++) {
-                    const rightCell = worksheet.getCell(row, 4);
+                    const rightCell = worksheet.getCell(row, 5);
                     rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
                     const leftCell = worksheet.getCell(row, 1);
                     leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
                 }
                 
-                for (let col = 1; col <= 4; col++) {
+                for (let col = 1; col <= 5; col++) {
                     const topCell = worksheet.getCell(1, col);
                     topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
                 }
                 
-                for (let col = 1; col <= 4; col++) {
+                for (let col = 1; col <= 5; col++) {
                     const bottomCell = worksheet.getCell(lastDataRow + 1, col);
                     bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
                 }
@@ -573,7 +617,8 @@ export default {
                     { width: 25 },
                     { width: 40 },
                     { width: 30 },
-                    { width: 60 }
+                    { width: 60 },
+                    { width: 30 }
                 ];
                 
                 const buffer = await workbook.xlsx.writeBuffer();
@@ -600,31 +645,42 @@ export default {
         },
 
         openApplication() {
-            console.log('Открыть заявку', this.vehicle?.applicationId || this.vehicle?.application_id);
-            // Здесь можно добавить переход к заявке
+            const applicationId = this.vehicle?.applicationId || this.vehicle?.application_id;
+            if (applicationId) {
+                this.$emit('open-application', applicationId);
+            }
         }
     },
     watch: {
-        show(newVal) {
-            if (!newVal) {
+    show: {
+        immediate: true,
+        handler(newVal) {
+            if (newVal) {
+                this.loadCarStatus();
+                if (this.showCarFeatures && this.vehicle?.id) {
+                    this.loadCarHistory();
+                }
+            } else {
                 this.closeUnloadPlaceDetails();
                 if (this.shiftTimer) {
                     clearTimeout(this.shiftTimer);
                     this.shiftTimer = null;
                 }
-            } else if (newVal && this.showCarFeatures && this.vehicle?.id) {
-                this.loadCarHistory();
-            }
-        },
-        vehicle: {
-            deep: true,
-            handler(newVal) {
-                if (newVal && this.show && this.showCarFeatures) {
-                    this.loadCarHistory();
-                }
+                this.isMainShifted = false; // сброс позиции основного окна
+                this.selectedUnloadPlace = null;
             }
         }
     },
+    vehicle: {
+        deep: true,
+        handler(newVal) {
+            if (newVal && this.show && this.showCarFeatures) {
+                this.loadCarStatus();
+                this.loadCarHistory();
+            }
+        }
+    }
+},
     beforeUnmount() {
         if (this.shiftTimer) {
             clearTimeout(this.shiftTimer);
@@ -643,6 +699,13 @@ export default {
 .dot-exit { background: #dc2626; }
 .dot-default { background: #9ca3af; }
 
+.place-name {
+    font-size: 10px;
+    color: #4F5BDF;
+    margin-top: 2px;
+    font-style: italic;
+}
+
 /* Остальные стили без изменений */
 .modal-overlay {
   position: fixed;
@@ -650,23 +713,22 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(1px);
   animation: overlayAppear 0.4s ease-out;
 }
 
 @keyframes overlayAppear {
   from {
     background: rgba(0, 0, 0, 0);
-    backdrop-filter: blur(0px);
+  
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+  
   }
 }
 
@@ -677,6 +739,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 .modal-content {
@@ -686,10 +749,11 @@ export default {
   padding-bottom: 15px;
   width: 520px;
   height: 450px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   position: absolute;
+  pointer-events: auto;
 }
 
 .modal-content .modal-body {
@@ -1106,7 +1170,6 @@ export default {
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
   background: rgba(0, 0, 0, 0);
-  backdrop-filter: blur(0px);
 }
 
 .modal-fade-enter-from .modal-content,
