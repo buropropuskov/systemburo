@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -33,9 +32,7 @@ func LoginUser(t *testing.T, e *echo.Echo, username, password string) (string, s
 	rec := POST(t, e, "/login", body, nil)
 	require.Equal(t, http.StatusOK, rec.Code, "login failed: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := ParseMap(t, rec)
 	return resp["token"].(string), resp["refreshToken"].(string)
 }
 
