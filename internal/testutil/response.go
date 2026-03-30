@@ -31,11 +31,11 @@ func ParseResponse[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 func ParseMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
 	t.Helper()
 	var env envelope
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env), "failed to parse envelope: %s", rec.Body.String())
 	require.True(t, env.Success, "expected success=true, got error: %s", env.Error)
 
 	var msg string
-	require.NoError(t, json.Unmarshal(env.Data, &msg))
+	require.NoError(t, json.Unmarshal(env.Data, &msg), "failed to parse message: %s", string(env.Data))
 	return msg
 }
 
