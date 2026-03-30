@@ -81,6 +81,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
 	e.HideBanner = true
+	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
 	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler,
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,

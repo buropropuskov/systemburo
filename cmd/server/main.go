@@ -86,6 +86,7 @@ func main() {
 	// Setup Echo
 	e := echo.New()
 	e.HideBanner = true
+	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 
 	// Global middleware
 	e.Use(echomw.Logger())
