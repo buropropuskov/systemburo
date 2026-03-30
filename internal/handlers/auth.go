@@ -35,7 +35,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	if err := h.service.Register(c.Request().Context(), req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "User registered successfully")
+	return RespondMessage(c, "User registered successfully")
 }
 
 // Login godoc
@@ -57,7 +57,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // RefreshToken godoc
@@ -79,7 +79,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // Logout godoc
@@ -102,7 +102,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	if err := h.service.Logout(c.Request().Context(), username, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Logged out successfully")
+	return RespondMessage(c, "Logged out successfully")
 }
 
 // GetUserData godoc
@@ -120,7 +120,7 @@ func (h *AuthHandler) GetUserData(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // GetCurrentUser godoc
@@ -138,7 +138,7 @@ func (h *AuthHandler) GetCurrentUser(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // GetUserTypes godoc
@@ -153,5 +153,5 @@ func (h *AuthHandler) GetUserTypes(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, types)
+	return RespondSuccess(c, types)
 }

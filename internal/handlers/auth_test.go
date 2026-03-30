@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -26,7 +25,8 @@ func TestRegister_Success(t *testing.T) {
 	rec := testutil.POST(t, e, "/register", body, nil)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "User registered successfully")
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "User registered successfully", msg)
 }
 
 func TestRegister_DuplicateUsername(t *testing.T) {
@@ -89,9 +89,7 @@ func TestLogin_Success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp models.LoginResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseResponse[models.LoginResponse](t, rec)
 
 	assert.NotEmpty(t, resp.Token)
 	assert.NotEmpty(t, resp.RefreshToken)
@@ -146,9 +144,7 @@ func TestRefreshToken_Success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp models.TokenPairResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseResponse[models.TokenPairResponse](t, rec)
 
 	assert.NotEmpty(t, resp.Token)
 	assert.NotEmpty(t, resp.RefreshToken)
@@ -215,7 +211,8 @@ func TestLogout_Success(t *testing.T) {
 	rec := testutil.POST(t, e, "/logout", body, testutil.AuthHeader(accessToken))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Logged out successfully")
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Logged out successfully", msg)
 }
 
 func TestLogout_NoAuth(t *testing.T) {
@@ -243,9 +240,7 @@ func TestGetUserData_Success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp models.UserDataResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseResponse[models.UserDataResponse](t, rec)
 
 	assert.Equal(t, "datauser", resp.Username)
 	assert.Equal(t, "Test Organization", resp.Organization)
@@ -278,9 +273,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp models.CurrentUserResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseResponse[models.CurrentUserResponse](t, rec)
 
 	assert.Equal(t, "meuser", resp.Username)
 	assert.Equal(t, 2, resp.TypeID)
@@ -314,9 +307,7 @@ func TestGetUserTypes_Success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var types []models.UserType
-	err := json.Unmarshal(rec.Body.Bytes(), &types)
-	require.NoError(t, err)
+	types := testutil.ParseResponse[[]models.UserType](t, rec)
 
 	assert.Len(t, types, 6)
 
