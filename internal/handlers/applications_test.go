@@ -1,13 +1,13 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -77,11 +77,8 @@ func createSimpleApplication(t *testing.T, e *echo.Echo, token string, orgID int
 	rec := testutil.POST(t, e, "/applications", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "create app: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	require.True(t, resp["success"].(bool))
-	return int(resp["application_id"].(float64))
+	resp := testutil.ParseResponse[services.ApplicationCreateResponse](t, rec)
+	return resp.ApplicationID
 }
 
 // submitCompleteApplication creates a full application with a cars attachment and returns app ID.
@@ -114,11 +111,8 @@ func submitCompleteApplication(t *testing.T, e *echo.Echo, token string, orgName
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit complete app: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	require.True(t, resp["success"].(bool))
-	return int(resp["application_id"].(float64))
+	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+	return resp.ApplicationID
 }
 
 // --- 401 Unauthorized tests ---
@@ -185,9 +179,7 @@ func TestGetApplications_EmptyList(t *testing.T) {
 	rec := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var apps []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &apps)
-	require.NoError(t, err)
+	apps := testutil.ParseResponse[[]interface{}](t, rec)
 	assert.Empty(t, apps)
 }
 
@@ -205,9 +197,7 @@ func TestGetUserApplications_ReturnsOwnApplications(t *testing.T) {
 	rec := testutil.GET(t, e, "/applications/user", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var apps []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &apps)
-	require.NoError(t, err)
+	apps := testutil.ParseResponse[[]map[string]interface{}](t, rec)
 	assert.GreaterOrEqual(t, len(apps), 1)
 }
 
@@ -225,12 +215,9 @@ func TestCreateApplication_Success(t *testing.T) {
 	rec := testutil.POST(t, e, "/applications", body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
-	assert.NotZero(t, resp["application_id"])
-	assert.Contains(t, resp["application_number"].(string), "/")
+	resp := testutil.ParseResponse[services.ApplicationCreateResponse](t, rec)
+	assert.NotZero(t, resp.ApplicationID)
+	assert.Contains(t, resp.ApplicationNumber, "/")
 }
 
 func TestCreateApplication_DataApprovalRequired(t *testing.T) {
@@ -315,9 +302,7 @@ func TestGetApplicationByID_Success(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, float64(appID), resp["id"])
 }
 
@@ -360,10 +345,8 @@ func TestUpdateApplication_Success(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/applications/%d", appID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	resp := testutil.ParseResponse[services.ApplicationUpdateResponse](t, rec)
+	assert.True(t, resp.Success)
 }
 
 // --- GET /applications/:id/details ---
@@ -380,9 +363,7 @@ func TestGetApplicationDetails_Success(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/details", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, float64(appID), resp["id"])
 }
 
@@ -400,9 +381,7 @@ func TestGetResponsibleUsers_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/responsible-users", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var users []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &users)
-	require.NoError(t, err)
+	testutil.ParseResponse[[]interface{}](t, rec)
 	// May or may not have responsible users depending on org_users seeding
 }
 
@@ -421,9 +400,7 @@ func TestGetApplicationAttachments_WithCompleteApp(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var attachments []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &attachments)
-	require.NoError(t, err)
+	attachments := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(attachments), 1)
 	assert.Equal(t, "cars", attachments[0]["attachment_type"])
 }
@@ -444,9 +421,7 @@ func TestGetAttachmentCars_WithCompleteApp(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var attachments []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &attachments)
-	require.NoError(t, err)
+	attachments := testutil.ParseSlice(t, rec)
 	require.NotEmpty(t, attachments)
 
 	attID := int(attachments[0]["id"].(float64))
@@ -454,9 +429,7 @@ func TestGetAttachmentCars_WithCompleteApp(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var cars []map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &cars)
-	require.NoError(t, err)
+	cars := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(cars), 1)
 	assert.Equal(t, "A001AA777", cars[0]["car_number"])
 	assert.Equal(t, "Toyota", cars[0]["car_brand"])
@@ -477,18 +450,14 @@ func TestGetAttachmentEmployees_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var attachments []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &attachments)
-	require.NoError(t, err)
+	attachments := testutil.ParseSlice(t, rec)
 	require.NotEmpty(t, attachments)
 	attID := int(attachments[0]["id"].(float64))
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/employees", attID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var employees []interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &employees)
-	require.NoError(t, err)
+	employees := testutil.ParseResponse[[]interface{}](t, rec)
 	// cars attachment has no employees
 	assert.Empty(t, employees)
 }
@@ -508,18 +477,14 @@ func TestGetAttachmentItems_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var attachments []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &attachments)
-	require.NoError(t, err)
+	attachments := testutil.ParseSlice(t, rec)
 	require.NotEmpty(t, attachments)
 	attID := int(attachments[0]["id"].(float64))
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/items", attID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var items []interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &items)
-	require.NoError(t, err)
+	items := testutil.ParseResponse[[]interface{}](t, rec)
 	assert.Empty(t, items)
 }
 
@@ -538,9 +503,7 @@ func TestGetApplicationHistory_Success(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var history []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &history)
-	require.NoError(t, err)
+	history := testutil.ParseSlice(t, rec)
 	// SubmitCompleteApplication writes create + assigned_responsible entries
 	assert.GreaterOrEqual(t, len(history), 1)
 }
@@ -566,10 +529,8 @@ func TestAddHistoryEntry_Success(t *testing.T) {
 	rec := testutil.POST(t, e, "/applications/history", body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "History entry added successfully", msg)
 }
 
 // --- GET /applications/:id/viewers ---
@@ -586,9 +547,7 @@ func TestGetApplicationViewers_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/viewers", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var viewers []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &viewers)
-	require.NoError(t, err)
+	viewers := testutil.ParseResponse[[]interface{}](t, rec)
 	assert.Empty(t, viewers)
 }
 
@@ -606,11 +565,9 @@ func TestCheckApprovalStatus_Success(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/check-approval-status", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.NotNil(t, resp["confirmation"])
-	assert.NotNil(t, resp["status"])
+	resp := testutil.ParseResponse[services.ApprovalStatusResponse](t, rec)
+	assert.NotNil(t, resp.Confirmation)
+	assert.NotNil(t, resp.Status)
 }
 
 // --- POST /applications/:id/forward ---
@@ -675,10 +632,8 @@ func TestApproveApplication_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), body, testutil.AuthHeader(respToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Approval status updated successfully", msg)
 }
 
 // --- POST /applications/:id/take-to-work ---
@@ -703,11 +658,8 @@ func TestTakeApplicationToWork_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), body, testutil.AuthHeader(approverToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
-	assert.Equal(t, "Application taken to work", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Application taken to work", msg)
 }
 
 func TestTakeApplicationToWork_Reject(t *testing.T) {
@@ -728,11 +680,8 @@ func TestTakeApplicationToWork_Reject(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), body, testutil.AuthHeader(rejToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
-	assert.Equal(t, "Application rejected", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Application rejected", msg)
 }
 
 // --- POST /applications/:id/update-items-status ---
@@ -750,10 +699,8 @@ func TestUpdateApplicationItemsStatus_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/update-items-status", appID), "", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "All items statuses updated successfully", msg)
 }
 
 // --- POST /applications/:id/revoke-from-work ---
@@ -781,10 +728,8 @@ func TestRevokeFromWork_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/revoke-from-work", appID), body, testutil.AuthHeader(approverToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Application revoked from work", msg)
 }
 
 // --- POST /applications/:id/restore-to-work ---
@@ -811,10 +756,8 @@ func TestRestoreToWork_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/restore-to-work", appID), body, testutil.AuthHeader(approverToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Application restored, ready to take to work", msg)
 }
 
 // --- POST /applications/:id/revoke-approval ---
@@ -843,10 +786,9 @@ func TestRevokeApproval_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/revoke-approval", appID), revokeBody, testutil.AuthHeader(respToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	testutil.ParseMap(t, rec)
+	// success=true guaranteed by envelope
+
 }
 
 // --- Full lifecycle test ---
@@ -881,8 +823,7 @@ func TestApplicationLifecycle_CreateSubmitForwardApproveTakeToWork(t *testing.T)
 	// 5. Verify application appears in user list
 	rec := testutil.GET(t, e, "/applications/user", testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var userApps []map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &userApps)
+	userApps := testutil.ParseResponse[[]map[string]interface{}](t, rec)
 	assert.GreaterOrEqual(t, len(userApps), 1)
 
 	// 6. Get by ID
@@ -893,9 +834,9 @@ func TestApplicationLifecycle_CreateSubmitForwardApproveTakeToWork(t *testing.T)
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/check-approval-status", appID), testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var approvalStatus map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &approvalStatus)
-	assert.Equal(t, "Согласование", approvalStatus["confirmation"])
+	approvalStatus := testutil.ParseResponse[services.ApprovalStatusResponse](t, rec)
+	require.NotNil(t, approvalStatus.Confirmation)
+	assert.Equal(t, "Согласование", *approvalStatus.Confirmation)
 
 	// 8. Responsible user approves
 	approveBody := fmt.Sprintf(`{"user_id": %d, "status": "approved", "comment": "approved"}`, respID)
@@ -918,15 +859,13 @@ func TestApplicationLifecycle_CreateSubmitForwardApproveTakeToWork(t *testing.T)
 	// 12. Check history has multiple entries
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var history []interface{}
-	json.Unmarshal(rec.Body.Bytes(), &history)
+	history := testutil.ParseResponse[[]interface{}](t, rec)
 	assert.GreaterOrEqual(t, len(history), 2, "history should have at least create + approve entries")
 
 	// 13. Verify attachments
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var atts []map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &atts)
+	atts := testutil.ParseSlice(t, rec)
 	assert.NotEmpty(t, atts)
 
 	// 14. Verify cars in attachment
@@ -1003,18 +942,14 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
-	appID := int(resp["application_id"].(float64))
+	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+	appID := createResp.ApplicationID
 
 	// Verify attachments
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var atts []map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &atts)
+	atts := testutil.ParseSlice(t, rec)
 	assert.Equal(t, 2, len(atts))
 
 	// Find people attachment and check employees
@@ -1025,8 +960,7 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 		if attType == "people" {
 			rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/employees", attID), testutil.AuthHeader(token))
 			assert.Equal(t, http.StatusOK, rec.Code)
-			var emps []map[string]interface{}
-			json.Unmarshal(rec.Body.Bytes(), &emps)
+			emps := testutil.ParseSlice(t, rec)
 			assert.GreaterOrEqual(t, len(emps), 1)
 			assert.Equal(t, "Ivanov", emps[0]["last_name"])
 		}
@@ -1034,8 +968,7 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 		if attType == "items" {
 			rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/items", attID), testutil.AuthHeader(token))
 			assert.Equal(t, http.StatusOK, rec.Code)
-			var items []map[string]interface{}
-			json.Unmarshal(rec.Body.Bytes(), &items)
+			items := testutil.ParseSlice(t, rec)
 			assert.GreaterOrEqual(t, len(items), 1)
 			assert.Equal(t, "Cement bags", items[0]["name"])
 		}

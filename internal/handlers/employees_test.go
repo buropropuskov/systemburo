@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -238,9 +239,8 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var appResp map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &appResp)
-	appID := int(appResp["application_id"].(float64))
+	appResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+	appID := appResp.ApplicationID
 
 	// Activate via application workflow (take-to-work + update-items-status)
 	testutil.RegisterUser(t, e, "empapprover1", "pass123", 6, td.OrgID, td.CompanyID)

@@ -54,7 +54,7 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, apps)
+	return RespondSuccess(c, apps)
 }
 
 // GetUserApplications godoc
@@ -85,7 +85,7 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, apps)
+	return RespondSuccess(c, apps)
 }
 
 // GetApplicationByID godoc
@@ -111,7 +111,7 @@ func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, app)
+	return RespondSuccess(c, app)
 }
 
 // GetApplicationDetails godoc
@@ -136,7 +136,7 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, details)
+	return RespondSuccess(c, details)
 }
 
 // CreateApplication godoc
@@ -164,7 +164,7 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // SubmitCompleteApplication godoc
@@ -192,7 +192,7 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // UpdateApplication godoc
@@ -225,7 +225,7 @@ func (h *ApplicationHandler) UpdateApplication(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // ForwardApplication godoc
@@ -259,10 +259,7 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 	if err := h.service.ForwardApplication(c.Request().Context(), username, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Application forwarded successfully",
-	})
+	return RespondMessage(c, "Application forwarded successfully")
 }
 
 // ApproveApplicationByUser godoc
@@ -295,10 +292,7 @@ func (h *ApplicationHandler) ApproveApplicationByUser(c echo.Context) error {
 	if err := h.service.ApproveApplicationByUser(c.Request().Context(), username, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Approval status updated successfully",
-	})
+	return RespondMessage(c, "Approval status updated successfully")
 }
 
 // CheckApprovalStatus godoc
@@ -323,7 +317,7 @@ func (h *ApplicationHandler) CheckApprovalStatus(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // TakeApplicationToWork godoc
@@ -362,10 +356,7 @@ func (h *ApplicationHandler) TakeApplicationToWork(c echo.Context) error {
 	if req.Action == "reject" {
 		msg = "Application rejected"
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": msg,
-	})
+	return RespondMessage(c, msg)
 }
 
 // RevokeApplicationFromWork godoc
@@ -398,10 +389,7 @@ func (h *ApplicationHandler) RevokeApplicationFromWork(c echo.Context) error {
 	if err := h.service.RevokeApplicationFromWork(c.Request().Context(), username, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Application revoked from work",
-	})
+	return RespondMessage(c, "Application revoked from work")
 }
 
 // RestoreApplicationToWork godoc
@@ -434,10 +422,7 @@ func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
 	if err := h.service.RestoreApplicationToWork(c.Request().Context(), username, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Application restored, ready to take to work",
-	})
+	return RespondMessage(c, "Application restored, ready to take to work")
 }
 
 // GetApplicationResponsibleUsers godoc
@@ -461,7 +446,7 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, users)
+	return RespondSuccess(c, users)
 }
 
 // GetApplicationHistory godoc
@@ -485,7 +470,7 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, history)
+	return RespondSuccess(c, history)
 }
 
 // AddHistoryEntry godoc
@@ -510,10 +495,7 @@ func (h *ApplicationHandler) AddHistoryEntry(c echo.Context) error {
 	if err := h.service.AddHistoryEntry(c.Request().Context(), req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "History entry added successfully",
-	})
+	return RespondMessage(c, "History entry added successfully")
 }
 
 // RevokeApproval godoc
@@ -547,7 +529,7 @@ func (h *ApplicationHandler) RevokeApproval(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // GetApplicationViewers godoc
@@ -571,7 +553,7 @@ func (h *ApplicationHandler) GetApplicationViewers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, viewers)
+	return RespondSuccess(c, viewers)
 }
 
 // GetApplicationAttachments godoc
@@ -595,7 +577,7 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, attachments)
+	return RespondSuccess(c, attachments)
 }
 
 // GetAttachmentCars godoc
@@ -619,7 +601,7 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, cars)
+	return RespondSuccess(c, cars)
 }
 
 // GetAttachmentEmployees godoc
@@ -643,7 +625,7 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, employees)
+	return RespondSuccess(c, employees)
 }
 
 // GetAttachmentItems godoc
@@ -667,7 +649,7 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, items)
+	return RespondSuccess(c, items)
 }
 
 // MarkAsRead godoc
@@ -692,10 +674,7 @@ func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
 	if err := h.service.MarkAsRead(c.Request().Context(), id, username); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Application marked as read",
-	})
+	return RespondMessage(c, "Application marked as read")
 }
 
 // GetReads godoc
@@ -719,7 +698,7 @@ func (h *ApplicationHandler) GetReads(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, reads)
+	return RespondSuccess(c, reads)
 }
 
 // GetUnreadCount godoc
@@ -739,7 +718,7 @@ func (h *ApplicationHandler) GetUnreadCount(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // UpdateApplicationItemsStatus godoc
@@ -762,8 +741,5 @@ func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error 
 	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "All items statuses updated successfully",
-	})
+	return RespondMessage(c, "All items statuses updated successfully")
 }

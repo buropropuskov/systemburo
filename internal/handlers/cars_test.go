@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -51,23 +52,20 @@ func seedCarViaCompleteApp(t *testing.T, e *echo.Echo, db *gorm.DB, token string
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "submit complete app: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	appID := int(resp["application_id"].(float64))
+	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+	appID := createResp.ApplicationID
 
 	// Get attachment ID
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", appID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
-	var atts []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &atts))
+	atts := testutil.ParseSlice(t, rec)
 	require.NotEmpty(t, atts)
 	attID := int(atts[0]["id"].(float64))
 
 	// Get car ID
 	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
-	var cars []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &cars))
+	cars := testutil.ParseSlice(t, rec)
 	require.NotEmpty(t, cars)
 	carID := int(cars[0]["id"].(float64))
 
@@ -620,9 +618,8 @@ func TestCarWithUnloadPlaces(t *testing.T) {
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &resp)
-	appID := int(resp["application_id"].(float64))
+	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+	appID := createResp.ApplicationID
 
 	// Activate car
 	activateCarViaApp(t, e, db, appID, td)

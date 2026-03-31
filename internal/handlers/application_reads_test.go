@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -35,10 +34,8 @@ func TestMarkAsRead_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/read", appID), "", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Application marked as read", msg)
 }
 
 func TestMarkAsRead_Idempotent(t *testing.T) {
@@ -93,9 +90,7 @@ func TestGetReads_Success(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/reads", appID), testutil.AuthHeader(adminToken))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var reads []models.ApplicationReadResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &reads)
-	require.NoError(t, err)
+	reads := testutil.ParseResponse[[]models.ApplicationReadResponse](t, rec)
 	assert.Len(t, reads, 1)
 	assert.Equal(t, "testadmin", reads[0].Username)
 }
@@ -112,9 +107,7 @@ func TestGetReads_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/reads", appID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var reads []models.ApplicationReadResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &reads)
-	require.NoError(t, err)
+	reads := testutil.ParseResponse[[]models.ApplicationReadResponse](t, rec)
 	assert.Empty(t, reads)
 }
 
@@ -134,9 +127,7 @@ func TestGetUnreadCount_Success(t *testing.T) {
 	rec := testutil.GET(t, e, "/applications/unread-count", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp models.UnreadCountResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseResponse[models.UnreadCountResponse](t, rec)
 	assert.Equal(t, 2, resp.Count)
 
 	// Mark one as read
@@ -146,8 +137,7 @@ func TestGetUnreadCount_Success(t *testing.T) {
 	rec = testutil.GET(t, e, "/applications/unread-count", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	err = json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp = testutil.ParseResponse[models.UnreadCountResponse](t, rec)
 	assert.Equal(t, 1, resp.Count)
 }
 
@@ -177,9 +167,7 @@ func TestGetApplications_ArchiveDefault_ExcludesArchived(t *testing.T) {
 	rec := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var apps []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &apps)
-	require.NoError(t, err)
+	apps := testutil.ParseSlice(t, rec)
 
 	// The archived application should NOT be in the results
 	for _, app := range apps {
@@ -209,9 +197,7 @@ func TestGetApplications_ArchiveTrue_ShowsOnlyArchived(t *testing.T) {
 	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var apps []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &apps)
-	require.NoError(t, err)
+	apps := testutil.ParseSlice(t, rec)
 
 	// Should contain only the archived application
 	assert.Len(t, apps, 1)
