@@ -30,8 +30,8 @@ func NewEmployeeHandler(service services.EmployeeService) *EmployeeHandler {
 // @Router /employees [post]
 func (h *EmployeeHandler) CreateEmployee(c echo.Context) error {
 	var req services.CreateEmployeeRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	resp, err := h.service.CreateEmployee(c.Request().Context(), req)
 	if err != nil {

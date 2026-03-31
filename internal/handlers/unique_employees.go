@@ -58,8 +58,8 @@ func (h *UniqueEmployeeHandler) GetAll(c echo.Context) error {
 func (h *UniqueEmployeeHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
 	var req services.NewUniqueEmployeeRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	employee, err := h.service.Create(c.Request().Context(), username, req)
@@ -92,8 +92,8 @@ func (h *UniqueEmployeeHandler) Update(c echo.Context) error {
 	}
 
 	var req services.NewUniqueEmployeeRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	employee, err := h.service.Update(c.Request().Context(), username, id, req)

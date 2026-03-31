@@ -156,8 +156,8 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req services.ApplicationCreateRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	resp, err := h.service.CreateApplication(c.Request().Context(), username, req)
@@ -184,8 +184,8 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req services.CompleteApplicationRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	resp, err := h.service.SubmitCompleteApplication(c.Request().Context(), username, req)
@@ -217,8 +217,8 @@ func (h *ApplicationHandler) UpdateApplication(c echo.Context) error {
 	}
 
 	var req services.ApplicationUpdateRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	resp, err := h.service.UpdateApplication(c.Request().Context(), username, id, req)
@@ -252,8 +252,8 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 	}
 
 	var req services.ForwardApplicationRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.ForwardApplication(c.Request().Context(), username, id, req); err != nil {
@@ -382,8 +382,8 @@ func (h *ApplicationHandler) RevokeApplicationFromWork(c echo.Context) error {
 	}
 
 	var req services.RevokeFromWorkRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.RevokeApplicationFromWork(c.Request().Context(), username, id, req); err != nil {
@@ -415,8 +415,8 @@ func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
 	}
 
 	var req services.RevokeFromWorkRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.RestoreApplicationToWork(c.Request().Context(), username, id, req); err != nil {
@@ -488,8 +488,8 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 // @Router       /applications/history [post]
 func (h *ApplicationHandler) AddHistoryEntry(c echo.Context) error {
 	var req services.AddHistoryEntryRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.AddHistoryEntry(c.Request().Context(), req); err != nil {
@@ -521,8 +521,8 @@ func (h *ApplicationHandler) RevokeApproval(c echo.Context) error {
 	}
 
 	var req services.RevokeApprovalRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	resp, err := h.service.RevokeApproval(c.Request().Context(), username, id, req)
