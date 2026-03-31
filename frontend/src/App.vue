@@ -22,6 +22,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { usePermissionsStore } from '@/stores/permissions'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import SessionExpiredModal from './components/SessionExpiredModal.vue';
@@ -80,7 +81,13 @@ export default {
           this.isAuthenticated = true;
           this.isBuropropuskov = payload.type_id === 6;
           this.tokenExpiryTime = payload.exp;
-          
+
+          // Загружаем права доступа если ещё не загружены
+          const permissionsStore = usePermissionsStore()
+          if (!permissionsStore.loaded) {
+            permissionsStore.fetchPermissions()
+          }
+
           // Запускаем/обновляем таймер истечения
           this.startExpirationTimer(timeUntilExpiry);
           
@@ -171,11 +178,16 @@ export default {
           if (response.ok) {
               const tokenData = await response.json();
               console.log('✅ Token refresh successful:', tokenData);
-              
+
               localStorage.setItem("token", tokenData.token);
               localStorage.setItem("refreshToken", tokenData.refreshToken);
               this.showSessionModal = false;
               this.checkAuthStatus();
+
+              // Перезагружаем права доступа после обновления токена
+              const permissionsStore = usePermissionsStore()
+              permissionsStore.fetchPermissions()
+
               console.log('✅ Token successfully refreshed and stored');
           } else {
               const errorText = await response.text();
@@ -213,6 +225,10 @@ export default {
     this.isBuropropuskov = false;
     this.showSessionModal = false;
     this.stopExpirationTimer();
+
+    // Сбрасываем права доступа
+    const permissionsStore = usePermissionsStore()
+    permissionsStore.clearPermissions()
     
     // Перенаправляем на логин только если мы не уже на странице логина
     if (this.$route.path !== '/') {
