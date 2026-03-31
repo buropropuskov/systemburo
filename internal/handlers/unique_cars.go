@@ -92,7 +92,7 @@ func (h *UniqueCarHandler) CreateBatch(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(httpStatus, resp)
+	return c.JSON(httpStatus, Response{Success: true, Data: resp})
 }
 
 // Update godoc
