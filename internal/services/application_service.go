@@ -125,10 +125,10 @@ type ApplicationCreateRequest struct {
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
 	Message           *string              `json:"message"`
-	Organization      string               `json:"organization"`
+	Organization      string               `json:"organization" validate:"required"`
 	Company           *string              `json:"company"`
-	ResponsiblePerson string               `json:"responsible_person"`
-	ContactPhone      string               `json:"contact_phone"`
+	ResponsiblePerson string               `json:"responsible_person" validate:"required"`
+	ContactPhone      string               `json:"contact_phone" validate:"required"`
 	DataApproval      bool                 `json:"data_approval"`
 	Attachments       []AttachmentData     `json:"attachments"`
 	RequiredUsers     *[]RequiredUserInput `json:"required_users"`
@@ -223,15 +223,15 @@ type TakeToWorkRequest struct {
 
 // RevokeFromWorkRequest тело запроса на отзыв заявки из работы.
 type RevokeFromWorkRequest struct {
-	UserID  int     `json:"user_id"`
+	UserID  int     `json:"user_id" validate:"gte=1"`
 	Comment *string `json:"comment"`
 }
 
 // AddHistoryEntryRequest тело запроса на добавление записи в историю.
 type AddHistoryEntryRequest struct {
-	ApplicationID int              `json:"application_id"`
-	UserID        int              `json:"user_id"`
-	ActionType    string           `json:"action_type"`
+	ApplicationID int              `json:"application_id" validate:"gte=1"`
+	UserID        int              `json:"user_id" validate:"gte=1"`
+	ActionType    string           `json:"action_type" validate:"required"`
 	ActionStatus  *string          `json:"action_status"`
 	OldValue      *string          `json:"old_value"`
 	NewValue      *string          `json:"new_value"`

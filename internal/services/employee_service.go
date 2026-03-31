@@ -22,12 +22,12 @@ type EmployeeService interface {
 
 // CreateEmployeeRequest -- тело запроса на создание сотрудника.
 type CreateEmployeeRequest struct {
-	LastName             string  `json:"last_name"`
-	FirstName            string  `json:"first_name"`
+	LastName             string  `json:"last_name" validate:"required,min=1"`
+	FirstName            string  `json:"first_name" validate:"required,min=1"`
 	MiddleName           *string `json:"middle_name"`
-	CitizenshipID        int     `json:"citizenship_id"`
-	Position             string  `json:"position"`
-	PassportSeriesNumber string  `json:"passport_series_number"`
+	CitizenshipID        int     `json:"citizenship_id" validate:"gte=1"`
+	Position             string  `json:"position" validate:"required,min=1"`
+	PassportSeriesNumber string  `json:"passport_series_number" validate:"required,min=1"`
 	PatentNumber         *string `json:"patent_number"`
 	OtherPermission      *string `json:"other_permission"`
 	TargetTables         []int   `json:"target_tables"`
