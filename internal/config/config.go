@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/caarlos0/env/v11"
 )
 
@@ -18,5 +21,26 @@ func Load() (*Config, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
+	}
 	return cfg, nil
+}
+
+// Validate checks configuration values for correctness.
+func (c *Config) Validate() error {
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters (got %d)", len(c.JWTSecret))
+	}
+	if len(c.JWTRefreshSecret) < 32 {
+		return fmt.Errorf("JWT_REFRESH_SECRET must be at least 32 characters (got %d)", len(c.JWTRefreshSecret))
+	}
+	if !strings.HasPrefix(c.DatabaseURL, "postgres") {
+		return fmt.Errorf("DATABASE_URL must be a PostgreSQL connection string")
+	}
+	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
+	if !validLevels[c.LogLevel] {
+		return fmt.Errorf("LOG_LEVEL must be one of: debug, info, warn, error (got %q)", c.LogLevel)
+	}
+	return nil
 }
