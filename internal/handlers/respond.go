@@ -3,6 +3,8 @@ package handlers
 import (
 	"net/http"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -10,6 +12,7 @@ import (
 type Response struct {
 	Success bool   `json:"success"`
 	Data    any    `json:"data,omitempty"`
+	Meta    any    `json:"meta,omitempty"`
 	Error   string `json:"error,omitempty"`
 }
 
@@ -26,6 +29,11 @@ func RespondCreated(c echo.Context, data any) error {
 // RespondMessage sends a success envelope with a message string as data.
 func RespondMessage(c echo.Context, msg string) error {
 	return c.JSON(http.StatusOK, Response{Success: true, Data: msg})
+}
+
+// RespondPaginated wraps data + pagination meta in a success envelope.
+func RespondPaginated(c echo.Context, data any, meta models.PaginationMeta) error {
+	return c.JSON(http.StatusOK, Response{Success: true, Data: data, Meta: meta})
 }
 
 // CustomHTTPErrorHandler wraps all errors in the unified envelope format.

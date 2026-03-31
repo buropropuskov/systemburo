@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -973,4 +974,27 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 			assert.Equal(t, "Cement bags", items[0]["name"])
 		}
 	}
+}
+
+func TestGetApplications_Paginated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.GET(t, e, "/applications?per_page=5&page=1", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var env struct {
+		Success bool                     `json:"success"`
+		Data    []map[string]interface{} `json:"data"`
+		Meta    map[string]interface{}   `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+	assert.True(t, env.Success)
+	assert.NotNil(t, env.Meta)
+	assert.Equal(t, float64(1), env.Meta["page"])
+	assert.Equal(t, float64(5), env.Meta["per_page"])
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -50,11 +51,30 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 		filter.Archive = &archive
 	}
 
-	apps, err := h.service.GetApplications(c.Request().Context(), username, filter)
+	// Legacy mode: if per_page not specified, return all (backward compat)
+	if c.QueryParam("per_page") == "" {
+		apps, err := h.service.GetApplications(c.Request().Context(), username, filter)
+		if err != nil {
+			return err
+		}
+		return RespondSuccess(c, apps)
+	}
+
+	var params models.PaginationParams
+	if err := c.Bind(&params); err != nil {
+		params = models.PaginationParams{}
+	}
+	params.Normalize()
+
+	data, total, err := h.service.GetApplicationsPaginated(
+		c.Request().Context(), username, filter, params.Page, params.PerPage,
+	)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, apps)
+	return RespondPaginated(c, data, models.PaginationMeta{
+		Total: total, Page: params.Page, PerPage: params.PerPage,
+	})
 }
 
 // GetUserApplications godoc

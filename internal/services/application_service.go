@@ -21,6 +21,9 @@ type ApplicationService interface {
 	// GetApplications возвращает список заявок для Центра заявок с фильтрацией.
 	GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
 
+	// GetApplicationsPaginated возвращает страницу заявок с общим количеством.
+	GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error)
+
 	// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 	GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
 
@@ -484,6 +487,70 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	}
 
 	return rows, nil
+}
+
+func (s *applicationService) GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error) {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, 0, err
+	}
+	isApprover, err := s.isApprover(ctx, user.ID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	query := s.db.WithContext(ctx).Table("applications a").
+		Select(`
+			a.*,
+			COALESCE(o.name, c.name) as organization_name,
+			c.name as company_name,
+			CONCAT(COALESCE(u.last_name, ''),
+				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
+				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
+			) as sender_full_name,
+			CONCAT(COALESCE(u.last_name, ''),
+				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || LEFT(u.first_name, 1) || '.' ELSE '' END,
+				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(u.middle_name, 1) || '.' ELSE '' END
+			) as sender_name,
+			CONCAT(COALESCE(ru.last_name, ''),
+				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || ru.first_name ELSE '' END,
+				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || ru.middle_name ELSE '' END
+			) as responsible_full_name,
+			CONCAT(COALESCE(ru.last_name, ''),
+				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || LEFT(ru.first_name, 1) || '.' ELSE '' END,
+				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
+			) as responsible_name
+		`).
+		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON a.company_id = c.id").
+		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
+		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
+
+	if !isApprover {
+		query = query.Where(`
+			EXISTS(SELECT 1 FROM application_responsible_users aru WHERE aru.application_id = a.id AND aru.user_id = ?)
+			OR EXISTS(SELECT 1 FROM application_viewers av WHERE av.application_id = a.id AND av.user_id = ?)
+		`, user.ID, user.ID)
+	}
+
+	query = applyApplicationFilters(query, filter, false)
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		slog.Error("Ошибка подсчёта заявок", "error", err)
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	offset := (page - 1) * perPage
+	query = query.Order("a.sending_datetime DESC").Offset(offset).Limit(perPage)
+
+	rows := make([]ApplicationWithDetails, 0)
+	if err := query.Find(&rows).Error; err != nil {
+		slog.Error("Ошибка получения заявок (paginated)", "error", err)
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	return rows, total, nil
 }
 
 func (s *applicationService) GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
