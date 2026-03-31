@@ -31,7 +31,7 @@ func (h *CarHandler) GetActiveCarsForTables(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, cars)
+	return RespondSuccess(c, cars)
 }
 
 // GetFactCarsForTables обрабатывает GET /cars/fact-for-tables.
@@ -46,7 +46,7 @@ func (h *CarHandler) GetFactCarsForTables(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, cars)
+	return RespondSuccess(c, cars)
 }
 
 // GetCarUnloadPlaces обрабатывает GET /cars/unload-places.
@@ -61,7 +61,7 @@ func (h *CarHandler) GetCarUnloadPlaces(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, places)
+	return RespondSuccess(c, places)
 }
 
 // GetFactCarUnloadPlaces обрабатывает GET /cars/fact-unload-places.
@@ -76,7 +76,7 @@ func (h *CarHandler) GetFactCarUnloadPlaces(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, places)
+	return RespondSuccess(c, places)
 }
 
 // CheckActiveCar обрабатывает GET /cars/check-active.
@@ -99,7 +99,7 @@ func (h *CarHandler) CheckActiveCar(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // GetCarHistory обрабатывает GET /cars/:id/history.
@@ -119,7 +119,7 @@ func (h *CarHandler) GetCarHistory(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, items)
+	return RespondSuccess(c, items)
 }
 
 // AddCarHistoryEntry обрабатывает POST /cars/:id/history.
@@ -144,10 +144,7 @@ func (h *CarHandler) AddCarHistoryEntry(c echo.Context) error {
 	if err := h.service.AddCarHistoryEntry(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Car history entry added successfully",
-	})
+	return RespondMessage(c, "Car history entry added successfully")
 }
 
 // GetAllCarsHistory обрабатывает GET /cars/history/all.
@@ -162,7 +159,7 @@ func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, items)
+	return RespondSuccess(c, items)
 }
 
 // GetCarsCurrentStatus обрабатывает GET /cars/history/current-status.
@@ -177,7 +174,7 @@ func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, items)
+	return RespondSuccess(c, items)
 }
 
 // UpdateCarTerritoryStatus обрабатывает PUT /cars/:id/territory-status.
@@ -202,11 +199,7 @@ func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
 	if err := h.service.UpdateCarTerritoryStatus(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success":          true,
-		"message":          "Car territory status updated successfully",
-		"territory_status": req.TerritoryStatus,
-	})
+	return RespondMessage(c, "Car territory status updated successfully")
 }
 
 // DeactivateCar обрабатывает PUT /cars/:id/deactivate.
@@ -231,10 +224,7 @@ func (h *CarHandler) DeactivateCar(c echo.Context) error {
 	if err := h.service.DeactivateCar(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Car deactivated successfully",
-	})
+	return RespondMessage(c, "Car deactivated successfully")
 }
 
 // ActivateCar обрабатывает PUT /cars/:id/activate.
@@ -259,10 +249,7 @@ func (h *CarHandler) ActivateCar(c echo.Context) error {
 	if err := h.service.ActivateCar(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Car activated successfully",
-	})
+	return RespondMessage(c, "Car activated successfully")
 }
 
 // RestoreCar обрабатывает PUT /cars/:id/restore.
@@ -287,10 +274,7 @@ func (h *CarHandler) RestoreCar(c echo.Context) error {
 	if err := h.service.RestoreCar(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Car restored successfully",
-	})
+	return RespondMessage(c, "Car restored successfully")
 }
 
 // GetUnifiedCarHistory обрабатывает GET /cars/history/unified.
@@ -313,5 +297,5 @@ func (h *CarHandler) GetUnifiedCarHistory(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, items)
+	return RespondSuccess(c, items)
 }

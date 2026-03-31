@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -75,9 +74,7 @@ func TestCreateEmployee_Success(t *testing.T) {
 	rec := testutil.POST(t, e, "/employees", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "create employee: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, true, resp["success"])
 	assert.NotZero(t, resp["employee_id"])
 }
@@ -107,9 +104,7 @@ func TestCreateEmployee_WithOptionalFields(t *testing.T) {
 	rec := testutil.POST(t, e, "/employees", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "create employee: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, true, resp["success"])
 }
 
@@ -143,9 +138,7 @@ func TestCreateEmployee_MultipleTargetTables(t *testing.T) {
 	rec := testutil.POST(t, e, "/employees", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "create employee: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, true, resp["success"])
 }
 
@@ -171,9 +164,7 @@ func TestCreateEmployee_EmptyTargetTables(t *testing.T) {
 	rec := testutil.POST(t, e, "/employees", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "create employee: %s", rec.Body.String())
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, true, resp["success"])
 }
 
@@ -191,9 +182,7 @@ func TestGetActiveEmployeesForTable_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var employees []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &employees)
-	require.NoError(t, err)
+	employees := testutil.ParseSlice(t, rec)
 	assert.Empty(t, employees)
 }
 
@@ -256,10 +245,8 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var employees []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &employees)
-	require.NoError(t, err)
 	// Employee activation depends on full lifecycle; may be empty if activation didn't fully propagate
+	testutil.ParseSlice(t, rec)
 }
 
 func TestGetActiveEmployeesForTable_InvalidID(t *testing.T) {
@@ -285,8 +272,6 @@ func TestGetActiveEmployeesForTable_NonexistentTable(t *testing.T) {
 	rec := testutil.GET(t, e, "/employees/active-for-table/999999", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var employees []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &employees)
-	require.NoError(t, err)
+	employees := testutil.ParseSlice(t, rec)
 	assert.Empty(t, employees)
 }

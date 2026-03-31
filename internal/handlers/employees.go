@@ -37,7 +37,7 @@ func (h *EmployeeHandler) CreateEmployee(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // GetActiveEmployeesForTable обрабатывает GET /employees/active-for-table/:table_id.
@@ -57,5 +57,5 @@ func (h *EmployeeHandler) GetActiveEmployeesForTable(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, employees)
+	return RespondSuccess(c, employees)
 }

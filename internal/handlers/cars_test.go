@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -150,9 +149,7 @@ func TestGetActiveCarsForTables_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var cars []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &cars)
-	require.NoError(t, err)
+	cars := testutil.ParseSlice(t, rec)
 	assert.Empty(t, cars)
 }
 
@@ -171,9 +168,7 @@ func TestGetActiveCarsForTables_WithActiveCar(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var cars []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &cars)
-	require.NoError(t, err)
+	cars := testutil.ParseSlice(t, rec)
 	require.GreaterOrEqual(t, len(cars), 1, "expected active car after activation")
 	assert.Equal(t, "B002BB799", cars[0]["car_number"])
 }
@@ -191,9 +186,7 @@ func TestGetFactCarsForTables_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/fact-for-tables", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var cars []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &cars)
-	require.NoError(t, err)
+	cars := testutil.ParseSlice(t, rec)
 	// Fact cars have car_number "по факту" which is unlikely in test data
 	assert.Empty(t, cars)
 }
@@ -211,9 +204,7 @@ func TestGetCarUnloadPlaces_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/unload-places", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var places []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &places)
-	require.NoError(t, err)
+	places := testutil.ParseSlice(t, rec)
 	assert.Empty(t, places)
 }
 
@@ -230,9 +221,7 @@ func TestGetFactCarUnloadPlaces_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/fact-unload-places", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var places []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &places)
-	require.NoError(t, err)
+	places := testutil.ParseSlice(t, rec)
 	assert.Empty(t, places)
 }
 
@@ -249,9 +238,7 @@ func TestCheckActiveCar_NotFound(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/check-active?car_number=NONEXIST&car_brand=Unknown", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.False(t, resp["active"].(bool))
 }
 
@@ -268,9 +255,7 @@ func TestCheckActiveCar_Found(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/check-active?car_number=B002BB799&car_brand=Kamaz&organization_id=%d", td.OrgID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, true, resp["active"])
 	if resp["car_number"] != nil {
 		assert.Equal(t, "B002BB799", resp["car_number"])
@@ -300,9 +285,7 @@ func TestGetCarHistory_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var history []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &history)
-	require.NoError(t, err)
+	history := testutil.ParseSlice(t, rec)
 	// SubmitCompleteApplication creates a "create" history entry
 	assert.GreaterOrEqual(t, len(history), 1)
 }
@@ -339,10 +322,8 @@ func TestAddCarHistoryEntry_Success(t *testing.T) {
 	rec := testutil.POST(t, e, fmt.Sprintf("/cars/%d/history", carID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Car history entry added successfully", msg)
 }
 
 // --- GET /cars/history/all ---
@@ -358,10 +339,8 @@ func TestGetAllCarsHistory_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/history/all", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var history []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &history)
-	require.NoError(t, err)
 	// Empty or may contain entries from other tests; just check valid JSON array
+	testutil.ParseSlice(t, rec)
 }
 
 // --- GET /cars/history/current-status ---
@@ -377,9 +356,7 @@ func TestGetCarsCurrentStatus_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/history/current-status", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var statuses []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &statuses)
-	require.NoError(t, err)
+	statuses := testutil.ParseSlice(t, rec)
 	assert.Empty(t, statuses)
 }
 
@@ -399,11 +376,8 @@ func TestUpdateCarTerritoryStatus_Success(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
-	assert.Equal(t, float64(1), resp["territory_status"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Car territory status updated successfully", msg)
 }
 
 // --- PUT /cars/:id/deactivate ---
@@ -422,10 +396,8 @@ func TestDeactivateCar_Success(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID), body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Car deactivated successfully", msg)
 }
 
 // --- PUT /cars/:id/activate ---
@@ -443,10 +415,8 @@ func TestActivateCar_Success(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/activate", carID), `{}`, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Car activated successfully", msg)
 }
 
 // --- PUT /cars/:id/restore ---
@@ -468,10 +438,8 @@ func TestRestoreCar_Success(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/restore", carID), `{}`, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.True(t, resp["success"].(bool))
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Car restored successfully", msg)
 }
 
 // --- GET /cars/history/unified ---
@@ -487,9 +455,7 @@ func TestGetUnifiedCarHistory_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/history/unified?car_number=NONEXIST&car_brand=Unknown", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var history []interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &history)
-	require.NoError(t, err)
+	history := testutil.ParseSlice(t, rec)
 	assert.Empty(t, history)
 }
 
@@ -505,12 +471,10 @@ func TestGetUnifiedCarHistory_WithData(t *testing.T) {
 	rec := testutil.GET(t, e, "/cars/history/unified?car_number=B002BB799&car_brand=Kamaz", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var history []map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &history)
-	require.NoError(t, err)
 	// SubmitCompleteApplication creates cars but may not insert history entries.
 	// After activation, TakeToWork should add activation history.
 	// If still empty, it means the history is only created via explicit API calls.
+	testutil.ParseSlice(t, rec)
 }
 
 // --- Full car lifecycle test ---
@@ -527,8 +491,7 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	// 1. Car initially has status=0
 	rec := testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var emptyCars []interface{}
-	json.Unmarshal(rec.Body.Bytes(), &emptyCars)
+	emptyCars := testutil.ParseSlice(t, rec)
 	assert.Empty(t, emptyCars, "no active cars before activation")
 
 	// 2. Activate via application workflow
@@ -537,8 +500,7 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	// 3. Now car should be active
 	rec = testutil.GET(t, e, "/cars/active-for-tables", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var activeCars []map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &activeCars)
+	activeCars := testutil.ParseSlice(t, rec)
 	require.GreaterOrEqual(t, len(activeCars), 1, "expected active car after activation")
 
 	// 4. Update territory status (car enters territory)
@@ -558,8 +520,7 @@ func TestCarLifecycle_CreateActivateTerritoryDeactivateRestore(t *testing.T) {
 	// 7. Check car history
 	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var history []interface{}
-	json.Unmarshal(rec.Body.Bytes(), &history)
+	history := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(history), 2)
 
 	// 8. Deactivate car
@@ -628,8 +589,7 @@ func TestCarWithUnloadPlaces(t *testing.T) {
 	rec = testutil.GET(t, e, "/cars/unload-places", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var places []map[string]interface{}
-	json.Unmarshal(rec.Body.Bytes(), &places)
 	// Unload places may be empty if car_unload_places linking didn't occur
 	// This tests the endpoint returns 200, not necessarily populated data
+	testutil.ParseSlice(t, rec)
 }
