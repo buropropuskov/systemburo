@@ -69,8 +69,7 @@ func TestUniqueCars_CRUD(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/unique-cars/%d", carID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	delResp := testutil.ParseMap(t, rec)
-	assert.Equal(t, "Car deleted successfully", delResp["message"])
+	assert.Equal(t, "Car deleted successfully", testutil.ParseMessage(t, rec))
 }
 
 func TestUniqueCars_DuplicateCreate(t *testing.T) {

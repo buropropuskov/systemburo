@@ -125,7 +125,7 @@ func (h *UniqueEmployeeHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
 		return err
 	}
-	return RespondSuccess(c, map[string]string{"message": "Employee deleted successfully"})
+	return RespondMessage(c, "Employee deleted successfully")
 }
 
 // GetOwnershipInfo godoc

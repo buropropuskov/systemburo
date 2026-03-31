@@ -75,8 +75,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/unique-employees/%d", empID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	delResp := testutil.ParseMap(t, rec)
-	assert.Equal(t, "Employee deleted successfully", delResp["message"])
+	assert.Equal(t, "Employee deleted successfully", testutil.ParseMessage(t, rec))
 }
 
 func TestUniqueEmployees_DuplicatePassport(t *testing.T) {

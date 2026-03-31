@@ -58,7 +58,7 @@ func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	if err := h.service.UpdateUserPermissions(c.Request().Context(), typeID, userID, req); err != nil {
 		return err
 	}
-	return RespondSuccess(c, map[string]string{"status": "ok"})
+	return RespondMessage(c, "ok")
 }
 
 // GetPermissionTree возвращает дерево разрешений для админского UI.
@@ -80,5 +80,5 @@ func (h *PermissionHandler) AutoGenerate(c echo.Context) error {
 	if err := h.service.AutoGenerateForTable(c.Request().Context(), req.TableID, req.TableName); err != nil {
 		return err
 	}
-	return RespondSuccess(c, map[string]string{"status": "ok"})
+	return RespondMessage(c, "ok")
 }

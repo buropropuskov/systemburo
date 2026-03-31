@@ -178,7 +178,7 @@ func (h *UniqueCarHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
 		return err
 	}
-	return RespondSuccess(c, map[string]string{"message": "Car deleted successfully"})
+	return RespondMessage(c, "Car deleted successfully")
 }
 
 // GetOwnershipInfo godoc
