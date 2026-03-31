@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -106,9 +105,7 @@ func TestUniqueCars_BatchCreate(t *testing.T) {
 	rec := testutil.POST(t, e, "/unique-cars/batch", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// CreateBatch uses c.JSON(httpStatus, resp) directly (variable status support)
-	var batchResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &batchResp))
+	batchResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, float64(2), batchResp["success_count"])
 	assert.Equal(t, float64(0), batchResp["error_count"])
 
@@ -136,9 +133,7 @@ func TestUniqueCars_BatchCreate_PartialDuplicate(t *testing.T) {
 	rec = testutil.POST(t, e, "/unique-cars/batch", body, h)
 	assert.Equal(t, http.StatusMultiStatus, rec.Code)
 
-	// CreateBatch uses c.JSON(httpStatus, resp) directly (variable status support)
-	var batchResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &batchResp))
+	batchResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, float64(1), batchResp["success_count"])
 	assert.Equal(t, float64(1), batchResp["error_count"])
 }
