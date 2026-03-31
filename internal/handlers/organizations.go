@@ -37,7 +37,7 @@ func (h *OrganizationHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, orgs)
+	return RespondSuccess(c, orgs)
 }
 
 // Create godoc
@@ -68,7 +68,7 @@ func (h *OrganizationHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, org)
+	return RespondSuccess(c, org)
 }
 
 // Update godoc
@@ -105,7 +105,7 @@ func (h *OrganizationHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, org)
+	return RespondSuccess(c, org)
 }
 
 // Delete godoc
@@ -136,7 +136,7 @@ func (h *OrganizationHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Organization deleted"})
+	return RespondMessage(c, "Organization deleted")
 }
 
 // GetWithUsers godoc
@@ -155,7 +155,7 @@ func (h *OrganizationHandler) GetWithUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, orgs)
+	return RespondSuccess(c, orgs)
 }
 
 // GetWithUsersExtended godoc
@@ -174,7 +174,7 @@ func (h *OrganizationHandler) GetWithUsersExtended(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, orgs)
+	return RespondSuccess(c, orgs)
 }
 
 // GetMyOrganization godoc
@@ -194,7 +194,7 @@ func (h *OrganizationHandler) GetMyOrganization(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // GetOrganizationUsers godoc
@@ -219,7 +219,7 @@ func (h *OrganizationHandler) GetOrganizationUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, users)
+	return RespondSuccess(c, users)
 }
 
 // UpdateOrganizationUsers godoc
@@ -249,7 +249,7 @@ func (h *OrganizationHandler) UpdateOrganizationUsers(c echo.Context) error {
 	if err := h.service.UpdateOrganizationUsers(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Organization users updated successfully"})
+	return RespondMessage(c, "Organization users updated successfully")
 }
 
 // GetOrganizationTables godoc
@@ -274,7 +274,7 @@ func (h *OrganizationHandler) GetOrganizationTables(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, tables)
+	return RespondSuccess(c, tables)
 }
 
 // UpdateOrganizationTables godoc
@@ -310,7 +310,7 @@ func (h *OrganizationHandler) UpdateOrganizationTables(c echo.Context) error {
 	if err := h.service.UpdateOrganizationTables(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Organization tables updated successfully"})
+	return RespondMessage(c, "Organization tables updated successfully")
 }
 
 // GetOrganizationUnloadPlaces godoc
@@ -335,7 +335,7 @@ func (h *OrganizationHandler) GetOrganizationUnloadPlaces(c echo.Context) error 
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, places)
+	return RespondSuccess(c, places)
 }
 
 // UpdateOrganizationUnloadPlaces godoc
@@ -371,5 +371,5 @@ func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) err
 	if err := h.service.UpdateOrganizationUnloadPlaces(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Unload places updated successfully"})
+	return RespondMessage(c, "Unload places updated successfully")
 }

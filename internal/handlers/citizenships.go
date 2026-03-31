@@ -36,7 +36,7 @@ func (h *CitizenshipHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, citizenships)
+	return RespondSuccess(c, citizenships)
 }
 
 // Create godoc
@@ -62,7 +62,7 @@ func (h *CitizenshipHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Гражданство успешно создано",
 	})
@@ -95,7 +95,7 @@ func (h *CitizenshipHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), typeID, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Гражданство успешно обновлено")
+	return RespondMessage(c, "Гражданство успешно обновлено")
 }
 
 // Delete godoc
@@ -120,7 +120,7 @@ func (h *CitizenshipHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), typeID, id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Гражданство успешно удалено")
+	return RespondMessage(c, "Гражданство успешно удалено")
 }
 
 // ClearDefaults godoc
@@ -139,5 +139,5 @@ func (h *CitizenshipHandler) ClearDefaults(c echo.Context) error {
 	if err := h.service.ClearDefaults(c.Request().Context(), typeID); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Все гражданства по умолчанию сброшены")
+	return RespondMessage(c, "Все гражданства по умолчанию сброшены")
 }

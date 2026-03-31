@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -25,8 +24,7 @@ func TestCitizenships_GetAll(t *testing.T) {
 	rec := testutil.GET(t, e, "/citizenships", h)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	assert.Empty(t, list)
 }
 
@@ -53,8 +51,7 @@ func TestCitizenships_CRUD_Cycle(t *testing.T) {
 	rec := testutil.POST(t, e, "/citizenships", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Гражданство успешно создано", createResp["message"])
 	citizenshipID := int(createResp["id"].(float64))
 	assert.Greater(t, citizenshipID, 0)
@@ -63,8 +60,7 @@ func TestCitizenships_CRUD_Cycle(t *testing.T) {
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 	assert.Equal(t, "Российская Федерация", list[0]["name"])
 	assert.Equal(t, "🇷🇺", list[0]["icon"])
@@ -77,15 +73,14 @@ func TestCitizenships_CRUD_Cycle(t *testing.T) {
 	rec = testutil.PUT(t, e, fmt.Sprintf("/citizenships/%d", citizenshipID), updateBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var updateResp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updateResp))
+	updateResp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Гражданство успешно обновлено", updateResp)
 
 	// --- Read (verify updated) ---
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 	assert.Equal(t, "РФ обновлённое", list[0]["name"])
 	assert.Equal(t, false, list[0]["is_default"])
@@ -95,15 +90,14 @@ func TestCitizenships_CRUD_Cycle(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/citizenships/%d", citizenshipID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var deleteResp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &deleteResp))
+	deleteResp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Гражданство успешно удалено", deleteResp)
 
 	// --- Read (verify gone) ---
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 	assert.Empty(t, list)
 }
 
@@ -191,8 +185,7 @@ func TestCitizenships_ClearDefaults(t *testing.T) {
 	// Verify it's default
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 	assert.Equal(t, true, list[0]["is_default"])
 
@@ -200,14 +193,13 @@ func TestCitizenships_ClearDefaults(t *testing.T) {
 	rec = testutil.POST(t, e, "/citizenships/clear-default", "", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Все гражданства по умолчанию сброшены", resp)
 
 	// Verify default cleared
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 	assert.Equal(t, false, list[0]["is_default"])
 }
@@ -246,8 +238,7 @@ func TestCitizenships_Create_DefaultClears_Previous(t *testing.T) {
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	require.Len(t, list, 2)
 
 	defaultCount := 0

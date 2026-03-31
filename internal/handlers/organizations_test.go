@@ -22,8 +22,7 @@ func TestOrganizations_GetAll(t *testing.T) {
 	rec := testutil.GET(t, e, "/organizations", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var orgs []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &orgs))
+	orgs := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(orgs), 1)
 	assert.Contains(t, orgs[0], "id")
 	assert.Contains(t, orgs[0], "name")
@@ -50,8 +49,7 @@ func TestOrganizations_Create(t *testing.T) {
 	rec := testutil.POST(t, e, "/organizations", body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var org map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &org))
+	org := testutil.ParseMap(t, rec)
 	assert.Equal(t, "New Organization", org["name"])
 	assert.NotZero(t, org["id"])
 }
@@ -81,8 +79,7 @@ func TestOrganizations_Update(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", td.OrgID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var org map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &org))
+	org := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Updated Organization", org["name"])
 	assert.Equal(t, float64(td.OrgID), org["id"])
 }
@@ -97,16 +94,14 @@ func TestOrganizations_Delete(t *testing.T) {
 	// Create a new org to delete (the seeded one has the admin user)
 	createRec := testutil.POST(t, e, "/organizations", `{"name":"To Delete"}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var created map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &created))
+	created := testutil.ParseMap(t, createRec)
 	orgID := int(created["id"].(float64))
 
 	rec := testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", orgID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Organization deleted", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Organization deleted", msg)
 }
 
 func TestOrganizations_Delete_WithUsers_Fails(t *testing.T) {
@@ -132,8 +127,7 @@ func TestOrganizations_GetWithUsers(t *testing.T) {
 	rec := testutil.GET(t, e, "/organizations/with-users", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var orgs []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &orgs))
+	orgs := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(orgs), 1)
 
 	// Find the test org and verify user_count
@@ -157,8 +151,7 @@ func TestOrganizations_GetWithUsersExtended(t *testing.T) {
 	rec := testutil.GET(t, e, "/organizations/with-users-extended", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var orgs []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &orgs))
+	orgs := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(orgs), 1)
 	assert.Contains(t, orgs[0], "id")
 	assert.Contains(t, orgs[0], "name")
@@ -176,8 +169,7 @@ func TestOrganizations_GetMyOrganization(t *testing.T) {
 	rec := testutil.GET(t, e, "/get-organization", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMap(t, rec)
 	assert.Contains(t, resp, "organization")
 	assert.Contains(t, resp, "organization_id")
 	assert.Equal(t, float64(td.OrgID), resp["organization_id"])
@@ -204,8 +196,7 @@ func TestOrganizations_GetOrganizationUsers(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 	// Initially no organization_users junction records, so empty array is valid
 	assert.NotNil(t, users)
 }
@@ -226,15 +217,13 @@ func TestOrganizations_UpdateOrganizationUsers(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Organization users updated successfully", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Organization users updated successfully", msg)
 
 	// Verify the user is now listed
 	getRec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, getRec)
 	assert.Len(t, users, 1)
 	assert.Equal(t, "orguser1", users[0]["username"])
 	assert.Equal(t, true, users[0]["is_primary"])
@@ -266,8 +255,7 @@ func TestOrganizations_GetOrganizationTables(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/tables", td.OrgID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var tables []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tables))
+	tables := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, tables)
 }
 
@@ -278,7 +266,7 @@ func TestOrganizations_UpdateOrganizationTables(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	// Create a system table to assign
+	// Create a system table to assign (not yet migrated, raw response)
 	createBody := `{"name":"test-table","display_name":"Test Table","table_type":"cars"}`
 	createRec := testutil.POST(t, e, "/system-tables", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
@@ -291,15 +279,13 @@ func TestOrganizations_UpdateOrganizationTables(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/tables", td.OrgID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Organization tables updated successfully", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Organization tables updated successfully", msg)
 
 	// Verify tables are assigned
 	getRec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/tables", td.OrgID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var tables []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &tables))
+	tables := testutil.ParseSlice(t, getRec)
 	assert.Len(t, tables, 1)
 	assert.Equal(t, "test-table", tables[0]["name"])
 }
@@ -327,8 +313,7 @@ func TestOrganizations_GetOrganizationUnloadPlaces(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/unload-places", td.OrgID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var places []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &places))
+	places := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, places)
 }
 
@@ -339,7 +324,7 @@ func TestOrganizations_UpdateOrganizationUnloadPlaces(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	// Create an unload place to assign
+	// Create an unload place to assign (not yet migrated, raw response)
 	createBody := `{"name":"Test Unload Place","description":"desc","status":"active"}`
 	createRec := testutil.POST(t, e, "/unload-places", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
@@ -352,15 +337,13 @@ func TestOrganizations_UpdateOrganizationUnloadPlaces(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/unload-places", td.OrgID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Unload places updated successfully", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Unload places updated successfully", msg)
 
 	// Verify
 	getRec := testutil.GET(t, e, fmt.Sprintf("/organizations/%d/unload-places", td.OrgID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var places []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &places))
+	places := testutil.ParseSlice(t, getRec)
 	assert.Len(t, places, 1)
 	assert.Equal(t, "Test Unload Place", places[0]["name"])
 }
@@ -392,8 +375,7 @@ func TestOrganizations_WithUsers_MultipleUsers(t *testing.T) {
 	rec := testutil.GET(t, e, "/organizations/with-users", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var orgs []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &orgs))
+	orgs := testutil.ParseSlice(t, rec)
 
 	for _, o := range orgs {
 		if int(o["id"].(float64)) == td.OrgID {

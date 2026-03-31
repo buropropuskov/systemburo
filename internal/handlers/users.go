@@ -36,7 +36,7 @@ func (h *UsersHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, result)
+	return RespondSuccess(c, result)
 }
 
 // UpdateType godoc
@@ -63,7 +63,7 @@ func (h *UsersHandler) UpdateType(c echo.Context) error {
 	if err := h.service.UpdateType(c.Request().Context(), typeID, username, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "User type updated successfully")
+	return RespondMessage(c, "User type updated successfully")
 }
 
 // UpdatePassword godoc
@@ -89,7 +89,7 @@ func (h *UsersHandler) UpdatePassword(c echo.Context) error {
 	if err := h.service.UpdatePassword(c.Request().Context(), typeID, username, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Password updated successfully")
+	return RespondMessage(c, "Password updated successfully")
 }
 
 // UpdateInfo godoc
@@ -115,7 +115,7 @@ func (h *UsersHandler) UpdateInfo(c echo.Context) error {
 	if err := h.service.UpdateInfo(c.Request().Context(), typeID, username, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "User info updated successfully")
+	return RespondMessage(c, "User info updated successfully")
 }
 
 // UpdateOrganization godoc
@@ -141,7 +141,7 @@ func (h *UsersHandler) UpdateOrganization(c echo.Context) error {
 	if err := h.service.UpdateOrganization(c.Request().Context(), typeID, username, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Organization updated successfully")
+	return RespondMessage(c, "Organization updated successfully")
 }
 
 // UpdateCompany godoc
@@ -167,7 +167,7 @@ func (h *UsersHandler) UpdateCompany(c echo.Context) error {
 	if err := h.service.UpdateCompany(c.Request().Context(), typeID, username, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Company updated successfully")
+	return RespondMessage(c, "Company updated successfully")
 }
 
 // Delete godoc
@@ -188,5 +188,5 @@ func (h *UsersHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), typeID, username); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "User deleted successfully"})
+	return RespondMessage(c, "User deleted successfully")
 }

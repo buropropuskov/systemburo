@@ -22,8 +22,7 @@ func TestCompanies_GetAll(t *testing.T) {
 	rec := testutil.GET(t, e, "/companies", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var companies []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &companies))
+	companies := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(companies), 1)
 	assert.Contains(t, companies[0], "id")
 	assert.Contains(t, companies[0], "name")
@@ -50,8 +49,7 @@ func TestCompanies_Create(t *testing.T) {
 	rec := testutil.POST(t, e, "/companies", body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var comp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &comp))
+	comp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "New Company", comp["name"])
 	assert.NotZero(t, comp["id"])
 }
@@ -80,8 +78,7 @@ func TestCompanies_Update(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", td.CompanyID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var comp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &comp))
+	comp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Updated Company", comp["name"])
 	assert.Equal(t, float64(td.CompanyID), comp["id"])
 }
@@ -109,16 +106,14 @@ func TestCompanies_Delete(t *testing.T) {
 	// Create a new company to delete (seeded one has the admin user)
 	createRec := testutil.POST(t, e, "/companies", `{"name":"To Delete"}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var created map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &created))
+	created := testutil.ParseMap(t, createRec)
 	compID := int(created["id"].(float64))
 
 	rec := testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", compID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Company deleted", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Company deleted", msg)
 }
 
 func TestCompanies_Delete_WithUsers_Fails(t *testing.T) {
@@ -156,8 +151,7 @@ func TestCompanies_GetWithUsers(t *testing.T) {
 	rec := testutil.GET(t, e, "/companies/with-users", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var companies []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &companies))
+	companies := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(companies), 1)
 
 	for _, c := range companies {
@@ -180,8 +174,7 @@ func TestCompanies_GetWithUsersExtended(t *testing.T) {
 	rec := testutil.GET(t, e, "/companies/with-users-extended", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var companies []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &companies))
+	companies := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(companies), 1)
 	assert.Contains(t, companies[0], "id")
 	assert.Contains(t, companies[0], "name")
@@ -202,8 +195,7 @@ func TestCompanies_WithUsers_MultipleUsers(t *testing.T) {
 	rec := testutil.GET(t, e, "/companies/with-users", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var companies []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &companies))
+	companies := testutil.ParseSlice(t, rec)
 
 	for _, c := range companies {
 		if int(c["id"].(float64)) == td.CompanyID {
@@ -225,8 +217,7 @@ func TestCompanies_GetUsers(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, users)
 }
 
@@ -243,15 +234,13 @@ func TestCompanies_UpdateUsers(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Company users updated successfully", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Company users updated successfully", msg)
 
 	// Verify
 	getRec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, getRec)
 	assert.Len(t, users, 1)
 	assert.Equal(t, "compuser1", users[0]["username"])
 	assert.Equal(t, true, users[0]["is_primary"])
@@ -297,8 +286,7 @@ func TestCompanies_UpdateUsers_ReplaceStrategy(t *testing.T) {
 	// Verify only cu2 is assigned now
 	getRec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, getRec)
 	assert.Len(t, users, 1)
 	assert.Equal(t, "cu2", users[0]["username"])
 }
@@ -313,8 +301,7 @@ func TestCompanies_GetTables(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/tables", td.CompanyID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var tables []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tables))
+	tables := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, tables)
 }
 
@@ -325,7 +312,7 @@ func TestCompanies_UpdateTables(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	// Create a system table
+	// Create a system table (not yet migrated, raw response)
 	createBody := `{"name":"comp-table","display_name":"Company Table","table_type":"cars"}`
 	createRec := testutil.POST(t, e, "/system-tables", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
@@ -338,15 +325,13 @@ func TestCompanies_UpdateTables(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/companies/%d/tables", td.CompanyID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Company tables updated successfully", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Company tables updated successfully", msg)
 
 	// Verify
 	getRec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/tables", td.CompanyID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var tables []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &tables))
+	tables := testutil.ParseSlice(t, getRec)
 	assert.Len(t, tables, 1)
 	assert.Equal(t, "comp-table", tables[0]["name"])
 }
@@ -374,8 +359,7 @@ func TestCompanies_GetUnloadPlaces(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/unload-places", td.CompanyID), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var places []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &places))
+	places := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, places)
 }
 
@@ -386,7 +370,7 @@ func TestCompanies_UpdateUnloadPlaces(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	// Create an unload place
+	// Create an unload place (not yet migrated, raw response)
 	createBody := `{"name":"Company Unload Place","description":"desc","status":"active"}`
 	createRec := testutil.POST(t, e, "/unload-places", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
@@ -399,15 +383,13 @@ func TestCompanies_UpdateUnloadPlaces(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/companies/%d/unload-places", td.CompanyID), body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Unload places updated successfully", resp["message"])
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Unload places updated successfully", msg)
 
 	// Verify
 	getRec := testutil.GET(t, e, fmt.Sprintf("/companies/%d/unload-places", td.CompanyID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var places []map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &places))
+	places := testutil.ParseSlice(t, getRec)
 	assert.Len(t, places, 1)
 	assert.Equal(t, "Company Unload Place", places[0]["name"])
 }

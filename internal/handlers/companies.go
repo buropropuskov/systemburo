@@ -35,7 +35,7 @@ func (h *CompanyHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, companies)
+	return RespondSuccess(c, companies)
 }
 
 // GetWithUsers godoc
@@ -54,7 +54,7 @@ func (h *CompanyHandler) GetWithUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, companies)
+	return RespondSuccess(c, companies)
 }
 
 // GetWithUsersExtended godoc
@@ -73,7 +73,7 @@ func (h *CompanyHandler) GetWithUsersExtended(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, companies)
+	return RespondSuccess(c, companies)
 }
 
 // Create godoc
@@ -101,7 +101,7 @@ func (h *CompanyHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, company)
+	return RespondSuccess(c, company)
 }
 
 // Update godoc
@@ -135,7 +135,7 @@ func (h *CompanyHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, company)
+	return RespondSuccess(c, company)
 }
 
 // Delete godoc
@@ -163,7 +163,7 @@ func (h *CompanyHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Company deleted"})
+	return RespondMessage(c, "Company deleted")
 }
 
 // GetUsers godoc
@@ -188,7 +188,7 @@ func (h *CompanyHandler) GetUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, users)
+	return RespondSuccess(c, users)
 }
 
 // UpdateUsers godoc
@@ -218,7 +218,7 @@ func (h *CompanyHandler) UpdateUsers(c echo.Context) error {
 	if err := h.service.UpdateUsers(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Company users updated successfully"})
+	return RespondMessage(c, "Company users updated successfully")
 }
 
 // GetUnloadPlaces godoc
@@ -243,7 +243,7 @@ func (h *CompanyHandler) GetUnloadPlaces(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, places)
+	return RespondSuccess(c, places)
 }
 
 // UpdateUnloadPlaces godoc
@@ -276,7 +276,7 @@ func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
 	if err := h.service.UpdateUnloadPlaces(c.Request().Context(), username, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Unload places updated successfully"})
+	return RespondMessage(c, "Unload places updated successfully")
 }
 
 // GetTables godoc
@@ -301,7 +301,7 @@ func (h *CompanyHandler) GetTables(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, tables)
+	return RespondSuccess(c, tables)
 }
 
 // UpdateTables godoc
@@ -334,5 +334,5 @@ func (h *CompanyHandler) UpdateTables(c echo.Context) error {
 	if err := h.service.UpdateTables(c.Request().Context(), username, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Company tables updated successfully"})
+	return RespondMessage(c, "Company tables updated successfully")
 }

@@ -37,7 +37,7 @@ func (h *UserTypesHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, result)
+	return RespondSuccess(c, result)
 }
 
 // Create godoc
@@ -63,7 +63,7 @@ func (h *UserTypesHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Тип пользователя успешно создан",
 	})
@@ -96,7 +96,7 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), typeID, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Тип пользователя успешно обновлен")
+	return RespondMessage(c, "Тип пользователя успешно обновлен")
 }
 
 // Delete godoc
@@ -121,5 +121,5 @@ func (h *UserTypesHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), typeID, id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Тип пользователя успешно удален")
+	return RespondMessage(c, "Тип пользователя успешно удален")
 }

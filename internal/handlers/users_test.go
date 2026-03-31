@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -27,8 +26,7 @@ func TestUsers_GetAll(t *testing.T) {
 	rec := testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(list), 2) // admin + regularuser
 
 	// Verify response structure
@@ -76,8 +74,7 @@ func TestUsers_UpdateType(t *testing.T) {
 	// Get user types to find the "renter" type_id
 	rec := testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var types []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &types))
+	types := testutil.ParseSlice(t, rec)
 
 	var renterTypeID int
 	for _, ut := range types {
@@ -93,15 +90,13 @@ func TestUsers_UpdateType(t *testing.T) {
 	rec = testutil.PUT(t, e, "/users/targetuser/type", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "User type updated successfully", resp)
 
 	// Verify the change via GetAll
 	rec = testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 
 	for _, u := range users {
 		if u["username"] == "targetuser" {
@@ -154,8 +149,7 @@ func TestUsers_UpdatePassword(t *testing.T) {
 	rec := testutil.PUT(t, e, "/users/targetuser/password", `{"password":"newpassword123"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Password updated successfully", resp)
 
 	// Verify new password works by logging in
@@ -202,16 +196,14 @@ func TestUsers_UpdateInfo(t *testing.T) {
 	rec := testutil.PUT(t, e, "/users/targetuser/info", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "User info updated successfully", resp)
 
 	// Verify via GetAll
 	rec = testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 
 	for _, u := range users {
 		if u["username"] == "targetuser" {
@@ -254,8 +246,7 @@ func TestUsers_UpdateOrganization(t *testing.T) {
 	rec := testutil.POST(t, e, "/organizations", `{"name":"New Organization"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var orgResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &orgResp))
+	orgResp := testutil.ParseMap(t, rec)
 	newOrgID := int(orgResp["id"].(float64))
 
 	// Update user's organization
@@ -263,16 +254,14 @@ func TestUsers_UpdateOrganization(t *testing.T) {
 	rec = testutil.PUT(t, e, "/users/targetuser/organization", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Organization updated successfully", resp)
 
 	// Verify via GetAll
 	rec = testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 
 	for _, u := range users {
 		if u["username"] == "targetuser" {
@@ -297,8 +286,7 @@ func TestUsers_UpdateCompany(t *testing.T) {
 	rec := testutil.POST(t, e, "/companies", `{"name":"New Company"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var compResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &compResp))
+	compResp := testutil.ParseMap(t, rec)
 	newCompID := int(compResp["id"].(float64))
 
 	// Update user's company
@@ -306,16 +294,14 @@ func TestUsers_UpdateCompany(t *testing.T) {
 	rec = testutil.PUT(t, e, "/users/targetuser/company", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Company updated successfully", resp)
 
 	// Verify via GetAll
 	rec = testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 
 	for _, u := range users {
 		if u["username"] == "targetuser" {
@@ -339,8 +325,7 @@ func TestUsers_Delete(t *testing.T) {
 	// Verify user exists
 	rec := testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var users []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users := testutil.ParseSlice(t, rec)
 
 	found := false
 	for _, u := range users {
@@ -355,14 +340,13 @@ func TestUsers_Delete(t *testing.T) {
 	rec = testutil.DELETE(t, e, "/users/targetuser", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var deleteResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &deleteResp))
-	assert.Equal(t, "User deleted successfully", deleteResp["message"])
+	deleteResp := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "User deleted successfully", deleteResp)
 
 	// Verify gone
 	rec = testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &users))
+	users = testutil.ParseSlice(t, rec)
 
 	for _, u := range users {
 		assert.NotEqual(t, "targetuser", u["username"])

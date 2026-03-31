@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -24,8 +23,7 @@ func TestUserTypes_GetAll(t *testing.T) {
 	rec := testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	// Seed creates 6 user types
 	assert.GreaterOrEqual(t, len(list), 6)
 
@@ -74,8 +72,7 @@ func TestUserTypes_CRUD_Cycle(t *testing.T) {
 	rec := testutil.POST(t, e, "/user-types-management", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Тип пользователя успешно создан", createResp["message"])
 	typeID := int(createResp["id"].(float64))
 	assert.Greater(t, typeID, 0)
@@ -84,8 +81,7 @@ func TestUserTypes_CRUD_Cycle(t *testing.T) {
 	rec = testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 
 	var found bool
 	for _, item := range list {
@@ -103,14 +99,13 @@ func TestUserTypes_CRUD_Cycle(t *testing.T) {
 		`{"name":"Обновлённый тип","code":"test_type_updated"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var updateResp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updateResp))
+	updateResp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Тип пользователя успешно обновлен", updateResp)
 
 	// --- Read (verify updated) ---
 	rec = testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 
 	found = false
 	for _, item := range list {
@@ -126,14 +121,13 @@ func TestUserTypes_CRUD_Cycle(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/user-types-management/%d", typeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var deleteResp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &deleteResp))
+	deleteResp := testutil.ParseMessage(t, rec)
 	assert.Equal(t, "Тип пользователя успешно удален", deleteResp)
 
 	// --- Read (verify gone) ---
 	rec = testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 
 	for _, item := range list {
 		assert.NotEqual(t, float64(typeID), item["id"])
@@ -195,8 +189,7 @@ func TestUserTypes_Delete_WithAssociatedUsers(t *testing.T) {
 	rec := testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 
 	var buroID int
 	for _, item := range list {
@@ -237,8 +230,7 @@ func TestUserTypes_GetAll_IncludesUsersCount(t *testing.T) {
 	rec := testutil.GET(t, e, "/user-types-management", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 
 	for _, item := range list {
 		if item["code"] == "buropropuskov" {
