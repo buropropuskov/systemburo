@@ -32,7 +32,7 @@ func (h *ApproverHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, result)
+	return RespondSuccess(c, result)
 }
 
 // GetAvailableUsers godoc
@@ -49,7 +49,7 @@ func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, result)
+	return RespondSuccess(c, result)
 }
 
 // Create godoc
@@ -75,7 +75,7 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 	if err := h.service.Create(c.Request().Context(), typeID, req.UserID, username); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]string{
+	return RespondCreated(c, map[string]string{
 		"message": "Approver added successfully",
 	})
 }
@@ -99,7 +99,7 @@ func (h *ApproverHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), typeID, id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{
+	return RespondSuccess(c, map[string]string{
 		"message": "Approver deleted successfully",
 	})
 }

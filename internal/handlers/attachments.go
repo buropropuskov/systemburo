@@ -36,7 +36,7 @@ func (h *AttachmentHandler) GetActive(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, attachments)
+	return RespondSuccess(c, attachments)
 }
 
 // GetAll godoc
@@ -55,7 +55,7 @@ func (h *AttachmentHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, attachments)
+	return RespondSuccess(c, attachments)
 }
 
 // GetByID godoc
@@ -80,7 +80,7 @@ func (h *AttachmentHandler) GetByID(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, attachment)
+	return RespondSuccess(c, attachment)
 }
 
 // Create godoc
@@ -104,7 +104,7 @@ func (h *AttachmentHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, resp)
+	return RespondSuccess(c, resp)
 }
 
 // Update godoc
@@ -132,7 +132,7 @@ func (h *AttachmentHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Вложение успешно обновлено")
+	return RespondMessage(c, "Вложение успешно обновлено")
 }
 
 // Delete godoc
@@ -155,7 +155,7 @@ func (h *AttachmentHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Вложение успешно удалено")
+	return RespondMessage(c, "Вложение успешно удалено")
 }
 
 // Restore godoc
@@ -178,5 +178,5 @@ func (h *AttachmentHandler) Restore(c echo.Context) error {
 	if err := h.service.Restore(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Вложение успешно восстановлено")
+	return RespondMessage(c, "Вложение успешно восстановлено")
 }

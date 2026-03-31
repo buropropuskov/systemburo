@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -26,7 +24,7 @@ func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, perms)
+	return RespondSuccess(c, perms)
 }
 
 // GetUserPermissions возвращает разрешения указанного пользователя (только admin).
@@ -41,7 +39,7 @@ func (h *PermissionHandler) GetUserPermissions(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, perms)
+	return RespondSuccess(c, perms)
 }
 
 // UpdateUserPermissions обновляет разрешения указанного пользователя (только admin).
@@ -60,7 +58,7 @@ func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	if err := h.service.UpdateUserPermissions(c.Request().Context(), typeID, userID, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	return RespondSuccess(c, map[string]string{"status": "ok"})
 }
 
 // GetPermissionTree возвращает дерево разрешений для админского UI.
@@ -69,7 +67,7 @@ func (h *PermissionHandler) GetPermissionTree(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, tree)
+	return RespondSuccess(c, tree)
 }
 
 // AutoGenerate создаёт разрешения для таблицы (только admin).
@@ -82,5 +80,5 @@ func (h *PermissionHandler) AutoGenerate(c echo.Context) error {
 	if err := h.service.AutoGenerateForTable(c.Request().Context(), req.TableID, req.TableName); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	return RespondSuccess(c, map[string]string{"status": "ok"})
 }

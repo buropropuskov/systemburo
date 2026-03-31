@@ -35,7 +35,7 @@ func (h *SystemTableHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, tables)
+	return RespondSuccess(c, tables)
 }
 
 // GetByID godoc
@@ -59,7 +59,7 @@ func (h *SystemTableHandler) GetByID(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, table)
+	return RespondSuccess(c, table)
 }
 
 // GetByName godoc
@@ -79,7 +79,7 @@ func (h *SystemTableHandler) GetByName(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, table)
+	return RespondSuccess(c, table)
 }
 
 // Create godoc
@@ -104,7 +104,7 @@ func (h *SystemTableHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Системная таблица успешно создана",
 	})
@@ -136,7 +136,7 @@ func (h *SystemTableHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Системная таблица успешно обновлена")
+	return RespondMessage(c, "Системная таблица успешно обновлена")
 }
 
 // Delete godoc
@@ -159,7 +159,7 @@ func (h *SystemTableHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Системная таблица успешно удалена")
+	return RespondMessage(c, "Системная таблица успешно удалена")
 }
 
 // --- Временные слоты ---
@@ -185,7 +185,7 @@ func (h *SystemTableHandler) GetTimeSlots(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, slots)
+	return RespondSuccess(c, slots)
 }
 
 // AddTimeSlot godoc
@@ -215,7 +215,7 @@ func (h *SystemTableHandler) AddTimeSlot(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Временной слот успешно добавлен",
 	})
@@ -252,7 +252,7 @@ func (h *SystemTableHandler) UpdateTimeSlot(c echo.Context) error {
 	if err := h.service.UpdateTimeSlot(c.Request().Context(), tableID, slotID, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Временной слот успешно обновлен")
+	return RespondMessage(c, "Временной слот успешно обновлен")
 }
 
 // DeleteTimeSlot godoc
@@ -280,7 +280,7 @@ func (h *SystemTableHandler) DeleteTimeSlot(c echo.Context) error {
 	if err := h.service.DeleteTimeSlot(c.Request().Context(), tableID, slotID); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Временной слот успешно удален")
+	return RespondMessage(c, "Временной слот успешно удален")
 }
 
 // --- Фотографии ---
@@ -325,7 +325,7 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 		photoIDs = append(photoIDs, id)
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"message":   "Фотографии успешно загружены",
 		"photo_ids": photoIDs,
 	})
@@ -356,7 +356,7 @@ func (h *SystemTableHandler) DeletePhoto(c echo.Context) error {
 	if err := h.service.DeletePhoto(c.Request().Context(), tableID, photoID); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Фотография успешно удалена")
+	return RespondMessage(c, "Фотография успешно удалена")
 }
 
 // SetMainPhoto godoc
@@ -384,5 +384,5 @@ func (h *SystemTableHandler) SetMainPhoto(c echo.Context) error {
 	if err := h.service.SetMainPhoto(c.Request().Context(), tableID, photoID); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Главная фотография успешно установлена")
+	return RespondMessage(c, "Главная фотография успешно установлена")
 }

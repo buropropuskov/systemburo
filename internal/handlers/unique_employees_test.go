@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -42,8 +41,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 	rec := testutil.POST(t, e, "/unique-employees", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, createResp["id"])
 	empID := int(createResp["id"].(float64))
 	assert.Greater(t, empID, 0)
@@ -55,8 +53,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, "/unique-employees", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var listResp []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listResp))
+	listResp := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(listResp), 1)
 
 	// Update
@@ -70,8 +67,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 	rec = testutil.PUT(t, e, fmt.Sprintf("/unique-employees/%d", empID), updateBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var updateResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updateResp))
+	updateResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Petrov", updateResp["last_name"])
 	assert.Equal(t, "Petr", updateResp["first_name"])
 
@@ -79,8 +75,7 @@ func TestUniqueEmployees_CRUD(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/unique-employees/%d", empID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var delResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &delResp))
+	delResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Employee deleted successfully", delResp["message"])
 }
 
@@ -124,8 +119,7 @@ func TestUniqueEmployees_GetOwnershipInfo(t *testing.T) {
 	rec := testutil.GET(t, e, "/unique-employees/ownership-info", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var info map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &info))
+	info := testutil.ParseMap(t, rec)
 	assert.Contains(t, info, "has_organization")
 	assert.Contains(t, info, "has_company")
 	assert.Contains(t, info, "user_id")

@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -266,12 +265,11 @@ func TestOrganizations_UpdateOrganizationTables(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	// Create a system table to assign (not yet migrated, raw response)
+	// Create a system table to assign
 	createBody := `{"name":"test-table","display_name":"Test Table","table_type":"cars"}`
 	createRec := testutil.POST(t, e, "/system-tables", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var table map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &table))
+	table := testutil.ParseMap(t, createRec)
 	tableID := int(table["id"].(float64))
 
 	// Assign the table to the org
@@ -324,12 +322,11 @@ func TestOrganizations_UpdateOrganizationUnloadPlaces(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	// Create an unload place to assign (not yet migrated, raw response)
+	// Create an unload place to assign
 	createBody := `{"name":"Test Unload Place","description":"desc","status":"active"}`
 	createRec := testutil.POST(t, e, "/unload-places", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var place map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &place))
+	place := testutil.ParseMap(t, createRec)
 	placeID := int(place["id"].(float64))
 
 	// Assign to org

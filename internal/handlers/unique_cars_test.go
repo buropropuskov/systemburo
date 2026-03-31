@@ -35,8 +35,7 @@ func TestUniqueCars_CRUD(t *testing.T) {
 	rec := testutil.POST(t, e, "/unique-cars", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, createResp["id"])
 	carID := int(createResp["id"].(float64))
 	assert.Greater(t, carID, 0)
@@ -48,14 +47,13 @@ func TestUniqueCars_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, "/unique-cars", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var listResp []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listResp))
+	listResp := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(listResp), 1)
 
 	// Get all with filter_type=all_system
 	rec = testutil.GET(t, e, "/unique-cars?filter_type=all_system", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listResp))
+	listResp = testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(listResp), 1)
 
 	// Update by ID
@@ -64,8 +62,7 @@ func TestUniqueCars_CRUD(t *testing.T) {
 	rec = testutil.PUT(t, e, fmt.Sprintf("/unique-cars/%d", carID), updateBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var updateResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updateResp))
+	updateResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "B456DE", updateResp["number"])
 	assert.Equal(t, "Honda", updateResp["mark"])
 
@@ -73,8 +70,7 @@ func TestUniqueCars_CRUD(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/unique-cars/%d", carID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var delResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &delResp))
+	delResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Car deleted successfully", delResp["message"])
 }
 
@@ -110,6 +106,7 @@ func TestUniqueCars_BatchCreate(t *testing.T) {
 	rec := testutil.POST(t, e, "/unique-cars/batch", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
+	// CreateBatch uses c.JSON(httpStatus, resp) directly (variable status support)
 	var batchResp map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &batchResp))
 	assert.Equal(t, float64(2), batchResp["success_count"])
@@ -139,6 +136,7 @@ func TestUniqueCars_BatchCreate_PartialDuplicate(t *testing.T) {
 	rec = testutil.POST(t, e, "/unique-cars/batch", body, h)
 	assert.Equal(t, http.StatusMultiStatus, rec.Code)
 
+	// CreateBatch uses c.JSON(httpStatus, resp) directly (variable status support)
 	var batchResp map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &batchResp))
 	assert.Equal(t, float64(1), batchResp["success_count"])
@@ -162,8 +160,7 @@ func TestUniqueCars_UpdateByNumber(t *testing.T) {
 	rec = testutil.PUT(t, e, "/unique-cars/by-number", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "UBN002", resp["number"])
 	assert.Equal(t, "Saab", resp["mark"])
 }
@@ -204,8 +201,7 @@ func TestUniqueCars_GetOwnershipInfo(t *testing.T) {
 	rec := testutil.GET(t, e, "/unique-cars/ownership-info", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var info map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &info))
+	info := testutil.ParseMap(t, rec)
 	assert.Contains(t, info, "has_organization")
 	assert.Contains(t, info, "has_company")
 	assert.Contains(t, info, "user_id")

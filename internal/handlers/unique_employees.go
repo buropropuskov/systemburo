@@ -40,7 +40,7 @@ func (h *UniqueEmployeeHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, employees)
+	return RespondSuccess(c, employees)
 }
 
 // Create godoc
@@ -66,7 +66,7 @@ func (h *UniqueEmployeeHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, employee)
+	return RespondSuccess(c, employee)
 }
 
 // Update godoc
@@ -100,7 +100,7 @@ func (h *UniqueEmployeeHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, employee)
+	return RespondSuccess(c, employee)
 }
 
 // Delete godoc
@@ -125,7 +125,7 @@ func (h *UniqueEmployeeHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Employee deleted successfully"})
+	return RespondSuccess(c, map[string]string{"message": "Employee deleted successfully"})
 }
 
 // GetOwnershipInfo godoc
@@ -143,5 +143,5 @@ func (h *UniqueEmployeeHandler) GetOwnershipInfo(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, info)
+	return RespondSuccess(c, info)
 }

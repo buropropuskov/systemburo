@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -33,8 +32,7 @@ func TestPermissions_GetMy_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/permissions/my", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var perms []models.UserPermissionResponse
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &perms))
+	perms := testutil.ParseResponse[[]models.UserPermissionResponse](t, rec)
 	assert.Equal(t, 0, len(perms))
 }
 
@@ -60,8 +58,7 @@ func TestPermissions_GetMy_WithPermissions(t *testing.T) {
 	rec := testutil.GET(t, e, "/permissions/my", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var perms []models.UserPermissionResponse
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &perms))
+	perms := testutil.ParseResponse[[]models.UserPermissionResponse](t, rec)
 	assert.Equal(t, 1, len(perms))
 	assert.Equal(t, "tab.cars.view", perms[0].Key)
 	assert.Equal(t, "allow", perms[0].Value)
@@ -124,8 +121,7 @@ func TestPermissions_UpdateUserPermissions_AdminOnly(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/permissions/user/%d", userID), testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var perms []models.UserPermissionResponse
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &perms))
+	perms := testutil.ParseResponse[[]models.UserPermissionResponse](t, rec)
 	assert.Equal(t, 1, len(perms))
 	assert.Equal(t, "tab.cars.view", perms[0].Key)
 	assert.Equal(t, "allow", perms[0].Value)
@@ -193,8 +189,7 @@ func TestPermissions_UpdateUserPermissions_Upsert(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/permissions/user/%d", userID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var perms []models.UserPermissionResponse
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &perms))
+	perms := testutil.ParseResponse[[]models.UserPermissionResponse](t, rec)
 	assert.Equal(t, 1, len(perms))
 	assert.Equal(t, "deny", perms[0].Value)
 }
@@ -211,8 +206,7 @@ func TestPermissions_GetTree(t *testing.T) {
 	rec := testutil.GET(t, e, "/permissions/tree", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var tree []models.PermissionTreeNode
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tree))
+	tree := testutil.ParseResponse[[]models.PermissionTreeNode](t, rec)
 	// Should have at least the seeded tab permissions
 	assert.GreaterOrEqual(t, len(tree), 4)
 }

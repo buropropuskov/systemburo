@@ -34,7 +34,7 @@ func (h *LicensePlateFormatHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, formats)
+	return RespondSuccess(c, formats)
 }
 
 // Create godoc
@@ -60,7 +60,7 @@ func (h *LicensePlateFormatHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, models.CreateFormatResponse{
+	return RespondSuccess(c, models.CreateFormatResponse{
 		ID:      id,
 		Message: "Формат номеров успешно создан",
 	})
@@ -94,7 +94,7 @@ func (h *LicensePlateFormatHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, "Формат номеров успешно обновлен")
+	return RespondMessage(c, "Формат номеров успешно обновлен")
 }
 
 // Delete godoc
@@ -119,5 +119,5 @@ func (h *LicensePlateFormatHandler) Delete(c echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, "Формат номеров успешно удален")
+	return RespondMessage(c, "Формат номеров успешно удален")
 }

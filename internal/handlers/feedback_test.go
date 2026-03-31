@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -33,8 +32,7 @@ func TestFeedback_Create(t *testing.T) {
 	rec := testutil.POST(t, e, "/feedback", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, resp["id"])
 	assert.Greater(t, int(resp["id"].(float64)), 0)
 }
@@ -69,8 +67,7 @@ func TestFeedback_GetMy(t *testing.T) {
 	rec = testutil.GET(t, e, "/feedback/my", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var feedbacks []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &feedbacks))
+	feedbacks := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(feedbacks), 1)
 
 	fb := feedbacks[0]
@@ -116,8 +113,7 @@ func TestFeedback_GetStats_AdminOnly(t *testing.T) {
 	rec = testutil.GET(t, e, "/feedback/stats", testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var stats map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &stats))
+	stats := testutil.ParseMap(t, rec)
 	assert.Contains(t, stats, "total")
 	assert.Contains(t, stats, "resolved")
 	assert.Contains(t, stats, "unresolved")
@@ -137,8 +133,7 @@ func TestFeedback_UpdateStatus(t *testing.T) {
 		testutil.AuthHeader(userToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	fbID := int(createResp["id"].(float64))
 
 	// Admin updates status
@@ -168,8 +163,7 @@ func TestFeedback_UpdateStatus_InvalidStatus(t *testing.T) {
 		testutil.AuthHeader(userToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	fbID := int(createResp["id"].(float64))
 
 	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
@@ -203,8 +197,7 @@ func TestFeedback_MarkAsRead(t *testing.T) {
 		testutil.AuthHeader(userToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	fbID := int(createResp["id"].(float64))
 
 	// Admin marks as read
@@ -241,8 +234,7 @@ func TestFeedback_Stats_AfterCreation(t *testing.T) {
 	rec := testutil.GET(t, e, "/feedback/stats", testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var stats map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &stats))
+	stats := testutil.ParseMap(t, rec)
 	assert.GreaterOrEqual(t, stats["total"].(float64), float64(2))
 	assert.GreaterOrEqual(t, stats["unresolved"].(float64), float64(2))
 	assert.GreaterOrEqual(t, stats["unread"].(float64), float64(2))

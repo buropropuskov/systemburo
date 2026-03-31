@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -37,8 +36,7 @@ func TestApprovers_GetAll_AdminOnly(t *testing.T) {
 	rec = testutil.GET(t, e, "/application-approvers", testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var approvers []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &approvers))
+	approvers := testutil.ParseSlice(t, rec)
 	// Initially empty
 	assert.IsType(t, []map[string]interface{}{}, approvers)
 }
@@ -60,8 +58,7 @@ func TestApprovers_CRUD(t *testing.T) {
 	rec := testutil.GET(t, e, "/application-approvers/available-users", adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var available []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &available))
+	available := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(available), 1, "should have at least one available user")
 
 	// Find the target user ID
@@ -79,16 +76,14 @@ func TestApprovers_CRUD(t *testing.T) {
 	rec = testutil.POST(t, e, "/application-approvers", body, adminH)
 	require.Equal(t, http.StatusCreated, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Approver added successfully", createResp["message"])
 
 	// Get all approvers -- should have one
 	rec = testutil.GET(t, e, "/application-approvers", adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var approvers []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &approvers))
+	approvers := testutil.ParseSlice(t, rec)
 	assert.Len(t, approvers, 1)
 	assert.Equal(t, "targetuser", approvers[0]["username"])
 	assert.Contains(t, approvers[0], "id")
@@ -100,7 +95,7 @@ func TestApprovers_CRUD(t *testing.T) {
 	// Target user should no longer be in available users
 	rec = testutil.GET(t, e, "/application-approvers/available-users", adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &available))
+	available = testutil.ParseSlice(t, rec)
 	for _, u := range available {
 		assert.NotEqual(t, "targetuser", u["username"],
 			"targetuser should not be in available users after being added as approver")
@@ -110,14 +105,13 @@ func TestApprovers_CRUD(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/application-approvers/%d", approverID), adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var delResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &delResp))
+	delResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Approver deleted successfully", delResp["message"])
 
 	// Verify deleted
 	rec = testutil.GET(t, e, "/application-approvers", adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &approvers))
+	approvers = testutil.ParseSlice(t, rec)
 	assert.Len(t, approvers, 0)
 }
 
@@ -134,8 +128,7 @@ func TestApprovers_Create_DuplicateUser(t *testing.T) {
 	// Get user ID
 	rec := testutil.GET(t, e, "/application-approvers/available-users", adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var available []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &available))
+	available := testutil.ParseSlice(t, rec)
 
 	var userID int
 	for _, u := range available {

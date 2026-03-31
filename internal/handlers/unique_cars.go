@@ -40,7 +40,7 @@ func (h *UniqueCarHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, cars)
+	return RespondSuccess(c, cars)
 }
 
 // Create godoc
@@ -66,7 +66,7 @@ func (h *UniqueCarHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, car)
+	return RespondSuccess(c, car)
 }
 
 // CreateBatch godoc
@@ -126,7 +126,7 @@ func (h *UniqueCarHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, car)
+	return RespondSuccess(c, car)
 }
 
 // UpdateByNumber godoc
@@ -153,7 +153,7 @@ func (h *UniqueCarHandler) UpdateByNumber(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, car)
+	return RespondSuccess(c, car)
 }
 
 // Delete godoc
@@ -178,7 +178,7 @@ func (h *UniqueCarHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]string{"message": "Car deleted successfully"})
+	return RespondSuccess(c, map[string]string{"message": "Car deleted successfully"})
 }
 
 // GetOwnershipInfo godoc
@@ -196,5 +196,5 @@ func (h *UniqueCarHandler) GetOwnershipInfo(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, info)
+	return RespondSuccess(c, info)
 }

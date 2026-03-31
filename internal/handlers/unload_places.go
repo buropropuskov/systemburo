@@ -44,7 +44,7 @@ func (h *UnloadPlaceHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, places)
+	return RespondSuccess(c, places)
 }
 
 // GetByID возвращает место разгрузки по ID.
@@ -68,7 +68,7 @@ func (h *UnloadPlaceHandler) GetByID(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, place)
+	return RespondSuccess(c, place)
 }
 
 // Create создаёт новое место разгрузки.
@@ -93,7 +93,7 @@ func (h *UnloadPlaceHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Место разгрузки успешно создано",
 	})
@@ -126,7 +126,7 @@ func (h *UnloadPlaceHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Место разгрузки успешно обновлено")
+	return RespondMessage(c, "Место разгрузки успешно обновлено")
 }
 
 // Delete удаляет место разгрузки.
@@ -150,7 +150,7 @@ func (h *UnloadPlaceHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Место разгрузки успешно удалено")
+	return RespondMessage(c, "Место разгрузки успешно удалено")
 }
 
 // --- Временные слоты ---
@@ -175,7 +175,7 @@ func (h *UnloadPlaceHandler) GetTimeSlots(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, slots)
+	return RespondSuccess(c, slots)
 }
 
 // AddTimeSlot добавляет временной слот к месту разгрузки.
@@ -206,7 +206,7 @@ func (h *UnloadPlaceHandler) AddTimeSlot(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Временной слот успешно добавлен",
 	})
@@ -244,7 +244,7 @@ func (h *UnloadPlaceHandler) UpdateTimeSlot(c echo.Context) error {
 	if err := h.service.UpdateTimeSlot(c.Request().Context(), placeID, slotID, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Временной слот успешно обновлен")
+	return RespondMessage(c, "Временной слот успешно обновлен")
 }
 
 // DeleteTimeSlot удаляет временной слот.
@@ -272,7 +272,7 @@ func (h *UnloadPlaceHandler) DeleteTimeSlot(c echo.Context) error {
 	if err := h.service.DeleteTimeSlot(c.Request().Context(), placeID, slotID); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Временной слот успешно удален")
+	return RespondMessage(c, "Временной слот успешно удален")
 }
 
 // --- Фотографии ---
@@ -356,7 +356,7 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 		insertedIDs = append(insertedIDs, id)
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"message":   "Фотографии успешно загружены",
 		"photo_ids": insertedIDs,
 	})
@@ -396,7 +396,7 @@ func (h *UnloadPlaceHandler) DeletePhoto(c echo.Context) error {
 		_ = os.Remove(filePath)
 	}
 
-	return c.JSON(http.StatusOK, "Фотография успешно удалена")
+	return RespondMessage(c, "Фотография успешно удалена")
 }
 
 // SetMainPhoto устанавливает главную фотографию для места разгрузки.
@@ -424,5 +424,5 @@ func (h *UnloadPlaceHandler) SetMainPhoto(c echo.Context) error {
 	if err := h.service.SetMainPhoto(c.Request().Context(), placeID, photoID); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Главная фотография успешно установлена")
+	return RespondMessage(c, "Главная фотография успешно установлена")
 }

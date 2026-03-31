@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -24,8 +23,7 @@ func TestLicenseFormats_GetAll_Empty(t *testing.T) {
 	rec := testutil.GET(t, e, "/license-plate-formats", h)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	assert.Empty(t, list)
 }
 
@@ -74,8 +72,7 @@ func TestLicenseFormats_CRUD_Cycle(t *testing.T) {
 	rec := testutil.POST(t, e, "/license-plate-formats", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Формат номеров успешно создан", createResp["message"])
 	formatID := int(createResp["id"].(float64))
 	assert.Greater(t, formatID, 0)
@@ -84,8 +81,7 @@ func TestLicenseFormats_CRUD_Cycle(t *testing.T) {
 	rec = testutil.GET(t, e, "/license-plate-formats", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 
 	entry := list[0]
@@ -126,14 +122,13 @@ func TestLicenseFormats_CRUD_Cycle(t *testing.T) {
 	rec = testutil.PUT(t, e, fmt.Sprintf("/license-plate-formats/%d", formatID), updateBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var updateResp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updateResp))
-	assert.Equal(t, "Формат номеров успешно обновлен", updateResp)
+	updateMsg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Формат номеров успешно обновлен", updateMsg)
 
 	// --- Read (verify updated) ---
 	rec = testutil.GET(t, e, "/license-plate-formats", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 
 	format = list[0]["format"].(map[string]interface{})
@@ -148,14 +143,13 @@ func TestLicenseFormats_CRUD_Cycle(t *testing.T) {
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/license-plate-formats/%d", formatID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var deleteResp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &deleteResp))
-	assert.Equal(t, "Формат номеров успешно удален", deleteResp)
+	deleteMsg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Формат номеров успешно удален", deleteMsg)
 
 	// --- Read (verify gone) ---
 	rec = testutil.GET(t, e, "/license-plate-formats", h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list = testutil.ParseSlice(t, rec)
 	assert.Empty(t, list)
 }
 
@@ -209,8 +203,7 @@ func TestLicenseFormats_Create_DefaultClears_Previous(t *testing.T) {
 	rec = testutil.GET(t, e, "/license-plate-formats", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	require.Len(t, list, 2)
 
 	defaultCount := 0
@@ -247,8 +240,7 @@ func TestLicenseFormats_Create_WithCellDefaults(t *testing.T) {
 	rec = testutil.GET(t, e, "/license-plate-formats", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var list []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	list := testutil.ParseSlice(t, rec)
 	require.Len(t, list, 1)
 
 	cells := list[0]["cells"].([]interface{})

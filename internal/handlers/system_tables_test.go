@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -34,8 +33,7 @@ func TestSystemTables_CRUD(t *testing.T) {
 	rec := testutil.POST(t, e, "/system-tables", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, createResp["id"])
 	tableID := int(createResp["id"].(float64))
 	assert.Greater(t, tableID, 0)
@@ -44,8 +42,7 @@ func TestSystemTables_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var getResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &getResp))
+	getResp := testutil.ParseMap(t, rec)
 	table := getResp["table"].(map[string]interface{})
 	assert.Equal(t, "test_cars_table", table["name"])
 	assert.Equal(t, "Test Cars Table", table["display_name"])
@@ -59,16 +56,14 @@ func TestSystemTables_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, "/system-tables", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var listResp []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listResp))
+	listResp := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(listResp), 1)
 
 	// Get by Name
 	rec = testutil.GET(t, e, "/system-tables/name/test_cars_table", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var nameResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &nameResp))
+	nameResp := testutil.ParseMap(t, rec)
 	nameTable := nameResp["table"].(map[string]interface{})
 	assert.Equal(t, "test_cars_table", nameTable["name"])
 
@@ -80,7 +75,7 @@ func TestSystemTables_CRUD(t *testing.T) {
 	// Verify update
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &getResp))
+	getResp = testutil.ParseMap(t, rec)
 	table = getResp["table"].(map[string]interface{})
 	assert.Equal(t, "Updated Cars Table", table["display_name"])
 	assert.Equal(t, "maintenance", table["status"])
@@ -135,15 +130,13 @@ func TestSystemTables_PeopleType_DefaultFields(t *testing.T) {
 	rec := testutil.POST(t, e, "/system-tables", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	tableID := int(createResp["id"].(float64))
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var getResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &getResp))
+	getResp := testutil.ParseMap(t, rec)
 	fields := getResp["fields"].([]interface{})
 	assert.Greater(t, len(fields), 0, "expected default fields for people table type")
 }
@@ -160,8 +153,7 @@ func TestSystemTables_TimeSlots_CRUD(t *testing.T) {
 	rec := testutil.POST(t, e, "/system-tables",
 		`{"name":"slot_test_table","display_name":"Slot Test","table_type":"cars"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var cr map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &cr))
+	cr := testutil.ParseMap(t, rec)
 	tableID := int(cr["id"].(float64))
 
 	// Add time slot
@@ -169,8 +161,7 @@ func TestSystemTables_TimeSlots_CRUD(t *testing.T) {
 	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/time-slots", tableID), slotBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var slotResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slotResp))
+	slotResp := testutil.ParseMap(t, rec)
 	slotID := int(slotResp["id"].(float64))
 	assert.Greater(t, slotID, 0)
 
@@ -178,8 +169,7 @@ func TestSystemTables_TimeSlots_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/time-slots", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var slots []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slots))
+	slots := testutil.ParseSlice(t, rec)
 	assert.Len(t, slots, 1)
 	assert.Equal(t, float64(1), slots[0]["day_of_week"])
 	assert.Equal(t, "09:00", slots[0]["open_time"])
@@ -192,7 +182,7 @@ func TestSystemTables_TimeSlots_CRUD(t *testing.T) {
 	// Verify update
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/time-slots", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slots))
+	slots = testutil.ParseSlice(t, rec)
 	assert.Equal(t, "10:00", slots[0]["open_time"])
 	assert.Equal(t, false, slots[0]["is_active"])
 
@@ -203,7 +193,7 @@ func TestSystemTables_TimeSlots_CRUD(t *testing.T) {
 	// Verify empty
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/time-slots", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slots))
+	slots = testutil.ParseSlice(t, rec)
 	assert.Len(t, slots, 0)
 }
 
@@ -231,8 +221,7 @@ func TestSystemTables_TimeSlots_InvalidTime(t *testing.T) {
 	rec := testutil.POST(t, e, "/system-tables",
 		`{"name":"invalid_time_table","display_name":"IT","table_type":"cars"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var cr map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &cr))
+	cr := testutil.ParseMap(t, rec)
 	tableID := int(cr["id"].(float64))
 
 	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/time-slots", tableID),
@@ -255,15 +244,13 @@ func TestSystemTables_ResponseStructure(t *testing.T) {
 	rec := testutil.POST(t, e, "/system-tables",
 		`{"name":"struct_test","display_name":"ST","table_type":"cars"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var cr map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &cr))
+	cr := testutil.ParseMap(t, rec)
 	tableID := int(cr["id"].(float64))
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var details map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &details))
+	details := testutil.ParseMap(t, rec)
 
 	assert.Contains(t, details, "table")
 	assert.Contains(t, details, "fields")

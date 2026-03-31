@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -22,8 +21,7 @@ func TestAttachments_GetActive(t *testing.T) {
 	rec := testutil.GET(t, e, "/attachments", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var attachments []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &attachments))
+	attachments := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, attachments)
 }
 
@@ -47,8 +45,7 @@ func TestAttachments_GetAll(t *testing.T) {
 	rec := testutil.GET(t, e, "/attachments/all", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var attachments []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &attachments))
+	attachments := testutil.ParseSlice(t, rec)
 	assert.NotNil(t, attachments)
 }
 
@@ -69,8 +66,7 @@ func TestAttachments_Create(t *testing.T) {
 	rec := testutil.POST(t, e, "/attachments", body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	resp := testutil.ParseMap(t, rec)
 	assert.NotZero(t, resp["id"])
 	assert.Equal(t, "Вложение успешно создано", resp["message"])
 }
@@ -119,16 +115,14 @@ func TestAttachments_GetByID(t *testing.T) {
 	}`
 	createRec := testutil.POST(t, e, "/attachments", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, createRec)
 	id := int(createResp["id"].(float64))
 
 	// Get by ID
 	rec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var att map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &att))
+	att := testutil.ParseMap(t, rec)
 	assert.Equal(t, float64(id), att["id"])
 	assert.Equal(t, "get-by-id-test", att["name"])
 	assert.Equal(t, "Get By ID", att["display_name"])
@@ -166,8 +160,7 @@ func TestAttachments_Update(t *testing.T) {
 	}`
 	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, createRec)
 	id := int(createResp["id"].(float64))
 
 	// Update
@@ -181,15 +174,13 @@ func TestAttachments_Update(t *testing.T) {
 	rec := testutil.PUT(t, e, fmt.Sprintf("/attachments/%d", id), updateBody, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Вложение успешно обновлено", resp)
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Вложение успешно обновлено", msg)
 
 	// Verify the update
 	getRec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var att map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &att))
+	att := testutil.ParseMap(t, getRec)
 	assert.Equal(t, "people", att["attachment_type"])
 	assert.Equal(t, "updated-name", att["name"])
 	assert.Equal(t, "Updated Display", att["display_name"])
@@ -212,17 +203,15 @@ func TestAttachments_Delete_SoftDelete(t *testing.T) {
 	}`
 	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, createRec)
 	id := int(createResp["id"].(float64))
 
 	// Delete (soft)
 	rec := testutil.DELETE(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	var resp string
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "Вложение успешно удалено", resp)
+	msg := testutil.ParseMessage(t, rec)
+	assert.Equal(t, "Вложение успешно удалено", msg)
 
 	// GetByID should return 404 (only active items)
 	getRec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
@@ -231,8 +220,7 @@ func TestAttachments_Delete_SoftDelete(t *testing.T) {
 	// But it should still appear in /all
 	allRec := testutil.GET(t, e, "/attachments/all", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, allRec.Code)
-	var allAtts []map[string]interface{}
-	require.NoError(t, json.Unmarshal(allRec.Body.Bytes(), &allAtts))
+	allAtts := testutil.ParseSlice(t, allRec)
 
 	found := false
 	for _, a := range allAtts {
@@ -273,8 +261,7 @@ func TestAttachments_Restore(t *testing.T) {
 	}`
 	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, createRec)
 	id := int(createResp["id"].(float64))
 
 	// Delete
@@ -289,15 +276,13 @@ func TestAttachments_Restore(t *testing.T) {
 	restoreRec := testutil.PUT(t, e, fmt.Sprintf("/attachments/%d/restore", id), "", testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, restoreRec.Code)
-	var restoreResp string
-	require.NoError(t, json.Unmarshal(restoreRec.Body.Bytes(), &restoreResp))
-	assert.Equal(t, "Вложение успешно восстановлено", restoreResp)
+	restoreMsg := testutil.ParseMessage(t, restoreRec)
+	assert.Equal(t, "Вложение успешно восстановлено", restoreMsg)
 
 	// Verify restored (GetByID should work again)
 	getRec2 := testutil.GET(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec2.Code)
-	var att map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec2.Body.Bytes(), &att))
+	att := testutil.ParseMap(t, getRec2)
 	assert.Equal(t, true, att["is_active"])
 }
 
@@ -328,8 +313,7 @@ func TestAttachments_GetActive_OnlyActive(t *testing.T) {
 	body2 := `{"attachment_type":"people","name":"inactive-att","display_name":"Inactive","title":"B"}`
 	rec2 := testutil.POST(t, e, "/attachments", body2, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec2.Code)
-	var createResp2 map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &createResp2))
+	createResp2 := testutil.ParseMap(t, rec2)
 	id2 := int(createResp2["id"].(float64))
 
 	// Soft-delete the second one
@@ -338,8 +322,7 @@ func TestAttachments_GetActive_OnlyActive(t *testing.T) {
 	// GetActive should only return the active one
 	activeRec := testutil.GET(t, e, "/attachments", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, activeRec.Code)
-	var active []map[string]interface{}
-	require.NoError(t, json.Unmarshal(activeRec.Body.Bytes(), &active))
+	active := testutil.ParseSlice(t, activeRec)
 
 	for _, a := range active {
 		assert.Equal(t, true, a["is_active"], "GetActive should only return active attachments")
@@ -348,8 +331,7 @@ func TestAttachments_GetActive_OnlyActive(t *testing.T) {
 	// GetAll should return both
 	allRec := testutil.GET(t, e, "/attachments/all", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, allRec.Code)
-	var all []map[string]interface{}
-	require.NoError(t, json.Unmarshal(allRec.Body.Bytes(), &all))
+	all := testutil.ParseSlice(t, allRec)
 	assert.GreaterOrEqual(t, len(all), 2)
 }
 
@@ -368,14 +350,12 @@ func TestAttachments_Create_TitleUppercased(t *testing.T) {
 	}`
 	createRec := testutil.POST(t, e, "/attachments", body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, createRec)
 	id := int(createResp["id"].(float64))
 
 	getRec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusOK, getRec.Code)
-	var att map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &att))
+	att := testutil.ParseMap(t, getRec)
 	assert.Equal(t, "LOWERCASE TITLE", att["title"])
 }
 
@@ -408,15 +388,13 @@ func TestAttachments_CRUD_FullCycle(t *testing.T) {
 	}`
 	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(createRec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, createRec)
 	id := int(createResp["id"].(float64))
 
 	// 2. Read
 	getRec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, getRec.Code)
-	var att map[string]interface{}
-	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &att))
+	att := testutil.ParseMap(t, getRec)
 	assert.Equal(t, "items", att["attachment_type"])
 	assert.Equal(t, "full-cycle", att["name"])
 	assert.Equal(t, "Step by step", att["instruction"])

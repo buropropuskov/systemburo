@@ -41,7 +41,7 @@ func (h *FeedbackHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Сообщение отправлено успешно",
 	})
@@ -62,7 +62,7 @@ func (h *FeedbackHandler) GetAll(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, feedbacks)
+	return RespondSuccess(c, feedbacks)
 }
 
 // GetStats godoc
@@ -80,7 +80,7 @@ func (h *FeedbackHandler) GetStats(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, stats)
+	return RespondSuccess(c, stats)
 }
 
 // GetMy godoc
@@ -97,7 +97,7 @@ func (h *FeedbackHandler) GetMy(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, feedbacks)
+	return RespondSuccess(c, feedbacks)
 }
 
 // UpdateStatus godoc
@@ -127,7 +127,7 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 	if err := h.service.UpdateStatus(c.Request().Context(), typeID, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Статус обращения успешно обновлен")
+	return RespondMessage(c, "Статус обращения успешно обновлен")
 }
 
 // MarkAsRead godoc
@@ -155,5 +155,5 @@ func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
 	if err := h.service.MarkAsRead(c.Request().Context(), typeID, id, req); err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, "Статус прочтения обновлен")
+	return RespondMessage(c, "Статус прочтения обновлен")
 }

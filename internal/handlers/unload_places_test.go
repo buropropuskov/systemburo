@@ -1,7 +1,6 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -34,8 +33,7 @@ func TestUnloadPlaces_CRUD(t *testing.T) {
 	rec := testutil.POST(t, e, "/unload-places", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, createResp["id"])
 	placeID := int(createResp["id"].(float64))
 	assert.Greater(t, placeID, 0)
@@ -44,8 +42,7 @@ func TestUnloadPlaces_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var getResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &getResp))
+	getResp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Test Place", getResp["name"])
 	assert.Equal(t, "A test unload place", getResp["description"])
 	assert.Equal(t, "active", getResp["status"])
@@ -54,8 +51,7 @@ func TestUnloadPlaces_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, "/unload-places", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var listResp []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listResp))
+	listResp := testutil.ParseSlice(t, rec)
 	assert.GreaterOrEqual(t, len(listResp), 1)
 
 	// Update
@@ -66,7 +62,7 @@ func TestUnloadPlaces_CRUD(t *testing.T) {
 	// Verify update
 	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &getResp))
+	getResp = testutil.ParseMap(t, rec)
 	assert.Equal(t, "Updated Place", getResp["name"])
 	assert.Equal(t, "maintenance", getResp["status"])
 
@@ -102,8 +98,7 @@ func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {
 	// Create a place first
 	rec := testutil.POST(t, e, "/unload-places", `{"name":"Slot Test Place"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var createResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &createResp))
+	createResp := testutil.ParseMap(t, rec)
 	placeID := int(createResp["id"].(float64))
 
 	// Add time slot
@@ -111,8 +106,7 @@ func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {
 	rec = testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/time-slots", placeID), slotBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var slotResp map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slotResp))
+	slotResp := testutil.ParseMap(t, rec)
 	slotID := int(slotResp["id"].(float64))
 	assert.Greater(t, slotID, 0)
 
@@ -120,8 +114,7 @@ func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/time-slots", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var slots []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slots))
+	slots := testutil.ParseSlice(t, rec)
 	assert.Len(t, slots, 1)
 	assert.Equal(t, float64(0), slots[0]["day_of_week"])
 	assert.Equal(t, "08:00", slots[0]["open_time"])
@@ -135,7 +128,7 @@ func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {
 	// Verify update
 	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/time-slots", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slots))
+	slots = testutil.ParseSlice(t, rec)
 	assert.Equal(t, "09:00", slots[0]["open_time"])
 	assert.Equal(t, "18:00", slots[0]["close_time"])
 
@@ -146,7 +139,7 @@ func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {
 	// Verify deleted
 	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/time-slots", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &slots))
+	slots = testutil.ParseSlice(t, rec)
 	assert.Len(t, slots, 0)
 }
 
@@ -161,8 +154,7 @@ func TestUnloadPlaces_TimeSlots_InvalidTime(t *testing.T) {
 	// Create a place
 	rec := testutil.POST(t, e, "/unload-places", `{"name":"Bad Time Place"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var cr map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &cr))
+	cr := testutil.ParseMap(t, rec)
 	placeID := int(cr["id"].(float64))
 
 	// Invalid open_time format
@@ -200,15 +192,13 @@ func TestUnloadPlaces_ResponseStructure(t *testing.T) {
 	// Create place and verify response structure includes time_slots, photos, current_status
 	rec := testutil.POST(t, e, "/unload-places", `{"name":"Structure Test"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
-	var cr map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &cr))
+	cr := testutil.ParseMap(t, rec)
 	placeID := int(cr["id"].(float64))
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	var details map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &details))
+	details := testutil.ParseMap(t, rec)
 
 	assert.Contains(t, details, "id")
 	assert.Contains(t, details, "name")
