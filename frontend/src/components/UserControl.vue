@@ -121,7 +121,7 @@
               <p class="details-subtitle">учётной записи <strong>{{ selectedUser.username }}</strong></p>
             </div>
             <div class="details-header-actions">
-              <button class="access-rights-btn">
+              <button @click="openPermissions(selectedUser)" class="access-rights-btn">
                 <img src="@/assets/icons/access.png" class="access-icon" />
                 Права доступа
               </button>
@@ -585,6 +585,46 @@
         </div>
       </transition>
     </Teleport>
+
+    <!-- Модальное окно прав доступа -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div v-if="showPermissionsModal" class="modal-overlay" @click.self="showPermissionsModal = false">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                Права: {{ selectedUserForPermissions ? selectedUserForPermissions.username : '' }}
+              </h3>
+              <button @click="showPermissionsModal = false" class="modal-close">
+                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                  <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <PermissionTree
+                :tree="permissionTree"
+                :selected="userPermissions"
+                @change="onPermissionChange"
+              />
+            </div>
+
+            <div class="modal-footer">
+              <button @click="showPermissionsModal = false" class="modal-btn modal-btn--cancel">Отмена</button>
+              <button
+                @click="savePermissions"
+                :disabled="savingPermissions"
+                class="modal-btn modal-btn--confirm"
+                :class="{'modal-btn--disabled': savingPermissions}"
+              >
+                {{ savingPermissions ? 'Сохранение...' : 'Сохранить' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -593,11 +633,14 @@ import { apiRequest } from '@/api/client'
 import { ref } from 'vue';
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
+import PermissionTree from './PermissionTree.vue';
+import { getUserPermissions, updateUserPermissions, getPermissionTree } from '@/api/permissions';
 
 export default {
   components: {
     SearchComponent,
-    RefreshButton
+    RefreshButton,
+    PermissionTree
   },
   props: {
     allUsers: {
@@ -639,7 +682,12 @@ export default {
         type_id: null,
         organization_id: null,
         company_id: null
-      }
+      },
+      permissionTree: [],
+      userPermissions: {},
+      showPermissionsModal: false,
+      selectedUserForPermissions: null,
+      savingPermissions: false
     };
   },
   async created() {
@@ -1191,6 +1239,42 @@ export default {
       } else {
         this.sortField = field;
         this.sortDirection = 'desc';
+      }
+    },
+
+    async openPermissions(user) {
+      this.selectedUserForPermissions = user;
+      this.showPermissionsModal = true;
+      try {
+        const [treeData, permsData] = await Promise.all([
+          getPermissionTree(),
+          getUserPermissions(user.id),
+        ]);
+        this.permissionTree = Array.isArray(treeData) ? treeData : [];
+        this.userPermissions = {};
+        if (Array.isArray(permsData)) {
+          permsData.forEach(p => { this.userPermissions[p.key] = p.value; });
+        }
+      } catch (e) {
+        console.error('Ошибка загрузки прав:', e);
+      }
+    },
+
+    onPermissionChange(key, value) {
+      this.userPermissions[key] = value;
+    },
+
+    async savePermissions() {
+      if (!this.selectedUserForPermissions) return;
+      this.savingPermissions = true;
+      const permissions = Object.entries(this.userPermissions).map(([key, value]) => ({ key, value }));
+      try {
+        await updateUserPermissions(this.selectedUserForPermissions.id, { permissions });
+        this.showPermissionsModal = false;
+      } catch (e) {
+        console.error('Ошибка сохранения прав:', e);
+      } finally {
+        this.savingPermissions = false;
       }
     }
   }
