@@ -182,6 +182,7 @@ func (s *organizationService) Create(ctx context.Context, req CreateOrganization
 		slog.Error("Не удалось создать организацию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating organization")
 	}
+	slog.Info("организация создана", "id", org.ID, "name", org.Name)
 	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name}, nil
 }
 
@@ -192,12 +193,13 @@ func (s *organizationService) Update(ctx context.Context, id int, req CreateOrga
 		Where("id = ?", id).
 		Update("name", req.Name)
 	if result.Error != nil {
-		slog.Error("Не удалось обновить организацию", "error", result.Error)
+		slog.Error("Не удалось обновить организацию", "id", id, "error", result.Error)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 	if result.RowsAffected == 0 {
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Organization not found")
 	}
+	slog.Info("организация обновлена", "id", id, "name", req.Name)
 	return &OrganizationInfoResponse{ID: id, Name: req.Name}, nil
 }
 
@@ -215,9 +217,10 @@ func (s *organizationService) Delete(ctx context.Context, id int) error {
 	}
 
 	if err := s.db.WithContext(ctx).Delete(&models.Organization{}, id).Error; err != nil {
-		slog.Error("Не удалось удалить организацию", "error", err)
+		slog.Error("Не удалось удалить организацию", "id", id, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting organization")
 	}
+	slog.Info("организация удалена", "id", id)
 	return nil
 }
 

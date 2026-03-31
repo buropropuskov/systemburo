@@ -216,6 +216,7 @@ func (s *companyService) Create(ctx context.Context, username string, req Create
 		slog.Error("не удалось создать компанию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")
 	}
+	slog.Info("компания создана", "id", company.ID, "name", company.Name)
 	return &company, nil
 }
 
@@ -231,9 +232,10 @@ func (s *companyService) Update(ctx context.Context, username string, companyID 
 
 	company.Name = req.Name
 	if err := s.db.WithContext(ctx).Save(&company).Error; err != nil {
-		slog.Error("не удалось обновить компанию", "error", err)
+		slog.Error("не удалось обновить компанию", "id", companyID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
+	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
 	return &company, nil
 }
 
@@ -252,9 +254,10 @@ func (s *companyService) Delete(ctx context.Context, username string, companyID 
 	}
 
 	if err := s.db.WithContext(ctx).Delete(&models.Company{}, companyID).Error; err != nil {
-		slog.Error("не удалось удалить компанию", "error", err)
+		slog.Error("не удалось удалить компанию", "id", companyID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting company")
 	}
+	slog.Info("компания удалена", "id", companyID)
 	return nil
 }
 
