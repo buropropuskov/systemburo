@@ -168,6 +168,11 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	// Автоматически выдаём права tab.applications.view ответственным пользователям
+	for _, resp := range addedResponsibleUsers {
+		_ = s.permissionService.GrantPermission(ctx, resp.UserID, "tab.applications.view", "allow")
+	}
+
 	slog.Info("заявка переслана", "application_id", applicationID, "user_id", user.ID,
 		"responsible_count", len(addedResponsibleUsers), "viewer_count", len(addedViewers))
 	return nil

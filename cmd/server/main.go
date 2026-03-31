@@ -114,7 +114,7 @@ func main() {
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
-	applicationService := services.NewApplicationService(db)
+	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
 
 	// Handlers

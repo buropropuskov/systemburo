@@ -23,6 +23,7 @@ type PermissionService interface {
 	HasPermission(ctx context.Context, userID int, key string) (bool, error)
 	HasPermissionValue(ctx context.Context, userID int, key string, value string) (bool, error)
 	GrantDefaultPermissions(ctx context.Context, userID int) error
+	GrantPermission(ctx context.Context, userID int, key, value string) error
 }
 
 type permissionService struct {
@@ -269,6 +270,7 @@ func (s *permissionService) GrantDefaultPermissions(ctx context.Context, userID 
 		{"tab.employees.view", "allow"},
 		{"tab.overview.view", "allow"},
 		{"tab.profile.view", "allow"},
+		{"tab.applications.view", "allow"},
 	}
 
 	for _, d := range defaults {
@@ -287,4 +289,16 @@ func (s *permissionService) GrantDefaultPermissions(ctx context.Context, userID 
 	}
 
 	return nil
+}
+
+// GrantPermission назначает указанное разрешение пользователю (идемпотентно).
+func (s *permissionService) GrantPermission(ctx context.Context, userID int, key, value string) error {
+	up := models.UserPermission{
+		UserID:        userID,
+		PermissionKey: key,
+		Value:         value,
+	}
+	return s.db.WithContext(ctx).
+		Where("user_id = ? AND permission_key = ?", userID, key).
+		FirstOrCreate(&up).Error
 }

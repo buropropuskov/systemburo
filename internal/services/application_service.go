@@ -423,12 +423,13 @@ type ItemInfo struct {
 // --- Реализация ---
 
 type applicationService struct {
-	db *gorm.DB
+	db                *gorm.DB
+	permissionService PermissionService
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
-func NewApplicationService(db *gorm.DB) ApplicationService {
-	return &applicationService{db: db}
+func NewApplicationService(db *gorm.DB, permSvc PermissionService) ApplicationService {
+	return &applicationService{db: db, permissionService: permSvc}
 }
 
 // --- Основные методы ---

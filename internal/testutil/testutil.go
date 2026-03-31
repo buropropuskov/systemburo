@@ -2,8 +2,10 @@ package testutil
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"systemburo/internal/database"
@@ -18,25 +20,60 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+var (
+	dbOnce   sync.Once
+	cachedDB *gorm.DB
+)
+
 const (
 	TestJWTSecret        = "test-jwt-secret"
 	TestJWTRefreshSecret = "test-jwt-refresh-secret"
 )
 
+// tables lists all tables in FK-safe deletion order (dependents first).
+var tables = []string{
+	"user_permissions", "permissions",
+	"request_log", "request_logs", "notifications", "news", "announcements",
+	"feedback", "application_items", "items",
+	"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",
+	"car_unload_places", "cars_history", "cars",
+	"attachments",
+	"unique_employees", "unique_cars", "unique_attachments",
+	"application_reads", "application_viewers", "application_approvers", "application_responsible_users",
+	"application_status_history", "application_history", "applications",
+	"companies_unload_places", "organization_unload_places",
+	"unload_place_time_slots", "unload_place_photos", "unload_places",
+	"table_fields", "companies_tables", "organization_tables",
+	"system_table_time_slots", "system_table_photos", "system_tables",
+	"license_plate_format_cells", "license_plate_formats",
+	"citizenships",
+	"companies_users", "organization_users",
+	"refresh_tokens", "users",
+	"companies", "organizations", "user_types",
+}
+
 // SetupTestApp creates a fully wired Echo app with real DB, identical to production.
-// Returns the Echo instance, DB handle, and a cleanup function.
+// AutoMigrate runs once per test binary via sync.Once; each test still uses CleanDB for isolation.
 func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
 
-	db := setupTestDB(t)
+	dbOnce.Do(func() {
+		db := initTestDB()
+		if err := database.AutoMigrate(db); err != nil {
+			log.Fatalf("AutoMigrate failed: %v", err)
+		}
+		// One-time TRUNCATE to clean leftover data from previous runs.
+		query := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
+		if err := db.Exec(query).Error; err != nil {
+			log.Fatalf("initial truncate failed: %v", err)
+		}
+		if err := database.Seed(db); err != nil {
+			log.Fatalf("Seed failed: %v", err)
+		}
+		cachedDB = db
+	})
 
-	// Run migrations on test DB
-	if err := database.AutoMigrate(db); err != nil {
-		t.Fatalf("AutoMigrate failed: %v", err)
-	}
-	if err := database.Seed(db); err != nil {
-		t.Fatalf("Seed failed: %v", err)
-	}
+	db := cachedDB
 
 	// Create all services (same wiring as cmd/server/main.go)
 	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret)
@@ -55,7 +92,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
-	applicationService := services.NewApplicationService(db)
+	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
 
 	// Create all handlers
@@ -89,65 +126,41 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
 		applicationHandler, approverHandler, permissionHandler, []byte(TestJWTSecret))
 
-	cleanup := func() {
-		sqlDB, _ := db.DB()
-		if sqlDB != nil {
-			sqlDB.Close()
-		}
-	}
+	// No-op cleanup: shared DB stays open for the test binary lifetime.
+	cleanup := func() {}
 
 	return e, db, cleanup
 }
 
-// CleanDB truncates all tables and re-seeds reference data.
+// CleanDB deletes all test data and re-seeds reference tables.
+// Uses DELETE (faster than TRUNCATE for mostly-empty tables: no ACCESS EXCLUSIVE locks).
+// Sequences for reference tables are reset so Seed produces deterministic IDs.
 func CleanDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	tables := []string{
-		"user_permissions", "permissions",
-		"request_log", "request_logs", "notifications", "news", "announcements",
-		"feedback", "application_items", "items",
-		"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",
-		"car_unload_places", "cars_history", "cars",
-		"attachments",
-		"unique_employees", "unique_cars", "unique_attachments",
-		"application_reads", "application_viewers", "application_approvers", "application_responsible_users",
-		"application_status_history", "application_history", "applications",
-		"companies_unload_places", "organization_unload_places",
-		"unload_place_time_slots", "unload_place_photos", "unload_places",
-		"table_fields", "companies_tables", "organization_tables",
-		"system_table_time_slots", "system_table_photos", "system_tables",
-		"license_plate_format_cells", "license_plate_formats",
-		"citizenships",
-		"companies_users", "organization_users",
-		"refresh_tokens", "users",
-		"companies", "organizations", "user_types",
+	for _, table := range tables {
+		if err := db.Exec("DELETE FROM " + table).Error; err != nil {
+			t.Fatalf("CleanDB delete %s: %v", table, err)
+		}
 	}
 
-	query := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
-	if err := db.Exec(query).Error; err != nil {
-		t.Fatalf("CleanDB truncate failed: %v", err)
-	}
+	// Reset sequences for tables that Seed re-populates (IDs must be deterministic).
+	db.Exec("ALTER SEQUENCE user_types_id_seq RESTART WITH 1")
+	db.Exec("ALTER SEQUENCE permissions_id_seq RESTART WITH 1")
 
-	// Re-seed user types
 	if err := database.Seed(db); err != nil {
 		t.Fatalf("CleanDB seed failed: %v", err)
 	}
 }
 
-func setupTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-
+func initTestDB() *gorm.DB {
 	dsn := getTestDSN()
-
-	// Ensure test database exists
-	ensureTestDatabase(t, dsn)
-
+	ensureTestDatabase(dsn)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		t.Fatalf("failed to connect to test database: %v", err)
+		log.Fatalf("failed to connect to test database: %v", err)
 	}
 	return db
 }
@@ -163,20 +176,15 @@ func getTestDSN() string {
 	return strings.Replace(base, "/auto_registry", "/auto_registry_test", 1)
 }
 
-func ensureTestDatabase(t *testing.T, testDSN string) {
-	t.Helper()
-
-	// Connect to default postgres database to create test DB
+func ensureTestDatabase(testDSN string) {
 	adminDSN := strings.Replace(testDSN, "/auto_registry_test", "/postgres", 1)
 	adminDB, err := gorm.Open(postgres.Open(adminDSN), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		t.Fatalf("failed to connect to admin database: %v", err)
+		log.Fatalf("failed to connect to admin database: %v", err)
 	}
 	sqlDB, _ := adminDB.DB()
 	defer sqlDB.Close()
-
-	// Create test database if not exists
 	adminDB.Exec("CREATE DATABASE auto_registry_test")
 }
