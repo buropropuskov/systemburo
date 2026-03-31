@@ -11,8 +11,8 @@ type Config struct {
 	DatabaseURL      string `env:"DATABASE_URL,required"`
 	BindHost         string `env:"BIND_HOST" envDefault:"0.0.0.0"`
 	BindPort         string `env:"BIND_PORT" envDefault:"8090"`
-	JWTSecret        string `env:"JWT_SECRET" envDefault:"dev-secret-change-me"`
-	JWTRefreshSecret string `env:"JWT_REFRESH_SECRET" envDefault:"dev-refresh-secret-change-me"`
+	JWTSecret        string `env:"JWT_SECRET" envDefault:"dev-secret-change-me-in-production!"`
+	JWTRefreshSecret string `env:"JWT_REFRESH_SECRET" envDefault:"dev-refresh-secret-change-me-now!"`
 	LogLevel         string `env:"LOG_LEVEL" envDefault:"info"`
 }
 
@@ -35,11 +35,12 @@ func (c *Config) Validate() error {
 	if len(c.JWTRefreshSecret) < 32 {
 		return fmt.Errorf("JWT_REFRESH_SECRET must be at least 32 characters (got %d)", len(c.JWTRefreshSecret))
 	}
-	if !strings.HasPrefix(c.DatabaseURL, "postgres") {
+	if !strings.HasPrefix(c.DatabaseURL, "postgres://") && !strings.HasPrefix(c.DatabaseURL, "postgresql://") {
 		return fmt.Errorf("DATABASE_URL must be a PostgreSQL connection string")
 	}
-	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
-	if !validLevels[c.LogLevel] {
+	switch c.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
 		return fmt.Errorf("LOG_LEVEL must be one of: debug, info, warn, error (got %q)", c.LogLevel)
 	}
 	return nil
