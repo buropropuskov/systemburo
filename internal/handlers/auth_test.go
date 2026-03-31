@@ -57,6 +57,32 @@ func TestRegister_MissingFields(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestRegister_ShortUsername(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	body := `{"username":"ab","password":"secret123","type_id":1,"organization_id":` +
+		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
+	rec := testutil.POST(t, e, "/register", body, nil)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestRegister_ShortPassword(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	body := `{"username":"validuser","password":"12345","type_id":1,"organization_id":` +
+		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
+	rec := testutil.POST(t, e, "/register", body, nil)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestRegister_WithOptionalFields(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
