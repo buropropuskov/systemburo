@@ -583,10 +583,9 @@ func TestForwardApplication_Success(t *testing.T) {
 	senderToken := testutil.RegisterAndLogin(t, e, "fwdsender", "pass123", 1, td.OrgID, td.CompanyID)
 	senderID := getUserID(t, db, "fwdsender")
 
-	// Register approver user and make them an application_approver
+	// Register approver user (responsible — will receive required_approval)
 	testutil.RegisterUser(t, e, "fwdapprover", "pass123", 6, td.OrgID, td.CompanyID)
 	approverID := getUserID(t, db, "fwdapprover")
-	approverToken, _ := testutil.LoginUser(t, e, "fwdapprover", "pass123")
 
 	// Make sender an approver so they can forward
 	db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", senderID)
@@ -604,9 +603,19 @@ func TestForwardApplication_Success(t *testing.T) {
 		]
 	}`, approverID, viewerID)
 
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(approverToken))
-	// Forward may require approver role; accept 200 or 403 depending on business rules
-	assert.Contains(t, []int{http.StatusOK, http.StatusForbidden}, rec.Code)
+	// Sender is the application creator and can forward
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(senderToken))
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify tab.applications.view was granted to the forwarded responsible user
+	var perm struct {
+		PermissionKey string
+		Value         string
+	}
+	err := db.Raw("SELECT permission_key, value FROM user_permissions WHERE user_id = ? AND permission_key = ?",
+		approverID, "tab.applications.view").Scan(&perm).Error
+	require.NoError(t, err)
+	assert.Equal(t, "allow", perm.Value)
 }
 
 // --- POST /applications/:id/approve ---

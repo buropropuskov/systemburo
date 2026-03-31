@@ -170,7 +170,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 	// Автоматически выдаём права tab.applications.view ответственным пользователям
 	for _, resp := range addedResponsibleUsers {
-		_ = s.permissionService.GrantPermission(ctx, resp.UserID, "tab.applications.view", "allow")
+		if err := s.permissionService.GrantPermission(ctx, resp.UserID, "tab.applications.view", "allow"); err != nil {
+			slog.Warn("не удалось выдать разрешение tab.applications.view", "user_id", resp.UserID, "error", err)
+		}
 	}
 
 	slog.Info("заявка переслана", "application_id", applicationID, "user_id", user.ID,
