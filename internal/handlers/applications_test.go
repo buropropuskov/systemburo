@@ -997,4 +997,6 @@ func TestGetApplications_Paginated(t *testing.T) {
 	assert.NotNil(t, env.Meta)
 	assert.Equal(t, float64(1), env.Meta["page"])
 	assert.Equal(t, float64(5), env.Meta["per_page"])
+	_, hasTotalField := env.Meta["total"]
+	assert.True(t, hasTotalField, "meta.total field must be present")
 }

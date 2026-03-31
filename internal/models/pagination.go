@@ -16,11 +16,6 @@ func (p *PaginationParams) Normalize() {
 	}
 }
 
-// Offset returns the SQL offset.
-func (p PaginationParams) Offset() int {
-	return (p.Page - 1) * p.PerPage
-}
-
 // PaginationMeta is returned alongside paginated data.
 type PaginationMeta struct {
 	Total   int64 `json:"total"`

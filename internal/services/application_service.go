@@ -489,6 +489,24 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	return rows, nil
 }
 
+// buildApplicationsBaseQuery строит базовый запрос с джойнами и фильтрами без Select и Order.
+func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, userID int, isApprover bool, filter ApplicationFilter) *gorm.DB {
+	query := s.db.WithContext(ctx).Table("applications a").
+		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON a.company_id = c.id").
+		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
+		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
+
+	if !isApprover {
+		query = query.Where(`
+			EXISTS(SELECT 1 FROM application_responsible_users aru WHERE aru.application_id = a.id AND aru.user_id = ?)
+			OR EXISTS(SELECT 1 FROM application_viewers av WHERE av.application_id = a.id AND av.user_id = ?)
+		`, userID, userID)
+	}
+
+	return applyApplicationFilters(query, filter, false)
+}
+
 func (s *applicationService) GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -499,7 +517,16 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 		return nil, 0, err
 	}
 
-	query := s.db.WithContext(ctx).Table("applications a").
+	var total int64
+	countQuery := s.buildApplicationsBaseQuery(ctx, user.ID, isApprover, filter)
+	if err := countQuery.Count(&total).Error; err != nil {
+		slog.Error("Ошибка подсчёта заявок", "error", err)
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	offset := (page - 1) * perPage
+	dataQuery := s.buildApplicationsBaseQuery(ctx, user.ID, isApprover, filter)
+	dataQuery = dataQuery.
 		Select(`
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
@@ -521,31 +548,12 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
 			) as responsible_name
 		`).
-		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
-		Joins("LEFT JOIN companies c ON a.company_id = c.id").
-		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
-		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
-
-	if !isApprover {
-		query = query.Where(`
-			EXISTS(SELECT 1 FROM application_responsible_users aru WHERE aru.application_id = a.id AND aru.user_id = ?)
-			OR EXISTS(SELECT 1 FROM application_viewers av WHERE av.application_id = a.id AND av.user_id = ?)
-		`, user.ID, user.ID)
-	}
-
-	query = applyApplicationFilters(query, filter, false)
-
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		slog.Error("Ошибка подсчёта заявок", "error", err)
-		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-
-	offset := (page - 1) * perPage
-	query = query.Order("a.sending_datetime DESC").Offset(offset).Limit(perPage)
+		Order("a.sending_datetime DESC").
+		Offset(offset).
+		Limit(perPage)
 
 	rows := make([]ApplicationWithDetails, 0)
-	if err := query.Find(&rows).Error; err != nil {
+	if err := dataQuery.Find(&rows).Error; err != nil {
 		slog.Error("Ошибка получения заявок (paginated)", "error", err)
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
