@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -57,8 +55,8 @@ func (h *UsersHandler) UpdateType(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserTypeRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateType(c.Request().Context(), typeID, username, req); err != nil {
 		return err
@@ -83,8 +81,8 @@ func (h *UsersHandler) UpdatePassword(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.UpdatePasswordRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdatePassword(c.Request().Context(), typeID, username, req); err != nil {
 		return err
@@ -109,8 +107,8 @@ func (h *UsersHandler) UpdateInfo(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserInfoRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateInfo(c.Request().Context(), typeID, username, req); err != nil {
 		return err
@@ -135,8 +133,8 @@ func (h *UsersHandler) UpdateOrganization(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserOrganizationRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateOrganization(c.Request().Context(), typeID, username, req); err != nil {
 		return err
@@ -161,8 +159,8 @@ func (h *UsersHandler) UpdateCompany(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserCompanyRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateCompany(c.Request().Context(), typeID, username, req); err != nil {
 		return err

@@ -34,19 +34,19 @@ type UniqueAttachment struct {
 
 // CreateUniqueAttachmentRequest -- тело запроса на создание шаблона вложения.
 type CreateUniqueAttachmentRequest struct {
-	AttachmentType string  `json:"attachment_type"`
-	Name           string  `json:"name"`
-	DisplayName    string  `json:"display_name"`
-	Title          string  `json:"title"`
+	AttachmentType string  `json:"attachment_type" validate:"required,oneof=cars people items"`
+	Name           string  `json:"name" validate:"required,min=1,max=255"`
+	DisplayName    string  `json:"display_name" validate:"required,min=1,max=255"`
+	Title          string  `json:"title" validate:"required,min=1,max=255"`
 	Instruction    *string `json:"instruction"`
 }
 
 // UpdateUniqueAttachmentRequest -- тело запроса на обновление шаблона вложения.
 type UpdateUniqueAttachmentRequest struct {
-	AttachmentType string  `json:"attachment_type"`
-	Name           string  `json:"name"`
-	DisplayName    string  `json:"display_name"`
-	Title          string  `json:"title"`
+	AttachmentType string  `json:"attachment_type" validate:"required,oneof=cars people items"`
+	Name           string  `json:"name" validate:"required,min=1,max=255"`
+	DisplayName    string  `json:"display_name" validate:"required,min=1,max=255"`
+	Title          string  `json:"title" validate:"required,min=1,max=255"`
 	Instruction    *string `json:"instruction"`
 }
 

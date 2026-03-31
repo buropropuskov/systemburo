@@ -55,8 +55,8 @@ func (h *CitizenshipHandler) GetAll(c echo.Context) error {
 func (h *CitizenshipHandler) Create(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
 	var req models.CreateCitizenshipRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	id, err := h.service.Create(c.Request().Context(), typeID, req)
 	if err != nil {
@@ -89,8 +89,8 @@ func (h *CitizenshipHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req models.UpdateCitizenshipRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.Update(c.Request().Context(), typeID, id, req); err != nil {
 		return err

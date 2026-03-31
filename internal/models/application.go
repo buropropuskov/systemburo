@@ -105,7 +105,7 @@ type AvailableApproverUser struct {
 
 // CreateApproverRequest — запрос POST /application-approvers.
 type CreateApproverRequest struct {
-	UserID int `json:"user_id"`
+	UserID int `json:"user_id" validate:"gte=1"`
 }
 
 type ApplicationViewer struct {

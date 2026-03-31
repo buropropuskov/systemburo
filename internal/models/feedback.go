@@ -51,12 +51,12 @@ type FeedbackStats struct {
 
 // CreateFeedbackRequest -- запрос на создание обращения.
 type CreateFeedbackRequest struct {
-	Message string `json:"message"`
+	Message string `json:"message" validate:"required,min=10,max=1000"`
 }
 
 // UpdateFeedbackStatusRequest -- запрос на обновление статуса обращения.
 type UpdateFeedbackStatusRequest struct {
-	Status string `json:"status"`
+	Status string `json:"status" validate:"required,oneof=Нерешено Решено"`
 }
 
 // MarkAsReadRequest -- запрос на отметку обращения прочитанным/непрочитанным.

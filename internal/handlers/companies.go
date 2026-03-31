@@ -93,8 +93,8 @@ func (h *CompanyHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req services.CreateCompanyRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	company, err := h.service.Create(c.Request().Context(), username, req)
@@ -127,8 +127,8 @@ func (h *CompanyHandler) Update(c echo.Context) error {
 	}
 
 	var req services.CreateCompanyRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	company, err := h.service.Update(c.Request().Context(), username, id, req)
@@ -211,8 +211,8 @@ func (h *CompanyHandler) UpdateUsers(c echo.Context) error {
 	}
 
 	var req services.UpdateCompanyUsersRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.UpdateUsers(c.Request().Context(), id, req); err != nil {
@@ -269,8 +269,8 @@ func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
 	}
 
 	var req services.UpdateCompanyUnloadPlacesRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.UpdateUnloadPlaces(c.Request().Context(), username, id, req); err != nil {
@@ -327,8 +327,8 @@ func (h *CompanyHandler) UpdateTables(c echo.Context) error {
 	}
 
 	var req services.UpdateCompanyTablesRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.UpdateTables(c.Request().Context(), username, id, req); err != nil {

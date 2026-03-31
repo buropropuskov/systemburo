@@ -97,8 +97,8 @@ func (h *SystemTableHandler) GetByName(c echo.Context) error {
 // @Router       /system-tables [post]
 func (h *SystemTableHandler) Create(c echo.Context) error {
 	var req models.CreateSystemTableRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	id, err := h.service.Create(c.Request().Context(), req)
 	if err != nil {
@@ -130,8 +130,8 @@ func (h *SystemTableHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req models.UpdateSystemTableRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
@@ -208,8 +208,8 @@ func (h *SystemTableHandler) AddTimeSlot(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req models.CreateTimeSlotRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	id, err := h.service.AddTimeSlot(c.Request().Context(), tableID, req)
 	if err != nil {
@@ -246,8 +246,8 @@ func (h *SystemTableHandler) UpdateTimeSlot(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid slot_id")
 	}
 	var req models.UpdateTimeSlotRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateTimeSlot(c.Request().Context(), tableID, slotID, req); err != nil {
 		return err

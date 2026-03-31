@@ -97,8 +97,8 @@ func (h *AttachmentHandler) GetByID(c echo.Context) error {
 // @Router       /attachments [post]
 func (h *AttachmentHandler) Create(c echo.Context) error {
 	var req models.CreateUniqueAttachmentRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	resp, err := h.service.Create(c.Request().Context(), req)
 	if err != nil {
@@ -126,8 +126,8 @@ func (h *AttachmentHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
 	}
 	var req models.UpdateUniqueAttachmentRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err

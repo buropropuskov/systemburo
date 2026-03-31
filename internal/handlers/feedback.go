@@ -34,8 +34,8 @@ func NewFeedbackHandler(service services.FeedbackService) *FeedbackHandler {
 func (h *FeedbackHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
 	var req models.CreateFeedbackRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	id, err := h.service.Create(c.Request().Context(), username, req)
 	if err != nil {
@@ -121,8 +121,8 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req models.UpdateFeedbackStatusRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(c.Request().Context(), typeID, id, req); err != nil {
 		return err
@@ -149,8 +149,8 @@ func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req models.MarkAsReadRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.MarkAsRead(c.Request().Context(), typeID, id, req); err != nil {
 		return err

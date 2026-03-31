@@ -51,8 +51,8 @@ func (h *LicensePlateFormatHandler) GetAll(c echo.Context) error {
 // @Router       /license-plate-formats [post]
 func (h *LicensePlateFormatHandler) Create(c echo.Context) error {
 	var req models.CreateLicensePlateFormatRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	id, err := h.service.Create(c.Request().Context(), req)
@@ -86,8 +86,8 @@ func (h *LicensePlateFormatHandler) Update(c echo.Context) error {
 	}
 
 	var req models.UpdateLicensePlateFormatRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {

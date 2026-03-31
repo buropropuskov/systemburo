@@ -15,7 +15,7 @@ import (
 
 // CreateUnloadPlaceRequest -- тело запроса на создание места разгрузки.
 type CreateUnloadPlaceRequest struct {
-	Name          string  `json:"name"`
+	Name          string  `json:"name" validate:"required,min=1,max=200"`
 	Description   *string `json:"description"`
 	MapLink       *string `json:"map_link"`
 	Status        *string `json:"status"`
@@ -33,9 +33,9 @@ type UpdateUnloadPlaceRequest struct {
 
 // CreateTimeSlotRequest -- тело запроса на создание временного слота.
 type CreateTimeSlotRequest struct {
-	DayOfWeek int     `json:"day_of_week"`
-	OpenTime  string  `json:"open_time"`
-	CloseTime string  `json:"close_time"`
+	DayOfWeek int     `json:"day_of_week" validate:"min=0,max=6"`
+	OpenTime  string  `json:"open_time" validate:"required"`
+	CloseTime string  `json:"close_time" validate:"required"`
 	IsNextDay *bool   `json:"is_next_day"`
 	IsActive  *bool   `json:"is_active"`
 }

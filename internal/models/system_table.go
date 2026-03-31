@@ -112,7 +112,7 @@ type UpdateSystemTableRequest struct {
 
 // CreateTimeSlotRequest -- запрос на создание временного слота.
 type CreateTimeSlotRequest struct {
-	DayOfWeek int     `json:"day_of_week" validate:"required"`
+	DayOfWeek int     `json:"day_of_week" validate:"min=0,max=6"`
 	OpenTime  string  `json:"open_time" validate:"required"`
 	CloseTime string  `json:"close_time" validate:"required"`
 	IsNextDay *bool   `json:"is_next_day"`

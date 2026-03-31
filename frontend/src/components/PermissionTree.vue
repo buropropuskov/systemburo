@@ -75,10 +75,17 @@ export default {
     },
   },
 
-  mounted() {
-    for (const group of this.groupedTree) {
-      this.expandedGroups[group.category] = true
-    }
+  watch: {
+    tree: {
+      immediate: true,
+      handler() {
+        for (const group of this.groupedTree) {
+          if (!(group.category in this.expandedGroups)) {
+            this.expandedGroups[group.category] = true
+          }
+        }
+      },
+    },
   },
 
   methods: {
@@ -123,6 +130,10 @@ export default {
 
 .permission-item {
   padding: 4px 0;
+}
+
+.permission-children {
+  display: block;
 }
 
 .permission-item.child {

@@ -58,8 +58,8 @@ func (h *UniqueCarHandler) GetAll(c echo.Context) error {
 func (h *UniqueCarHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
 	var req services.NewUniqueCarRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	car, err := h.service.Create(c.Request().Context(), username, req)
@@ -118,8 +118,8 @@ func (h *UniqueCarHandler) Update(c echo.Context) error {
 	}
 
 	var req services.NewUniqueCarRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	car, err := h.service.Update(c.Request().Context(), username, id, req)
@@ -145,8 +145,8 @@ func (h *UniqueCarHandler) Update(c echo.Context) error {
 func (h *UniqueCarHandler) UpdateByNumber(c echo.Context) error {
 	username := c.Get("username").(string)
 	var req services.UpdateCarByNumberRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	car, err := h.service.UpdateByNumber(c.Request().Context(), username, req)

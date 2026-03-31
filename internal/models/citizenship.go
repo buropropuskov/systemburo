@@ -15,7 +15,7 @@ type Citizenship struct {
 
 // CreateCitizenshipRequest -- запрос на создание гражданства.
 type CreateCitizenshipRequest struct {
-	Name           string  `json:"name"`
+	Name           string  `json:"name" validate:"required,min=1,max=100"`
 	Icon           *string `json:"icon"`
 	IsDefault      *bool   `json:"is_default"`
 	PatentRequired *bool   `json:"patent_required"`
@@ -23,7 +23,7 @@ type CreateCitizenshipRequest struct {
 
 // UpdateCitizenshipRequest -- запрос на обновление гражданства.
 type UpdateCitizenshipRequest struct {
-	Name           string  `json:"name"`
+	Name           string  `json:"name" validate:"required,min=1,max=100"`
 	Icon           *string `json:"icon"`
 	IsActive       *bool   `json:"is_active"`
 	IsDefault      *bool   `json:"is_default"`

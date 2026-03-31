@@ -68,8 +68,8 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 	username := c.Get("username").(string)
 
 	var req models.CreateApproverRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.Create(c.Request().Context(), typeID, req.UserID, username); err != nil {

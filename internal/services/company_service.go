@@ -54,7 +54,7 @@ type CompanyService interface {
 
 // CreateCompanyRequest тело запроса создания/обновления компании.
 type CreateCompanyRequest struct {
-	Name string `json:"name"`
+	Name string `json:"name" validate:"required,min=1,max=100"`
 }
 
 // UpdateCompanyUsersRequest тело запроса обновления ответственных пользователей.

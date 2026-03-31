@@ -285,8 +285,8 @@ func (h *ApplicationHandler) ApproveApplicationByUser(c echo.Context) error {
 	}
 
 	var req services.UserApprovalRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.ApproveApplicationByUser(c.Request().Context(), username, id, req); err != nil {
@@ -344,8 +344,8 @@ func (h *ApplicationHandler) TakeApplicationToWork(c echo.Context) error {
 	}
 
 	var req services.TakeToWorkRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.TakeApplicationToWork(c.Request().Context(), username, id, req); err != nil {

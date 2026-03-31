@@ -19,14 +19,14 @@ type UserTypeWithCount struct {
 
 // CreateUserTypeRequest — запрос на создание нового типа пользователя.
 type CreateUserTypeRequest struct {
-	Name string `json:"name"`
-	Code string `json:"code"`
+	Name string `json:"name" validate:"required,min=1,max=50"`
+	Code string `json:"code" validate:"required,min=1,max=20"`
 }
 
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
 type UpdateUserTypeRequest struct {
-	Name string `json:"name"`
-	Code string `json:"code"`
+	Name string `json:"name" validate:"required,min=1,max=50"`
+	Code string `json:"code" validate:"required,min=1,max=20"`
 }
 
 // UserTypeService — интерфейс бизнес-логики управления типами пользователей.

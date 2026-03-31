@@ -59,12 +59,12 @@ type UserInfoResponse struct {
 
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
 type UpdateUserTypeRequest struct {
-	TypeID int `json:"type_id"`
+	TypeID int `json:"type_id" validate:"gte=1"`
 }
 
 // UpdatePasswordRequest — запрос на обновление пароля пользователя.
 type UpdatePasswordRequest struct {
-	Password string `json:"password"`
+	Password string `json:"password" validate:"required,min=6,max=255"`
 }
 
 // UpdateUserInfoRequest — запрос на обновление персональных данных пользователя.
@@ -79,12 +79,12 @@ type UpdateUserInfoRequest struct {
 
 // UpdateUserOrganizationRequest — запрос на обновление организации пользователя.
 type UpdateUserOrganizationRequest struct {
-	OrganizationID int `json:"organization_id"`
+	OrganizationID int `json:"organization_id" validate:"gte=1"`
 }
 
 // UpdateUserCompanyRequest — запрос на обновление компании пользователя.
 type UpdateUserCompanyRequest struct {
-	CompanyID int `json:"company_id"`
+	CompanyID int `json:"company_id" validate:"gte=1"`
 }
 
 // Junction tables

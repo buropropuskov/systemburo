@@ -86,8 +86,8 @@ func (h *UnloadPlaceHandler) GetByID(c echo.Context) error {
 // @Router       /unload-places [post]
 func (h *UnloadPlaceHandler) Create(c echo.Context) error {
 	var req services.CreateUnloadPlaceRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	id, err := h.service.Create(c.Request().Context(), req)
 	if err != nil {
@@ -120,8 +120,8 @@ func (h *UnloadPlaceHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req services.UpdateUnloadPlaceRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
@@ -199,8 +199,8 @@ func (h *UnloadPlaceHandler) AddTimeSlot(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	var req services.CreateTimeSlotRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	id, err := h.service.AddTimeSlot(c.Request().Context(), placeID, req)
 	if err != nil {
@@ -238,8 +238,8 @@ func (h *UnloadPlaceHandler) UpdateTimeSlot(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid slot_id")
 	}
 	var req services.UpdateTimeSlotRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateTimeSlot(c.Request().Context(), placeID, slotID, req); err != nil {
 		return err

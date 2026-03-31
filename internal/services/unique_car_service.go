@@ -40,8 +40,8 @@ type UniqueCarWithRelations struct {
 
 // NewUniqueCarRequest -- тело запроса на создание/обновление машины.
 type NewUniqueCarRequest struct {
-	Number         string `json:"number"`
-	Mark           string `json:"mark"`
+	Number         string `json:"number" validate:"required,min=1,max=50"`
+	Mark           string `json:"mark" validate:"max=100"`
 	OrganizationID *int   `json:"organization_id"`
 	CompanyID      *int   `json:"company_id"`
 	FormatID       *int   `json:"format_id"`

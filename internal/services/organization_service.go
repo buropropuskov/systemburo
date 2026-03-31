@@ -57,7 +57,7 @@ type OrganizationService interface {
 
 // CreateOrganizationRequest — тело запроса на создание/обновление организации.
 type CreateOrganizationRequest struct {
-	Name string `json:"name"`
+	Name string `json:"name" validate:"required,min=1,max=100"`
 }
 
 // UpdateOrganizationUsersRequest — тело запроса на обновление ответственных.

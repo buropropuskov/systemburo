@@ -37,7 +37,7 @@ type LicensePlateFormatWithCells struct {
 
 // CreateLicensePlateFormatRequest — запрос на создание формата номерного знака.
 type CreateLicensePlateFormatRequest struct {
-	Name        string                    `json:"name"`
+	Name        string                    `json:"name" validate:"required,min=1,max=100"`
 	CountryCode *string                   `json:"country_code"`
 	Icon        *string                   `json:"icon"`
 	IsDefault   *bool                     `json:"is_default"`
@@ -59,7 +59,7 @@ type CreateFormatCellRequest struct {
 
 // UpdateLicensePlateFormatRequest — запрос на обновление формата номерного знака.
 type UpdateLicensePlateFormatRequest struct {
-	Name        string                    `json:"name"`
+	Name        string                    `json:"name" validate:"required,min=1,max=100"`
 	CountryCode *string                   `json:"country_code"`
 	Icon        *string                   `json:"icon"`
 	IsDefault   *bool                     `json:"is_default"`

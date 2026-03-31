@@ -60,8 +60,8 @@ func (h *OrganizationHandler) Create(c echo.Context) error {
 	}
 
 	var req services.CreateOrganizationRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	org, err := h.service.Create(c.Request().Context(), req)
@@ -97,8 +97,8 @@ func (h *OrganizationHandler) Update(c echo.Context) error {
 	}
 
 	var req services.CreateOrganizationRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	org, err := h.service.Update(c.Request().Context(), id, req)
@@ -242,8 +242,8 @@ func (h *OrganizationHandler) UpdateOrganizationUsers(c echo.Context) error {
 	}
 
 	var req services.UpdateOrganizationUsersRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.UpdateOrganizationUsers(c.Request().Context(), id, req); err != nil {
@@ -303,8 +303,8 @@ func (h *OrganizationHandler) UpdateOrganizationTables(c echo.Context) error {
 	}
 
 	var req services.UpdateOrganizationTablesRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.UpdateOrganizationTables(c.Request().Context(), id, req); err != nil {
@@ -364,8 +364,8 @@ func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) err
 	}
 
 	var req services.UpdateOrganizationUnloadPlacesRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 
 	if err := h.service.UpdateOrganizationUnloadPlaces(c.Request().Context(), id, req); err != nil {

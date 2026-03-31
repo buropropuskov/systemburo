@@ -209,15 +209,15 @@ type ForwardUser struct {
 
 // UserApprovalRequest тело запроса на согласование заявки.
 type UserApprovalRequest struct {
-	UserID  int     `json:"user_id"`
-	Status  string  `json:"status"`
+	UserID  int     `json:"user_id" validate:"gte=1"`
+	Status  string  `json:"status" validate:"required,oneof=approved rejected"`
 	Comment *string `json:"comment"`
 }
 
 // TakeToWorkRequest тело запроса на принятие заявки в работу.
 type TakeToWorkRequest struct {
-	UserID  int     `json:"user_id"`
-	Action  string  `json:"action"`
+	UserID  int     `json:"user_id" validate:"gte=1"`
+	Action  string  `json:"action" validate:"required,oneof=accept reject"`
 	Comment *string `json:"comment"`
 }
 
