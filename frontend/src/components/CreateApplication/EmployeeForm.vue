@@ -370,6 +370,8 @@
 <script>
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
+import { useFormValidation } from '@/composables/useFormValidation'
+import { getCurrentInstance } from 'vue'
 
 export default {
     name: 'EmployeeForm',
@@ -397,6 +399,34 @@ export default {
             type: Array,
             default: () => []
         }
+    },
+    setup() {
+        const instance = getCurrentInstance()
+
+        const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
+            const vm = instance.proxy
+
+            if (vm.selectedExistingEmployees.length > 0) {
+                return [
+                    { check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' }
+                ]
+            }
+
+            return [
+                { check: !!vm.lastName.trim(), message: 'фамилию' },
+                { check: !!vm.firstName.trim(), message: 'имя' },
+                { check: !!vm.position.trim(), message: 'должность' },
+                { check: !!vm.selectedCitizenship, message: 'гражданство' },
+                { check: !!vm.passportSeriesNumber.trim(), message: 'паспортные данные' },
+                {
+                    check: !vm.isPatentRequired || !!(vm.patentNumber.trim() || vm.selectedPermission),
+                    message: 'номер патента или иное разрешение'
+                },
+                { check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' }
+            ]
+        })
+
+        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip }
     },
     data() {
         return {
@@ -454,8 +484,6 @@ export default {
             
             editingEmployee: null,
 
-            showTooltip: false,
-            
             tableTooltip: {
                 visible: false,
                 text: '',
@@ -477,69 +505,11 @@ export default {
         permissionFieldDisabled() {
             return this.patentNumber.trim() !== '';
         },
-        canAddEmployee() {
-            if (this.selectedExistingEmployees.length > 0) {
-                return this.selectedPassageTables.length > 0;
-            }
-
-            if (!this.lastName.trim() || !this.firstName.trim()) {
-                return false;
-            }
-            
-            if (!this.selectedCitizenship) {
-                return false;
-            }
-            
-            if (!this.passportSeriesNumber.trim()) {
-                return false;
-            }
-            
-            if (!this.position.trim()) {
-                return false;
-            }
-            
-            if (this.isPatentRequired) {
-                if (!this.patentNumber.trim() && !this.selectedPermission) {
-                    return false;
-                }
-            }
-            
-            if (this.selectedPassageTables.length === 0) {
-                return false;
-            }
-            
-            return true;
-        },
         attachedTablesIds() {
             return this.attachedPassageTables.map(table => table.id);
         },
         canAddExistingEmployees() {
             return this.selectedExistingEmployees.length > 0 && this.selectedPassageTables.length > 0;
-        },
-        getTooltipMessage() {
-            const missingFields = [];
-            
-            if (this.selectedExistingEmployees.length === 0) {
-                if (!this.lastName.trim()) missingFields.push('фамилию');
-                if (!this.firstName.trim()) missingFields.push('имя');
-                if (!this.position.trim()) missingFields.push('должность');
-                if (!this.selectedCitizenship) missingFields.push('гражданство');
-                if (!this.passportSeriesNumber.trim()) missingFields.push('паспортные данные');
-                
-                if (this.isPatentRequired) {
-                    if (!this.patentNumber.trim() && !this.selectedPermission) missingFields.push('номер патента или иное разрешение');
-                }
-            }
-            
-            if (this.selectedPassageTables.length === 0) {
-                missingFields.push('выберите хотя бы одно место прохода');
-            }
-            
-            if (missingFields.length === 0) {
-                return '';
-            }
-            
-            return `Заполните: ${missingFields.join(', ')}`;
         },
         filteredPassageTables() {
             return this.allPassageTables.filter(item => {

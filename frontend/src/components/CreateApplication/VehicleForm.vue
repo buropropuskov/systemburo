@@ -362,6 +362,8 @@
 <script>
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
+import { useFormValidation } from '@/composables/useFormValidation'
+import { getCurrentInstance } from 'vue'
 
 export default {
     name: 'VehicleForm',
@@ -389,6 +391,43 @@ export default {
             type: Array,
             default: () => []
         }
+    },
+    setup() {
+        const instance = getCurrentInstance()
+
+        const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
+            const vm = instance.proxy
+            const hasInactiveSelected = vm.selectedUnloadingPlaces.some(placeId => {
+                const place = vm.allUnloadingPlaces.find(p => p.id === placeId)
+                return place && place.status !== 'active'
+            })
+
+            if (vm.selectedExistingCars.length > 0) {
+                return [
+                    { check: vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
+                ]
+            }
+
+            return [
+                { check: !vm.activeCarInfo || vm.isNumberByFact, message: 'На этот автомобиль уже есть активная заявка' },
+                { check: !hasInactiveSelected, message: 'Невозможно выбрать неактивные места разгрузки' },
+                { check: vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
+                {
+                    check: vm.isNumberByFact || (
+                        !!vm.selectedFormat &&
+                        vm.numberParts.every((part, i) => {
+                            const cell = vm.selectedFormat.cells[i]
+                            return part && part.length >= cell.min_length && part.length <= cell.max_length
+                        })
+                    ),
+                    message: 'номер Т/С'
+                },
+                { check: vm.isMarkByFact || !!vm.selectedMark, message: 'марка Т/С' },
+                { check: vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
+            ]
+        })
+
+        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip }
     },
     data() {
         return {
@@ -423,7 +462,6 @@ export default {
             loadingCars: false,
             searchQuery: '',
             editingVehicle: null,
-            showTooltip: false,
             inactiveTooltip: {
                 visible: false,
                 text: '',
@@ -439,55 +477,6 @@ export default {
         selectedFormatText() {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
         },
-        canAddVehicle() {
-            // Проверка активной заявки
-            if (this.activeCarInfo && !this.isNumberByFact) {
-                return false;
-            }
-
-            if (this.selectedExistingCars.length > 0) {
-                return this.selectedUnloadingPlaces.length > 0;
-            }
-
-            if (this.isNumberByFact && this.isMarkByFact && this.selectedUnloadingPlaces.length > 0) {
-                return true;
-            }
-
-            if (!this.isNumberByFact) {
-                if (!this.selectedFormat || !this.numberParts.length) {
-                    return false;
-                }
-
-                for (let i = 0; i < this.selectedFormat.cells.length; i++) {
-                    const cell = this.selectedFormat.cells[i];
-                    const part = this.numberParts[i];
-                    
-                    if (!part || part.length < cell.min_length || part.length > cell.max_length) {
-                        return false;
-                    }
-                }
-            }
-            
-            if (!this.isMarkByFact && !this.selectedMark) {
-                return false;
-            }
-            
-            // Проверяем, что среди выбранных мест нет неактивных
-            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
-                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
-                return place && place.status !== 'active';
-            });
-            
-            if (hasInactiveSelected) {
-                return false;
-            }
-            
-            if (this.selectedUnloadingPlaces.length === 0) {
-                return false;
-            }
-            
-            return true;
-        },
         attachedPlacesIds() {
             return this.attachedUnloadingPlaces.map(place => place.id);
         },
@@ -500,51 +489,6 @@ export default {
             
             return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected;
         },
-        getTooltipMessage() {
-            const missingFields = [];
-            
-            // Проверка активной заявки
-            if (this.activeCarInfo && !this.isNumberByFact) {
-                return 'На этот автомобиль уже есть активная заявка';
-            }
-            
-            // Проверяем наличие неактивных мест
-            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
-                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
-                return place && place.status !== 'active';
-            });
-            
-            if (hasInactiveSelected) {
-                return 'Невозможно выбрать неактивные места разгрузки';
-            }
-            
-            if (this.selectedExistingCars.length === 0) {
-                if (!this.isNumberByFact) {
-                    if (!this.selectedFormat) {
-                        missingFields.push('формат номера');
-                    } else if (!this.numberParts.every((part, index) => {
-                        const cell = this.selectedFormat.cells[index];
-                        return part && part.length >= cell.min_length && part.length <= cell.max_length;
-                    })) {
-                        missingFields.push('номер Т/С');
-                    }
-                }
-                
-                if (!this.isMarkByFact && !this.selectedMark) {
-                    missingFields.push('марка Т/С');
-                }
-            }
-            
-            if (this.selectedUnloadingPlaces.length === 0) {
-                missingFields.push('хотя бы одно место разгрузки');
-            }
-            
-            if (missingFields.length === 0) {
-                return '';
-            }
-            
-            return `Заполните: ${missingFields.join(', ')}`;
-        }
     },
     methods: {
         // Новый метод для проверки активной заявки
