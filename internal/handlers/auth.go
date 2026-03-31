@@ -29,8 +29,8 @@ func NewAuthHandler(service services.AuthService) *AuthHandler {
 // @Router       /register [post]
 func (h *AuthHandler) Register(c echo.Context) error {
 	var req models.RegisterRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.Register(c.Request().Context(), req); err != nil {
 		return err
@@ -50,8 +50,8 @@ func (h *AuthHandler) Register(c echo.Context) error {
 // @Router       /login [post]
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req models.LoginRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
 	}
 	resp, err := h.service.Login(c.Request().Context(), req)
 	if err != nil {

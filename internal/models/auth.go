@@ -3,8 +3,8 @@ package models
 // --- Requests ---
 
 type RegisterRequest struct {
-	Username       string  `json:"username"`
-	Password       string  `json:"password"`
+	Username       string  `json:"username" validate:"required,min=3,max=100"`
+	Password       string  `json:"password" validate:"required,min=6,max=255"`
 	OrganizationID int     `json:"organization_id"`
 	CompanyID      int     `json:"company_id"`
 	TypeID         int     `json:"type_id"`
@@ -17,8 +17,8 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
 type RefreshTokenRequest struct {
