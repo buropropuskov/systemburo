@@ -1269,8 +1269,12 @@ export default {
       this.savingPermissions = true;
       const permissions = Object.entries(this.userPermissions).map(([key, value]) => ({ key, value }));
       try {
-        await updateUserPermissions(this.selectedUserForPermissions.id, { permissions });
-        this.showPermissionsModal = false;
+        const result = await updateUserPermissions(this.selectedUserForPermissions.id, { permissions });
+        if (result && result.message) {
+          console.error('Ошибка сохранения прав:', result.message);
+        } else {
+          this.showPermissionsModal = false;
+        }
       } catch (e) {
         console.error('Ошибка сохранения прав:', e);
       } finally {
