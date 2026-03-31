@@ -17,6 +17,7 @@ import (
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
+	appvalidator "systemburo/internal/validator"
 
 	"github.com/labstack/echo/v4"
 	echomw "github.com/labstack/echo/v4/middleware"
@@ -87,8 +88,10 @@ func main() {
 	e := echo.New()
 	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
+	e.Validator = appvalidator.New()
 
 	// Global middleware
+	e.Use(mw.RequestID())
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
 	e.Use(mw.CORS())
