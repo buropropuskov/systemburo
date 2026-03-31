@@ -410,11 +410,12 @@ export default {
 
             return [
                 { check: !vm.activeCarInfo || vm.isNumberByFact, message: 'На этот автомобиль уже есть активная заявка' },
-                { check: !hasInactiveSelected, message: 'Невозможно выбрать неактивные места разгрузки' },
+                { check: (vm.isNumberByFact && vm.isMarkByFact) || !hasInactiveSelected, message: 'Невозможно выбрать неактивные места разгрузки' },
                 { check: vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
                 {
                     check: vm.isNumberByFact || (
                         !!vm.selectedFormat &&
+                        vm.numberParts.length > 0 &&
                         vm.numberParts.every((part, i) => {
                             const cell = vm.selectedFormat.cells[i]
                             return part && part.length >= cell.min_length && part.length <= cell.max_length
