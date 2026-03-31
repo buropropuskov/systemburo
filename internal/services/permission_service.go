@@ -70,8 +70,9 @@ func (s *permissionService) getUserPermissionsList(ctx context.Context, userID i
 
 	err := s.db.WithContext(ctx).
 		Table("user_permissions up").
-		Select("p.key, p.category, p.display_name, up.value").
+		Select("p.key, p.category, p.display_name, up.value, u.username as granted_by_name").
 		Joins("JOIN permissions p ON p.key = up.permission_key").
+		Joins("LEFT JOIN users u ON u.id = up.granted_by").
 		Where("up.user_id = ?", userID).
 		Order("p.category, p.key").
 		Scan(&results).Error

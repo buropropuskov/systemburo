@@ -23,10 +23,11 @@ type UserPermission struct {
 
 // UserPermissionResponse -- разрешение пользователя для API-ответа.
 type UserPermissionResponse struct {
-	Key         string `json:"key"`
-	Category    string `json:"category"`
-	DisplayName string `json:"display_name"`
-	Value       string `json:"value"`
+	Key            string `json:"key"`
+	Category       string `json:"category"`
+	DisplayName    string `json:"display_name"`
+	Value          string `json:"value"`
+	GrantedByName  string `json:"granted_by_name,omitempty"`
 }
 
 // UpdatePermissionsRequest -- запрос на обновление разрешений пользователя.
