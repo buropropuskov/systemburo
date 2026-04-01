@@ -358,7 +358,7 @@ export default {
   width: 50px;
   height: 100vh;
   background: #fafafa;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--color-border);
   z-index: 1000;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
@@ -438,7 +438,7 @@ export default {
 }
 
 .nav-item:hover:not(.disabled) {
-  background-color: #e6e6e6;
+  background-color: var(--color-border);
 }
 
 .nav-icon-wrapper {
@@ -504,7 +504,7 @@ export default {
   background: #fafafa;
   border-radius: 0 15px 15px 0;
   z-index: 1001;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--color-border);
   border-left: none;
   min-width: 200px;
   transform-origin: left center;
@@ -523,7 +523,7 @@ export default {
 }
 
 .dropdown-item:hover {
-  background-color: #e6e6e6;
+  background-color: var(--color-border);
 }
 
 .disabled {
@@ -550,7 +550,7 @@ export default {
   position: absolute;
   top: -7px;
   right: -7px;
-  background-color: #4F5BDF;
+  background-color: var(--color-primary);
   color: white;
   font-size: 10px;
   font-weight: 500;
@@ -579,7 +579,7 @@ export default {
 .notification-badge {
   position: absolute;
   right: 15px;
-  background-color: #4F5BDF;
+  background-color: var(--color-primary);
   color: white;
   font-size: 10px;
   font-weight: 600;
@@ -640,7 +640,7 @@ export default {
 
 .dropdown-divider {
   height: 1px;
-  background-color: #e6e6e6;
+  background-color: var(--color-border);
   margin: 4px 0;
 }
 </style>

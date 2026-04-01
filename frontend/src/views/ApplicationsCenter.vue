@@ -904,7 +904,7 @@ export default {
 }
 
 .unread-badge {
-    background: #4F5BDF;
+    background: var(--color-primary);
     color: white;
     padding: 4px 10px;
     border-radius: 12px;
@@ -925,7 +925,7 @@ export default {
 
 .center__filters {
     padding-bottom: 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--color-border);
 }
 
 .filters-row {
@@ -967,7 +967,7 @@ export default {
     height: 35px;
     background-color: #FFF;
     border-radius: 10px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--color-border);
     padding: 0 10px;
     display: flex;
     align-items: center;
@@ -1031,7 +1031,7 @@ export default {
 
 .status-btn {
     padding: 6px 12px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--color-border);
     background: white;
     border-radius: 15px;
     cursor: pointer;
@@ -1047,9 +1047,9 @@ export default {
 }
 
 .status-btn--active {
-    background: #4F5BDF;
+    background: var(--color-primary);
     color: white;
-    border-color: #4F5BDF;
+    border-color: var(--color-primary);
 }
 
 .status-btn--active:hover {
@@ -1060,7 +1060,7 @@ export default {
 .reset-sort-btn,
 .reset-filters-btn {
     padding: 6px 12px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--color-border);
     background: white;
     border-radius: 15px;
     cursor: pointer;
@@ -1096,7 +1096,7 @@ export default {
     min-width: 300px;
     background-color: #fff;
     border-radius: 30px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--color-border);
     overflow: hidden;
     margin-top: 20px;
     height: fit-content;
@@ -1112,7 +1112,7 @@ export default {
 }
 
 .table-header {
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--color-border);
     padding: 0 16px;
     flex-shrink: 0;
     height: 45px;
@@ -1296,7 +1296,7 @@ export default {
     background-color: #fff;
     color: #000;
     border-radius: 50px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--color-border);
     font-size: 12px;
     font-weight: 500;
     padding: 0 12px;

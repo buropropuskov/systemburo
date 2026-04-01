@@ -446,7 +446,7 @@ export default {
     .login {
         width: 100%;
         height: 100vh;
-        background-color: #4F5BDF;
+        background-color: var(--color-primary);
         padding: 40px;
         display: flex;
         position: relative;
@@ -656,7 +656,7 @@ export default {
 
     .contact__text {
         font-size: 16px;
-        color: #4F5BDF;
+        color: var(--color-primary);
         font-weight: 500;
     }
 
@@ -847,7 +847,7 @@ export default {
 
     .button__text {
         font-size: 20px;
-        color: #4F5BDF;
+        color: var(--color-primary);
         font-weight: 800;
         transition: all 0.3s ease;
     }
@@ -859,12 +859,12 @@ export default {
     }
 
     .login__button.success .button__text {
-        color: #4F5BDF;
+        color: var(--color-primary);
     }
 
     .login__button:hover:not(:disabled) {
         cursor: pointer;
-        background-color: #e6e6e6;
+        background-color: var(--color-border);
     }
 
     .login__button:hover:not(:disabled) .button__text {
@@ -887,7 +887,7 @@ export default {
 
     .success-checkmark {
         font-size: 24px;
-        color: #4F5BDF;
+        color: var(--color-primary);
         font-weight: bold;
         animation: scaleIn 0.3s ease-out;
     }

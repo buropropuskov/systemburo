@@ -82,7 +82,7 @@ export default {
 
 .base-modal {
   background: #fff;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
   max-height: 85vh;
   overflow-y: auto;
@@ -95,14 +95,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .base-modal__title {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 .base-modal__close {
@@ -123,7 +123,7 @@ export default {
 }
 
 .base-modal__close:hover {
-  color: #333;
+  color: var(--color-text);
   background: #f5f5f5;
 }
 
@@ -133,7 +133,7 @@ export default {
 
 .base-modal__actions {
   padding: 15px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--color-border);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
