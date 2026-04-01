@@ -1,13 +1,14 @@
 <template>
   <div id="app">
-    <NavMenu 
+    <a href="#main-content" class="skip-link">Перейти к основному содержанию</a>
+    <NavMenu
       v-if="isAuthenticated"
       :is-buropropuskov="isBuropropuskov"
       @logout="logout"
     />
-    <div class="content">
+    <div class="content" id="main-content">
       <TheHeader class="theheader" v-if="isAuthenticated"/>
-      <router-view class="content__container" @login-success="handleSuccessfulLogin" /> 
+      <router-view class="content__container" @login-success="handleSuccessfulLogin" />
     </div>
     
     <!-- Модальное окно истекшей сессии -->
@@ -274,7 +275,20 @@ export default {
 </script>
 
 <style>
-/* Стили остаются без изменений */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary);
+  color: white;
+  padding: 8px 16px;
+  z-index: 10000;
+  transition: top 0.2s;
+}
+.skip-link:focus {
+  top: 0;
+}
+
 * {
     font-family: 'Montserrat', sans-serif;
     padding: 0;

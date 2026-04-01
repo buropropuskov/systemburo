@@ -22,21 +22,23 @@
                     <div class="inputs">
                         <div class="login__input" :style="input1Style">
                             <img src="@/assets/icons/login.png" alt="" class="input__icon" />
-                            <input v-model="formData.username" class="input" type="text" 
-                                autocomplete="off" 
-                                autocorrect="off" 
-                                autocapitalize="off" 
+                            <input v-model="formData.username" class="input" type="text"
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
                                 spellcheck="false"
-                                placeholder="Логин" />
+                                placeholder="Логин"
+                                aria-label="Имя пользователя" />
                         </div>
                         <div class="login__input" :style="input2Style">
                             <img src="@/assets/icons/password.png" alt="" class="input__icon" />
-                            <input v-model="formData.password" class="input" type="password" 
-                                autocomplete="new-password" 
-                                autocorrect="off" 
-                                autocapitalize="off" 
+                            <input v-model="formData.password" class="input" type="password"
+                                autocomplete="new-password"
+                                autocorrect="off"
+                                autocapitalize="off"
                                 spellcheck="false"
-                                placeholder="Пароль" />
+                                placeholder="Пароль"
+                                aria-label="Пароль" />
                         </div>
                     </div>
                     

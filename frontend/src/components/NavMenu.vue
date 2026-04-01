@@ -1,6 +1,8 @@
 <template>
-  <div 
-    class="nav-menu" 
+  <nav
+    class="nav-menu"
+    role="navigation"
+    aria-label="Основная навигация"
     :class="{ expanded: isExpanded }"
     @mouseenter="expandMenu"
     @mouseleave="collapseMenu"
@@ -149,7 +151,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </nav>
 </template>
 
 <script>

@@ -2,12 +2,12 @@
   <teleport to="body">
     <transition name="modal-fade">
       <div v-if="show" class="base-modal-overlay" @click.self="handleOverlayClick">
-        <div class="base-modal" :style="{ maxWidth: width }" @click.stop>
+        <div class="base-modal" :style="{ maxWidth: width }" @click.stop role="dialog" aria-modal="true" :aria-label="title">
           <div class="base-modal__header" v-if="title || $slots.header || closable">
             <slot name="header">
               <h3 class="base-modal__title">{{ title }}</h3>
             </slot>
-            <button v-if="closable" class="base-modal__close" @click="$emit('close')">&times;</button>
+            <button v-if="closable" class="base-modal__close" @click="$emit('close')" aria-label="Закрыть">&times;</button>
           </div>
           <div class="base-modal__body">
             <slot></slot>
@@ -53,13 +53,42 @@ export default {
         this.$emit('close');
       }
     },
+    handleKeydown(e) {
+      if (e.key === 'Escape' && this.closable) {
+        this.$emit('close');
+      }
+      if (e.key === 'Tab') {
+        this.trapFocus(e);
+      }
+    },
+    trapFocus(e) {
+      const focusable = this.$el.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
   },
   watch: {
     show(val) {
       document.body.style.overflow = val ? 'hidden' : '';
     },
   },
+  mounted() {
+    document.addEventListener('keydown', this.handleKeydown);
+  },
   beforeUnmount() {
+    document.removeEventListener('keydown', this.handleKeydown);
     document.body.style.overflow = '';
   },
 };
