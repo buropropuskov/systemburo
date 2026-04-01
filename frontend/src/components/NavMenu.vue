@@ -154,6 +154,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getUnreadCount } from '@/api/applications'
 export default {
   name: 'NavMenu',
   data() {
@@ -300,27 +301,10 @@ export default {
     
     async fetchNewApplicationsCount() {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) return;
-
-        const response = await apiRequest("/applications/user", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json"
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const newApps = data.filter(app => app.status === 'Непрочитано');
-          this.newApplicationsCount = newApps.length;
-        } else {
-          console.error("Error fetching applications count:", response.status);
-          this.newApplicationsCount = 0;
-        }
-      } catch (error) {
-        console.error("Error fetching new applications count:", error);
-        this.newApplicationsCount = 0;
+        const data = await getUnreadCount()
+        this.newApplicationsCount = data.count || 0
+      } catch {
+        this.newApplicationsCount = 0
       }
     },
     
