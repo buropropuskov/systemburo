@@ -9,7 +9,7 @@ export function decodeToken(token) {
 export function isTokenValid(token) {
   if (!token) return false;
   const payload = decodeToken(token);
-  return payload && payload.exp > Math.floor(Date.now() / 1000);
+  return !!(payload && payload.exp > Math.floor(Date.now() / 1000));
 }
 
 export function getUserType(token) {
