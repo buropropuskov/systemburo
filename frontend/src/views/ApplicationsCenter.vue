@@ -10,6 +10,10 @@
         </header>
         
         <div class="center__filters">
+            <FilterTabs
+                :tabs="archiveTabs"
+                v-model="archiveMode"
+            />
             <div class="filters__main">
                 <div class="filters-row">
                     <div class="field search">
@@ -259,6 +263,7 @@ import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
 import DateFilter from '../components/DateFilter.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 
 export default {
     name: 'ApplicationsCenter',
@@ -266,7 +271,8 @@ export default {
         OrganizationFilter,
         RefreshButton,
         ApplicationDetail,
-        DateFilter
+        DateFilter,
+        FilterTabs
     },
     data() {
         return {
@@ -301,6 +307,12 @@ export default {
                 { value: 'Отказано', label: 'Отказано' }
             ],
             
+            archiveMode: 'active',
+            archiveTabs: [
+                { key: 'active', label: 'Активные' },
+                { key: 'archive', label: 'Архив' },
+            ],
+
             // Данные заявок
             applications: [],
             
@@ -673,6 +685,9 @@ export default {
                     params.append('status', this.selectedApplicationStatuses[0]);
                 }
                 
+                // Добавляем параметр архива
+                params.append('archive', this.archiveMode === 'archive' ? 'true' : 'false');
+
                 // Добавляем параметры даты в запрос к API
                 if (this.selectedDate) {
                     const dateStr = this.selectedDate.toISOString().split('T')[0];
@@ -836,9 +851,18 @@ export default {
             }, 60000);
         }
     },
+    watch: {
+        archiveMode() {
+            this.fetchApplications();
+        },
+    },
     mounted() {
         this.startShakeAnimation();
-        
+
+        if (this.$route.query.archive === 'true') {
+            this.archiveMode = 'archive';
+        }
+
         this.fetchOrganizations();
         this.fetchApplications();
         this.getCurrentUser();
