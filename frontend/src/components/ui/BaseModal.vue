@@ -54,6 +54,7 @@ export default {
       }
     },
     handleKeydown(e) {
+      if (!this.show) return;
       if (e.key === 'Escape' && this.closable) {
         this.$emit('close');
       }
