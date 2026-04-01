@@ -723,13 +723,15 @@ export default {
     watch: {
         application: {
             immediate: true,
-            handler(newApplication) {
+            handler(newApplication, oldApplication) {
                 if (newApplication && newApplication.id) {
                     this.applicationData = { ...newApplication };
                     this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
                     this.loadCommentFromLocalStorage();
                     this.loadApplicationDetails(newApplication);
-                    markAsRead(newApplication.id).catch(() => {});
+                    if (!oldApplication || oldApplication.id !== newApplication.id) {
+                        markAsRead(newApplication.id).catch(() => {});
+                    }
                 }
             },
             deep: true

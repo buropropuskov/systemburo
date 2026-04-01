@@ -2,7 +2,7 @@
   <teleport to="body">
     <transition name="modal-fade">
       <div v-if="show" class="base-modal-overlay" @click.self="handleOverlayClick">
-        <div class="base-modal" :style="{ maxWidth: width }" @click.stop role="dialog" aria-modal="true" :aria-label="title">
+        <div ref="modal" class="base-modal" :style="{ maxWidth: width }" @click.stop role="dialog" aria-modal="true" :aria-label="title">
           <div class="base-modal__header" v-if="title || $slots.header || closable">
             <slot name="header">
               <h3 class="base-modal__title">{{ title }}</h3>
@@ -63,7 +63,9 @@ export default {
       }
     },
     trapFocus(e) {
-      const focusable = this.$el.querySelectorAll(
+      const container = this.$refs.modal;
+      if (!container) return;
+      const focusable = container.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
       if (focusable.length === 0) return;
