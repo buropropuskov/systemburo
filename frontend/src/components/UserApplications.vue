@@ -453,7 +453,6 @@ export default {
 
     async getCurrentUser() {
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest("/users/me", {
           method: "GET",
         });

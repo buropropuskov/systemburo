@@ -527,7 +527,6 @@ export default {
     methods: {
         async loadCitizenships() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/citizenships", {
                     method: "GET"});
 
@@ -721,10 +720,8 @@ export default {
             this.filteredEmployees = [];
             this.displayedEmployees = [];
             this.tempSelectedEmployees = [];
-            
+
             try {
-                const token = localStorage.getItem("token");
-                
                 const response = await apiRequest(`/unique-employees?filter_type=${filterType}`, {
                     method: "GET"});
 

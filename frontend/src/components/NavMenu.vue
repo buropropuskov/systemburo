@@ -283,7 +283,6 @@ export default {
     
     async fetchSystemTables() {
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest("/system-tables", {
         });
         if (response.ok) {

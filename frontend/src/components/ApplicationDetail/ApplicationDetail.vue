@@ -769,8 +769,6 @@ export default {
 
         async loadApplicationDetails(application) {
             try {
-                const token = localStorage.getItem("token");
-                
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
                     apiRequest(`/applications/${application.id}/details`, {
                         method: "GET",
@@ -836,7 +834,6 @@ export default {
 
         async fetchAllUsers() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/users/all", {
                 });
                 if (response.ok) {
@@ -849,7 +846,6 @@ export default {
 
         async fetchApprovers() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/application-approvers", {
                 });
                 if (response.ok) {
@@ -865,8 +861,6 @@ export default {
 
             this.loadingAttachmentDetails = true;
             try {
-                const token = localStorage.getItem("token");
-                
                 this.attachmentCars = [];
                 this.attachmentEmployees = [];
                 this.attachmentItems = [];
@@ -922,8 +916,6 @@ export default {
 
             this.processingApplication = true;
             try {
-                const token = localStorage.getItem("token");
-                
                 const response = await apiRequest(`/applications/${this.applicationData.id}/revoke-approval`, {
                     method: "POST",
                     body: JSON.stringify({
@@ -1021,8 +1013,6 @@ export default {
 
         async acceptApplication() {
             try {
-                const token = localStorage.getItem("token");
-                
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1066,8 +1056,6 @@ export default {
 
         async rejectApplication() {
             try {
-                const token = localStorage.getItem("token");
-                
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1112,8 +1100,6 @@ export default {
         async revokeApplication() {
             this.processingApplication = true;
             try {
-                const token = localStorage.getItem("token");
-                
                 const response = await apiRequest(`/applications/${this.applicationData.id}/revoke-from-work`, {
                     method: "POST",
                     body: JSON.stringify({
@@ -1156,8 +1142,6 @@ export default {
         async restoreApplication() {
             this.processingApplication = true;
             try {
-                const token = localStorage.getItem("token");
-                
                 const commentToSend = this.actionComment;
                 this.lastUserComment = commentToSend;
 
@@ -1205,8 +1189,6 @@ export default {
 
             this.updatingConfirmation = true;
             try {
-                const token = localStorage.getItem("token");
-                
                 if (this.hasUserVoted) {
                     this.showNotification("Вы уже проголосовали по этой заявке", "error");
                     this.updatingConfirmation = false;
@@ -1285,8 +1267,6 @@ export default {
             
             this.isForwarding = true;
             try {
-                const token = localStorage.getItem("token");
-                
                 const usersToSend = selectedUsers.map(user => ({
                     user_id: user.user_id,
                     required_approval: user.required_approval || false,

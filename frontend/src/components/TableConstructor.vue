@@ -690,7 +690,6 @@ export default {
     
     async fetchTables() {
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest("/system-tables", {
         });
         if (response.ok) {
@@ -705,9 +704,8 @@ export default {
     
     async refreshSelectedTable() {
       if (!this.selectedTable) return;
-      
+
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}`, {
         });
         if (response.ok) {
@@ -833,7 +831,6 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}`, {
           method: "PUT",
           body: JSON.stringify(updateData),
@@ -877,7 +874,6 @@ export default {
   if (!confirm(`Вы уверены, что хотите удалить таблицу "${table.table.display_name}"?`)) return;
   
   try {
-    const token = localStorage.getItem("token");
     console.log("Deleting table ID:", table.table.id);
     
     const response = await apiRequest(`/system-tables/${table.table.id}`, {
@@ -1098,7 +1094,6 @@ export default {
       }
       
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos`, {
           method: "POST",
           body: formData,
@@ -1131,7 +1126,6 @@ export default {
       if (!confirm(`Удалить фотографию?`)) return;
       
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos/${photo.id}`,
           {
             method: "DELETE",
@@ -1153,7 +1147,6 @@ export default {
     
     async setMainPhoto(photo) {
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos/${photo.id}/main`,
           {
             method: "POST",

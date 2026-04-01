@@ -511,7 +511,6 @@ export default {
             // Ждем небольшую паузу, чтобы не дёргать сервер на каждый символ
             this.checkingTimeout = setTimeout(async () => {
                 try {
-                    const token = localStorage.getItem("token");
                     const url = new URL('/cars/check-active', window.location.origin);
                     url.searchParams.append('car_number', plateNumber);
                     url.searchParams.append('car_brand', this.selectedMark || '');
@@ -543,7 +542,6 @@ export default {
 
         async loadLicensePlateFormats() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/license-plate-formats", {
                     method: "GET"});
 
@@ -652,10 +650,8 @@ export default {
             this.filteredCars = [];
             this.displayedCars = [];
             this.tempSelectedCars = [];
-            
+
             try {
-                const token = localStorage.getItem("token");
-                
                 const response = await apiRequest(`/unique-cars?filter_type=${filterType}`, {
                     method: "GET"});
 

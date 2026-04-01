@@ -188,7 +188,6 @@ export default {
     },
     async fetchAllUsers() {
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest("/users/all", {
           method: "GET",
         });

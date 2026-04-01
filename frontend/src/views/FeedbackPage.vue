@@ -349,8 +349,6 @@ export default {
     async updateFeedback(feedbackId, updates) {
       this.updating = feedbackId;
       try {
-        const token = localStorage.getItem("token");
-        
         let url, method, body;
         
         if ('is_read' in updates) {

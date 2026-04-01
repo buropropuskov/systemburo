@@ -719,7 +719,6 @@ export default {
 
         async fetchOrganizations() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/organizations", {
                     method: "GET",
                 });
@@ -744,7 +743,6 @@ export default {
             
             if (application.status === 'Непрочитано') {
                 try {
-                    const token = localStorage.getItem("token");
                     const response = await apiRequest(`/applications/${application.id}`, {
                         method: "PUT",
                         body: JSON.stringify({
@@ -823,7 +821,6 @@ export default {
 
         async getCurrentUser() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/users/me", {
                     method: "GET",
                 });

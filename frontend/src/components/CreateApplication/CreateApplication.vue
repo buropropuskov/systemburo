@@ -473,7 +473,6 @@ export default {
         
         async loadPassageTables() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/system-tables", {
                     method: "GET"});
 
@@ -490,8 +489,7 @@ export default {
         },
         async checkVehiclesBeforeSubmit() {
   const activeVehicles = [];
-  const token = localStorage.getItem("token");
-  
+
   for (const attachment of this.attachments) {
     if (attachment.attachment_type !== 'cars') continue;
     
@@ -532,7 +530,6 @@ export default {
 },
         async loadLicensePlateFormats() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/license-plate-formats", {
                     method: "GET"});
 
@@ -548,7 +545,6 @@ export default {
 
         async loadAllUnloadingPlaces() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/unload-places", {
                     method: "GET"});
 
@@ -1300,7 +1296,6 @@ export default {
 
         async loadExistingVehicles() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/unique-cars?filter_type=all", {
                     method: "GET"});
 
@@ -1316,7 +1311,6 @@ export default {
 
         async loadExistingEmployees() {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest("/unique-employees?filter_type=all", {
                     method: "GET"});
 
@@ -1332,8 +1326,6 @@ export default {
         
         async confirmBinding(bindingData) {
             try {
-                const token = localStorage.getItem("token");
-                
                 if (this.newVehiclesToBind.length > 0 && bindingData.vehicles.hasVehiclesForBinding) {
                     const vehiclesToBind = this.newVehiclesToBind.filter(vehicle => 
                         vehicle.plateNumber !== 'По факту' && vehicle.mark !== 'По факту'
@@ -1594,8 +1586,7 @@ export default {
         
         async loadRequiredResponsibles() {
             const requiredUsers = [];
-            const token = localStorage.getItem("token");
-            
+
             if (this.organizationId) {
                 try {
                     const orgResponse = await apiRequest(`/organizations/${this.organizationId}/users`, {});
@@ -1768,7 +1759,6 @@ export default {
 
         async loadApplication(applicationId) {
             try {
-                const token = localStorage.getItem("token");
                 const response = await apiRequest(`/application/${applicationId}`, {});
 
                 if (response.ok) {
