@@ -564,6 +564,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { markAsRead } from '@/api/applications'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
@@ -728,6 +729,7 @@ export default {
                     this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
                     this.loadCommentFromLocalStorage();
                     this.loadApplicationDetails(newApplication);
+                    markAsRead(newApplication.id).catch(() => {});
                 }
             },
             deep: true
