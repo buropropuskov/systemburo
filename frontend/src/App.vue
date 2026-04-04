@@ -23,6 +23,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
@@ -37,8 +38,6 @@ export default {
   },
   data() {
     return {
-      isAuthenticated: false,
-      isBuropropuskov: false,
       showSessionModal: false,
       tokenCheckInterval: null,
       expirationTimer: null,
@@ -46,40 +45,41 @@ export default {
       tokenExpiryTime: null
     };
   },
+  computed: {
+    isAuthenticated() {
+      const authStore = useAuthStore()
+      return authStore.isAuthenticated
+    },
+    isBuropropuskov() {
+      const authStore = useAuthStore()
+      return authStore.isAdmin
+    }
+  },
   methods: {
     async checkAuthStatus() {
-      const token = localStorage.getItem("token");
-      const refreshToken = localStorage.getItem("refreshToken");
-      
+      const authStore = useAuthStore()
+      const token = authStore.token
+      const refreshToken = authStore.refreshToken
+
       // Если нет хотя бы одного токена - не аутентифицирован и скрываем модалку
       if (!token || !refreshToken) {
-          this.isAuthenticated = false;
-          this.isBuropropuskov = false;
           this.showSessionModal = false;
           this.stopExpirationTimer();
           return;
       }
-      
+
       try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           const currentTime = Math.floor(Date.now() / 1000);
           const timeUntilExpiry = payload.exp - currentTime;
-          
-          /* console.log('Token expiry check:', {
-              timeUntilExpiry: timeUntilExpiry + ' seconds',
-              isExpired: timeUntilExpiry <= 0,
-              willExpireSoon: timeUntilExpiry <= 300
-          }); */
-          
+
           // Если токен уже истек - сразу выходим
           if (timeUntilExpiry <= 0) {
               this.logout();
               return;
           }
-          
+
           // Если дошли сюда - токен валиден
-          this.isAuthenticated = true;
-          this.isBuropropuskov = payload.type_id === 6;
           this.tokenExpiryTime = payload.exp;
 
           // Загружаем права доступа если ещё не загружены
@@ -90,9 +90,9 @@ export default {
 
           // Запускаем/обновляем таймер истечения
           this.startExpirationTimer(timeUntilExpiry);
-          
+
       } catch (e) {
-          this.logout(); // При ошибке декодирования тоже выходим
+          this.logout();
       }
     },
     
@@ -144,24 +144,25 @@ export default {
     },
     
     handleSuccessfulLogin(tokenData) {
-      localStorage.setItem("token", tokenData.token);
-      localStorage.setItem("refreshToken", tokenData.refreshToken);
+      const authStore = useAuthStore()
+      authStore.setTokens(tokenData.token, tokenData.refreshToken)
       this.checkAuthStatus();
     },
     
     async extendSession() {
       try {
-          const refreshToken = localStorage.getItem("refreshToken");
-          
+          const authStore = useAuthStore()
+          const refreshToken = authStore.refreshToken
+
           if (!refreshToken) {
               this.logout();
               return;
           }
-          
+
           const requestBody = {
               refresh_token: refreshToken
           };
-          
+
           const response = await apiRequest("/refresh-token", {
               method: "POST",
               body: JSON.stringify(requestBody)
@@ -170,8 +171,7 @@ export default {
           if (response.ok) {
               const tokenData = await response.json();
 
-              localStorage.setItem("token", tokenData.token);
-              localStorage.setItem("refreshToken", tokenData.refreshToken);
+              authStore.setTokens(tokenData.token, tokenData.refreshToken)
               this.showSessionModal = false;
               this.checkAuthStatus();
 
@@ -188,39 +188,33 @@ export default {
     },
     
     async logout() {
-  try {
-    const token = localStorage.getItem("token");
-    const refreshToken = localStorage.getItem("refreshToken");
-    
-    if (token && refreshToken) {
-      await apiRequest("/logout", {
-        method: "POST",
-        body: JSON.stringify({
-          refresh_token: refreshToken  // Отправляем конкретный refresh token для удаления
-        })
-      });
-    }
-  } catch (error) {
-    // ignore — logout cleanup happens in finally
-  } finally {
-    // Всегда очищаем localStorage
-    localStorage.removeItem("token");
-    localStorage.removeItem("refreshToken");
-    this.isAuthenticated = false;
-    this.isBuropropuskov = false;
-    this.showSessionModal = false;
-    this.stopExpirationTimer();
+      const authStore = useAuthStore()
+      try {
+        if (authStore.token && authStore.refreshToken) {
+          await apiRequest("/logout", {
+            method: "POST",
+            body: JSON.stringify({
+              refresh_token: authStore.refreshToken
+            })
+          });
+        }
+      } catch (error) {
+        // ignore — logout cleanup happens in finally
+      } finally {
+        authStore.clearTokens()
+        this.showSessionModal = false;
+        this.stopExpirationTimer();
 
-    // Сбрасываем права доступа
-    const permissionsStore = usePermissionsStore()
-    permissionsStore.clearPermissions()
-    
-    // Перенаправляем на логин только если мы не уже на странице логина
-    if (this.$route.path !== '/') {
-      this.$router.push("/");
-    }
-  }
-},
+        // Сбрасываем права доступа
+        const permissionsStore = usePermissionsStore()
+        permissionsStore.clearPermissions()
+
+        // Перенаправляем на логин только если мы не уже на странице логина
+        if (this.$route.path !== '/') {
+          this.$router.push("/");
+        }
+      }
+    },
     
     startTokenMonitoring() {
       // Проверяем токен каждые 10 секунд как fallback

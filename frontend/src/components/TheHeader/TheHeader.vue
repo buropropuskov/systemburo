@@ -39,6 +39,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 
 export default {
@@ -83,8 +84,8 @@ export default {
     },
     async fetchUserData() {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
           console.log("Пользователь не авторизован");
           return;
         }

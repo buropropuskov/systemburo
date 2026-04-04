@@ -174,6 +174,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
@@ -292,8 +293,8 @@ export default {
     async fetchUserApplications() {
       try {
         this.isLoading = true;
-        const token = localStorage.getItem("token");
-        if (!token) {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
           console.error("Пользователь не авторизован.");
           this.isLoading = false;
           return;
@@ -301,7 +302,7 @@ export default {
 
         let url = "/applications/user";
         const params = new URLSearchParams();
-        
+
         if (this.searchQuery) {
           params.append('search_query', this.searchQuery);
         }
@@ -314,7 +315,6 @@ export default {
         const response = await apiRequest(url, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${token}`,
             "Accept": "application/json"
           },
         });
@@ -345,13 +345,12 @@ export default {
 
     async fetchResponsibleUsers(applicationId) {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) return;
+        const authStore = useAuthStore();
+        if (!authStore.token) return;
 
         const response = await apiRequest(`/applications/${applicationId}/responsible-users`, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${token}`,
             "Accept": "application/json"
           },
         });

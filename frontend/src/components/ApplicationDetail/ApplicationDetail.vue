@@ -968,7 +968,6 @@ export default {
                 const approvalResponse = await apiRequest(`/applications/${this.applicationData.id}/approve`, {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${localStorage.getItem("token")}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({

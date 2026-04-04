@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -103,74 +104,21 @@ const router = createRouter({
   routes
 });
 
-// Функция для проверки валидности токена
-const isTokenValid = (token) => {
-  if (!token) return false;
-  
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const currentTime = Math.floor(Date.now() / 1000);
-    const isValid = payload.exp > currentTime;
-    
-    // const timeUntilExpiry = payload.exp - currentTime;
-    
-    /* console.log('🔐 Token validation:', {
-      timeUntilExpiry: timeUntilExpiry + ' seconds',
-      isValid: isValid ? '✅ Valid' : '❌ Expired'
-    }); */
-    
-    return isValid;
-  } catch (e) {
-    /* console.error("❌ Token validation error:", e); */
-    return false;
-  }
-};
-
-// Функция для получения типа пользователя
-const getUserType = () => {
-  const token = localStorage.getItem('token');
-  if (!token) return null;
-  
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.type_id;
-  } catch (e) {
-    /* console.error("❌ Token decode error:", e); */
-    return null;
-  }
-};
-
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token');
-  const refreshToken = localStorage.getItem('refreshToken');
-  
-  // Проверяем наличие ОБОИХ токенов и валидность access token
-  const isAuthenticated = token && refreshToken && isTokenValid(token);
-  
-  const userType = getUserType();
-  const isBuroPropuskov = userType === 6;
-
-  /* console.log('🛡️ Router auth check:', {
-    route: to.path,
-    hasToken: token ? '✅' : '❌',
-    hasRefreshToken: refreshToken ? '✅' : '❌',
-    isTokenValid: isTokenValid(token) ? '✅' : '❌',
-    isAuthenticated: isAuthenticated ? '✅' : '❌'
-  }); */
+  const authStore = useAuthStore();
+  const isAuthenticated = authStore.isAuthenticated;
+  const isBuroPropuskov = authStore.isAdmin;
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    // Очищаем невалидные токены
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    
+    authStore.clearTokens();
     next('/');
-  } 
+  }
   else if (to.meta.requiresBuro && !isBuroPropuskov) {
     next('/personal-cabinet');
-  } 
+  }
   else if (to.path === '/' && isAuthenticated) {
     next('/personal-cabinet');
-  } 
+  }
   else {
     next();
   }

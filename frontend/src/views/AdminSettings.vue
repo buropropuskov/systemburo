@@ -240,11 +240,21 @@ export default {
     },
     selectedImageTypes() {
       if (!this.settings.allowed_image_types) return [];
-      return this.settings.allowed_image_types.split(',').map(t => t.trim()).filter(Boolean);
+      try {
+        const parsed = JSON.parse(this.settings.allowed_image_types);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return this.settings.allowed_image_types.split(',').map(t => t.trim()).filter(Boolean);
+      }
     },
     selectedDocTypes() {
       if (!this.settings.allowed_doc_types) return [];
-      return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
+      try {
+        const parsed = JSON.parse(this.settings.allowed_doc_types);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
+      }
     },
   },
   methods: {
@@ -266,22 +276,22 @@ export default {
     mapSettingsFromArray(arr) {
       for (const item of arr) {
         switch (item.key) {
-          case 'max_file_size':
+          case 'upload.max_file_size':
             this.settings.max_file_size = Number(item.value) || 10 * 1024 * 1024;
             break;
-          case 'allowed_image_types':
+          case 'upload.allowed_image_types':
             this.settings.allowed_image_types = item.value || '';
             break;
-          case 'allowed_doc_types':
+          case 'upload.allowed_doc_types':
             this.settings.allowed_doc_types = item.value || '';
             break;
-          case 'max_per_page':
+          case 'pagination.max_per_page':
             this.settings.max_per_page = Number(item.value) || 50;
             break;
-          case 'notifications_enabled':
+          case 'notifications.enabled':
             this.settings.notifications_enabled = item.value === 'true';
             break;
-          case 'notifications_poll_interval':
+          case 'notifications.poll_interval':
             this.settings.notifications_poll_interval = Number(item.value) || 30;
             break;
         }
@@ -296,7 +306,7 @@ export default {
       } else {
         types.push(type);
       }
-      this.settings.allowed_image_types = types.join(',');
+      this.settings.allowed_image_types = JSON.stringify(types);
     },
 
     toggleDocType(type) {
@@ -307,15 +317,15 @@ export default {
       } else {
         types.push(type);
       }
-      this.settings.allowed_doc_types = types.join(',');
+      this.settings.allowed_doc_types = JSON.stringify(types);
     },
 
     async saveUploadSettings() {
       this.saving = true;
       try {
-        await updateSetting('max_file_size', String(this.settings.max_file_size));
-        await updateSetting('allowed_image_types', this.settings.allowed_image_types);
-        await updateSetting('allowed_doc_types', this.settings.allowed_doc_types);
+        await updateSetting('upload.max_file_size', String(this.settings.max_file_size));
+        await updateSetting('upload.allowed_image_types', JSON.stringify(this.selectedImageTypes));
+        await updateSetting('upload.allowed_doc_types', JSON.stringify(this.selectedDocTypes));
         this.showToast('Настройки загрузки сохранены', 'success');
       } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -333,7 +343,7 @@ export default {
       }
       this.saving = true;
       try {
-        await updateSetting('max_per_page', String(value));
+        await updateSetting('pagination.max_per_page', String(value));
         this.showToast('Настройки пагинации сохранены', 'success');
       } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -351,8 +361,8 @@ export default {
       }
       this.saving = true;
       try {
-        await updateSetting('notifications_enabled', String(this.settings.notifications_enabled));
-        await updateSetting('notifications_poll_interval', String(interval));
+        await updateSetting('notifications.enabled', String(this.settings.notifications_enabled));
+        await updateSetting('notifications.poll_interval', String(interval));
         this.showToast('Настройки уведомлений сохранены', 'success');
       } catch (error) {
         console.error('Ошибка сохранения:', error);

@@ -211,6 +211,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import SearchComponent from '@/components/SearchComponent.vue';
 
 export default {
@@ -311,8 +312,8 @@ export default {
     async fetchFeedbacks() {
       this.loading = true;
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
           console.error("Пользователь не авторизован");
           return;
         }

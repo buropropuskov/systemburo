@@ -551,6 +551,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -751,8 +752,8 @@ export default {
   console.log("Creating table with data:", this.newTable);
   
   try {
-    const token = localStorage.getItem("token");
-    console.log("Token:", token ? "exists" : "missing");
+    const authStore = useAuthStore();
+    console.log("Token:", authStore.token ? "exists" : "missing");
     
     const response = await apiRequest("/system-tables", {
       method: "POST",

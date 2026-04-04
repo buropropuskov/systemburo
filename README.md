@@ -1,219 +1,108 @@
 # Systemburo — Система управления пропусками
 
-Система для управления заявками на пропуска транспорта и сотрудников (Бюро пропусков). Позволяет создавать, согласовывать и отслеживать заявки, управлять транспортом, сотрудниками, организациями и компаниями.
+Веб-приложение для управления пропусками на территорию: заявки, сотрудники, автомобили, согласование.
 
-## Технологический стек
+## Стек технологий
 
-| Компонент | Технологии |
-|-----------|-----------|
-| **Backend** | Rust, Actix-web 4, SQLx 0.8, Tokio |
-| **Frontend** | Vue 3, Vue Router 4, Vue CLI 5 |
-| **База данных** | PostgreSQL 16 |
-| **Аутентификация** | JWT (access + refresh tokens), Argon2 |
-| **Контейнеризация** | Docker, Docker Compose |
-| **Прод. веб-сервер** | Nginx |
+- **Backend:** Go 1.25 (Echo v4, GORM, PostgreSQL 16)
+- **Frontend:** Vue 3, Vue Router, Pinia, CSS custom properties
+- **Infrastructure:** Docker Compose, nginx, GitHub Actions CI/CD
+- **Testing:** Go testify, Vitest (unit), Playwright (E2E)
 
-## Быстрый старт (Docker)
-
-### Разработка
+## Быстрый старт
 
 ```bash
-# Клонировать репозиторий
-git clone <repository-url>
+# 1. Клонировать и настроить
+git clone <repo>
 cd systemburo
-
-# Скопировать переменные окружения
 cp .env.example .env
-# Отредактировать .env при необходимости
+make init  # настроить git hooks
 
-# Запустить все сервисы (PostgreSQL + Backend + Frontend)
-docker compose up --build
+# 2. Запустить
+make up
 
-# Backend: http://localhost:8080
+# 3. Проверить
+# Backend:  http://localhost:8080/health
 # Frontend: http://localhost:8081
-# PostgreSQL: localhost:5432
+# pgAdmin:  http://localhost:8082
+# Swagger:  http://localhost:8080/swagger/index.html
 ```
 
-### Продакшен
+## Команды
 
-```bash
-# Задать переменные окружения в .env (обязательно изменить секреты!)
-cp .env.example .env
-nano .env
-
-# Запустить продакшен-стек
-docker compose -f docker-compose.prod.yml up --build -d
-
-# Приложение: http://localhost (порт 80)
-```
+| Команда | Описание |
+|---------|----------|
+| `make up` | Запустить все сервисы |
+| `make down` | Остановить все сервисы |
+| `make test` | Запустить Go тесты |
+| `make lint` | Go vet |
+| `make bash` | Shell в контейнере бэкенда |
+| `make db-shell` | psql к базе данных |
+| `make prod-build` | Собрать production образ |
+| `make security` | govulncheck + npm audit |
 
 ## Структура проекта
 
 ```
-systemburo/
-├── backend/                  # Rust API-сервер
-│   ├── src/
-│   │   ├── main.rs           # Точка входа, middleware, фоновые задачи
-│   │   ├── routes.rs         # Конфигурация ~100 API-маршрутов
-│   │   ├── auth.rs           # JWT, Argon2 хеширование
-│   │   ├── database.rs       # Пул соединений PostgreSQL
-│   │   ├── handlers/         # Обработчики запросов (21 файл)
-│   │   └── models/           # Структуры данных (21 файл)
-│   ├── uploads/              # Загруженные файлы
-│   ├── docs/                 # Документация backend
-│   │   └── README.md
-│   ├── Dockerfile
-│   └── Cargo.toml
-├── frontend/                 # Vue 3 SPA
-│   ├── src/
-│   │   ├── App.vue           # Корневой компонент
-│   │   ├── main.js           # Точка входа
-│   │   ├── router.js         # Маршрутизация (12 маршрутов)
-│   │   ├── components/       # Vue-компоненты (50+)
-│   │   ├── views/            # Страницы
-│   │   └── assets/           # Иконки и изображения
-│   ├── docs/                 # Документация frontend
-│   │   └── README.md
-│   ├── Dockerfile
-│   ├── nginx.conf            # Nginx конфиг для продакшена
-│   └── package.json
-├── docker-compose.yml        # Dev-окружение
-├── docker-compose.prod.yml   # Продакшен-окружение
-├── .env.example              # Шаблон переменных окружения
-└── README.md                 # Этот файл
+├── cmd/server/          # Точка входа Go-приложения
+├── internal/
+│   ├── api/             # Пагинация, общие API-утилиты
+│   ├── config/          # Конфигурация из env
+│   ├── crypto/          # AES-256-GCM шифрование (152-ФЗ)
+│   ├── database/        # Миграции и seed
+│   ├── handlers/        # HTTP-хендлеры (Echo)
+│   ├── middleware/       # JWT, CORS, rate limit, PD audit
+│   ├── models/          # GORM-модели
+│   ├── router/          # Маршрутизация
+│   ├── services/        # Бизнес-логика
+│   ├── upload/          # Валидация загрузки файлов
+│   └── validator/       # Валидатор запросов
+├── frontend/            # Vue 3 SPA
+│   ├── src/api/         # API-клиент
+│   ├── src/components/  # Vue-компоненты
+│   ├── src/composables/ # Composables (валидация, toast, etc.)
+│   ├── src/stores/      # Pinia stores (auth, ui, permissions)
+│   └── src/views/       # Страницы
+├── nginx/               # Production nginx конфиг
+├── .github/workflows/   # CI/CD (tests, security, deploy)
+├── docker-compose.yml   # Dev-окружение
+└── docker-compose.prod.yml  # Production
 ```
 
-## Документация
+## Конфигурация
 
-| Раздел | Описание |
-|--------|----------|
-| [Backend документация](backend/docs/README.md) | Архитектура, API-эндпоинты, схема БД, бизнес-логика, аутентификация |
-| [Frontend документация](frontend/docs/README.md) | Архитектура, маршрутизация, каталог компонентов, управление состоянием |
+Все настройки через переменные окружения. См. `.env.example`.
 
----
+Ключевые секции:
+- **База данных:** DATABASE_URL, DB_NAME, DB_USER, DB_PASSWORD
+- **JWT:** JWT_SECRET, JWT_REFRESH_SECRET (минимум 32 символа)
+- **CORS:** CORS_ALLOWED_ORIGINS
+- **Шифрование ПД (152-ФЗ):** DATA_ENCRYPTION_KEY (hex, 64 символа)
+- **Upload:** UPLOAD_MAX_FILE_SIZE, UPLOAD_ALLOWED_IMAGE_TYPES
+- **Rate limit:** RATE_LIMIT_PER_MINUTE, RATE_LIMIT_WINDOW_SEC
 
-## Анализ кодовой базы
+## API
 
-### Backend — плюсы
+Swagger UI доступен по адресу `/swagger/index.html` в dev-режиме.
 
-| Аспект | Описание |
-|--------|----------|
-| Типобезопасность | Rust гарантирует отсутствие null pointer exceptions, data races и утечек памяти |
-| SQL на этапе компиляции | sqlx macros проверяют SQL-запросы на соответствие схеме БД при компиляции |
-| Хеширование паролей | Argon2 — индустриальный стандарт, устойчив к GPU-атакам |
-| Refresh tokens | SHA-256 хеши в БД, поддержка отзыва, ротация |
-| Rate limiting | 10 запросов / 60 секунд на IP или токен через DashMap |
-| Фоновые задачи | Автоматическая деактивация истёкших вложений каждые 60 секунд |
-| Модульность | Чёткое разделение: handlers/, models/, auth, database, routes |
+## Безопасность
 
-### Backend — минусы
+- Шифрование паспортных данных at rest (AES-256-GCM + HMAC-SHA256)
+- JWT аутентификация с refresh tokens
+- Rate limiting по IP/токену
+- Аудит-лог доступа к персональным данным
+- Модель согласия на обработку ПД (152-ФЗ)
+- Security headers в nginx (CSP, HSTS, X-Frame-Options)
+- Сканирование уязвимостей в CI (govulncheck, npm audit, trivy)
 
-| Аспект | Описание | Файл |
-|--------|----------|------|
-| JWT-секреты | Захардкожены как `"secret"` и `"refresh_secret"` | `auth.rs:19, 34` |
-| CORS | Разрешает любой origin с credentials | `main.rs:180-184` |
-| Нет миграций | Схема БД не версионируется, нет rollback | — |
-| Нет тестов | Ноль тестовых файлов или `#[cfg(test)]` блоков | — |
-| Нет сервисного слоя | Бизнес-логика в handlers (applications.rs — 3800+ строк) | `handlers/` |
-| Подавление предупреждений | `#![allow(warnings)]` скрывает все предупреждения компилятора | `main.rs:1` |
+## Деплой
 
-### Frontend — плюсы
+См. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) для полной инструкции.
 
-| Аспект | Описание |
-|--------|----------|
-| Маршрутизация | Чистая настройка с мета-гардами (requiresAuth, requiresBuro) |
-| Сессия | Модальное окно предупреждения за 5 минут до истечения токена |
-| Изоляция стилей | Scoped CSS в каждом компоненте предотвращает утечку |
-| Экспорт данных | Встроенный экспорт в Excel (exceljs, xlsx) |
-
-### Frontend — минусы
-
-| Аспект | Описание |
-|--------|----------|
-| Хардкод URL | 48 файлов с `http://localhost:8080` — блокирует деплой |
-| Нет state management | Нет Vuex/Pinia — дублирование состояния между компонентами |
-| Нет TypeScript | Нет типобезопасности на клиенте |
-| Нет тестов | Ноль тестовых файлов |
-| Нет lazy loading | Все маршруты загружаются разом — влияет на время загрузки |
-| Token polling | Проверка каждые 10 секунд — избыточная нагрузка |
-| Vue CLI | Версия 5 deprecated, рекомендуется миграция на Vite |
-
----
-
-## Оценка TDD и тестирования
-
-### Backend (сложность: средне-высокая)
-
-**Проблемы:**
-- sqlx macros (`sqlx::query_as!`) требуют живую PostgreSQL для компиляции — усложняет CI/CD
-- Нет сервисного слоя — бизнес-логика в handlers, тестирование требует полного HTTP-стека
-- 100+ эндпоинтов для покрытия
-
-**Рекомендуемый подход:**
-1. Использовать `sqlx::test` — создаёт изолированную БД для каждого теста
-2. Начать с интеграционных тестов для критических flow (авторизация, заявки)
-3. Выделить сервисный слой из handlers для возможности юнит-тестирования
-4. Добавить sqlx-cli для миграций (`cargo sqlx migrate`)
-
-**Оценка трудозатрат:** покрытие 80% — несколько недель для одного разработчика.
-
-### Frontend (сложность: высокая)
-
-**Проблемы:**
-- Нет TypeScript — нельзя полагаться на типовые контракты в тестах
-- Нет state management — каждый компонент нужно тестировать с мокнутым fetch и localStorage
-- 50+ компонентов с бизнес-логикой, включая сложные формы
-
-**Рекомендуемый подход:**
-1. Добавить Vitest + @vue/test-utils
-2. Начать с view-level интеграционных тестов (LoginComponent, CreateApplication)
-3. Затем компонентные юнит-тесты для форм и модалов
-4. E2E тесты (Playwright/Cypress) для критических пользовательских сценариев
-
-**Оценка трудозатрат:** покрытие 80% — несколько недель для одного разработчика.
-
----
-
-## Переменные окружения
-
-| Переменная | Описание | По умолчанию (dev) |
-|-----------|----------|-------------------|
-| `DB_NAME` | Имя базы данных | `auto_registry` |
-| `DB_USER` | Пользователь БД | `postgres` |
-| `DB_PASSWORD` | Пароль БД | `123` |
-| `DATABASE_URL` | Полная строка подключения | `postgres://postgres:123@localhost/auto_registry` |
-| `JWT_SECRET` | Секрет для access token | `dev-secret-change-me` |
-| `JWT_REFRESH_SECRET` | Секрет для refresh token | `dev-refresh-secret-change-me` |
-| `BIND_HOST` | Адрес привязки backend | `127.0.0.1` |
-| `BIND_PORT` | Порт backend | `8080` |
-| `RUST_LOG` | Уровень логирования | `info` |
-
-> Для продакшена обязательно измените JWT-секреты и пароль БД. Сгенерировать секреты: `openssl rand -hex 32`
-
-## Разработка без Docker
-
-### Требования
-- Rust (stable, 1.77+)
-- Node.js 18+
-- PostgreSQL 16+
-
-### Backend
-
+Краткий вариант:
 ```bash
-cd backend
-# Настроить DATABASE_URL в .env (уже существует)
-# Или скопировать из корня: cp ../.env.example .env
-cargo run
-# Сервер: http://localhost:8080
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run serve
-# Dev-сервер: http://localhost:8080 (проксирует API на backend)
+make deploy-build  # собрать production-образы
+make deploy-up     # запустить
 ```
 
 ## Лицензия

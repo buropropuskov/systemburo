@@ -117,6 +117,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import FormField from '@/components/ui/FormField.vue'
 export default {
     components: { FormField },
@@ -359,8 +360,8 @@ export default {
         if (response.ok) {
             const data = await response.json();
             
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("refreshToken", data.refreshToken);
+            const authStore = useAuthStore()
+            authStore.setTokens(data.token, data.refreshToken)
             
             this.isLoading = false;
             this.isSuccess = true;

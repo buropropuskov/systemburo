@@ -88,6 +88,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 export default {
   name: 'FeedbackModal',
   
@@ -267,8 +268,8 @@ export default {
       this.success = '';
       
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
           this.error = "Вы не авторизованы. Пожалуйста, войдите в систему.";
           this.isSubmitting = false;
           return;

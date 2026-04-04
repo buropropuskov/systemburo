@@ -415,10 +415,6 @@ export default {
       try {
         const response = await apiRequest(`/applications/${car.applicationId}/cars/${car.id}`, {
           method: "PUT",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("token")}`
-          },
           body: JSON.stringify({ 
             car: {
               ...car,

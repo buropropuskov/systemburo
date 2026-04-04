@@ -109,6 +109,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import vSelect from "vue-select";
 import "vue-select/dist/vue-select.css";
 
@@ -162,8 +163,8 @@ export default {
       this.carNumber.part4 = this.carNumber.part4.replace(/[^0-9]/g, '');
     },
     async fetchOrganization() {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      const authStore = useAuthStore();
+      if (!authStore.token) {
         console.error("Токен не найден. Пользователь не авторизован.");
         return;
       }
@@ -186,7 +187,6 @@ export default {
     },
     async fetchExistingCars() {
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest("/applications/active-cars", {});
         
         if (response.ok) {
@@ -246,7 +246,6 @@ export default {
       }
 
       try {
-        const token = localStorage.getItem("token");
         const response = await apiRequest("/submit", {
           method: "POST",
           body: JSON.stringify(this.formData)

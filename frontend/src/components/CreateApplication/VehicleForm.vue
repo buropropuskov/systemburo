@@ -361,6 +361,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import SearchComponent from '@/components/SearchComponent.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { getCurrentInstance } from 'vue'
@@ -565,8 +566,8 @@ export default {
             this.selectedUnloadingPlaces = [];
             
             try {
-                const token = localStorage.getItem("token");
-                if (!token) {
+                const authStore = useAuthStore();
+                if (!authStore.token) {
                     console.error("Токен не найден");
                     return;
                 }

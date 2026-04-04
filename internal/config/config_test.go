@@ -22,6 +22,19 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/testdb")
 	t.Setenv("JWT_SECRET", "test-jwt-secret-that-is-at-least-32-chars!!")
 	t.Setenv("JWT_REFRESH_SECRET", "test-jwt-refresh-secret-at-least-32-chars!")
+	t.Setenv("BIND_HOST", "")
+	t.Setenv("BIND_PORT", "")
+	t.Setenv("LOG_LEVEL", "")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+	t.Setenv("UPLOAD_MAX_FILE_SIZE", "")
+	t.Setenv("UPLOAD_ALLOWED_IMAGE_TYPES", "")
+	t.Setenv("UPLOAD_ALLOWED_DOC_TYPES", "")
+	t.Setenv("DATA_ENCRYPTION_KEY", "")
+	t.Setenv("REQUIRE_ENCRYPTION", "")
+	t.Setenv("RATE_LIMIT_PER_MINUTE", "")
+	t.Setenv("RATE_LIMIT_WINDOW_SEC", "")
+	t.Setenv("PAGINATION_MAX_LIMIT", "")
+	t.Setenv("UPLOAD_PATH", "")
 }
 
 func TestLoad_Defaults(t *testing.T) {
@@ -36,6 +49,7 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_MissingDatabaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
 	t.Setenv("JWT_SECRET", "test-jwt-secret-that-is-at-least-32-chars!!")
 	t.Setenv("JWT_REFRESH_SECRET", "test-jwt-refresh-secret-at-least-32-chars!")
 

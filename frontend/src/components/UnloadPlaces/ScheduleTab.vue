@@ -490,7 +490,6 @@ export default {
     async deleteTimeSlot(slotId) {
       const response = await apiRequest(`/unload-places/${this.placeId}/time-slots/${slotId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
 
       if (!response.ok) {

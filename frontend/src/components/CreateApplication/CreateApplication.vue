@@ -198,6 +198,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
@@ -674,8 +675,8 @@ export default {
         },
         
         async loadUserData() {
-            const token = localStorage.getItem("token");
-            if (!token) {
+            const authStore = useAuthStore();
+            if (!authStore.token) {
                 console.error("Токен не найден");
                 return;
             }
@@ -1510,8 +1511,8 @@ export default {
             }
 
             try {
-                const token = localStorage.getItem("token");
-                if (!token) {
+                const authStore = useAuthStore();
+                if (!authStore.token) {
                     alert('Токен не найден');
                     return;
                 }

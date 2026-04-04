@@ -259,6 +259,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
@@ -663,8 +664,8 @@ export default {
         // API методы
         async fetchApplications() {
             try {
-                const token = localStorage.getItem("token");
-                if (!token) {
+                const authStore = useAuthStore();
+                if (!authStore.token) {
                     console.error("Пользователь не авторизован.");
                     return;
                 }

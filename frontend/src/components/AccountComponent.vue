@@ -84,6 +84,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import UserControl from './UserControl.vue';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
@@ -145,8 +146,8 @@ export default {
   methods: {
     async fetchUserData() {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
           alert("Пользователь не авторизован.");
           return;
         }
