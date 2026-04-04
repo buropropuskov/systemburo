@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	"systemburo/internal/router"
@@ -56,6 +57,8 @@ var tables = []string{
 // AutoMigrate runs once per test binary via sync.Once; each test still uses CleanDB for isolation.
 func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
+
+	crypto.SetGlobalKey(nil) // passthrough in tests
 
 	dbOnce.Do(func() {
 		db := initTestDB()

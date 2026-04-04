@@ -1,6 +1,12 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"systemburo/internal/crypto"
+
+	"gorm.io/gorm"
+)
 
 type Employee struct {
 	ID                   int          `json:"id"`
@@ -12,16 +18,44 @@ type Employee struct {
 	CitizenshipID        *int         `gorm:"index" json:"citizenship_id"`
 	Citizenship          *Citizenship `json:"-"`
 	Position             *string      `gorm:"size:100;column:position" json:"position"`
-	PassportSeriesNumber *string      `gorm:"size:50" json:"passport_series_number"`
-	PatentNumber         *string      `gorm:"size:50" json:"patent_number"`
-	OtherPermission      *string      `gorm:"type:text" json:"other_permission"`
-	TerritoryEntryTime   *time.Time   `json:"territory_entry_time"`
-	TerritoryStatus      *int         `json:"territory_status"`
-	Status               *int         `gorm:"index" json:"status"`
-	DateCreated          *time.Time   `json:"date_created"`
-	DateDeleted          *time.Time   `json:"date_deleted"`
-	CreatedAt            time.Time    `json:"created_at"`
-	UpdatedAt            time.Time    `json:"updated_at"`
+	PassportSeriesNumber     *string      `gorm:"type:text" json:"passport_series_number"`
+	PatentNumber             *string      `gorm:"type:text" json:"patent_number"`
+	PassportSeriesNumberHMAC *string      `gorm:"size:64;index" json:"-"`
+	PatentNumberHMAC         *string      `gorm:"size:64;index" json:"-"`
+	OtherPermission          *string      `gorm:"type:text" json:"other_permission"`
+	TerritoryEntryTime       *time.Time   `json:"territory_entry_time"`
+	TerritoryStatus          *int         `json:"territory_status"`
+	Status                   *int         `gorm:"index" json:"status"`
+	DateCreated              *time.Time   `json:"date_created"`
+	DateDeleted              *time.Time   `json:"date_deleted"`
+	CreatedAt                time.Time    `json:"created_at"`
+	UpdatedAt                time.Time    `json:"updated_at"`
+}
+
+func (e *Employee) BeforeSave(tx *gorm.DB) error {
+	if e.PassportSeriesNumber != nil {
+		e.PassportSeriesNumberHMAC = crypto.HMACOptional(e.PassportSeriesNumber)
+		enc, err := crypto.EncryptOptional(e.PassportSeriesNumber)
+		if err != nil {
+			return err
+		}
+		e.PassportSeriesNumber = enc
+	}
+	if e.PatentNumber != nil {
+		e.PatentNumberHMAC = crypto.HMACOptional(e.PatentNumber)
+		enc, err := crypto.EncryptOptional(e.PatentNumber)
+		if err != nil {
+			return err
+		}
+		e.PatentNumber = enc
+	}
+	return nil
+}
+
+func (e *Employee) AfterFind(tx *gorm.DB) error {
+	e.PassportSeriesNumber = crypto.DecryptOptional(e.PassportSeriesNumber)
+	e.PatentNumber = crypto.DecryptOptional(e.PatentNumber)
+	return nil
 }
 
 type EmployeeHistory struct {
@@ -50,18 +84,46 @@ type UniqueEmployee struct {
 	CitizenshipID        *int          `gorm:"index" json:"citizenship_id"`
 	Citizenship          *Citizenship  `json:"-"`
 	Position             *string       `gorm:"size:100;column:position" json:"position"`
-	PassportSeriesNumber *string       `gorm:"size:50" json:"passport_series_number"`
-	PatentNumber         *string       `gorm:"size:50" json:"patent_number"`
-	OtherPermission      *string       `gorm:"type:text" json:"other_permission"`
-	OrganizationID       *int          `gorm:"index" json:"organization_id"`
-	Organization         *Organization `json:"-"`
-	CompanyID            *int          `gorm:"index" json:"company_id"`
-	Company              *Company      `json:"-"`
-	UserID               *int          `gorm:"index" json:"user_id"`
-	User                 *User         `json:"-"`
-	Status               *bool         `gorm:"default:false" json:"status"`
-	CreatedAt            time.Time     `json:"created_at"`
-	UpdatedAt            time.Time     `json:"updated_at"`
+	PassportSeriesNumber     *string       `gorm:"type:text" json:"passport_series_number"`
+	PatentNumber             *string       `gorm:"type:text" json:"patent_number"`
+	PassportSeriesNumberHMAC *string       `gorm:"size:64;index" json:"-"`
+	PatentNumberHMAC         *string       `gorm:"size:64;index" json:"-"`
+	OtherPermission          *string       `gorm:"type:text" json:"other_permission"`
+	OrganizationID           *int          `gorm:"index" json:"organization_id"`
+	Organization             *Organization `json:"-"`
+	CompanyID                *int          `gorm:"index" json:"company_id"`
+	Company                  *Company      `json:"-"`
+	UserID                   *int          `gorm:"index" json:"user_id"`
+	User                     *User         `json:"-"`
+	Status                   *bool         `gorm:"default:false" json:"status"`
+	CreatedAt                time.Time     `json:"created_at"`
+	UpdatedAt                time.Time     `json:"updated_at"`
+}
+
+func (e *UniqueEmployee) BeforeSave(tx *gorm.DB) error {
+	if e.PassportSeriesNumber != nil {
+		e.PassportSeriesNumberHMAC = crypto.HMACOptional(e.PassportSeriesNumber)
+		enc, err := crypto.EncryptOptional(e.PassportSeriesNumber)
+		if err != nil {
+			return err
+		}
+		e.PassportSeriesNumber = enc
+	}
+	if e.PatentNumber != nil {
+		e.PatentNumberHMAC = crypto.HMACOptional(e.PatentNumber)
+		enc, err := crypto.EncryptOptional(e.PatentNumber)
+		if err != nil {
+			return err
+		}
+		e.PatentNumber = enc
+	}
+	return nil
+}
+
+func (e *UniqueEmployee) AfterFind(tx *gorm.DB) error {
+	e.PassportSeriesNumber = crypto.DecryptOptional(e.PassportSeriesNumber)
+	e.PatentNumber = crypto.DecryptOptional(e.PatentNumber)
+	return nil
 }
 
 type ApplicationEmployee struct {
@@ -73,11 +135,39 @@ type ApplicationEmployee struct {
 	MiddleName           *string    `gorm:"size:100" json:"middle_name"`
 	Position             *string    `gorm:"size:100;column:position" json:"position"`
 	CitizenshipID        *int       `json:"citizenship_id"`
-	PassportSeriesNumber *string    `gorm:"size:50" json:"passport_series_number"`
-	PatentNumber         *string    `gorm:"size:50" json:"patent_number"`
-	OtherPermission      *string    `gorm:"type:text" json:"other_permission"`
-	OrderIndex           *int       `json:"order_index"`
-	CreatedAt            time.Time  `json:"created_at"`
+	PassportSeriesNumber     *string    `gorm:"type:text" json:"passport_series_number"`
+	PatentNumber             *string    `gorm:"type:text" json:"patent_number"`
+	PassportSeriesNumberHMAC *string    `gorm:"size:64;index" json:"-"`
+	PatentNumberHMAC         *string    `gorm:"size:64;index" json:"-"`
+	OtherPermission          *string    `gorm:"type:text" json:"other_permission"`
+	OrderIndex               *int       `json:"order_index"`
+	CreatedAt                time.Time  `json:"created_at"`
+}
+
+func (e *ApplicationEmployee) BeforeSave(tx *gorm.DB) error {
+	if e.PassportSeriesNumber != nil {
+		e.PassportSeriesNumberHMAC = crypto.HMACOptional(e.PassportSeriesNumber)
+		enc, err := crypto.EncryptOptional(e.PassportSeriesNumber)
+		if err != nil {
+			return err
+		}
+		e.PassportSeriesNumber = enc
+	}
+	if e.PatentNumber != nil {
+		e.PatentNumberHMAC = crypto.HMACOptional(e.PatentNumber)
+		enc, err := crypto.EncryptOptional(e.PatentNumber)
+		if err != nil {
+			return err
+		}
+		e.PatentNumber = enc
+	}
+	return nil
+}
+
+func (e *ApplicationEmployee) AfterFind(tx *gorm.DB) error {
+	e.PassportSeriesNumber = crypto.DecryptOptional(e.PassportSeriesNumber)
+	e.PatentNumber = crypto.DecryptOptional(e.PatentNumber)
+	return nil
 }
 
 type EmployeeFile struct {
