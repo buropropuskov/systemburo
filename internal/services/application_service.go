@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -1141,16 +1142,29 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		case "people":
 			if att.Data.Employees != nil {
 				for _, e := range *att.Data.Employees {
-					var empID int
-					err := tx.Raw(`
-						INSERT INTO employees (attachment_id, last_name, first_name, middle_name, citizenship_id, position, passport_series_number, patent_number, other_permission, status)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-						RETURNING id
-					`, attID, e.LastName, e.FirstName, e.MiddleName, e.CitizenshipID, e.Position, e.PassportSeriesNumber, e.PatentNumber, e.OtherPermission).Scan(&empID).Error
-					if err != nil {
+					statusZero := 0
+					lastName := e.LastName
+					firstName := e.FirstName
+					citizenshipID := e.CitizenshipID
+					position := e.Position
+					passportSeriesNumber := e.PassportSeriesNumber
+					employee := models.Employee{
+						AttachmentID:         &attID,
+						LastName:             &lastName,
+						FirstName:            &firstName,
+						MiddleName:           e.MiddleName,
+						CitizenshipID:        &citizenshipID,
+						Position:             &position,
+						PassportSeriesNumber: &passportSeriesNumber,
+						PatentNumber:         e.PatentNumber,
+						OtherPermission:      e.OtherPermission,
+						Status:               &statusZero,
+					}
+					if err := tx.Create(&employee).Error; err != nil {
 						tx.Rollback()
 						return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
 					}
+					empID := employee.ID
 
 					for _, tableID := range e.TargetTables {
 						tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID)
@@ -1362,6 +1376,10 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		FROM employees WHERE attachment_id = ?
 	`, attachmentID).Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
+	}
+	for i := range employees {
+		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
+		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
 	}
 
 	result := make([]EmployeeWithTables, 0)

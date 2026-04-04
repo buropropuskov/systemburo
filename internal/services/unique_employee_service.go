@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -189,6 +190,10 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 	if err := query.Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
+	for i := range employees {
+		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
+		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
+	}
 
 	return employees, nil
 }
@@ -227,7 +232,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	if req.PassportSeriesNumber != nil {
 		var count int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("user_id = ? AND passport_series_number = ?", ownerInfo.UserID, *req.PassportSeriesNumber).
+			Where("user_id = ? AND passport_series_number_hmac = ?", ownerInfo.UserID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey())).
 			Count(&count).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
@@ -240,7 +245,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	if req.OrganizationID != nil && req.PassportSeriesNumber != nil {
 		var orgCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("organization_id = ? AND passport_series_number = ?", *req.OrganizationID, *req.PassportSeriesNumber).
+			Where("organization_id = ? AND passport_series_number_hmac = ?", *req.OrganizationID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey())).
 			Count(&orgCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
@@ -253,7 +258,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	if req.CompanyID != nil && req.PassportSeriesNumber != nil {
 		var compCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("company_id = ? AND passport_series_number = ?", *req.CompanyID, *req.PassportSeriesNumber).
+			Where("company_id = ? AND passport_series_number_hmac = ?", *req.CompanyID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey())).
 			Count(&compCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
@@ -316,7 +321,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 	if req.PassportSeriesNumber != nil {
 		var count int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("user_id = ? AND passport_series_number = ? AND id != ?", ownerInfo.UserID, *req.PassportSeriesNumber, id).
+			Where("user_id = ? AND passport_series_number_hmac = ? AND id != ?", ownerInfo.UserID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey()), id).
 			Count(&count).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
@@ -329,7 +334,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 	if req.OrganizationID != nil && req.PassportSeriesNumber != nil {
 		var orgCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("organization_id = ? AND passport_series_number = ? AND id != ?", *req.OrganizationID, *req.PassportSeriesNumber, id).
+			Where("organization_id = ? AND passport_series_number_hmac = ? AND id != ?", *req.OrganizationID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey()), id).
 			Count(&orgCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
@@ -342,7 +347,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 	if req.CompanyID != nil && req.PassportSeriesNumber != nil {
 		var compCount int64
 		if err := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).
-			Where("company_id = ? AND passport_series_number = ? AND id != ?", *req.CompanyID, *req.PassportSeriesNumber, id).
+			Where("company_id = ? AND passport_series_number_hmac = ? AND id != ?", *req.CompanyID, crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey()), id).
 			Count(&compCount).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking employee uniqueness")
 		}
@@ -356,20 +361,35 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		userID = *req.UserID
 	}
 
+	updates := map[string]interface{}{
+		"last_name":        req.LastName,
+		"first_name":       req.FirstName,
+		"middle_name":      req.MiddleName,
+		"citizenship_id":   req.CitizenshipID,
+		"position":         req.Position,
+		"other_permission": req.OtherPermission,
+		"organization_id":  req.OrganizationID,
+		"company_id":       req.CompanyID,
+		"user_id":          userID,
+	}
+	if req.PassportSeriesNumber != nil {
+		enc, err := crypto.Encrypt(*req.PassportSeriesNumber, crypto.GetGlobalKey())
+		if err != nil {
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "encryption error")
+		}
+		updates["passport_series_number"] = enc
+		updates["passport_series_number_hmac"] = crypto.ComputeHMAC(*req.PassportSeriesNumber, crypto.GetGlobalKey())
+	}
+	if req.PatentNumber != nil {
+		enc, err := crypto.Encrypt(*req.PatentNumber, crypto.GetGlobalKey())
+		if err != nil {
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "encryption error")
+		}
+		updates["patent_number"] = enc
+		updates["patent_number_hmac"] = crypto.ComputeHMAC(*req.PatentNumber, crypto.GetGlobalKey())
+	}
 	result := s.db.WithContext(ctx).Model(&models.UniqueEmployee{}).Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"last_name":              req.LastName,
-			"first_name":            req.FirstName,
-			"middle_name":           req.MiddleName,
-			"citizenship_id":        req.CitizenshipID,
-			"position":              req.Position,
-			"passport_series_number": req.PassportSeriesNumber,
-			"patent_number":         req.PatentNumber,
-			"other_permission":      req.OtherPermission,
-			"organization_id":       req.OrganizationID,
-			"company_id":            req.CompanyID,
-			"user_id":               userID,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		slog.Error("не удалось обновить уникального сотрудника", "id", id, "error", result.Error)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating employee")
