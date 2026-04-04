@@ -17,6 +17,10 @@ type SystemTable struct {
 	Status              string    `gorm:"size:20;default:'active'" json:"status"` // active, inactive, maintenance
 	StatusComment       *string   `gorm:"type:text" json:"status_comment"`
 	LocationDescription *string   `gorm:"type:text" json:"location_description"`
+
+	Fields    []TableField            `gorm:"foreignKey:TableID" json:"fields,omitempty"`
+	TimeSlots []SystemTableTimeSlot   `gorm:"foreignKey:TableID" json:"time_slots,omitempty"`
+	Photos    []SystemTablePhoto      `gorm:"foreignKey:TableID" json:"photos,omitempty"`
 }
 
 type SystemTablePhoto struct {

@@ -94,30 +94,32 @@ func computeCurrentStatus(tableStatus string, slots []models.SystemTableTimeSlot
 	return "closed"
 }
 
-// loadTableDetails загружает поля, слоты и фото для одной таблицы.
-func (s *systemTableService) loadTableDetails(ctx context.Context, table models.SystemTable) (*models.SystemTableWithDetails, error) {
-	fields := make([]models.TableField, 0)
-	if err := s.db.WithContext(ctx).
-		Where("table_id = ?", table.ID).
-		Order("display_order").
-		Find(&fields).Error; err != nil {
-		fields = []models.TableField{}
+// loadTableWithPreload загружает таблицу по условию с Preload связей (1 запрос + 3 Preload вместо 4 отдельных запросов).
+func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm.DB) (*models.SystemTableWithDetails, error) {
+	var table models.SystemTable
+	err := query.
+		Preload("Fields", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order")
+		}).
+		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
+			return db.Order("day_of_week, open_time")
+		}).
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order("is_main DESC, uploaded_at DESC")
+		}).
+		First(&table).Error
+	if err != nil {
+		return nil, err
 	}
 
-	slots := make([]models.SystemTableTimeSlot, 0)
-	if err := s.db.WithContext(ctx).
-		Where("table_id = ?", table.ID).
-		Order("day_of_week, open_time").
-		Find(&slots).Error; err != nil {
-		slots = []models.SystemTableTimeSlot{}
+	if table.Fields == nil {
+		table.Fields = []models.TableField{}
 	}
-
-	photos := make([]models.SystemTablePhoto, 0)
-	if err := s.db.WithContext(ctx).
-		Where("table_id = ?", table.ID).
-		Order("is_main DESC, uploaded_at DESC").
-		Find(&photos).Error; err != nil {
-		photos = []models.SystemTablePhoto{}
+	if table.TimeSlots == nil {
+		table.TimeSlots = []models.SystemTableTimeSlot{}
+	}
+	if table.Photos == nil {
+		table.Photos = []models.SystemTablePhoto{}
 	}
 
 	status := "active"
@@ -127,16 +129,26 @@ func (s *systemTableService) loadTableDetails(ctx context.Context, table models.
 
 	return &models.SystemTableWithDetails{
 		Table:         table,
-		Fields:        fields,
-		TimeSlots:     slots,
-		Photos:        photos,
-		CurrentStatus: computeCurrentStatus(status, slots),
+		Fields:        table.Fields,
+		TimeSlots:     table.TimeSlots,
+		Photos:        table.Photos,
+		CurrentStatus: computeCurrentStatus(status, table.TimeSlots),
 	}, nil
 }
 
+// GetAll возвращает все активные системные таблицы с полями, слотами и фотографиями.
 func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWithDetails, error) {
 	tables := make([]models.SystemTable, 0)
 	if err := s.db.WithContext(ctx).
+		Preload("Fields", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order")
+		}).
+		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
+			return db.Order("day_of_week, open_time")
+		}).
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order("is_main DESC, uploaded_at DESC")
+		}).
 		Where("is_active = ?", true).
 		Order("display_name").
 		Find(&tables).Error; err != nil {
@@ -147,45 +159,17 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 		return []models.SystemTableWithDetails{}, nil
 	}
 
-	tableIDs := make([]int, len(tables))
-	for i, t := range tables {
-		tableIDs[i] = t.ID
-	}
-
-	// Batch load fields, time slots and photos (4 queries instead of 3N+1)
-	allFields := make([]models.TableField, 0)
-	s.db.WithContext(ctx).Where("table_id IN ?", tableIDs).Order("display_order").Find(&allFields)
-
-	allSlots := make([]models.SystemTableTimeSlot, 0)
-	s.db.WithContext(ctx).Where("table_id IN ?", tableIDs).Order("day_of_week, open_time").Find(&allSlots)
-
-	allPhotos := make([]models.SystemTablePhoto, 0)
-	s.db.WithContext(ctx).Where("table_id IN ?", tableIDs).Order("is_main DESC, uploaded_at DESC").Find(&allPhotos)
-
-	fieldsByTable := make(map[int][]models.TableField)
-	for _, f := range allFields {
-		fieldsByTable[f.TableID] = append(fieldsByTable[f.TableID], f)
-	}
-	slotsByTable := make(map[int][]models.SystemTableTimeSlot)
-	for _, s := range allSlots {
-		slotsByTable[s.TableID] = append(slotsByTable[s.TableID], s)
-	}
-	photosByTable := make(map[int][]models.SystemTablePhoto)
-	for _, p := range allPhotos {
-		photosByTable[p.TableID] = append(photosByTable[p.TableID], p)
-	}
-
 	result := make([]models.SystemTableWithDetails, 0, len(tables))
 	for _, t := range tables {
-		fields := fieldsByTable[t.ID]
+		fields := t.Fields
 		if fields == nil {
 			fields = []models.TableField{}
 		}
-		slots := slotsByTable[t.ID]
+		slots := t.TimeSlots
 		if slots == nil {
 			slots = []models.SystemTableTimeSlot{}
 		}
-		photos := photosByTable[t.ID]
+		photos := t.Photos
 		if photos == nil {
 			photos = []models.SystemTablePhoto{}
 		}
@@ -207,32 +191,30 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 	return result, nil
 }
 
+// GetByID возвращает системную таблицу по ID с деталями.
 func (s *systemTableService) GetByID(ctx context.Context, id int) (*models.SystemTableWithDetails, error) {
-	var table models.SystemTable
-	if err := s.db.WithContext(ctx).
-		Where("id = ? AND is_active = ?", id, true).
-		First(&table).Error; err != nil {
+	query := s.db.WithContext(ctx).Where("id = ? AND is_active = ?", id, true)
+	result, err := s.loadTableWithPreload(ctx, query)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table")
 	}
-
-	return s.loadTableDetails(ctx, table)
+	return result, nil
 }
 
+// GetByName возвращает системную таблицу по имени с деталями.
 func (s *systemTableService) GetByName(ctx context.Context, name string) (*models.SystemTableWithDetails, error) {
-	var table models.SystemTable
-	if err := s.db.WithContext(ctx).
-		Where("name = ? AND is_active = ?", name, true).
-		First(&table).Error; err != nil {
+	query := s.db.WithContext(ctx).Where("name = ? AND is_active = ?", name, true)
+	result, err := s.loadTableWithPreload(ctx, query)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, echo.NewHTTPError(http.StatusNotFound, "Таблица не найдена")
 		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table")
 	}
-
-	return s.loadTableDetails(ctx, table)
+	return result, nil
 }
 
 // defaultField -- описание поля по умолчанию для нового типа таблицы.
@@ -268,6 +250,7 @@ func getDefaultFields(tableType string) []defaultField {
 	}
 }
 
+// Create создаёт системную таблицу с полями по умолчанию и автогенерацией разрешений.
 func (s *systemTableService) Create(ctx context.Context, req models.CreateSystemTableRequest) (int, error) {
 	// Проверяем уникальность имени
 	var count int64
@@ -347,6 +330,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 	return table.ID, nil
 }
 
+// Update обновляет системную таблицу по ID.
 func (s *systemTableService) Update(ctx context.Context, id int, req models.UpdateSystemTableRequest) error {
 	// Проверяем существование
 	var table models.SystemTable
@@ -410,6 +394,7 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	return nil
 }
 
+// Delete выполняет мягкое удаление системной таблицы с проверкой зависимостей.
 func (s *systemTableService) Delete(ctx context.Context, id int) error {
 	// Проверяем привязки к организациям
 	var orgCount int64
@@ -463,6 +448,7 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 
 // --- Временные слоты ---
 
+// GetTimeSlots возвращает временные слоты системной таблицы.
 func (s *systemTableService) GetTimeSlots(ctx context.Context, tableID int) ([]models.SystemTableTimeSlot, error) {
 	slots := make([]models.SystemTableTimeSlot, 0)
 	if err := s.db.WithContext(ctx).
@@ -474,6 +460,7 @@ func (s *systemTableService) GetTimeSlots(ctx context.Context, tableID int) ([]m
 	return slots, nil
 }
 
+// AddTimeSlot добавляет временной слот к системной таблице.
 func (s *systemTableService) AddTimeSlot(ctx context.Context, tableID int, req models.CreateTimeSlotRequest) (int, error) {
 	// Проверяем существование таблицы
 	var count int64
@@ -517,6 +504,7 @@ func (s *systemTableService) AddTimeSlot(ctx context.Context, tableID int, req m
 	return slot.ID, nil
 }
 
+// UpdateTimeSlot обновляет временной слот системной таблицы.
 func (s *systemTableService) UpdateTimeSlot(ctx context.Context, tableID, slotID int, req models.UpdateTimeSlotRequest) error {
 	var slot models.SystemTableTimeSlot
 	if err := s.db.WithContext(ctx).
@@ -573,6 +561,7 @@ func (s *systemTableService) UpdateTimeSlot(ctx context.Context, tableID, slotID
 	return nil
 }
 
+// DeleteTimeSlot удаляет временной слот системной таблицы.
 func (s *systemTableService) DeleteTimeSlot(ctx context.Context, tableID, slotID int) error {
 	result := s.db.WithContext(ctx).
 		Where("id = ? AND table_id = ?", slotID, tableID).
@@ -588,6 +577,7 @@ func (s *systemTableService) DeleteTimeSlot(ctx context.Context, tableID, slotID
 
 // --- Фотографии ---
 
+// UploadPhoto загружает фотографию системной таблицы.
 func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, username string, file *multipart.FileHeader) (int, error) {
 	// Получаем ID пользователя
 	var userID int
@@ -678,6 +668,7 @@ func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, usern
 	return photo.ID, nil
 }
 
+// DeletePhoto удаляет фотографию системной таблицы с файлом.
 func (s *systemTableService) DeletePhoto(ctx context.Context, tableID, photoID int) error {
 	var photo models.SystemTablePhoto
 	if err := s.db.WithContext(ctx).
@@ -724,6 +715,7 @@ func (s *systemTableService) DeletePhoto(ctx context.Context, tableID, photoID i
 	return nil
 }
 
+// SetMainPhoto устанавливает главную фотографию системной таблицы.
 func (s *systemTableService) SetMainPhoto(ctx context.Context, tableID, photoID int) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Сбрасываем is_main для всех фото таблицы
