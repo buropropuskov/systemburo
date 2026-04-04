@@ -132,6 +132,7 @@ func main() {
 	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
+	settingsService := services.NewSettingsService(db, cfg)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -153,6 +154,7 @@ func main() {
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
+	settingsHandler := handlers.NewSettingsHandler(settingsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
@@ -160,7 +162,7 @@ func main() {
 	api.SetMaxLimit(cfg.PaginationMaxLimit)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, []byte(cfg.JWTSecret))
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, []byte(cfg.JWTSecret))
 
 	// Graceful shutdown
 	go func() {

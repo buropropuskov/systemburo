@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"systemburo/internal/config"
 	"systemburo/internal/crypto"
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
@@ -33,6 +34,7 @@ const (
 
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
+	"system_settings",
 	"pd_audit_logs", "pd_consents",
 	"user_permissions", "permissions",
 	"request_log", "request_logs", "notifications", "news", "announcements",
@@ -99,6 +101,12 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
+	settingsService := services.NewSettingsService(db, &config.Config{
+		UploadMaxFileSize:       10 * 1024 * 1024,
+		UploadAllowedImageTypes: []string{"image/jpeg", "image/png", "image/webp"},
+		UploadAllowedDocTypes:   []string{"application/pdf"},
+		PaginationMaxLimit:      100,
+	})
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -120,6 +128,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
+	settingsHandler := handlers.NewSettingsHandler(settingsService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -130,7 +139,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, consentHandler, []byte(TestJWTSecret))
+		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, []byte(TestJWTSecret))
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}
