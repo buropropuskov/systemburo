@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/caarlos0/env/v11"
+
+	"systemburo/internal/crypto"
 )
 
 type Config struct {
@@ -19,6 +21,13 @@ type Config struct {
 	UploadMaxFileSize       int64    `env:"UPLOAD_MAX_FILE_SIZE" envDefault:"10485760"`
 	UploadAllowedImageTypes []string `env:"UPLOAD_ALLOWED_IMAGE_TYPES" envDefault:"image/jpeg,image/png,image/webp" envSeparator:","`
 	UploadAllowedDocTypes   []string `env:"UPLOAD_ALLOWED_DOC_TYPES" envDefault:"application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" envSeparator:","`
+
+	DataEncryptionKey  string `env:"DATA_ENCRYPTION_KEY" envDefault:""`
+	RequireEncryption  bool   `env:"REQUIRE_ENCRYPTION" envDefault:"false"`
+	RateLimitPerMinute int    `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
+	RateLimitWindowSec int64  `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
+	PaginationMaxLimit int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
+	UploadPath         string `env:"UPLOAD_PATH" envDefault:"./uploads"`
 }
 
 func Load() (*Config, error) {
@@ -50,6 +59,20 @@ func (c *Config) Validate() error {
 	}
 	if c.UploadMaxFileSize <= 0 {
 		return fmt.Errorf("UPLOAD_MAX_FILE_SIZE must be positive (got %d)", c.UploadMaxFileSize)
+	}
+	if c.RequireEncryption && c.DataEncryptionKey == "" {
+		return fmt.Errorf("REQUIRE_ENCRYPTION=true but DATA_ENCRYPTION_KEY is empty")
+	}
+	if c.DataEncryptionKey != "" {
+		if _, err := crypto.ParseHexKey(c.DataEncryptionKey); err != nil {
+			return fmt.Errorf("DATA_ENCRYPTION_KEY: %w", err)
+		}
+	}
+	if c.RateLimitPerMinute <= 0 {
+		return fmt.Errorf("RATE_LIMIT_PER_MINUTE must be positive (got %d)", c.RateLimitPerMinute)
+	}
+	if c.PaginationMaxLimit <= 0 {
+		return fmt.Errorf("PAGINATION_MAX_LIMIT must be positive (got %d)", c.PaginationMaxLimit)
 	}
 	return nil
 }

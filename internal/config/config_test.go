@@ -7,6 +7,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func validConfig() *Config {
+	return &Config{
+		DatabaseURL:       "postgres://user:pass@localhost/db",
+		JWTSecret:         "test-jwt-secret-that-is-at-least-32-chars!!",
+		JWTRefreshSecret:  "test-jwt-refresh-secret-at-least-32-chars!",
+		LogLevel:          "info",
+		UploadMaxFileSize: 10485760,
+	}
+}
+
 func setValidEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost/testdb")
@@ -136,4 +146,58 @@ func TestValidate_UploadMaxFileSize_Zero(t *testing.T) {
 	err := cfg.Validate()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "UPLOAD_MAX_FILE_SIZE")
+}
+
+func TestLoad_DataEncryptionKey_Empty(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Empty(t, cfg.DataEncryptionKey)
+}
+
+func TestValidate_DataEncryptionKey_InvalidHex(t *testing.T) {
+	cfg := validConfig()
+	cfg.DataEncryptionKey = "not-hex"
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "DATA_ENCRYPTION_KEY")
+}
+
+func TestValidate_DataEncryptionKey_WrongLength(t *testing.T) {
+	cfg := validConfig()
+	cfg.DataEncryptionKey = "0123456789abcdef"
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "32 bytes")
+}
+
+func TestValidate_RequireEncryption_NoKey(t *testing.T) {
+	cfg := validConfig()
+	cfg.RequireEncryption = true
+	cfg.DataEncryptionKey = ""
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "REQUIRE_ENCRYPTION")
+}
+
+func TestLoad_RateLimitDefaults(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, 200, cfg.RateLimitPerMinute)
+	assert.Equal(t, int64(60), cfg.RateLimitWindowSec)
+}
+
+func TestLoad_PaginationMaxLimitDefault(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, 100, cfg.PaginationMaxLimit)
+}
+
+func TestLoad_UploadPathDefault(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "./uploads", cfg.UploadPath)
 }
