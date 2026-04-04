@@ -25,9 +25,14 @@ RUN go mod download
 COPY . .
 RUN go mod tidy && swag init -g cmd/server/main.go -o docs && CGO_ENABLED=0 go build -ldflags="-s -w" -o server ./cmd/server
 
-FROM debian:bookworm-slim AS production
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM alpine:3.20 AS production
+RUN apk add --no-cache ca-certificates
+RUN addgroup -S -g 1001 appgroup && \
+    adduser -S -u 1001 -G appgroup appuser
 WORKDIR /app
-COPY --from=builder /app/server .
+COPY --from=builder --chown=appuser:appgroup /app/server .
+USER appuser
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -qO- http://localhost:8080/health || exit 1
 CMD ["./server"]

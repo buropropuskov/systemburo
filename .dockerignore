@@ -6,3 +6,11 @@ docs/superpowers/
 dump-*.sql
 *.docx
 *.md
+test-results/
+frontend/test-results/
+scripts/
+.superpowers/
+.playwright-mcp/
+.githooks/
+.env
+*.log
