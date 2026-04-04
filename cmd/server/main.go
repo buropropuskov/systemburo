@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "systemburo/docs"
+	"systemburo/internal/api"
 	"systemburo/internal/config"
 	"systemburo/internal/crypto"
 	"systemburo/internal/database"
@@ -108,7 +109,7 @@ func main() {
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
-	e.Use(mw.RateLimit(200, 60))
+	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
 
 	// Services
 	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret)
@@ -123,7 +124,7 @@ func main() {
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
 	permissionService := services.NewPermissionService(db)
-	systemTableService := services.NewSystemTableService(db, "./uploads", permissionService)
+	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
@@ -139,7 +140,7 @@ func main() {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
-	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService)
+	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService)
@@ -152,6 +153,8 @@ func main() {
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
+
+	api.SetMaxLimit(cfg.PaginationMaxLimit)
 
 	// Routes
 	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, []byte(cfg.JWTSecret))
