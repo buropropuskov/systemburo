@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init deploy-build deploy-up deploy-down deploy-logs security
 
 up:
 	docker compose up -d
@@ -36,3 +36,19 @@ prod-build:
 init:
 	git config core.hooksPath .githooks
 	@echo "Git hooks настроены на .githooks/"
+
+deploy-build:
+	docker compose -f docker-compose.prod.yml build
+
+deploy-up:
+	docker compose -f docker-compose.prod.yml up -d
+
+deploy-down:
+	docker compose -f docker-compose.prod.yml down
+
+deploy-logs:
+	docker compose -f docker-compose.prod.yml logs -f
+
+security:
+	go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+	cd frontend && npm audit --audit-level=high || true
