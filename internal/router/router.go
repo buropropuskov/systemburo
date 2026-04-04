@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, jwtSecret []byte) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, jwtSecret []byte) {
 	// Health check
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -225,4 +225,11 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
 	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.POST("/auto-generate", permissions.AutoGenerate)
+
+	// Согласие на обработку ПД (152-ФЗ)
+	consents := protected.Group("/consents")
+	consents.POST("", consent.Grant)
+	consents.DELETE("/:type", consent.Revoke)
+	consents.GET("", consent.List)
+	consents.GET("/check/:type", consent.Check)
 }

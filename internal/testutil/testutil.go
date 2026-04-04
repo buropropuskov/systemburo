@@ -33,6 +33,7 @@ const (
 
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
+	"pd_audit_logs", "pd_consents",
 	"user_permissions", "permissions",
 	"request_log", "request_logs", "notifications", "news", "announcements",
 	"feedback", "application_items", "items",
@@ -97,6 +98,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	feedbackService := services.NewFeedbackService(db)
 	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
+	consentService := services.NewConsentService(db)
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -117,6 +119,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
+	consentHandler := handlers.NewConsentHandler(consentService, db)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -127,7 +130,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, []byte(TestJWTSecret))
+		applicationHandler, approverHandler, permissionHandler, consentHandler, []byte(TestJWTSecret))
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

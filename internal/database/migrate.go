@@ -91,6 +91,10 @@ func AllModels() []interface{} {
 		// Permissions
 		&models.Permission{},
 		&models.UserPermission{},
+
+		// PD consent & audit (152-FZ)
+		&models.PDConsent{},
+		&models.PDAuditLog{},
 	}
 }
 
@@ -106,6 +110,8 @@ func AutoMigrate(db *gorm.DB) error {
 			&models.Permission{},
 			&models.UserPermission{},
 			&models.ApplicationRead{},
+			&models.PDConsent{},
+			&models.PDAuditLog{},
 		}
 		if err := db.AutoMigrate(newModels...); err != nil {
 			return err
