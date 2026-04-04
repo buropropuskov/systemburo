@@ -13,6 +13,7 @@ import (
 func AllModels() []interface{} {
 	return []interface{}{
 		// Core (no FK dependencies)
+		&models.SystemSetting{},
 		&models.UserType{},
 		&models.Organization{},
 		&models.Company{},
@@ -107,6 +108,7 @@ func AutoMigrate(db *gorm.DB) error {
 		slog.Info("database already has tables (Rust schema), skipping full AutoMigrate")
 		// Always migrate new tables that don't exist in Rust schema
 		newModels := []interface{}{
+			&models.SystemSetting{},
 			&models.Permission{},
 			&models.UserPermission{},
 			&models.ApplicationRead{},
