@@ -83,6 +83,18 @@ const routes = [
     name: 'FeedbackPage',
     component: FeedbackPage,
     meta: {requiresAuth: true, requiresBuro: true}
+  },
+  {
+    path: '/admin/settings',
+    name: 'AdminSettings',
+    component: () => import('./views/AdminSettings.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/users',
+    name: 'AdminUsers',
+    component: () => import('./views/AdminUsers.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
   }
 ];
 

@@ -131,11 +131,23 @@
               >
                 Запросы
               </div>
-              <div 
-                class="dropdown-item" 
+              <div
+                class="dropdown-item"
                 @click="navigateToAdminFeedback"
               >
                 Обратная связь
+              </div>
+              <div
+                class="dropdown-item"
+                @click="navigateToAdminUsers"
+              >
+                Пользователи
+              </div>
+              <div
+                class="dropdown-item"
+                @click="navigateToAdminSettings"
+              >
+                Настройки
               </div>
             </div>
           </transition>
@@ -262,6 +274,14 @@ export default {
     },
     navigateToAdminFeedback() {
       this.$router.push('/admin/feedback');
+      this.closeAllDropdowns();
+    },
+    navigateToAdminUsers() {
+      this.$router.push('/admin/users');
+      this.closeAllDropdowns();
+    },
+    navigateToAdminSettings() {
+      this.$router.push('/admin/settings');
       this.closeAllDropdowns();
     },
     navigateToCenter() {
