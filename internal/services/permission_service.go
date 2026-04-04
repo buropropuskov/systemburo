@@ -35,6 +35,7 @@ func NewPermissionService(db *gorm.DB) PermissionService {
 	return &permissionService{db: db}
 }
 
+// GetMyPermissions возвращает разрешения текущего пользователя по username.
 func (s *permissionService) GetMyPermissions(ctx context.Context, username string) ([]models.UserPermissionResponse, error) {
 	var userID int
 	if err := s.db.WithContext(ctx).
@@ -48,6 +49,7 @@ func (s *permissionService) GetMyPermissions(ctx context.Context, username strin
 	return s.getUserPermissionsList(ctx, userID)
 }
 
+// GetUserPermissions возвращает разрешения указанного пользователя (admin-only).
 func (s *permissionService) GetUserPermissions(ctx context.Context, typeID int, userID int) ([]models.UserPermissionResponse, error) {
 	if err := auth.CheckAdminByTypeID(s.db, ctx, typeID); err != nil {
 		return nil, err
@@ -87,6 +89,7 @@ func (s *permissionService) getUserPermissionsList(ctx context.Context, userID i
 	return results, nil
 }
 
+// UpdateUserPermissions обновляет набор разрешений пользователя (admin-only).
 func (s *permissionService) UpdateUserPermissions(ctx context.Context, typeID int, userID int, req models.UpdatePermissionsRequest) error {
 	if err := auth.CheckAdminByTypeID(s.db, ctx, typeID); err != nil {
 		return err
@@ -151,6 +154,7 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, typeID in
 	})
 }
 
+// GetPermissionTree возвращает дерево разрешений с группировкой по родительским ключам.
 func (s *permissionService) GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error) {
 	var permissions []models.Permission
 	if err := s.db.WithContext(ctx).Order("category, key").Find(&permissions).Error; err != nil {
@@ -196,6 +200,7 @@ func (s *permissionService) buildTreeNode(p models.Permission, byParent map[stri
 	return node
 }
 
+// AutoGenerateForTable создаёт разрешения view/edit для системной таблицы.
 func (s *permissionService) AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error {
 	displayName := tableName
 
@@ -234,6 +239,7 @@ func (s *permissionService) AutoGenerateForTable(ctx context.Context, tableID in
 	return nil
 }
 
+// HasPermission проверяет наличие разрешения с значением allow у пользователя.
 func (s *permissionService) HasPermission(ctx context.Context, userID int, key string) (bool, error) {
 	var up models.UserPermission
 	err := s.db.WithContext(ctx).
@@ -248,6 +254,7 @@ func (s *permissionService) HasPermission(ctx context.Context, userID int, key s
 	return true, nil
 }
 
+// HasPermissionValue проверяет наличие разрешения с конкретным значением у пользователя.
 func (s *permissionService) HasPermissionValue(ctx context.Context, userID int, key string, value string) (bool, error) {
 	var up models.UserPermission
 	err := s.db.WithContext(ctx).
@@ -262,6 +269,7 @@ func (s *permissionService) HasPermissionValue(ctx context.Context, userID int, 
 	return true, nil
 }
 
+// GrantDefaultPermissions назначает набор разрешений по умолчанию новому пользователю.
 func (s *permissionService) GrantDefaultPermissions(ctx context.Context, userID int) error {
 	defaults := []struct {
 		Key   string

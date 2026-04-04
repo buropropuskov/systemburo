@@ -259,6 +259,7 @@ func NewCarService(db *gorm.DB) CarService {
 	return &carService{db: db}
 }
 
+// CreateCar создаёт автомобиль с привязкой к местам разгрузки и записью в историю.
 func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID int) (*CreateCarResponse, error) {
 	var carID int
 
@@ -321,6 +322,7 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 	}, nil
 }
 
+// GetActiveCarsForTables возвращает активные автомобили для всех таблиц (без «по факту»).
 func (s *carService) GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error) {
 	rows := make([]tableCarRow, 0)
 	err := s.db.WithContext(ctx).
@@ -348,6 +350,7 @@ func (s *carService) GetActiveCarsForTables(ctx context.Context) ([]TableCarResp
 	return s.enrichTableCars(ctx, rows)
 }
 
+// GetFactCarsForTables возвращает автомобили с номером «по факту».
 func (s *carService) GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error) {
 	rows := make([]tableCarRow, 0)
 
@@ -463,6 +466,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 	return cars, nil
 }
 
+// GetCarUnloadPlaces возвращает связи активных автомобилей с местами разгрузки.
 func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error) {
 	places := make([]CarUnloadPlaceInfo, 0)
 	err := s.db.WithContext(ctx).
@@ -483,6 +487,7 @@ func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceIn
 	return places, nil
 }
 
+// GetFactCarUnloadPlaces возвращает связи «по факту» автомобилей с местами разгрузки.
 func (s *carService) GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceInfo, error) {
 	places := make([]CarUnloadPlaceInfo, 0)
 	err := s.db.WithContext(ctx).
@@ -504,6 +509,7 @@ func (s *carService) GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPla
 	return places, nil
 }
 
+// CheckActiveCar проверяет наличие активного автомобиля по номеру, марке и организации.
 func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarRequest) (*CheckActiveCarResponse, error) {
 	now := time.Now().UTC()
 	today := now.Format("2006-01-02")
@@ -583,6 +589,7 @@ func (s *carService) CheckActiveCar(ctx context.Context, req CheckActiveCarReque
 	}, nil
 }
 
+// GetCarHistory возвращает историю конкретного автомобиля.
 func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistoryItemResponse, error) {
 	rows := make([]carHistoryRow, 0)
 	err := s.db.WithContext(ctx).Raw(`
@@ -617,6 +624,7 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 	return s.mapHistoryRows(rows, false), nil
 }
 
+// AddCarHistoryEntry добавляет запись в историю автомобиля.
 func (s *carService) AddCarHistoryEntry(ctx context.Context, carID int, req AddCarHistoryRequest) error {
 	var metadataStr *string
 	if req.Metadata != nil {
@@ -642,6 +650,7 @@ func (s *carService) AddCarHistoryEntry(ctx context.Context, carID int, req AddC
 	return nil
 }
 
+// GetAllCarsHistory возвращает историю въездов/выездов всех автомобилей.
 func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryItem, error) {
 	type allHistRow struct {
 		ID           int
@@ -713,6 +722,7 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 	return items, nil
 }
 
+// GetCarsCurrentStatus возвращает текущий территориальный статус активных автомобилей.
 func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStatus, error) {
 	type statusRow struct {
 		ID                 int
@@ -767,6 +777,7 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStat
 	return items, nil
 }
 
+// UpdateCarTerritoryStatus обновляет территориальный статус автомобиля (въезд/выезд).
 func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateTerritoryStatusRequest) error {
 	now := time.Now().UTC()
 	actionType := "unknown"
@@ -825,6 +836,7 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 	})
 }
 
+// DeactivateCar деактивирует автомобиль и записывает удаление в историю.
 func (s *carService) DeactivateCar(ctx context.Context, carID int, req DeactivateCarRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var car models.Car
@@ -873,6 +885,7 @@ func (s *carService) DeactivateCar(ctx context.Context, carID int, req Deactivat
 	})
 }
 
+// ActivateCar вводит автомобиль в работу и записывает активацию в историю.
 func (s *carService) ActivateCar(ctx context.Context, carID int, req ActivateCarRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var car models.Car
@@ -920,6 +933,7 @@ func (s *carService) ActivateCar(ctx context.Context, carID int, req ActivateCar
 	})
 }
 
+// RestoreCar восстанавливает удалённый автомобиль и записывает восстановление в историю.
 func (s *carService) RestoreCar(ctx context.Context, carID int, req RestoreCarRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var car models.Car
@@ -967,6 +981,7 @@ func (s *carService) RestoreCar(ctx context.Context, carID int, req RestoreCarRe
 	})
 }
 
+// GetUnifiedCarHistory возвращает объединённую историю для всех автомобилей с одинаковыми параметрами.
 func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery) ([]CarHistoryItemResponse, error) {
 	// Находим все машины с одинаковыми параметрами
 	type carIDRow struct {

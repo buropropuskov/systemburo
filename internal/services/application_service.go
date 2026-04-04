@@ -435,6 +435,7 @@ func NewApplicationService(db *gorm.DB, permSvc PermissionService) ApplicationSe
 
 // --- Основные методы ---
 
+// GetApplications возвращает список заявок для Центра заявок с фильтрацией.
 func (s *applicationService) GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -509,6 +510,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 	return applyApplicationFilters(query, filter, false)
 }
 
+// GetApplicationsPaginated возвращает страницу заявок с общим количеством.
 func (s *applicationService) GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -563,6 +565,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 	return rows, total, nil
 }
 
+// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 func (s *applicationService) GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
 	if _, err := s.getUserByUsername(ctx, username); err != nil {
 		return nil, err
@@ -608,6 +611,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 }
 
 
+// GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
 func (s *applicationService) GetApplicationByID(ctx context.Context, username string, applicationID int) (map[string]interface{}, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -740,6 +744,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 	return response, nil
 }
 
+// GetApplicationDetails возвращает расширенную информацию о заявке.
 func (s *applicationService) GetApplicationDetails(ctx context.Context, applicationID int) (map[string]interface{}, error) {
 	var row struct {
 		models.Application
@@ -828,6 +833,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 }
 
 
+// CreateApplication создаёт новую заявку с назначением ответственных.
 func (s *applicationService) CreateApplication(ctx context.Context, username string, req ApplicationCreateRequest) (*ApplicationCreateResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -943,6 +949,7 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 	}, nil
 }
 
+// SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
 func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest) (*CompleteApplicationResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -1200,6 +1207,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}, nil
 }
 
+// UpdateApplication обновляет данные заявки (confirmation, status, комментарий).
 func (s *applicationService) UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -1256,6 +1264,7 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	}, nil
 }
 
+// GetApplicationViewers возвращает просматривающих заявки с информацией о пользователях.
 func (s *applicationService) GetApplicationViewers(ctx context.Context, applicationID int) ([]ViewerWithUser, error) {
 	viewers := make([]ViewerWithUser, 0)
 	err := s.db.WithContext(ctx).Raw(`
@@ -1282,6 +1291,7 @@ func (s *applicationService) GetApplicationViewers(ctx context.Context, applicat
 	return viewers, nil
 }
 
+// GetApplicationAttachments возвращает вложения заявки с информацией о шаблонах.
 func (s *applicationService) GetApplicationAttachments(ctx context.Context, applicationID int) ([]AttachmentInfo, error) {
 	attachments := make([]AttachmentInfo, 0)
 	err := s.db.WithContext(ctx).Raw(`
@@ -1312,6 +1322,7 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 	return attachments, nil
 }
 
+// GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
 func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error) {
 	type carRow struct {
 		ID            int
@@ -1358,6 +1369,7 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 	return result, nil
 }
 
+// GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами.
 func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int) ([]EmployeeWithTables, error) {
 	type empRow struct {
 		ID                   int
@@ -1410,6 +1422,7 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 	return result, nil
 }
 
+// GetAttachmentItems возвращает ТМЦ вложения.
 func (s *applicationService) GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error) {
 	items := make([]ItemInfo, 0)
 	err := s.db.WithContext(ctx).Raw(`

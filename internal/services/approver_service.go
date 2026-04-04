@@ -22,6 +22,7 @@ type approverService struct {
 	db *gorm.DB
 }
 
+// NewApproverService создаёт сервис для управления утверждающими заявок.
 func NewApproverService(db *gorm.DB) ApproverService {
 	return &approverService{db: db}
 }
@@ -43,6 +44,7 @@ func (s *approverService) checkAdmin(ctx context.Context, typeID int) error {
 	return nil
 }
 
+// GetAll возвращает список всех утверждающих с информацией о пользователях.
 func (s *approverService) GetAll(ctx context.Context, typeID int) ([]models.ApplicationApproverWithUser, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return nil, err
@@ -64,6 +66,7 @@ func (s *approverService) GetAll(ctx context.Context, typeID int) ([]models.Appl
 	return result, nil
 }
 
+// GetAvailableUsers возвращает пользователей, которые ещё не назначены утверждающими.
 func (s *approverService) GetAvailableUsers(ctx context.Context, typeID int) ([]models.AvailableApproverUser, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return nil, err
@@ -85,6 +88,7 @@ func (s *approverService) GetAvailableUsers(ctx context.Context, typeID int) ([]
 	return result, nil
 }
 
+// Create назначает пользователя утверждающим заявок.
 func (s *approverService) Create(ctx context.Context, typeID int, userID int, createdByUsername string) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
@@ -117,6 +121,7 @@ func (s *approverService) Create(ctx context.Context, typeID int, userID int, cr
 	return nil
 }
 
+// Delete удаляет утверждающего по ID.
 func (s *approverService) Delete(ctx context.Context, typeID int, id int) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err

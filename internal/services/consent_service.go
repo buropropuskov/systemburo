@@ -22,10 +22,12 @@ type consentService struct {
 	db *gorm.DB
 }
 
+// NewConsentService создаёт сервис для управления согласиями на обработку ПД.
 func NewConsentService(db *gorm.DB) ConsentService {
 	return &consentService{db: db}
 }
 
+// Grant выдаёт согласие на обработку персональных данных указанного типа.
 func (s *consentService) Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string) (*models.PDConsent, error) {
 	consent := models.PDConsent{
 		UserID:      userID,
@@ -41,6 +43,7 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 	return &consent, nil
 }
 
+// Revoke отзывает активное согласие на обработку персональных данных.
 func (s *consentService) Revoke(ctx context.Context, userID int, consentType string) error {
 	now := time.Now()
 	result := s.db.WithContext(ctx).
@@ -56,6 +59,7 @@ func (s *consentService) Revoke(ctx context.Context, userID int, consentType str
 	return nil
 }
 
+// List возвращает список всех согласий пользователя.
 func (s *consentService) List(ctx context.Context, userID int) ([]models.PDConsent, error) {
 	var consents []models.PDConsent
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&consents).Error; err != nil {
@@ -64,6 +68,7 @@ func (s *consentService) List(ctx context.Context, userID int) ([]models.PDConse
 	return consents, nil
 }
 
+// HasActive проверяет наличие активного согласия указанного типа у пользователя.
 func (s *consentService) HasActive(ctx context.Context, userID int, consentType string) (bool, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.PDConsent{}).

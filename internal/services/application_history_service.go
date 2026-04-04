@@ -8,10 +8,12 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error) {
 	return s.fetchResponsibleUsers(s.db.WithContext(ctx), applicationID)
 }
 
+// GetApplicationHistory возвращает историю изменений заявки.
 func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error) {
 	items := make([]ApplicationHistoryItem, 0)
 	err := s.db.WithContext(ctx).Raw(`
@@ -47,6 +49,7 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 	return items, nil
 }
 
+// AddHistoryEntry добавляет запись в историю заявки.
 func (s *applicationService) AddHistoryEntry(ctx context.Context, req AddHistoryEntryRequest) error {
 	result := s.db.WithContext(ctx).Exec(`
 		INSERT INTO application_history (application_id, user_id, action_type, action_status, old_value, new_value, comment, metadata)

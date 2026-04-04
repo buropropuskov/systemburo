@@ -48,6 +48,7 @@ func (s *citizenshipService) checkAdmin(ctx context.Context, typeID int) error {
 	return nil
 }
 
+// GetAll возвращает список всех гражданств.
 func (s *citizenshipService) GetAll(ctx context.Context) ([]models.Citizenship, error) {
 	citizenships := make([]models.Citizenship, 0)
 	if err := s.db.WithContext(ctx).Order("name").Find(&citizenships).Error; err != nil {
@@ -56,6 +57,7 @@ func (s *citizenshipService) GetAll(ctx context.Context) ([]models.Citizenship, 
 	return citizenships, nil
 }
 
+// Create создаёт новое гражданство с опциональной установкой по умолчанию.
 func (s *citizenshipService) Create(ctx context.Context, typeID int, req models.CreateCitizenshipRequest) (int, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return 0, err
@@ -96,6 +98,7 @@ func (s *citizenshipService) Create(ctx context.Context, typeID int, req models.
 	return citizenship.ID, nil
 }
 
+// Update обновляет гражданство по ID.
 func (s *citizenshipService) Update(ctx context.Context, typeID int, id int, req models.UpdateCitizenshipRequest) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
@@ -137,6 +140,7 @@ func (s *citizenshipService) Update(ctx context.Context, typeID int, id int, req
 	})
 }
 
+// Delete удаляет гражданство по ID.
 func (s *citizenshipService) Delete(ctx context.Context, typeID int, id int) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
@@ -154,6 +158,7 @@ func (s *citizenshipService) Delete(ctx context.Context, typeID int, id int) err
 	return nil
 }
 
+// ClearDefaults сбрасывает флаг «по умолчанию» у всех гражданств.
 func (s *citizenshipService) ClearDefaults(ctx context.Context, typeID int) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err

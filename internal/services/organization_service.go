@@ -162,6 +162,7 @@ func CheckAdminPermissions(db *gorm.DB, ctx context.Context, username string) er
 	return nil
 }
 
+// GetAll возвращает список всех организаций.
 func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoResponse, error) {
 	orgs := make([]OrganizationInfoResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -176,6 +177,7 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 	return orgs, nil
 }
 
+// Create создаёт новую организацию.
 func (s *organizationService) Create(ctx context.Context, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
 	org := models.Organization{Name: req.Name}
 	if err := s.db.WithContext(ctx).Create(&org).Error; err != nil {
@@ -186,6 +188,7 @@ func (s *organizationService) Create(ctx context.Context, req CreateOrganization
 	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name}, nil
 }
 
+// Update обновляет название организации по ID.
 func (s *organizationService) Update(ctx context.Context, id int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
 	var org models.Organization
 	result := s.db.WithContext(ctx).
@@ -203,6 +206,7 @@ func (s *organizationService) Update(ctx context.Context, id int, req CreateOrga
 	return &OrganizationInfoResponse{ID: id, Name: req.Name}, nil
 }
 
+// Delete удаляет организацию с проверкой отсутствия привязанных пользователей.
 func (s *organizationService) Delete(ctx context.Context, id int) error {
 	// Проверяем наличие пользователей
 	var count int64
@@ -224,6 +228,7 @@ func (s *organizationService) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+// GetWithUsers возвращает организации с количеством привязанных пользователей.
 func (s *organizationService) GetWithUsers(ctx context.Context) ([]OrganizationWithUsersResponse, error) {
 	orgs := make([]OrganizationWithUsersResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -240,6 +245,7 @@ func (s *organizationService) GetWithUsers(ctx context.Context) ([]OrganizationW
 	return orgs, nil
 }
 
+// GetWithUsersExtended возвращает организации с пользователями и местами разгрузки.
 func (s *organizationService) GetWithUsersExtended(ctx context.Context) ([]map[string]any, error) {
 	// Получаем базовые данные организаций
 	orgs := make([]OrganizationWithUsersResponse, 0)
@@ -277,6 +283,7 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context) ([]map[s
 	return result, nil
 }
 
+// GetMyOrganization возвращает организацию текущего пользователя.
 func (s *organizationService) GetMyOrganization(ctx context.Context, username string) (*MyOrganizationResponse, error) {
 	var resp MyOrganizationResponse
 	err := s.db.WithContext(ctx).
@@ -292,6 +299,7 @@ func (s *organizationService) GetMyOrganization(ctx context.Context, username st
 	return &resp, nil
 }
 
+// GetOrganizationUsers возвращает ответственных пользователей организации.
 func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID int) ([]OrganizationUserResponse, error) {
 	users := make([]OrganizationUserResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -308,6 +316,7 @@ func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID in
 	return users, nil
 }
 
+// UpdateOrganizationUsers заменяет ответственных пользователей организации.
 func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, orgID int, req UpdateOrganizationUsersRequest) error {
 	// Проверяем, что только один пользователь назначен главным
 	primaryCount := 0
@@ -359,6 +368,7 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, orgID
 	})
 }
 
+// GetOrganizationTables возвращает таблицы, привязанные к организации.
 func (s *organizationService) GetOrganizationTables(ctx context.Context, orgID int) ([]OrganizationTableResponse, error) {
 	tables := make([]OrganizationTableResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -375,6 +385,7 @@ func (s *organizationService) GetOrganizationTables(ctx context.Context, orgID i
 	return tables, nil
 }
 
+// UpdateOrganizationTables заменяет привязку таблиц к организации.
 func (s *organizationService) UpdateOrganizationTables(ctx context.Context, orgID int, req UpdateOrganizationTablesRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Удаляем старые связи
@@ -398,6 +409,7 @@ func (s *organizationService) UpdateOrganizationTables(ctx context.Context, orgI
 	})
 }
 
+// GetOrganizationUnloadPlaces возвращает места разгрузки организации.
 func (s *organizationService) GetOrganizationUnloadPlaces(ctx context.Context, orgID int) ([]OrganizationUnloadPlaceResponse, error) {
 	places := make([]OrganizationUnloadPlaceResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -414,6 +426,7 @@ func (s *organizationService) GetOrganizationUnloadPlaces(ctx context.Context, o
 	return places, nil
 }
 
+// UpdateOrganizationUnloadPlaces заменяет привязку мест разгрузки к организации.
 func (s *organizationService) UpdateOrganizationUnloadPlaces(ctx context.Context, orgID int, req UpdateOrganizationUnloadPlacesRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Удаляем старые связи

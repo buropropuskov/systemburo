@@ -128,10 +128,12 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 	}, nil
 }
 
+// GetOwnerInfo возвращает информацию о владельце для фильтрации машин.
 func (s *uniqueCarService) GetOwnerInfo(ctx context.Context, username string) (*CarOwnerInfo, error) {
 	return s.getCarOwnerInfo(ctx, username)
 }
 
+// GetAll возвращает список уникальных автомобилей с фильтрацией по типу владельца.
 func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueCarWithRelations, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -216,6 +218,7 @@ func carToResponse(car *models.UniqueCar) *UniqueCarResponse {
 	}
 }
 
+// Create создаёт уникальный автомобиль с проверкой уникальности.
 func (s *uniqueCarService) Create(ctx context.Context, username string, req NewUniqueCarRequest) (*UniqueCarResponse, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -284,6 +287,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 	return carToResponse(&car), nil
 }
 
+// CreateBatch создаёт несколько уникальных автомобилей пакетно.
 func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, reqs []NewUniqueCarRequest) (*BatchCreateCarsResponse, int, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -371,6 +375,7 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 	}, httpStatus, nil
 }
 
+// Update обновляет уникальный автомобиль по ID с проверкой прав и уникальности.
 func (s *uniqueCarService) Update(ctx context.Context, username string, id int, req NewUniqueCarRequest) (*UniqueCarResponse, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -456,6 +461,7 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 	return carToResponse(&updated), nil
 }
 
+// UpdateByNumber обновляет уникальный автомобиль по номеру и марке.
 func (s *uniqueCarService) UpdateByNumber(ctx context.Context, username string, req UpdateCarByNumberRequest) (*UniqueCarResponse, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -502,6 +508,7 @@ func (s *uniqueCarService) UpdateByNumber(ctx context.Context, username string, 
 	return carToResponse(&updated), nil
 }
 
+// Delete удаляет уникальный автомобиль с проверкой прав.
 func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) error {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {

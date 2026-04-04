@@ -66,6 +66,7 @@ func NewEmployeeService(db *gorm.DB) EmployeeService {
 	return &employeeService{db: db}
 }
 
+// CreateEmployee создаёт сотрудника и связи с целевыми таблицами в транзакции.
 func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployeeRequest) (*CreateEmployeeResponse, error) {
 	var employeeID int
 
@@ -115,6 +116,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 	}, nil
 }
 
+// GetActiveEmployeesForTable возвращает активных сотрудников для указанной таблицы.
 func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableID int) ([]TableEmployeeResponse, error) {
 	type employeeRow struct {
 		ID           int

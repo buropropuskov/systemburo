@@ -44,6 +44,7 @@ type authService struct {
 	jwtRefreshSecret []byte
 }
 
+// NewAuthService создаёт сервис аутентификации с указанными JWT-секретами.
 func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string) AuthService {
 	return &authService{
 		db:               db,
@@ -126,6 +127,7 @@ func hashRefreshToken(token string) string {
 
 // --- Service Methods ---
 
+// Register регистрирует нового пользователя с хешированием пароля.
 func (s *authService) Register(ctx context.Context, req models.RegisterRequest) error {
 	hashed := hashPassword(req.Password)
 	user := models.User{
@@ -150,6 +152,7 @@ func (s *authService) Register(ctx context.Context, req models.RegisterRequest) 
 	return nil
 }
 
+// Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error) {
 	var user models.User
 	err := s.db.WithContext(ctx).
@@ -196,6 +199,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 	}, nil
 }
 
+// RefreshToken обновляет пару access/refresh токенов с ротацией.
 func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error) {
 	refreshToken := req.GetRefreshToken()
 	claims, err := s.decodeRefreshToken(refreshToken)
@@ -248,6 +252,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	}, nil
 }
 
+// Logout отзывает refresh-токен пользователя.
 func (s *authService) Logout(ctx context.Context, username string, req models.LogoutRequest) error {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
@@ -262,6 +267,7 @@ func (s *authService) Logout(ctx context.Context, username string, req models.Lo
 	return nil
 }
 
+// GetUserData возвращает профильные данные пользователя по username.
 func (s *authService) GetUserData(ctx context.Context, username string) (*models.UserDataResponse, error) {
 	var user models.User
 	err := s.db.WithContext(ctx).
@@ -286,6 +292,7 @@ func (s *authService) GetUserData(ctx context.Context, username string) (*models
 	}, nil
 }
 
+// GetCurrentUser возвращает полную информацию о текущем пользователе.
 func (s *authService) GetCurrentUser(ctx context.Context, username string) (*models.CurrentUserResponse, error) {
 	var user models.User
 	err := s.db.WithContext(ctx).
@@ -317,6 +324,7 @@ func (s *authService) GetCurrentUser(ctx context.Context, username string) (*mod
 	}, nil
 }
 
+// GetUserTypes возвращает список всех типов пользователей.
 func (s *authService) GetUserTypes(ctx context.Context) ([]models.UserType, error) {
 	types := make([]models.UserType, 0)
 	if err := s.db.WithContext(ctx).Order("id").Find(&types).Error; err != nil {

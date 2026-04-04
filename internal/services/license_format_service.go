@@ -23,10 +23,12 @@ type licensePlateFormatService struct {
 	db *gorm.DB
 }
 
+// NewLicensePlateFormatService создаёт сервис для управления форматами номерных знаков.
 func NewLicensePlateFormatService(db *gorm.DB) LicensePlateFormatService {
 	return &licensePlateFormatService{db: db}
 }
 
+// GetAll возвращает все активные форматы номерных знаков с ячейками.
 func (s *licensePlateFormatService) GetAll(ctx context.Context) ([]models.LicensePlateFormatWithCells, error) {
 	formats := make([]models.LicensePlateFormat, 0)
 	if err := s.db.WithContext(ctx).
@@ -54,6 +56,7 @@ func (s *licensePlateFormatService) GetAll(ctx context.Context) ([]models.Licens
 	return result, nil
 }
 
+// Create создаёт формат номерного знака с ячейками в транзакции.
 func (s *licensePlateFormatService) Create(ctx context.Context, req models.CreateLicensePlateFormatRequest) (int, error) {
 	var formatID int
 
@@ -107,6 +110,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 	return formatID, nil
 }
 
+// Update обновляет формат номерного знака и пересоздаёт ячейки.
 func (s *licensePlateFormatService) Update(ctx context.Context, id int, req models.UpdateLicensePlateFormatRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if req.IsDefault != nil && *req.IsDefault {
@@ -161,6 +165,7 @@ func (s *licensePlateFormatService) Update(ctx context.Context, id int, req mode
 	})
 }
 
+// Delete удаляет формат номерного знака по ID.
 func (s *licensePlateFormatService) Delete(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).Delete(&models.LicensePlateFormat{}, id)
 	if result.Error != nil {

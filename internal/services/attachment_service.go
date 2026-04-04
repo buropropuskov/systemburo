@@ -38,6 +38,7 @@ func NewAttachmentService(db *gorm.DB) AttachmentService {
 	return &attachmentService{db: db}
 }
 
+// GetActive возвращает все активные шаблоны вложений.
 func (s *attachmentService) GetActive(ctx context.Context) ([]models.UniqueAttachment, error) {
 	attachments := make([]models.UniqueAttachment, 0)
 	err := s.db.WithContext(ctx).
@@ -50,6 +51,7 @@ func (s *attachmentService) GetActive(ctx context.Context) ([]models.UniqueAttac
 	return attachments, nil
 }
 
+// GetAll возвращает все шаблоны вложений, включая архивные.
 func (s *attachmentService) GetAll(ctx context.Context) ([]models.UniqueAttachment, error) {
 	attachments := make([]models.UniqueAttachment, 0)
 	err := s.db.WithContext(ctx).
@@ -61,6 +63,7 @@ func (s *attachmentService) GetAll(ctx context.Context) ([]models.UniqueAttachme
 	return attachments, nil
 }
 
+// GetByID возвращает активный шаблон вложения по ID.
 func (s *attachmentService) GetByID(ctx context.Context, id int) (*models.UniqueAttachment, error) {
 	var attachment models.UniqueAttachment
 	err := s.db.WithContext(ctx).
@@ -75,6 +78,7 @@ func (s *attachmentService) GetByID(ctx context.Context, id int) (*models.Unique
 	return &attachment, nil
 }
 
+// Create создаёт новый шаблон вложения с проверкой уникальности имени.
 func (s *attachmentService) Create(ctx context.Context, req models.CreateUniqueAttachmentRequest) (*models.CreateUniqueAttachmentResponse, error) {
 	// Проверяем уникальность имени среди активных
 	var count int64
@@ -109,6 +113,7 @@ func (s *attachmentService) Create(ctx context.Context, req models.CreateUniqueA
 	}, nil
 }
 
+// Update обновляет существующий шаблон вложения.
 func (s *attachmentService) Update(ctx context.Context, id int, req models.UpdateUniqueAttachmentRequest) error {
 	// Проверяем существование среди активных
 	var count int64
@@ -143,6 +148,7 @@ func (s *attachmentService) Update(ctx context.Context, id int, req models.Updat
 	return nil
 }
 
+// Delete выполняет мягкое удаление шаблона вложения.
 func (s *attachmentService) Delete(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).
 		Model(&models.UniqueAttachment{}).
@@ -157,6 +163,7 @@ func (s *attachmentService) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+// Restore восстанавливает ранее удалённый шаблон вложения.
 func (s *attachmentService) Restore(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).
 		Model(&models.UniqueAttachment{}).

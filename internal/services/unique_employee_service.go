@@ -126,10 +126,12 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 	}, nil
 }
 
+// GetOwnerInfo возвращает информацию о владельце для фильтрации сотрудников.
 func (s *uniqueEmployeeService) GetOwnerInfo(ctx context.Context, username string) (*EmployeeOwnerInfo, error) {
 	return s.getEmployeeOwnerInfo(ctx, username)
 }
 
+// GetAll возвращает список уникальных сотрудников с фильтрацией по типу владельца.
 func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueEmployeeWithRelations, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
@@ -222,6 +224,7 @@ func employeeToResponse(emp *models.UniqueEmployee) *UniqueEmployeeResponse {
 	}
 }
 
+// Create создаёт уникального сотрудника с проверкой уникальности паспортных данных.
 func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
@@ -297,6 +300,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 	return employeeToResponse(&employee), nil
 }
 
+// Update обновляет уникального сотрудника по ID с проверкой прав и уникальности.
 func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
@@ -404,6 +408,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 	return employeeToResponse(&updated), nil
 }
 
+// Delete удаляет уникального сотрудника с проверкой прав.
 func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id int) error {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {

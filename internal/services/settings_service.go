@@ -37,6 +37,7 @@ type settingsService struct {
 	defaults map[string]models.SystemSetting
 }
 
+// NewSettingsService создаёт сервис для управления системными настройками.
 func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 	defaults := map[string]models.SystemSetting{
 		"upload.max_file_size":        {Key: "upload.max_file_size", Value: strconv.FormatInt(cfg.UploadMaxFileSize, 10), Type: "int"},
@@ -79,6 +80,7 @@ func (s *settingsService) checkBuro(typeID int) error {
 	return nil
 }
 
+// GetAll возвращает все системные настройки из кэша.
 func (s *settingsService) GetAll(ctx context.Context, callerTypeID int) ([]models.SystemSetting, error) {
 	if err := s.checkBuro(callerTypeID); err != nil {
 		return nil, err
@@ -93,6 +95,7 @@ func (s *settingsService) GetAll(ctx context.Context, callerTypeID int) ([]model
 	return result, nil
 }
 
+// Update обновляет значение системной настройки по ключу.
 func (s *settingsService) Update(ctx context.Context, callerTypeID int, key string, value string) (*models.SystemSetting, error) {
 	if err := s.checkBuro(callerTypeID); err != nil {
 		return nil, err
@@ -127,6 +130,7 @@ func (s *settingsService) Update(ctx context.Context, callerTypeID int, key stri
 	return &setting, nil
 }
 
+// GetUploadSettings возвращает настройки загрузки файлов (размер, допустимые типы).
 func (s *settingsService) GetUploadSettings(ctx context.Context) (map[string]interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

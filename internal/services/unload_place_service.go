@@ -167,6 +167,7 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 	}
 }
 
+// GetAll возвращает все места разгрузки с расписанием и фотографиями.
 func (s *unloadPlaceService) GetAll(ctx context.Context) ([]UnloadPlaceWithDetails, error) {
 	places := make([]models.UnloadPlace, 0)
 	if err := s.db.WithContext(ctx).Order("name").Find(&places).Error; err != nil {
@@ -180,6 +181,7 @@ func (s *unloadPlaceService) GetAll(ctx context.Context) ([]UnloadPlaceWithDetai
 	return result, nil
 }
 
+// GetByID возвращает место разгрузки по ID с расписанием и фотографиями.
 func (s *unloadPlaceService) GetByID(ctx context.Context, id int) (*UnloadPlaceWithDetails, error) {
 	var place models.UnloadPlace
 	if err := s.db.WithContext(ctx).First(&place, id).Error; err != nil {
@@ -193,6 +195,7 @@ func (s *unloadPlaceService) GetByID(ctx context.Context, id int) (*UnloadPlaceW
 	return &details, nil
 }
 
+// Create создаёт новое место разгрузки.
 func (s *unloadPlaceService) Create(ctx context.Context, req CreateUnloadPlaceRequest) (int, error) {
 	status := "active"
 	if req.Status != nil {
@@ -217,6 +220,7 @@ func (s *unloadPlaceService) Create(ctx context.Context, req CreateUnloadPlaceRe
 	return place.ID, nil
 }
 
+// Update обновляет место разгрузки по ID.
 func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloadPlaceRequest) error {
 	var place models.UnloadPlace
 	if err := s.db.WithContext(ctx).First(&place, id).Error; err != nil {
@@ -257,6 +261,7 @@ func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloa
 	return nil
 }
 
+// Delete удаляет место разгрузки с проверкой зависимостей организаций и компаний.
 func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 	// Проверяем привязку к организациям
 	var orgCount int64
@@ -315,6 +320,7 @@ func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 
 // --- Временные слоты ---
 
+// GetTimeSlots возвращает временные слоты места разгрузки.
 func (s *unloadPlaceService) GetTimeSlots(ctx context.Context, placeID int) ([]models.UnloadPlaceTimeSlot, error) {
 	slots := make([]models.UnloadPlaceTimeSlot, 0)
 	if err := s.db.WithContext(ctx).
@@ -326,6 +332,7 @@ func (s *unloadPlaceService) GetTimeSlots(ctx context.Context, placeID int) ([]m
 	return slots, nil
 }
 
+// AddTimeSlot добавляет временной слот к месту разгрузки.
 func (s *unloadPlaceService) AddTimeSlot(ctx context.Context, placeID int, req CreateTimeSlotRequest) (int, error) {
 	// Проверяем существование места
 	var count int64
@@ -369,6 +376,7 @@ func (s *unloadPlaceService) AddTimeSlot(ctx context.Context, placeID int, req C
 	return slot.ID, nil
 }
 
+// UpdateTimeSlot обновляет временной слот места разгрузки.
 func (s *unloadPlaceService) UpdateTimeSlot(ctx context.Context, placeID, slotID int, req UpdateTimeSlotRequest) error {
 	var slot models.UnloadPlaceTimeSlot
 	if err := s.db.WithContext(ctx).
@@ -437,6 +445,7 @@ func (s *unloadPlaceService) UpdateTimeSlot(ctx context.Context, placeID, slotID
 	return nil
 }
 
+// DeleteTimeSlot удаляет временной слот места разгрузки.
 func (s *unloadPlaceService) DeleteTimeSlot(ctx context.Context, placeID, slotID int) error {
 	result := s.db.WithContext(ctx).
 		Where("id = ? AND unload_place_id = ?", slotID, placeID).
@@ -454,6 +463,7 @@ func (s *unloadPlaceService) DeleteTimeSlot(ctx context.Context, placeID, slotID
 
 // --- Фотографии ---
 
+// UploadPhoto загружает фотографию места разгрузки.
 func (s *unloadPlaceService) UploadPhoto(ctx context.Context, placeID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error) {
 	// Проверяем существование места
 	var count int64
@@ -502,6 +512,7 @@ func (s *unloadPlaceService) UploadPhoto(ctx context.Context, placeID int, usern
 	return photo.ID, nil
 }
 
+// DeletePhoto удаляет фотографию места разгрузки и возвращает URL удалённого файла.
 func (s *unloadPlaceService) DeletePhoto(ctx context.Context, placeID, photoID int) (string, error) {
 	var photo models.UnloadPlacePhoto
 	if err := s.db.WithContext(ctx).
@@ -545,6 +556,7 @@ func (s *unloadPlaceService) DeletePhoto(ctx context.Context, placeID, photoID i
 	return photoURL, nil
 }
 
+// SetMainPhoto устанавливает главную фотографию места разгрузки.
 func (s *unloadPlaceService) SetMainPhoto(ctx context.Context, placeID, photoID int) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Сбрасываем is_main у всех фотографий этого места

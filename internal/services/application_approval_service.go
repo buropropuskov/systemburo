@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// ForwardApplication пересылает заявку указанным ответственным и просматривающим.
 func (s *applicationService) ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error {
 	if err := s.checkNotArchived(ctx, applicationID); err != nil {
 		return err
@@ -180,6 +181,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	return nil
 }
 
+// ApproveApplicationByUser фиксирует согласование или отказ заявки пользователем.
 func (s *applicationService) ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error {
 	if err := s.checkNotArchived(ctx, applicationID); err != nil {
 		return err
@@ -281,6 +283,7 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	return nil
 }
 
+// CheckApprovalStatus возвращает текущий статус согласования заявки.
 func (s *applicationService) CheckApprovalStatus(ctx context.Context, applicationID int) (*ApprovalStatusResponse, error) {
 	var app struct {
 		Confirmation *string
@@ -300,6 +303,7 @@ func (s *applicationService) CheckApprovalStatus(ctx context.Context, applicatio
 	}, nil
 }
 
+// RevokeApproval отзывает ранее данное согласование заявки.
 func (s *applicationService) RevokeApproval(ctx context.Context, username string, applicationID int, req RevokeApprovalRequest) (*RevokeApprovalResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {

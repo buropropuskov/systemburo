@@ -134,6 +134,7 @@ func NewCompanyService(db *gorm.DB) CompanyService {
 	return &companyService{db: db}
 }
 
+// GetAll возвращает список всех компаний.
 func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 	companies := make([]models.Company, 0)
 	if err := s.db.WithContext(ctx).Order("name").Find(&companies).Error; err != nil {
@@ -143,6 +144,7 @@ func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 	return companies, nil
 }
 
+// GetWithUsers возвращает компании с количеством привязанных пользователей.
 func (s *companyService) GetWithUsers(ctx context.Context) ([]CompanyWithUsersResponse, error) {
 	result := make([]CompanyWithUsersResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -159,6 +161,7 @@ func (s *companyService) GetWithUsers(ctx context.Context) ([]CompanyWithUsersRe
 	return result, nil
 }
 
+// GetWithUsersExtended возвращает компании с пользователями и местами разгрузки.
 func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWithUsersExtendedResponse, error) {
 	// Получаем базовые данные компаний с количеством пользователей
 	type companyRow struct {
@@ -206,6 +209,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWit
 	return result, nil
 }
 
+// Create создаёт новую компанию (admin-only).
 func (s *companyService) Create(ctx context.Context, username string, req CreateCompanyRequest) (*models.Company, error) {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return nil, err
@@ -220,6 +224,7 @@ func (s *companyService) Create(ctx context.Context, username string, req Create
 	return &company, nil
 }
 
+// Update обновляет название компании (admin-only).
 func (s *companyService) Update(ctx context.Context, username string, companyID int, req CreateCompanyRequest) (*models.Company, error) {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return nil, err
@@ -239,6 +244,7 @@ func (s *companyService) Update(ctx context.Context, username string, companyID 
 	return &company, nil
 }
 
+// Delete удаляет компанию с проверкой отсутствия привязанных пользователей.
 func (s *companyService) Delete(ctx context.Context, username string, companyID int) error {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return err
@@ -261,6 +267,7 @@ func (s *companyService) Delete(ctx context.Context, username string, companyID 
 	return nil
 }
 
+// GetUsers возвращает ответственных пользователей компании.
 func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]CompanyUserResponse, error) {
 	users := make([]CompanyUserResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -277,6 +284,7 @@ func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]Company
 	return users, nil
 }
 
+// UpdateUsers заменяет ответственных пользователей компании.
 func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req UpdateCompanyUsersRequest) error {
 	// Проверяем что не более одного primary пользователя
 	primaryCount := 0
@@ -339,6 +347,7 @@ func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req Upd
 	return nil
 }
 
+// GetUnloadPlaces возвращает активные места разгрузки компании.
 func (s *companyService) GetUnloadPlaces(ctx context.Context, companyID int) ([]CompanyUnloadPlaceResponse, error) {
 	places := make([]CompanyUnloadPlaceResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -355,6 +364,7 @@ func (s *companyService) GetUnloadPlaces(ctx context.Context, companyID int) ([]
 	return places, nil
 }
 
+// UpdateUnloadPlaces заменяет привязку мест разгрузки к компании (admin-only).
 func (s *companyService) UpdateUnloadPlaces(ctx context.Context, username string, companyID int, req UpdateCompanyUnloadPlacesRequest) error {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return err
@@ -393,6 +403,7 @@ func (s *companyService) UpdateUnloadPlaces(ctx context.Context, username string
 	return nil
 }
 
+// GetTables возвращает активные таблицы компании.
 func (s *companyService) GetTables(ctx context.Context, companyID int) ([]CompanyTableResponse, error) {
 	tables := make([]CompanyTableResponse, 0)
 	err := s.db.WithContext(ctx).
@@ -409,6 +420,7 @@ func (s *companyService) GetTables(ctx context.Context, companyID int) ([]Compan
 	return tables, nil
 }
 
+// UpdateTables заменяет привязку таблиц к компании (admin-only).
 func (s *companyService) UpdateTables(ctx context.Context, username string, companyID int, req UpdateCompanyTablesRequest) error {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return err

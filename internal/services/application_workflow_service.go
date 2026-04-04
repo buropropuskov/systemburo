@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// TakeApplicationToWork принимает заявку в работу или отказывает в ней.
 func (s *applicationService) TakeApplicationToWork(ctx context.Context, username string, applicationID int, req TakeToWorkRequest) error {
 	if err := s.checkNotArchived(ctx, applicationID); err != nil {
 		return err
@@ -94,6 +95,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	return nil
 }
 
+// RevokeApplicationFromWork отзывает заявку из работы и возвращает в статус обработки.
 func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, username string, applicationID int, req RevokeFromWorkRequest) error {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -144,6 +146,7 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 	return nil
 }
 
+// RestoreApplicationToWork возвращает заявку в статус обработки.
 func (s *applicationService) RestoreApplicationToWork(ctx context.Context, username string, applicationID int, req RevokeFromWorkRequest) error {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -194,6 +197,7 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 	return nil
 }
 
+// UpdateApplicationItemsStatus обновляет статусы машин и сотрудников заявки.
 func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, applicationID int) error {
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -231,6 +235,7 @@ func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, a
 	return nil
 }
 
+// CheckExpiredAttachments проверяет и деактивирует вложения с истёкшим сроком действия.
 func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error {
 	slog.Info("Проверка истекших вложений...")
 

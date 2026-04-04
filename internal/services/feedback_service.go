@@ -65,6 +65,7 @@ func (s *feedbackService) getUserIDByUsername(ctx context.Context, username stri
 	return userID, nil
 }
 
+// Create создаёт новое обращение обратной связи.
 func (s *feedbackService) Create(ctx context.Context, username string, req models.CreateFeedbackRequest) (int, error) {
 	userID, err := s.getUserIDByUsername(ctx, username)
 	if err != nil {
@@ -97,6 +98,7 @@ func (s *feedbackService) Create(ctx context.Context, username string, req model
 	return feedback.ID, nil
 }
 
+// GetAll возвращает все обращения обратной связи с информацией о пользователях.
 func (s *feedbackService) GetAll(ctx context.Context, typeID int) ([]models.FeedbackWithUser, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return nil, err
@@ -125,6 +127,7 @@ func (s *feedbackService) GetAll(ctx context.Context, typeID int) ([]models.Feed
 	return results, nil
 }
 
+// GetStats возвращает статистику обращений обратной связи.
 func (s *feedbackService) GetStats(ctx context.Context, typeID int) (*models.FeedbackStats, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return nil, err
@@ -147,6 +150,7 @@ func (s *feedbackService) GetStats(ctx context.Context, typeID int) (*models.Fee
 	return &stats, nil
 }
 
+// GetMy возвращает обращения текущего пользователя.
 func (s *feedbackService) GetMy(ctx context.Context, username string) ([]models.MyFeedback, error) {
 	userID, err := s.getUserIDByUsername(ctx, username)
 	if err != nil {
@@ -167,6 +171,7 @@ func (s *feedbackService) GetMy(ctx context.Context, username string) ([]models.
 	return results, nil
 }
 
+// UpdateStatus обновляет статус обращения обратной связи.
 func (s *feedbackService) UpdateStatus(ctx context.Context, typeID int, id int, req models.UpdateFeedbackStatusRequest) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
@@ -201,6 +206,7 @@ func (s *feedbackService) UpdateStatus(ctx context.Context, typeID int, id int, 
 	return nil
 }
 
+// MarkAsRead отмечает обращение обратной связи как прочитанное или непрочитанное.
 func (s *feedbackService) MarkAsRead(ctx context.Context, typeID int, id int, req models.MarkAsReadRequest) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
