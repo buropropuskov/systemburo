@@ -1,7 +1,10 @@
+import { useAuthStore } from '@/stores/auth'
+
 const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || ''
 
 export async function apiRequest(path, options = {}) {
-  const token = localStorage.getItem('token')
+  const authStore = useAuthStore()
+  const token = authStore.token
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10000)
 
@@ -41,7 +44,8 @@ export async function apiRequest(path, options = {}) {
 
 // apiRequestRaw returns full envelope without unwrapping (for pagination meta, etc.)
 export async function apiRequestRaw(path, options = {}) {
-  const token = localStorage.getItem('token')
+  const authStore = useAuthStore()
+  const token = authStore.token
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10000)
 

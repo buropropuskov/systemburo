@@ -1,22 +1,16 @@
-const API_BASE = 'http://localhost:8080';
+import { apiRequest } from './client'
 
 /**
  * @returns {Promise<Array<{id: number, key: string, value: string, type: string}>>}
  */
 export async function getSettings() {
-  const token = localStorage.getItem('token');
-  const response = await fetch(`${API_BASE}/settings`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest('/settings')
 
   if (!response.ok) {
-    throw new Error(`Ошибка загрузки настроек: ${response.status}`);
+    throw new Error(`Ошибка загрузки настроек: ${response.status}`)
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -25,38 +19,27 @@ export async function getSettings() {
  * @returns {Promise<Object>}
  */
 export async function updateSetting(key, value) {
-  const token = localStorage.getItem('token');
-  const response = await fetch(`${API_BASE}/settings/${key}`, {
+  const response = await apiRequest(`/settings/${key}`, {
     method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify({ value: String(value) }),
-  });
+  })
 
   if (!response.ok) {
-    throw new Error(`Ошибка сохранения настройки: ${response.status}`);
+    throw new Error(`Ошибка сохранения настройки: ${response.status}`)
   }
 
-  return response.json();
+  return response.json()
 }
 
 /**
  * @returns {Promise<{max_file_size: number, allowed_image_types: string, allowed_doc_types: string}>}
  */
 export async function getUploadSettings() {
-  const token = localStorage.getItem('token');
-  const response = await fetch(`${API_BASE}/settings/upload`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest('/settings/upload')
 
   if (!response.ok) {
-    throw new Error(`Ошибка загрузки настроек загрузки: ${response.status}`);
+    throw new Error(`Ошибка загрузки настроек загрузки: ${response.status}`)
   }
 
-  return response.json();
+  return response.json()
 }
