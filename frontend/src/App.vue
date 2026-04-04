@@ -73,7 +73,6 @@ export default {
           
           // Если токен уже истек - сразу выходим
           if (timeUntilExpiry <= 0) {
-              console.log('Token expired, logging out...');
               this.logout();
               return;
           }
@@ -93,7 +92,6 @@ export default {
           this.startExpirationTimer(timeUntilExpiry);
           
       } catch (e) {
-          console.error("Token decode error:", e);
           this.logout(); // При ошибке декодирования тоже выходим
       }
     },
@@ -155,10 +153,7 @@ export default {
       try {
           const refreshToken = localStorage.getItem("refreshToken");
           
-          console.log('🔄 Attempting token refresh with RT:', refreshToken ? 'Present' : 'Missing');
-          
           if (!refreshToken) {
-              console.log('❌ No refresh token found');
               this.logout();
               return;
           }
@@ -167,18 +162,13 @@ export default {
               refresh_token: refreshToken
           };
           
-          console.log('📤 Sending refresh request:', requestBody);
-          
           const response = await apiRequest("/refresh-token", {
               method: "POST",
               body: JSON.stringify(requestBody)
           });
 
-          console.log('📥 Refresh response status:', response.status);
-          
           if (response.ok) {
               const tokenData = await response.json();
-              console.log('✅ Token refresh successful:', tokenData);
 
               localStorage.setItem("token", tokenData.token);
               localStorage.setItem("refreshToken", tokenData.refreshToken);
@@ -188,15 +178,11 @@ export default {
               // Перезагружаем права доступа после обновления токена
               const permissionsStore = usePermissionsStore()
               permissionsStore.fetchPermissions()
-
-              console.log('✅ Token successfully refreshed and stored');
           } else {
               const errorText = await response.text();
-              console.log('❌ Refresh failed:', response.status, errorText);
               throw new Error(`Refresh failed: ${response.status} - ${errorText}`);
           }
       } catch (error) {
-          console.error("🔴 Token refresh error:", error);
           this.logout();
       }
     },
@@ -207,8 +193,6 @@ export default {
     const refreshToken = localStorage.getItem("refreshToken");
     
     if (token && refreshToken) {
-      console.log('🔄 Sending logout request with specific refresh token');
-      
       await apiRequest("/logout", {
         method: "POST",
         body: JSON.stringify({
@@ -217,7 +201,6 @@ export default {
       });
     }
   } catch (error) {
-    console.error("Logout error:", error);
   } finally {
     // Всегда очищаем localStorage
     localStorage.removeItem("token");

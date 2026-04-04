@@ -26,7 +26,6 @@ export const usePermissionsStore = defineStore('permissions', {
         }
         this.loaded = true
       } catch (e) {
-        console.error('Failed to fetch permissions:', e)
       }
     },
 

@@ -159,8 +159,6 @@ router.beforeEach((to, from, next) => {
   }); */
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    console.log('🚫 Redirect to login: requires auth');
-    
     // Очищаем невалидные токены
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
@@ -168,11 +166,9 @@ router.beforeEach((to, from, next) => {
     next('/');
   } 
   else if (to.meta.requiresBuro && !isBuroPropuskov) {
-    console.log('🔒 Redirect to cabinet: requires buro');
     next('/personal-cabinet');
   } 
   else if (to.path === '/' && isAuthenticated) {
-    console.log('🔄 Redirect from login to cabinet');
     next('/personal-cabinet');
   } 
   else {

@@ -15,10 +15,12 @@ type ConsentHandler struct {
 	db      *gorm.DB
 }
 
+// NewConsentHandler создаёт хендлер для управления согласиями на обработку ПД.
 func NewConsentHandler(service services.ConsentService, db *gorm.DB) *ConsentHandler {
 	return &ConsentHandler{service: service, db: db}
 }
 
+// Grant обрабатывает запрос на предоставление согласия на обработку ПД.
 func (h *ConsentHandler) Grant(c echo.Context) error {
 	var req models.GrantConsentRequest
 	if err := BindAndValidate(c, &req); err != nil {
@@ -35,6 +37,7 @@ func (h *ConsentHandler) Grant(c echo.Context) error {
 	return RespondSuccess(c, consent)
 }
 
+// Revoke обрабатывает запрос на отзыв согласия.
 func (h *ConsentHandler) Revoke(c echo.Context) error {
 	consentType := c.Param("type")
 	if consentType == "" {
@@ -50,6 +53,7 @@ func (h *ConsentHandler) Revoke(c echo.Context) error {
 	return RespondMessage(c, "Consent revoked")
 }
 
+// List возвращает список согласий текущего пользователя.
 func (h *ConsentHandler) List(c echo.Context) error {
 	userID, err := h.resolveUserID(c)
 	if err != nil {
@@ -62,6 +66,7 @@ func (h *ConsentHandler) List(c echo.Context) error {
 	return RespondSuccess(c, consents)
 }
 
+// Check проверяет наличие активного согласия указанного типа.
 func (h *ConsentHandler) Check(c echo.Context) error {
 	consentType := c.Param("type")
 	userID, err := h.resolveUserID(c)
