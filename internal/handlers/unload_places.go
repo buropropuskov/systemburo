@@ -14,19 +14,20 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-const (
-	maxFileSize       = 10 << 20 // 10 MB
-	unloadUploadDir   = "./uploads/unload_places"
-)
-
 // UnloadPlaceHandler -- HTTP-обработчики мест разгрузки.
 type UnloadPlaceHandler struct {
-	service services.UnloadPlaceService
+	service     services.UnloadPlaceService
+	maxFileSize int64
+	uploadDir   string
 }
 
 // NewUnloadPlaceHandler создаёт новый экземпляр обработчика мест разгрузки.
-func NewUnloadPlaceHandler(service services.UnloadPlaceService) *UnloadPlaceHandler {
-	return &UnloadPlaceHandler{service: service}
+func NewUnloadPlaceHandler(service services.UnloadPlaceService, maxFileSize int64, uploadDir string) *UnloadPlaceHandler {
+	return &UnloadPlaceHandler{
+		service:     service,
+		maxFileSize: maxFileSize,
+		uploadDir:   filepath.Join(uploadDir, "unload_places"),
+	}
 }
 
 // GetAll возвращает все места разгрузки с деталями.
@@ -300,7 +301,7 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 	username := c.Get("username").(string)
 
 	// Создаём директорию для загрузок
-	if err := os.MkdirAll(unloadUploadDir, 0o755); err != nil {
+	if err := os.MkdirAll(h.uploadDir, 0o755); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create upload directory")
 	}
 
@@ -313,7 +314,7 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 
 	files := form.File["file"]
 	for _, fh := range files {
-		if fh.Size > maxFileSize {
+		if fh.Size > h.maxFileSize {
 			return echo.NewHTTPError(http.StatusBadRequest, "File too large. Max 10MB")
 		}
 
@@ -328,7 +329,7 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 			ext = ".jpg"
 		}
 		uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), placeID, ext)
-		dstPath := filepath.Join(unloadUploadDir, uniqueName)
+		dstPath := filepath.Join(h.uploadDir, uniqueName)
 		fileURL := fmt.Sprintf("/uploads/unload_places/%s", uniqueName)
 
 		dst, err := os.Create(dstPath)

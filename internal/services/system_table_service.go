@@ -18,10 +18,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	maxFileSize = 10 * 1024 * 1024 // 10 MB
-)
-
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
 type SystemTableService interface {
 	GetAll(ctx context.Context) ([]models.SystemTableWithDetails, error)
@@ -44,18 +40,20 @@ type SystemTableService interface {
 }
 
 type systemTableService struct {
-	db        *gorm.DB
-	uploadDir string
-	permSvc   PermissionService
+	db          *gorm.DB
+	uploadDir   string
+	maxFileSize int64
+	permSvc     PermissionService
 }
 
 // NewSystemTableService создаёт реализацию SystemTableService.
-func NewSystemTableService(db *gorm.DB, uploadDir string, permSvc ...PermissionService) SystemTableService {
-	s := &systemTableService{db: db, uploadDir: uploadDir}
-	if len(permSvc) > 0 && permSvc[0] != nil {
-		s.permSvc = permSvc[0]
+func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, permSvc PermissionService) SystemTableService {
+	return &systemTableService{
+		db:          db,
+		uploadDir:   uploadDir,
+		maxFileSize: maxFileSize,
+		permSvc:     permSvc,
 	}
-	return s
 }
 
 // computeCurrentStatus вычисляет текущий статус (open/closed) на основании расписания и статуса таблицы.
@@ -614,7 +612,7 @@ func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, usern
 		return 0, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 	}
 
-	if file.Size > maxFileSize {
+	if file.Size > s.maxFileSize {
 		return 0, echo.NewHTTPError(http.StatusBadRequest, "File too large. Max 10MB")
 	}
 

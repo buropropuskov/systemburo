@@ -7,7 +7,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const maxLimit = 100
+var maxLimit = 100
+
+// SetMaxLimit configures the maximum pagination limit.
+func SetMaxLimit(limit int) { maxLimit = limit }
 
 // PaginationParams содержит параметры пагинации, извлечённые из запроса.
 type PaginationParams struct {
