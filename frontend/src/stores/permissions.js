@@ -26,6 +26,7 @@ export const usePermissionsStore = defineStore('permissions', {
         }
         this.loaded = true
       } catch (e) {
+        // ignore — permissions will stay empty
       }
     },
 

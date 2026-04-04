@@ -201,6 +201,7 @@ export default {
       });
     }
   } catch (error) {
+    // ignore — logout cleanup happens in finally
   } finally {
     // Всегда очищаем localStorage
     localStorage.removeItem("token");
