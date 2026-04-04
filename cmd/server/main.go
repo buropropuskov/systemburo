@@ -12,6 +12,7 @@ import (
 
 	_ "systemburo/docs"
 	"systemburo/internal/config"
+	"systemburo/internal/crypto"
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
@@ -58,6 +59,18 @@ func main() {
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
 
+	encKey, err := crypto.ParseHexKey(cfg.DataEncryptionKey)
+	if err != nil {
+		slog.Error("invalid DATA_ENCRYPTION_KEY", "error", err)
+		os.Exit(1)
+	}
+	crypto.SetGlobalKey(encKey)
+	if encKey != nil {
+		slog.Info("encryption enabled for personal data")
+	} else {
+		slog.Warn("DATA_ENCRYPTION_KEY not set, personal data stored unencrypted")
+	}
+
 	// Connect to database
 	gormLogLevel := logger.Silent
 	if cfg.LogLevel == "debug" {
@@ -94,7 +107,7 @@ func main() {
 	e.Use(mw.RequestID())
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
-	e.Use(mw.CORS())
+	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	e.Use(mw.RateLimit(200, 60))
 
 	// Services

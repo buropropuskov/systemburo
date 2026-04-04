@@ -83,7 +83,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 			Status:               &statusZero,
 		}
 		if err := tx.Create(&employee).Error; err != nil {
-			slog.Error("не удалось создать сотрудника", "last_name", req.LastName, "first_name", req.FirstName, "error", err)
+			slog.Error("не удалось создать сотрудника", "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee")
 		}
 		employeeID = employee.ID
@@ -107,7 +107,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 		return nil, err
 	}
 
-	slog.Info("сотрудник создан", "employee_id", employeeID, "last_name", req.LastName, "first_name", req.FirstName)
+	slog.Info("сотрудник создан", "employee_id", employeeID)
 	return &CreateEmployeeResponse{
 		Success:    true,
 		Message:    "Employee created successfully",

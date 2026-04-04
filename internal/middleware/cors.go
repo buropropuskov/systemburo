@@ -5,10 +5,10 @@ import (
 	echomw "github.com/labstack/echo/v4/middleware"
 )
 
-// CORS returns permissive CORS config matching the Rust backend.
-func CORS() echo.MiddlewareFunc {
+// CORS returns CORS middleware configured with the given allowed origins.
+func CORS(allowedOrigins []string) echo.MiddlewareFunc {
 	return echomw.CORSWithConfig(echomw.CORSConfig{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"*"},
 		AllowCredentials: true,
