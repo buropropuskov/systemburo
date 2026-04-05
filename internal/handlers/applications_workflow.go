@@ -1,0 +1,276 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"systemburo/internal/services"
+
+	"github.com/labstack/echo/v4"
+)
+
+// ForwardApplication godoc
+// @Summary      Пересылка заявки
+// @Description  Назначает ответственных и просматривающих для заявки.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                              true "ID заявки"
+// @Param        request body services.ForwardApplicationRequest true "Список пользователей"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/forward [post]
+func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.ForwardApplicationRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.ForwardApplication(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Application forwarded successfully")
+}
+
+// ApproveApplicationByUser godoc
+// @Summary      Согласование заявки пользователем
+// @Description  Пользователь голосует за согласование или отказ заявки.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                          true "ID заявки"
+// @Param        request body services.UserApprovalRequest  true "Голос: approved или rejected"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/approve [post]
+func (h *ApplicationHandler) ApproveApplicationByUser(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.UserApprovalRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.ApproveApplicationByUser(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Approval status updated successfully")
+}
+
+// CheckApprovalStatus godoc
+// @Summary      Проверка статуса согласования
+// @Description  Возвращает текущие confirmation и status заявки.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {object} services.ApprovalStatusResponse
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/check-approval-status [get]
+func (h *ApplicationHandler) CheckApprovalStatus(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	resp, err := h.service.CheckApprovalStatus(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
+// TakeApplicationToWork godoc
+// @Summary      Принятие заявки в работу
+// @Description  Принимающий пользователь принимает (accept) или отклоняет (reject) заявку.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                         true "ID заявки"
+// @Param        request body services.TakeToWorkRequest   true "Действие: accept или reject"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/take-to-work [post]
+func (h *ApplicationHandler) TakeApplicationToWork(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.TakeToWorkRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.TakeApplicationToWork(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+
+	msg := "Application taken to work"
+	if req.Action == "reject" {
+		msg = "Application rejected"
+	}
+	return RespondMessage(c, msg)
+}
+
+// RevokeApplicationFromWork godoc
+// @Summary      Отзыв заявки из работы
+// @Description  Принимающий возвращает заявку в статус "В обработке", деактивируя все элементы.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                             true "ID заявки"
+// @Param        request body services.RevokeFromWorkRequest   true "Комментарий"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/revoke-from-work [post]
+func (h *ApplicationHandler) RevokeApplicationFromWork(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.RevokeFromWorkRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.RevokeApplicationFromWork(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Application revoked from work")
+}
+
+// RestoreApplicationToWork godoc
+// @Summary      Возврат заявки в обработку
+// @Description  Принимающий возвращает заявку в статус "В обработке" для повторного рассмотрения.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                             true "ID заявки"
+// @Param        request body services.RevokeFromWorkRequest   true "Комментарий"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/restore-to-work [post]
+func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.RevokeFromWorkRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.RestoreApplicationToWork(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Application restored, ready to take to work")
+}
+
+// RevokeApproval godoc
+// @Summary      Отзыв согласования
+// @Description  Пользователь отзывает ранее данное согласование/отказ.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                             true "ID заявки"
+// @Param        request body services.RevokeApprovalRequest   true "Комментарий"
+// @Success      200 {object} services.RevokeApprovalResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/revoke-approval [post]
+func (h *ApplicationHandler) RevokeApproval(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.RevokeApprovalRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	resp, err := h.service.RevokeApproval(c.Request().Context(), username, id, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
+// UpdateApplicationItemsStatus godoc
+// @Summary      Обновление статусов элементов заявки
+// @Description  Активирует все машины и сотрудников во вложениях заявки (status = 1).
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/update-items-status [post]
+func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "All items statuses updated successfully")
+}
