@@ -14,7 +14,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	})
 
 	// Public routes
-	e.POST("/register", auth.Register)
+	// e.POST("/register", auth.Register) // Отключено — учётки создаёт админ
 	e.POST("/login", auth.Login)
 	e.POST("/refresh-token", auth.RefreshToken)
 	e.GET("/user-types", auth.GetUserTypes)

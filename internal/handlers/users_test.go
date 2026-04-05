@@ -382,7 +382,7 @@ func TestUsers_ManagerAlsoHasAdminAccess(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	// type_id=5 is "manager" -- also has admin privileges
-	managerToken := testutil.RegisterAndLogin(t, e, "manager1", "password123", 5, td.OrgID, td.CompanyID)
+	managerToken := testutil.RegisterManager(t, e, "manager1", td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(managerToken)
 
 	rec := testutil.GET(t, e, "/users/all", h)

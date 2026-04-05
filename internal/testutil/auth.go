@@ -54,17 +54,28 @@ func RegisterAndLogin(t *testing.T, e *echo.Echo, username, password string, typ
 // hardcodes type_id=1 for security (prevents admin escalation via public API).
 func RegisterAdmin(t *testing.T, e *echo.Echo, orgID, companyID int) string {
 	t.Helper()
+	return registerUserViaDB(t, e, "testadmin", 6, orgID, companyID)
+}
+
+// RegisterManager creates a manager user (type_id=5) directly in DB.
+func RegisterManager(t *testing.T, e *echo.Echo, username string, orgID, companyID int) string {
+	t.Helper()
+	return registerUserViaDB(t, e, username, 5, orgID, companyID)
+}
+
+func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgID, companyID int) string {
+	t.Helper()
 
 	user := models.User{
-		Username:       "testadmin",
+		Username:       username,
 		Password:       hashTestPassword(adminPassword),
 		OrganizationID: orgID,
 		CompanyID:      companyID,
-		TypeID:         6,
+		TypeID:         typeID,
 	}
 	err := cachedDB.Create(&user).Error
-	require.NoError(t, err, "failed to seed admin user")
+	require.NoError(t, err, "failed to seed user %s", username)
 
-	token, _ := LoginUser(t, e, "testadmin", adminPassword)
+	token, _ := LoginUser(t, e, username, adminPassword)
 	return token
 }
