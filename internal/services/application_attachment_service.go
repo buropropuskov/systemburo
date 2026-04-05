@@ -1,0 +1,183 @@
+package services
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+
+	"systemburo/internal/crypto"
+
+	"github.com/labstack/echo/v4"
+)
+
+// GetApplicationViewers возвращает просматривающих заявки с информацией о пользователях.
+func (s *applicationService) GetApplicationViewers(ctx context.Context, applicationID int) ([]ViewerWithUser, error) {
+	viewers := make([]ViewerWithUser, 0)
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT
+			av.id,
+			av.user_id,
+			u.username,
+			u.last_name,
+			u.first_name,
+			u.middle_name,
+			u.position,
+			av.created_at
+		FROM application_viewers av
+		JOIN users u ON av.user_id = u.id
+		WHERE av.application_id = ?
+		ORDER BY u.last_name, u.first_name
+	`, applicationID).Scan(&viewers).Error
+
+	if err != nil {
+		slog.Error("Ошибка получения просматривающих", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching viewers")
+	}
+
+	return viewers, nil
+}
+
+// GetApplicationAttachments возвращает вложения заявки с информацией о шаблонах.
+func (s *applicationService) GetApplicationAttachments(ctx context.Context, applicationID int) ([]AttachmentInfo, error) {
+	attachments := make([]AttachmentInfo, 0)
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT
+			a.id,
+			a.attachment_type,
+			a.attachment_name,
+			COALESCE(a.attachment_display_name, '') as attachment_display_name,
+			a.entry_date_from,
+			a.entry_date_to,
+			a.entry_time_from,
+			a.entry_time_to,
+			a.created_at,
+			a.unique_attachment_id,
+			ua.title as unique_attachment_title,
+			ua.display_name as unique_attachment_display_name
+		FROM attachments a
+		LEFT JOIN unique_attachments ua ON a.unique_attachment_id = ua.id
+		WHERE a.application_id = ?
+		ORDER BY ua.title, a.created_at
+	`, applicationID).Scan(&attachments).Error
+
+	if err != nil {
+		slog.Error("Ошибка получения вложений", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachments")
+	}
+
+	return attachments, nil
+}
+
+// GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
+func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error) {
+	type carRow struct {
+		ID            int
+		CarNumber     string  `gorm:"column:car_number"`
+		CarBrand      string  `gorm:"column:car_brand"`
+		UnloadPlace   *string `gorm:"column:unload_place"`
+		EntryDateFrom *string `gorm:"column:entry_date_from"`
+		EntryTimeFrom *string `gorm:"column:entry_time_from"`
+		EntryDateTo   *string `gorm:"column:entry_date_to"`
+		EntryTimeTo   *string `gorm:"column:entry_time_to"`
+	}
+	cars := make([]carRow, 0)
+	if err := s.db.WithContext(ctx).Raw(`
+		SELECT id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to
+		FROM cars WHERE attachment_id = ?
+	`, attachmentID).Scan(&cars).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
+	}
+
+	result := make([]CarWithPlaces, 0)
+	for _, car := range cars {
+		places := make([]UnloadPlaceRef, 0)
+		s.db.WithContext(ctx).Raw(`
+			SELECT up.id, up.name, up.description
+			FROM car_unload_places cup
+			JOIN unload_places up ON cup.unload_place_id = up.id
+			WHERE cup.car_id = ?
+			ORDER BY cup.order_index
+		`, car.ID).Scan(&places)
+
+		result = append(result, CarWithPlaces{
+			ID:            car.ID,
+			CarNumber:     car.CarNumber,
+			CarBrand:      car.CarBrand,
+			UnloadPlace:   car.UnloadPlace,
+			EntryDateFrom: car.EntryDateFrom,
+			EntryTimeFrom: car.EntryTimeFrom,
+			EntryDateTo:   car.EntryDateTo,
+			EntryTimeTo:   car.EntryTimeTo,
+			UnloadPlaces:  places,
+		})
+	}
+
+	return result, nil
+}
+
+// GetAttachmentEmployees возвращает сотрудников вложения с целевыми таблицами.
+func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachmentID int) ([]EmployeeWithTables, error) {
+	type empRow struct {
+		ID                   int
+		LastName             string  `gorm:"column:last_name"`
+		FirstName            string  `gorm:"column:first_name"`
+		MiddleName           *string `gorm:"column:middle_name"`
+		Position             *string `gorm:"column:position"`
+		CitizenshipID        *int    `gorm:"column:citizenship_id"`
+		PassportSeriesNumber *string `gorm:"column:passport_series_number"`
+		PatentNumber         *string `gorm:"column:patent_number"`
+		OtherPermission      *string `gorm:"column:other_permission"`
+	}
+	employees := make([]empRow, 0)
+	if err := s.db.WithContext(ctx).Raw(`
+		SELECT id, last_name, first_name, middle_name, position, citizenship_id, passport_series_number, patent_number, other_permission
+		FROM employees WHERE attachment_id = ?
+	`, attachmentID).Scan(&employees).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
+	}
+	for i := range employees {
+		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
+		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
+	}
+
+	result := make([]EmployeeWithTables, 0)
+	for _, emp := range employees {
+		tables := make([]TableInfoRef, 0)
+		s.db.WithContext(ctx).Raw(`
+			SELECT st.id, st.name, st.display_name
+			FROM employee_target_tables ett
+			JOIN system_tables st ON ett.table_id = st.id
+			WHERE ett.employee_id = ?
+			ORDER BY ett.order_index
+		`, emp.ID).Scan(&tables)
+
+		result = append(result, EmployeeWithTables{
+			ID:                   emp.ID,
+			LastName:             emp.LastName,
+			FirstName:            emp.FirstName,
+			MiddleName:           emp.MiddleName,
+			Position:             emp.Position,
+			CitizenshipID:        emp.CitizenshipID,
+			PassportSeriesNumber: emp.PassportSeriesNumber,
+			PatentNumber:         emp.PatentNumber,
+			OtherPermission:      emp.OtherPermission,
+			TargetTables:         tables,
+		})
+	}
+
+	return result, nil
+}
+
+// GetAttachmentItems возвращает ТМЦ вложения.
+func (s *applicationService) GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error) {
+	items := make([]ItemInfo, 0)
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT id, name, count, date_created
+		FROM items WHERE attachment_id = ?
+		ORDER BY id
+	`, attachmentID).Scan(&items).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching items")
+	}
+	return items, nil
+}
