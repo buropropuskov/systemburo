@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
 import { apiRequest } from '../client';
 
 describe('apiRequest', () => {
   let fetchMock;
 
   beforeEach(() => {
+    setActivePinia(createPinia());
     localStorage.clear();
     fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -22,8 +24,10 @@ describe('apiRequest', () => {
     expect(url).toBe('/health');
   });
 
-  it('adds Authorization header when token exists in localStorage', async () => {
-    localStorage.setItem('token', 'test-bearer-token');
+  it('adds Authorization header when token exists in store', async () => {
+    const { useAuthStore } = await import('@/stores/auth');
+    const authStore = useAuthStore();
+    authStore.setTokens('test-bearer-token', 'refresh');
 
     await apiRequest('/users/me');
 
