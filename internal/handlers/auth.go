@@ -73,7 +73,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	var req models.RefreshTokenRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 	resp, err := h.service.RefreshToken(c.Request().Context(), req)
 	if err != nil {
@@ -97,7 +97,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	username := c.Get("username").(string)
 	var req models.LogoutRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 	if err := h.service.Logout(c.Request().Context(), username, req); err != nil {
 		return err

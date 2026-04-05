@@ -78,7 +78,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 		}
 		if err := tx.Create(&format).Error; err != nil {
 			slog.Error("не удалось создать формат номеров", "error", err)
-			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании формата номеров")
 		}
 		formatID = format.ID
 
@@ -96,7 +96,8 @@ func (s *licensePlateFormatService) Create(ctx context.Context, req models.Creat
 				PaddingSide:    ptrOrDefault(c.PaddingSide, "left"),
 			}
 			if err := tx.Create(&cell).Error; err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+				slog.Error("не удалось создать ячейку формата номеров", "format_id", formatID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании ячейки формата номеров")
 			}
 		}
 
@@ -157,7 +158,8 @@ func (s *licensePlateFormatService) Update(ctx context.Context, id int, req mode
 				PaddingSide:    ptrOrDefault(c.PaddingSide, "left"),
 			}
 			if err := tx.Create(&cell).Error; err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+				slog.Error("не удалось создать ячейку формата номеров при обновлении", "format_id", id, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании ячейки формата номеров")
 			}
 		}
 

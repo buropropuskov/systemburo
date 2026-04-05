@@ -26,6 +26,7 @@ func JWTAuth(jwtSecret []byte) echo.MiddlewareFunc {
 
 			username, _ := claims.GetSubject()
 			c.Set("username", username)
+			c.Set("user_id", claims.UserID)
 			c.Set("type_id", claims.TypeID)
 
 			return next(c)

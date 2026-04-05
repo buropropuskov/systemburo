@@ -10,6 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
+var allowedConsentTypes = map[string]bool{
+	"pd_processing": true,
+	"pd_transfer":   true,
+}
+
 type ConsentHandler struct {
 	service services.ConsentService
 	db      *gorm.DB
@@ -40,8 +45,8 @@ func (h *ConsentHandler) Grant(c echo.Context) error {
 // Revoke обрабатывает запрос на отзыв согласия.
 func (h *ConsentHandler) Revoke(c echo.Context) error {
 	consentType := c.Param("type")
-	if consentType == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "consent type required")
+	if !allowedConsentTypes[consentType] {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid consent type")
 	}
 	userID, err := h.resolveUserID(c)
 	if err != nil {
@@ -69,6 +74,9 @@ func (h *ConsentHandler) List(c echo.Context) error {
 // Check проверяет наличие активного согласия указанного типа.
 func (h *ConsentHandler) Check(c echo.Context) error {
 	consentType := c.Param("type")
+	if !allowedConsentTypes[consentType] {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid consent type")
+	}
 	userID, err := h.resolveUserID(c)
 	if err != nil {
 		return err

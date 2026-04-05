@@ -22,13 +22,13 @@ func ParseID(c echo.Context, param string) (int, error) {
 // Для слайсов валидация пропускается (Echo validator не поддерживает слайсы напрямую).
 func BindAndValidate(c echo.Context, dst interface{}) error {
 	if err := c.Bind(dst); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 	if c.Echo().Validator != nil {
 		// Skip validation for slices — Echo validator works only with structs
 		if reflect.TypeOf(dst).Elem().Kind() != reflect.Slice {
 			if err := c.Validate(dst); err != nil {
-				return err
+				return echo.NewHTTPError(http.StatusBadRequest, "Validation failed")
 			}
 		}
 	}

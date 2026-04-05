@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"log/slog"
 	"systemburo/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,6 +35,7 @@ type AuthService interface {
 
 // Claims is the JWT claims structure matching the Rust backend.
 type Claims struct {
+	UserID int `json:"user_id"`
 	TypeID int `json:"type_id"`
 	jwt.RegisteredClaims
 }
@@ -78,8 +80,9 @@ func verifyPassword(phcHash, password string) bool {
 
 // --- JWT ---
 
-func (s *authService) createAccessToken(username string, typeID int) (string, error) {
+func (s *authService) createAccessToken(username string, userID int, typeID int) (string, error) {
 	claims := Claims{
+		UserID: userID,
 		TypeID: typeID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
@@ -135,7 +138,7 @@ func (s *authService) Register(ctx context.Context, req models.RegisterRequest) 
 		Password:       hashed,
 		OrganizationID: req.OrganizationID,
 		CompanyID:      req.CompanyID,
-		TypeID:         req.TypeID,
+		TypeID:         1,
 		LastName:       req.LastName,
 		FirstName:      req.FirstName,
 		MiddleName:     req.MiddleName,
@@ -147,7 +150,8 @@ func (s *authService) Register(ctx context.Context, req models.RegisterRequest) 
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
 		}
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		slog.Error("registration failed", "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Registration failed")
 	}
 	return nil
 }
@@ -169,7 +173,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
 
-	accessToken, err := s.createAccessToken(user.Username, user.TypeID)
+	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
 	}
@@ -228,7 +232,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	s.db.WithContext(ctx).Model(&storedToken).Update("is_revoked", true)
 
 	// Create new pair
-	newAccess, err := s.createAccessToken(username, user.TypeID)
+	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
 	}

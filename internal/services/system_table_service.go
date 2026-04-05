@@ -12,11 +12,20 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/upload"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
+
+// allowedImageTypes -- допустимые MIME-типы для загрузки фотографий.
+var allowedImageTypes = []string{
+	"image/jpeg",
+	"image/png",
+	"image/gif",
+	"image/webp",
+}
 
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
 type SystemTableService interface {
@@ -612,19 +621,28 @@ func (s *systemTableService) UploadPhoto(ctx context.Context, tableID int, usern
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create upload directory")
 	}
 
-	ext := filepath.Ext(file.Filename)
-	if ext == "" {
-		ext = ".jpg"
-	}
-	uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), tableID, ext)
-	savePath := filepath.Join(uploadDir, uniqueName)
-	fileURL := fmt.Sprintf("/uploads/system_tables/%s", uniqueName)
-
 	src, err := file.Open()
 	if err != nil {
 		return 0, echo.NewHTTPError(http.StatusBadRequest, "Error reading file")
 	}
 	defer src.Close()
+
+	// Валидация типа файла по magic bytes
+	detectedType, err := upload.ValidateFileType(src, allowedImageTypes)
+	if err != nil {
+		return 0, echo.NewHTTPError(http.StatusBadRequest, "Invalid file type. Allowed: JPEG, PNG, GIF, WebP")
+	}
+	// Перематываем файл после чтения заголовка
+	if seeker, ok := src.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+			return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to process file")
+		}
+	}
+
+	ext := upload.MimeToExt(detectedType)
+	uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), tableID, ext)
+	savePath := filepath.Join(uploadDir, uniqueName)
+	fileURL := fmt.Sprintf("/uploads/system_tables/%s", uniqueName)
 
 	dst, err := os.Create(savePath)
 	if err != nil {

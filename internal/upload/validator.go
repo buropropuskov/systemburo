@@ -37,6 +37,22 @@ func isOfficeType(mime string) bool {
 	return false
 }
 
+// MimeToExt возвращает расширение файла по MIME-типу, определённому из magic bytes.
+func MimeToExt(mime string) string {
+	switch mime {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ".bin"
+	}
+}
+
 // ValidateFileSize checks that size does not exceed maxSize.
 func ValidateFileSize(size, maxSize int64) error {
 	if size > maxSize {

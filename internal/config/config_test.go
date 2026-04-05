@@ -101,7 +101,7 @@ func TestLoad_CORSAllowedOrigins_Default(t *testing.T) {
 
 	cfg, err := Load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"*"}, cfg.CORSAllowedOrigins)
+	assert.Equal(t, []string{"http://localhost:8081"}, cfg.CORSAllowedOrigins)
 }
 
 func TestLoad_CORSAllowedOrigins_Custom(t *testing.T) {

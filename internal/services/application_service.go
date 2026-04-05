@@ -16,6 +16,15 @@ import (
 	"gorm.io/gorm"
 )
 
+var allowedStatuses = map[string]bool{
+	"Непрочитано": true, "В обработке": true, "Принята в работу": true,
+	"На согласовании": true, "Не согласовано": true, "Согласовано": true,
+	"Отклонена": true, "Завершена": true,
+}
+
+var allowedConfirmations = map[string]bool{
+	"Согласование": true, "Согласовано": true, "Не согласовано": true,
+}
 
 // ApplicationService определяет интерфейс бизнес-логики для работы с заявками.
 type ApplicationService interface {
@@ -102,6 +111,12 @@ type ApplicationService interface {
 
 	// GetUnreadCount возвращает количество непрочитанных заявок для пользователя.
 	GetUnreadCount(ctx context.Context, username string) (*models.UnreadCountResponse, error)
+
+	// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
+	CanAccessApplication(ctx context.Context, applicationID int, username string, typeID int) bool
+
+	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения.
+	GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error)
 }
 
 // --- DTO: запросы ---
@@ -1220,6 +1235,9 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	args := []interface{}{}
 
 	if req.Confirmation != nil {
+		if !allowedConfirmations[*req.Confirmation] {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid confirmation value")
+		}
 		setClauses = append(setClauses, "confirmation = ?")
 		args = append(args, *req.Confirmation)
 		if *req.Confirmation == "Согласовано" || *req.Confirmation == "Не согласовано" {
@@ -1229,6 +1247,9 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	}
 
 	if req.Status != nil {
+		if !allowedStatuses[*req.Status] {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid status value")
+		}
 		setClauses = append(setClauses, "status = ?")
 		args = append(args, *req.Status)
 		if *req.Status == "В обработке" {
@@ -1254,7 +1275,7 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	result := s.db.WithContext(ctx).Exec(sqlQuery, args...)
 	if result.Error != nil {
 		slog.Error("Ошибка обновления заявки", "application_id", applicationID, "error", result.Error)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Error updating application: %v", result.Error))
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application")
 	}
 
 	return &ApplicationUpdateResponse{

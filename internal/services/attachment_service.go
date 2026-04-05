@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -104,7 +105,8 @@ func (s *attachmentService) Create(ctx context.Context, req models.CreateUniqueA
 	}
 
 	if err := s.db.WithContext(ctx).Create(&attachment).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		slog.Error("failed to create attachment", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
 
 	return &models.CreateUniqueAttachmentResponse{

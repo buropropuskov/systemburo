@@ -293,7 +293,7 @@ func (s *uniqueEmployeeService) Create(ctx context.Context, username string, req
 
 	if err := s.db.WithContext(ctx).Create(&employee).Error; err != nil {
 		slog.Error("не удалось создать уникального сотрудника", "error", err)
-		return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании сотрудника")
 	}
 
 	slog.Info("уникальный сотрудник создан", "id", employee.ID)

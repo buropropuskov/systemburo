@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -58,7 +59,8 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 			msg = http.StatusText(code)
 		}
 	} else {
-		msg = err.Error()
+		slog.Error("unhandled error", "error", err)
+		msg = "Internal server error"
 	}
 
 	c.JSON(code, Response{Success: false, Error: msg})

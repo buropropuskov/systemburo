@@ -31,7 +31,7 @@ func (cv *CustomValidator) Validate(i interface{}) error {
 func formatValidationErrors(err error) string {
 	validationErrors, ok := err.(validator.ValidationErrors)
 	if !ok {
-		return err.Error()
+		return "Validation failed"
 	}
 
 	msgs := make([]string, 0, len(validationErrors))

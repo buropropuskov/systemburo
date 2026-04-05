@@ -23,6 +23,7 @@ func RateLimit(limit int, windowSeconds int64) echo.MiddlewareFunc {
 		limit:    limit,
 		window:   windowSeconds,
 	}
+	go rl.cleanup(windowSeconds)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -46,6 +47,29 @@ func (rl *rateLimiter) getKey(c echo.Context) string {
 		return "user:" + token
 	}
 	return c.RealIP()
+}
+
+func (rl *rateLimiter) cleanup(windowSec int64) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now().Unix()
+		for key, timestamps := range rl.requests {
+			valid := timestamps[:0]
+			for _, ts := range timestamps {
+				if now-ts < windowSec {
+					valid = append(valid, ts)
+				}
+			}
+			if len(valid) == 0 {
+				delete(rl.requests, key)
+			} else {
+				rl.requests[key] = valid
+			}
+		}
+		rl.mu.Unlock()
+	}
 }
 
 func (rl *rateLimiter) allow(key string) bool {

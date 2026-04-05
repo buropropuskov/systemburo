@@ -43,7 +43,7 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 
 	var filter services.ApplicationFilter
 	if err := c.Bind(&filter); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
 	if archiveStr := c.QueryParam("archive"); archiveStr != "" {
@@ -98,7 +98,7 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 
 	var filter services.ApplicationFilter
 	if err := c.Bind(&filter); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
 	apps, err := h.service.GetUserApplications(c.Request().Context(), username, filter)
@@ -122,9 +122,14 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 // @Router       /applications/{id} [get]
 func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	app, err := h.service.GetApplicationByID(c.Request().Context(), username, id)
@@ -150,6 +155,12 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	details, err := h.service.GetApplicationDetails(c.Request().Context(), id)
@@ -231,9 +242,14 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 // @Router       /applications/{id} [put]
 func (h *ApplicationHandler) UpdateApplication(c echo.Context) error {
 	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	var req services.ApplicationUpdateRequest
@@ -331,6 +347,12 @@ func (h *ApplicationHandler) CheckApprovalStatus(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	resp, err := h.service.CheckApprovalStatus(c.Request().Context(), id)
@@ -462,6 +484,12 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	users, err := h.service.GetApplicationResponsibleUsers(c.Request().Context(), id)
 	if err != nil {
 		return err
@@ -484,6 +512,12 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	history, err := h.service.GetApplicationHistory(c.Request().Context(), id)
@@ -511,6 +545,15 @@ func (h *ApplicationHandler) AddHistoryEntry(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), req.ApplicationID, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	userID := c.Get("user_id").(int)
+	req.UserID = userID
 
 	if err := h.service.AddHistoryEntry(c.Request().Context(), req); err != nil {
 		return err
@@ -569,6 +612,12 @@ func (h *ApplicationHandler) GetApplicationViewers(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	viewers, err := h.service.GetApplicationViewers(c.Request().Context(), id)
 	if err != nil {
 		return err
@@ -591,6 +640,12 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	attachments, err := h.service.GetApplicationAttachments(c.Request().Context(), id)
@@ -617,6 +672,16 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
 	}
 
+	appID, err := h.service.GetApplicationIDByAttachment(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	cars, err := h.service.GetAttachmentCars(c.Request().Context(), id)
 	if err != nil {
 		return err
@@ -641,6 +706,16 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
 	}
 
+	appID, err := h.service.GetApplicationIDByAttachment(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id)
 	if err != nil {
 		return err
@@ -663,6 +738,16 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
+	}
+
+	appID, err := h.service.GetApplicationIDByAttachment(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	items, err := h.service.GetAttachmentItems(c.Request().Context(), id)
@@ -691,6 +776,11 @@ func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	if err := h.service.MarkAsRead(c.Request().Context(), id, username); err != nil {
 		return err
 	}
@@ -712,6 +802,12 @@ func (h *ApplicationHandler) GetReads(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	reads, err := h.service.GetReads(c.Request().Context(), id)
@@ -756,6 +852,12 @@ func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	typeID := c.Get("type_id").(int)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
 	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id); err != nil {

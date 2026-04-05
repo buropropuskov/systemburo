@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"strings"
 
 	"systemburo/internal/models"
@@ -9,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var pdPaths = []string{"/employees", "/unique-employees"}
+var pdPaths = []string{"/employees", "/unique-employees", "/attachments"}
 
 func PDAudit(db *gorm.DB) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -41,7 +42,9 @@ func PDAudit(db *gorm.DB) echo.MiddlewareFunc {
 					Path:       path,
 					StatusCode: c.Response().Status,
 				}
-				db.Create(&log)
+				if err := db.Create(&log).Error; err != nil {
+					slog.Error("failed to write PD audit log", "error", err, "path", path)
+				}
 			}()
 
 			return err
@@ -70,6 +73,9 @@ func pathToResource(path string) string {
 	}
 	if strings.HasPrefix(path, "/employees") {
 		return "employee"
+	}
+	if strings.HasPrefix(path, "/attachments") {
+		return "attachment"
 	}
 	return "unknown"
 }

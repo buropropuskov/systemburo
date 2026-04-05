@@ -280,7 +280,7 @@ func (s *uniqueCarService) Create(ctx context.Context, username string, req NewU
 
 	if err := s.db.WithContext(ctx).Create(&car).Error; err != nil {
 		slog.Error("не удалось создать уникальный автомобиль", "error", err)
-		return nil, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании автомобиля")
 	}
 
 	slog.Info("уникальный автомобиль создан", "id", car.ID)
@@ -355,7 +355,8 @@ func (s *uniqueCarService) CreateBatch(ctx context.Context, username string, req
 		}
 
 		if err := s.db.WithContext(ctx).Create(&car).Error; err != nil {
-			errors = append(errors, "Ошибка при создании автомобиля "+req.Number+" "+req.Mark+": "+err.Error())
+			slog.Error("не удалось создать автомобиль в пакетной операции", "number", req.Number, "mark", req.Mark, "error", err)
+			errors = append(errors, "Ошибка при создании автомобиля "+req.Number+" "+req.Mark)
 			continue
 		}
 

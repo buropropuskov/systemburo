@@ -93,7 +93,7 @@ func (h *CarHandler) GetFactCarUnloadPlaces(c echo.Context) error {
 func (h *CarHandler) CheckActiveCar(c echo.Context) error {
 	var req services.CheckActiveCarRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 	resp, err := h.service.CheckActiveCar(c.Request().Context(), req)
 	if err != nil {
@@ -291,7 +291,7 @@ func (h *CarHandler) RestoreCar(c echo.Context) error {
 func (h *CarHandler) GetUnifiedCarHistory(c echo.Context) error {
 	var req services.UnifiedCarHistoryQuery
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 	items, err := h.service.GetUnifiedCarHistory(c.Request().Context(), req)
 	if err != nil {

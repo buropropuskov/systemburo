@@ -157,7 +157,9 @@ func main() {
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
-	e.GET("/swagger/*", echoSwagger.WrapHandler)
+	if cfg.LogLevel == "debug" {
+		e.GET("/swagger/*", echoSwagger.WrapHandler)
+	}
 
 	api.SetMaxLimit(cfg.PaginationMaxLimit)
 

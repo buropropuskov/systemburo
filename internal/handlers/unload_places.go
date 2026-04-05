@@ -9,10 +9,19 @@ import (
 	"strconv"
 
 	"systemburo/internal/services"
+	"systemburo/internal/upload"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
+
+// allowedImageTypes -- допустимые MIME-типы для загрузки фотографий мест разгрузки.
+var allowedImageTypes = []string{
+	"image/jpeg",
+	"image/png",
+	"image/gif",
+	"image/webp",
+}
 
 // UnloadPlaceHandler -- HTTP-обработчики мест разгрузки.
 type UnloadPlaceHandler struct {
@@ -324,10 +333,19 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 		}
 		defer src.Close()
 
-		ext := filepath.Ext(fh.Filename)
-		if ext == "" {
-			ext = ".jpg"
+		// Валидация типа файла по magic bytes
+		detectedType, err := upload.ValidateFileType(src, allowedImageTypes)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid file type. Allowed: JPEG, PNG, GIF, WebP")
 		}
+		// Перематываем файл после чтения заголовка
+		if seeker, ok := src.(io.Seeker); ok {
+			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process file")
+			}
+		}
+
+		ext := upload.MimeToExt(detectedType)
 		uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), placeID, ext)
 		dstPath := filepath.Join(h.uploadDir, uniqueName)
 		fileURL := fmt.Sprintf("/uploads/unload_places/%s", uniqueName)

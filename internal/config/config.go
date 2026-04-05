@@ -13,11 +13,11 @@ type Config struct {
 	DatabaseURL      string `env:"DATABASE_URL,required"`
 	BindHost         string `env:"BIND_HOST" envDefault:"0.0.0.0"`
 	BindPort         string `env:"BIND_PORT" envDefault:"8090"`
-	JWTSecret        string `env:"JWT_SECRET" envDefault:"dev-secret-change-me-in-production!"`
-	JWTRefreshSecret string `env:"JWT_REFRESH_SECRET" envDefault:"dev-refresh-secret-change-me-now!"`
+	JWTSecret        string `env:"JWT_SECRET,required"`
+	JWTRefreshSecret string `env:"JWT_REFRESH_SECRET,required"`
 	LogLevel         string `env:"LOG_LEVEL" envDefault:"info"`
 
-	CORSAllowedOrigins      []string `env:"CORS_ALLOWED_ORIGINS" envDefault:"*" envSeparator:","`
+	CORSAllowedOrigins      []string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:8081" envSeparator:","`
 	UploadMaxFileSize       int64    `env:"UPLOAD_MAX_FILE_SIZE" envDefault:"10485760"`
 	UploadAllowedImageTypes []string `env:"UPLOAD_ALLOWED_IMAGE_TYPES" envDefault:"image/jpeg,image/png,image/webp" envSeparator:","`
 	UploadAllowedDocTypes   []string `env:"UPLOAD_ALLOWED_DOC_TYPES" envDefault:"application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" envSeparator:","`

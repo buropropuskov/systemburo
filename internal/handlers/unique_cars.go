@@ -85,7 +85,7 @@ func (h *UniqueCarHandler) CreateBatch(c echo.Context) error {
 	username := c.Get("username").(string)
 	var reqs []services.NewUniqueCarRequest
 	if err := c.Bind(&reqs); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
 	resp, httpStatus, err := h.service.CreateBatch(c.Request().Context(), username, reqs)

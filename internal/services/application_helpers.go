@@ -276,6 +276,53 @@ func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID in
 	return responsibles, nil
 }
 
+// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
+// Доступ имеют: администраторы (type_id=6), отправитель, ответственные и просматривающие.
+func (s *applicationService) CanAccessApplication(ctx context.Context, applicationID int, username string, typeID int) bool {
+	if typeID == 6 {
+		return true
+	}
+
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return false
+	}
+
+	var app models.Application
+	if err := s.db.WithContext(ctx).Select("id, sender_user_id").Where("id = ?", applicationID).First(&app).Error; err != nil {
+		return false
+	}
+
+	if app.SenderUserID == user.ID {
+		return true
+	}
+
+	var count int64
+	s.db.WithContext(ctx).Model(&models.ApplicationResponsibleUser{}).
+		Where("application_id = ? AND user_id = ?", applicationID, user.ID).
+		Count(&count)
+	if count > 0 {
+		return true
+	}
+
+	s.db.WithContext(ctx).Model(&models.ApplicationViewer{}).
+		Where("application_id = ? AND user_id = ?", applicationID, user.ID).
+		Count(&count)
+	return count > 0
+}
+
+// GetApplicationIDByAttachment возвращает ID заявки по ID вложения.
+func (s *applicationService) GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error) {
+	var attachment models.Attachment
+	if err := s.db.WithContext(ctx).Select("id, application_id").Where("id = ?", attachmentID).First(&attachment).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, echo.NewHTTPError(http.StatusNotFound, "Attachment not found")
+		}
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	return attachment.ApplicationID, nil
+}
+
 func ptrString(s string) *string { return &s }
 
 func safeDerefInt(p *int) int {
