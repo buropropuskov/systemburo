@@ -2,108 +2,66 @@
 
 Веб-приложение для управления пропусками на территорию: заявки, сотрудники, автомобили, согласование.
 
-## Стек технологий
+## Стек
 
-- **Backend:** Go 1.25 (Echo v4, GORM, PostgreSQL 16)
-- **Frontend:** Vue 3, Vue Router, Pinia, CSS custom properties
-- **Infrastructure:** Docker Compose, nginx, GitHub Actions CI/CD
-- **Testing:** Go testify, Vitest (unit), Playwright (E2E)
+| Слой | Технологии |
+|------|------------|
+| Backend | Go 1.25, Echo v4, GORM, PostgreSQL 16 |
+| Frontend | Vue 3, Vue Router, Pinia |
+| Инфраструктура | Docker Compose, nginx, GitHub Actions CI/CD |
 
 ## Быстрый старт
 
 ```bash
-# 1. Клонировать и настроить
-git clone <repo>
-cd systemburo
+git clone <repo> && cd systemburo
 cp .env.example .env
-make init  # настроить git hooks
-
-# 2. Запустить
-make up
-
-# 3. Проверить
-# Backend:  http://localhost:8080/health
-# Frontend: http://localhost:8081
-# pgAdmin:  http://localhost:8082
-# Swagger:  http://localhost:8080/swagger/index.html
+make init   # git hooks
+make up     # запустить все сервисы
 ```
+
+| Сервис | URL |
+|--------|-----|
+| Backend | http://localhost:8080/health |
+| Frontend | http://localhost:8081 |
+| pgAdmin | http://localhost:8082 |
+| Swagger | http://localhost:8080/swagger/index.html |
 
 ## Команды
 
 | Команда | Описание |
 |---------|----------|
-| `make up` | Запустить все сервисы |
-| `make down` | Остановить все сервисы |
-| `make test` | Запустить Go тесты |
+| `make up / down` | Запустить / остановить сервисы |
+| `make test` | Go тесты |
 | `make lint` | Go vet |
 | `make bash` | Shell в контейнере бэкенда |
-| `make db-shell` | psql к базе данных |
+| `make db-shell` | psql к БД |
 | `make prod-build` | Собрать production образ |
 | `make security` | govulncheck + npm audit |
 
-## Структура проекта
+## Структура
 
 ```
-├── cmd/server/          # Точка входа Go-приложения
-├── internal/
-│   ├── api/             # Пагинация, общие API-утилиты
-│   ├── config/          # Конфигурация из env
-│   ├── crypto/          # AES-256-GCM шифрование (152-ФЗ)
-│   ├── database/        # Миграции и seed
-│   ├── handlers/        # HTTP-хендлеры (Echo)
-│   ├── middleware/       # JWT, CORS, rate limit, PD audit
-│   ├── models/          # GORM-модели
-│   ├── router/          # Маршрутизация
-│   ├── services/        # Бизнес-логика
-│   ├── upload/          # Валидация загрузки файлов
-│   └── validator/       # Валидатор запросов
-├── frontend/            # Vue 3 SPA
-│   ├── src/api/         # API-клиент
-│   ├── src/components/  # Vue-компоненты
-│   ├── src/composables/ # Composables (валидация, toast, etc.)
-│   ├── src/stores/      # Pinia stores (auth, ui, permissions)
-│   └── src/views/       # Страницы
-├── nginx/               # Production nginx конфиг
-├── .github/workflows/   # CI/CD (tests, security, deploy)
-├── docker-compose.yml   # Dev-окружение
-└── docker-compose.prod.yml  # Production
+├── cmd/server/           # Точка входа
+├── internal/             # Go-бэкенд (handlers, services, models, middleware, crypto)
+├── frontend/             # Vue 3 SPA (components, stores, api, views)
+├── nginx/                # Production nginx
+├── .github/workflows/    # CI/CD
+├── docker-compose.yml    # Dev
+└── docker-compose.prod.yml
 ```
+
+## Документация
+
+| Документ | Описание |
+|----------|----------|
+| [Backend](docs/BACKEND.md) | Архитектура Go, middleware, модели, сервисы, шифрование |
+| [Frontend](docs/FRONTEND.md) | Архитектура Vue, stores, API-клиент, компоненты, skeleton |
+| [Deployment](docs/DEPLOYMENT.md) | Docker, ручной деплой, production, бэкапы |
+| [Security](docs/SECURITY.md) | 152-ФЗ, шифрование, аудит, авторизация, rate limiting |
 
 ## Конфигурация
 
-Все настройки через переменные окружения. См. `.env.example`.
-
-Ключевые секции:
-- **База данных:** DATABASE_URL, DB_NAME, DB_USER, DB_PASSWORD
-- **JWT:** JWT_SECRET, JWT_REFRESH_SECRET (минимум 32 символа)
-- **CORS:** CORS_ALLOWED_ORIGINS
-- **Шифрование ПД (152-ФЗ):** DATA_ENCRYPTION_KEY (hex, 64 символа)
-- **Upload:** UPLOAD_MAX_FILE_SIZE, UPLOAD_ALLOWED_IMAGE_TYPES
-- **Rate limit:** RATE_LIMIT_PER_MINUTE, RATE_LIMIT_WINDOW_SEC
-
-## API
-
-Swagger UI доступен по адресу `/swagger/index.html` в dev-режиме.
-
-## Безопасность
-
-- Шифрование паспортных данных at rest (AES-256-GCM + HMAC-SHA256)
-- JWT аутентификация с refresh tokens
-- Rate limiting по IP/токену
-- Аудит-лог доступа к персональным данным
-- Модель согласия на обработку ПД (152-ФЗ)
-- Security headers в nginx (CSP, HSTS, X-Frame-Options)
-- Сканирование уязвимостей в CI (govulncheck, npm audit, trivy)
-
-## Деплой
-
-См. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) для полной инструкции.
-
-Краткий вариант:
-```bash
-make deploy-build  # собрать production-образы
-make deploy-up     # запустить
-```
+Все настройки через переменные окружения — см. `.env.example`.
 
 ## Лицензия
 
