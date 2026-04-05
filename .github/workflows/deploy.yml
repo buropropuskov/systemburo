@@ -29,6 +29,9 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
