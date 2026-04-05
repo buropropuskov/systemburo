@@ -36,7 +36,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
           script: |
+            set -e
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
             git fetch origin staging
@@ -45,7 +47,7 @@ jobs:
             docker compose -f docker-compose.staging.yml build
             docker compose -f docker-compose.staging.yml up -d
             sleep 5
-            wget -qO- http://localhost/health || echo "Health check failed"
+            wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
 
   deploy-production:
@@ -64,7 +66,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
           script: |
+            set -e
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
             git fetch origin prod
@@ -73,5 +77,5 @@ jobs:
             docker compose -f docker-compose.prod.yml build
             docker compose -f docker-compose.prod.yml up -d
             sleep 5
-            docker compose -f docker-compose.prod.yml exec backend wget -qO- http://localhost:8080/health || echo "Health check failed"
+            docker compose -f docker-compose.prod.yml exec backend wget -qO- http://localhost:8080/health || exit 1
             echo "Production deploy completed at $(date)"
