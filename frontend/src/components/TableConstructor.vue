@@ -335,41 +335,11 @@
             </div>
           </div>
 
-          <div class="location-section">
-            <div class="photos-header">
-              <h4 class="section-title">Фотографии места</h4>
-              <label class="upload-photo-btn">
-                + Загрузить
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  multiple 
-                  @change="uploadPhotos"
-                  style="display: none"
-                >
-              </label>
-            </div>
-
-            <div class="photos-grid">
-              <div v-for="photo in selectedTable.photos" :key="photo.id" class="photo-item" :class="{ 'main-photo': photo.is_main }">
-                <div class="photo-preview" @click="viewPhoto(photo)">
-                  <img :src="photo.photo_url" :alt="photo.file_name">
-                </div>
-                <div class="photo-actions">
-                  <button v-if="!photo.is_main" @click="setMainPhoto(photo)" class="photo-main-btn" title="Сделать главной">
-                    ★
-                  </button>
-                  <span v-else class="photo-main-badge" title="Главная фотография">★</span>
-                  <button @click="deletePhoto(photo)" class="photo-delete-btn" title="Удалить">
-                    <img src="@/assets/icons/trashcan.png" class="action-icon-small" />
-                  </button>
-                </div>
-              </div>
-              <div v-if="!selectedTable.photos || selectedTable.photos.length === 0" class="no-photos">
-                <p>Фотографии не загружены</p>
-              </div>
-            </div>
-          </div>
+          <TableConstructorPhotoSection
+            :table-id="selectedTable.table.id"
+            :photos="selectedTable.photos || []"
+            @photos-changed="refreshSelectedTable"
+          />
         </div>
       </div>
       
@@ -390,25 +360,6 @@
       @close="showAddModal = false"
     />
 
-    <!-- Модальное окно просмотра фото -->
-    <transition name="modal-fade">
-      <div v-if="showPhotoModal" class="modal-overlay" @click.self="showPhotoModal = false">
-        <div class="modal-content photo-view-modal">
-          <div class="modal-header">
-            <h3 class="modal-title">{{ viewingPhoto?.file_name }}</h3>
-            <button @click="showPhotoModal = false" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body photo-view-body">
-            <img :src="viewingPhoto?.photo_url" class="full-photo" alt="Full size">
-          </div>
-        </div>
-      </div>
-    </transition>
-
     <!-- Уведомления -->
     <div v-if="notification.show" class="notification" :class="notification.type">
       <span class="notification-message">{{ notification.message }}</span>
@@ -423,6 +374,7 @@ import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import SystemTableScheduleTab from './SystemTableScheduleTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
+import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
 
 export default {
   name: 'TableConstructor',
@@ -431,16 +383,15 @@ export default {
     RefreshButton,
     TextConstructor,
     SystemTableScheduleTab,
-    TableConstructorCreateModal
+    TableConstructorCreateModal,
+    TableConstructorPhotoSection
   },
   data() {
     return {
       searchQuery: '',
       tables: [],
       showAddModal: false,
-      showPhotoModal: false,
       selectedTable: null,
-      viewingPhoto: null,
       sortField: null,
       sortDirection: 'asc',
       activeTab: 'main',
@@ -844,96 +795,6 @@ export default {
         this.tableTypeDropdownOpen = false;
         this.updateTable('table_type');
       }
-    },
-    
-    // Методы для фото
-    async uploadPhotos(event) {
-      if (!this.selectedTable) return;
-      
-      const files = event.target.files;
-      if (!files || files.length === 0) return;
-      
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append('photos', files[i]);
-      }
-      
-      try {
-        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos`, {
-          method: "POST",
-          body: formData,
-          headers: {},
-        });
-        
-        if (response.ok) {
-          await this.refreshSelectedTable();
-          
-          // Исправляем URL фотографий
-          if (this.selectedTable && this.selectedTable.photos) {
-            this.selectedTable.photos = this.selectedTable.photos.map(photo => ({
-              ...photo,
-              photo_url: photo.photo_url
-            }));
-          }
-          
-          this.showNotification("Фотографии успешно загружены", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при загрузке фото", "error");
-        }
-      } catch (error) {
-        console.error("Error uploading photos:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    async deletePhoto(photo) {
-      if (!confirm(`Удалить фотографию?`)) return;
-      
-      try {
-        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos/${photo.id}`,
-          {
-            method: "DELETE",
-          }
-        );
-        
-        if (response.ok) {
-          await this.refreshSelectedTable();
-          this.showNotification("Фотография удалена", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при удалении фото", "error");
-        }
-      } catch (error) {
-        console.error("Error deleting photo:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    async setMainPhoto(photo) {
-      try {
-        const response = await apiRequest(`/system-tables/${this.selectedTable.table.id}/photos/${photo.id}/main`,
-          {
-            method: "POST",
-          }
-        );
-        
-        if (response.ok) {
-          await this.refreshSelectedTable();
-          this.showNotification("Главная фотография установлена", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при установке главной фотографии", "error");
-        }
-      } catch (error) {
-        console.error("Error setting main photo:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    viewPhoto(photo) {
-      this.viewingPhoto = photo;
-      this.showPhotoModal = true;
     },
     
     showNotification(message, type = 'info') {
@@ -1749,127 +1610,6 @@ export default {
   color: white;
 }
 
-.photos-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.upload-photo-btn {
-  padding: 4px 12px;
-  background: #f0f3ff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background-color 0.2s ease;
-}
-
-.upload-photo-btn:hover {
-  background: #4F5BDF;
-  color: white;
-}
-
-.photos-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  max-height: 250px;
-  overflow-y: auto;
-  padding: 4px;
-}
-
-.photo-item {
-  position: relative;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  overflow: hidden;
-  aspect-ratio: 1;
-  background: #f8f9fa;
-}
-
-.photo-item.main-photo {
-  border: 2px solid #4F5BDF;
-}
-
-.photo-preview {
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-
-.photo-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.photo-actions {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.photo-item:hover .photo-actions {
-  opacity: 1;
-}
-
-.photo-main-btn,
-.photo-delete-btn,
-.photo-main-badge {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  transition: background-color 0.2s ease;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.photo-main-btn:hover {
-  background: #4F5BDF;
-  color: white;
-}
-
-.photo-main-badge {
-  background: #4F5BDF;
-  color: white;
-  cursor: default;
-}
-
-.photo-delete-btn:hover {
-  background: #c62828;
-}
-
-.photo-delete-btn:hover .action-icon-small {
-  filter: brightness(0) invert(1);
-}
-
-.action-icon-small {
-  width: 14px;
-  height: 14px;
-}
-
-.no-photos {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 20px;
-  color: #a2a2a2;
-  background: #f8f9fa;
-  border: 1px dashed #e6e6e6;
-  border-radius: 8px;
-}
-
 .no-selection-message {
   width: 60%;
   display: flex;
@@ -1933,11 +1673,6 @@ export default {
   max-width: 90vw;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: modalAppear 0.3s ease-out;
-}
-
-.modal-content.photo-view-modal {
-  width: 800px;
-  max-width: 90vw;
 }
 
 @keyframes modalAppear {
@@ -2025,20 +1760,6 @@ export default {
   cursor: not-allowed;
 }
 
-.photo-view-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  background: #f0f0f0;
-}
-
-.full-photo {
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-}
-
 /* Анимации */
 .modal-fade-enter-active,
 .modal-fade-leave-active {
@@ -2120,28 +1841,24 @@ export default {
 
 /* Скроллбары */
 .table-body::-webkit-scrollbar,
-.fields-list::-webkit-scrollbar,
-.photos-grid::-webkit-scrollbar {
+.fields-list::-webkit-scrollbar {
   width: 6px;
 }
 
 .table-body::-webkit-scrollbar-track,
-.fields-list::-webkit-scrollbar-track,
-.photos-grid::-webkit-scrollbar-track {
+.fields-list::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb,
-.fields-list::-webkit-scrollbar-thumb,
-.photos-grid::-webkit-scrollbar-thumb {
+.fields-list::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover,
-.fields-list::-webkit-scrollbar-thumb:hover,
-.photos-grid::-webkit-scrollbar-thumb:hover {
+.fields-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 
