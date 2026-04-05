@@ -227,149 +227,30 @@
         </div>
 
         <!-- Модальное окно выбора существующих машин -->
-        <div v-if="showExistingCarsModal" class="modal-overlay" @click="closeExistingCarsModal">
-            <div class="modal-content" @click.stop>
-                <!-- Заголовок модалки -->
-                <div class="modal-header">
-                    <h3>Выбор существующих автомобилей</h3>
-                    <div class="header-right">
-                        <SearchComponent 
-                            title="Поиск автомобилей..."
-                            v-model="searchQuery"
-                            @update:modelValue="handleSearch"
-                        />
-                    </div>
-                    <button class="modal-close" @click="closeExistingCarsModal">×</button>
-                </div>
-                
-                <!-- Фильтры -->
-                <div class="filter-section">
-                    <div class="filter-tabs">
-                        <button 
-                            class="filter-tab"
-                            :class="{ 'filter-tab--active': currentFilter === 'all' }"
-                            @click="switchFilter('all')"
-                        >
-                            Все машины
-                        </button>
-                        <button 
-                            v-if="userOrganizationId"
-                            class="filter-tab"
-                            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-                            @click="switchFilter('organization')"
-                        >
-                            Организация
-                        </button>
-                        <button 
-                            v-if="userCompanyId"
-                            class="filter-tab"
-                            :class="{ 'filter-tab--active': currentFilter === 'company' }"
-                            @click="switchFilter('company')"
-                        >
-                            Компания
-                        </button>
-                        <button 
-                            class="filter-tab"
-                            :class="{ 'filter-tab--active': currentFilter === 'user' }"
-                            @click="switchFilter('user')"
-                        >
-                            Мои
-                        </button>
-                    </div>
-                    <div v-if="tempSelectedCars.length > 0" class="selected-counter">
-                        Выбрано: <span class="selected-count">{{ tempSelectedCars.length }}</span>
-                    </div>
-                </div>
-
-                <!-- Список машин -->
-                <div class="cars-table-container">
-                    <div class="cars-table">
-                        <!-- Заголовки таблицы -->
-                        <div class="table-header">
-                            <div class="header-cell select-cell"></div>
-                            <div class="header-cell number-cell">№</div>
-                            <div class="header-cell plate-cell">Номер</div>
-                            <div class="header-cell mark-cell">Марка</div>
-                            <div class="header-cell status-cell">Статус</div>
-                        </div>
-                        
-                        <!-- Тело таблицы -->
-                        <div class="table-body">
-                            <div 
-                                v-for="car in displayedCars" 
-                                :key="car.id"
-                                class="table-row"
-                                :class="{ 
-                                    'table-row--disabled': isCarDisabled(car),
-                                    'table-row--selected': isCarSelected(car)
-                                }"
-                                @click="handleRowClick(car)"
-                            >
-                                <div class="table-cell select-cell" @click.stop>
-                                    <input 
-                                        type="checkbox" 
-                                        :checked="isCarSelected(car)"
-                                        :disabled="isCarDisabled(car)"
-                                        @change="toggleCarSelection(car)"
-                                    />
-                                </div>
-                                <div class="table-cell number-cell">{{ car.id }}</div>
-                                <div class="table-cell plate-cell">{{ car.number }}</div>
-                                <div class="table-cell mark-cell">{{ car.mark }}</div>
-                                <div class="table-cell status-cell">
-                                    <span 
-                                        class="status-badge"
-                                        :class="{
-                                            'status-active': car.status,
-                                            'status-inactive': !car.status
-                                        }"
-                                    >
-                                        {{ car.status ? 'Активна' : 'Неактивна' }}
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <!-- Состояния загрузки/пусто -->
-                            <div v-if="loadingCars" class="loading-state">
-                                <div class="spinner"></div>
-                                <span>Загрузка машин...</span>
-                            </div>
-                            <div v-else-if="displayedCars.length === 0" class="empty-state">
-                                {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Кнопки действий -->
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" @click="closeExistingCarsModal">
-                        Отмена
-                    </button>
-                    <button 
-                        class="btn btn-primary" 
-                        @click="confirmExistingCarsSelection"
-                        :disabled="tempSelectedCars.length === 0"
-                    >
-                        {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <ExistingCarsModal
+            :visible="showExistingCarsModal"
+            :already-added-vehicles="existingVehicles"
+            :user-organization-id="userOrganizationId"
+            :user-company-id="userCompanyId"
+            :initial-selected-cars="selectedExistingCars"
+            @cars-selected="onExistingCarsSelected"
+            @close="closeExistingCarsModal"
+        />
     </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
-import SearchComponent from '@/components/SearchComponent.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
+import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
 import { getCurrentInstance } from 'vue'
+import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
 
 export default {
     name: 'VehicleForm',
     components: {
-        SearchComponent
+        ExistingCarsModal
     },
     props: {
         userOrganization: {
@@ -456,13 +337,7 @@ export default {
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
             showExistingCarsModal: false,
-            filteredCars: [],
-            displayedCars: [],
-            tempSelectedCars: [],
             selectedExistingCars: [],
-            currentFilter: 'all',
-            loadingCars: false,
-            searchQuery: '',
             editingVehicle: null,
             inactiveTooltip: {
                 visible: false,
@@ -646,93 +521,8 @@ export default {
             this.inactiveTooltip.visible = false;
         },
 
-        async loadCarsByFilter(filterType) {
-            this.loadingCars = true;
-            this.filteredCars = [];
-            this.displayedCars = [];
-            this.tempSelectedCars = [];
-
-            try {
-                const response = await apiRequest(`/unique-cars?filter_type=${filterType}`, {
-                    method: "GET"});
-
-                if (response.ok) {
-                    this.filteredCars = await response.json();
-                    this.applySearch();
-                } else {
-                    console.error("Ошибка при загрузке машин по фильтру:", filterType);
-                }
-            } catch (error) {
-                console.error("Ошибка при загрузке машин:", error);
-            } finally {
-                this.loadingCars = false;
-            }
-        },
-
-        handleSearch() {
-            this.applySearch();
-        },
-
-        applySearch() {
-            if (!this.searchQuery.trim()) {
-                this.displayedCars = [...this.filteredCars];
-                return;
-            }
-
-            const searchTerm = this.searchQuery.trim().toUpperCase().replace(/\s+/g, '');
-            
-            this.displayedCars = this.filteredCars.filter(car => {
-                if (!car.number) return false;
-                
-                const normalizedCarNumber = car.number.toUpperCase().replace(/\s+/g, '');
-                
-                if (normalizedCarNumber.includes(searchTerm)) {
-                    return true;
-                }
-                
-                const numberParts = car.number.toUpperCase().split(/\s+/);
-                const concatenatedParts = numberParts.join('');
-                
-                if (concatenatedParts.includes(searchTerm)) {
-                    return true;
-                }
-                
-                const variations = [
-                    car.number.toUpperCase(),
-                    car.number.toUpperCase().replace(/\s+/g, ''),
-                    numberParts.join(' '),
-                    numberParts.slice(0, 2).join(''),
-                    numberParts.slice(2).join(''),
-                    numberParts[0] + numberParts[1],
-                    numberParts[2] + numberParts[3],
-                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1),
-                    numberParts[0] + numberParts[1] + numberParts[2].slice(0, 1) + numberParts[3].slice(0, 1)
-                ];
-                
-                for (const variation of variations) {
-                    if (variation.includes(searchTerm)) {
-                        return true;
-                    }
-                }
-                
-                if (car.mark && car.mark.toLowerCase().includes(this.searchQuery.toLowerCase())) {
-                    return true;
-                }
-                
-                if (car.id && car.id.toString().includes(this.searchQuery)) {
-                    return true;
-                }
-                
-                return false;
-            });
-        },
-
         initializeNumberParts() {
-            if (this.selectedFormat) {
-                this.numberParts = new Array(this.selectedFormat.cells.length).fill('');
-            } else {
-                this.numberParts = [];
-            }
+            this.numberParts = initializeNumberParts(this.selectedFormat);
         },
 
         getPlaceholder(cell) {
@@ -751,32 +541,7 @@ export default {
         },
 
         validatePart(index, event, cell) {
-            let value = event.target.value.toUpperCase();
-            
-            if (cell.cell_type === 'numbers') {
-                value = value.replace(/\D/g, '');
-            } else if (cell.cell_type === 'letters') {
-                if (cell.alphabet_type === 'cyrillic') {
-                    value = this.filterCyrillicLetters(value, cell.allowed_letters);
-                } else if (cell.alphabet_type === 'latin') {
-                    value = this.filterLatinLetters(value, cell.allowed_letters);
-                } else if (cell.alphabet_type === 'both') {
-                    value = this.filterBothLetters(value, cell.allowed_letters);
-                }
-            } else if (cell.cell_type === 'mixed') {
-                if (cell.alphabet_type === 'cyrillic') {
-                    value = this.filterMixedCyrillic(value, cell.allowed_letters);
-                } else if (cell.alphabet_type === 'latin') {
-                    value = this.filterMixedLatin(value, cell.allowed_letters);
-                } else if (cell.alphabet_type === 'both') {
-                    value = this.filterMixedBoth(value, cell.allowed_letters);
-                }
-            }
-            
-            if (value.length > cell.max_length) {
-                value = value.slice(0, cell.max_length);
-            }
-            
+            const value = validatePartValue(event.target.value, cell);
             this.numberParts[index] = value;
             event.target.value = value;
 
@@ -785,65 +550,12 @@ export default {
         },
 
         formatPart(index, cell) {
-            if (cell.cell_type === 'numbers' && cell.padding_side && this.numberParts[index]) {
-                let value = this.numberParts[index];
-                const targetLength = cell.max_length;
-                
-                if (value.length < targetLength) {
-                    const paddingChar = cell.padding_char || '0';
-                    if (cell.padding_side === 'left') {
-                        value = value.padStart(targetLength, paddingChar);
-                    } else {
-                        value = value.padEnd(targetLength, paddingChar);
-                    }
-                    this.numberParts[index] = value;
+            if (this.numberParts[index]) {
+                const formatted = formatPartValue(this.numberParts[index], cell);
+                if (formatted !== this.numberParts[index]) {
+                    this.numberParts[index] = formatted;
                 }
             }
-        },
-
-        filterCyrillicLetters(value, allowedLetters) {
-            if (allowedLetters) {
-                const allowedChars = allowedLetters.split('');
-                return value.split('').filter(char => allowedChars.includes(char)).join('');
-            } else {
-                return value.replace(/[^АВЕКМНОРСТУХ]/g, '');
-            }
-        },
-
-        filterLatinLetters(value, allowedLetters) {
-            if (allowedLetters) {
-                const allowedChars = allowedLetters.split('');
-                return value.split('').filter(char => allowedChars.includes(char)).join('');
-            } else {
-                return value.replace(/[^A-Z]/g, '');
-            }
-        },
-
-        filterBothLetters(value, allowedLetters) {
-            if (allowedLetters) {
-                const allowedChars = allowedLetters.split('');
-                return value.split('').filter(char => allowedChars.includes(char)).join('');
-            } else {
-                return value.replace(/[^A-ZА-Я]/g, '');
-            }
-        },
-
-        filterMixedCyrillic(value, allowedLetters) {
-            const numericPart = value.replace(/\D/g, '');
-            const letterPart = this.filterCyrillicLetters(value.replace(/[0-9]/g, ''), allowedLetters);
-            return numericPart + letterPart;
-        },
-
-        filterMixedLatin(value, allowedLetters) {
-            const numericPart = value.replace(/\D/g, '');
-            const letterPart = this.filterLatinLetters(value.replace(/[0-9]/g, ''), allowedLetters);
-            return numericPart + letterPart;
-        },
-
-        filterMixedBoth(value, allowedLetters) {
-            const numericPart = value.replace(/\D/g, '');
-            const letterPart = this.filterBothLetters(value.replace(/[0-9]/g, ''), allowedLetters);
-            return numericPart + letterPart;
         },
 
         handleNumberByFactChange() {
@@ -971,54 +683,15 @@ export default {
 
         openExistingCarsModal() {
             this.showExistingCarsModal = true;
-            this.tempSelectedCars = [...this.selectedExistingCars];
-            this.currentFilter = 'all';
-            this.loadCarsByFilter('all');
-            this.searchQuery = '';
         },
 
         closeExistingCarsModal() {
             this.showExistingCarsModal = false;
-            this.tempSelectedCars = [];
-            this.searchQuery = '';
         },
 
-        switchFilter(filter) {
-            this.currentFilter = filter;
-            this.loadCarsByFilter(filter);
-        },
-
-        handleRowClick(car) {
-            if (!this.isCarDisabled(car)) {
-                this.toggleCarSelection(car);
-            }
-        },
-
-        toggleCarSelection(car) {
-            if (this.isCarDisabled(car)) return;
-
-            const index = this.tempSelectedCars.findIndex(selectedCar => selectedCar.id === car.id);
-            if (index > -1) {
-                this.tempSelectedCars.splice(index, 1);
-            } else {
-                this.tempSelectedCars.push(car);
-            }
-        },
-
-        isCarSelected(car) {
-            return this.tempSelectedCars.some(selectedCar => selectedCar.id === car.id);
-        },
-
-        isCarDisabled(car) {
-            return this.existingVehicles.some(vehicle => 
-                (vehicle.isExisting && vehicle.existingCarId === car.id) ||
-                (!vehicle.isExisting && vehicle.plateNumber === car.number && vehicle.mark === car.mark)
-            );
-        },
-
-        confirmExistingCarsSelection() {
-            this.selectedExistingCars = [...this.tempSelectedCars];
-            this.closeExistingCarsModal();
+        onExistingCarsSelected(cars) {
+            this.selectedExistingCars = cars;
+            this.showExistingCarsModal = false;
             this.clearVehicleFormPartial();
         },
 
@@ -1886,445 +1559,6 @@ export default {
     background: #a2a2a2;
     cursor: not-allowed;
     opacity: 0.6;
-}
-
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 20px;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 12px;
-    width: 100%;
-    max-width: 700px;
-    max-height: 85vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #e6e6e6;
-    background: white;
-    flex-shrink: 0;
-    gap: 20px;
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    flex-shrink: 0;
-}
-
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    flex: 1;
-    justify-content: flex-end;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #a2a2a2;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
-    flex-shrink: 0;
-}
-
-.modal-close:hover {
-    background: #f5f5f5;
-    color: #333;
-}
-
-.filter-section {
-    padding: 12px 20px;
-    border-bottom: 1px solid #f0f0f0;
-    background: #fafafa;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-    gap: 16px;
-}
-
-.filter-tabs {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.filter-tab {
-    padding: 6px 12px;
-    border: 1px solid #e6e6e6;
-    background: white;
-    border-radius: 16px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    color: #666;
-    transition: all 0.2s;
-    outline: none;
-    min-height: 32px;
-    line-height: 1;
-}
-
-.filter-tab:hover:not(.filter-tab--active) {
-    border-color: #4F5BDF;
-    color: #4F5BDF;
-}
-
-.filter-tab--active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
-    pointer-events: none;
-}
-
-.selected-counter {
-    font-size: 12px;
-    color: #666;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-}
-
-.selected-count {
-    font-weight: 600;
-    color: #4F5BDF;
-}
-
-.cars-table-container {
-    flex: 1;
-    overflow: hidden;
-    min-height: 240px;
-    max-height: 240px;
-    display: flex;
-    flex-direction: column;
-}
-
-.cars-table {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-}
-
-.table-header {
-    display: flex;
-    background: #f8f8f8;
-    border-bottom: 1px solid #e6e6e6;
-    border-top: 1px solid #e6e6e6;
-    padding: 0 20px;
-    height: 40px;
-    min-height: 40px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #a2a2a2;
-    flex-shrink: 0;
-    align-items: center;
-}
-
-.header-cell {
-    padding: 0 8px;
-    display: flex;
-    align-items: center;
-}
-
-.select-cell {
-    width: 40px;
-    flex-shrink: 0;
-    justify-content: center;
-}
-
-.number-cell {
-    width: 60px;
-    flex-shrink: 0;
-}
-
-.plate-cell {
-    flex: 2;
-    min-width: 150px;
-}
-
-.mark-cell {
-    flex: 2;
-    min-width: 120px;
-}
-
-.status-cell {
-    width: 100px;
-    flex-shrink: 0;
-    justify-content: center;
-}
-
-.table-body {
-    flex: 1;
-    overflow-y: auto;
-    max-height: 200px;
-    min-height: 200px;
-    height: 200px;
-}
-
-.table-row {
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    border-bottom: 1px solid #f5f5f5;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    height: 40px;
-    min-height: 40px;
-}
-
-.table-row:hover:not(.table-row--disabled) {
-    background-color: #fafafa;
-}
-
-.table-row--selected {
-    background-color: #f0f9ff;
-}
-
-.table-row--selected:hover {
-    background-color: #e0f2fe;
-}
-
-.table-row--disabled {
-    background-color: #f9f9f9;
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.table-cell {
-    padding: 0 8px;
-    font-size: 14px;
-    color: #000;
-    display: flex;
-    align-items: center;
-}
-
-.table-row--disabled .table-cell {
-    color: #999;
-}
-
-.select-cell {
-    width: 40px;
-    flex-shrink: 0;
-    justify-content: center;
-}
-
-.table-cell input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: #4F5BDF;
-    margin: 0;
-}
-
-.table-row--disabled input[type="checkbox"] {
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.status-badge {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-block;
-    min-width: 70px;
-    text-align: center;
-}
-
-.status-active {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-
-.status-inactive {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-.table-row--disabled .status-badge {
-    opacity: 0.7;
-}
-
-.loading-state,
-.empty-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    min-height: 200px;
-    color: #999;
-    font-size: 14px;
-    text-align: center;
-}
-
-.loading-state {
-    flex-direction: column;
-    gap: 12px;
-}
-
-.spinner {
-    width: 24px;
-    height: 24px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #4F5BDF;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.empty-state {
-    font-style: italic;
-    color: #a2a2a2;
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 16px 20px;
-    border-top: 1px solid #e6e6e6;
-    background: white;
-    flex-shrink: 0;
-}
-
-.btn {
-    padding: 8px 20px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    outline: none;
-    min-height: 36px;
-    min-width: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.btn-secondary {
-    background: white;
-    color: #333;
-    border: 1px solid #e6e6e6;
-}
-
-.btn-secondary:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #d9d9d9;
-}
-
-.btn-primary {
-    background: #4F5BDF;
-    color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-    background: #3a45c0;
-}
-
-.btn-primary:disabled {
-    background: #a2a2a2;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.table-body::-webkit-scrollbar {
-    width: 6px;
-}
-
-.table-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-.table-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
-}
-
-.table-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
-
-@media (max-width: 768px) {
-    .modal-content {
-        max-height: 90vh;
-        max-width: 95vw;
-    }
-    
-    .modal-header {
-        padding: 12px 16px;
-        flex-direction: column;
-        gap: 12px;
-        align-items: stretch;
-    }
-    
-    .header-right {
-        justify-content: center;
-    }
-    
-    .filter-section {
-        padding: 12px 16px;
-        flex-direction: column;
-        gap: 12px;
-        align-items: stretch;
-    }
-    
-    .filter-tabs {
-        justify-content: center;
-    }
-    
-    .table-header,
-    .table-row {
-        padding: 0 16px;
-    }
-    
-    .modal-actions {
-        padding: 12px 16px;
-    }
-    
-    .btn {
-        min-width: 80px;
-        padding: 8px 16px;
-    }
 }
 
 .dropdown-enter-active,
