@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [staging]
+    branches: [dev]
 
   workflow_dispatch:
     inputs:
@@ -43,8 +43,8 @@ jobs:
             set -e
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
-            git fetch origin staging
-            git reset --hard origin/staging
+            git fetch origin dev
+            git reset --hard origin/dev
             test -f .env || bash scripts/init-env.sh staging ${{ secrets.STAGING_DOMAIN }}
             docker compose -f docker-compose.staging.yml build
             docker compose -f docker-compose.staging.yml up -d
