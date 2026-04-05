@@ -1,0 +1,745 @@
+<template>
+  <transition name="modal-fade">
+    <div class="modal-overlay" @click.self="handleClose">
+      <div class="modal-content horizontal-modal">
+        <div class="modal-header">
+          <h3>Создать новую таблицу</h3>
+          <button @click="handleClose" class="modal-close">
+            <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+              <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body-horizontal">
+          <!-- Левая часть - основная информация -->
+          <div class="modal-main-info">
+            <div class="main-fields">
+              <div class="form-group-compact">
+                <label class="form-label-compact">Наименование таблицы *</label>
+                <input
+                  v-model="newTable.display_name"
+                  placeholder="ПОСТ №27"
+                  class="input-compact"
+                >
+              </div>
+
+              <div class="form-group-compact">
+                <label class="form-label-compact">Системное имя *</label>
+                <input
+                  v-model="newTable.name"
+                  @input="validateSystemName"
+                  placeholder="post_27"
+                  class="input-compact"
+                >
+                <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
+                <span v-if="nameError" class="form-error">{{ nameError }}</span>
+              </div>
+
+              <div class="form-group-compact">
+                <label class="form-label-compact">Тип таблицы *</label>
+                <div class="custom-select">
+                  <div class="select-header" @click="toggleTypeDropdown">
+                    <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
+                    <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: typeDropdownOpen }" />
+                  </div>
+                  <transition name="dropdown-fade">
+                    <div v-if="typeDropdownOpen" class="select-dropdown">
+                      <div
+                        class="select-option"
+                        :class="{ active: newTable.table_type === 'cars' }"
+                        @click="selectType('cars')"
+                      >
+                        Машины
+                      </div>
+                      <div
+                        class="select-option"
+                        :class="{ active: newTable.table_type === 'people' }"
+                        @click="selectType('people')"
+                      >
+                        Люди
+                      </div>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Правая часть - настройки -->
+          <div class="modal-cells-section">
+            <div class="cells-header-compact">
+              <h4 class="cells-title-compact">Настройки отображения</h4>
+            </div>
+
+            <div class="cells-scroll-container">
+              <div class="settings-grid">
+                <div class="setting-item">
+                  <label class="setting-label">
+                    <input
+                      type="checkbox"
+                      v-model="newTable.show_fact_table"
+                      class="setting-checkbox"
+                    />
+                    <span class="setting-text">Отображать таблицу "по факту"</span>
+                  </label>
+                  <span class="setting-hint">
+                    Будет показана дополнительная таблица с данными "по факту"
+                  </span>
+                </div>
+
+                <div v-if="newTable.show_fact_table" class="setting-item">
+                  <label class="form-label-compact">Подсказка для таблицы "по факту"</label>
+                  <TextConstructor
+                    v-model="newTable.fact_table_hint"
+                    :placeholder="getDefaultHint(newTable.table_type)"
+                    rows="3"
+                  />
+                </div>
+
+                <div class="setting-item">
+                  <label class="form-label-compact">Инструкция к таблице</label>
+                  <TextConstructor
+                    v-model="newTable.instruction"
+                    placeholder="Введите инструкцию для таблицы..."
+                    rows="4"
+                  />
+                </div>
+
+                <div class="setting-item">
+                  <h5 class="fields-preview-title">Поля таблицы:</h5>
+                  <div class="fields-preview">
+                    <div
+                      v-for="field in getTableFields(newTable.table_type)"
+                      :key="field.name"
+                      class="preview-field"
+                    >
+                      <span class="preview-field-name">{{ field.displayName }}</span>
+                      <span class="preview-field-type">{{ field.type }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="handleClose" class="modal-btn modal-btn--cancel">Отмена</button>
+          <button
+            @click="createTable"
+            class="modal-btn modal-btn--confirm"
+          >
+            Создать
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
+</template>
+
+<script>
+import { apiRequest } from '@/api/client'
+import TextConstructor from './TextConstructor.vue'
+
+export default {
+  name: 'TableConstructorCreateModal',
+  components: {
+    TextConstructor
+  },
+  emits: ['created', 'close'],
+  data() {
+    return {
+      newTable: {
+        name: '',
+        display_name: '',
+        table_type: 'people',
+        show_fact_table: false,
+        fact_table_hint: '',
+        instruction: '',
+        map_link: '',
+        status: 'active',
+        status_comment: '',
+        location_description: '',
+        is_active: true
+      },
+      nameError: '',
+      typeDropdownOpen: false
+    }
+  },
+  mounted() {
+    document.addEventListener('click', this.handleOutsideClick)
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleOutsideClick)
+  },
+  methods: {
+    handleOutsideClick(e) {
+      if (!this.$el.contains(e.target)) {
+        this.typeDropdownOpen = false
+      }
+    },
+
+    validateSystemName() {
+      const nameRegex = /^[a-z0-9_]*$/
+      if (!nameRegex.test(this.newTable.name)) {
+        this.nameError = 'Только латинские буквы, цифры и подчеркивания'
+      } else {
+        this.nameError = ''
+      }
+    },
+
+    toggleTypeDropdown() {
+      this.typeDropdownOpen = !this.typeDropdownOpen
+    },
+
+    selectType(type) {
+      this.newTable.table_type = type
+      this.newTable.fact_table_hint = ''
+      this.typeDropdownOpen = false
+    },
+
+    getTableTypeLabel(type) {
+      return type === 'cars' ? 'Машины' : 'Люди'
+    },
+
+    getTableFields(tableType) {
+      if (tableType === 'cars') {
+        return [
+          { name: 'car_number', displayName: 'Номер машины', type: 'Текст' },
+          { name: 'car_brand', displayName: 'Марка', type: 'Текст' },
+          { name: 'organization', displayName: 'Организация', type: 'Текст' },
+          { name: 'unload_place', displayName: 'Место разгрузки', type: 'Текст' },
+          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
+          { name: 'time_range', displayName: 'Время', type: 'Текст' },
+          { name: 'status', displayName: 'Статус', type: 'Текст' }
+        ]
+      } else {
+        return [
+          { name: 'organization', displayName: 'Организация', type: 'Текст' },
+          { name: 'last_name', displayName: 'Фамилия', type: 'Текст' },
+          { name: 'first_name', displayName: 'Имя', type: 'Текст' },
+          { name: 'middle_name', displayName: 'Отчество', type: 'Текст' },
+          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
+          { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
+        ]
+      }
+    },
+
+    getDefaultHint(tableType) {
+      if (tableType === 'cars') {
+        return 'При прибытии автомобиля ПО ФАКТУ: спроси у водителя организацию, посмотри, есть ли организация в таблице слева, если организация есть - пропустить'
+      } else {
+        return 'При проходе человека ПО ФАКТУ: проверьте документы, сверьте с данными в системе'
+      }
+    },
+
+    async createTable() {
+      if (!this.newTable.name.trim() || !this.newTable.display_name.trim()) {
+        window.dispatchEvent(new CustomEvent('show-notification', {
+          detail: { message: 'Заполните все обязательные поля', type: 'warning' }
+        }))
+        return
+      }
+
+      const nameRegex = /^[a-z0-9_]+$/
+      if (!nameRegex.test(this.newTable.name)) {
+        window.dispatchEvent(new CustomEvent('show-notification', {
+          detail: { message: 'Системное имя может содержать только латинские буквы, цифры и подчеркивания', type: 'warning' }
+        }))
+        return
+      }
+
+      try {
+        const response = await apiRequest('/system-tables', {
+          method: 'POST',
+          body: JSON.stringify(this.newTable)
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          this.$emit('created', result)
+          this.resetForm()
+        } else {
+          const errorText = await response.text()
+          let message = errorText || 'Ошибка при создании таблицы'
+          try {
+            const errorJson = JSON.parse(errorText)
+            message = errorJson.message || message
+          } catch {
+            // не JSON — используем текст как есть
+          }
+          window.dispatchEvent(new CustomEvent('show-notification', {
+            detail: { message, type: 'error' }
+          }))
+        }
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent('show-notification', {
+          detail: { message: 'Ошибка сети: ' + error.message, type: 'error' }
+        }))
+      }
+    },
+
+    handleClose() {
+      this.resetForm()
+      this.$emit('close')
+    },
+
+    resetForm() {
+      this.newTable = {
+        name: '',
+        display_name: '',
+        table_type: 'people',
+        show_fact_table: false,
+        fact_table_hint: '',
+        instruction: '',
+        map_link: '',
+        status: 'active',
+        status_comment: '',
+        location_description: '',
+        is_active: true
+      }
+      this.nameError = ''
+      this.typeDropdownOpen = false
+    }
+  }
+}
+</script>
+
+<style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(1px);
+  animation: overlayAppear 0.3s ease-out;
+}
+
+@keyframes overlayAppear {
+  from {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(1px);
+  }
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 0;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalAppear 0.3s ease-out;
+}
+
+.modal-content.horizontal-modal {
+  width: 900px;
+  max-width: 90vw;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+}
+
+.modal-body-horizontal {
+  display: flex;
+  height: 400px;
+  overflow: hidden;
+}
+
+.modal-main-info {
+  width: 35%;
+  padding: 20px;
+  border-right: 1px solid #e6e6e6;
+  background: #fafafa;
+  overflow-y: auto;
+}
+
+.main-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-label-compact {
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+}
+
+.input-compact {
+  padding: 8px 10px;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  transition: border-color 0.2s;
+  height: 35px;
+}
+
+.input-compact:focus {
+  border-color: #4F5BDF;
+  outline: none;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.form-error {
+  font-size: 11px;
+  color: #ef4444;
+  margin-top: 2px;
+}
+
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.select-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  height: 35px;
+  transition: all 0.2s ease;
+}
+
+.select-header:hover {
+  border-color: #ccc;
+  background: #f8f9fa;
+}
+
+.select-value {
+  color: #000;
+}
+
+.select-arrow {
+  width: 10px;
+  height: 10px;
+  transition: transform 0.2s ease;
+  transform: rotate(90deg);
+}
+
+.select-arrow.rotated {
+  transform: rotate(-90deg);
+}
+
+.select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 10;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.select-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.select-option:last-child {
+  border-bottom: none;
+}
+
+.select-option:hover {
+  background: #f5f7ff;
+  color: #4F5BDF;
+}
+
+.select-option.active {
+  background: #f0f3ff;
+  color: #4F5BDF;
+  font-weight: 500;
+}
+
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+.modal-cells-section {
+  width: 65%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cells-header-compact {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #fff;
+}
+
+.cells-title-compact {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.cells-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.setting-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+}
+
+.setting-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.fields-preview-title {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.fields-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.preview-field-name {
+  color: #333;
+}
+
+.preview-field-type {
+  color: #666;
+  font-size: 10px;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.modal-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+  min-width: 90px;
+}
+
+.modal-btn--cancel {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e0e0e0;
+}
+
+.modal-btn--cancel:hover {
+  background: #e9ecef;
+}
+
+.modal-btn--confirm {
+  background: #4F5BDF;
+  color: white;
+}
+
+.modal-btn--confirm:hover:not(:disabled) {
+  background: #3a45b2;
+}
+
+/* Анимации */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active .modal-overlay,
+.modal-fade-leave-active .modal-overlay {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+  transition: all 0.3s ease;
+}
+
+.modal-fade-enter-from .modal-overlay,
+.modal-fade-leave-to .modal-overlay {
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+}
+
+.modal-fade-enter-from .modal-content,
+.modal-fade-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.8) translateY(-20px);
+}
+
+/* Скроллбар */
+.cells-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cells-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.cells-scroll-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.cells-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+@media (max-width: 768px) {
+  .modal-body-horizontal {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .modal-main-info,
+  .modal-cells-section {
+    width: 100%;
+  }
+
+  .modal-main-info {
+    border-right: none;
+    border-bottom: 1px solid #e6e6e6;
+  }
+}
+</style>

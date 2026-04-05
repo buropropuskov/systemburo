@@ -384,144 +384,11 @@
     </div>
 
     <!-- Модальное окно создания таблицы -->
-    <transition name="modal-fade">
-      <div v-if="showAddModal" class="modal-overlay" @click.self="closeModal">
-        <div class="modal-content horizontal-modal">
-          <div class="modal-header">
-            <h3>Создать новую таблицу</h3>
-            <button @click="closeModal" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-          
-          <div class="modal-body-horizontal">
-            <!-- Левая часть - основная информация -->
-            <div class="modal-main-info">
-              <div class="main-fields">
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Наименование таблицы *</label>
-                  <input
-                    v-model="newTable.display_name"
-                    placeholder="ПОСТ №27"
-                    class="input-compact"
-                  >
-                </div>
-                
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Системное имя *</label>
-                  <input
-                    v-model="newTable.name"
-                    @input="validateSystemName"
-                    placeholder="post_27"
-                    class="input-compact"
-                  >
-                  <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-                  <span v-if="nameError" class="form-error">{{ nameError }}</span>
-                </div>
-
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Тип таблицы *</label>
-                  <div class="custom-select">
-                    <div class="select-header" @click="toggleNewTableTypeDropdown">
-                      <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
-                      <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: newTableTypeDropdownOpen }" />
-                    </div>
-                    <transition name="dropdown-fade">
-                      <div v-if="newTableTypeDropdownOpen" class="select-dropdown">
-                        <div 
-                          class="select-option"
-                          :class="{ active: newTable.table_type === 'cars' }"
-                          @click="selectNewTableType('cars')"
-                        >
-                          Машины
-                        </div>
-                        <div 
-                          class="select-option"
-                          :class="{ active: newTable.table_type === 'people' }"
-                          @click="selectNewTableType('people')"
-                        >
-                          Люди
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Правая часть - настройки -->
-            <div class="modal-cells-section">
-              <div class="cells-header-compact">
-                <h4 class="cells-title-compact">Настройки отображения</h4>
-              </div>
-              
-              <div class="cells-scroll-container">
-                <div class="settings-grid">
-                  <div class="setting-item">
-                    <label class="setting-label">
-                      <input 
-                        type="checkbox" 
-                        v-model="newTable.show_fact_table"
-                        class="setting-checkbox"
-                      />
-                      <span class="setting-text">Отображать таблицу "по факту"</span>
-                    </label>
-                    <span class="setting-hint">
-                      Будет показана дополнительная таблица с данными "по факту"
-                    </span>
-                  </div>
-
-                  <div v-if="newTable.show_fact_table" class="setting-item">
-                    <label class="form-label-compact">Подсказка для таблицы "по факту"</label>
-                    <TextConstructor
-                      v-model="newTable.fact_table_hint"
-                      :placeholder="getDefaultHint(newTable.table_type)"
-                      rows="3"
-                    />
-                  </div>
-
-                  <div class="setting-item">
-                    <label class="form-label-compact">Инструкция к таблице</label>
-                    <TextConstructor
-                      v-model="newTable.instruction"
-                      placeholder="Введите инструкцию для таблицы..."
-                      rows="4"
-                    />
-                  </div>
-
-                  <div class="setting-item">
-                    <h5 class="fields-preview-title">Поля таблицы:</h5>
-                    <div class="fields-preview">
-                      <div 
-                        v-for="field in getTableFields(newTable.table_type)" 
-                        :key="field.name"
-                        class="preview-field"
-                      >
-                        <span class="preview-field-name">{{ field.displayName }}</span>
-                        <span class="preview-field-type">{{ field.type }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="modal-footer">
-            <button @click="closeModal" class="modal-btn modal-btn--cancel">Отмена</button>
-            <button 
-              @click="createTable" 
-              class="modal-btn modal-btn--confirm"
-              
-            >
-              Создатькцуйкцйук
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <TableConstructorCreateModal
+      v-if="showAddModal"
+      @created="onTableCreated"
+      @close="showAddModal = false"
+    />
 
     <!-- Модальное окно просмотра фото -->
     <transition name="modal-fade">
@@ -551,11 +418,11 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import SystemTableScheduleTab from './SystemTableScheduleTab.vue';
+import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
 
 export default {
   name: 'TableConstructor',
@@ -563,24 +430,12 @@ export default {
     SearchComponent,
     RefreshButton,
     TextConstructor,
-    SystemTableScheduleTab
+    SystemTableScheduleTab,
+    TableConstructorCreateModal
   },
   data() {
     return {
       searchQuery: '',
-      newTable: {
-        name: '',
-        display_name: '',
-        table_type: 'people',
-        show_fact_table: false,
-        fact_table_hint: '',
-        instruction: '',
-        map_link: '',
-        status: 'active',
-        status_comment: '',
-        location_description: '',
-        is_active: true
-      },
       tables: [],
       showAddModal: false,
       showPhotoModal: false,
@@ -589,11 +444,9 @@ export default {
       sortField: null,
       sortDirection: 'asc',
       activeTab: 'main',
-      nameError: '',
       originalHint: '',
       originalInstruction: '',
       tableTypeDropdownOpen: false,
-      newTableTypeDropdownOpen: false,
       notification: {
         show: false,
         message: '',
@@ -660,11 +513,10 @@ export default {
     // Слушаем события уведомлений от дочерних компонентов
     window.addEventListener('show-notification', this.handleNotification);
     
-    // Закрываем dropdown при клике вне их
+    // Закрываем dropdown при клике вне них
     document.addEventListener('click', (e) => {
       if (!this.$el.contains(e.target)) {
         this.tableTypeDropdownOpen = false;
-        this.newTableTypeDropdownOpen = false;
       }
     });
   },
@@ -676,15 +528,6 @@ export default {
       this.showNotification(event.detail.message, event.detail.type);
     },
 
-    validateSystemName() {
-      const nameRegex = /^[a-z0-9_]*$/;
-      if (!nameRegex.test(this.newTable.name)) {
-        this.nameError = "Только латинские буквы, цифры и подчеркивания";
-      } else {
-        this.nameError = '';
-      }
-    },
-    
     async refreshData() {
       await this.fetchTables();
     },
@@ -735,67 +578,16 @@ export default {
       }
     },
     
-    async createTable() {
-      console.log(1);
-  if (!this.newTable.name.trim() || !this.newTable.display_name.trim()) {
-    this.showNotification("Заполните все обязательные поля", "warning");
-    return;
-  }
-  
-  // Валидация системного имени
-  const nameRegex = /^[a-z0-9_]+$/;
-  if (!nameRegex.test(this.newTable.name)) {
-    this.showNotification("Системное имя может содержать только латинские буквы, цифры и подчеркивания", "warning");
-    return;
-  }
-  
-  console.log("Creating table with data:", this.newTable);
-  
-  try {
-    const authStore = useAuthStore();
-    console.log("Token:", authStore.token ? "exists" : "missing");
-    
-    const response = await apiRequest("/system-tables", {
-      method: "POST",
-      body: JSON.stringify(this.newTable),
-    });
-    
-    console.log("Response status:", response.status);
-    console.log("Response headers:", response.headers);
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log("Success result:", result);
-      
-      this.closeModal();
+    async onTableCreated(result) {
+      this.showAddModal = false;
       await this.refreshData();
-      
-      // Выбираем созданную таблицу
       const newTable = this.tables.find(t => t.table.id === result.id);
       if (newTable) {
         this.selectTable(newTable);
       }
-      
       this.showNotification("Таблица успешно создана", "success");
-    } else {
-      // Пробуем получить текст ошибки
-      const errorText = await response.text();
-      console.error("Error response:", errorText);
-      
-      // Пробуем распарсить как JSON, если это возможно
-      try {
-        const errorJson = JSON.parse(errorText);
-        this.showNotification(errorJson.message || errorText, "error");
-      } catch {
-        this.showNotification(errorText || "Ошибка при создании таблицы", "error");
-      }
-    }
-  } catch (error) {
-    console.error("Network error creating system table:", error);
-    this.showNotification("Ошибка сети: " + error.message, "error");
-  }
-},
-    
+    },
+
     async updateTable(field) {
       if (!this.selectedTable) return;
       
@@ -1054,34 +846,6 @@ export default {
       }
     },
     
-    toggleNewTableTypeDropdown() {
-      this.newTableTypeDropdownOpen = !this.newTableTypeDropdownOpen;
-    },
-    
-    selectNewTableType(type) {
-      this.newTable.table_type = type;
-      this.newTable.fact_table_hint = '';
-      this.newTableTypeDropdownOpen = false;
-    },
-    
-    closeModal() {
-      this.showAddModal = false;
-      this.newTable = {
-        name: '',
-        display_name: '',
-        table_type: 'people',
-        show_fact_table: false,
-        fact_table_hint: '',
-        instruction: '',
-        map_link: '',
-        status: 'active',
-        status_comment: '',
-        location_description: '',
-        is_active: true
-      };
-      this.nameError = '';
-    },
-    
     // Методы для фото
     async uploadPhotos(event) {
       if (!this.selectedTable) return;
@@ -1188,17 +952,6 @@ export default {
       this.notification.show = false;
     }
   },
-  watch: {
-    showAddModal(newVal) {
-      if (newVal) {
-        this.$nextTick(() => {
-          if (this.$refs.nameInput) {
-            this.$refs.nameInput.focus();
-          }
-        });
-      }
-    }
-  }
 }
 </script>
 
@@ -2182,11 +1935,6 @@ export default {
   animation: modalAppear 0.3s ease-out;
 }
 
-.modal-content.horizontal-modal {
-  width: 900px;
-  max-width: 90vw;
-}
-
 .modal-content.photo-view-modal {
   width: 800px;
   max-width: 90vw;
@@ -2232,165 +1980,6 @@ export default {
 
 .modal-close:hover {
   background-color: #f5f5f5;
-}
-
-.modal-body-horizontal {
-  display: flex;
-  height: 400px;
-  overflow: hidden;
-}
-
-.modal-main-info {
-  width: 35%;
-  padding: 20px;
-  border-right: 1px solid #e6e6e6;
-  background: #fafafa;
-  overflow-y: auto;
-}
-
-.main-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.form-group-compact {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.form-label-compact {
-  font-size: 12px;
-  font-weight: 500;
-  color: #555;
-}
-
-.input-compact {
-  padding: 8px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 13px;
-  background: #fff;
-  transition: border-color 0.2s;
-  height: 35px;
-}
-
-.input-compact:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.form-hint {
-  font-size: 11px;
-  color: #999;
-  margin-top: 2px;
-}
-
-.form-error {
-  font-size: 11px;
-  color: #ef4444;
-  margin-top: 2px;
-}
-
-.modal-cells-section {
-  width: 65%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.cells-header-compact {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-}
-
-.cells-title-compact {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-
-.cells-scroll-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-}
-
-.settings-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.setting-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.setting-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.setting-checkbox {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: #4F5BDF;
-}
-
-.setting-text {
-  font-size: 13px;
-  font-weight: 500;
-  color: #333;
-}
-
-.setting-hint {
-  font-size: 11px;
-  color: #666;
-  line-height: 1.4;
-}
-
-.fields-preview-title {
-  margin: 0 0 8px 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #333;
-}
-
-.fields-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.preview-field {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px;
-  background: #f8f9fa;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.preview-field-name {
-  color: #333;
-}
-
-.preview-field-type {
-  color: #666;
-  font-size: 10px;
-  background: #e9ecef;
-  padding: 2px 6px;
-  border-radius: 4px;
 }
 
 .modal-footer {
@@ -2531,14 +2120,12 @@ export default {
 
 /* Скроллбары */
 .table-body::-webkit-scrollbar,
-.cells-scroll-container::-webkit-scrollbar,
 .fields-list::-webkit-scrollbar,
 .photos-grid::-webkit-scrollbar {
   width: 6px;
 }
 
 .table-body::-webkit-scrollbar-track,
-.cells-scroll-container::-webkit-scrollbar-track,
 .fields-list::-webkit-scrollbar-track,
 .photos-grid::-webkit-scrollbar-track {
   background: #f1f1f1;
@@ -2546,7 +2133,6 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-thumb,
-.cells-scroll-container::-webkit-scrollbar-thumb,
 .fields-list::-webkit-scrollbar-thumb,
 .photos-grid::-webkit-scrollbar-thumb {
   background: #c1c1c1;
@@ -2554,48 +2140,32 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-thumb:hover,
-.cells-scroll-container::-webkit-scrollbar-thumb:hover,
 .fields-list::-webkit-scrollbar-thumb:hover,
 .photos-grid::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 
 @media (max-width: 768px) {
-  .modal-body-horizontal {
-    flex-direction: column;
-    height: auto;
-  }
-  
-  .modal-main-info,
-  .modal-cells-section {
-    width: 100%;
-  }
-  
-  .modal-main-info {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-  }
-  
   .form-row {
     flex-direction: column;
   }
-  
+
   .map-link-group {
     flex-direction: column;
   }
-  
+
   .map-link-btn {
     width: 100%;
     text-align: center;
   }
-  
+
   .notification {
     left: 20px;
     right: 20px;
     transform: translateY(-100%);
     min-width: auto;
   }
-  
+
   @keyframes slideDown {
     from {
       transform: translateY(-100%);
