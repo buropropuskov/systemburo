@@ -59,6 +59,7 @@ make up     # запустить все сервисы
 | [Deployment](docs/DEPLOYMENT.md) | Docker, ручной деплой, production, бэкапы |
 | [Security](docs/SECURITY.md) | 152-ФЗ, шифрование, аудит, авторизация, rate limiting |
 | [ADR](docs/adr/) | Архитектурные решения (Go vs Rust, GORM, AES-GCM, Pinia и др.) |
+| [Contributing](CONTRIBUTING.md) | Рабочий процесс: ветки, коммиты, PR, issues, CI/CD |
 
 ## Конфигурация
 
