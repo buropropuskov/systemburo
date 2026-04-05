@@ -62,8 +62,8 @@
                     @update:responsible-person="responsiblePerson = $event"
                     @update:phone-number="phoneNumber = $event"
                     @validate-field="validateField"
-                    @format-phone="formatPhoneNumber"
-                    @clear-phone="clearPhoneFormat"
+                    @format-phone="handleFormatPhoneNumber"
+                    @clear-phone="handleClearPhoneFormat"
                 />
 
                 <!-- 3 ряд: Заголовок, Дата действия, Время пребывания (теперь индивидуально для вложения) -->
@@ -199,6 +199,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
@@ -703,7 +704,9 @@ export default {
                     
                     this.phoneNumber = userData.phone || '';
                     if (this.phoneNumber) {
-                        this.formatPhoneNumberImmediately(this.phoneNumber);
+                        const { raw, formatted } = formatPhoneNumberImmediately(this.phoneNumber);
+                        this.rawPhoneNumber = raw;
+                        this.phoneNumber = formatted;
                     }
                     
                 } else {
@@ -714,61 +717,15 @@ export default {
             }
         },
 
-        formatPhoneNumberImmediately(phone) {
-            if (!phone) return;
-            
-            this.rawPhoneNumber = phone.replace(/\D/g, '');
-            
-            let formattedNumber = this.rawPhoneNumber;
-            
-            if (formattedNumber.length === 11 && formattedNumber.startsWith('8')) {
-                formattedNumber = '7' + formattedNumber.substring(1);
-            }
-            
-            if (formattedNumber.length === 10) {
-                formattedNumber = '7' + formattedNumber;
-            }
-            
-            if (formattedNumber.length === 11 && formattedNumber.startsWith('7')) {
-                formattedNumber = formattedNumber.replace(
-                    /(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/,
-                    '+$1 ($2) $3 $4-$5'
-                );
-            }
-            
-            this.phoneNumber = formattedNumber;
-        },
-
-        formatPhoneNumber() {
-            if (!this.phoneNumber) return;
-            
-            this.rawPhoneNumber = this.phoneNumber.replace(/\D/g, '');
-            
-            let formattedNumber = this.rawPhoneNumber;
-            
-            if (formattedNumber.length === 11 && formattedNumber.startsWith('8')) {
-                formattedNumber = '7' + formattedNumber.substring(1);
-            }
-            
-            if (formattedNumber.length === 10) {
-                formattedNumber = '7' + formattedNumber;
-            }
-            
-            if (formattedNumber.length === 11 && formattedNumber.startsWith('7')) {
-                formattedNumber = formattedNumber.replace(
-                    /(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/,
-                    '+$1 ($2) $3 $4-$5'
-                );
-            }
-            
-            this.phoneNumber = formattedNumber;
+        handleFormatPhoneNumber() {
+            const { raw, formatted } = formatPhoneNumber(this.phoneNumber);
+            this.rawPhoneNumber = raw;
+            this.phoneNumber = formatted;
             this.validateField('phone');
         },
-        
-        clearPhoneFormat() {
-            if (this.rawPhoneNumber) {
-                this.phoneNumber = this.rawPhoneNumber;
-            }
+
+        handleClearPhoneFormat() {
+            this.phoneNumber = clearPhoneFormat(this.rawPhoneNumber);
         },
 
         handleAttachmentSelected(attachment) {
