@@ -22,8 +22,7 @@ jobs:
       - name: Validate commit messages
         run: |
           PATTERN="^(fix|feat|feature|refactor|docs|test|chore|style|build|ci|perf)(\(.+\))?: .{3,}"
-          FAILED=0
-          git log --format="%s" origin/${{ github.base_ref }}..HEAD | while read -r msg; do
+          git log --format="%s" --no-merges origin/${{ github.base_ref }}..HEAD | while read -r msg; do
             if ! echo "$msg" | grep -qE "$PATTERN"; then
               echo "❌ $msg"
               echo "   Формат: prefix(scope): описание"
