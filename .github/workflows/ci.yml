@@ -29,7 +29,8 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      DATABASE_URL: postgres://postgres:testpass@localhost:5432/auto_registry_test
+      DATABASE_URL: postgres://postgres:testpass@localhost:5432/auto_registry
+      DATABASE_URL_TEST: postgres://postgres:testpass@localhost:5432/auto_registry_test
       JWT_SECRET: ci-test-jwt-secret-that-is-at-least-32-chars!!
       JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
     steps:
