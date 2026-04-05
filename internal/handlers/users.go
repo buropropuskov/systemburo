@@ -17,6 +17,31 @@ func NewUsersHandler(service services.UserService) *UsersHandler {
 	return &UsersHandler{service: service}
 }
 
+// Create godoc
+// @Summary      Создание пользователя
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.RegisterRequest true "Данные нового пользователя"
+// @Success      200 {string} string "User created successfully"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users [post]
+func (h *UsersHandler) Create(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	var req models.RegisterRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.Create(c.Request().Context(), typeID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "User created successfully")
+}
+
 // GetAll godoc
 // @Summary      Получение списка всех пользователей
 // @Tags         users

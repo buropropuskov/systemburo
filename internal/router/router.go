@@ -14,7 +14,6 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	})
 
 	// Public routes
-	// e.POST("/register", auth.Register) // Отключено — учётки создаёт админ
 	e.POST("/login", auth.Login)
 	e.POST("/refresh-token", auth.RefreshToken)
 	e.GET("/user-types", auth.GetUserTypes)
@@ -107,6 +106,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	upg.POST("/:place_id/photos/:photo_id/main", up.SetMainPhoto)
 
 	// Управление пользователями (admin-only)
+	protected.POST("/users", users.Create)
 	protected.GET("/users/all", users.GetAll)
 	protected.PUT("/users/:username/type", users.UpdateType)
 	protected.PUT("/users/:username/password", users.UpdatePassword)

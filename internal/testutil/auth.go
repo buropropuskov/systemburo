@@ -20,14 +20,18 @@ func AuthHeader(token string) http.Header {
 	return h
 }
 
-// RegisterUser registers a user via API and asserts success.
-// Note: Register endpoint always sets type_id=1 (security by design).
+// RegisterUser creates a user directly in DB.
 func RegisterUser(t *testing.T, e *echo.Echo, username, password string, typeID, orgID, companyID int) {
 	t.Helper()
-	body := fmt.Sprintf(`{"username":"%s","password":"%s","type_id":%d,"organization_id":%d,"company_id":%d}`,
-		username, password, typeID, orgID, companyID)
-	rec := POST(t, e, "/register", body, nil)
-	require.Equal(t, http.StatusOK, rec.Code, "register failed: %s", rec.Body.String())
+	user := models.User{
+		Username:       username,
+		Password:       hashTestPassword(password),
+		OrganizationID: orgID,
+		CompanyID:      companyID,
+		TypeID:         typeID,
+	}
+	err := cachedDB.Create(&user).Error
+	require.NoError(t, err, "failed to seed user %s", username)
 }
 
 // LoginUser logs in and returns (accessToken, refreshToken).

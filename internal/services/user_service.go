@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"systemburo/internal/models"
 
@@ -13,7 +14,9 @@ import (
 
 // UserService — интерфейс бизнес-логики управления пользователями (admin-only).
 type UserService interface {
-	// GetAll возвращает список всех пользователей с организацией, компанией и типом.
+	// Create создаёт нового пользователя (admin-only).
+	Create(ctx context.Context, callerTypeID int, req models.RegisterRequest) error
+	// GetAll в��звращает список всех ��ользователей с организацией, компанией и типом.
 	GetAll(ctx context.Context, callerTypeID int) ([]models.UserInfoResponse, error)
 	// UpdateType обновляет тип пользователя.
 	UpdateType(ctx context.Context, callerTypeID int, username string, req models.UpdateUserTypeRequest) error
@@ -21,9 +24,9 @@ type UserService interface {
 	UpdatePassword(ctx context.Context, callerTypeID int, username string, req models.UpdatePasswordRequest) error
 	// UpdateInfo обновляет ФИО, должность, email и телефон пользователя.
 	UpdateInfo(ctx context.Context, callerTypeID int, username string, req models.UpdateUserInfoRequest) error
-	// UpdateOrganization обновляет организацию пользователя.
+	// UpdateOrganization обновляе�� организацию пользовате��я.
 	UpdateOrganization(ctx context.Context, callerTypeID int, username string, req models.UpdateUserOrganizationRequest) error
-	// UpdateCompany обновляет компанию пользователя.
+	// UpdateCompany обновляе�� компан��ю пользователя.
 	UpdateCompany(ctx context.Context, callerTypeID int, username string, req models.UpdateUserCompanyRequest) error
 	// Delete удаляет пользователя по username.
 	Delete(ctx context.Context, callerTypeID int, username string) error
@@ -53,6 +56,35 @@ func (s *userService) checkAdmin(ctx context.Context, typeID int) error {
 	}
 	if code != "manager" && code != "buropropuskov" {
 		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
+	}
+	return nil
+}
+
+// Create создаёт нового пользователя. Только admin (manager/buropropuskov).
+func (s *userService) Create(ctx context.Context, callerTypeID int, req models.RegisterRequest) error {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return err
+	}
+
+	user := models.User{
+		Username:       req.Username,
+		Password:       hashPassword(req.Password),
+		OrganizationID: req.OrganizationID,
+		CompanyID:      req.CompanyID,
+		TypeID:         req.TypeID,
+		LastName:       req.LastName,
+		FirstName:      req.FirstName,
+		MiddleName:     req.MiddleName,
+		Position:       req.Position,
+		Email:          req.Email,
+		Phone:          req.Phone,
+	}
+	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
+		}
+		slog.Error("не удалось создать пользователя", "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating user")
 	}
 	return nil
 }

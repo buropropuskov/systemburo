@@ -12,82 +12,131 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- POST /register ---
+// --- POST /users (admin-only) ---
 
-func TestRegister_Success(t *testing.T) {
+func TestCreateUser_Success(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
 
 	body := `{"username":"newuser","password":"secret123","type_id":1,"organization_id":` +
 		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
-	rec := testutil.POST(t, e, "/register", body, nil)
+	rec := testutil.POST(t, e, "/users", body, h)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	msg := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "User registered successfully", msg)
+	assert.Equal(t, "User created successfully", msg)
 }
 
-func TestRegister_DuplicateUsername(t *testing.T) {
+func TestCreateUser_WithCustomType(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	// type_id=5 — manager
+	body := `{"username":"newmanager","password":"secret123","type_id":5,"organization_id":` +
+		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
+	rec := testutil.POST(t, e, "/users", body, h)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestCreateUser_Forbidden_NonAdmin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	userToken := testutil.RegisterAndLogin(t, e, "regular", "password123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(userToken)
+
+	body := `{"username":"newuser","password":"secret123","type_id":1,"organization_id":` +
+		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
+	rec := testutil.POST(t, e, "/users", body, h)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestCreateUser_DuplicateUsername(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
 
 	testutil.RegisterUser(t, e, "dupuser", "pass123", 1, td.OrgID, td.CompanyID)
 
 	body := `{"username":"dupuser","password":"pass456","type_id":1,"organization_id":` +
 		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
-	rec := testutil.POST(t, e, "/register", body, nil)
+	rec := testutil.POST(t, e, "/users", body, h)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "Username already exists")
 }
 
-func TestRegister_MissingFields(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	testutil.SeedTestData(t, db)
-
-	// Empty body -- username and password are empty strings, org/company IDs are 0
-	// This should fail because organization_id=0 and company_id=0 violate FK constraints
-	rec := testutil.POST(t, e, "/register", `{}`, nil)
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestRegister_ShortUsername(t *testing.T) {
+func TestCreateUser_MissingFields(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	rec := testutil.POST(t, e, "/users", `{}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateUser_ShortUsername(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
 
 	body := `{"username":"ab","password":"secret123","type_id":1,"organization_id":` +
 		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
-	rec := testutil.POST(t, e, "/register", body, nil)
+	rec := testutil.POST(t, e, "/users", body, h)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-func TestRegister_ShortPassword(t *testing.T) {
+func TestCreateUser_ShortPassword(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
 
 	body := `{"username":"validuser","password":"12345","type_id":1,"organization_id":` +
 		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
-	rec := testutil.POST(t, e, "/register", body, nil)
+	rec := testutil.POST(t, e, "/users", body, h)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-func TestRegister_WithOptionalFields(t *testing.T) {
+func TestCreateUser_WithOptionalFields(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
 
 	body := `{
 		"username":"fulluser","password":"secret123","type_id":1,
@@ -95,7 +144,7 @@ func TestRegister_WithOptionalFields(t *testing.T) {
 		"last_name":"Ivanov","first_name":"Ivan","middle_name":"Ivanovich",
 		"position":"Developer","email":"ivan@test.com","phone":"+79001234567"
 	}`
-	rec := testutil.POST(t, e, "/register", body, nil)
+	rec := testutil.POST(t, e, "/users", body, h)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
