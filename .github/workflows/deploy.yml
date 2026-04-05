@@ -1,24 +1,54 @@
 name: Deploy
 
 on:
+  push:
+    branches: [main]
+
   workflow_dispatch:
     inputs:
       environment:
         description: 'Deploy environment'
         required: true
-        default: 'production'
+        default: 'staging'
         type: choice
         options:
+          - staging
           - production
 
 concurrency:
-  group: deploy-${{ github.event.inputs.environment }}
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy to VPS
+  deploy-staging:
+    name: Deploy to Staging
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.environment == 'staging'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/systemburo
+            git fetch origin main
+            git reset --hard origin/main
+            test -f .env || bash scripts/init-env.sh staging ${{ secrets.STAGING_DOMAIN }}
+            docker compose -f docker-compose.staging.yml build
+            docker compose -f docker-compose.staging.yml up -d
+            sleep 5
+            wget -qO- http://localhost/health || echo "Health check failed"
+            echo "Staging deploy completed at $(date)"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +61,11 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/systemburo
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
+            test -f .env || bash scripts/init-env.sh production ${{ secrets.PROD_DOMAIN }}
             docker compose -f docker-compose.prod.yml build
             docker compose -f docker-compose.prod.yml up -d
+            sleep 5
             docker compose -f docker-compose.prod.yml exec backend wget -qO- http://localhost:8080/health || echo "Health check failed"
-            echo "Deploy completed at $(date)"
+            echo "Production deploy completed at $(date)"

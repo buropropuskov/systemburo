@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init deploy-build deploy-up deploy-down deploy-logs security
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security
 
 up:
 	docker compose up -d
@@ -36,6 +36,24 @@ prod-build:
 init:
 	git config core.hooksPath .githooks
 	@echo "Git hooks настроены на .githooks/"
+
+init-staging:
+	bash scripts/init-env.sh staging $(DOMAIN)
+
+init-production:
+	bash scripts/init-env.sh production $(DOMAIN)
+
+staging-build:
+	docker compose -f docker-compose.staging.yml build
+
+staging-up:
+	docker compose -f docker-compose.staging.yml up -d
+
+staging-down:
+	docker compose -f docker-compose.staging.yml down
+
+staging-logs:
+	docker compose -f docker-compose.staging.yml logs -f
 
 deploy-build:
 	docker compose -f docker-compose.prod.yml build
