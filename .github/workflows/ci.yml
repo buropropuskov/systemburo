@@ -11,6 +11,27 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  commit-lint:
+    name: Commit Message Lint
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate commit messages
+        run: |
+          PATTERN="^(fix|feat|feature|refactor|docs|test|chore|style|build|ci|perf)(\(.+\))?: .{3,}"
+          FAILED=0
+          git log --format="%s" origin/${{ github.base_ref }}..HEAD | while read -r msg; do
+            if ! echo "$msg" | grep -qE "$PATTERN"; then
+              echo "❌ $msg"
+              echo "   Формат: prefix(scope): описание"
+              exit 1
+            fi
+            echo "✅ $msg"
+          done
+
   go-test:
     name: Go Tests
     runs-on: ubuntu-latest

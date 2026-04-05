@@ -1,13 +1,20 @@
 #!/bin/sh
-# Проверка длины commit message (минимум 10 символов).
+# Проверка формата и длины commit message.
 # Установка: make init
 
 MSG_FILE="$1"
-
 MSG=$(grep -v '^#' "$MSG_FILE" | grep -v '^$' | head -1)
 
 if [ ${#MSG} -lt 10 ]; then
   echo "ОШИБКА: Сообщение коммита слишком короткое (${#MSG} символов, минимум 10)."
   echo "Пример: feat: добавил навигацию в личный кабинет"
+  exit 1
+fi
+
+if ! echo "$MSG" | grep -qE "^(fix|feat|feature|refactor|docs|test|chore|style|build|ci|perf)(\(.+\))?: .{3,}"; then
+  echo "ОШИБКА: Неверный формат коммита."
+  echo "Формат: prefix(scope): описание"
+  echo "Допустимые префиксы: fix, feat, feature, refactor, docs, test, chore, style, build, ci, perf"
+  echo "Пример: feat: добавил фильтр по дате"
   exit 1
 fi

@@ -2,15 +2,15 @@ name: Security
 
 on:
   push:
-    branches: [main]
+    branches: [prod]
   pull_request:
-    branches: [main]
+    branches: [prod]
   schedule:
     - cron: '0 6 * * 1'  # Every Monday at 06:00 UTC
 
 env:
   GO_VERSION: '1.25'
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
 
 jobs:
   govulncheck:

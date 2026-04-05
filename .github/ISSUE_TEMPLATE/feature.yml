@@ -1,0 +1,31 @@
+name: Feature Request
+description: Предложить новую функциональность
+labels: ["feature"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Описание
+      placeholder: Что нужно реализовать?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Критерии приёмки
+      placeholder: |
+        - [ ] Пользователь может...
+        - [ ] При ошибке показывается...
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Область
+      options:
+        - Frontend
+        - Backend
+        - CI/CD
+        - Другое
+    validations:
+      required: false

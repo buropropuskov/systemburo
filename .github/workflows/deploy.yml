@@ -52,6 +52,9 @@ jobs:
             wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
 
+      - name: Sync staging branch
+        run: git push origin dev:staging
+
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
