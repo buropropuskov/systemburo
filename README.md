@@ -58,6 +58,7 @@ make up     # запустить все сервисы
 | [Frontend](docs/FRONTEND.md) | Архитектура Vue, stores, API-клиент, компоненты, skeleton |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, ручной деплой, production, бэкапы |
 | [Security](docs/SECURITY.md) | 152-ФЗ, шифрование, аудит, авторизация, rate limiting |
+| [ADR](docs/adr/) | Архитектурные решения (Go vs Rust, GORM, AES-GCM, Pinia и др.) |
 
 ## Конфигурация
 
