@@ -84,6 +84,7 @@ definitions:
   models.CreateApproverRequest:
     properties:
       user_id:
+        minimum: 1
         type: integer
     type: object
   models.CreateCitizenshipRequest:
@@ -93,14 +94,22 @@ definitions:
       is_default:
         type: boolean
       name:
+        maxLength: 100
+        minLength: 1
         type: string
       patent_required:
         type: boolean
+    required:
+    - name
     type: object
   models.CreateFeedbackRequest:
     properties:
       message:
+        maxLength: 1000
+        minLength: 10
         type: string
+    required:
+    - message
     type: object
   models.CreateFormatCellRequest:
     properties:
@@ -143,7 +152,11 @@ definitions:
       is_default:
         type: boolean
       name:
+        maxLength: 100
+        minLength: 1
         type: string
+    required:
+    - name
     type: object
   models.CreateSystemTableRequest:
     properties:
@@ -177,6 +190,8 @@ definitions:
       close_time:
         type: string
       day_of_week:
+        maximum: 6
+        minimum: 0
         type: integer
       is_active:
         type: boolean
@@ -186,21 +201,35 @@ definitions:
         type: string
     required:
     - close_time
-    - day_of_week
     - open_time
     type: object
   models.CreateUniqueAttachmentRequest:
     properties:
       attachment_type:
+        enum:
+        - cars
+        - people
+        - items
         type: string
       display_name:
+        maxLength: 255
+        minLength: 1
         type: string
       instruction:
         type: string
       name:
+        maxLength: 255
+        minLength: 1
         type: string
       title:
+        maxLength: 255
+        minLength: 1
         type: string
+    required:
+    - attachment_type
+    - display_name
+    - name
+    - title
     type: object
   models.CreateUniqueAttachmentResponse:
     properties:
@@ -337,6 +366,9 @@ definitions:
         type: string
       username:
         type: string
+    required:
+    - password
+    - username
     type: object
   models.LoginResponse:
     properties:
@@ -408,6 +440,8 @@ definitions:
       organization_id:
         type: integer
       password:
+        maxLength: 255
+        minLength: 6
         type: string
       phone:
         type: string
@@ -416,7 +450,12 @@ definitions:
       type_id:
         type: integer
       username:
+        maxLength: 100
+        minLength: 3
         type: string
+    required:
+    - password
+    - username
     type: object
   models.SystemTable:
     properties:
@@ -426,6 +465,10 @@ definitions:
         type: string
       fact_table_hint:
         type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.TableField'
+        type: array
       id:
         type: integer
       instruction:
@@ -438,6 +481,10 @@ definitions:
         type: string
       name:
         type: string
+      photos:
+        items:
+          $ref: '#/definitions/models.SystemTablePhoto'
+        type: array
       show_fact_table:
         type: boolean
       status:
@@ -448,6 +495,10 @@ definitions:
       table_type:
         description: cars, people
         type: string
+      time_slots:
+        items:
+          $ref: '#/definitions/models.SystemTableTimeSlot'
+        type: array
       updated_at:
         type: string
     type: object
@@ -616,14 +667,23 @@ definitions:
       is_default:
         type: boolean
       name:
+        maxLength: 100
+        minLength: 1
         type: string
       patent_required:
         type: boolean
+    required:
+    - name
     type: object
   models.UpdateFeedbackStatusRequest:
     properties:
       status:
+        enum:
+        - Нерешено
+        - Решено
         type: string
+    required:
+    - status
     type: object
   models.UpdateFormatCellRequest:
     properties:
@@ -661,12 +721,20 @@ definitions:
       is_default:
         type: boolean
       name:
+        maxLength: 100
+        minLength: 1
         type: string
+    required:
+    - name
     type: object
   models.UpdatePasswordRequest:
     properties:
       password:
+        maxLength: 255
+        minLength: 6
         type: string
+    required:
+    - password
     type: object
   models.UpdateSystemTableRequest:
     properties:
@@ -705,19 +773,35 @@ definitions:
   models.UpdateUniqueAttachmentRequest:
     properties:
       attachment_type:
+        enum:
+        - cars
+        - people
+        - items
         type: string
       display_name:
+        maxLength: 255
+        minLength: 1
         type: string
       instruction:
         type: string
       name:
+        maxLength: 255
+        minLength: 1
         type: string
       title:
+        maxLength: 255
+        minLength: 1
         type: string
+    required:
+    - attachment_type
+    - display_name
+    - name
+    - title
     type: object
   models.UpdateUserCompanyRequest:
     properties:
       company_id:
+        minimum: 1
         type: integer
     type: object
   models.UpdateUserInfoRequest:
@@ -738,11 +822,13 @@ definitions:
   models.UpdateUserOrganizationRequest:
     properties:
       organization_id:
+        minimum: 1
         type: integer
     type: object
   models.UpdateUserTypeRequest:
     properties:
       type_id:
+        minimum: 1
         type: integer
     type: object
   models.UserDataResponse:
@@ -835,6 +921,7 @@ definitions:
       action_type:
         type: string
       application_id:
+        minimum: 1
         type: integer
       comment:
         type: string
@@ -845,7 +932,10 @@ definitions:
       old_value:
         type: string
       user_id:
+        minimum: 1
         type: integer
+    required:
+    - action_type
     type: object
   services.AllCarsHistoryItem:
     properties:
@@ -1281,6 +1371,10 @@ definitions:
         type: array
       responsible_person:
         type: string
+    required:
+    - contact_phone
+    - organization
+    - responsible_person
     type: object
   services.CompleteApplicationResponse:
     properties:
@@ -1296,30 +1390,44 @@ definitions:
   services.CreateCompanyRequest:
     properties:
       name:
+        maxLength: 100
+        minLength: 1
         type: string
+    required:
+    - name
     type: object
   services.CreateEmployeeRequest:
     properties:
       citizenship_id:
+        minimum: 1
         type: integer
       first_name:
+        minLength: 1
         type: string
       last_name:
+        minLength: 1
         type: string
       middle_name:
         type: string
       other_permission:
         type: string
       passport_series_number:
+        minLength: 1
         type: string
       patent_number:
         type: string
       position:
+        minLength: 1
         type: string
       target_tables:
         items:
           type: integer
         type: array
+    required:
+    - first_name
+    - last_name
+    - passport_series_number
+    - position
     type: object
   services.CreateEmployeeResponse:
     properties:
@@ -1333,13 +1441,19 @@ definitions:
   services.CreateOrganizationRequest:
     properties:
       name:
+        maxLength: 100
+        minLength: 1
         type: string
+    required:
+    - name
     type: object
   services.CreateTimeSlotRequest:
     properties:
       close_time:
         type: string
       day_of_week:
+        maximum: 6
+        minimum: 0
         type: integer
       is_active:
         type: boolean
@@ -1347,6 +1461,9 @@ definitions:
         type: boolean
       open_time:
         type: string
+    required:
+    - close_time
+    - open_time
     type: object
   services.CreateUnloadPlaceRequest:
     properties:
@@ -1355,18 +1472,29 @@ definitions:
       map_link:
         type: string
       name:
+        maxLength: 200
+        minLength: 1
         type: string
       status:
         type: string
       status_comment:
         type: string
+    required:
+    - name
     type: object
   services.CreateUserTypeRequest:
     properties:
       code:
+        maxLength: 20
+        minLength: 1
         type: string
       name:
+        maxLength: 50
+        minLength: 1
         type: string
+    required:
+    - code
+    - name
     type: object
   services.DeactivateCarRequest:
     properties:
@@ -1486,13 +1614,18 @@ definitions:
       format_id:
         type: integer
       mark:
+        maxLength: 100
         type: string
       number:
+        maxLength: 50
+        minLength: 1
         type: string
       organization_id:
         type: integer
       user_id:
         type: integer
+    required:
+    - number
     type: object
   services.NewUniqueEmployeeRequest:
     properties:
@@ -1641,6 +1774,7 @@ definitions:
       comment:
         type: string
       user_id:
+        minimum: 1
         type: integer
     type: object
   services.TableCarResponse:
@@ -1711,11 +1845,17 @@ definitions:
   services.TakeToWorkRequest:
     properties:
       action:
+        enum:
+        - accept
+        - reject
         type: string
       comment:
         type: string
       user_id:
+        minimum: 1
         type: integer
+    required:
+    - action
     type: object
   services.UniqueCarResponse:
     properties:
@@ -1883,6 +2023,8 @@ definitions:
         type: string
       update_data:
         $ref: '#/definitions/services.NewUniqueCarRequest'
+    required:
+    - number
     type: object
   services.UpdateCompanyTablesRequest:
     properties:
@@ -1962,18 +2104,31 @@ definitions:
   services.UpdateUserTypeRequest:
     properties:
       code:
+        maxLength: 20
+        minLength: 1
         type: string
       name:
+        maxLength: 50
+        minLength: 1
         type: string
+    required:
+    - code
+    - name
     type: object
   services.UserApprovalRequest:
     properties:
       comment:
         type: string
       status:
+        enum:
+        - approved
+        - rejected
         type: string
       user_id:
+        minimum: 1
         type: integer
+    required:
+    - status
     type: object
   services.UserTypeWithCount:
     properties:

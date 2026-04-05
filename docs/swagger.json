@@ -7803,12 +7803,16 @@
             "type": "object",
             "properties": {
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
         "models.CreateCitizenshipRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "icon": {
                     "type": "string"
@@ -7817,7 +7821,9 @@
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 },
                 "patent_required": {
                     "type": "boolean"
@@ -7826,9 +7832,14 @@
         },
         "models.CreateFeedbackRequest": {
             "type": "object",
+            "required": [
+                "message"
+            ],
             "properties": {
                 "message": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 10
                 }
             }
         },
@@ -7877,6 +7888,9 @@
         },
         "models.CreateLicensePlateFormatRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "cells": {
                     "type": "array",
@@ -7894,7 +7908,9 @@
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
@@ -7942,7 +7958,6 @@
             "type": "object",
             "required": [
                 "close_time",
-                "day_of_week",
                 "open_time"
             ],
             "properties": {
@@ -7950,7 +7965,9 @@
                     "type": "string"
                 },
                 "day_of_week": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 0
                 },
                 "is_active": {
                     "type": "boolean"
@@ -7965,21 +7982,38 @@
         },
         "models.CreateUniqueAttachmentRequest": {
             "type": "object",
+            "required": [
+                "attachment_type",
+                "display_name",
+                "name",
+                "title"
+            ],
             "properties": {
                 "attachment_type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "cars",
+                        "people",
+                        "items"
+                    ]
                 },
                 "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "instruction": {
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 }
             }
         },
@@ -8182,6 +8216,10 @@
         },
         "models.LoginRequest": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "password": {
                     "type": "string"
@@ -8278,6 +8316,10 @@
         },
         "models.RegisterRequest": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "company_id": {
                     "type": "integer"
@@ -8298,7 +8340,9 @@
                     "type": "integer"
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
                 },
                 "phone": {
                     "type": "string"
@@ -8310,7 +8354,9 @@
                     "type": "integer"
                 },
                 "username": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 3
                 }
             }
         },
@@ -8325,6 +8371,12 @@
                 },
                 "fact_table_hint": {
                     "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableField"
+                    }
                 },
                 "id": {
                     "type": "integer"
@@ -8344,6 +8396,12 @@
                 "name": {
                     "type": "string"
                 },
+                "photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SystemTablePhoto"
+                    }
+                },
                 "show_fact_table": {
                     "type": "boolean"
                 },
@@ -8357,6 +8415,12 @@
                 "table_type": {
                     "description": "cars, people",
                     "type": "string"
+                },
+                "time_slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SystemTableTimeSlot"
+                    }
                 },
                 "updated_at": {
                     "type": "string"
@@ -8602,6 +8666,9 @@
         },
         "models.UpdateCitizenshipRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "icon": {
                     "type": "string"
@@ -8613,7 +8680,9 @@
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 },
                 "patent_required": {
                     "type": "boolean"
@@ -8622,9 +8691,16 @@
         },
         "models.UpdateFeedbackStatusRequest": {
             "type": "object",
+            "required": [
+                "status"
+            ],
             "properties": {
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "Нерешено",
+                        "Решено"
+                    ]
                 }
             }
         },
@@ -8665,6 +8741,9 @@
         },
         "models.UpdateLicensePlateFormatRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "cells": {
                     "type": "array",
@@ -8682,15 +8761,22 @@
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
         "models.UpdatePasswordRequest": {
             "type": "object",
+            "required": [
+                "password"
+            ],
             "properties": {
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
                 }
             }
         },
@@ -8748,21 +8834,38 @@
         },
         "models.UpdateUniqueAttachmentRequest": {
             "type": "object",
+            "required": [
+                "attachment_type",
+                "display_name",
+                "name",
+                "title"
+            ],
             "properties": {
                 "attachment_type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "cars",
+                        "people",
+                        "items"
+                    ]
                 },
                 "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "instruction": {
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 }
             }
         },
@@ -8770,7 +8873,8 @@
             "type": "object",
             "properties": {
                 "company_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -8801,7 +8905,8 @@
             "type": "object",
             "properties": {
                 "organization_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -8809,7 +8914,8 @@
             "type": "object",
             "properties": {
                 "type_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -8942,6 +9048,9 @@
         },
         "services.AddHistoryEntryRequest": {
             "type": "object",
+            "required": [
+                "action_type"
+            ],
             "properties": {
                 "action_status": {
                     "type": "string"
@@ -8950,7 +9059,8 @@
                     "type": "string"
                 },
                 "application_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "comment": {
                     "type": "string"
@@ -8965,7 +9075,8 @@
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -9601,6 +9712,11 @@
         },
         "services.CompleteApplicationRequest": {
             "type": "object",
+            "required": [
+                "contact_phone",
+                "organization",
+                "responsible_person"
+            ],
             "properties": {
                 "attachments": {
                     "type": "array",
@@ -9653,23 +9769,37 @@
         },
         "services.CreateCompanyRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
         "services.CreateEmployeeRequest": {
             "type": "object",
+            "required": [
+                "first_name",
+                "last_name",
+                "passport_series_number",
+                "position"
+            ],
             "properties": {
                 "citizenship_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "first_name": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "last_name": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "middle_name": {
                     "type": "string"
@@ -9678,13 +9808,15 @@
                     "type": "string"
                 },
                 "passport_series_number": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "patent_number": {
                     "type": "string"
                 },
                 "position": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "target_tables": {
                     "type": "array",
@@ -9710,20 +9842,31 @@
         },
         "services.CreateOrganizationRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
         "services.CreateTimeSlotRequest": {
             "type": "object",
+            "required": [
+                "close_time",
+                "open_time"
+            ],
             "properties": {
                 "close_time": {
                     "type": "string"
                 },
                 "day_of_week": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 0
                 },
                 "is_active": {
                     "type": "boolean"
@@ -9738,6 +9881,9 @@
         },
         "services.CreateUnloadPlaceRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "description": {
                     "type": "string"
@@ -9746,7 +9892,9 @@
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
                 },
                 "status": {
                     "type": "string"
@@ -9758,12 +9906,20 @@
         },
         "services.CreateUserTypeRequest": {
             "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
             "properties": {
                 "code": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 1
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
                 }
             }
         },
@@ -9940,6 +10096,9 @@
         },
         "services.NewUniqueCarRequest": {
             "type": "object",
+            "required": [
+                "number"
+            ],
             "properties": {
                 "company_id": {
                     "type": "integer"
@@ -9948,10 +10107,13 @@
                     "type": "integer"
                 },
                 "mark": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100
                 },
                 "number": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
                 },
                 "organization_id": {
                     "type": "integer"
@@ -10187,7 +10349,8 @@
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -10292,15 +10455,23 @@
         },
         "services.TakeToWorkRequest": {
             "type": "object",
+            "required": [
+                "action"
+            ],
             "properties": {
                 "action": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "accept",
+                        "reject"
+                    ]
                 },
                 "comment": {
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -10546,6 +10717,9 @@
         },
         "services.UpdateCarByNumberRequest": {
             "type": "object",
+            "required": [
+                "number"
+            ],
             "properties": {
                 "mark": {
                     "type": "string"
@@ -10677,26 +10851,42 @@
         },
         "services.UpdateUserTypeRequest": {
             "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
             "properties": {
                 "code": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 1
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
                 }
             }
         },
         "services.UserApprovalRequest": {
             "type": "object",
+            "required": [
+                "status"
+            ],
             "properties": {
                 "comment": {
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "approved",
+                        "rejected"
+                    ]
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },

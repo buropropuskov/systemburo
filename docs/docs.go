@@ -7809,12 +7809,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
         "models.CreateCitizenshipRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "icon": {
                     "type": "string"
@@ -7823,7 +7827,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 },
                 "patent_required": {
                     "type": "boolean"
@@ -7832,9 +7838,14 @@ const docTemplate = `{
         },
         "models.CreateFeedbackRequest": {
             "type": "object",
+            "required": [
+                "message"
+            ],
             "properties": {
                 "message": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 10
                 }
             }
         },
@@ -7883,6 +7894,9 @@ const docTemplate = `{
         },
         "models.CreateLicensePlateFormatRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "cells": {
                     "type": "array",
@@ -7900,7 +7914,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
@@ -7948,7 +7964,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "close_time",
-                "day_of_week",
                 "open_time"
             ],
             "properties": {
@@ -7956,7 +7971,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "day_of_week": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 0
                 },
                 "is_active": {
                     "type": "boolean"
@@ -7971,21 +7988,38 @@ const docTemplate = `{
         },
         "models.CreateUniqueAttachmentRequest": {
             "type": "object",
+            "required": [
+                "attachment_type",
+                "display_name",
+                "name",
+                "title"
+            ],
             "properties": {
                 "attachment_type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "cars",
+                        "people",
+                        "items"
+                    ]
                 },
                 "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "instruction": {
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 }
             }
         },
@@ -8188,6 +8222,10 @@ const docTemplate = `{
         },
         "models.LoginRequest": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "password": {
                     "type": "string"
@@ -8284,6 +8322,10 @@ const docTemplate = `{
         },
         "models.RegisterRequest": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "company_id": {
                     "type": "integer"
@@ -8304,7 +8346,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
                 },
                 "phone": {
                     "type": "string"
@@ -8316,7 +8360,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "username": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 3
                 }
             }
         },
@@ -8331,6 +8377,12 @@ const docTemplate = `{
                 },
                 "fact_table_hint": {
                     "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableField"
+                    }
                 },
                 "id": {
                     "type": "integer"
@@ -8350,6 +8402,12 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SystemTablePhoto"
+                    }
+                },
                 "show_fact_table": {
                     "type": "boolean"
                 },
@@ -8363,6 +8421,12 @@ const docTemplate = `{
                 "table_type": {
                     "description": "cars, people",
                     "type": "string"
+                },
+                "time_slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SystemTableTimeSlot"
+                    }
                 },
                 "updated_at": {
                     "type": "string"
@@ -8608,6 +8672,9 @@ const docTemplate = `{
         },
         "models.UpdateCitizenshipRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "icon": {
                     "type": "string"
@@ -8619,7 +8686,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 },
                 "patent_required": {
                     "type": "boolean"
@@ -8628,9 +8697,16 @@ const docTemplate = `{
         },
         "models.UpdateFeedbackStatusRequest": {
             "type": "object",
+            "required": [
+                "status"
+            ],
             "properties": {
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "Нерешено",
+                        "Решено"
+                    ]
                 }
             }
         },
@@ -8671,6 +8747,9 @@ const docTemplate = `{
         },
         "models.UpdateLicensePlateFormatRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "cells": {
                     "type": "array",
@@ -8688,15 +8767,22 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
         "models.UpdatePasswordRequest": {
             "type": "object",
+            "required": [
+                "password"
+            ],
             "properties": {
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
                 }
             }
         },
@@ -8754,21 +8840,38 @@ const docTemplate = `{
         },
         "models.UpdateUniqueAttachmentRequest": {
             "type": "object",
+            "required": [
+                "attachment_type",
+                "display_name",
+                "name",
+                "title"
+            ],
             "properties": {
                 "attachment_type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "cars",
+                        "people",
+                        "items"
+                    ]
                 },
                 "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "instruction": {
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
                 }
             }
         },
@@ -8776,7 +8879,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "company_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -8807,7 +8911,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "organization_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -8815,7 +8920,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "type_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -8948,6 +9054,9 @@ const docTemplate = `{
         },
         "services.AddHistoryEntryRequest": {
             "type": "object",
+            "required": [
+                "action_type"
+            ],
             "properties": {
                 "action_status": {
                     "type": "string"
@@ -8956,7 +9065,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "application_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "comment": {
                     "type": "string"
@@ -8971,7 +9081,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -9607,6 +9718,11 @@ const docTemplate = `{
         },
         "services.CompleteApplicationRequest": {
             "type": "object",
+            "required": [
+                "contact_phone",
+                "organization",
+                "responsible_person"
+            ],
             "properties": {
                 "attachments": {
                     "type": "array",
@@ -9659,23 +9775,37 @@ const docTemplate = `{
         },
         "services.CreateCompanyRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
         "services.CreateEmployeeRequest": {
             "type": "object",
+            "required": [
+                "first_name",
+                "last_name",
+                "passport_series_number",
+                "position"
+            ],
             "properties": {
                 "citizenship_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "first_name": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "last_name": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "middle_name": {
                     "type": "string"
@@ -9684,13 +9814,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "passport_series_number": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "patent_number": {
                     "type": "string"
                 },
                 "position": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                 },
                 "target_tables": {
                     "type": "array",
@@ -9716,20 +9848,31 @@ const docTemplate = `{
         },
         "services.CreateOrganizationRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },
         "services.CreateTimeSlotRequest": {
             "type": "object",
+            "required": [
+                "close_time",
+                "open_time"
+            ],
             "properties": {
                 "close_time": {
                     "type": "string"
                 },
                 "day_of_week": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 0
                 },
                 "is_active": {
                     "type": "boolean"
@@ -9744,6 +9887,9 @@ const docTemplate = `{
         },
         "services.CreateUnloadPlaceRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "description": {
                     "type": "string"
@@ -9752,7 +9898,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
                 },
                 "status": {
                     "type": "string"
@@ -9764,12 +9912,20 @@ const docTemplate = `{
         },
         "services.CreateUserTypeRequest": {
             "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
             "properties": {
                 "code": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 1
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
                 }
             }
         },
@@ -9946,6 +10102,9 @@ const docTemplate = `{
         },
         "services.NewUniqueCarRequest": {
             "type": "object",
+            "required": [
+                "number"
+            ],
             "properties": {
                 "company_id": {
                     "type": "integer"
@@ -9954,10 +10113,13 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "mark": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100
                 },
                 "number": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
                 },
                 "organization_id": {
                     "type": "integer"
@@ -10193,7 +10355,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -10298,15 +10461,23 @@ const docTemplate = `{
         },
         "services.TakeToWorkRequest": {
             "type": "object",
+            "required": [
+                "action"
+            ],
             "properties": {
                 "action": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "accept",
+                        "reject"
+                    ]
                 },
                 "comment": {
                     "type": "string"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -10552,6 +10723,9 @@ const docTemplate = `{
         },
         "services.UpdateCarByNumberRequest": {
             "type": "object",
+            "required": [
+                "number"
+            ],
             "properties": {
                 "mark": {
                     "type": "string"
@@ -10683,26 +10857,42 @@ const docTemplate = `{
         },
         "services.UpdateUserTypeRequest": {
             "type": "object",
+            "required": [
+                "code",
+                "name"
+            ],
             "properties": {
                 "code": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 1
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 1
                 }
             }
         },
         "services.UserApprovalRequest": {
             "type": "object",
+            "required": [
+                "status"
+            ],
             "properties": {
                 "comment": {
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "approved",
+                        "rejected"
+                    ]
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
