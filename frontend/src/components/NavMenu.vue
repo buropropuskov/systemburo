@@ -441,6 +441,8 @@ export default {
   justify-content: flex-start;
   width: 187px;
   gap: 10px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .nav-item:hover .exit {

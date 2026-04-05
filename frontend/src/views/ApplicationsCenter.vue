@@ -181,6 +181,10 @@
             </div>
             
             <div class="table-body">
+                <SkeletonTransition :loading="loading">
+                    <template #skeleton>
+                        <SkeletonTable :rows="10" :columns="6" />
+                    </template>
                 <div v-if="filteredApplications.length > 0" class="applications-list">
                     <div 
                         v-for="(application, index) in sortedApplications" 
@@ -238,6 +242,7 @@
                 <p v-else class="no-data-message">
                     {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
                 </p>
+                </SkeletonTransition>
             </div>
         </div>
 
@@ -265,6 +270,8 @@ import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
 import DateFilter from '../components/DateFilter.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
+import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
+import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 
 export default {
     name: 'ApplicationsCenter',
@@ -273,7 +280,9 @@ export default {
         RefreshButton,
         ApplicationDetail,
         DateFilter,
-        FilterTabs
+        FilterTabs,
+        SkeletonTransition,
+        SkeletonTable
     },
     data() {
         return {
@@ -313,6 +322,8 @@ export default {
                 { key: 'active', label: 'Активные' },
                 { key: 'archive', label: 'Архив' },
             ],
+
+            loading: true,
 
             // Данные заявок
             applications: [],
@@ -715,6 +726,8 @@ export default {
                 }
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
+            } finally {
+                this.loading = false;
             }
         },
 
@@ -852,6 +865,9 @@ export default {
     watch: {
         archiveMode() {
             this.fetchApplications();
+        },
+        '$route.query.archive'(val) {
+            this.archiveMode = val === 'true' ? 'archive' : 'active';
         },
     },
     mounted() {

@@ -1,8 +1,14 @@
 <template>
   <header class="header" ref="header">
     <div class="header__title">
-      <h3>Добрый день, {{ displayName }}!</h3>
-      <p class="header__subtitle">Мы рады, что вы здесь!</p>
+      <template v-if="loading">
+        <SkeletonLine width="200px" height="20px" />
+        <SkeletonLine width="150px" height="14px" />
+      </template>
+      <template v-else>
+        <h3>Добрый день, {{ displayName }}!</h3>
+        <p class="header__subtitle">Мы рады, что вы здесь!</p>
+      </template>
     </div>
 
     <div class="header__info">
@@ -41,14 +47,17 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import FeedbackModal from '@/components/FeedbackModal.vue';
+import { SkeletonLine } from '@/components/ui';
 
 export default {
   name: 'TheHeader',
   components: {
-    FeedbackModal
+    FeedbackModal,
+    SkeletonLine,
   },
   data() {
     return {
+      loading: true,
       userFirstName: '',
       userLastName: '',
       currentDateTime: '',
@@ -103,6 +112,8 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка сети при загрузке данных пользователя:", error);
+      } finally {
+        this.loading = false;
       }
     },
     updateDateTime() {

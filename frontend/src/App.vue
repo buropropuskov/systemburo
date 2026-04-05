@@ -8,7 +8,11 @@
     />
     <div class="content" id="main-content">
       <TheHeader class="theheader" v-if="isAuthenticated"/>
-      <router-view class="content__container" @login-success="handleSuccessfulLogin" />
+      <router-view v-slot="{ Component }" class="content__container">
+        <transition name="page-fade" mode="out-in">
+          <component :is="Component" @login-success="handleSuccessfulLogin" :key="$route.path" />
+        </transition>
+      </router-view>
     </div>
     
     <!-- Модальное окно истекшей сессии -->
@@ -297,5 +301,16 @@ body:not(.auth-active) #app {
 
 .red {
   color: rgb(241, 76, 76);
+}
+
+.page-fade-enter-active {
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.page-fade-leave-active {
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
 }
 </style>

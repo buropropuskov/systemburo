@@ -2,22 +2,31 @@
   <div class="account-dashboard">
     <!-- Первая строка: заголовок и заявки -->
     <div class="first-row">
-      <!-- Заголовок с информацией о пользователе -->
-      <UserProfileHeader
-        :organization="organization"
-        :company="company"
-        :last-name="lastName"
-        :first-name="firstName"
-        :middle-name="middleName"
-        :position="position"
-        :email="email"
-        :phone="phone"
-        :user-type="user_type"
-        :type-id="type_id"
-        class="dashboard-card-animated"
-      />
+      <SkeletonTransition :loading="loading">
+        <template #skeleton>
+          <div style="display: flex; gap: 20px; width: 100%;">
+            <SkeletonBlock height="200px" style="flex: 1;" />
+            <SkeletonBlock height="200px" style="flex: 1;" />
+          </div>
+        </template>
 
-      <UserNotifications />
+        <!-- Заголовок с информацией о пользователе -->
+        <UserProfileHeader
+          :organization="organization"
+          :company="company"
+          :last-name="lastName"
+          :first-name="firstName"
+          :middle-name="middleName"
+          :position="position"
+          :email="email"
+          :phone="phone"
+          :user-type="user_type"
+          :type-id="type_id"
+          class="dashboard-card-animated"
+        />
+
+        <UserNotifications />
+      </SkeletonTransition>
     </div>
     
     <div class="dashboard-row">
@@ -99,6 +108,7 @@ import AccountSettings from './AccountSettings.vue';
 import CitizenshipManagement from './CitizenshipManagement.vue';
 import AttachmentsManagement from './AttachmentsManagement.vue';
 import ApplicationApprovers from './ApplicationApprovers.vue';
+import { SkeletonTransition, SkeletonBlock } from '@/components/ui';
 
 export default {
   components: {
@@ -115,10 +125,13 @@ export default {
     AccountSettings,
     CitizenshipManagement,
     AttachmentsManagement,
-    ApplicationApprovers
+    ApplicationApprovers,
+    SkeletonTransition,
+    SkeletonBlock,
   },
   data() {
     return {
+      loading: true,
       allUsers: [],
       organization: "",
       company: "",
@@ -164,6 +177,8 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка сети при загрузке данных пользователя:", error);
+      } finally {
+        this.loading = false;
       }
     },
     updateUserData(userData) {

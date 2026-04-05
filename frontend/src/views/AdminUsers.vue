@@ -54,9 +54,12 @@
             </p>
           </div>
 
-          <div v-if="loading" class="admin-users__loading">
-            <div class="admin-users__spinner"></div>
-          </div>
+          <SkeletonTransition :loading="loading">
+            <template #skeleton>
+              <SkeletonTable :rows="8" :columns="4" />
+            </template>
+            <span></span>
+          </SkeletonTransition>
         </div>
       </div>
 
@@ -186,11 +189,20 @@
 
           <!-- Таб "Разрешения" -->
           <div v-if="activeTab === 'permissions'" class="admin-users__tab-content">
-            <div v-if="loadingPermissions" class="admin-users__loading">
-              <div class="admin-users__spinner"></div>
-            </div>
+            <SkeletonTransition :loading="loadingPermissions">
+              <template #skeleton>
+                <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+                  <SkeletonLine width="40%" height="14px" />
+                  <SkeletonLine width="100%" height="12px" />
+                  <SkeletonLine width="100%" height="12px" />
+                  <SkeletonLine width="100%" height="12px" />
+                  <SkeletonLine width="35%" height="14px" />
+                  <SkeletonLine width="100%" height="12px" />
+                  <SkeletonLine width="100%" height="12px" />
+                </div>
+              </template>
 
-            <div v-else-if="permissionTree.length === 0" class="admin-users__empty">
+            <div v-if="permissionTree.length === 0" class="admin-users__empty">
               <p class="admin-users__empty-text">Нет доступных разрешений</p>
             </div>
 
@@ -219,6 +231,7 @@
                 </div>
               </div>
             </div>
+            </SkeletonTransition>
 
             <div class="admin-users__actions">
               <button
@@ -322,6 +335,9 @@ import { useToast } from '@/composables/useToast';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
+import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
+import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import SkeletonLine from '@/components/ui/SkeletonLine.vue';
 
 export default {
   name: 'AdminUsers',
@@ -329,6 +345,9 @@ export default {
     BaseModal,
     BaseDropdown,
     StatusBadge,
+    SkeletonTransition,
+    SkeletonTable,
+    SkeletonLine,
   },
   setup() {
     const toast = useToast();
@@ -756,25 +775,6 @@ export default {
   margin: 0;
 }
 
-.admin-users__loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-}
-
-.admin-users__spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: admin-spin 0.8s linear infinite;
-}
-
-@keyframes admin-spin {
-  to { transform: rotate(360deg); }
-}
 
 /* Нет выбранного пользователя */
 .admin-users__no-selection {

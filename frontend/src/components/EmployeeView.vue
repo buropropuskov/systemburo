@@ -115,6 +115,10 @@
                     
                     <!-- Тело таблицы -->
                     <div class="employees-container">
+                        <SkeletonTransition :loading="loading">
+                            <template #skeleton>
+                                <SkeletonTable :rows="6" :columns="5" />
+                            </template>
                         <div v-if="filteredEmployees.length > 0" class="employees-body">
                             <div 
                                 v-for="(employee) in sortedEmployees" 
@@ -172,6 +176,7 @@
                         <p v-else class="no-data-message">
                             {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Сотрудников нет' }}
                         </p>
+                        </SkeletonTransition>
                     </div>
                 </div>
             </div>
@@ -402,14 +407,19 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
+import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 
 export default {
     components: {
         SearchComponent,
-        RefreshButton
+        RefreshButton,
+        SkeletonTransition,
+        SkeletonTable
     },
     data() {
         return {
+            loading: true,
             searchQuery: '',
             sortField: null,
             sortDirection: 'desc',
@@ -613,6 +623,8 @@ export default {
             } catch (error) {
                 console.error("Ошибка при загрузке сотрудников:", error);
                 this.employeesData = [];
+            } finally {
+                this.loading = false;
             }
         },
 

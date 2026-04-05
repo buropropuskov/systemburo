@@ -39,11 +39,18 @@
       </nav>
 
       <div class="admin-settings__content">
-        <div v-if="loading" class="loading-state">
-          <div class="spinner"></div>
-        </div>
+        <SkeletonTransition :loading="loading">
+          <template #skeleton>
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <SkeletonLine width="40%" height="16px" />
+              <SkeletonBlock height="40px" radius="var(--radius-sm)" />
+              <SkeletonBlock height="80px" radius="var(--radius-sm)" />
+              <SkeletonBlock height="80px" radius="var(--radius-sm)" />
+              <SkeletonLine width="120px" height="36px" />
+            </div>
+          </template>
 
-        <div v-else-if="loadError" class="error-state">
+        <div v-if="loadError" class="error-state">
           <p class="error-message">{{ loadError }}</p>
           <button class="btn btn--primary" @click="fetchSettings">Повторить</button>
         </div>
@@ -193,6 +200,7 @@
             {{ saving ? 'Сохранение...' : 'Сохранить' }}
           </button>
         </div>
+        </SkeletonTransition>
       </div>
     </div>
 
@@ -207,9 +215,15 @@
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
+import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 
 export default {
   name: 'AdminSettings',
+  components: {
+    SkeletonTransition,
+    SkeletonLine,
+    SkeletonBlock,
+  },
   data() {
     return {
       activeSection: 'upload',

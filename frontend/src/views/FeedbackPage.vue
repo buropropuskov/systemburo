@@ -81,11 +81,17 @@
       </div>
       
       <div class="feedback__list" :class="{ 'loading': loading }">
-        <div v-if="loading" class="loading-state">
-          <div class="spinner"></div>
-        </div>
-        
-        <div v-else-if="pendingFeedbacks.length === 0" class="empty-state">
+        <SkeletonTransition :loading="loading">
+          <template #skeleton>
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px;">
+              <SkeletonCard :lines="3" />
+              <SkeletonCard :lines="3" />
+              <SkeletonCard :lines="3" />
+              <SkeletonCard :lines="3" />
+            </div>
+          </template>
+
+        <div v-if="pendingFeedbacks.length === 0" class="empty-state">
           <p class="no-data-message">{{ getEmptyMessage() }}</p>
         </div>
 
@@ -144,6 +150,7 @@
             </div>
           </div>
         </div>
+        </SkeletonTransition>
       </div>
     </div>
 
@@ -213,11 +220,14 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import SearchComponent from '@/components/SearchComponent.vue';
+import { SkeletonTransition, SkeletonCard } from '@/components/ui';
 
 export default {
   name: 'FeedbackPage',
   components: {
-    SearchComponent
+    SearchComponent,
+    SkeletonTransition,
+    SkeletonCard,
   },
   data() {
     return {

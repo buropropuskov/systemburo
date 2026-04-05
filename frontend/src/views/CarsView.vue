@@ -138,6 +138,10 @@
                     
                     <!-- Тело таблицы -->
                     <div class="cars-container">
+                        <SkeletonTransition :loading="loading">
+                            <template #skeleton>
+                                <SkeletonTable :rows="6" :columns="5" />
+                            </template>
                         <div v-if="filteredCars.length > 0" class="cars-body">
                             <div 
                                 v-for="(car) in sortedCars" 
@@ -203,6 +207,7 @@
                         <p v-else class="no-data-message">
                             {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Автомобилей нет' }}
                         </p>
+                        </SkeletonTransition>
                     </div>
                 </div>
             </div>
@@ -371,14 +376,19 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
+import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 
 export default {
     components: {
         SearchComponent,
-        RefreshButton
+        RefreshButton,
+        SkeletonTransition,
+        SkeletonTable
     },
     data() {
         return {
+            loading: true,
             searchQuery: '',
             sortField: null,
             sortDirection: 'desc',
@@ -554,6 +564,8 @@ export default {
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
                 this.carsData = [];
+            } finally {
+                this.loading = false;
             }
         },
 
