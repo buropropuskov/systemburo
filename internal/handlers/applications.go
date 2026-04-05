@@ -128,14 +128,15 @@ func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
-		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
-	}
-
 	app, err := h.service.GetApplicationByID(c.Request().Context(), username, id)
 	if err != nil {
 		return err
 	}
+
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	return RespondSuccess(c, app)
 }
 

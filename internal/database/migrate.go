@@ -100,32 +100,12 @@ func AllModels() []interface{} {
 }
 
 // AutoMigrate creates/updates all tables from GORM models.
-// If tables already exist (created by Rust backend) — skips safely.
-// On a fresh DB — creates everything from models (like Laravel Schema::create).
 func AutoMigrate(db *gorm.DB) error {
-	// Check if DB already has tables (Rust backend schema)
-	if db.Migrator().HasTable("users") {
-		slog.Info("database already has tables (Rust schema), skipping full AutoMigrate")
-		// Always migrate new tables that don't exist in Rust schema
-		newModels := []interface{}{
-			&models.SystemSetting{},
-			&models.Permission{},
-			&models.UserPermission{},
-			&models.ApplicationRead{},
-			&models.PDConsent{},
-			&models.PDAuditLog{},
-		}
-		if err := db.AutoMigrate(newModels...); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	slog.Info("fresh database detected, running AutoMigrate for all models")
+	slog.Info("running AutoMigrate for all models")
 	if err := db.AutoMigrate(AllModels()...); err != nil {
 		return err
 	}
-	slog.Info("AutoMigrate completed — all tables created")
+	slog.Info("AutoMigrate completed")
 	return nil
 }
 
