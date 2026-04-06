@@ -3,3 +3,22 @@
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code / Superpowers
+.claude/
+.superpowers/
+.playwright-mcp/
+*.plan.md
+
+# Дампы БД
+*.sql
+
+# Скриншоты и тестовые артефакты
+test-results/
+test-screenshots/
+frontend/test-results/
+
+# Временные файлы
+*.tmp
+mockup-*.html
+sidebar-*.png
