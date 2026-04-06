@@ -51,7 +51,6 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - frontend_dist:/usr/share/nginx/html:ro
     depends_on:
       - backend
       - frontend
@@ -60,4 +59,3 @@ services:
 volumes:
   pgdata:
   uploads:
-  frontend_dist:
