@@ -864,14 +864,15 @@ export default {
         },
 
         getFileIcon(extension) {
+            const icons = import.meta.glob('@/assets/icons/*.png', { eager: true, import: 'default' });
             const iconMap = {
-                'pdf': require('@/assets/icons/pdf.png'),
-                'doc': require('@/assets/icons/doc.png'),
-                'docx': require('@/assets/icons/doc.png'),
-                'xlsx': require('@/assets/icons/xlsx.png'),
-                'xls': require('@/assets/icons/xlsx.png')
+                'pdf': icons['/src/assets/icons/pdf.png'],
+                'doc': icons['/src/assets/icons/doc.png'],
+                'docx': icons['/src/assets/icons/doc.png'],
+                'xlsx': icons['/src/assets/icons/xlsx.png'],
+                'xls': icons['/src/assets/icons/xlsx.png'],
             };
-            return iconMap[extension] || require('@/assets/icons/document.png');
+            return iconMap[extension] || icons['/src/assets/icons/document.png'];
         },
 
         removeFile(index) {

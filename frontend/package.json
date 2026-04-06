@@ -3,39 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint",
+    "dev": "vite --port 8081",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src/",
     "test": "vitest",
     "test:run": "vitest run"
   },
   "dependencies": {
-    "core-js": "^3.8.3",
     "exceljs": "^4.4.0",
-    "sass-loader": "^16.0.5",
+    "pinia": "^2.3.0",
     "vue": "^3.2.13",
     "vue-router": "^4.4.5",
     "vue-select": "^4.0.0-beta.6",
     "xlsx": "^0.18.5",
-    "xlsx-style": "^0.8.13",
-    "pinia": "^2.3.0"
+    "xlsx-style": "^0.8.13"
   },
   "devDependencies": {
-    "@babel/core": "^7.12.16",
-    "@babel/eslint-parser": "^7.12.16",
-    "@vue/cli-plugin-babel": "~5.0.0",
-    "@vue/cli-plugin-eslint": "~5.0.0",
-    "@vue/cli-service": "~5.0.0",
-    "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^8.0.3",
     "@playwright/test": "^1.42.0",
-    "vitest": "^3.1.0",
+    "@vitejs/plugin-vue": "^6.0.5",
     "@vue/test-utils": "^2.4.0",
-    "jsdom": "^26.0.0"
+    "eslint": "^8.57.1",
+    "eslint-plugin-vue": "^9.33.0",
+    "jsdom": "^26.0.0",
+    "vite": "^8.0.3",
+    "vitest": "^3.1.0"
   },
   "eslintConfig": {
     "root": true,
     "env": {
+      "browser": true,
+      "es2021": true,
       "node": true
     },
     "extends": [
@@ -43,7 +41,8 @@
       "eslint:recommended"
     ],
     "parserOptions": {
-      "parser": "@babel/eslint-parser"
+      "ecmaVersion": "latest",
+      "sourceType": "module"
     },
     "rules": {}
   },

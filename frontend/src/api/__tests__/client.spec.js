@@ -83,8 +83,8 @@ describe('apiRequest', () => {
     expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('uses VUE_APP_API_BASE_URL when set', async () => {
-    // The module reads process.env.VUE_APP_API_BASE_URL at import time,
+  it('uses VITE_API_BASE_URL when set', async () => {
+    // The module reads import.meta.env.VITE_API_BASE_URL at import time,
     // so this test verifies default behavior (empty base URL)
     await apiRequest('/endpoint');
 
