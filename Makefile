@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed staging-seed deploy-seed staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security
 
 up:
 	docker compose up -d
@@ -32,6 +32,17 @@ frontend-dev:
 
 prod-build:
 	docker build --target production -t systemburo:latest .
+
+# Создать/обновить тестового админа (buropropuskov / admin123)
+# Кастомный пароль: make seed PASS=mypass
+seed:
+	docker compose exec go-backend go run ./cmd/seed $(PASS)
+
+staging-seed:
+	docker compose -f docker-compose.staging.yml exec backend ./seed $(PASS)
+
+deploy-seed:
+	docker compose -f docker-compose.prod.yml exec backend ./seed $(PASS)
 
 init:
 	git config core.hooksPath .githooks
