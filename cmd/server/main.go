@@ -157,7 +157,7 @@ func main() {
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
-	if cfg.LogLevel == "debug" {
+	if cfg.SwaggerEnabled {
 		e.GET("/swagger/*", echoSwagger.WrapHandler)
 	}
 

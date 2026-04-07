@@ -16,6 +16,7 @@ type Config struct {
 	JWTSecret        string `env:"JWT_SECRET,required"`
 	JWTRefreshSecret string `env:"JWT_REFRESH_SECRET,required"`
 	LogLevel         string `env:"LOG_LEVEL" envDefault:"info"`
+	SwaggerEnabled   bool   `env:"SWAGGER_ENABLED" envDefault:"false"`
 
 	CORSAllowedOrigins      []string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:8081" envSeparator:","`
 	UploadMaxFileSize       int64    `env:"UPLOAD_MAX_FILE_SIZE" envDefault:"10485760"`

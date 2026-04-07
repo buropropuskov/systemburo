@@ -35,6 +35,22 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("RATE_LIMIT_WINDOW_SEC", "")
 	t.Setenv("PAGINATION_MAX_LIMIT", "")
 	t.Setenv("UPLOAD_PATH", "")
+	t.Setenv("SWAGGER_ENABLED", "")
+}
+
+func TestLoad_SwaggerEnabled_DefaultFalse(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.SwaggerEnabled)
+}
+
+func TestLoad_SwaggerEnabled_True(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("SWAGGER_ENABLED", "true")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.SwaggerEnabled)
 }
 
 func TestLoad_Defaults(t *testing.T) {
