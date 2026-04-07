@@ -25,7 +25,6 @@
         <p class="current-language">RU</p>
       </div>
       <div class="user__notifications">
-        <img src="@/assets/icons/notifications.png" class="notifications__icon" alt="Уведомления" />
         <img src="@/assets/icons/messages.png" class="notifications__icon" alt="Сообщения" />
       </div>
       <div class="appl-btn__container">
