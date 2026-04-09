@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, jwtSecret []byte) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, jwtSecret []byte) {
 	// Health check
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -237,4 +237,21 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	protected.GET("/settings", settings.GetAll)
 	protected.GET("/settings/upload", settings.GetUploadSettings)
 	protected.PUT("/settings/:key", settings.Update)
+
+	// Новости
+	ng := protected.Group("/news")
+	ng.GET("", news.GetActiveNews)
+	ng.GET("/all", news.GetAllNews)
+	ng.POST("", news.CreateNews)
+	ng.PUT("/:id", news.UpdateNews)
+	ng.DELETE("/:id", news.DeleteNews)
+
+	// Объявления
+	ag := protected.Group("/announcements")
+	ag.GET("/active", news.GetActiveAnnouncement)
+	ag.GET("/all", news.GetAllAnnouncements)
+	ag.POST("", news.CreateAnnouncement)
+	ag.POST("/set-active", news.SetActiveAnnouncement)
+	ag.PUT("/:id", news.UpdateAnnouncement)
+	ag.DELETE("/:id", news.DeleteAnnouncement)
 }
