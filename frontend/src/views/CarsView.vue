@@ -1,5 +1,5 @@
 <template>
-    <section class="carsview">
+    <section class="carsview" data-testid="cars-page">
         <header class="carsview__header">
             <h2 class="carsview__title">
                 Список <span class="blue">автомобилей</span>

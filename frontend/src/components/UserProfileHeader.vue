@@ -4,7 +4,7 @@
       <!-- Основная информация -->
       <div class="main-info">
         <div class="name-and-type">
-          <h2 class="user-name">{{ displayName }}</h2>
+          <h2 class="user-name" data-testid="cabinet-text-username">{{ displayName }}</h2>
           <span class="user-type-badge">{{ userTypeDisplay }}</span>
         </div>
         <div class="org-company-block">

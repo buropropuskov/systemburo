@@ -31,9 +31,10 @@
                         <div class="header__right">
                             <div class="consent-section">
                                 <div class="consent-checkbox">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         id="consent"
+                                        data-testid="create-app-consent-checkbox"
                                         v-model="consentGiven"
                                         required
                                     />
@@ -42,7 +43,7 @@
                                         персональных данных, изложенных в заявке
                                     </label>
                                 </div>
-                                <button class="send-all-btn" @click="submitApplication" :disabled="!canSubmit">
+                                <button class="send-all-btn" data-testid="create-app-button-submit" @click="submitApplication" :disabled="!canSubmit">
                                     Отправить заявку
                                 </button>
                             </div>

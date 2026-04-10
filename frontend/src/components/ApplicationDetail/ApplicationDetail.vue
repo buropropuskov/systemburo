@@ -29,9 +29,10 @@
                             <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
                         </div>
                         <!-- Кнопка пересылки (рядом с датой) -->
-                        <button 
+                        <button
                             v-if="mode === 'center'"
-                            class="forward-btn" 
+                            class="forward-btn"
+                            data-testid="app-detail-button-forward"
                             @click="forwardApplication"
                             :disabled="updatingConfirmation || processingApplication"
                         >
