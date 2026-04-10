@@ -99,6 +99,8 @@
                         :employees="attachmentEmployees"
                         :items="attachmentItems"
                         :loading="loadingAttachmentDetails"
+                        @open-vehicle="openVehicleModal"
+                        @open-employee="openEmployeeModal"
                     />
                 </div>
 
@@ -211,6 +213,29 @@
                 </div>
             </div>
         </div>
+        <VehicleDetailsModal
+            v-if="showVehicleModal"
+            :show="showVehicleModal"
+            :vehicle="selectedVehicle"
+            :all-unloading-places="allUnloadingPlaces"
+            :license-plate-formats="licensePlateFormats"
+            :current-user-id="currentUserId"
+            :current-user-name="currentUserName"
+            :show-car-features="true"
+            :source="'application'"
+            @close="showVehicleModal = false"
+        />
+
+        <EmployeeDetailsModal
+            v-if="showEmployeeModal"
+            :show="showEmployeeModal"
+            :employee="selectedEmployee"
+            :all-tables="allTables"
+            :current-user-id="currentUserId"
+            :current-user-name="currentUserName"
+            :source="'application'"
+            @close="showEmployeeModal = false"
+        />
     </div>
 </template>
 
@@ -223,6 +248,8 @@ import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
 import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
+import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
+import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 
 export default {
     name: 'ApplicationDetail',
@@ -232,7 +259,9 @@ export default {
         ApplicationHistory,
         ForwardModal,
         ApplicationActionBar,
-        ApplicationAttachmentDetail
+        ApplicationAttachmentDetail,
+        VehicleDetailsModal,
+        EmployeeDetailsModal
     },
     props: {
         application: {
@@ -277,7 +306,14 @@ export default {
             approvers: [],
             actionComment: '',
             lastUserComment: '',
-            storageKey: ''
+            storageKey: '',
+            allUnloadingPlaces: [],
+            licensePlateFormats: [],
+            allTables: [],
+            showVehicleModal: false,
+            showEmployeeModal: false,
+            selectedVehicle: null,
+            selectedEmployee: null
         }
     },
     computed: {
@@ -354,6 +390,9 @@ export default {
             },
             deep: true
         }
+    },
+    mounted() {
+        this.loadCommonData();
     },
     methods: {
         handleActionCompleted({ success, message, type }) {
@@ -652,6 +691,75 @@ export default {
 
         close() {
             this.$emit('close');
+        },
+
+        async loadCommonData() {
+            try {
+                const [placesRes, formatsRes, tablesRes] = await Promise.all([
+                    apiRequest("/unload-places", {}),
+                    apiRequest("/license-plate-formats", {}),
+                    apiRequest("/system-tables", {})
+                ]);
+
+                if (placesRes.ok) {
+                    this.allUnloadingPlaces = await placesRes.json();
+                }
+                if (formatsRes.ok) {
+                    this.licensePlateFormats = await formatsRes.json();
+                }
+                if (tablesRes.ok) {
+                    this.allTables = await tablesRes.json();
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке общих данных:", error);
+            }
+        },
+
+        openVehicleModal(car) {
+            this.selectedVehicle = {
+                id: car.id,
+                plateNumber: car.car_number,
+                mark: car.car_brand,
+                formatId: car.formatId || null,
+                organization: car.organization || null,
+                organizationId: car.organization_id || null,
+                company: car.company || null,
+                companyId: car.company_id || null,
+                isExisting: true,
+                unloadPlaces: car.unload_places ? car.unload_places.map(p => p.id) : [],
+                entry_date_to: car.entry_date_to || null,
+                entry_time_from: car.entry_time_from || null,
+                entry_time_to: car.entry_time_to || null,
+                applicationId: this.applicationData.id,
+                territory_status: 0,
+                entry_checked: false,
+                exit_checked: false
+            };
+            this.showVehicleModal = true;
+        },
+
+        openEmployeeModal(employee) {
+            this.selectedEmployee = {
+                id: employee.id,
+                last_name: employee.last_name,
+                first_name: employee.first_name,
+                middle_name: employee.middle_name,
+                position: employee.position,
+                citizenshipName: employee.citizenship_name,
+                passport_series_number: employee.passport_series_number,
+                patent_number: employee.patent_number,
+                other_permission: employee.other_permission,
+                organization: employee.organization || null,
+                organizationId: employee.organization_id || null,
+                company: employee.company || null,
+                companyId: employee.company_id || null,
+                entry_date_to: employee.entry_date_to || null,
+                pass_time: employee.pass_time || null,
+                target_tables: employee.target_tables ? employee.target_tables.map(t => t.id) : [],
+                applicationId: this.applicationData.id,
+                territory_status: 0
+            };
+            this.showEmployeeModal = true;
         }
     },
     emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application', 'application-changed']
