@@ -255,26 +255,27 @@ func (s *newsService) CreateAnnouncement(ctx context.Context, typeID int, userID
 		UpdatedAt:   now,
 	}
 
-	// Если нет активного объявления — новое становится активным автоматически
-	var activeCount int64
-	if err := s.db.WithContext(ctx).Model(&models.Announcement{}).Where("is_active = true").Count(&activeCount).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking active announcements")
-	}
-	if activeCount == 0 {
-		announcement.IsActive = true
-		announcement.ActivatedAt = &now
-		announcement.ActivatedBy = &userID
-	}
-
-	if err := s.db.WithContext(ctx).Create(&announcement).Error; err != nil {
+	// Если нет активного объявления — новое становится активным автоматически (в транзакции)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var activeCount int64
+		if err := tx.Model(&models.Announcement{}).Where("is_active = true").Count(&activeCount).Error; err != nil {
+			return err
+		}
+		if activeCount == 0 {
+			announcement.IsActive = true
+			announcement.ActivatedAt = &now
+			announcement.ActivatedBy = &userID
+		}
+		return tx.Create(&announcement).Error
+	})
+	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating announcement")
 	}
 
 	var result models.AnnouncementWithUser
-	err := s.announcementSelectQuery(s.db.WithContext(ctx)).
+	if err := s.announcementSelectQuery(s.db.WithContext(ctx)).
 		Where("a.id = ?", announcement.ID).
-		Scan(&result).Error
-	if err != nil {
+		Scan(&result).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching created announcement")
 	}
 	return &result, nil
