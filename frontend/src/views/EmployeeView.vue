@@ -13,24 +13,27 @@
                     v-model="searchQuery"
                 />
                 <div class="filter-tabs" v-if="ownershipInfo">
-                    <button 
+                    <button
                         v-if="ownershipInfo.has_organization"
                         class="filter-tab"
+                        data-testid="filter-tab-organization"
                         :class="{ 'filter-tab--active': currentFilter === 'organization' }"
                         @click="switchFilter('organization')"
                     >
                         Сотрудники организации
                     </button>
-                    <button 
+                    <button
                         v-if="ownershipInfo.has_company"
                         class="filter-tab"
+                        data-testid="filter-tab-company"
                         :class="{ 'filter-tab--active': currentFilter === 'company' }"
                         @click="switchFilter('company')"
                     >
                         Сотрудники компании
                     </button>
-                    <button 
+                    <button
                         class="filter-tab"
+                        data-testid="filter-tab-user"
                         :class="{ 'filter-tab--active': currentFilter === 'user' }"
                         @click="switchFilter('user')"
                     >

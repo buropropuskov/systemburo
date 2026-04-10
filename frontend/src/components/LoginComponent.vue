@@ -18,7 +18,7 @@
                     <h1 class="login__title" :style="titleStyle">Войдите в аккаунт</h1>
                     <h3 class="login__subtitle" :style="subtitleStyle">для продолжения</h3>
                 </div>
-                <form class="login__form" @submit.prevent="handleSubmit">
+                <form class="login__form" data-testid="login-form" @submit.prevent="handleSubmit">
                     <div class="inputs">
                         <div class="login__input" :style="input1Style">
                             <img src="@/assets/icons/login.png" alt="" class="input__icon" />
