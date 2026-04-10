@@ -3,7 +3,7 @@
         <header class="center__header">
             <div class="header-top">
                 <h2 class="center__title">Центр заявок</h2>
-                <div class="unread-badge" v-if="unreadCount > 0" :class="{ 'shake-animation': shouldShake }">
+                <div class="unread-badge" data-testid="center-badge-unread" v-if="unreadCount > 0" :class="{ 'shake-animation': shouldShake }">
                     Новые: {{ unreadCount }}
                 </div>
             </div>
@@ -17,10 +17,11 @@
             <div class="filters__main">
                 <div class="filters-row">
                     <div class="field search">
-                        <input 
-                            placeholder="Поиск заявок..." 
-                            type="text" 
-                            class="field__input search" 
+                        <input
+                            placeholder="Поиск заявок..."
+                            type="text"
+                            class="field__input search"
+                            data-testid="center-input-search"
                             v-model="searchQuery"
                             @input="applyFilters"
                         />
@@ -56,8 +57,9 @@
                         Сбросить сортировку
                     </button>
 
-                    <button 
+                    <button
                         class="reset-filters-btn"
+                        data-testid="center-button-reset-filters"
                         @click="resetFilters"
                         :disabled="!hasActiveFilters"
                     >
@@ -88,10 +90,11 @@
                             <span class="filter-label">Статус заявки</span>
                         </div>
                         <div class="status-buttons">
-                            <button 
+                            <button
                                 v-for="status in applicationStatuses"
                                 :key="status.value"
                                 class="status-btn"
+                                :data-testid="`center-button-status-${status.value}`"
                                 :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
                                 @click="toggleApplicationStatus(status.value)"
                             >
@@ -186,11 +189,12 @@
                         <SkeletonTable :rows="10" :columns="6" />
                     </template>
                 <div v-if="filteredApplications.length > 0" class="applications-list">
-                    <div 
-                        v-for="(application, index) in sortedApplications" 
-                        :key="application.id" 
+                    <div
+                        v-for="(application, index) in sortedApplications"
+                        :key="application.id"
                         class="application-item"
-                        :class="{ 
+                        :data-testid="`center-row-${application.id}`"
+                        :class="{
                             'unread': application.status === 'Непрочитано',
                             'initial-load': isInitialLoad,
                             'filtered': !isInitialLoad

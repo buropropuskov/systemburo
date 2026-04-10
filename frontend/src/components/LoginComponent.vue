@@ -18,12 +18,13 @@
                     <h1 class="login__title" :style="titleStyle">Войдите в аккаунт</h1>
                     <h3 class="login__subtitle" :style="subtitleStyle">для продолжения</h3>
                 </div>
-                <form class="login__form" @submit.prevent="handleSubmit">
+                <form class="login__form" data-testid="login-form" @submit.prevent="handleSubmit">
                     <div class="inputs">
                         <div class="login__input" :style="input1Style">
                             <img src="@/assets/icons/login.png" alt="" class="input__icon" />
                             <FormField label="Логин" :required="true" :error="fieldError('username')">
                                 <input v-model="formData.username" class="input" type="text"
+                                    data-testid="login-input-username"
                                     autocomplete="off"
                                     autocorrect="off"
                                     autocapitalize="off"
@@ -38,6 +39,7 @@
                             <img src="@/assets/icons/password.png" alt="" class="input__icon" />
                             <FormField label="Пароль" :required="true" :error="fieldError('password')">
                                 <input v-model="formData.password" class="input" type="password"
+                                    data-testid="login-input-password"
                                     autocomplete="new-password"
                                     autocorrect="off"
                                     autocapitalize="off"
@@ -55,14 +57,14 @@
                     <div class="login__footer" :style="footerStyle">
                         <div class="error-container">
                             <transition name="fade">
-                                <div v-if="showError" class="error-message">
+                                <div v-if="showError" class="error-message" data-testid="login-error-message">
                                     {{ errors.general }}
                                 </div>
                             </transition>
                         </div>
                         
                         <div class="footer__button">
-                            <button class="login__button" :class="{'loading': isLoading, 'success': isSuccess}" :disabled="isLoading || isSuccess">
+                            <button class="login__button" data-testid="login-button-submit" :class="{'loading': isLoading, 'success': isSuccess}" :disabled="isLoading || isSuccess">
                                 <p class="button__text">{{ getButtonText }}</p>
                                 <img v-if="!isLoading && !isSuccess" src="@/assets/icons/key-blue.png" alt="" class="input__icon"/>
                                 <div v-if="isLoading" class="spinner"></div>

@@ -1,5 +1,5 @@
 <template>
-    <section class="carsview">
+    <section class="carsview" data-testid="cars-page">
         <header class="carsview__header">
             <h2 class="carsview__title">
                 Список <span class="blue">автомобилей</span>
@@ -13,31 +13,35 @@
                     v-model="searchQuery"
                 />
                 <div class="filter-tabs" v-if="ownershipInfo">
-                    <button 
+                    <button
                         v-if="ownershipInfo.has_organization"
                         class="filter-tab"
+                        data-testid="filter-tab-organization"
                         :class="{ 'filter-tab--active': currentFilter === 'organization' }"
                         @click="switchFilter('organization')"
                     >
                         Машины организации
                     </button>
-                    <button 
+                    <button
                         v-if="ownershipInfo.has_company"
                         class="filter-tab"
+                        data-testid="filter-tab-company"
                         :class="{ 'filter-tab--active': currentFilter === 'company' }"
                         @click="switchFilter('company')"
                     >
                         Машины компании
                     </button>
-                    <button 
+                    <button
                         class="filter-tab"
+                        data-testid="filter-tab-user"
                         :class="{ 'filter-tab--active': currentFilter === 'user' }"
                         @click="switchFilter('user')"
                     >
                         Мои машины
                     </button>
-                    <button 
+                    <button
                         class="filter-tab"
+                        data-testid="filter-tab-all-system"
                         :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
                         @click="switchFilter('all_system')"
                     >

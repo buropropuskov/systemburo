@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const { registerUser, loginAsAdmin, loginAsUser } = require('../helpers/auth');
+const { loginAsAdmin, loginAsUser } = require('../helpers/auth');
+const { NavigationBar } = require('../pages/NavigationBar');
 
 test.describe('Navigation & Authorization', () => {
   test('regular user cannot access admin pages', async ({ page }) => {
@@ -22,33 +23,34 @@ test.describe('Navigation & Authorization', () => {
   test('nav menu shows admin items for admin user', async ({ page }) => {
     await loginAsAdmin(page);
 
-    const navMenu = page.locator('.nav-menu');
-    await expect(navMenu).toBeVisible();
-    await expect(navMenu.getByText('Админка')).toBeVisible();
+    const navBar = new NavigationBar(page);
+    await expect(navBar.root).toBeVisible();
+    await navBar.root.hover();
+    await expect(navBar.root.getByText('Админка')).toBeVisible();
   });
 
   test('nav menu hides admin items for regular user', async ({ page }) => {
     const username = `e2e_nav_noadmin_${Date.now()}`;
     await loginAsUser(page, username);
 
-    const navMenu = page.locator('.nav-menu');
-    await expect(navMenu).toBeVisible();
-    await expect(navMenu.getByText('Админка')).not.toBeVisible();
+    const navBar = new NavigationBar(page);
+    await expect(navBar.root).toBeVisible();
+    await navBar.root.hover();
+    await expect(navBar.root.getByText('Админка')).not.toBeVisible();
   });
 
   test('navigation links change URL correctly', async ({ page }) => {
     const username = `e2e_nav_links_${Date.now()}`;
     await loginAsUser(page, username);
 
-    // Verify we are on personal cabinet
     await expect(page).toHaveURL(/personal-cabinet/);
 
-    // Click on a nav item and verify navigation
-    const navMenu = page.locator('.nav-menu');
-    await expect(navMenu).toBeVisible();
+    const navBar = new NavigationBar(page);
+    await expect(navBar.root).toBeVisible();
 
-    // Check that clicking "Личный кабинет" keeps us on personal cabinet
-    const personalCabinetLink = navMenu.getByText('Личный кабинет');
+    // Check that clicking cabinet link keeps us on personal cabinet
+    await navBar.root.hover();
+    const personalCabinetLink = navBar.cabinetLink;
     if (await personalCabinetLink.isVisible()) {
       await personalCabinetLink.click();
       await expect(page).toHaveURL(/personal-cabinet/);

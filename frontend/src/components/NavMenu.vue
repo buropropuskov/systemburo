@@ -12,7 +12,7 @@
       <!-- ЗАЯВКИ -->
       <div class="nav-section">
         <div class="section-title">ЗАЯВКИ</div>
-        <div class="nav-item" @click="navigateToCenter"> 
+        <div class="nav-item" data-testid="nav-link-center" @click="navigateToCenter"> 
           <div class="nav-icon-wrapper">
             <img src="@/assets/icons/envelope.png" alt="Центр заявок" class="nav-icon">
             <span v-if="newApplicationsCount > 0" class="icon-badge">
@@ -72,11 +72,11 @@
         </div>
 
         <!-- Элемент с выпадающим списком сотрудников -->
-        <div class="nav-item" @click="navigateToEmployeesView">
+        <div class="nav-item" data-testid="nav-link-employees" @click="navigateToEmployeesView">
           <img src="@/assets/icons/employees.png" alt="Сотрудники" class="nav-icon">
           <span class="nav-text">Сотрудники</span>
         </div>
-        <div class="nav-item" @click="navigateToCarsView">
+        <div class="nav-item" data-testid="nav-link-cars" @click="navigateToCarsView">
           <img src="@/assets/icons/car.png" alt="Автомобили" class="nav-icon">
           <span class="nav-text">Автомобили</span>
         </div>
@@ -98,7 +98,7 @@
       <!-- ПОЛЬЗОВАТЕЛЬ (в нижней части) -->
       <div class="nav-section user-section">
         <div class="section-title">ПОЛЬЗОВАТЕЛЬ</div>
-        <div class="nav-item" @click="navigateToNews">
+        <div class="nav-item" data-testid="nav-link-news" @click="navigateToNews">
           <img src="@/assets/icons/newspaper.png" alt="Новости" class="nav-icon">
           <span class="nav-text">Обзор и новости</span>
         </div>
@@ -153,11 +153,11 @@
           </transition>
         </div>
         
-        <div class="nav-item" @click="navigateToAccount">
+        <div class="nav-item" data-testid="nav-link-cabinet" @click="navigateToAccount">
           <img src="@/assets/icons/user.png" alt="Личный кабинет" class="nav-icon">
           <span class="nav-text">Личный кабинет</span>
         </div>
-        <div class="nav-item" @click="logout">
+        <div class="nav-item" data-testid="nav-button-logout" @click="logout">
           <img src="@/assets/icons/logout.png" alt="Выйти" class="nav-icon">
           <span class="nav-text exit">Выйти</span>
         </div>

@@ -4,6 +4,7 @@
       v-for="tab in visibleTabs"
       :key="tab.key"
       class="filter-tab"
+      :data-testid="`filter-tab-${tab.key}`"
       :class="{ 'filter-tab--active': modelValue === tab.key }"
       @click="$emit('update:modelValue', tab.key)"
     >

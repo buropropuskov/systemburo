@@ -121,9 +121,34 @@ async function setUserCompany(token, username, companyId) {
   return unwrap(await res.json());
 }
 
+async function forwardApplication(token, appId, data) {
+  const res = await apiAuth(`/applications/${appId}/forward`, token, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrap(await res.json());
+}
+
+async function approveApplication(token, appId, data) {
+  const res = await apiAuth(`/applications/${appId}/approve`, token, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrap(await res.json());
+}
+
+async function takeToWork(token, appId, data) {
+  const res = await apiAuth(`/applications/${appId}/take-to-work`, token, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return unwrap(await res.json());
+}
+
 module.exports = {
   apiCall,
   apiAuth,
+  unwrap,
   getToken,
   createOrganization,
   createCompany,
@@ -138,4 +163,7 @@ module.exports = {
   getUniqueEmployees,
   setUserOrganization,
   setUserCompany,
+  forwardApplication,
+  approveApplication,
+  takeToWork,
 };
