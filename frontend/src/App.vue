@@ -13,8 +13,9 @@
           <component :is="Component" @login-success="handleSuccessfulLogin" :key="$route.path" />
         </transition>
       </router-view>
+      <ScrollTopButton v-if="isAuthenticated" />
     </div>
-    
+
     <!-- Модальное окно истекшей сессии -->
     <SessionExpiredModal 
       v-if="showSessionModal"
@@ -32,13 +33,15 @@ import { usePermissionsStore } from '@/stores/permissions'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import SessionExpiredModal from './components/SessionExpiredModal.vue';
+import ScrollTopButton from './components/ScrollTopButton.vue';
 
 export default {
   name: "App",
   components: {
     NavMenu,
     TheHeader,
-    SessionExpiredModal
+    SessionExpiredModal,
+    ScrollTopButton
   },
   data() {
     return {

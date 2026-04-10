@@ -18,6 +18,7 @@
         <span class="items-count">
           Людей на территории: {{ activeItemsCount }}
         </span>
+        <button class="history-btn" @click="showTableHistory = true">История</button>
         <RefreshButton @refresh="loadData" :disabled="isLoading" />
       </div>
     </div>
@@ -105,17 +106,26 @@
         </div>
       </div>
     </div>
+
+    <EmployeesTableHistoryModal
+      :show="showTableHistory"
+      :table-id="currentTableId || 0"
+      :table-name="tableName"
+      @close="showTableHistory = false"
+    />
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
+import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 
 export default {
   name: 'PeopleTable',
   components: {
-    RefreshButton
+    RefreshButton,
+    EmployeesTableHistoryModal
   },
   props: {
     tableName: {
@@ -158,7 +168,8 @@ export default {
       activeItemsCount: 0,
       isLoading: false,
       currentTableId: null,
-      organizationsMap: {}
+      organizationsMap: {},
+      showTableHistory: false
     };
   },
   computed: {
@@ -565,6 +576,25 @@ export default {
   color: #4F5BDF;
   font-weight: 500;
   font-size: 0.9em;
+}
+
+.history-btn {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  color: #4F5BDF;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 15px;
+  transition: all 0.2s;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.history-btn:hover {
+  background: #4F5BDF;
+  color: white;
+  border-color: #4F5BDF;
 }
 
 .card-content {

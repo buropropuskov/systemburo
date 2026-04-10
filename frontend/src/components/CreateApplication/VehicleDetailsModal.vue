@@ -13,7 +13,7 @@
                             <button class="history-btn" @click="openCarHistory">
                                 <span>Полная история</span>
                             </button>
-                            <button class="application-btn" @click="openApplication">
+                            <button v-if="source !== 'application'" class="application-btn" @click="openApplication">
                                 <span>Открыть заявку</span>
                             </button>
                         </div>
@@ -155,6 +155,9 @@
                                                 <div class="action-comment">
                                                     {{ getActionComment(item) }}
                                                 </div>
+                                                <div v-if="item.table_name" class="place-name">
+                                                    {{ item.table_name }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -247,7 +250,7 @@ export default {
             default: null
         }
     },
-    emits: ['close'],
+    emits: ['close', 'open-application'],
     data() {
         return {
             selectedUnloadPlace: null,
@@ -257,7 +260,9 @@ export default {
             history: [],          // полная история (все действия)
             loadingHistory: false,
             isExporting: false,
-            showCarHistoryModal: false
+            showCarHistoryModal: false,
+            entryChecked: false,
+            exitChecked: false
         }
     },
     computed: {
@@ -268,13 +273,13 @@ export default {
             return 'Детальная информация о Т/С';
         },
         getStatusClass() {
-            if (this.vehicle?.entry_checked && !this.vehicle?.exit_checked) return 'status-on-territory';
-            if (this.vehicle?.exit_checked) return 'status-exited';
+            if (this.entryChecked && !this.exitChecked) return 'status-on-territory';
+            if (this.exitChecked) return 'status-exited';
             return 'status-not-entered';
         },
         getStatusText() {
-            if (this.vehicle?.entry_checked && !this.vehicle?.exit_checked) return 'На территории';
-            if (this.vehicle?.exit_checked) return 'Выехал';
+            if (this.entryChecked && !this.exitChecked) return 'На территории';
+            if (this.exitChecked) return 'Выехал';
             return 'Не въезжал';
         },
         // Только события въезда/выезда
@@ -290,6 +295,8 @@ export default {
                 clearTimeout(this.shiftTimer);
                 this.shiftTimer = null;
             }
+            this.isMainShifted = false;
+            this.selectedUnloadPlace = null;
         },
 
         showUnloadPlaceDetails(placeId) {
@@ -456,6 +463,26 @@ export default {
             }
         },
 
+        async loadCarStatus() {
+            if (!this.vehicle?.id) return;
+            try {
+                const response = await apiRequest('/cars/history/current-status', {});
+                if (response.ok) {
+                    const statuses = await response.json();
+                    const status = statuses.find(s => s.car_id === this.vehicle.id);
+                    if (status) {
+                        this.entryChecked = status.territory_status === 1;
+                        this.exitChecked = status.territory_status === 2;
+                    } else {
+                        this.entryChecked = false;
+                        this.exitChecked = false;
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке статуса:', error);
+            }
+        },
+
         async exportHistory() {
             const dataToExport = this.entryExitHistory;
             if (dataToExport.length === 0) return;
@@ -470,7 +497,8 @@ export default {
                     'Дата и время',
                     'Пользователь',
                     'Действие',
-                    'Комментарий'
+                    'Комментарий',
+                    'Место'
                 ];
                 
                 const headerRow = worksheet.addRow(headers);
@@ -501,7 +529,8 @@ export default {
                         this.formatDateTime(item.created_at),
                         item.user_name || 'Система',
                         this.getActionText(item),
-                        this.getActionComment(item)
+                        this.getActionComment(item),
+                        item.table_name || ''
                     ]);
                     
                     row.height = 20;
@@ -531,18 +560,18 @@ export default {
                 const lastDataRow = dataToExport.length;
                 
                 for (let row = 1; row <= lastDataRow + 1; row++) {
-                    const rightCell = worksheet.getCell(row, 4);
+                    const rightCell = worksheet.getCell(row, 5);
                     rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
                     const leftCell = worksheet.getCell(row, 1);
                     leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
                 }
-                
-                for (let col = 1; col <= 4; col++) {
+
+                for (let col = 1; col <= 5; col++) {
                     const topCell = worksheet.getCell(1, col);
                     topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
                 }
-                
-                for (let col = 1; col <= 4; col++) {
+
+                for (let col = 1; col <= 5; col++) {
                     const bottomCell = worksheet.getCell(lastDataRow + 1, col);
                     bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
                 }
@@ -569,7 +598,8 @@ export default {
                     { width: 25 },
                     { width: 40 },
                     { width: 30 },
-                    { width: 60 }
+                    { width: 60 },
+                    { width: 30 }
                 ];
                 
                 const buffer = await workbook.xlsx.writeBuffer();
@@ -596,26 +626,37 @@ export default {
         },
 
         openApplication() {
-            console.log('Открыть заявку', this.vehicle?.applicationId || this.vehicle?.application_id);
-            // Здесь можно добавить переход к заявке
+            const applicationId = this.vehicle?.applicationId || this.vehicle?.application_id;
+            if (applicationId) {
+                this.$emit('open-application', applicationId);
+            }
         }
     },
     watch: {
-        show(newVal) {
-            if (!newVal) {
-                this.closeUnloadPlaceDetails();
-                if (this.shiftTimer) {
-                    clearTimeout(this.shiftTimer);
-                    this.shiftTimer = null;
+        show: {
+            immediate: true,
+            handler(newVal) {
+                if (newVal) {
+                    this.loadCarStatus();
+                    if (this.showCarFeatures && this.vehicle?.id) {
+                        this.loadCarHistory();
+                    }
+                } else {
+                    this.closeUnloadPlaceDetails();
+                    if (this.shiftTimer) {
+                        clearTimeout(this.shiftTimer);
+                        this.shiftTimer = null;
+                    }
+                    this.isMainShifted = false;
+                    this.selectedUnloadPlace = null;
                 }
-            } else if (newVal && this.showCarFeatures && this.vehicle?.id) {
-                this.loadCarHistory();
             }
         },
         vehicle: {
             deep: true,
             handler(newVal) {
                 if (newVal && this.show && this.showCarFeatures) {
+                    this.loadCarStatus();
                     this.loadCarHistory();
                 }
             }
@@ -638,6 +679,13 @@ export default {
 .dot-entry { background: #059669; }
 .dot-exit { background: #dc2626; }
 .dot-default { background: #9ca3af; }
+
+.place-name {
+    font-size: 10px;
+    color: #4F5BDF;
+    margin-top: 2px;
+    font-style: italic;
+}
 
 /* Остальные стили без изменений */
 .modal-overlay {

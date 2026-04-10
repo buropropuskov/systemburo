@@ -34,10 +34,10 @@
         <div class="filters-group">
           <span class="filters-label">Статус:</span>
           <div class="filter-buttons">
-            <button 
+            <button
               class="filter-btn"
-              :class="{ 'active': statusFilter === 'Нерешено' }"
-              @click="toggleStatusFilter('Нерешено')"
+              :class="{ active: statusFilter === 'Не решено' }"
+              @click="toggleStatusFilter('Не решено')"
             >
               Не решено
             </button>
@@ -73,35 +73,28 @@
       </div>
     </div>
 
-    <!-- Активные обращения -->
-    <div class="section">
-      <div class="section-header">
-        <h3 class="section-title">Активные обращения</h3>
-        <span class="section-count">{{ pendingCount }}</span>
-      </div>
-      
-      <div class="feedback__list" :class="{ 'loading': loading }">
-        <SkeletonTransition :loading="loading">
-          <template #skeleton>
-            <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px;">
-              <SkeletonCard :lines="3" />
-              <SkeletonCard :lines="3" />
-              <SkeletonCard :lines="3" />
-              <SkeletonCard :lines="3" />
-            </div>
-          </template>
+    <div class="feedback__list" :class="{ loading }">
+      <SkeletonTransition :loading="loading">
+        <template #skeleton>
+          <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px;">
+            <SkeletonCard :lines="3" />
+            <SkeletonCard :lines="3" />
+            <SkeletonCard :lines="3" />
+            <SkeletonCard :lines="3" />
+          </div>
+        </template>
 
-        <div v-if="pendingFeedbacks.length === 0" class="empty-state">
+        <div v-if="filteredFeedbacks.length === 0" class="empty-state">
           <p class="no-data-message">{{ getEmptyMessage() }}</p>
         </div>
 
         <div v-else class="feedbacks-container">
-          <div 
-            v-for="feedback in pendingFeedbacks" 
-            :key="feedback.id" 
+          <div
+            v-for="feedback in filteredFeedbacks"
+            :key="feedback.id"
             class="feedback-item"
-            :class="{ 
-              'unread': !feedback.is_read,
+            :class="{
+              unread: !feedback.is_read,
               'feedback-resolved': feedback.status === 'Решено'
             }"
           >
@@ -109,13 +102,15 @@
               <div class="user-info">
                 <div class="user-name-container">
                   <span class="user-name">{{ feedback.user_name || 'Неизвестный пользователь' }}</span>
+                  <span class="ticket-number">#{{ feedback.id }}</span>
                   <span class="unread-dot" v-if="!feedback.is_read"></span>
                 </div>
                 <div class="user-meta">
-                  <span class="timestamp">{{ formatDateTime(feedback.created_at) }}</span>
+                  <span class="timestamp">Создано: {{ formatDateTime(feedback.created_at) }}</span>
+                  <span v-if="feedback.resolved_at" class="timestamp resolved-time">Выполнено: {{ formatDateTime(feedback.resolved_at) }}</span>
                 </div>
               </div>
-              
+
               <div class="status-indicators">
                 <span class="status-badge" :class="getStatusClass(feedback.status)">
                   {{ feedback.status }}
@@ -125,85 +120,44 @@
 
             <div class="feedback-content">
               <p class="message">{{ feedback.message }}</p>
+              <div v-if="feedback.resolution_comment" class="resolution-comment">
+                <strong>Ответ заявителю:</strong> {{ feedback.resolution_comment }}
+              </div>
             </div>
 
             <div class="feedback-actions">
               <div class="action-buttons">
-                <button 
+                <button
                   v-if="!feedback.is_read"
                   @click="markAsRead(feedback.id)"
                   class="action-btn mark-read-btn"
-                  :disabled="updating"
+                  :disabled="updating === feedback.id"
                 >
                   Прочитано
                 </button>
-                
-                <button 
-                  v-if="feedback.status === 'Нерешено'"
-                  @click="markAsResolved(feedback.id)"
-                  class="action-btn resolve-btn"
-                  :disabled="updating"
-                >
-                  Выполнить
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        </SkeletonTransition>
-      </div>
-    </div>
 
-    <!-- Решенные обращения -->
-    <div class="section resolved-section">
-      <div class="section-header">
-        <h3 class="section-title">Решенные обращения</h3>
-        <span class="section-count">{{ resolvedCount }}</span>
-      </div>
-      
-      <div class="feedback__list resolved-list">
-        <div v-if="resolvedFeedbacks.length === 0" class="empty-state">
-          <p class="no-data-message">{{ getEmptyMessage() }}</p>
-        </div>
-
-        <div v-else class="feedbacks-container">
-          <div 
-            v-for="feedback in resolvedFeedbacks" 
-            :key="feedback.id" 
-            class="feedback-item"
-            :class="{ 
-              'unread': !feedback.is_read,
-              'feedback-resolved': feedback.status === 'Решено'
-            }"
-          >
-            <div class="feedback-header">
-              <div class="user-info">
-                <div class="user-name-container">
-                  <span class="user-name">{{ feedback.user_name || 'Неизвестный пользователь' }}</span>
-                  <span class="unread-dot" v-if="!feedback.is_read"></span>
+                <div v-if="feedback.status === 'Не решено'" class="resolve-section">
+                  <button
+                    @click="markAsResolved(feedback.id)"
+                    class="action-btn resolve-btn"
+                    :disabled="updating === feedback.id"
+                  >
+                    Выполнить
+                  </button>
+                  <textarea
+                    v-model="resolveComments[feedback.id]"
+                    placeholder="Ответ заявителю (тот, кто подал обращение увидит ваш ответ)"
+                    class="resolve-comment-input"
+                    rows="2"
+                    :disabled="updating === feedback.id"
+                  ></textarea>
                 </div>
-                <div class="user-meta">
-                  <span class="timestamp">{{ formatDateTime(feedback.created_at) }}</span>
-                </div>
-              </div>
-              
-              <div class="status-indicators">
-                <span class="status-badge" :class="getStatusClass(feedback.status)">
-                  {{ feedback.status }}
-                </span>
-              </div>
-            </div>
 
-            <div class="feedback-content">
-              <p class="message">{{ feedback.message }}</p>
-            </div>
-
-            <div class="feedback-actions">
-              <div class="action-buttons">
-                <button 
+                <button
+                  v-if="feedback.status === 'Решено'"
                   @click="markAsPending(feedback.id)"
                   class="action-btn return-btn"
-                  :disabled="updating"
+                  :disabled="updating === feedback.id"
                 >
                   Вернуть в обращение
                 </button>
@@ -211,7 +165,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </SkeletonTransition>
     </div>
   </section>
 </template>
@@ -237,7 +191,8 @@ export default {
       statusFilter: null,
       readFilter: null,
       searchQuery: '',
-      searchVariants: ['']
+      searchVariants: [''],
+      resolveComments: {}
     };
   },
   computed: {
@@ -276,22 +231,6 @@ export default {
         }
         return new Date(b.created_at) - new Date(a.created_at);
       });
-    },
-    
-    pendingFeedbacks() {
-      return this.filteredFeedbacks.filter(f => f.status === 'Нерешено');
-    },
-    
-    resolvedFeedbacks() {
-      return this.filteredFeedbacks.filter(f => f.status === 'Решено');
-    },
-    
-    pendingCount() {
-      return this.filteredFeedbacks.filter(f => f.status === 'Нерешено').length;
-    },
-    
-    resolvedCount() {
-      return this.filteredFeedbacks.filter(f => f.status === 'Решено').length;
     },
     
     unreadCount() {
@@ -350,11 +289,39 @@ export default {
     },
     
     async markAsResolved(feedbackId) {
-      await this.updateFeedback(feedbackId, { status: 'Решено' });
+      const comment = this.resolveComments[feedbackId] || '';
+      this.updating = feedbackId;
+      try {
+        const response = await apiRequest(`/feedback/${feedbackId}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'Решено', comment })
+        });
+
+        if (response.ok) {
+          const index = this.feedbacks.findIndex(f => f.id === feedbackId);
+          if (index !== -1) {
+            this.feedbacks[index] = {
+              ...this.feedbacks[index],
+              status: 'Решено',
+              resolution_comment: comment.trim() || null,
+              resolved_at: new Date().toISOString()
+            };
+          }
+          delete this.resolveComments[feedbackId];
+          await this.markAsRead(feedbackId);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Ошибка при выполнении обращения:', errorData.message || 'Неизвестная ошибка');
+        }
+      } catch (error) {
+        console.error('Ошибка при выполнении обращения:', error);
+      } finally {
+        this.updating = null;
+      }
     },
-    
+
     async markAsPending(feedbackId) {
-      await this.updateFeedback(feedbackId, { status: 'Нерешено' });
+      await this.updateFeedback(feedbackId, { status: 'Не решено' });
     },
     
     async updateFeedback(feedbackId, updates) {
@@ -380,10 +347,13 @@ export default {
         });
 
         if (response.ok) {
-          // Обновляем локально
           const index = this.feedbacks.findIndex(f => f.id === feedbackId);
           if (index !== -1) {
             this.feedbacks[index] = { ...this.feedbacks[index], ...updates };
+            if (updates.status === 'Не решено') {
+              this.feedbacks[index].resolution_comment = null;
+              this.feedbacks[index].resolved_at = null;
+            }
           }
         } else {
           const errorText = await response.text();
@@ -410,7 +380,7 @@ export default {
     
     getStatusClass(status) {
       return {
-        'status-pending': status === 'Нерешено',
+        'status-pending': status === 'Не решено',
         'status-resolved': status === 'Решено'
       };
     },
@@ -592,90 +562,23 @@ export default {
   top: 0;
 }
 
-/* Секции */
-.section {
-  background-color: #fff;
-  border-radius: 20px;
-  border: 1px solid #e6e6e6;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e6e6e6;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
-}
-
-.section-count {
-  font-size: 12px;
-  font-weight: 500;
-  color: #666;
-  background: #fff;
-  padding: 2px 8px;
-  border-radius: 12px;
-  min-width: 24px;
-  text-align: center;
-}
-
-.resolved-section .section-header {
-
-}
-
-.resolved-section .section-title {
-  color: #666;
-}
-
-/* Стили списков */
 .feedback__list {
-  height: fit-content;
-  display: flex;
-  flex-direction: column;
+  min-height: 200px;
+  border: 1px solid #e6e6e6;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
 }
 
 .feedback__list.loading {
-  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.resolved-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.empty-state {
-  padding: 20px;
-}
-
-.no-data-message {
-  text-align: center;
-  color: #a2a2a2;
-  margin: 0;
-  font-size: 12px;
 }
 
 .feedbacks-container {
+  max-height: 600px;
   overflow-y: auto;
-  flex-grow: 1;
 }
 
 .feedback-item {
@@ -727,6 +630,15 @@ export default {
   font-size: 13px;
 }
 
+.ticket-number {
+  font-size: 12px;
+  color: #888;
+  background: #f1f1f1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
 .unread-dot {
   width: 6px;
   height: 6px;
@@ -761,6 +673,10 @@ export default {
 .timestamp {
   font-size: 11px;
   color: #888;
+}
+
+.resolved-time {
+  margin-left: 0;
 }
 
 .status-indicators {
@@ -799,6 +715,20 @@ export default {
   font-size: 12px;
   margin: 0;
   white-space: pre-wrap;
+}
+
+.resolution-comment {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f9f9f9;
+  border-left: 3px solid #28a745;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #555;
+}
+
+.resolution-comment strong {
+  color: #333;
 }
 
 .feedback-actions {
@@ -842,6 +772,32 @@ export default {
   color: white;
 }
 
+.resolve-section {
+  display: flex;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.resolve-comment-input {
+  width: 300px;
+  padding: 6px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+  transition: border 0.2s;
+  background: #fff;
+  resize: none;
+  min-height: 32px;
+}
+
+.resolve-comment-input:focus {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.1);
+}
+
 .resolve-btn {
   border-color: #28a745;
   color: #28a745;
@@ -867,8 +823,22 @@ export default {
   cursor: not-allowed;
 }
 
-.action-btn:active {
-  top: 0;
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.empty-state {
+  padding: 40px;
+}
+
+.no-data-message {
+  text-align: center;
+  color: #a2a2a2;
+  margin: 0;
+  font-size: 13px;
 }
 
 .spinner {
@@ -890,26 +860,21 @@ export default {
 }
 
 /* Стили для скроллбара */
-.feedbacks-container::-webkit-scrollbar,
-.resolved-list::-webkit-scrollbar {
-  width: 4px;
+.feedbacks-container::-webkit-scrollbar {
+  width: 6px;
 }
 
-.feedbacks-container::-webkit-scrollbar-track,
-.resolved-list::-webkit-scrollbar-track {
+.feedbacks-container::-webkit-scrollbar-track {
   background: transparent;
-  margin: 1px 0;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
-.feedbacks-container::-webkit-scrollbar-thumb,
-.resolved-list::-webkit-scrollbar-thumb {
+.feedbacks-container::-webkit-scrollbar-thumb {
   background: #D9E2FF;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
-.feedbacks-container,
-.resolved-list {
+.feedbacks-container {
   scrollbar-width: thin;
   scrollbar-color: #D9E2FF transparent;
 }

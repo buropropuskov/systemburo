@@ -193,6 +193,13 @@
             @skip-binding="skipBinding"
             @close="closeBindingModal"
         />
+
+        <ApplicationSuccessModal
+            :show="showSuccessModal"
+            :application-number="createdApplicationNumber"
+            :attachments-data="createdAttachmentsData"
+            @close="showSuccessModal = false; clearAllAttachments()"
+        />
     </div>
 </template>
 
@@ -210,6 +217,7 @@ import EmployeesList from './EmployeesList.vue';
 import ItemsForm from './ItemsForm.vue';
 import ItemsList from './ItemsList.vue';
 import UniversalBindingModal from './UniversalBindingModal.vue';
+import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
 
 export default {
     name: 'CreateApplication',
@@ -223,7 +231,8 @@ export default {
         EmployeesList,
         ItemsForm,
         ItemsList,
-        UniversalBindingModal
+        UniversalBindingModal,
+        ApplicationSuccessModal
     },
     data() {
         return {
@@ -277,8 +286,12 @@ export default {
             hasCompany: false,
             
             currentApplicationData: {},
-            
-            allPassageTables: []
+
+            allPassageTables: [],
+
+            showSuccessModal: false,
+            createdApplicationNumber: '',
+            createdAttachmentsData: []
         }
     },
     computed: {
@@ -1392,8 +1405,6 @@ export default {
             this.attachments = [];
             
             this.clearLocalStorageAfterSubmit();
-            
-            alert('Заявка успешно отправлена! Данные очищены.');
         },
 
         async sendCompleteApplication() {
@@ -1529,8 +1540,9 @@ export default {
 
                 if (response.ok) {
                     const result = await response.json();
-                    alert(`Заявка успешно отправлена! Номер заявки: ${result.application_number}`);
-                    this.clearAllAttachments();
+                    this.createdApplicationNumber = result.application_number;
+                    this.createdAttachmentsData = applicationData.attachments || [];
+                    this.showSuccessModal = true;
                 } else {
                     const errorText = await response.text();
                     console.error('Ошибка отправки заявки:', errorText);

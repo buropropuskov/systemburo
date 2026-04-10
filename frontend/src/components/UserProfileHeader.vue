@@ -30,20 +30,42 @@
             {{ position }}
           </span>
         </div>
-        <div class="user-detail" v-if="email" @click="copyToClipboard(email)">
-          <span class="detail-badge email-badge clickable">
-            <svg class="icon" viewBox="0 0 24 24">
-              <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
-            </svg>
-            {{ email }}
+        <div class="user-detail" v-if="email" @click="copyEmail">
+          <span
+            class="detail-badge email-badge clickable"
+            ref="emailBadge"
+            :style="{ width: emailBadgeWidth ? emailBadgeWidth + 'px' : null }"
+          >
+            <transition name="fade" mode="out-in">
+              <div v-if="!copiedEmail" key="original" class="badge-content">
+                <svg class="icon" viewBox="0 0 24 24">
+                  <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
+                </svg>
+                <span class="badge-text">{{ email }}</span>
+              </div>
+              <div v-else key="copied" class="badge-content">
+                <span class="badge-text">Почта скопирована!</span>
+              </div>
+            </transition>
           </span>
         </div>
-        <div class="user-detail" v-if="phone" @click="copyToClipphone(formattedPhone)">
-          <span class="detail-badge phone-badge clickable">
-            <svg class="icon" viewBox="0 0 24 24">
-              <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
-            </svg>
-            {{ formattedPhone }}
+        <div class="user-detail" v-if="phone" @click="copyPhone">
+          <span
+            class="detail-badge phone-badge clickable"
+            ref="phoneBadge"
+            :style="{ width: phoneBadgeWidth ? phoneBadgeWidth + 'px' : null }"
+          >
+            <transition name="fade" mode="out-in">
+              <div v-if="!copiedPhone" key="original" class="badge-content">
+                <svg class="icon" viewBox="0 0 24 24">
+                  <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
+                </svg>
+                <span class="badge-text">{{ formattedPhone }}</span>
+              </div>
+              <div v-else key="copied" class="badge-content">
+                <span class="badge-text">Скопировано!</span>
+              </div>
+            </transition>
           </span>
         </div>
       </div>
@@ -64,6 +86,16 @@ export default {
     phone: String,
     userType: String,
     typeId: Number
+  },
+  data() {
+    return {
+      copiedEmail: false,
+      copiedPhone: false,
+      timeoutEmail: null,
+      timeoutPhone: null,
+      emailBadgeWidth: null,
+      phoneBadgeWidth: null
+    };
   },
   computed: {
     userTypeDisplay() {
@@ -105,20 +137,106 @@ export default {
       return this.phone;
     }
   },
+  mounted() {
+    this.$nextTick(() => {
+      this.updateBadgeWidths();
+    });
+  },
+  watch: {
+    email: {
+      handler() {
+        this.$nextTick(() => {
+          this.updateBadgeWidths();
+        });
+      },
+      immediate: false
+    },
+    phone: {
+      handler() {
+        this.$nextTick(() => {
+          this.updateBadgeWidths();
+        });
+      },
+      immediate: false
+    }
+  },
   methods: {
-    copyToClipboard(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        // Можно добавить уведомление об успешном копировании
-        console.log('Текст скопирован: ', text);
+    updateBadgeWidths() {
+      if (this.$refs.emailBadge && this.email) {
+        const originalBadge = this.$refs.emailBadge;
+        const clone = originalBadge.cloneNode(true);
+        clone.style.position = 'absolute';
+        clone.style.visibility = 'hidden';
+        clone.style.top = '-9999px';
+        document.body.appendChild(clone);
+
+        const originalWidth = clone.offsetWidth;
+
+        const contentDiv = clone.querySelector('.badge-content');
+        if (contentDiv) {
+          const icon = contentDiv.querySelector('.icon');
+          if (icon) icon.remove();
+          const textSpan = contentDiv.querySelector('.badge-text');
+          if (textSpan) textSpan.textContent = 'Почта скопирована!';
+        }
+        const copiedWidth = clone.offsetWidth;
+
+        this.emailBadgeWidth = Math.max(originalWidth, copiedWidth);
+        document.body.removeChild(clone);
+      }
+
+      if (this.$refs.phoneBadge && this.phone) {
+        const originalBadge = this.$refs.phoneBadge;
+        const clone = originalBadge.cloneNode(true);
+        clone.style.position = 'absolute';
+        clone.style.visibility = 'hidden';
+        clone.style.top = '-9999px';
+        document.body.appendChild(clone);
+
+        const originalWidth = clone.offsetWidth;
+
+        const contentDiv = clone.querySelector('.badge-content');
+        if (contentDiv) {
+          const icon = contentDiv.querySelector('.icon');
+          if (icon) icon.remove();
+          const textSpan = contentDiv.querySelector('.badge-text');
+          if (textSpan) textSpan.textContent = 'Скопировано!';
+        }
+        const copiedWidth = clone.offsetWidth;
+
+        this.phoneBadgeWidth = Math.max(originalWidth, copiedWidth);
+        document.body.removeChild(clone);
+      }
+    },
+    copyEmail() {
+      if (!this.email) return;
+      navigator.clipboard.writeText(this.email).then(() => {
+        this.copiedEmail = true;
+        if (this.timeoutEmail) clearTimeout(this.timeoutEmail);
+        this.timeoutEmail = setTimeout(() => {
+          this.copiedEmail = false;
+        }, 2000);
       }).catch(err => {
-        console.error('Ошибка копирования: ', err);
+        console.error('Ошибка копирования email:', err);
       });
     },
-    copyToClipphone(text) {
-      // Удаляем все нецифровые символы перед копированием
-      const phoneDigits = text.replace(/\D/g, '');
-      this.copyToClipboard(phoneDigits);
+    copyPhone() {
+      if (!this.phone) return;
+      const phoneDigits = this.phone.replace(/\D/g, '');
+      navigator.clipboard.writeText(phoneDigits).then(() => {
+        this.copiedPhone = true;
+        if (this.timeoutPhone) clearTimeout(this.timeoutPhone);
+        this.timeoutPhone = setTimeout(() => {
+          this.copiedPhone = false;
+        }, 2000);
+      }).catch(err => {
+        console.error('Ошибка копирования телефона:', err);
+      });
     }
+  },
+  beforeUnmount() {
+    if (this.timeoutEmail) clearTimeout(this.timeoutEmail);
+    if (this.timeoutPhone) clearTimeout(this.timeoutPhone);
   }
 };
 </script>
@@ -263,13 +381,28 @@ export default {
 .detail-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   padding: 6px 12px;
   border-radius: 16px;
   font-size: 0.85em;
   font-weight: 500;
   white-space: nowrap;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.badge-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.badge-text {
+  display: inline-block;
+  text-align: center;
 }
 
 .clickable {
@@ -300,6 +433,7 @@ export default {
 }
 
 .detail-badge .icon {
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
   opacity: 0.7;
@@ -320,7 +454,21 @@ export default {
   animation: fadeIn 0.4s ease-out 0.5s forwards;
 }
 
-/* Анимации */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;

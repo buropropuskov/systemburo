@@ -50,7 +50,7 @@
                         </div>
                     </div>
                     
-                    <a href="#" class="remember-password" :style="linkStyle">Забыли пароль?</a>
+                    <a href="#" class="remember-password" :style="linkStyle" @click.prevent="showPasswordRecovery = true">Забыли пароль?</a>
                     
                     <div class="login__footer" :style="footerStyle">
                         <div class="error-container">
@@ -112,6 +112,11 @@
                 </div>
             </div>
         </div>
+
+        <PasswordRecoveryModal
+            :show="showPasswordRecovery"
+            @close="showPasswordRecovery = false"
+        />
     </div>
 </template>
 
@@ -119,8 +124,9 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import FormField from '@/components/ui/FormField.vue'
+import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 export default {
-    components: { FormField },
+    components: { FormField, PasswordRecoveryModal },
     data() {
         return {
             formData: {
@@ -144,7 +150,8 @@ export default {
             showEmailNotification: false,
             showPhoneNotification: false,
             notificationTimeout: null,
-            touchedFields: {}
+            touchedFields: {},
+            showPasswordRecovery: false
         }
     },
     computed: {

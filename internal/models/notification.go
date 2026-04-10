@@ -13,3 +13,8 @@ type Notification struct {
 	IsRead    bool      `gorm:"default:false;index" json:"is_read"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+// MarkNotificationReadRequest -- тело запроса на изменение статуса прочтения уведомления.
+type MarkNotificationReadRequest struct {
+	IsRead bool `json:"is_read"`
+}

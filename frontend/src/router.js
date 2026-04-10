@@ -8,9 +8,10 @@ import CarsView from './views/CarsView.vue';
 import ApplicationsCenter from './views/ApplicationsCenter.vue';
 import TableConstructor from './components/TableConstructor.vue';
 import NumberFormat from './components/NumberFormat.vue';
-import EmployeeView from './components/EmployeeView.vue';
+import EmployeeView from './views/EmployeeView.vue';
 import NewsAndReview from './views/NewsAndReview.vue';
 import FeedbackPage from './views/FeedbackPage.vue';
+import RequestsView from './views/RequestsView.vue';
 
 const routes = [
   { 
@@ -86,6 +87,12 @@ const routes = [
     meta: {requiresAuth: true, requiresBuro: true}
   },
   {
+    path: '/admin/requests',
+    name: 'RequestsView',
+    component: RequestsView,
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('./views/AdminSettings.vue'),
@@ -117,7 +124,7 @@ router.beforeEach((to, from, next) => {
     next('/personal-cabinet');
   }
   else if (to.path === '/' && isAuthenticated) {
-    next('/personal-cabinet');
+    next('/news');
   }
   else {
     next();
