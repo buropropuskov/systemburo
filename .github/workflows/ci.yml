@@ -84,6 +84,80 @@ jobs:
       - name: Unit tests
         run: npm run test:run
 
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: [go-test, frontend-lint]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: auto_registry
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgres://postgres:testpass@localhost:5432/auto_registry
+      JWT_SECRET: ci-test-jwt-secret-that-is-at-least-32-chars!!
+      JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
+      BIND_HOST: "0.0.0.0"
+      BIND_PORT: "8080"
+      CORS_ALLOWED_ORIGINS: "http://localhost:8081"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build and start backend
+        run: |
+          go build -o server ./cmd/server
+          ./server &
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8080/health && break
+            sleep 1
+          done
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start frontend dev server
+        working-directory: frontend
+        run: |
+          VITE_API_BASE_URL=http://localhost:8080 npx vite --port 8081 &
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8081 && break
+            sleep 1
+          done
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
