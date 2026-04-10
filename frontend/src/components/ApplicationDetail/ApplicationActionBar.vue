@@ -10,6 +10,7 @@
                     <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
                         <button
                             class="accept-btn"
+                            data-testid="app-detail-button-approve"
                             @click="handleCombinedAction('accept')"
                             :disabled="processing"
                         >
@@ -18,6 +19,7 @@
                         </button>
                         <button
                             class="reject-btn"
+                            data-testid="app-detail-button-reject"
                             @click="handleCombinedAction('reject')"
                             :disabled="processing"
                         >
@@ -75,6 +77,7 @@
                     <template v-else-if="application.confirmation === 'Согласовано'">
                         <button
                             class="accept-btn"
+                            data-testid="app-detail-button-take-to-work"
                             @click="handleApplicationAction('accept')"
                             :disabled="processing"
                         >
@@ -83,6 +86,7 @@
                         </button>
                         <button
                             class="reject-btn"
+                            data-testid="app-detail-button-reject"
                             @click="handleApplicationAction('reject')"
                             :disabled="processing"
                         >
@@ -137,6 +141,7 @@
                 <template v-else-if="application.confirmation === 'Согласовано'">
                     <button
                         class="accept-btn"
+                        data-testid="app-detail-button-take-to-work"
                         @click="handleApplicationAction('accept')"
                         :disabled="processing"
                     >
@@ -145,6 +150,7 @@
                     </button>
                     <button
                         class="reject-btn"
+                        data-testid="app-detail-button-reject"
                         @click="handleApplicationAction('reject')"
                         :disabled="processing"
                     >
@@ -166,6 +172,7 @@
                     <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
                         <button
                             class="confirm-btn"
+                            data-testid="app-detail-button-approve"
                             @click="updateConfirmation('Согласовано')"
                             :disabled="updatingConfirmation || processing"
                         >
@@ -174,6 +181,7 @@
                         </button>
                         <button
                             class="reject-btn"
+                            data-testid="app-detail-button-reject"
                             @click="updateConfirmation('Не согласовано')"
                             :disabled="updatingConfirmation || processing"
                         >

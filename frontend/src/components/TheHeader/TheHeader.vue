@@ -12,7 +12,7 @@
     </div>
 
     <div class="header__info">
-      <button class="feedback-btn" @click="openFeedbackModal">
+      <button class="feedback-btn" data-testid="header-button-feedback" @click="openFeedbackModal">
         Сообщить о проблеме
       </button>
       <button v-if="activeAnnouncement" class="broadcast" @click="showAnnouncement = true">
@@ -33,7 +33,7 @@
         @update:unread-count="unreadCount = $event"
       />
       <div class="appl-btn__container">
-        <button class="appl-btn" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
+        <button class="appl-btn" data-testid="header-button-submit-app" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
           Подать заявку
         </button>
       </div>

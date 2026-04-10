@@ -1,5 +1,5 @@
 <template>
-    <section class="employeesview">
+    <section class="employeesview" data-testid="employees-page">
         <header class="employeesview__header">
             <h2 class="employeesview__title">
                 Список <span class="blue">сотрудников</span>

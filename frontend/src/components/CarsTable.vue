@@ -1,5 +1,5 @@
 <template>
-  <div class="selected-table-card">
+  <div class="selected-table-card" data-testid="cars-table">
     <transition name="slide-down">
       <div v-if="notification.message" class="notification">
         <span>{{ notification.message }}</span>
