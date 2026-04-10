@@ -39,10 +39,10 @@ seed:
 	docker compose exec go-backend go run ./cmd/seed $(PASS)
 
 staging-seed:
-	docker compose -f docker-compose.staging.yml exec backend ./seed $(PASS)
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./seed $(PASS)
 
 deploy-seed:
-	docker compose -f docker-compose.prod.yml exec backend ./seed $(PASS)
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./seed $(PASS)
 
 init:
 	git config core.hooksPath .githooks
@@ -55,28 +55,28 @@ init-production:
 	bash scripts/init-env.sh production $(DOMAIN)
 
 staging-build:
-	docker compose -f docker-compose.staging.yml build
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build
 
 staging-up:
-	docker compose -f docker-compose.staging.yml up -d
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d
 
 staging-down:
-	docker compose -f docker-compose.staging.yml down
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml down
 
 staging-logs:
-	docker compose -f docker-compose.staging.yml logs -f
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml logs -f
 
 deploy-build:
-	docker compose -f docker-compose.prod.yml build
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build
 
 deploy-up:
-	docker compose -f docker-compose.prod.yml up -d
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d
 
 deploy-down:
-	docker compose -f docker-compose.prod.yml down
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml down
 
 deploy-logs:
-	docker compose -f docker-compose.prod.yml logs -f
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml logs -f
 
 security:
 	go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
