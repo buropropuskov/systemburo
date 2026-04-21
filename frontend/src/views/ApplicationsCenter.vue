@@ -60,6 +60,15 @@
                     </button>
 
                     <button
+                        class="today-filter-btn"
+                        :class="{ 'today-filter-btn--active': activeToday }"
+                        data-testid="center-button-today"
+                        @click="toggleActiveToday"
+                    >
+                        Заявки на сегодня
+                    </button>
+
+                    <button
                         class="reset-filters-btn"
                         data-testid="center-button-reset-filters"
                         @click="resetFilters"
@@ -330,6 +339,8 @@ export default {
                 { key: 'archive', label: 'Архив' },
             ],
 
+            activeToday: false,
+
             loading: true,
 
             // Данные заявок
@@ -468,12 +479,13 @@ export default {
         },
         
         hasActiveFilters() {
-            return !!this.searchQuery.trim() || 
-                   !!this.selectedOrganizationId || 
-                   this.selectedConfirmations.length > 0 || 
+            return !!this.searchQuery.trim() ||
+                   !!this.selectedOrganizationId ||
+                   this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
                    !!this.selectedDate ||
-                   (this.dateRangeStart && this.dateRangeEnd);
+                   (this.dateRangeStart && this.dateRangeEnd) ||
+                   this.activeToday;
         },
 
         unreadCount() {
@@ -550,6 +562,12 @@ export default {
             this.applyFilters();
         },
         
+        toggleActiveToday() {
+            this.activeToday = !this.activeToday;
+            this.isInitialLoad = false;
+            this.fetchApplications();
+        },
+
         toggleApplicationStatus(status) {
             const index = this.selectedApplicationStatuses.indexOf(status);
             if (index > -1) {
@@ -569,6 +587,7 @@ export default {
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
+            this.activeToday = false;
 
             this.resetSort();
 
@@ -704,6 +723,10 @@ export default {
                 
                 // Добавляем параметр архива
                 params.append('archive', this.archiveMode === 'archive' ? 'true' : 'false');
+
+                if (this.activeToday) {
+                    params.append('active_today', 'true');
+                }
 
                 // Добавляем параметры даты в запрос к API
                 if (this.selectedDate) {
@@ -1146,6 +1169,34 @@ export default {
 
 .reset-filters-btn:hover:not(:disabled) {
     background: #fed7d7;
+}
+
+.today-filter-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    background: white;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    height: 30px;
+    color: #333;
+    white-space: nowrap;
+}
+
+.today-filter-btn:hover {
+    background: #f5f5f5;
+}
+
+.today-filter-btn--active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.today-filter-btn--active:hover {
+    background: #3a45c0;
+    border-color: #3a45c0;
 }
 
 .applications-table {

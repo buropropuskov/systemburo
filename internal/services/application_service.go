@@ -123,13 +123,14 @@ type ApplicationService interface {
 // ApplicationFilter параметры фильтрации списка заявок.
 type ApplicationFilter struct {
 	SearchQuery    *string `query:"search_query"`
-	OrganizationID *int   `query:"organization_id"`
-	CompanyID      *int   `query:"company_id"`
+	OrganizationID *int    `query:"organization_id"`
+	CompanyID      *int    `query:"company_id"`
 	Confirmation   *string `query:"confirmation"`
 	Status         *string `query:"status"`
 	DateFrom       *string `query:"date_from"`
 	DateTo         *string `query:"date_to"`
 	Archive        *bool   `query:"archive"`
+	ActiveToday    *bool   `query:"active_today"`
 }
 
 // ApplicationCreateRequest тело запроса на создание простой заявки.

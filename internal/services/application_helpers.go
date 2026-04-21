@@ -241,6 +241,20 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		query = query.Where("NOT "+archiveCondition, models.StatusCompleted, models.StatusRejected)
 	}
 
+	// Active today: заявка активна сегодня, если период действия хотя бы одного
+	// вложения (entry_date_from..entry_date_to) включает текущую дату.
+	if filter.ActiveToday != nil && *filter.ActiveToday {
+		query = query.Where(`
+			EXISTS(
+				SELECT 1 FROM attachments att
+				WHERE att.application_id = a.id
+				AND att.entry_date_from IS NOT NULL
+				AND att.entry_date_to IS NOT NULL
+				AND CURRENT_DATE BETWEEN CAST(att.entry_date_from AS DATE) AND CAST(att.entry_date_to AS DATE)
+			)
+		`)
+	}
+
 	return query
 }
 

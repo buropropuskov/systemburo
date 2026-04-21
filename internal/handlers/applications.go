@@ -50,6 +50,10 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 		archive := archiveStr == "true"
 		filter.Archive = &archive
 	}
+	if activeTodayStr := c.QueryParam("active_today"); activeTodayStr != "" {
+		activeToday := activeTodayStr == "true"
+		filter.ActiveToday = &activeToday
+	}
 
 	// Legacy mode: if per_page not specified, return all (backward compat)
 	if c.QueryParam("per_page") == "" {
