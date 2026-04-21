@@ -62,6 +62,10 @@ async function doFetch(path, options, token) {
       signal: options.signal || controller.signal,
       headers: {
         'Content-Type': 'application/json',
+        // Accept: application/json нужен чтобы nginx с Accept-based роутингом
+        // (см. nginx/staging.conf для /news и /announcements) отличал API-запрос
+        // от браузерного перехода по тому же пути и отдавал JSON, а не SPA HTML.
+        'Accept': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
