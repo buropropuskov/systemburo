@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useDropdownState } from '../useDropdownState';
-import { mount, config } from '@vue/test-utils';
+import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 
 function createWrapperComponent(containerSelector) {
