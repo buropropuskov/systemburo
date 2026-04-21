@@ -24,10 +24,6 @@
             {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
           </span>
         </div>
-        <router-link to="/center?archive=true" class="nav-item">
-          <img src="@/assets/icons/archive.png" alt="Архив" class="nav-icon">
-          <span class="nav-text">Архив</span>
-        </router-link>
       </div>
 
       <!-- УПРАВЛЕНИЕ ДАННЫМИ -->

@@ -4,8 +4,11 @@
             <h2 class="carsview__title">
                 Список <span class="blue">автомобилей</span>
             </h2>
+            <p class="carsview__subtitle">
+                Вкладка для просмотра автомобилей, которые вы или ваша организация/компания когда-либо привязывали к заявкам.
+            </p>
         </header>
-        
+
         <div class="carsview__filters">
             <div class="filters-container">
                 <SearchComponent
@@ -18,6 +21,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-organization"
                         :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                        title="Автомобили, которых привязывали пользователи вашей организации"
                         @click="switchFilter('organization')"
                     >
                         Машины организации
@@ -27,6 +31,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-company"
                         :class="{ 'filter-tab--active': currentFilter === 'company' }"
+                        title="Автомобили, которых привязывали пользователи вашей компании"
                         @click="switchFilter('company')"
                     >
                         Машины компании
@@ -35,6 +40,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-user"
                         :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                        title="Только те автомобили, которых привязывали лично вы"
                         @click="switchFilter('user')"
                     >
                         Мои машины
@@ -43,6 +49,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-all-system"
                         :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+                        title="Все автомобили, когда-либо зарегистрированные в системе"
                         @click="switchFilter('all_system')"
                     >
                         Все машины системы
@@ -1074,13 +1081,21 @@ export default {
 .carsview__header {
     padding-bottom: 15px;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 25px;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .carsview__title {
     font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.carsview__subtitle {
+    font-size: 13px;
+    color: var(--color-text-muted, #6b7280);
+    margin: 0;
 }
 
 .carsview__filters {

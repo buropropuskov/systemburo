@@ -116,7 +116,7 @@ export default {
       }
     },
     navigateToSubmit() {
-      this.$router.push('/submit-form');
+      this.$router.push('/new-application');
     },
     async fetchUserData() {
       try {

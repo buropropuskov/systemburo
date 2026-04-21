@@ -20,11 +20,15 @@ const routes = [
     component: LoginComponent,
     meta: { requiresAuth: false } 
   },
-  { 
-    path: '/submit-form', 
-    name: 'SubmitForm', 
+  {
+    path: '/new-application',
+    name: 'NewApplication',
     component: CreateApplication,
-    meta: { requiresAuth: true } 
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/submit-form',
+    redirect: '/new-application'
   },
   { 
     path: '/table', 

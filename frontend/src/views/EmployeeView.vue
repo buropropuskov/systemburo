@@ -4,8 +4,11 @@
             <h2 class="employeesview__title">
                 Список <span class="blue">сотрудников</span>
             </h2>
+            <p class="employeesview__subtitle">
+                Вкладка для просмотра сотрудников, которых вы или ваша организация/компания когда-либо привязывали к заявкам.
+            </p>
         </header>
-        
+
         <div class="employeesview__filters">
             <div class="filters-container">
                 <SearchComponent
@@ -18,6 +21,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-organization"
                         :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                        title="Сотрудники, которых привязывали пользователи вашей организации"
                         @click="switchFilter('organization')"
                     >
                         Сотрудники организации
@@ -27,6 +31,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-company"
                         :class="{ 'filter-tab--active': currentFilter === 'company' }"
+                        title="Сотрудники, которых привязывали пользователи вашей компании"
                         @click="switchFilter('company')"
                     >
                         Сотрудники компании
@@ -35,9 +40,19 @@
                         class="filter-tab"
                         data-testid="filter-tab-user"
                         :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                        title="Только те сотрудники, которых привязывали лично вы"
                         @click="switchFilter('user')"
                     >
                         Мои сотрудники
+                    </button>
+                    <button
+                        class="filter-tab"
+                        data-testid="filter-tab-all-system"
+                        :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+                        title="Все сотрудники, когда-либо зарегистрированные в системе"
+                        @click="switchFilter('all_system')"
+                    >
+                        Все сотрудники системы
                     </button>
                 </div>
             </div>
@@ -51,11 +66,16 @@
                         <h3 class="card-title">
                             <span v-if="currentFilter === 'organization'" class="highlight-text">Сотрудники <span class="blue">организации</span></span>
                             <span v-else-if="currentFilter === 'company'" class="highlight-text">Сотрудники <span class="blue">компании</span></span>
+                            <span v-else-if="currentFilter === 'all_system'" class="highlight-text">Все <span class="blue">сотрудники системы</span></span>
                             <span v-else class="highlight-text">Мои <span class="blue">сотрудники</span></span>
                         </h3>
                     </div>
                     <div class="card-header__settings">
-                        <button class="add-button" @click="showAddEmployeeModal">
+                        <button
+                            class="add-button"
+                            v-if="currentFilter !== 'all_system'"
+                            @click="showAddEmployeeModal"
+                        >
                             Добавить
                         </button>
                         <RefreshButton @refresh="fetchEmployees" />
@@ -460,13 +480,21 @@ export default {
 .employeesview__header {
     padding-bottom: 15px;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 25px;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .employeesview__title {
     font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.employeesview__subtitle {
+    font-size: 13px;
+    color: var(--color-text-muted, #6b7280);
+    margin: 0;
 }
 
 .employeesview__filters {
