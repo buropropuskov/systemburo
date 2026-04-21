@@ -61,20 +61,19 @@ jobs:
       - name: Build seed binary
         run: go build -o ./bin/seed ./cmd/seed
 
-      - name: Start backend
-        run: ./bin/server &
-      - name: Wait for backend health
-        run: npx --prefix frontend wait-on --timeout 60000 http://localhost:8080/health
+      - name: Start backend and frontend, wait for health
+        run: |
+          nohup ./bin/server > backend.log 2>&1 &
+          echo $! > backend.pid
+          cd frontend
+          nohup env VITE_API_BASE_URL=http://localhost:8080 npx vite --port 8081 --host 0.0.0.0 > ../frontend.log 2>&1 &
+          echo $! > ../frontend.pid
+          cd ..
+          npx --prefix frontend wait-on --timeout 120000 http://localhost:8080/health http://localhost:8081
+          echo "backend & frontend ready"
 
       - name: Seed admin user (buropropuskov)
         run: ./bin/seed 'BuroAdmin2026!'
-
-      - name: Start frontend dev server
-        run: |
-          cd frontend
-          VITE_API_BASE_URL=http://localhost:8080 npx vite --port 8081 --host 0.0.0.0 &
-      - name: Wait for frontend
-        run: npx --prefix frontend wait-on --timeout 60000 http://localhost:8081
 
       - name: Run Playwright tests
         working-directory: frontend
