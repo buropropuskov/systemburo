@@ -1,8 +1,8 @@
 <template>
   <teleport to="body">
     <transition name="modal-fade">
-      <div v-if="show" class="base-modal-overlay" @click.self="handleOverlayClick">
-        <div ref="modal" class="base-modal" :style="{ maxWidth: width }" @click.stop role="dialog" aria-modal="true" :aria-label="title">
+      <div v-if="show" class="base-modal-overlay" @mousedown="handleOverlayMousedown" @mouseup="handleOverlayMouseup">
+        <div ref="modal" class="base-modal" :style="{ maxWidth: width }" @click.stop @mousedown.stop role="dialog" aria-modal="true" :aria-label="title">
           <div class="base-modal__header" v-if="title || $slots.header || closable">
             <slot name="header">
               <h3 class="base-modal__title">{{ title }}</h3>
@@ -47,8 +47,20 @@ export default {
     },
   },
   emits: ['close'],
+  data() {
+    return {
+      overlayMousedown: false,
+    };
+  },
   methods: {
-    handleOverlayClick() {
+    handleOverlayMousedown(e) {
+      this.overlayMousedown = e.target === e.currentTarget;
+    },
+    handleOverlayMouseup(e) {
+      const startedOnOverlay = this.overlayMousedown;
+      this.overlayMousedown = false;
+      if (!startedOnOverlay) return;
+      if (e.target !== e.currentTarget) return;
       if (this.closeOnOverlay) {
         this.$emit('close');
       }
