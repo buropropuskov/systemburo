@@ -29,9 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-frontend
-      - working-directory: frontend
+      - name: npm audit (strict, high+)
+        working-directory: frontend
         run: npm audit --audit-level=high
-        continue-on-error: true
 
   trivy-scan:
     name: Trivy Image Scan
