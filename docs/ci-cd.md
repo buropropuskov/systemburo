@@ -2,13 +2,21 @@
 
 ## Ветки и защита
 
-| Ветка | Что значит | Deploy куда | Защита |
+| Ветка | Что значит | Deploy куда | Защита (когда доступно) |
 |---|---|---|---|
 | `dev` | Рабочая интеграционная, все feature-PR сюда | автоматически на staging | ruleset: нельзя удалить/force-push, PR + `ci-summary` зелёный |
 | `staging` | Синхронизируется с `dev` после успешного deploy | — (читается нами, для истории) | ruleset |
 | `prod` | Production, default-ветка | автоматически на production (через environment approval) | ruleset + required review 1 |
 
 Feature-ветки (`issue/N`, `fix/...`) — без защиты, автоматически удаляются после merge (`delete_branch_on_merge: true`).
+
+### Текущее ограничение
+
+На 2026-04-21 API `/rulesets` и `/branches/.../protection` возвращают **403 Upgrade required** для этой org. Это означает что защита настраивается либо вручную через `Settings → Branches → Add rule` в UI (если функция открыта), либо через обходной workflow, либо после апгрейда плана. Пока ветка `dev` защищена только аккуратностью — `delete_branch_on_merge` включён на репо-уровне и будет чистить source-branch при merge; **для target-ветки (`dev`, `prod`) это безопасно** — GitHub удаляет только source PR, не target.
+
+Важный момент: **merge PR с target = `dev`/`prod` НЕ удаляет `dev`/`prod`** (удалялась только source: ранее `dev` была source в PR #72 `dev → prod`). Feature-ветки (source) будут удалены как обычно.
+
+Запрет force-push настроен опосредованно через политику репо (можно включить через UI в Rules → New branch ruleset, даже если API недоступен).
 
 ## Workflows
 
