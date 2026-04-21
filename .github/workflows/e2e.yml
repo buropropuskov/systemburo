@@ -1,0 +1,89 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'frontend/**'
+      - 'internal/**'
+      - 'cmd/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/e2e.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: auto_registry
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://postgres:testpass@localhost:5432/auto_registry
+      JWT_SECRET: ci-test-jwt-secret-that-is-at-least-32-chars!!
+      JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
+      BIND_HOST: "0.0.0.0"
+      BIND_PORT: "8080"
+      CORS_ALLOWED_ORIGINS: "http://localhost:8081"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-frontend
+      - uses: ./.github/actions/playwright-cache
+        with:
+          browser: chromium
+
+      - name: Build backend
+        run: go build -o ./bin/server ./cmd/server
+
+      - name: Build seed binary
+        run: go build -o ./bin/seed ./cmd/seed
+
+      - name: Start backend
+        run: ./bin/server &
+      - name: Wait for backend health
+        run: npx --prefix frontend wait-on --timeout 60000 http://localhost:8080/health
+
+      - name: Seed admin user (buropropuskov)
+        run: ./bin/seed 'BuroAdmin2026!'
+
+      - name: Start frontend dev server
+        run: |
+          cd frontend
+          VITE_API_BASE_URL=http://localhost:8080 npx vite --port 8081 --host 0.0.0.0 &
+      - name: Wait for frontend
+        run: npx --prefix frontend wait-on --timeout 60000 http://localhost:8081
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npx playwright test --project=chromium
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
