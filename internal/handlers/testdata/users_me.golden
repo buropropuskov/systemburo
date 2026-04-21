@@ -1,0 +1,15 @@
+data.company
+data.company_id
+data.email
+data.first_name
+data.id
+data.last_name
+data.middle_name
+data.organization
+data.organization_id
+data.phone
+data.position
+data.type_id
+data.user_type
+data.user_type_code
+data.username
