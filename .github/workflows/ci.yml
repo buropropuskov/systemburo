@@ -2,15 +2,52 @@ name: CI
 
 on:
   push:
-    branches: [prod, dev]
+    branches: [dev, staging, prod]
   pull_request:
-    branches: [prod, dev]
+    branches: [dev, prod]
 
-env:
-  GO_VERSION: '1.25'
-  NODE_VERSION: '20'
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
+  paths:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      infra: ${{ steps.filter.outputs.infra }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'cmd/**'
+              - 'internal/**'
+              - 'docs/**'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Dockerfile'
+            frontend:
+              - 'frontend/**'
+            infra:
+              - 'docker-compose*.yml'
+              - 'nginx/**'
+              - 'scripts/**'
+              - 'Makefile'
+            workflows:
+              - '.github/**'
+
   commit-lint:
     name: Commit Message Lint
     runs-on: ubuntu-latest
@@ -31,9 +68,21 @@ jobs:
             echo "✅ $msg"
           done
 
-  go-test:
+  backend-vet:
+    name: Go Vet
+    runs-on: ubuntu-latest
+    needs: paths
+    if: needs.paths.outputs.backend == 'true' || needs.paths.outputs.workflows == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+      - run: go vet ./...
+
+  backend-test:
     name: Go Tests
     runs-on: ubuntu-latest
+    needs: [paths, backend-vet]
+    if: needs.paths.outputs.backend == 'true' || needs.paths.outputs.workflows == 'true'
     services:
       postgres:
         image: postgres:16-alpine
@@ -55,44 +104,123 @@ jobs:
       JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Download dependencies
-        run: go mod download
-      - name: Run go vet
-        run: go vet ./...
+      - uses: ./.github/actions/setup-go
       - name: Run tests
-        run: go test ./... -v -race -count=1 -timeout 120s
+        run: go test -race -count=1 -timeout 120s -p 4 ./...
 
   frontend-lint:
-    name: Frontend Lint & Unit Tests
+    name: Frontend Lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+    needs: paths
+    if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - name: Lint
+      - uses: ./.github/actions/setup-frontend
+      - working-directory: frontend
         run: npm run lint
-      - name: Unit tests
+
+  frontend-test:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    needs: [paths, frontend-lint]
+    if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-frontend
+      - working-directory: frontend
         run: npm run test:run
 
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [go-test, frontend-lint]
+    needs: [paths, backend-test, frontend-test]
+    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     steps:
       - uses: actions/checkout@v4
-      - name: Build backend production image
-        run: docker build --target production -t systemburo:ci .
-      - name: Build frontend production image
-        run: docker build --target production -t systemburo-frontend:ci ./frontend
-      - name: Verify backend image
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          tags: systemburo:ci
+          load: true
+          cache-from: type=gha,scope=systemburo-backend
+          cache-to: type=gha,mode=max,scope=systemburo-backend
+      - name: Build frontend image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          target: production
+          tags: systemburo-frontend:ci
+          load: true
+          cache-from: type=gha,scope=systemburo-frontend
+          cache-to: type=gha,mode=max,scope=systemburo-frontend
+      - name: Verify backend image runs as non-root
         run: docker run --rm systemburo:ci id
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    environment: staging
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
+            cd /opt/systemburo
+            git fetch origin dev
+            git reset --hard origin/dev
+            test -f .env || bash scripts/init-env.sh staging ${{ secrets.STAGING_DOMAIN }}
+            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build
+            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d
+            docker system prune -f --filter 'until=24h' 2>/dev/null || true
+            docker builder prune -f --filter 'until=24h' 2>/dev/null || true
+            sleep 5
+            wget -qO- http://localhost/health || exit 1
+            echo "Staging deploy completed at $(date)"
+      - name: Sync staging branch
+        run: git push origin dev:staging
+
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs:
+      - paths
+      - commit-lint
+      - backend-vet
+      - backend-test
+      - frontend-lint
+      - frontend-test
+      - docker-build
+      - deploy-staging
+    if: always()
+    steps:
+      - name: Fail if any dependency failed
+        run: |
+          results='${{ toJson(needs) }}'
+          echo "$results"
+          if echo "$results" | grep -q '"result": "failure"'; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          if echo "$results" | grep -q '"result": "cancelled"'; then
+            echo "One or more required jobs were cancelled."
+            exit 1
+          fi
+          echo "All upstream jobs succeeded or were skipped."

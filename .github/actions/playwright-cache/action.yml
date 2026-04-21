@@ -1,0 +1,36 @@
+name: Cache Playwright browsers
+description: >-
+  Cache Playwright browsers keyed by package version. If cache hits, installs
+  only system deps for chromium; otherwise installs browser + deps.
+inputs:
+  browser:
+    description: Playwright browser to install (chromium, firefox, webkit)
+    default: chromium
+    required: false
+outputs:
+  cache-hit:
+    description: Whether the cache was hit.
+    value: ${{ steps.cache.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      working-directory: frontend
+      run: echo "v=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+    - id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.version.outputs.v }}
+        restore-keys: ${{ runner.os }}-playwright-
+    - name: Install browser + deps
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: frontend
+      run: npx playwright install --with-deps ${{ inputs.browser }}
+    - name: Install system deps only
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      working-directory: frontend
+      run: npx playwright install-deps ${{ inputs.browser }}
