@@ -1,5 +1,5 @@
 <template>
-  <div class="fact-table-card">
+  <div class="fact-table-card" data-testid="fact-table">
     <div class="card-header">
       <div class="card-header__title">
         <h3 class="card-title">{{ tableType === 'cars' ? 'Автомобили' : 'Люди' }} <span class="highlight-text">по факту</span></h3>

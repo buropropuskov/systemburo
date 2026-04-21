@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { registerUser, loginAsAdmin, loginAsUser, setAuthTokens } = require('../helpers/auth');
-const { getToken, submitCompleteApplication, getAttachments, getApplications } = require('../helpers/api');
+const { getToken, submitCompleteApplication } = require('../helpers/api');
+const { ApplicationCenterPage } = require('../pages/ApplicationCenterPage');
 
 test.describe('Applications Center', () => {
   async function createTestApplication(adminToken, orgName = 'E2E Org') {
@@ -26,36 +27,37 @@ test.describe('Applications Center', () => {
     const username = `e2e_center_load_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await page.goto('/center');
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
     await expect(page).toHaveURL(/center/);
   });
 
   test('center displays applications table', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/center');
-    await expect(page.locator('.center')).toBeVisible();
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
+    await expect(centerPage.root).toBeVisible();
   });
 
   test('search input filters applications', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/center');
-    const searchInput = page.locator('.field__input.search');
-    await expect(searchInput).toBeVisible();
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
+    await expect(centerPage.searchInput).toBeVisible();
 
-    // Type in search
-    await searchInput.fill('test search query');
-    // Input should have the value
-    await expect(searchInput).toHaveValue('test search query');
+    await centerPage.search('test search query');
+    await expect(centerPage.searchInput).toHaveValue('test search query');
   });
 
   test('status filter buttons are clickable', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/center');
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
 
-    const statusButtons = page.locator('.status-btn');
+    const statusButtons = page.locator('[data-testid^="center-button-status-"]');
     const count = await statusButtons.count();
 
     if (count > 0) {
@@ -70,39 +72,33 @@ test.describe('Applications Center', () => {
     await registerUser(adminName, 'testpass123', 6);
     const adminToken = await getToken(adminName);
 
-    // Create a test application via API
     await createTestApplication(adminToken);
 
     await setAuthTokens(page, adminName, 'testpass123');
-    await page.goto('/center');
 
-    // Wait for applications to load
-    const appRow = page.locator('.application-item').first();
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
+
+    const appRow = centerPage.getAllRows().first();
     await appRow.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
     if (await appRow.isVisible()) {
       await appRow.click();
-      // Detail panel or modal should appear
-      // Check for application detail content
-      await page.waitForTimeout(500);
     }
   });
 
   test('reset filters button clears active filters', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/center');
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
 
-    // Click a status filter first
-    const statusBtn = page.locator('.status-btn').first();
+    const statusBtn = page.locator('[data-testid^="center-button-status-"]').first();
     if (await statusBtn.isVisible()) {
       await statusBtn.click();
 
-      // Look for reset button
-      const resetBtn = page.locator('.reset-filters-btn');
-      if (await resetBtn.isVisible()) {
-        await resetBtn.click();
-        // Filters should be cleared
+      if (await centerPage.resetFiltersButton.isVisible()) {
+        await centerPage.resetFilters();
         await expect(page.locator('.status-btn--active')).toHaveCount(0);
       }
     }
@@ -117,13 +113,14 @@ test.describe('Applications Center', () => {
     await createTestApplication(adminToken);
 
     await setAuthTokens(page, adminName, 'testpass123');
-    await page.goto('/center');
 
-    const appRow = page.locator('.application-item').first();
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
+
+    const appRow = centerPage.getAllRows().first();
     await appRow.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
     if (await appRow.isVisible()) {
-      // Status badge should be present
       await expect(appRow.locator('.status-badge')).toBeVisible();
     }
   });
@@ -137,7 +134,9 @@ test.describe('Applications Center', () => {
     await createTestApplication(adminToken);
 
     await setAuthTokens(page, adminName, 'testpass123');
-    await page.goto('/center');
+
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
 
     const appNumber = page.locator('.application-number').first();
     await appNumber.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
@@ -151,9 +150,9 @@ test.describe('Applications Center', () => {
   test('center page has column headers', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/center');
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
 
-    // Table header should have column names
     const header = page.locator('.table-header, .applications-table .header-col');
     await header.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   });
@@ -166,7 +165,6 @@ test.describe('Applications Center', () => {
     await registerUser(userName, 'testpass123', 1);
 
     const userToken = await getToken(userName);
-    // Create an application as regular user
     await submitCompleteApplication(userToken, {
       organization: 'E2E Unread Org',
       responsible_person: 'E2E Tester',
@@ -183,12 +181,13 @@ test.describe('Applications Center', () => {
       }],
     });
 
-    // Login as admin and check center
     await setAuthTokens(page, adminName, 'testpass123');
-    await page.goto('/center');
+
+    const centerPage = new ApplicationCenterPage(page);
+    await centerPage.goto();
 
     // Unread badge may or may not appear depending on whether admin is a responsible user
     // Just verify the page loads successfully
-    await expect(page.locator('.center')).toBeVisible();
+    await expect(centerPage.root).toBeVisible();
   });
 });

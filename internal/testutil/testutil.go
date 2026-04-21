@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"systemburo/internal/config"
 	"systemburo/internal/crypto"
@@ -82,7 +83,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	db := cachedDB
 
 	// Create all services (same wiring as cmd/server/main.go)
-	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret)
+	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 15*time.Minute, 168*time.Hour)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -98,6 +99,10 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
+	newsService := services.NewNewsService(db)
+	notificationService := services.NewNotificationService(db)
+	requestLogsService := services.NewRequestLogsService(db)
+	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
@@ -124,6 +129,10 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
+	newsHandler := handlers.NewNewsHandler(newsService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
+	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
@@ -139,7 +148,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, []byte(TestJWTSecret))
+		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(TestJWTSecret))
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

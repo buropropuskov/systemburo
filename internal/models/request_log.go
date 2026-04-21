@@ -38,3 +38,51 @@ type RequestLogs struct {
 }
 
 func (RequestLogs) TableName() string { return "request_logs" }
+
+// RequestLogsQuery — параметры фильтрации и пагинации для списка логов.
+type RequestLogsQuery struct {
+	UserID  *int   `query:"user_id"`
+	Method  string `query:"method"`
+	Status  *int   `query:"status"`
+	From    string `query:"from_date"`
+	To      string `query:"to_date"`
+	Search  string `query:"search"`
+	Page    int    `query:"page"`
+	PerPage int    `query:"per_page"`
+}
+
+// RequestLogsStats — агрегированная статистика по логам запросов.
+type RequestLogsStats struct {
+	Total             int64   `json:"total"`
+	Today             int64   `json:"today"`
+	AvgDuration       float64 `json:"avg_duration"`
+	ErrorRate         float64 `json:"error_rate"`
+	RequestsPerMinute float64 `json:"requests_per_minute"`
+}
+
+// TimelineQuery — параметры для построения таймлайна.
+type TimelineQuery struct {
+	Interval int    `query:"interval"`
+	Limit    int    `query:"limit"`
+	From     string `query:"from_date"`
+	To       string `query:"to_date"`
+}
+
+// TimelinePoint — одна точка на графике таймлайна.
+type TimelinePoint struct {
+	Timestamp   string  `json:"timestamp"`
+	Count       int64   `json:"count"`
+	AvgDuration float64 `json:"avg_duration"`
+}
+
+// RealtimeStats — статистика в реальном времени.
+type RealtimeStats struct {
+	LastSecondCount int64 `json:"last_second_count"`
+	LastMinuteCount int64 `json:"last_minute_count"`
+}
+
+// RequestLogsUser — пользователь для фильтра.
+type RequestLogsUser struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+}

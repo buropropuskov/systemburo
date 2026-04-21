@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 
@@ -10,12 +11,15 @@ import (
 )
 
 type Config struct {
-	DatabaseURL      string `env:"DATABASE_URL,required"`
-	BindHost         string `env:"BIND_HOST" envDefault:"0.0.0.0"`
-	BindPort         string `env:"BIND_PORT" envDefault:"8090"`
-	JWTSecret        string `env:"JWT_SECRET,required"`
-	JWTRefreshSecret string `env:"JWT_REFRESH_SECRET,required"`
-	LogLevel         string `env:"LOG_LEVEL" envDefault:"info"`
+	DatabaseURL      string        `env:"DATABASE_URL,required"`
+	BindHost         string        `env:"BIND_HOST" envDefault:"0.0.0.0"`
+	BindPort         string        `env:"BIND_PORT" envDefault:"8090"`
+	JWTSecret        string        `env:"JWT_SECRET,required"`
+	JWTRefreshSecret string        `env:"JWT_REFRESH_SECRET,required"`
+	JWTAccessTTL     time.Duration `env:"JWT_ACCESS_TTL" envDefault:"15m"`
+	JWTRefreshTTL    time.Duration `env:"JWT_REFRESH_TTL" envDefault:"168h"`
+	LogLevel         string        `env:"LOG_LEVEL" envDefault:"info"`
+	SwaggerEnabled   bool          `env:"SWAGGER_ENABLED" envDefault:"false"`
 
 	CORSAllowedOrigins      []string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:8081" envSeparator:","`
 	UploadMaxFileSize       int64    `env:"UPLOAD_MAX_FILE_SIZE" envDefault:"10485760"`
@@ -73,6 +77,12 @@ func (c *Config) Validate() error {
 	}
 	if c.PaginationMaxLimit <= 0 {
 		return fmt.Errorf("PAGINATION_MAX_LIMIT must be positive (got %d)", c.PaginationMaxLimit)
+	}
+	if c.JWTAccessTTL <= 0 {
+		return fmt.Errorf("JWT_ACCESS_TTL must be positive (got %s)", c.JWTAccessTTL)
+	}
+	if c.JWTRefreshTTL <= c.JWTAccessTTL {
+		return fmt.Errorf("JWT_REFRESH_TTL (%s) must be greater than JWT_ACCESS_TTL (%s)", c.JWTRefreshTTL, c.JWTAccessTTL)
 	}
 	return nil
 }

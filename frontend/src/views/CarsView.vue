@@ -1,5 +1,5 @@
 <template>
-    <section class="carsview">
+    <section class="carsview" data-testid="cars-page">
         <header class="carsview__header">
             <h2 class="carsview__title">
                 Список <span class="blue">автомобилей</span>
@@ -13,31 +13,35 @@
                     v-model="searchQuery"
                 />
                 <div class="filter-tabs" v-if="ownershipInfo">
-                    <button 
+                    <button
                         v-if="ownershipInfo.has_organization"
                         class="filter-tab"
+                        data-testid="filter-tab-organization"
                         :class="{ 'filter-tab--active': currentFilter === 'organization' }"
                         @click="switchFilter('organization')"
                     >
                         Машины организации
                     </button>
-                    <button 
+                    <button
                         v-if="ownershipInfo.has_company"
                         class="filter-tab"
+                        data-testid="filter-tab-company"
                         :class="{ 'filter-tab--active': currentFilter === 'company' }"
                         @click="switchFilter('company')"
                     >
                         Машины компании
                     </button>
-                    <button 
+                    <button
                         class="filter-tab"
+                        data-testid="filter-tab-user"
                         :class="{ 'filter-tab--active': currentFilter === 'user' }"
                         @click="switchFilter('user')"
                     >
                         Мои машины
                     </button>
-                    <button 
+                    <button
                         class="filter-tab"
+                        data-testid="filter-tab-all-system"
                         :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
                         @click="switchFilter('all_system')"
                     >
@@ -185,9 +189,9 @@
                                                 class="edit-icon"
                                             />
                                         </button>
-                                        <button 
+                                        <button
                                             v-if="currentFilter !== 'all_system'"
-                                            @click="deleteCar(car)" 
+                                            @click="openDeleteCarConfirmation(car)"
                                             class="delete-btn"
                                             title="Удалить"
                                         >
@@ -369,6 +373,16 @@
                 </div>
             </div>
         </div>
+        <ConfirmationModal
+            :show="showDeleteCarModal"
+            title="Подтверждение удаления"
+            :message="`Вы уверены, что хотите удалить автомобиль ${carToDelete?.number || ''}?`"
+            confirm-text="Удалить"
+            cancel-text="Отмена"
+            :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+            @confirm="confirmDeleteCar"
+            @cancel="cancelDeleteCar"
+        />
     </section>
 </template>
 
@@ -378,13 +392,15 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 export default {
     components: {
         SearchComponent,
         RefreshButton,
         SkeletonTransition,
-        SkeletonTable
+        SkeletonTable,
+        ConfirmationModal
     },
     data() {
         return {
@@ -397,6 +413,8 @@ export default {
             currentFilter: 'user',
             ownershipInfo: null,
             showModal: false,
+            showDeleteCarModal: false,
+            carToDelete: null,
             availableFormats: [],
 
             
@@ -599,22 +617,36 @@ export default {
             }
         },
 
-        async deleteCar(car) {
-            if (confirm(`Вы уверены, что хотите удалить автомобиль ${car.number}?`)) {
-                try {
-                    const response = await apiRequest(`/unique-cars/${car.id}`, {
-                        method: "DELETE"});
+        openDeleteCarConfirmation(car) {
+            this.carToDelete = car;
+            this.showDeleteCarModal = true;
+        },
 
-                    if (response.ok) {
-                        await this.fetchCars();
-                        this.showNotification('Автомобиль успешно удален!', 'success');
-                    } else {
-                        alert("Ошибка при удалении автомобиля");
-                    }
-                } catch (error) {
-                    console.error("Ошибка при удалении автомобиля:", error);
+        cancelDeleteCar() {
+            this.showDeleteCarModal = false;
+            this.carToDelete = null;
+        },
+
+        async confirmDeleteCar() {
+            if (!this.carToDelete) return;
+            const car = this.carToDelete;
+            this.showDeleteCarModal = false;
+            this.carToDelete = null;
+
+            try {
+                const response = await apiRequest(`/unique-cars/${car.id}`, {
+                    method: "DELETE"
+                });
+
+                if (response.ok) {
+                    await this.fetchCars();
+                    this.showNotification('Автомобиль успешно удален!', 'success');
+                } else {
                     alert("Ошибка при удалении автомобиля");
                 }
+            } catch (error) {
+                console.error("Ошибка при удалении автомобиля:", error);
+                alert("Ошибка при удалении автомобиля");
             }
         },
 

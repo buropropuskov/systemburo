@@ -1,5 +1,5 @@
 <template>
-  <div class="account-dashboard">
+  <div class="account-dashboard" data-testid="cabinet-page">
     <!-- Первая строка: заголовок и заявки -->
     <div class="first-row">
       <SkeletonTransition :loading="loading">

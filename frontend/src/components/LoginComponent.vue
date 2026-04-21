@@ -18,12 +18,13 @@
                     <h1 class="login__title" :style="titleStyle">Войдите в аккаунт</h1>
                     <h3 class="login__subtitle" :style="subtitleStyle">для продолжения</h3>
                 </div>
-                <form class="login__form" @submit.prevent="handleSubmit">
+                <form class="login__form" data-testid="login-form" @submit.prevent="handleSubmit">
                     <div class="inputs">
                         <div class="login__input" :style="input1Style">
                             <img src="@/assets/icons/login.png" alt="" class="input__icon" />
                             <FormField label="Логин" :required="true" :error="fieldError('username')">
                                 <input v-model="formData.username" class="input" type="text"
+                                    data-testid="login-input-username"
                                     autocomplete="off"
                                     autocorrect="off"
                                     autocapitalize="off"
@@ -38,6 +39,7 @@
                             <img src="@/assets/icons/password.png" alt="" class="input__icon" />
                             <FormField label="Пароль" :required="true" :error="fieldError('password')">
                                 <input v-model="formData.password" class="input" type="password"
+                                    data-testid="login-input-password"
                                     autocomplete="new-password"
                                     autocorrect="off"
                                     autocapitalize="off"
@@ -50,19 +52,19 @@
                         </div>
                     </div>
                     
-                    <a href="#" class="remember-password" :style="linkStyle">Забыли пароль?</a>
+                    <a href="#" class="remember-password" :style="linkStyle" @click.prevent="showPasswordRecovery = true">Забыли пароль?</a>
                     
                     <div class="login__footer" :style="footerStyle">
                         <div class="error-container">
                             <transition name="fade">
-                                <div v-if="showError" class="error-message">
+                                <div v-if="showError" class="error-message" data-testid="login-error-message">
                                     {{ errors.general }}
                                 </div>
                             </transition>
                         </div>
                         
                         <div class="footer__button">
-                            <button class="login__button" :class="{'loading': isLoading, 'success': isSuccess}" :disabled="isLoading || isSuccess">
+                            <button class="login__button" data-testid="login-button-submit" :class="{'loading': isLoading, 'success': isSuccess}" :disabled="isLoading || isSuccess">
                                 <p class="button__text">{{ getButtonText }}</p>
                                 <img v-if="!isLoading && !isSuccess" src="@/assets/icons/key-blue.png" alt="" class="input__icon"/>
                                 <div v-if="isLoading" class="spinner"></div>
@@ -112,6 +114,11 @@
                 </div>
             </div>
         </div>
+
+        <PasswordRecoveryModal
+            :show="showPasswordRecovery"
+            @close="showPasswordRecovery = false"
+        />
     </div>
 </template>
 
@@ -119,8 +126,9 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import FormField from '@/components/ui/FormField.vue'
+import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 export default {
-    components: { FormField },
+    components: { FormField, PasswordRecoveryModal },
     data() {
         return {
             formData: {
@@ -144,7 +152,8 @@ export default {
             showEmailNotification: false,
             showPhoneNotification: false,
             notificationTimeout: null,
-            touchedFields: {}
+            touchedFields: {},
+            showPasswordRecovery: false
         }
     },
     computed: {
@@ -373,7 +382,6 @@ export default {
                 refreshToken: data.refreshToken
             });
             
-            this.$root.$forceUpdate(); 
             this.$router.push('/personal-cabinet');
         } else {
             // Проверяем статус код для определения типа ошибки

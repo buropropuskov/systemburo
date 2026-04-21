@@ -38,7 +38,11 @@ export default {
     timeRemaining: {
       type: Number,
       required: true,
-      default: 30
+      default: 300
+    },
+    maxTime: {
+      type: Number,
+      default: 600
     }
   },
   computed: {
@@ -48,10 +52,16 @@ export default {
       return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     },
     progressStyle() {
-      const progress = (this.timeRemaining / 2000) * 100;
+      const progress = Math.max(0, Math.min(100, (this.timeRemaining / this.maxTime) * 100));
+      const percent = progress / 100;
+      const red = Math.floor(255 * (1 - percent));
+      const green = Math.floor(255 * percent);
+      const color = `rgb(${red}, ${green}, 0)`;
+
       return {
         width: `${progress}%`,
-        backgroundColor: progress > 50 ? '#4F5BDF' : progress > 20 ? '#FF9800' : '#f44336'
+        backgroundColor: color,
+        backgroundImage: `linear-gradient(90deg, ${color}, ${color})`
       };
     }
   },
@@ -144,7 +154,7 @@ export default {
 .countdown-progress {
   height: 100%;
   border-radius: 10px;
-  transition: width 1s linear, background-color 1s ease;
+  transition: width 1s linear, background-color 0.3s ease;
 }
 
 .modal-message {

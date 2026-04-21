@@ -9,6 +9,11 @@
                 >
                     <div class="modal-header">
                         <h3 class="modal-title">Детальная информация о сотруднике</h3>
+                        <div class="header-actions">
+                            <button class="history-btn" @click="showHistory = true">
+                                <span>Полная история</span>
+                            </button>
+                        </div>
                         <button @click="close" class="modal-close">
                             <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
                                 <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
@@ -129,6 +134,14 @@
                         />
                     </div>
                 </transition>
+
+                <EmployeeHistoryModal
+                    :show="showHistory"
+                    :last-name="employee?.lastName || ''"
+                    :first-name="employee?.firstName || ''"
+                    :middle-name="employee?.middleName || ''"
+                    @close="showHistory = false"
+                />
             </div>
         </div>
     </transition>
@@ -136,10 +149,11 @@
 
 <script>
 import TableInfoModal from './TableInfoModal.vue';
+import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 
 export default {
     name: 'EmployeeDetailsModal',
-    components: { TableInfoModal },
+    components: { TableInfoModal, EmployeeHistoryModal },
     props: {
         show: {
             type: Boolean,
@@ -162,7 +176,8 @@ export default {
             isMainShifted: false,
             shiftTimer: null,
             showFullPassport: false,
-            showFullPatent: false
+            showFullPatent: false,
+            showHistory: false
         };
     },
     methods: {
@@ -519,6 +534,31 @@ export default {
     border-radius: 16px;
     font-size: 12px;
     font-weight: 500;
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.history-btn {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    color: #4F5BDF;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 5px 12px;
+    border-radius: 15px;
+    transition: all 0.2s;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.history-btn:hover {
+    background: #4F5BDF;
+    color: white;
+    border-color: #4F5BDF;
 }
 
 /* Анимации */

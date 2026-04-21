@@ -52,8 +52,10 @@ jobs:
             git fetch origin dev
             git reset --hard origin/dev
             test -f .env || bash scripts/init-env.sh staging ${{ secrets.STAGING_DOMAIN }}
-            docker compose -f docker-compose.staging.yml build
-            docker compose -f docker-compose.staging.yml up -d
+            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build
+            docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d
+            docker system prune -f --filter 'until=24h' 2>/dev/null || true
+            docker builder prune -f --filter 'until=24h' 2>/dev/null || true
             sleep 5
             wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
@@ -85,8 +87,8 @@ jobs:
             git fetch origin prod
             git reset --hard origin/prod
             test -f .env || bash scripts/init-env.sh production ${{ secrets.PROD_DOMAIN }}
-            docker compose -f docker-compose.prod.yml build
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d
             sleep 5
-            docker compose -f docker-compose.prod.yml exec backend wget -qO- http://localhost:8080/health || exit 1
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend wget -qO- http://localhost:8080/health || exit 1
             echo "Production deploy completed at $(date)"

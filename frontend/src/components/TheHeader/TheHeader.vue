@@ -12,10 +12,10 @@
     </div>
 
     <div class="header__info">
-      <button class="feedback-btn" @click="openFeedbackModal">
+      <button class="feedback-btn" data-testid="header-button-feedback" @click="openFeedbackModal">
         Сообщить о проблеме
       </button>
-      <button class="broadcast">
+      <button v-if="activeAnnouncement" class="broadcast" @click="showAnnouncement = true">
         Важное объявление
       </button>
       <p class="time">
@@ -24,12 +24,16 @@
       <div class="language-selector">
         <p class="current-language">RU</p>
       </div>
-      <div class="user__notifications">
-        <img src="@/assets/icons/notifications.png" class="notifications__icon" alt="Уведомления" />
+      <div class="user__notifications" @click="showNotifications = !showNotifications">
         <img src="@/assets/icons/messages.png" class="notifications__icon" alt="Сообщения" />
+        <span v-if="unreadCount > 0" class="notifications__badge">{{ unreadCount }}</span>
       </div>
+      <UserNotifications
+        :show="showNotifications"
+        @update:unread-count="unreadCount = $event"
+      />
       <div class="appl-btn__container">
-        <button class="appl-btn" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
+        <button class="appl-btn" data-testid="header-button-submit-app" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
           Подать заявку
         </button>
       </div>
@@ -40,6 +44,11 @@
       v-model:show="showFeedbackModal"
       @submitted="handleFeedbackSubmitted"
     />
+    <AnnouncementModal
+      :show="showAnnouncement"
+      :announcement="activeAnnouncement"
+      @close="showAnnouncement = false"
+    />
   </header>
 </template>
 
@@ -47,12 +56,16 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import FeedbackModal from '@/components/FeedbackModal.vue';
+import AnnouncementModal from '@/components/AnnouncementModal.vue';
+import UserNotifications from '@/components/UserNotifications.vue';
 import { SkeletonLine } from '@/components/ui';
 
 export default {
   name: 'TheHeader',
   components: {
     FeedbackModal,
+    AnnouncementModal,
+    UserNotifications,
     SkeletonLine,
   },
   data() {
@@ -64,7 +77,11 @@ export default {
       timer: null,
       isHeaderHidden: false,
       observer: null,
-      showFeedbackModal: false
+      showFeedbackModal: false,
+      showAnnouncement: false,
+      activeAnnouncement: null,
+      showNotifications: false,
+      unreadCount: 0
     };
   },
   computed: {
@@ -78,6 +95,16 @@ export default {
     }
   },
   methods: {
+    async fetchActiveAnnouncement() {
+      try {
+        const response = await apiRequest('/announcements/active', { method: 'GET' });
+        if (response.ok) {
+          this.activeAnnouncement = await response.json();
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке объявления:', error);
+      }
+    },
     openFeedbackModal() {
       this.showFeedbackModal = true;
     },
@@ -152,6 +179,7 @@ export default {
   },
   mounted() {
     this.fetchUserData();
+    this.fetchActiveAnnouncement();
     this.startDateTimeTimer();
     this.$nextTick(() => {
       this.initIntersectionObserver();
@@ -275,6 +303,26 @@ h3 {
   justify-content: center;
   border: 1px solid #e6e6e6;
   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
+  position: relative;
+  cursor: pointer;
+}
+
+.notifications__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: #f14c4c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
 }
 
 .notifications__icon {

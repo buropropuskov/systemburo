@@ -43,23 +43,34 @@ describe('auth store', () => {
   });
 
   describe('isAuthenticated', () => {
-    it('returns true for a valid non-expired token', () => {
+    it('returns true when refresh token is valid and non-expired', () => {
       const store = useAuthStore();
-      const token = createMockJWT({ username: 'admin' }, 3600);
-      store.setTokens(token, 'refresh');
+      const access = createMockJWT({ username: 'admin' }, 3600);
+      const refresh = createMockJWT({ username: 'admin' }, 168 * 3600);
+      store.setTokens(access, refresh);
 
       expect(store.isAuthenticated).toBe(true);
     });
 
-    it('returns false for an expired token', () => {
+    it('returns true even when access token is expired, as long as refresh is valid', () => {
       const store = useAuthStore();
-      const token = createMockJWT({ username: 'admin' }, -100);
-      store.setTokens(token, 'refresh');
+      const access = createMockJWT({ username: 'admin' }, -100);
+      const refresh = createMockJWT({ username: 'admin' }, 3600);
+      store.setTokens(access, refresh);
+
+      expect(store.isAuthenticated).toBe(true);
+    });
+
+    it('returns false when refresh token is expired', () => {
+      const store = useAuthStore();
+      const access = createMockJWT({ username: 'admin' }, 3600);
+      const refresh = createMockJWT({ username: 'admin' }, -100);
+      store.setTokens(access, refresh);
 
       expect(store.isAuthenticated).toBe(false);
     });
 
-    it('returns false when no token is set', () => {
+    it('returns false when no refresh token is set', () => {
       const store = useAuthStore();
       expect(store.isAuthenticated).toBe(false);
     });

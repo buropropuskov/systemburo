@@ -1,18 +1,10 @@
-import { defineConfig } from 'vitest/config';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-export default defineConfig({
+export default mergeConfig(viteConfig, defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.spec.js', 'src/**/*.test.js'],
   },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-    },
-  },
-});
+}))

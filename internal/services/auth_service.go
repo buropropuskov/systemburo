@@ -44,14 +44,20 @@ type authService struct {
 	db               *gorm.DB
 	jwtSecret        []byte
 	jwtRefreshSecret []byte
+	accessTTL        time.Duration
+	refreshTTL       time.Duration
 }
 
-// NewAuthService создаёт сервис аутентификации с указанными JWT-секретами.
-func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string) AuthService {
+// NewAuthService создаёт сервис аутентификации с JWT-секретами и TTL токенов.
+// accessTTL — время жизни access-токена (короткое, например 15m).
+// refreshTTL — время жизни refresh-токена (длинное, например 168h = 7d).
+func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, refreshTTL time.Duration) AuthService {
 	return &authService{
 		db:               db,
 		jwtSecret:        []byte(jwtSecret),
 		jwtRefreshSecret: []byte(jwtRefreshSecret),
+		accessTTL:        accessTTL,
+		refreshTTL:       refreshTTL,
 	}
 }
 
@@ -86,7 +92,7 @@ func (s *authService) createAccessToken(username string, userID int, typeID int)
 		TypeID: typeID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(120 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTTL)),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -98,7 +104,7 @@ func (s *authService) createRefreshJWT(username string) (string, error) {
 		TypeID: 0,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.refreshTTL)),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -187,7 +193,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 	rt := models.RefreshToken{
 		UserID:    user.ID,
 		TokenHash: hashRefreshToken(refreshJWT),
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ExpiresAt: time.Now().Add(s.refreshTTL),
 	}
 	s.db.WithContext(ctx).Create(&rt)
 
@@ -246,7 +252,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	rt := models.RefreshToken{
 		UserID:    user.ID,
 		TokenHash: hashRefreshToken(newRefresh),
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ExpiresAt: time.Now().Add(s.refreshTTL),
 	}
 	s.db.WithContext(ctx).Create(&rt)
 

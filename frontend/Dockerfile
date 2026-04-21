@@ -1,14 +1,14 @@
 # Dev stage
-FROM node:18-alpine AS dev
+FROM node:20-alpine AS dev
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 EXPOSE 8081
-CMD ["npx", "vue-cli-service", "serve", "--port", "8081"]
+CMD ["npm", "run", "dev", "--", "--host"]
 
 # Builder stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

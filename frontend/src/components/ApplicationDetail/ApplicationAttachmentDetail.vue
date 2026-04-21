@@ -33,7 +33,7 @@
                     </template>
                     <template v-else>
                         <div v-if="cars.length > 0" class="cars-list">
-                            <div v-for="(car, index) in cars" :key="car.id" class="car-item">
+                            <div v-for="(car, index) in cars" :key="car.id" class="car-item" @click="$emit('open-vehicle', car)">
                                 <div class="car-item-content">
                                     <div class="item-number">
                                         {{ index + 1 }}.
@@ -70,7 +70,7 @@
                     </template>
                     <template v-else>
                         <div v-if="employees.length > 0" class="employees-list">
-                            <div v-for="(employee, index) in employees" :key="employee.id" class="employee-item">
+                            <div v-for="(employee, index) in employees" :key="employee.id" class="employee-item" @click="$emit('open-employee', employee)">
                                 <div class="employee-item-content">
                                     <div class="item-number">
                                         {{ index + 1 }}.
@@ -130,6 +130,7 @@
 <script>
 export default {
     name: 'ApplicationAttachmentDetail',
+    emits: ['open-vehicle', 'open-employee'],
     props: {
         attachment: {
             type: Object,
@@ -365,6 +366,7 @@ export default {
     animation: slideIn 0.3s ease-out forwards;
     opacity: 0;
     transform: translateY(10px);
+    cursor: pointer;
 }
 
 @keyframes slideIn {

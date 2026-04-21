@@ -10,13 +10,14 @@
 | Frontend | Vue 3, Vue Router, Pinia |
 | Инфраструктура | Docker Compose, nginx, GitHub Actions CI/CD |
 
-## Быстрый старт
+## Быстрый старт (dev)
 
 ```bash
 git clone <repo> && cd systemburo
 cp .env.example .env
 make init   # git hooks
 make up     # запустить все сервисы
+make seed   # создать тестового админа (buropropuskov / admin123)
 ```
 
 | Сервис | URL |
@@ -25,6 +26,29 @@ make up     # запустить все сервисы
 | Frontend | http://localhost:8081 |
 | pgAdmin | http://localhost:8082 |
 | Swagger | http://localhost:8080/swagger/index.html |
+
+### Тестовый админ
+
+После `make seed` доступны креды:
+
+| Поле | Значение |
+|------|----------|
+| Логин | `buropropuskov` |
+| Пароль | `admin123` |
+
+Кастомный пароль: `make seed PASS=mypassword`.
+
+## Staging / Production
+
+```bash
+make staging-up     # поднять staging (docker-compose.staging.yml)
+make staging-seed   # создать админа на staging
+
+make deploy-up      # поднять production (docker-compose.prod.yml)
+make deploy-seed    # создать админа на production
+```
+
+Для staging/prod сидер собирается в образ как отдельный бинарь `/app/seed` (см. `Dockerfile`, stage `production`).
 
 ## Команды
 
@@ -35,6 +59,9 @@ make up     # запустить все сервисы
 | `make lint` | Go vet |
 | `make bash` | Shell в контейнере бэкенда |
 | `make db-shell` | psql к БД |
+| `make seed [PASS=...]` | Создать тестового админа (dev) |
+| `make staging-seed [PASS=...]` | Создать админа на staging |
+| `make deploy-seed [PASS=...]` | Создать админа на production |
 | `make prod-build` | Собрать production образ |
 | `make security` | govulncheck + npm audit |
 

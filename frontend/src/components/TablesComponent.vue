@@ -106,9 +106,10 @@
             </div>
             
             <!-- Основная таблица - разные компоненты для разных типов -->
-            <CarsTable 
-                v-if="tableType === 'cars' && currentUserId" 
+            <CarsTable
+                v-if="tableType === 'cars' && currentUserId"
                 :table-name="tableSystemName"
+                :table-id="tableData?.table?.id"
                 :search-query="searchQuery"
                 :selected-organization-id="selectedOrganizationId"
                 :selected-unloading-place-id="selectedUnloadingPlaceId"
@@ -118,9 +119,10 @@
                 :current-user-id="currentUserId"
                 :current-user-name="currentUserName"
                 @refresh-data="refreshData"
+                @open-application="handleOpenApplication"
             />
             
-            <PeopleTable 
+            <PeopleTable
                 v-if="tableType === 'people'"
                 :table-name="tableSystemName"
                 :search-query="searchQuery"
@@ -132,8 +134,19 @@
                 :current-user-id="currentUserId"
                 :current-user-name="currentUserName"
                 @refresh-data="refreshData"
+                @open-application="handleOpenApplication"
             />
         </div>
+
+        <ApplicationDetail
+            v-if="showApplicationDetail"
+            :application="selectedApplication"
+            :current-user-id="currentUserId"
+            :current-user-name="currentUserName"
+            :mode="'center'"
+            @close="closeApplicationDetail"
+            @application-changed="handleApplicationChanged"
+        />
     </div>
 </template>
 
@@ -146,6 +159,7 @@ import DateFilter from './DateFilter.vue';
 import FactTable from './FactTable.vue';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
+import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 
 export default {
     name: 'TablesComponent',
@@ -156,7 +170,8 @@ export default {
         DateFilter,
         FactTable,
         CarsTable,
-        PeopleTable
+        PeopleTable,
+        ApplicationDetail
     },
     data() {
         return {
@@ -175,7 +190,10 @@ export default {
             dateRangeEnd: null,
             
             currentUserId: null,
-            currentUserName: ''
+            currentUserName: '',
+
+            showApplicationDetail: false,
+            selectedApplication: null
         };
     },
     computed: {
@@ -380,6 +398,30 @@ export default {
             if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
                 this.$refs.dateFilter.clearSelection();
             }
+        },
+
+        async handleOpenApplication(applicationId) {
+            try {
+                const response = await apiRequest(`/applications/${applicationId}/details`, {});
+                if (response.ok) {
+                    const appData = await response.json();
+                    this.selectedApplication = appData;
+                    this.showApplicationDetail = true;
+                } else {
+                    console.error('Не удалось загрузить заявку');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки заявки:', error);
+            }
+        },
+
+        closeApplicationDetail() {
+            this.showApplicationDetail = false;
+            this.selectedApplication = null;
+        },
+
+        handleApplicationChanged() {
+            this.refreshData();
         }
     },
     async mounted() {

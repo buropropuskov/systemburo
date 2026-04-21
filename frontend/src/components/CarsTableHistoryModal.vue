@@ -154,6 +154,10 @@
               <div v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'" class="action-comment">
                 {{ item.comment }}
               </div>
+
+              <div v-if="item.table_name" class="place-name">
+                {{ item.table_name }}
+              </div>
             </div>
           </div>
         </div>
@@ -280,7 +284,8 @@ export default {
         'Автомобиль': this.getCarInfo(item),
         'Пользователь': item.user_name || 'Система',
         'Действие': this.getActionText(item),
-        'Комментарий': this.getActionComment(item)
+        'Комментарий': this.getActionComment(item),
+        'Место': item.table_name || ''
       }));
     },
 
@@ -370,19 +375,19 @@ export default {
       return actionType === 'entry' ? 'dot-entry' : 'dot-exit';
     },
 
-formatDateTime(dateTimeString) {
-  if (!dateTimeString) return '';
-  // Строка приходит в формате с часовым поясом (например, "2026-03-11T02:59:07+03:00")
-  const date = new Date(dateTimeString);
-  return date.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  }).replace(',', '');
-},
+    formatDateTime(dateTimeString) {
+      if (!dateTimeString) return '';
+      const date = new Date(dateTimeString);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(',', '');
+    },
+
     toggleSortOrder() {
       this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
     },
@@ -436,7 +441,8 @@ formatDateTime(dateTimeString) {
           'Автомобиль',
           'Пользователь',
           'Действие',
-          'Комментарий'
+          'Комментарий',
+          'Место'
         ];
         
         const headerRow = worksheet.addRow(headers);
@@ -468,7 +474,8 @@ formatDateTime(dateTimeString) {
             item['Автомобиль'],
             item['Пользователь'],
             item['Действие'],
-            item['Комментарий']
+            item['Комментарий'],
+            item['Место']
           ]);
           
           row.height = 20;
@@ -498,18 +505,18 @@ formatDateTime(dateTimeString) {
         const lastDataRow = this.exportData.length;
         
         for (let row = 1; row <= lastDataRow + 1; row++) {
-          const rightCell = worksheet.getCell(row, 5);
+          const rightCell = worksheet.getCell(row, 6);
           rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
           const leftCell = worksheet.getCell(row, 1);
           leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
         }
         
-        for (let col = 1; col <= 5; col++) {
+        for (let col = 1; col <= 6; col++) {
           const topCell = worksheet.getCell(1, col);
           topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
         }
         
-        for (let col = 1; col <= 5; col++) {
+        for (let col = 1; col <= 6; col++) {
           const bottomCell = worksheet.getCell(lastDataRow + 1, col);
           bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
         }
@@ -537,7 +544,8 @@ formatDateTime(dateTimeString) {
           { width: 50 },
           { width: 40 },
           { width: 30 },
-          { width: 60 }
+          { width: 60 },
+          { width: 30 }
         ];
         
         const buffer = await workbook.xlsx.writeBuffer();
@@ -577,6 +585,14 @@ formatDateTime(dateTimeString) {
 </script>
 
 <style scoped>
+.place-name {
+  font-size: 11px;
+  color: #4F5BDF;
+  margin-top: 2px;
+  font-weight: 500;
+  font-style: italic;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;

@@ -111,9 +111,10 @@ func main() {
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
 	e.Use(mw.PDAudit(db))
+	e.Use(mw.RequestLogger(db))
 
 	// Services
-	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret)
+	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
@@ -129,6 +130,10 @@ func main() {
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
+	newsService := services.NewNewsService(db)
+	notificationService := services.NewNotificationService(db)
+	requestLogsService := services.NewRequestLogsService(db)
+	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	applicationService := services.NewApplicationService(db, permissionService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
@@ -150,6 +155,10 @@ func main() {
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
+	newsHandler := handlers.NewNewsHandler(newsService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
+	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
@@ -157,14 +166,14 @@ func main() {
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
-	if cfg.LogLevel == "debug" {
+	if cfg.SwaggerEnabled {
 		e.GET("/swagger/*", echoSwagger.WrapHandler)
 	}
 
 	api.SetMaxLimit(cfg.PaginationMaxLimit)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, []byte(cfg.JWTSecret))
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret))
 
 	// Graceful shutdown
 	go func() {

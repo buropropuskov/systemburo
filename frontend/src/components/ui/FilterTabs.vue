@@ -5,6 +5,7 @@
       :key="tab.key"
       class="filter-tab"
       :class="{ 'filter-tab--active': modelValue === tab.key }"
+      :data-testid="`filter-tab-${tab.key}`"
       @click="$emit('update:modelValue', tab.key)"
     >
       {{ tab.label }}

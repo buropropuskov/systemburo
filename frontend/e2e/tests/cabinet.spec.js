@@ -1,20 +1,24 @@
 const { test, expect } = require('@playwright/test');
 const { loginAsAdmin, loginAsUser } = require('../helpers/auth');
+const { CabinetPage } = require('../pages/CabinetPage');
+const { NavigationBar } = require('../pages/NavigationBar');
 
 test.describe('Personal Cabinet', () => {
   test('cabinet page shows user profile', async ({ page }) => {
     const username = `e2e_cabinet_profile_${Date.now()}`;
     await loginAsUser(page, username);
 
+    const cabinetPage = new CabinetPage(page);
     await expect(page).toHaveURL(/personal-cabinet/);
-    await expect(page.locator('.account-dashboard')).toBeVisible();
+    await expect(cabinetPage.root).toBeVisible();
   });
 
   test('regular user sees dashboard content', async ({ page }) => {
     const username = `e2e_cabinet_user_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await expect(page.locator('.account-dashboard')).toBeVisible();
+    const cabinetPage = new CabinetPage(page);
+    await expect(cabinetPage.root).toBeVisible();
     // Dashboard should have at least some content rendered
     const rows = page.locator('.dashboard-row');
     await rows.first().waitFor({ state: 'visible', timeout: 10000 });
@@ -25,7 +29,8 @@ test.describe('Personal Cabinet', () => {
   test('admin user sees more sections than regular user', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await expect(page.locator('.account-dashboard')).toBeVisible();
+    const cabinetPage = new CabinetPage(page);
+    await expect(cabinetPage.root).toBeVisible();
     // Admin should have dashboard cards (animated or regular)
     const cards = page.locator('.dashboard-card, .dashboard-card-animated');
     await cards.first().waitFor({ state: 'visible', timeout: 10000 });
@@ -37,6 +42,7 @@ test.describe('Personal Cabinet', () => {
     const username = `e2e_cabinet_nav_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await expect(page.locator('.nav-menu')).toBeVisible();
+    const navBar = new NavigationBar(page);
+    await expect(navBar.root).toBeVisible();
   });
 });
