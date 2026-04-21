@@ -1,3 +1,5 @@
+const { LoginPage } = require('../pages/LoginPage');
+
 const API_BASE = 'http://localhost:8080';
 
 async function registerUser(username, password, typeId = 1, orgId = 0, companyId = 0) {
@@ -26,19 +28,17 @@ async function loginViaAPI(username, password) {
 
 async function loginAsAdmin(page) {
   await registerUser('e2e_admin', 'testpass123', 6);
-  await page.goto('/');
-  await page.locator('.login__form input').first().fill('e2e_admin');
-  await page.locator('.login__form input').nth(1).fill('testpass123');
-  await page.locator('.login__button').click();
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login('e2e_admin', 'testpass123');
   await page.waitForURL('/personal-cabinet');
 }
 
 async function loginAsUser(page, username = 'e2e_user') {
   await registerUser(username, 'testpass123', 1);
-  await page.goto('/');
-  await page.locator('.login__form input').first().fill(username);
-  await page.locator('.login__form input').nth(1).fill('testpass123');
-  await page.locator('.login__button').click();
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login(username, 'testpass123');
   await page.waitForURL('/personal-cabinet');
 }
 

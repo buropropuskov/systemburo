@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { loginAsUser } = require('../helpers/auth');
+const { CreateApplicationPage } = require('../pages/CreateApplicationPage');
 
 // Helper: go to submit-form and wait for categories to load from API
 async function gotoSubmitForm(page) {
@@ -50,8 +51,8 @@ test.describe('Application Creation', () => {
     await loginAsUser(page, username);
 
     await gotoSubmitFormWithAttachment(page);
-    const consent = page.locator('#consent');
-    await expect(consent).not.toBeChecked();
+    const createAppPage = new CreateApplicationPage(page);
+    await expect(createAppPage.consentCheckbox).not.toBeChecked();
   });
 
   test('cover letter textarea is present in form', async ({ page }) => {

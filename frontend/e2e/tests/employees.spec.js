@@ -1,22 +1,26 @@
 const { test, expect } = require('@playwright/test');
-const { registerUser, loginAsUser } = require('../helpers/auth');
+const { loginAsUser } = require('../helpers/auth');
+const { EmployeesPage } = require('../pages/EmployeesPage');
 
 test.describe('Employees View', () => {
   test('employees page loads for authenticated user', async ({ page }) => {
     const username = `e2e_emp_load_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await page.goto('/employeesview');
+    const employeesPage = new EmployeesPage(page);
+    await employeesPage.goto();
     await expect(page).toHaveURL(/employeesview/);
+    await expect(employeesPage.root).toBeVisible();
   });
 
   test('filter tabs are visible', async ({ page }) => {
     const username = `e2e_emp_tabs_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await page.goto('/employeesview');
+    const employeesPage = new EmployeesPage(page);
+    await employeesPage.goto();
 
-    const filterTabs = page.locator('.filter-tab');
+    const filterTabs = employeesPage.getAllFilterTabs();
     await filterTabs.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
     if (await filterTabs.first().isVisible()) {
@@ -29,8 +33,10 @@ test.describe('Employees View', () => {
     const username = `e2e_emp_switch_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await page.goto('/employeesview');
-    const filterTabs = page.locator('.filter-tab');
+    const employeesPage = new EmployeesPage(page);
+    await employeesPage.goto();
+
+    const filterTabs = employeesPage.getAllFilterTabs();
     await filterTabs.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
     if (await filterTabs.count() >= 2) {
@@ -44,9 +50,10 @@ test.describe('Employees View', () => {
     const username = `e2e_emp_add_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await page.goto('/employeesview');
+    const employeesPage = new EmployeesPage(page);
+    await employeesPage.goto();
 
-    const addBtn = page.locator('.add-button');
+    const addBtn = page.getByRole('button', { name: 'Добавить' });
     await addBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   });
 
@@ -54,9 +61,9 @@ test.describe('Employees View', () => {
     const username = `e2e_emp_header_${Date.now()}`;
     await loginAsUser(page, username);
 
-    await page.goto('/employeesview');
+    const employeesPage = new EmployeesPage(page);
+    await employeesPage.goto();
 
-    // Wait for some table structure to appear
     const header = page.locator('.card-header, .header-row');
     await header.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   });
