@@ -58,8 +58,11 @@ jobs:
             git fetch origin prod
             git reset --hard origin/prod
             test -f .env || bash scripts/init-env.sh production ${{ secrets.PROD_DOMAIN }}
-            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build
-            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d
+            # Frontend пересобираем без кеша — buildkit удерживает старые
+            # слои COPY . . даже при изменении исходников.
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull --no-cache frontend
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull backend nginx
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d --force-recreate
             sleep 5
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:8080/health || exit 1
             echo "Production deploy completed at $(date)"
