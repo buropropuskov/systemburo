@@ -7,7 +7,7 @@
             <slot name="header">
               <h3 class="base-modal__title">{{ title }}</h3>
             </slot>
-            <button v-if="closable" class="base-modal__close" @click="$emit('close')" aria-label="Закрыть">&times;</button>
+            <button v-if="closable" class="base-modal__close" data-testid="modal-button-close" @click="$emit('close')" aria-label="Закрыть">&times;</button>
           </div>
           <div class="base-modal__body">
             <slot></slot>
