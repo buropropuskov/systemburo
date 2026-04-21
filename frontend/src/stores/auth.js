@@ -16,12 +16,15 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated() {
-      if (!this.token) return false;
-      const payload = decodeToken(this.token);
-      return payload && payload.exp > Math.floor(Date.now() / 1000);
+      if (!this.refreshToken) return false;
+      const payload = decodeToken(this.refreshToken);
+      return !!(payload && payload.exp > Math.floor(Date.now() / 1000));
     },
     userPayload() {
       return this.token ? decodeToken(this.token) : null;
+    },
+    refreshPayload() {
+      return this.refreshToken ? decodeToken(this.refreshToken) : null;
     },
     userType() {
       return this.userPayload?.type_id || null;

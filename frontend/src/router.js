@@ -117,7 +117,6 @@ router.beforeEach((to, from, next) => {
   const isBuroPropuskov = authStore.isAdmin;
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    authStore.clearTokens();
     next('/');
   }
   else if (to.meta.requiresBuro && !isBuroPropuskov) {

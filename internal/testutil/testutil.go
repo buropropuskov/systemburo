@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"systemburo/internal/config"
 	"systemburo/internal/crypto"
@@ -82,7 +83,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	db := cachedDB
 
 	// Create all services (same wiring as cmd/server/main.go)
-	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret)
+	authService := services.NewAuthService(db, TestJWTSecret, TestJWTRefreshSecret, 15*time.Minute, 168*time.Hour)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
