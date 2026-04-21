@@ -63,16 +63,39 @@ jobs:
       - name: Build seed binary
         run: go build -o ./bin/seed ./cmd/seed
 
-      - name: Start backend and frontend, wait for health
+      - name: Start backend
         run: |
           nohup ./bin/server > backend.log 2>&1 &
           echo $! > backend.pid
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/health > /dev/null; then
+              echo "backend ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::backend did not become healthy in 60s"
+          echo "--- backend.log ---"
+          cat backend.log || true
+          exit 1
+
+      - name: Start frontend
+        run: |
           cd frontend
           nohup env VITE_API_BASE_URL=http://localhost:8080 npx vite --port 8081 --host 0.0.0.0 > ../frontend.log 2>&1 &
           echo $! > ../frontend.pid
           cd ..
-          npx --prefix frontend wait-on --timeout 120000 http://localhost:8080/health http://localhost:8081
-          echo "backend & frontend ready"
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8081 > /dev/null; then
+              echo "frontend ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::frontend did not become available in 60s"
+          echo "--- frontend.log ---"
+          cat frontend.log || true
+          exit 1
 
       - name: Seed admin + E2E users (buropropuskov, e2e_admin, e2e_user)
         env:
@@ -90,3 +113,12 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 14
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          echo "--- backend.log ---"
+          cat backend.log 2>/dev/null || echo "no backend.log"
+          echo ""
+          echo "--- frontend.log ---"
+          cat frontend.log 2>/dev/null || echo "no frontend.log"
