@@ -2,18 +2,18 @@
   <div id="app">
     <a href="#main-content" class="skip-link">Перейти к основному содержанию</a>
     <NavMenu
-      v-if="isAuthenticated"
+      v-if="showChrome"
       :is-buropropuskov="isBuropropuskov"
       @logout="logout"
     />
     <div class="content" id="main-content">
-      <TheHeader class="theheader" v-if="isAuthenticated"/>
+      <TheHeader class="theheader" v-if="showChrome"/>
       <router-view v-slot="{ Component }" class="content__container">
         <transition name="page-fade" mode="out-in">
           <component :is="Component" @login-success="handleSuccessfulLogin" :key="$route.path" />
         </transition>
       </router-view>
-      <ScrollTopButton v-if="isAuthenticated" />
+      <ScrollTopButton v-if="showChrome" />
     </div>
 
     <!-- Модальное окно истекшей сессии -->
@@ -59,6 +59,16 @@ export default {
     isBuropropuskov() {
       const authStore = useAuthStore()
       return authStore.isAdmin
+    },
+    /**
+     * Показывать шапку, навигацию и связанный chrome только когда юзер
+     * аутентифицирован и находится не на странице логина. Иначе после
+     * setTokens() в LoginComponent до router.push('/personal-cabinet')
+     * (задержан на 1.5с из-за success-анимации) шапка и меню моргают
+     * поверх формы логина.
+     */
+    showChrome() {
+      return this.isAuthenticated && this.$route.path !== '/';
     }
   },
   methods: {
