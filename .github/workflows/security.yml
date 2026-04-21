@@ -2,15 +2,14 @@ name: Security
 
 on:
   push:
-    branches: [prod]
+    branches: [dev, prod]
   pull_request:
-    branches: [prod]
+    branches: [dev, prod]
   schedule:
     - cron: '0 6 * * 1'  # Every Monday at 06:00 UTC
 
-env:
-  GO_VERSION: '1.25'
-  NODE_VERSION: '20'
+permissions:
+  contents: read
 
 jobs:
   govulncheck:
@@ -18,9 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
+      - uses: ./.github/actions/setup-go
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - name: Run govulncheck
@@ -29,16 +26,10 @@ jobs:
   npm-audit:
     name: npm Audit
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - run: npm ci
-      - name: Run npm audit
+      - uses: ./.github/actions/setup-frontend
+      - working-directory: frontend
         run: npm audit --audit-level=high
         continue-on-error: true
 
@@ -47,8 +38,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build backend image
-        run: docker build --target production -t systemburo:scan .
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          tags: systemburo:scan
+          load: true
+          cache-from: type=gha,scope=systemburo-backend
       - name: Run Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -57,3 +55,14 @@ jobs:
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+          vuln-type: 'os,library'
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
