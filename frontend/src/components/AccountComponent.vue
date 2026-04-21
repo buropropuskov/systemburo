@@ -25,7 +25,7 @@
           class="dashboard-card-animated"
         />
 
-        <UserNotifications />
+        <UserNotificationsInline class="dashboard-card-animated" />
       </SkeletonTransition>
     </div>
     
@@ -97,7 +97,7 @@ import { useAuthStore } from '@/stores/auth'
 import UserControl from './UserControl.vue';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
-import UserNotifications from './UserNotifications.vue';
+import UserNotificationsInline from './UserNotificationsInline.vue';
 import OrganizationsManagement from './OrganizationsManagement.vue';
 import CompaniesManagement from './CompaniesManagement.vue';
 import UnloadPlacesContainer from './UnloadPlaces/UnloadPlacesContainer.vue';
@@ -115,7 +115,7 @@ export default {
     UserControl,
     UserApplications,
     UserProfileHeader,
-    UserNotifications,
+    UserNotificationsInline,
     OrganizationsManagement,
     CompaniesManagement,
     UnloadPlacesContainer,
