@@ -380,7 +380,6 @@ export default {
                 refreshToken: data.refreshToken
             });
             
-            this.$root.$forceUpdate(); 
             this.$router.push('/personal-cabinet');
         } else {
             // Проверяем статус код для определения типа ошибки

@@ -39,6 +39,10 @@ export default {
       type: Number,
       required: true,
       default: 300
+    },
+    maxTime: {
+      type: Number,
+      default: 600
     }
   },
   computed: {
@@ -48,8 +52,7 @@ export default {
       return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     },
     progressStyle() {
-      const maxTime = 300;
-      const progress = Math.max(0, Math.min(100, (this.timeRemaining / maxTime) * 100));
+      const progress = Math.max(0, Math.min(100, (this.timeRemaining / this.maxTime) * 100));
       const percent = progress / 100;
       const red = Math.floor(255 * (1 - percent));
       const green = Math.floor(255 * percent);

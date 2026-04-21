@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -9,11 +10,15 @@ import (
 
 func validConfig() *Config {
 	return &Config{
-		DatabaseURL:       "postgres://user:pass@localhost/db",
-		JWTSecret:         "test-jwt-secret-that-is-at-least-32-chars!!",
-		JWTRefreshSecret:  "test-jwt-refresh-secret-at-least-32-chars!",
-		LogLevel:          "info",
-		UploadMaxFileSize: 10485760,
+		DatabaseURL:        "postgres://user:pass@localhost/db",
+		JWTSecret:          "test-jwt-secret-that-is-at-least-32-chars!!",
+		JWTRefreshSecret:   "test-jwt-refresh-secret-at-least-32-chars!",
+		JWTAccessTTL:       15 * time.Minute,
+		JWTRefreshTTL:      168 * time.Hour,
+		LogLevel:           "info",
+		UploadMaxFileSize:  10485760,
+		RateLimitPerMinute: 200,
+		PaginationMaxLimit: 100,
 	}
 }
 
@@ -104,6 +109,8 @@ func TestValidate_InvalidDatabaseURL(t *testing.T) {
 		DatabaseURL:       "mysql://user:pass@localhost/db",
 		JWTSecret:         "test-jwt-secret-that-is-at-least-32-chars!!",
 		JWTRefreshSecret:  "test-jwt-refresh-secret-at-least-32-chars!",
+		JWTAccessTTL:      15 * time.Minute,
+		JWTRefreshTTL:     168 * time.Hour,
 		LogLevel:          "info",
 		UploadMaxFileSize: 10485760,
 	}
@@ -170,6 +177,8 @@ func TestValidate_UploadMaxFileSize_Zero(t *testing.T) {
 		DatabaseURL:       "postgres://user:pass@localhost/db",
 		JWTSecret:         "test-jwt-secret-that-is-at-least-32-chars!!",
 		JWTRefreshSecret:  "test-jwt-refresh-secret-at-least-32-chars!",
+		JWTAccessTTL:      15 * time.Minute,
+		JWTRefreshTTL:     168 * time.Hour,
 		LogLevel:          "info",
 		UploadMaxFileSize: 0,
 	}
@@ -230,4 +239,41 @@ func TestLoad_UploadPathDefault(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, "./uploads", cfg.UploadPath)
+}
+
+func TestLoad_JWTTTL_Defaults(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("JWT_ACCESS_TTL", "")
+	t.Setenv("JWT_REFRESH_TTL", "")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, 15*time.Minute, cfg.JWTAccessTTL)
+	assert.Equal(t, 168*time.Hour, cfg.JWTRefreshTTL)
+}
+
+func TestLoad_JWTTTL_Custom(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("JWT_ACCESS_TTL", "5m")
+	t.Setenv("JWT_REFRESH_TTL", "720h")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Minute, cfg.JWTAccessTTL)
+	assert.Equal(t, 720*time.Hour, cfg.JWTRefreshTTL)
+}
+
+func TestValidate_JWTRefreshTTL_NotGreaterThanAccess(t *testing.T) {
+	cfg := validConfig()
+	cfg.JWTAccessTTL = 1 * time.Hour
+	cfg.JWTRefreshTTL = 30 * time.Minute
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "JWT_REFRESH_TTL")
+}
+
+func TestValidate_JWTAccessTTL_NonPositive(t *testing.T) {
+	cfg := validConfig()
+	cfg.JWTAccessTTL = 0
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "JWT_ACCESS_TTL")
 }

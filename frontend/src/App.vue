@@ -46,10 +46,9 @@ export default {
   data() {
     return {
       showSessionModal: false,
-      tokenCheckInterval: null,
       expirationTimer: null,
-      modalTimeRemaining: 30,
-      tokenExpiryTime: null
+      modalTimeRemaining: 0,
+      refreshExpiryTime: null,
     };
   },
   computed: {
@@ -63,85 +62,57 @@ export default {
     }
   },
   methods: {
-    async checkAuthStatus() {
+    checkAuthStatus() {
       const authStore = useAuthStore()
-      const token = authStore.token
-      const refreshToken = authStore.refreshToken
-
-      // Если нет хотя бы одного токена - не аутентифицирован и скрываем модалку
-      if (!token || !refreshToken) {
-          this.showSessionModal = false;
-          this.stopExpirationTimer();
-          return;
+      if (!authStore.refreshToken) {
+        this.showSessionModal = false;
+        this.stopExpirationTimer();
+        return;
       }
 
-      try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          const currentTime = Math.floor(Date.now() / 1000);
-          const timeUntilExpiry = payload.exp - currentTime;
-
-          // Если токен уже истек - сразу выходим
-          if (timeUntilExpiry <= 0) {
-              this.logout();
-              return;
-          }
-
-          // Если дошли сюда - токен валиден
-          this.tokenExpiryTime = payload.exp;
-
-          // Загружаем права доступа если ещё не загружены
-          const permissionsStore = usePermissionsStore()
-          if (!permissionsStore.loaded) {
-            permissionsStore.fetchPermissions()
-          }
-
-          // Запускаем/обновляем таймер истечения
-          this.startExpirationTimer(timeUntilExpiry);
-
-      } catch (e) {
-          this.logout();
+      const payload = authStore.refreshPayload;
+      if (!payload || !payload.exp) {
+        this.logout();
+        return;
       }
+
+      const timeUntilExpiry = payload.exp - Math.floor(Date.now() / 1000);
+      if (timeUntilExpiry <= 0) {
+        this.logout();
+        return;
+      }
+
+      this.refreshExpiryTime = payload.exp;
+
+      const permissionsStore = usePermissionsStore()
+      if (!permissionsStore.loaded) {
+        permissionsStore.fetchPermissions()
+      }
+
+      this.scheduleExpirationWarning(timeUntilExpiry);
     },
-    
-    startExpirationTimer(timeUntilExpiry) {
+
+    scheduleExpirationWarning(timeUntilExpiry) {
       this.stopExpirationTimer();
-      
-      // console.log('Starting expiration timer:', timeUntilExpiry + ' seconds');
-      
-      // Если до истечения меньше или равно 30 секунд - показываем модалку
-      if (timeUntilExpiry <= 300) {
-        this.modalTimeRemaining = Math.max(0, timeUntilExpiry);
+      const WARNING_WINDOW_SEC = 600; // 10 минут
+
+      if (timeUntilExpiry <= WARNING_WINDOW_SEC) {
+        this.modalTimeRemaining = timeUntilExpiry;
         this.showSessionModal = true;
-        
-        // Запускаем таймер для обновления оставшегося времени в модалке
         this.expirationTimer = setInterval(() => {
-          const currentTime = Math.floor(Date.now() / 1000);
-          const remaining = this.tokenExpiryTime - currentTime;
-          
+          const remaining = this.refreshExpiryTime - Math.floor(Date.now() / 1000);
           if (remaining <= 0) {
             this.logout();
             return;
           }
-          
-          this.modalTimeRemaining = Math.max(0, remaining);
-          
-          // Если время вышло, но модалка еще открыта - выходим
-          if (remaining <= 0 && this.showSessionModal) {
-            this.logout();
-          }
+          this.modalTimeRemaining = remaining;
         }, 1000);
-        
       } else {
-        // Запускаем таймер, который покажет модалку когда останется 30 секунд
-        const delayToModal = (timeUntilExpiry - 300) * 1000;
-        // console.log('Will show modal in:', delayToModal + ' ms');
-        
-        this.expirationTimer = setTimeout(() => {
-          this.checkAuthStatus(); // Перепроверим статус
-        }, delayToModal);
+        const delayMs = (timeUntilExpiry - WARNING_WINDOW_SEC) * 1000;
+        this.expirationTimer = setTimeout(() => this.checkAuthStatus(), delayMs);
       }
     },
-    
+
     stopExpirationTimer() {
       if (this.expirationTimer) {
         clearTimeout(this.expirationTimer);
@@ -149,107 +120,76 @@ export default {
         this.expirationTimer = null;
       }
     },
-    
+
     handleSuccessfulLogin(tokenData) {
       const authStore = useAuthStore()
       authStore.setTokens(tokenData.token, tokenData.refreshToken)
       this.checkAuthStatus();
     },
-    
+
     async extendSession() {
+      const authStore = useAuthStore()
+      if (!authStore.refreshToken) {
+        this.logout();
+        return;
+      }
       try {
-          const authStore = useAuthStore()
-          const refreshToken = authStore.refreshToken
-
-          if (!refreshToken) {
-              this.logout();
-              return;
-          }
-
-          const requestBody = {
-              refresh_token: refreshToken
-          };
-
-          const response = await apiRequest("/refresh-token", {
-              method: "POST",
-              body: JSON.stringify(requestBody)
-          });
-
-          if (response.ok) {
-              const tokenData = await response.json();
-
-              authStore.setTokens(tokenData.token, tokenData.refreshToken)
-              this.showSessionModal = false;
-              this.checkAuthStatus();
-
-              // Перезагружаем права доступа после обновления токена
-              const permissionsStore = usePermissionsStore()
-              permissionsStore.fetchPermissions()
-          } else {
-              const errorText = await response.text();
-              throw new Error(`Refresh failed: ${response.status} - ${errorText}`);
-          }
-      } catch (error) {
-          this.logout();
+        const response = await apiRequest("/refresh-token", {
+          method: "POST",
+          body: JSON.stringify({ refresh_token: authStore.refreshToken }),
+        });
+        if (!response.ok) throw new Error(`refresh failed: ${response.status}`);
+        const data = await response.json();
+        authStore.setTokens(data.token, data.refreshToken);
+        this.showSessionModal = false;
+        this.checkAuthStatus();
+        const permissionsStore = usePermissionsStore();
+        permissionsStore.fetchPermissions();
+      } catch {
+        this.logout();
       }
     },
-    
+
     async logout() {
       const authStore = useAuthStore()
       try {
         if (authStore.token && authStore.refreshToken) {
           await apiRequest("/logout", {
             method: "POST",
-            body: JSON.stringify({
-              refresh_token: authStore.refreshToken
-            })
+            body: JSON.stringify({ refresh_token: authStore.refreshToken }),
           });
         }
-      } catch (error) {
-        // ignore — logout cleanup happens in finally
+      } catch {
+        // сеть упала — всё равно чистим клиент
       } finally {
         authStore.clearTokens()
         this.showSessionModal = false;
         this.stopExpirationTimer();
 
-        // Сбрасываем права доступа
         const permissionsStore = usePermissionsStore()
         permissionsStore.clearPermissions()
 
-        // Перенаправляем на логин только если мы не уже на странице логина
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }
       }
     },
-    
-    startTokenMonitoring() {
-      // Проверяем токен каждые 10 секунд как fallback
-      this.tokenCheckInterval = setInterval(() => {
+
+    onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
         this.checkAuthStatus();
-      }, 10000);
-    },
-    
-    stopTokenMonitoring() {
-      if (this.tokenCheckInterval) {
-        clearInterval(this.tokenCheckInterval);
-        this.tokenCheckInterval = null;
       }
-      this.stopExpirationTimer();
-    }
+    },
   },
   created() {
     this.checkAuthStatus();
-    if (this.isAuthenticated) {
-        this.startTokenMonitoring();
-    }
-    
-    // Слушаем изменения localStorage
     window.addEventListener('storage', this.checkAuthStatus);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   },
   beforeUnmount() {
-    this.stopTokenMonitoring();
+    this.stopExpirationTimer();
     window.removeEventListener('storage', this.checkAuthStatus);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   },
   watch: {
     $route() {

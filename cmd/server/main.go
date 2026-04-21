@@ -114,7 +114,7 @@ func main() {
 	e.Use(mw.RequestLogger(db))
 
 	// Services
-	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret)
+	authService := services.NewAuthService(db, cfg.JWTSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	userTypeService := services.NewUserTypeService(db)
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
