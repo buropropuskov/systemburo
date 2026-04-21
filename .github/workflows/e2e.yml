@@ -74,7 +74,9 @@ jobs:
           npx --prefix frontend wait-on --timeout 120000 http://localhost:8080/health http://localhost:8081
           echo "backend & frontend ready"
 
-      - name: Seed admin user (buropropuskov)
+      - name: Seed admin + E2E users (buropropuskov, e2e_admin, e2e_user)
+        env:
+          SEED_E2E_USERS: "true"
         run: ./bin/seed 'BuroAdmin2026!'
 
       - name: Run Playwright tests
