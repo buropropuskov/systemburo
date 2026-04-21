@@ -43,9 +43,11 @@
                                         персональных данных, изложенных в заявке
                                     </label>
                                 </div>
-                                <button class="send-all-btn" data-testid="create-app-button-submit" @click="submitApplication" :disabled="!canSubmit">
-                                    Отправить заявку
-                                </button>
+                                <span class="send-all-wrapper" :title="submitDisabledReason" :data-testid="'create-app-submit-wrapper'">
+                                    <button class="send-all-btn" data-testid="create-app-button-submit" @click="submitApplication" :disabled="!canSubmit">
+                                        Отправить заявку
+                                    </button>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -332,56 +334,68 @@ export default {
             return data?.errors || {};
         },
         
-        canSubmit() {
+        submitValidation() {
+            const reasons = [];
+
             if (this.attachments.length === 0) {
-                return false;
+                reasons.push('Добавьте хотя бы одно вложение');
             }
 
-            const hasRequiredFields = 
-                this.organization && 
-                this.company && 
-                this.responsiblePerson && 
-                this.phoneNumber &&
-                this.consentGiven;
-
-            if (!hasRequiredFields) {
-                return false;
+            const missingFields = [];
+            if (!this.organization) missingFields.push('организация');
+            if (!this.company) missingFields.push('компания');
+            if (!this.responsiblePerson) missingFields.push('ответственный');
+            if (!this.phoneNumber) missingFields.push('телефон');
+            if (!this.consentGiven) missingFields.push('согласие на обработку данных');
+            if (missingFields.length > 0) {
+                reasons.push(`Заполните поля: ${missingFields.join(', ')}`);
             }
 
-            let allAttachmentsValid = true;
-            
             this.attachments.forEach(attachment => {
+                const label = attachment.attachment_display_name || attachment.attachment_name || `вложение #${attachment.id}`;
                 let hasAttachmentData = false;
-                let hasValidDates = false;
-                let hasValidTime = false;
-
                 switch (attachment.attachment_type) {
                     case 'cars':
                         hasAttachmentData = (this.vehiclesByAttachment[attachment.id] || []).length > 0;
+                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одно авто`);
                         break;
                     case 'people':
                         hasAttachmentData = (this.employeesByAttachment[attachment.id] || []).length > 0;
+                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
                         break;
                     case 'items':
                         hasAttachmentData = (this.itemsByAttachment[attachment.id] || []).length > 0;
+                        if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
                         break;
                 }
 
                 const dateData = this.attachmentDatesByAttachment[attachment.id];
-                if (dateData) {
-                    hasValidDates = dateData.isOneDay 
-                        ? !!(dateData.singleDate && dateData.startTime && dateData.endTime)
-                        : !!(dateData.startDate && dateData.endDate && dateData.startTime && dateData.endTime);
-
-                    hasValidTime = !!(dateData.startTime && dateData.endTime && dateData.startTime < dateData.endTime);
+                if (!dateData) {
+                    reasons.push(`"${label}": укажите даты действия`);
+                    return;
                 }
-
-                if (!hasAttachmentData || !hasValidDates || !hasValidTime) {
-                    allAttachmentsValid = false;
+                const hasValidDates = dateData.isOneDay
+                    ? !!(dateData.singleDate && dateData.startTime && dateData.endTime)
+                    : !!(dateData.startDate && dateData.endDate && dateData.startTime && dateData.endTime);
+                if (!hasValidDates) {
+                    reasons.push(`"${label}": заполните даты и время действия`);
+                }
+                const hasValidTime = !!(dateData.startTime && dateData.endTime && dateData.startTime < dateData.endTime);
+                if (hasValidDates && !hasValidTime) {
+                    reasons.push(`"${label}": время окончания должно быть позже времени начала`);
                 }
             });
 
-            return allAttachmentsValid;
+            return reasons;
+        },
+
+        canSubmit() {
+            return this.submitValidation.length === 0;
+        },
+
+        submitDisabledReason() {
+            if (this.canSubmit) return '';
+            return 'Для отправки заявки:\n- ' + this.submitValidation.join('\n- ');
         },
         
         sortedVehicles() {
@@ -1923,6 +1937,11 @@ export default {
         color: #333;
         cursor: pointer;
         line-height: 1.2;
+    }
+
+    .send-all-wrapper {
+        display: inline-block;
+        cursor: default;
     }
 
     .send-all-btn {
