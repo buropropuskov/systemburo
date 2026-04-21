@@ -38,8 +38,7 @@
 
     <div class="notifications__list" :class="{ 'empty-list': filteredNotifications.length === 0 && !loading }">
       <div v-if="loading && filteredNotifications.length === 0" class="notifications__loading">
-        <div class="loader"></div>
-        <span>Загрузка...</span>
+        <LoaderSpinner />
       </div>
       <div v-else-if="filteredNotifications.length === 0" class="notifications__empty">
         <p>Уведомлений нет</p>
@@ -81,9 +80,12 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 
 export default {
   name: 'UserNotificationsInline',
+
+  components: { LoaderSpinner },
 
   data() {
     return {
@@ -426,22 +428,6 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  gap: 10px;
-  color: #666;
-  font-size: 13px;
-}
-
-.loader {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #e6e6e6;
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: notif-spin 1s linear infinite;
-}
-
-@keyframes notif-spin {
-  to { transform: rotate(360deg); }
 }
 
 .notifications__empty {
