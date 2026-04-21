@@ -72,18 +72,14 @@
                 </form>
             </div>
             <div class="login__info" :style="infoStyle">
-                <!-- Уведомления -->
-                <transition name="notification">
-                    <div v-if="showEmailNotification" class="notification email-notification">
-                        E-mail скопирован
-                    </div>
-                </transition>
-                <transition name="notification">
-                    <div v-if="showPhoneNotification" class="notification phone-notification">
-                        Номер телефона скопирован
-                    </div>
-                </transition>
-                
+                <div class="info-notifications">
+                    <transition name="notification" mode="out-in">
+                        <div v-if="showNotification" class="notification" :key="notificationText" data-testid="login-copy-notification">
+                            {{ notificationText }}
+                        </div>
+                    </transition>
+                </div>
+
                 <h2 class="info__title">Добро пожаловать!</h2>
                 <p class="info__text">
                     Для продолжения, необходимо войти в аккаунт,
@@ -141,9 +137,8 @@ export default {
             mouseX: 0,
             mouseY: 0,
             elementsVisible: false,
-            // Новые данные для уведомлений
-            showEmailNotification: false,
-            showPhoneNotification: false,
+            showNotification: false,
+            notificationText: '',
             notificationTimeout: null,
             showPasswordRecovery: false
         }
@@ -257,64 +252,40 @@ export default {
             }, 10000);
         },
         
-        // Метод для копирования email
-        async copyEmail() {
-            const email = 'buropropuskov@dreamisland.ru';
-            
-            try {
-                await navigator.clipboard.writeText(email);
-                this.showEmailNotification = true;
-                this.hideNotificationAfterDelay('email');
-            } catch (err) {
-                // Fallback для старых браузеров
-                const textArea = document.createElement('textarea');
-                textArea.value = email;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                
-                this.showEmailNotification = true;
-                this.hideNotificationAfterDelay('email');
-            }
-        },
-        
-        // Метод для копирования телефона
-        async copyPhone() {
-            const phone = '+7 (910) 083 00-55';
-            
-            try {
-                await navigator.clipboard.writeText(phone);
-                this.showPhoneNotification = true;
-                this.hideNotificationAfterDelay('phone');
-            } catch (err) {
-                // Fallback для старых браузеров
-                const textArea = document.createElement('textarea');
-                textArea.value = phone;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                
-                this.showPhoneNotification = true;
-                this.hideNotificationAfterDelay('phone');
-            }
-        },
-        
-        // Метод для скрытия уведомления через 2 секунды
-        hideNotificationAfterDelay(type) {
-            // Очищаем предыдущий таймаут
+        showNotificationMessage(text) {
             if (this.notificationTimeout) {
                 clearTimeout(this.notificationTimeout);
+                this.notificationTimeout = null;
             }
-            
+            this.notificationText = text;
+            this.showNotification = true;
             this.notificationTimeout = setTimeout(() => {
-                if (type === 'email') {
-                    this.showEmailNotification = false;
-                } else if (type === 'phone') {
-                    this.showPhoneNotification = false;
-                }
+                this.showNotification = false;
+                this.notificationTimeout = null;
             }, 2000);
+        },
+
+        async copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
+        },
+
+        async copyEmail() {
+            await this.copyToClipboard('buropropuskov@dreamisland.ru');
+            this.showNotificationMessage('E-mail скопирован');
+        },
+
+        async copyPhone() {
+            await this.copyToClipboard('+7 (910) 083 00-55');
+            this.showNotificationMessage('Номер телефона скопирован');
         },
         
         async handleSubmit() {
@@ -603,12 +574,16 @@ export default {
         position: relative;
     }
 
-    /* Стили для уведомлений */
-    .notification {
+    .info-notifications {
         position: absolute;
         top: -40px;
         left: 50%;
         transform: translateX(-50%);
+        z-index: 1001;
+        pointer-events: none;
+    }
+
+    .notification {
         height: 25px;
         border-radius: 50px;
         background-color: #fff;
@@ -620,32 +595,25 @@ export default {
         justify-content: center;
         padding: 0 15px;
         box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        z-index: 1001;
         min-width: 150px;
         white-space: nowrap;
     }
 
-    .email-notification {
-        top: -35px;
+    .notification-enter-active,
+    .notification-leave-active {
+        transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
-    .phone-notification {
-        top: -35px;
-    }
-
-    /* Анимации для уведомлений */
-    .notification-enter-active, .notification-leave-active {
-        transition: all 0.3s ease;
-    }
-    
-    .notification-enter-from, .notification-leave-to {
+    .notification-enter-from,
+    .notification-leave-to {
         opacity: 0;
-        transform: translateX(-50%) translateY(-10px);
+        transform: translateY(-10px);
     }
-    
-    .notification-enter-to, .notification-leave-from {
+
+    .notification-enter-to,
+    .notification-leave-from {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
     }
 
     .info__title {

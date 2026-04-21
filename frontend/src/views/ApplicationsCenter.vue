@@ -10,10 +10,12 @@
         </header>
         
         <div class="center__filters">
-            <FilterTabs
-                :tabs="archiveTabs"
-                v-model="archiveMode"
-            />
+            <div class="center__tabs">
+                <FilterTabs
+                    :tabs="archiveTabs"
+                    v-model="archiveMode"
+                />
+            </div>
             <div class="filters__main">
                 <div class="filters-row">
                     <div class="field search">
@@ -559,7 +561,6 @@ export default {
         },
         
         resetFilters() {
-            // Сбрасываем все фильтры
             this.searchQuery = '';
             this.selectedOrganizationId = null;
             this.selectedOrganizationName = '';
@@ -568,23 +569,22 @@ export default {
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            
-            // Сбрасываем сортировку
+
             this.resetSort();
-            
-            // Сбрасываем фильтр организации через метод reset
+
             if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
                 this.$refs.organizationFilter.reset();
             }
-            
-            // Сбрасываем фильтр даты
+
             if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
                 this.$refs.dateFilter.clearSelection();
             }
-            
-            // Сбрасываем анимацию загрузки и обновляем данные
+
             this.isInitialLoad = false;
-            this.applyFilters();
+            // fetchApplications() вместо applyFilters() — часть фильтров (organization_id,
+            // date, archive) применяется на бэке через URL params. Без fetch applications
+            // остаётся подмножеством, и после сброса таблица продолжает показывать только его.
+            this.fetchApplications();
         },
         
         applyFilters() {
@@ -945,6 +945,43 @@ export default {
 .center__filters {
     padding-bottom: 15px;
     border-bottom: 1px solid var(--color-border);
+}
+
+.center__tabs {
+    display: flex;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ededf5;
+}
+
+.center__tabs :deep(.filter-tabs) {
+    background: #f3f3fb;
+    border-radius: 12px;
+    padding: 4px;
+    gap: 0;
+}
+
+.center__tabs :deep(.filter-tab) {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 0 22px;
+    height: 32px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.center__tabs :deep(.filter-tab:hover) {
+    border-color: transparent;
+    color: var(--color-primary);
+}
+
+.center__tabs :deep(.filter-tab--active) {
+    background: #fff;
+    color: var(--color-primary);
+    box-shadow: 0 1px 3px rgba(79, 91, 223, 0.12);
 }
 
 .filters-row {
