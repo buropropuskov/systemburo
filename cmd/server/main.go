@@ -175,11 +175,18 @@ func main() {
 	// Routes
 	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret))
 
+	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
+	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSig()
+
+	// Периодическая проверка истёкших вложений заявок: деактивирует вложения
+	// с прошедшим entry_date_to/entry_time_to, завершает заявку когда все
+	// вложения неактивны. См. ApplicationWorkflowService.CheckExpiredAttachments.
+	go startExpiryScheduler(ctxSig, applicationService, 15*time.Minute)
+
 	// Graceful shutdown
 	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
+		<-ctxSig.Done()
 		slog.Info("shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -196,4 +203,25 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("server stopped")
+}
+
+// startExpiryScheduler запускает периодическую проверку истёкших вложений заявок.
+// Первая проверка — сразу при старте; далее — каждый interval, пока ctx не отменён.
+func startExpiryScheduler(ctx context.Context, svc services.ApplicationService, interval time.Duration) {
+	if err := svc.CheckExpiredAttachments(ctx); err != nil {
+		slog.Error("initial expiry check failed", "error", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("expiry scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.CheckExpiredAttachments(ctx); err != nil {
+				slog.Error("expiry check failed", "error", err)
+			}
+		}
+	}
 }

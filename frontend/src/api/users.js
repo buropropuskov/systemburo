@@ -5,6 +5,17 @@ export async function getUsers() {
   return res.json();
 }
 
+// Админ создаёт пользователя. /register не экспонируется, потому что
+// публичная регистрация не предусмотрена — юзеров заводит только админ
+// через защищённый POST /users.
+export async function createUser(data) {
+  const res = await apiRequest('/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
 export async function updateUserType(username, typeId) {
   const res = await apiRequest(`/users/${username}/type`, {
     method: 'PUT',

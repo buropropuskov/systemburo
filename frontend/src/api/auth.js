@@ -8,14 +8,6 @@ export async function login(username, password) {
   return res.json();
 }
 
-export async function register(data) {
-  const res = await apiRequest('/register', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return res.json();
-}
-
 export async function refreshToken(token) {
   const res = await apiRequest('/refresh-token', {
     method: 'POST',

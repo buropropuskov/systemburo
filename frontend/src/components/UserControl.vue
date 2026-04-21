@@ -974,9 +974,11 @@ export default {
     
     async createUser() {
       if (!this.canCreateUser) return;
-      
+
       try {
-        const response = await apiRequest("/register", {
+        // Админская регистрация через POST /users (JWT-защищённый).
+        // Публичный /register намеренно не экспонируется.
+        const response = await apiRequest("/users", {
           method: "POST",
           body: JSON.stringify({
             username: this.newUser.username,
