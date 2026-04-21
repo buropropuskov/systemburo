@@ -182,6 +182,8 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		}
 		query = query.Where("ue.user_id = ? OR ue.organization_id = ? OR ue.company_id = ?",
 			ownerInfo.UserID, orgID, compID)
+	case "all_system":
+		// Без фильтрации — все сотрудники системы.
 	default:
 		query = query.Where("ue.user_id = ?", ownerInfo.UserID)
 	}

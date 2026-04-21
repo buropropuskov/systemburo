@@ -22,33 +22,27 @@
                     <div class="inputs">
                         <div class="login__input" :style="input1Style">
                             <img src="@/assets/icons/login.png" alt="" class="input__icon" />
-                            <FormField label="Логин" :required="true" :error="fieldError('username')">
-                                <input v-model="formData.username" class="input" type="text"
-                                    data-testid="login-input-username"
-                                    autocomplete="off"
-                                    autocorrect="off"
-                                    autocapitalize="off"
-                                    spellcheck="false"
-                                    placeholder="Логин"
-                                    aria-label="Имя пользователя"
-                                    @blur="touchField('username')"
-                                    @keyup.enter="handleSubmit" />
-                            </FormField>
+                            <input v-model="formData.username" class="input" type="text"
+                                data-testid="login-input-username"
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                placeholder="Логин"
+                                aria-label="Имя пользователя"
+                                @keyup.enter="handleSubmit" />
                         </div>
                         <div class="login__input" :style="input2Style">
                             <img src="@/assets/icons/password.png" alt="" class="input__icon" />
-                            <FormField label="Пароль" :required="true" :error="fieldError('password')">
-                                <input v-model="formData.password" class="input" type="password"
-                                    data-testid="login-input-password"
-                                    autocomplete="new-password"
-                                    autocorrect="off"
-                                    autocapitalize="off"
-                                    spellcheck="false"
-                                    placeholder="Пароль"
-                                    aria-label="Пароль"
-                                    @blur="touchField('password')"
-                                    @keyup.enter="handleSubmit" />
-                            </FormField>
+                            <input v-model="formData.password" class="input" type="password"
+                                data-testid="login-input-password"
+                                autocomplete="new-password"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                placeholder="Пароль"
+                                aria-label="Пароль"
+                                @keyup.enter="handleSubmit" />
                         </div>
                     </div>
                     
@@ -125,10 +119,9 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
-import FormField from '@/components/ui/FormField.vue'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 export default {
-    components: { FormField, PasswordRecoveryModal },
+    components: { PasswordRecoveryModal },
     data() {
         return {
             formData: {
@@ -152,7 +145,6 @@ export default {
             showEmailNotification: false,
             showPhoneNotification: false,
             notificationTimeout: null,
-            touchedFields: {},
             showPasswordRecovery: false
         }
     },
@@ -232,15 +224,6 @@ export default {
         }, 100);
     },
     methods: {
-        touchField(name) {
-            this.touchedFields = { ...this.touchedFields, [name]: true }
-        },
-        fieldError(name) {
-            if (!this.touchedFields[name]) return ''
-            if (name === 'username' && !this.formData.username.trim()) return 'Введите логин'
-            if (name === 'password' && !this.formData.password) return 'Введите пароль'
-            return ''
-        },
         handleMouseMove(e) {
             this.mouseX = e.clientX;
             this.mouseY = e.clientY;
@@ -338,9 +321,18 @@ export default {
     this.resetAnimations();
     this.errors.general = '';
 
-    this.touchField('username')
-    this.touchField('password')
-    if (!this.formData.username.trim() || !this.formData.password) return
+    if (!this.formData.username.trim() || !this.formData.password) {
+        this.errors.general = 'Необходимо заполнить все поля';
+        this.showError = true;
+        this.hasError = true;
+        this.isShaking = true;
+        this.setupErrorAutoHide();
+        this.animationTimeout = setTimeout(() => {
+            this.isShaking = false;
+            this.hasError = false;
+        }, 500);
+        return;
+    }
 
     await new Promise(resolve => setTimeout(resolve, 100));
     
@@ -748,7 +740,7 @@ export default {
         padding: 5px 30px;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 15px;
     }
 
