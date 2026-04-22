@@ -17,27 +17,6 @@ func NewAuthHandler(service services.AuthService) *AuthHandler {
 	return &AuthHandler{service: service}
 }
 
-// Register godoc
-// @Summary      Регистрация пользователя
-// @Description  Создаёт нового пользователя с указанными данными
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        request body models.RegisterRequest true "Данные регистрации"
-// @Success      200 {string} string "User registered successfully"
-// @Failure      400 {object} models.HTTPError "Username already exists"
-// @Router       /register [post]
-func (h *AuthHandler) Register(c echo.Context) error {
-	var req models.RegisterRequest
-	if err := BindAndValidate(c, &req); err != nil {
-		return err
-	}
-	if err := h.service.Register(c.Request().Context(), req); err != nil {
-		return err
-	}
-	return RespondMessage(c, "User registered successfully")
-}
-
 // Login godoc
 // @Summary      Авторизация
 // @Description  Проверяет credentials и возвращает access + refresh токены
