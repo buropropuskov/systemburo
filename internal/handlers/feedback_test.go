@@ -76,7 +76,7 @@ func TestFeedback_GetMy(t *testing.T) {
 	assert.Contains(t, fb, "status")
 	assert.Contains(t, fb, "is_read")
 	assert.Contains(t, fb, "created_at")
-	assert.Equal(t, "Нерешено", fb["status"])
+	assert.Equal(t, "Не решено", fb["status"])
 	assert.Equal(t, false, fb["is_read"])
 }
 
@@ -146,7 +146,7 @@ func TestFeedback_UpdateStatus(t *testing.T) {
 
 	// Regular user cannot update status
 	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
-		`{"status":"Нерешено"}`, testutil.AuthHeader(userToken))
+		`{"status":"Не решено"}`, testutil.AuthHeader(userToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 

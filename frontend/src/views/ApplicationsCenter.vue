@@ -977,36 +977,6 @@ export default {
     border-bottom: 1px solid #ededf5;
 }
 
-.center__tabs :deep(.filter-tabs) {
-    background: #f3f3fb;
-    border-radius: 12px;
-    padding: 4px;
-    gap: 0;
-}
-
-.center__tabs :deep(.filter-tab) {
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    padding: 0 22px;
-    height: 32px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #555;
-    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-}
-
-.center__tabs :deep(.filter-tab:hover) {
-    border-color: transparent;
-    color: var(--color-primary);
-}
-
-.center__tabs :deep(.filter-tab--active) {
-    background: #fff;
-    color: var(--color-primary);
-    box-shadow: 0 1px 3px rgba(79, 91, 223, 0.12);
-}
-
 .filters-row {
     display: flex;
     align-items: center;

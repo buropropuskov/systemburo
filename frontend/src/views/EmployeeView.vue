@@ -206,12 +206,35 @@
             
             <div class="employeesview__right-side">
                 <div class="employeesview__help">
-                    <p class="help__text">
-                        Здесь находятся сотрудники, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
-                    </p>
-                    <p class="help__text">
-                        Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                    </p>
+                    <template v-if="currentFilter === 'organization'">
+                        <p class="help__text">
+                            Здесь находятся сотрудники, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
+                        </p>
+                        <p class="help__text">
+                            Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'company'">
+                        <p class="help__text">
+                            Здесь находятся сотрудники, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
+                        </p>
+                        <p class="help__text">
+                            Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'user'">
+                        <p class="help__text">
+                            Здесь находятся <strong class="blue">ваши сотрудники</strong>, добавленные лично. Вы можете использовать их при подаче заявок на пропуск.
+                        </p>
+                        <p class="help__text">
+                            Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'all_system'">
+                        <p class="help__text">
+                            Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление сотрудников недоступно.
+                        </p>
+                    </template>
                 </div>
             </div>
         </div>

@@ -172,16 +172,16 @@ export default {
   font-weight: 500;
   padding: 2px 8px;
   border-radius: 20px;
-  background: #fff3cd;
-  color: #856404;
+  background: #FFE0B2;
+  color: #9A3412;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
 .modal-type.important {
-  background: #ffb3b3;
-  color: #c62828;
+  background: #FECACA;
+  color: #B91C1C;
 }
 
 .modal-description {

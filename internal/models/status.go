@@ -21,6 +21,6 @@ const (
 
 // Feedback statuses
 const (
-	FeedbackOpen     = "Нерешено"
+	FeedbackOpen     = "Не решено"
 	FeedbackResolved = "Решено"
 )
