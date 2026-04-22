@@ -35,22 +35,25 @@ func seedDemoData(db *gorm.DB, orgID, compID, userID int) {
 }
 
 func seedDictionaries(db *gorm.DB) error {
-	if err := db.Exec(`
-		INSERT INTO unload_places (name) VALUES ('Склад №1'), ('Склад №2'), ('Рампа А')
-		ON CONFLICT (name) DO NOTHING
-	`).Error; err != nil {
-		return fmt.Errorf("unload_places: %w", err)
+	// unload_places: нет UNIQUE-constraint на name, поэтому ON CONFLICT не работает.
+	// Используем INSERT ... SELECT ... WHERE NOT EXISTS для идемпотентности.
+	placeNames := []string{"Склад №1", "Склад №2", "Рампа А"}
+	for _, name := range placeNames {
+		if err := db.Exec(`
+			INSERT INTO unload_places (name)
+			SELECT ? WHERE NOT EXISTS (SELECT 1 FROM unload_places WHERE name = ?)
+		`, name, name).Error; err != nil {
+			return fmt.Errorf("unload_places %q: %w", name, err)
+		}
 	}
 
-	// License plate formats — проверим схему таблицы и вставим если пусто.
-	// В БД таблица может называться license_plate_formats.
+	// License plate formats — проверим что таблица существует и вставим если пусто.
 	var count int64
 	if err := db.Raw("SELECT COUNT(*) FROM license_plate_formats").Scan(&count).Error; err != nil {
-		// Таблица не существует — пропускаем.
 		return nil
 	}
 	if count == 0 {
-		db.Exec(`INSERT INTO license_plate_formats (name, pattern) VALUES ('Россия', '^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$') ON CONFLICT DO NOTHING`)
+		db.Exec(`INSERT INTO license_plate_formats (name, pattern) VALUES ('Россия', '^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$')`)
 	}
 	return nil
 }
@@ -69,11 +72,12 @@ func seedUniqueAttachments(db *gorm.DB) int {
 		{"items", "items_demo", "Имущество (демо)", "Имущество"},
 	}
 	for _, t := range templates {
+		// Нет UNIQUE constraint на name — используем INSERT ... WHERE NOT EXISTS.
 		db.Exec(`
 			INSERT INTO unique_attachments (attachment_type, name, display_name, title, is_active)
-			VALUES (?, ?, ?, ?, true)
-			ON CONFLICT (name) DO UPDATE SET display_name = EXCLUDED.display_name
-		`, t.attachmentType, t.name, t.displayName, t.title)
+			SELECT ?, ?, ?, ?, true
+			WHERE NOT EXISTS (SELECT 1 FROM unique_attachments WHERE name = ?)
+		`, t.attachmentType, t.name, t.displayName, t.title, t.name)
 	}
 	var uaCarsID int
 	db.Raw(`SELECT id FROM unique_attachments WHERE name = 'cars_demo' LIMIT 1`).Scan(&uaCarsID)
