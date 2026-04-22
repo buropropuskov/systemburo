@@ -1,7 +1,10 @@
 import { useAuthStore } from '@/stores/auth'
 import router from '@/router'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+// API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
+// но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
+// location /api/ -> backend:8080.
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api'
 const AUTH_ENDPOINTS = ['/login', '/refresh-token', '/logout']
 
 let refreshPromise = null
@@ -17,7 +20,7 @@ async function performRefresh() {
 
   const response = await fetch(`${API_BASE_URL}/refresh-token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
   })
   if (!response.ok) throw new Error(`refresh failed: ${response.status}`)
