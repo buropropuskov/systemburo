@@ -77,6 +77,18 @@ func main() {
 	if os.Getenv("SEED_E2E_USERS") == "true" {
 		seedE2EUsers(db, orgID, compID, typeID)
 	}
+
+	// Демо-данные для UI-сценариев (объявления, новости, заявки с вложениями, cars_history).
+	// По флагу. Идемпотентно — повторный запуск не плодит дубликаты.
+	if os.Getenv("SEED_DEMO") == "true" {
+		var userID int
+		db.Raw("SELECT id FROM users WHERE username = 'buropropuskov' LIMIT 1").Scan(&userID)
+		if userID != 0 {
+			seedDemoData(db, orgID, compID, userID)
+		} else {
+			log.Printf("demo seed: buropropuskov user not found, skipping demo data")
+		}
+	}
 }
 
 func seedE2EUsers(db *gorm.DB, orgID, compID, buroTypeID int) {
