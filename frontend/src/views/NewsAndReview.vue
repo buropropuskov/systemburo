@@ -322,11 +322,18 @@ export default {
       await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement()])
     },
 
+    buildNewsPayload() {
+      return {
+        title: this.newsForm.title,
+        description: this.newsForm.description,
+        full_text: this.newsForm.fullText,
+      }
+    },
     async createNews() {
       try {
         const response = await apiRequest('/news', {
           method: 'POST',
-          body: JSON.stringify(this.newsForm)
+          body: JSON.stringify(this.buildNewsPayload())
         })
         if (response.ok) {
           await this.fetchAllNews()
@@ -339,7 +346,7 @@ export default {
       try {
         const response = await apiRequest(`/news/${this.editingNews.id}`, {
           method: 'PUT',
-          body: JSON.stringify(this.newsForm)
+          body: JSON.stringify(this.buildNewsPayload())
         })
         if (response.ok) {
           await this.fetchAllNews()
@@ -371,11 +378,19 @@ export default {
       } catch (error) { console.error('Ошибка удаления новости:', error) }
     },
 
+    buildAnnouncementPayload() {
+      return {
+        title: this.announcementForm.title,
+        description: this.announcementForm.description,
+        full_text: this.announcementForm.fullText,
+        is_important: this.announcementForm.isImportant,
+      }
+    },
     async createAnnouncement() {
       try {
         const response = await apiRequest('/announcements', {
           method: 'POST',
-          body: JSON.stringify(this.announcementForm)
+          body: JSON.stringify(this.buildAnnouncementPayload())
         })
         if (response.ok) {
           await this.fetchAllAnnouncements()
@@ -388,7 +403,7 @@ export default {
       try {
         const response = await apiRequest(`/announcements/${this.editingAnnouncement.id}`, {
           method: 'PUT',
-          body: JSON.stringify(this.announcementForm)
+          body: JSON.stringify(this.buildAnnouncementPayload())
         })
         if (response.ok) {
           await this.fetchAllAnnouncements()
