@@ -61,16 +61,23 @@ func (s *userService) checkAdmin(ctx context.Context, typeID int) error {
 }
 
 // Create создаёт нового пользователя. Только admin (manager/buropropuskov).
+//
+// Пользователь может быть привязан к организации, компании или к обеим сразу.
+// Хотя бы одно из двух поле должно быть > 0. Значение 0 означает "не привязан".
 func (s *userService) Create(ctx context.Context, callerTypeID int, req models.RegisterRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
 
+	if req.OrganizationID <= 0 && req.CompanyID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Необходимо указать организацию или компанию (хотя бы одно)")
+	}
+
 	user := models.User{
 		Username:       req.Username,
 		Password:       hashPassword(req.Password),
-		OrganizationID: req.OrganizationID,
-		CompanyID:      req.CompanyID,
+		OrganizationID: intPtrOrNil(req.OrganizationID),
+		CompanyID:      intPtrOrNil(req.CompanyID),
 		TypeID:         req.TypeID,
 		LastName:       req.LastName,
 		FirstName:      req.FirstName,

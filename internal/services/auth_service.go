@@ -60,6 +60,16 @@ func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, 
 	}
 }
 
+// intPtrOrNil возвращает указатель на v или nil если v <= 0.
+// Используется для FK-полей (organization_id, company_id) где 0 = "не привязан",
+// а в БД FK constraint требует либо NULL либо существующий id.
+func intPtrOrNil(v int) *int {
+	if v <= 0 {
+		return nil
+	}
+	return &v
+}
+
 // --- Password Hashing (Argon2id, compatible with Rust argon2 crate) ---
 
 func hashPassword(password string) string {

@@ -375,6 +375,36 @@ func TestUsers_Delete_Forbidden_NonAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+func TestUsers_Create_RequiresOrgOrCompany(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	// Без organization_id и company_id - 400
+	body := `{"username":"lonely","password":"password123","type_id":1,"organization_id":0,"company_id":0}`
+	rec := testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Только organization - OK
+	body = fmt.Sprintf(`{"username":"orgonly","password":"password123","type_id":1,"organization_id":%d,"company_id":0}`, td.OrgID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Только company - OK
+	body = fmt.Sprintf(`{"username":"companyonly","password":"password123","type_id":1,"organization_id":0,"company_id":%d}`, td.CompanyID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// И то, и другое - OK
+	body = fmt.Sprintf(`{"username":"both","password":"password123","type_id":1,"organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
 func TestUsers_ManagerAlsoHasAdminAccess(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

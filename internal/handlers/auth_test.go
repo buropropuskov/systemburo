@@ -168,8 +168,8 @@ func TestLogin_Success(t *testing.T) {
 
 	assert.NotEmpty(t, resp.Token)
 	assert.NotEmpty(t, resp.RefreshToken)
-	assert.Equal(t, td.OrgID, resp.OrganizationID)
-	assert.Equal(t, td.CompanyID, resp.CompanyID)
+	assert.Equal(t, td.OrgID, *resp.OrganizationID)
+	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 	assert.Equal(t, 1, resp.TypeID)
 	assert.Equal(t, "Test Organization", resp.Organization)
 	assert.Equal(t, "Test Company", resp.Company)
@@ -319,9 +319,9 @@ func TestGetUserData_Success(t *testing.T) {
 
 	assert.Equal(t, "datauser", resp.Username)
 	assert.Equal(t, "Test Organization", resp.Organization)
-	assert.Equal(t, td.OrgID, resp.OrganizationID)
+	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, "Test Company", resp.Company)
-	assert.Equal(t, td.CompanyID, resp.CompanyID)
+	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 }
 
 func TestGetUserData_NoAuth(t *testing.T) {
@@ -355,9 +355,9 @@ func TestGetCurrentUser_Success(t *testing.T) {
 	assert.Equal(t, "Арендатор", resp.UserType)
 	assert.Equal(t, "renter", resp.UserTypeCode)
 	assert.Equal(t, "Test Organization", resp.Organization)
-	assert.Equal(t, td.OrgID, resp.OrganizationID)
+	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, "Test Company", resp.Company)
-	assert.Equal(t, td.CompanyID, resp.CompanyID)
+	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 	assert.Greater(t, resp.ID, 0)
 }
 
