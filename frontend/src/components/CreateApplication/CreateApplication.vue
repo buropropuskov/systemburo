@@ -527,19 +527,13 @@ export default {
     
     for (const vehicle of vehicles) {
       try {
-        const url = new URL('/cars/check-active', window.location.origin);
-        url.searchParams.append('car_number', vehicle.plateNumber);
-        url.searchParams.append('car_brand', vehicle.mark);
-        
-        if (this.organizationId) {
-          url.searchParams.append('organization_id', this.organizationId);
-        }
-        
-        if (this.companyId) {
-          url.searchParams.append('company_id', this.companyId);
-        }
+        const params = new URLSearchParams();
+        params.append('car_number', vehicle.plateNumber);
+        params.append('car_brand', vehicle.mark);
+        if (this.organizationId) params.append('organization_id', this.organizationId);
+        if (this.companyId) params.append('company_id', this.companyId);
 
-        const response = await apiRequest(url, {});
+        const response = await apiRequest(`/cars/check-active?${params.toString()}`, {});
 
         if (response.ok) {
           const data = await response.json();
