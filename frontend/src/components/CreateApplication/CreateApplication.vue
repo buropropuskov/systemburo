@@ -44,11 +44,48 @@
                                         персональных данных, изложенных в заявке
                                     </label>
                                 </div>
-                                <span class="send-all-wrapper" :title="submitDisabledReason" :data-testid="'create-app-submit-wrapper'">
+                                <div
+                                    class="submit-button-container"
+                                    :data-testid="'create-app-submit-wrapper'"
+                                    @mouseenter="tooltipMouseEnter"
+                                    @mouseleave="tooltipMouseLeave"
+                                >
                                     <button class="send-all-btn" data-testid="create-app-button-submit" @click="submitApplication" :disabled="!canSubmit">
                                         Отправить заявку
                                     </button>
-                                </span>
+                                    <div
+                                        v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
+                                        class="submit-tooltip"
+                                        @mouseenter="tooltipMouseEnter"
+                                        @mouseleave="tooltipMouseLeave"
+                                        @click="handleTooltipClick"
+                                    >
+                                        <div class="tooltip-content">
+                                            <div v-for="(section, idx) in tooltipSections" :key="idx" class="tooltip-section">
+                                                <div v-if="section.type === 'global'" class="tooltip-global">
+                                                    <div class="tooltip-section-title">Необходимо заполнить:</div>
+                                                    <ul>
+                                                        <li v-for="(msg, i) in section.messages" :key="i">{{ msg }}</li>
+                                                    </ul>
+                                                </div>
+                                                <div v-else-if="section.type === 'attachment'" class="tooltip-attachment">
+                                                    <div class="tooltip-attachment-title">
+                                                        <span
+                                                            class="attachment-clickable"
+                                                            :data-attachment-key="section.attachmentKey"
+                                                            @click="handleTooltipAttachmentClick(section)"
+                                                        >
+                                                            Вложение "{{ section.attachmentName }}"
+                                                        </span>
+                                                    </div>
+                                                    <ul>
+                                                        <li v-for="(msg, i) in section.messages" :key="i">{{ msg }}</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -295,7 +332,10 @@ export default {
 
             showSuccessModal: false,
             createdApplicationNumber: '',
-            createdAttachmentsData: []
+            createdAttachmentsData: [],
+
+            showSubmitTooltip: false,
+            tooltipTimer: null,
         }
     },
     computed: {
@@ -308,30 +348,30 @@ export default {
         
         vehicles() {
             if (!this.selectedAttachment) return [];
-            return this.vehiclesByAttachment[this.selectedAttachment.id] || [];
+            return this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
         },
-        
+
         employees() {
             if (!this.selectedAttachment) return [];
-            return this.employeesByAttachment[this.selectedAttachment.id] || [];
+            return this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
         },
-        
+
         items() {
             if (!this.selectedAttachment) return [];
-            return this.itemsByAttachment[this.selectedAttachment.id] || [];
+            return this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
         },
-        
+
         currentAttachmentData() {
             if (!this.selectedAttachment) {
                 return this.getDefaultDateData();
             }
-            const data = this.attachmentDatesByAttachment[this.selectedAttachment.id];
+            const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
             return data || this.getDefaultDateData();
         },
-        
+
         currentAttachmentErrors() {
             if (!this.selectedAttachment) return {};
-            const data = this.attachmentDatesByAttachment[this.selectedAttachment.id];
+            const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
             return data?.errors || {};
         },
         
@@ -353,24 +393,25 @@ export default {
             }
 
             this.attachments.forEach(attachment => {
-                const label = attachment.attachment_display_name || attachment.attachment_name || `вложение #${attachment.id}`;
+                const key = this.attachmentKey(attachment);
+                const label = attachment.attachment_display_name || attachment.attachment_name || attachment.display_name || `вложение #${attachment.id}`;
                 let hasAttachmentData = false;
                 switch (attachment.attachment_type) {
                     case 'cars':
-                        hasAttachmentData = (this.vehiclesByAttachment[attachment.id] || []).length > 0;
+                        hasAttachmentData = (this.vehiclesByAttachment[key] || []).length > 0;
                         if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одно авто`);
                         break;
                     case 'people':
-                        hasAttachmentData = (this.employeesByAttachment[attachment.id] || []).length > 0;
+                        hasAttachmentData = (this.employeesByAttachment[key] || []).length > 0;
                         if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одного сотрудника`);
                         break;
                     case 'items':
-                        hasAttachmentData = (this.itemsByAttachment[attachment.id] || []).length > 0;
+                        hasAttachmentData = (this.itemsByAttachment[key] || []).length > 0;
                         if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
                         break;
                 }
 
-                const dateData = this.attachmentDatesByAttachment[attachment.id];
+                const dateData = this.attachmentDatesByAttachment[key];
                 if (!dateData) {
                     reasons.push(`"${label}": укажите даты действия`);
                     return;
@@ -398,7 +439,70 @@ export default {
             if (this.canSubmit) return '';
             return 'Для отправки заявки:\n- ' + this.submitValidation.join('\n- ');
         },
-        
+
+        tooltipSections() {
+            const sections = [];
+
+            const globalErrors = [];
+            if (this.attachments.length === 0) globalErrors.push('Не добавлено ни одного вложения');
+            if (!this.organization) globalErrors.push('Не заполнена организация');
+            if (!this.company) globalErrors.push('Не заполнена компания');
+            if (!this.responsiblePerson) globalErrors.push('Не указано ответственное лицо');
+            if (!this.phoneNumber) globalErrors.push('Не указан номер телефона');
+            if (!this.consentGiven) globalErrors.push('Не дано согласие на обработку данных');
+
+            if (globalErrors.length) {
+                sections.push({ type: 'global', messages: globalErrors });
+            }
+
+            for (const attachment of this.attachments) {
+                const type = attachment.attachment_type;
+                const key = this.attachmentKey(attachment);
+                const displayName = attachment.display_name || attachment.attachment_display_name || attachment.attachment_name || `вложение #${attachment.id}`;
+                const errors = [];
+
+                let items = [];
+                if (type === 'cars') items = this.vehiclesByAttachment[key] || [];
+                else if (type === 'people') items = this.employeesByAttachment[key] || [];
+                else if (type === 'items') items = this.itemsByAttachment[key] || [];
+
+                if (type === 'cars' && items.length === 0) errors.push('Не добавлено ни одного автомобиля');
+                else if (type === 'people' && items.length === 0) errors.push('Не добавлено ни одного сотрудника');
+                else if (type === 'items' && items.length === 0) errors.push('Не добавлено ни одной позиции');
+
+                const dateData = this.attachmentDatesByAttachment[key];
+                if (dateData) {
+                    let hasDates = false;
+                    if (dateData.isOneDay) {
+                        if (dateData.singleDate && dateData.startTime && dateData.endTime) hasDates = true;
+                        else errors.push('Не указаны дата и время пребывания');
+                    } else {
+                        if (dateData.startDate && dateData.endDate && dateData.startTime && dateData.endTime) hasDates = true;
+                        else errors.push('Не указан период действия (даты) или время пребывания');
+                    }
+                    if (hasDates && !dateData.isOneDay && dateData.startDate && dateData.endDate) {
+                        const start = new Date(dateData.startDate.split('.').reverse().join('-'));
+                        const end = new Date(dateData.endDate.split('.').reverse().join('-'));
+                        if (start > end) errors.push('Дата окончания не может быть раньше даты начала');
+                    }
+                } else {
+                    errors.push('Не заполнены даты действия и время пребывания');
+                }
+
+                if (errors.length) {
+                    sections.push({
+                        type: 'attachment',
+                        attachmentKey: key,
+                        attachmentType: type,
+                        attachmentName: displayName,
+                        messages: errors,
+                    });
+                }
+            }
+
+            return sections;
+        },
+
         sortedVehicles() {
             if (!this.sortField || !this.vehicles.length) {
                 return this.vehicles;
@@ -523,8 +627,8 @@ export default {
 
   for (const attachment of this.attachments) {
     if (attachment.attachment_type !== 'cars') continue;
-    
-    const vehicles = this.vehiclesByAttachment[attachment.id] || [];
+
+    const vehicles = this.vehiclesByAttachment[this.attachmentKey(attachment)] || [];
     
     for (const vehicle of vehicles) {
       try {
@@ -599,7 +703,7 @@ export default {
         updateAttachmentData(field, value) {
             if (!this.selectedAttachment) return;
             
-            const attachmentId = this.selectedAttachment.id;
+            const attachmentId = this.attachmentKey(this.selectedAttachment);
             
             if (!this.attachmentDatesByAttachment[attachmentId]) {
                 this.attachmentDatesByAttachment[attachmentId] = this.getDefaultDateData();
@@ -613,7 +717,7 @@ export default {
         validateAttachmentField(field) {
             if (!this.selectedAttachment) return;
             
-            const attachmentId = this.selectedAttachment.id;
+            const attachmentId = this.attachmentKey(this.selectedAttachment);
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData) return;
             
@@ -649,7 +753,7 @@ export default {
         validateAttachmentDateRange() {
             if (!this.selectedAttachment) return;
             
-            const attachmentId = this.selectedAttachment.id;
+            const attachmentId = this.attachmentKey(this.selectedAttachment);
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData || !dateData.errors) return;
             
@@ -669,7 +773,7 @@ export default {
         validateAttachmentTimeRange() {
             if (!this.selectedAttachment) return;
             
-            const attachmentId = this.selectedAttachment.id;
+            const attachmentId = this.attachmentKey(this.selectedAttachment);
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData || !dateData.errors) return;
             
@@ -762,21 +866,62 @@ export default {
             this.restoreAttachmentData(attachment);
         },
 
+        attachmentKey(attachment) {
+            if (!attachment) return null;
+            return attachment.local_id || attachment.id;
+        },
+
+        tooltipMouseEnter() {
+            if (this.tooltipTimer) {
+                clearTimeout(this.tooltipTimer);
+                this.tooltipTimer = null;
+            }
+            this.showSubmitTooltip = true;
+        },
+
+        tooltipMouseLeave() {
+            this.tooltipTimer = setTimeout(() => {
+                this.showSubmitTooltip = false;
+            }, 200);
+        },
+
+        handleTooltipClick(event) {
+            const target = event.target.closest('.attachment-clickable');
+            if (target) {
+                const attachmentKey = target.dataset.attachmentKey;
+                const attachment = this.attachments.find(a => String(this.attachmentKey(a)) === String(attachmentKey));
+                if (attachment) {
+                    this.handleAttachmentSelected(attachment);
+                    this.showSubmitTooltip = false;
+                }
+            }
+        },
+
+        handleTooltipAttachmentClick(section) {
+            if (!section.attachmentKey) return;
+            const attachment = this.attachments.find(a => String(this.attachmentKey(a)) === String(section.attachmentKey));
+            if (attachment) {
+                this.handleAttachmentSelected(attachment);
+                this.showSubmitTooltip = false;
+            }
+        },
+
         handleAttachmentAdded(attachment) {
             this.attachments.push(attachment);
-            
+
+            const key = this.attachmentKey(attachment);
             if (attachment.attachment_type === 'cars') {
-                this.vehiclesByAttachment[attachment.id] = [];
+                this.vehiclesByAttachment[key] = [];
             } else if (attachment.attachment_type === 'people') {
-                this.employeesByAttachment[attachment.id] = [];
+                this.employeesByAttachment[key] = [];
             } else if (attachment.attachment_type === 'items') {
-                this.itemsByAttachment[attachment.id] = [];
+                this.itemsByAttachment[key] = [];
             }
-            
-            this.attachmentDatesByAttachment[attachment.id] = this.getDefaultDateData();
-            
+
+            this.attachmentDatesByAttachment[key] = this.getDefaultDateData();
+
             this.selectAttachment(attachment);
-            
+
             this.saveToLocalStorage();
         },
 
@@ -785,24 +930,25 @@ export default {
         },
 
         handleAttachmentRemoved(attachment) {
-            this.attachments = this.attachments.filter(a => a.id !== attachment.id);
-            
+            const key = this.attachmentKey(attachment);
+            this.attachments = this.attachments.filter(a => this.attachmentKey(a) !== key);
+
             if (attachment.attachment_type === 'cars') {
-                delete this.vehiclesByAttachment[attachment.id];
+                delete this.vehiclesByAttachment[key];
             } else if (attachment.attachment_type === 'people') {
-                delete this.employeesByAttachment[attachment.id];
+                delete this.employeesByAttachment[key];
             } else if (attachment.attachment_type === 'items') {
-                delete this.itemsByAttachment[attachment.id];
+                delete this.itemsByAttachment[key];
             }
-            
-            delete this.attachmentDatesByAttachment[attachment.id];
-            
-            if (this.selectedAttachment && this.selectedAttachment.id === attachment.id) {
+
+            delete this.attachmentDatesByAttachment[key];
+
+            if (this.selectedAttachment && this.attachmentKey(this.selectedAttachment) === key) {
                 this.selectedAttachment = null;
             }
-            
+
             this.clearFormData();
-            
+
             this.saveToLocalStorage();
         },
 
@@ -816,45 +962,47 @@ export default {
 
         saveCurrentAttachmentData() {
             if (!this.selectedAttachment) return;
-            
+
+            const key = this.attachmentKey(this.selectedAttachment);
             switch (this.selectedAttachment.attachment_type) {
                 case 'cars':
-                    this.vehiclesByAttachment[this.selectedAttachment.id] = this.vehicles;
+                    this.vehiclesByAttachment[key] = this.vehicles;
                     break;
                 case 'people':
-                    this.employeesByAttachment[this.selectedAttachment.id] = this.employees;
+                    this.employeesByAttachment[key] = this.employees;
                     break;
                 case 'items':
-                    this.itemsByAttachment[this.selectedAttachment.id] = this.items;
+                    this.itemsByAttachment[key] = this.items;
                     break;
             }
-            
+
             this.saveToLocalStorage();
         },
 
         loadAttachmentData(attachment) {
             if (!attachment) return;
-            
+
+            const key = this.attachmentKey(attachment);
             switch (attachment.attachment_type) {
                 case 'cars':
-                    if (!this.vehiclesByAttachment[attachment.id]) {
-                        this.vehiclesByAttachment[attachment.id] = [];
+                    if (!this.vehiclesByAttachment[key]) {
+                        this.vehiclesByAttachment[key] = [];
                     }
                     break;
                 case 'people':
-                    if (!this.employeesByAttachment[attachment.id]) {
-                        this.employeesByAttachment[attachment.id] = [];
+                    if (!this.employeesByAttachment[key]) {
+                        this.employeesByAttachment[key] = [];
                     }
                     break;
                 case 'items':
-                    if (!this.itemsByAttachment[attachment.id]) {
-                        this.itemsByAttachment[attachment.id] = [];
+                    if (!this.itemsByAttachment[key]) {
+                        this.itemsByAttachment[key] = [];
                     }
                     break;
             }
-            
-            if (!this.attachmentDatesByAttachment[attachment.id]) {
-                this.attachmentDatesByAttachment[attachment.id] = this.getDefaultDateData();
+
+            if (!this.attachmentDatesByAttachment[key]) {
+                this.attachmentDatesByAttachment[key] = this.getDefaultDateData();
             }
         },
 
@@ -870,10 +1018,10 @@ export default {
             };
             
             if (this.selectedAttachment) {
-                if (!this.vehiclesByAttachment[this.selectedAttachment.id]) {
-                    this.vehiclesByAttachment[this.selectedAttachment.id] = [];
+                if (!this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)]) {
+                    this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)] = [];
                 }
-                this.vehiclesByAttachment[this.selectedAttachment.id].push(vehicleWithId);
+                this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)].push(vehicleWithId);
                 
                 this.saveToLocalStorage();
             }
@@ -892,10 +1040,10 @@ export default {
                 };
                 
                 if (this.selectedAttachment) {
-                    if (!this.vehiclesByAttachment[this.selectedAttachment.id]) {
-                        this.vehiclesByAttachment[this.selectedAttachment.id] = [];
+                    if (!this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)]) {
+                        this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)] = [];
                     }
-                    this.vehiclesByAttachment[this.selectedAttachment.id].push(vehicleWithId);
+                    this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)].push(vehicleWithId);
                 }
             });
             
@@ -905,7 +1053,7 @@ export default {
         handleVehicleUpdated(updatedVehicle) {
             if (!this.selectedAttachment) return;
             
-            const vehicles = this.vehiclesByAttachment[this.selectedAttachment.id];
+            const vehicles = this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)];
             if (!vehicles) return;
             
             const index = vehicles.findIndex(v => v.id === updatedVehicle.id);
@@ -922,7 +1070,7 @@ export default {
         deleteVehicle(vehicleId) {
             if (!this.selectedAttachment) return;
             
-            const vehicles = this.vehiclesByAttachment[this.selectedAttachment.id];
+            const vehicles = this.vehiclesByAttachment[this.attachmentKey(this.selectedAttachment)];
             if (!vehicles) return;
             
             const index = vehicles.findIndex(vehicle => vehicle.id === vehicleId);
@@ -946,10 +1094,10 @@ export default {
             };
             
             if (this.selectedAttachment) {
-                if (!this.employeesByAttachment[this.selectedAttachment.id]) {
-                    this.employeesByAttachment[this.selectedAttachment.id] = [];
+                if (!this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)]) {
+                    this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)] = [];
                 }
-                this.employeesByAttachment[this.selectedAttachment.id].push(employeeWithId);
+                this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)].push(employeeWithId);
                 
                 this.saveToLocalStorage();
             }
@@ -964,10 +1112,10 @@ export default {
                 };
                 
                 if (this.selectedAttachment) {
-                    if (!this.employeesByAttachment[this.selectedAttachment.id]) {
-                        this.employeesByAttachment[this.selectedAttachment.id] = [];
+                    if (!this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)]) {
+                        this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)] = [];
                     }
-                    this.employeesByAttachment[this.selectedAttachment.id].push(employeeWithId);
+                    this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)].push(employeeWithId);
                 }
             });
             
@@ -977,7 +1125,7 @@ export default {
         handleEmployeeUpdated(updatedEmployee) {
             if (!this.selectedAttachment) return;
             
-            const employees = this.employeesByAttachment[this.selectedAttachment.id];
+            const employees = this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)];
             if (!employees) return;
             
             const index = employees.findIndex(e => e.id === updatedEmployee.id);
@@ -994,7 +1142,7 @@ export default {
         deleteEmployee(employeeId) {
             if (!this.selectedAttachment) return;
             
-            const employees = this.employeesByAttachment[this.selectedAttachment.id];
+            const employees = this.employeesByAttachment[this.attachmentKey(this.selectedAttachment)];
             if (!employees) return;
             
             const index = employees.findIndex(employee => employee.id === employeeId);
@@ -1025,10 +1173,10 @@ export default {
             };
             
             if (this.selectedAttachment) {
-                if (!this.itemsByAttachment[this.selectedAttachment.id]) {
-                    this.itemsByAttachment[this.selectedAttachment.id] = [];
+                if (!this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)]) {
+                    this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] = [];
                 }
-                this.itemsByAttachment[this.selectedAttachment.id].push(itemWithId);
+                this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)].push(itemWithId);
                 
                 this.saveToLocalStorage();
             }
@@ -1042,10 +1190,10 @@ export default {
                 };
                 
                 if (this.selectedAttachment) {
-                    if (!this.itemsByAttachment[this.selectedAttachment.id]) {
-                        this.itemsByAttachment[this.selectedAttachment.id] = [];
+                    if (!this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)]) {
+                        this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] = [];
                     }
-                    this.itemsByAttachment[this.selectedAttachment.id].push(itemWithId);
+                    this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)].push(itemWithId);
                 }
             });
             
@@ -1055,7 +1203,7 @@ export default {
         handleItemUpdated(updatedItem) {
             if (!this.selectedAttachment) return;
             
-            const items = this.itemsByAttachment[this.selectedAttachment.id];
+            const items = this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)];
             if (!items) return;
             
             const index = items.findIndex(e => e.id === updatedItem.id);
@@ -1072,7 +1220,7 @@ export default {
         deleteItem(itemId) {
             if (!this.selectedAttachment) return;
             
-            const items = this.itemsByAttachment[this.selectedAttachment.id];
+            const items = this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)];
             if (!items) return;
             
             const index = items.findIndex(item => item.id === itemId);
@@ -1181,7 +1329,7 @@ export default {
             let errorMessage = '';
             
             this.attachments.forEach(attachment => {
-                const dateData = this.attachmentDatesByAttachment[attachment.id];
+                const dateData = this.attachmentDatesByAttachment[this.attachmentKey(attachment)];
                 if (dateData) {
                     if (!dateData.isOneDay && dateData.startDate && dateData.endDate) {
                         const start = new Date(dateData.startDate.split('.').reverse().join('-'));
@@ -1243,7 +1391,7 @@ export default {
                             if (!alreadyExists) {
                                 this.newVehiclesToBind.push({
                                     ...vehicle,
-                                    attachmentId: parseInt(attachmentId)
+                                    attachmentId: attachmentId
                                 });
                             }
                         }
@@ -1266,7 +1414,7 @@ export default {
                             if (!alreadyExists) {
                                 this.newEmployeesToBind.push({
                                     ...employee,
-                                    attachmentId: parseInt(attachmentId)
+                                    attachmentId: attachmentId
                                 });
                             }
                         }
@@ -1434,13 +1582,14 @@ export default {
             };
 
             for (const attachment of this.attachments) {
-                const dateData = this.attachmentDatesByAttachment[attachment.id] || this.getDefaultDateData();
-                
+                const key = this.attachmentKey(attachment);
+                const dateData = this.attachmentDatesByAttachment[key] || this.getDefaultDateData();
+
                 const attachmentData = {
                     attachment_type: attachment.attachment_type,
                     attachment_name: attachment.name,
                     attachment_display_name: attachment.display_name,
-                    unique_attachment_id: attachment.id,
+                    unique_attachment_id: attachment.template_id || attachment.id,
                     entry_date_from: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.startDate),
                     entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
                     entry_time_from: dateData.startTime + ":00",
@@ -1450,7 +1599,7 @@ export default {
 
                 switch (attachment.attachment_type) {
                     case 'cars': {
-                        const vehicles = this.vehiclesByAttachment[attachment.id] || [];
+                        const vehicles = this.vehiclesByAttachment[key] || [];
                         attachmentData.data.vehicles = vehicles.map(vehicle => ({
                             car_number: vehicle.plateNumber,
                             car_brand: vehicle.mark,
@@ -1460,7 +1609,7 @@ export default {
                         break;
                     }
                     case 'people': {
-                        const employees = this.employeesByAttachment[attachment.id] || [];
+                        const employees = this.employeesByAttachment[key] || [];
                         attachmentData.data.employees = employees.map(employee => ({
                             last_name: employee.lastName,
                             first_name: employee.firstName,
@@ -1475,7 +1624,7 @@ export default {
                         break;
                     }
                     case 'items': {
-                        const items = this.itemsByAttachment[attachment.id] || [];
+                        const items = this.itemsByAttachment[key] || [];
                         attachmentData.data.items = items.map((item, index) => ({
                             name: item.itemName,
                             count: item.quantity,
@@ -1757,7 +1906,7 @@ export default {
                     if (data.attachments && data.attachments.length > 0) {
                         this.attachments = data.attachments;
                         data.attachments.forEach(attachment => {
-                            this.attachmentDatesByAttachment[attachment.id] = {
+                            this.attachmentDatesByAttachment[this.attachmentKey(attachment)] = {
                                 isOneDay: data.entry_date_from === data.entry_date_to,
                                 startDate: data.entry_date_from ? this.formatDateFromAPI(data.entry_date_from) : '',
                                 endDate: data.entry_date_to ? this.formatDateFromAPI(data.entry_date_to) : '',
@@ -1937,9 +2086,81 @@ export default {
         line-height: 1.2;
     }
 
-    .send-all-wrapper {
+    .submit-button-container {
+        position: relative;
         display: inline-block;
-        cursor: default;
+    }
+
+    .submit-tooltip {
+        position: absolute;
+        right: 100%;
+        margin-right: 8px;
+        top: 0;
+        background: #333;
+        color: white;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        width: 380px;
+        max-height: 400px;
+        overflow-y: auto;
+        z-index: 1000;
+        pointer-events: auto;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        white-space: normal;
+    }
+
+    .submit-tooltip::before {
+        content: '';
+        position: absolute;
+        top: 8px;
+        left: 100%;
+        border: 5px solid transparent;
+        border-left-color: #333;
+    }
+
+    .tooltip-content {
+        font-family: inherit;
+    }
+
+    .tooltip-section {
+        margin-bottom: 12px;
+    }
+
+    .tooltip-section:last-child {
+        margin-bottom: 0;
+    }
+
+    .tooltip-section-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #fff;
+    }
+
+    .tooltip-attachment-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #d4d4d4;
+    }
+
+    .attachment-clickable {
+        cursor: pointer;
+        text-decoration: underline;
+        transition: opacity 0.2s;
+    }
+
+    .attachment-clickable:hover {
+        opacity: 0.8;
+    }
+
+    .tooltip-section ul {
+        margin: 0;
+        padding-left: 20px;
+    }
+
+    .tooltip-section li {
+        margin-bottom: 4px;
+        line-height: 1.4;
     }
 
     .send-all-btn {
