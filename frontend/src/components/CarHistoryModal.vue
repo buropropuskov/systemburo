@@ -320,21 +320,14 @@ export default {
     async loadHistory() {
       this.loading = true;
       try {
-        const url = new URL('/cars/history/unified', window.location.origin);
-        url.searchParams.append('car_number', this.carNumber);
-        url.searchParams.append('car_brand', this.carBrand || '');
-        
-        if (this.organizationId) {
-          url.searchParams.append('organization_id', this.organizationId);
-        }
-        
-        if (this.companyId) {
-          url.searchParams.append('company_id', this.companyId);
-        }
+        // apiRequest ожидает строку-путь, не URL object — собираем query руками.
+        const params = new URLSearchParams();
+        params.append('car_number', this.carNumber);
+        params.append('car_brand', this.carBrand || '');
+        if (this.organizationId) params.append('organization_id', this.organizationId);
+        if (this.companyId) params.append('company_id', this.companyId);
 
-        console.log('Запрос истории по URL:', url.toString());
-
-        const response = await apiRequest(url, {});
+        const response = await apiRequest(`/cars/history/unified?${params.toString()}`, {});
 
         if (response.ok) {
           this.history = await response.json();

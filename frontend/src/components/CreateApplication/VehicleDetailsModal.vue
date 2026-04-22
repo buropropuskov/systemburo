@@ -445,18 +445,20 @@ export default {
             
             this.loadingHistory = true;
             try {
-                // Используем unified endpoint, как в CarHistoryModal
-                const url = new URL('/cars/history/unified', window.location.origin);
-                url.searchParams.append('car_number', this.vehicle.plateNumber || this.vehicle.car_number || '');
-                url.searchParams.append('car_brand', this.vehicle.mark || this.vehicle.car_brand || '');
+                // Используем unified endpoint, как в CarHistoryModal.
+                // Собираем query-строку руками — apiRequest ожидает строку-путь,
+                // а не URL object (после /api префикса URL object ломается при конкатенации).
+                const params = new URLSearchParams();
+                params.append('car_number', this.vehicle.plateNumber || this.vehicle.car_number || '');
+                params.append('car_brand', this.vehicle.mark || this.vehicle.car_brand || '');
                 if (this.vehicle.organizationId) {
-                    url.searchParams.append('organization_id', this.vehicle.organizationId);
+                    params.append('organization_id', this.vehicle.organizationId);
                 }
                 if (this.vehicle.companyId) {
-                    url.searchParams.append('company_id', this.vehicle.companyId);
+                    params.append('company_id', this.vehicle.companyId);
                 }
 
-                const response = await apiRequest(url, {});
+                const response = await apiRequest(`/cars/history/unified?${params.toString()}`, {});
                 
                 if (response.ok) {
                     const allHistory = await response.json();
