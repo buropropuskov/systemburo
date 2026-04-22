@@ -85,7 +85,7 @@ func (s *feedbackService) Create(ctx context.Context, username string, req model
 	feedback := models.Feedback{
 		UserID:    userID,
 		Message:   trimmed,
-		Status:    "Нерешено",
+		Status:    models.FeedbackOpen,
 		IsRead:    false,
 		CreatedAt: now,
 		UpdatedAt: now,

@@ -226,15 +226,35 @@
             
             <div class="carsview__right-side">
                 <div class="carsview__help">
-                    <p class="help__text" v-if="currentFilter === 'all_system'">
-                        Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
-                    </p>
-                    <p class="help__text" v-else>
-                        Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                    </p>
-                    <p class="help__text" v-if="currentFilter !== 'all_system'">
-                        Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                    </p>
+                    <template v-if="currentFilter === 'organization'">
+                        <p class="help__text">
+                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </p>
+                        <p class="help__text">
+                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'company'">
+                        <p class="help__text">
+                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </p>
+                        <p class="help__text">
+                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'user'">
+                        <p class="help__text">
+                            Здесь находятся <strong class="blue">ваши автомобили</strong>, добавленные лично. Вы можете использовать их при подаче автозаявок.
+                        </p>
+                        <p class="help__text">
+                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'all_system'">
+                        <p class="help__text">
+                            Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
+                        </p>
+                    </template>
                 </div>
             </div>
         </div>

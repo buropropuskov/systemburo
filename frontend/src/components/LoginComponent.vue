@@ -345,7 +345,7 @@ export default {
                 refreshToken: data.refreshToken
             });
             
-            this.$router.push('/personal-cabinet');
+            this.$router.push('/news');
         } else {
             // Проверяем статус код для определения типа ошибки
             if (response.status === 429) {

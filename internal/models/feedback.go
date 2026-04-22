@@ -8,7 +8,7 @@ type Feedback struct {
 	UserID            int        `gorm:"index" json:"user_id"`
 	User              User       `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	Message           string     `gorm:"type:text" json:"message"`
-	Status            string     `gorm:"size:20;default:'Нерешено'" json:"status"`
+	Status            string     `gorm:"size:20;default:'Не решено'" json:"status"`
 	IsRead            bool       `gorm:"default:false" json:"is_read"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
@@ -56,7 +56,7 @@ type CreateFeedbackRequest struct {
 
 // UpdateFeedbackStatusRequest -- запрос на обновление статуса обращения.
 type UpdateFeedbackStatusRequest struct {
-	Status string `json:"status" validate:"required,oneof=Нерешено Решено"`
+	Status string `json:"status" validate:"required,oneof='Не решено' 'Решено'"`
 }
 
 // MarkAsReadRequest -- запрос на отметку обращения прочитанным/непрочитанным.
