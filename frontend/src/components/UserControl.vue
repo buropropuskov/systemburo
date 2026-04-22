@@ -383,8 +383,10 @@
             </div>
             
             <div class="modal-body">
-              <!-- Первая строка -->
-              <div class="form-row">
+              <div v-if="!hasOrgOrCompany" class="form-hint form-hint--warning">
+                Укажите организацию или компанию - хотя бы одно из двух обязательно.
+              </div>
+              <div class="form-wrap">
                 <div class="input-group half">
                   <label class="input-label">Логин <span class="required">*</span></label>
                   <input
@@ -407,18 +409,14 @@
                   >
                   <div class="input-hint">Минимум 6 символов</div>
                 </div>
-              </div>
-              
-              <!-- Вторая строка -->
-              <div class="form-row">
                 <div class="input-group half">
-                  <label class="input-label">Организация</label>
+                  <label class="input-label">Организация <span class="required">*</span></label>
                   <div class="custom-select" @click="toggleNewUserOrgDropdown">
                     <div class="select-trigger">
-                      <span>{{ getOrganizationName(newUser.organization_id) || 'Выберите организацию' }}</span>
-                      <img 
-                        src="@/assets/icons/arrow.png" 
-                        class="select-arrow" 
+                      <span>{{ getOrganizationName(newUser.organization_id) || 'Не выбрано' }}</span>
+                      <img
+                        src="@/assets/icons/arrow.png"
+                        class="select-arrow"
                         :class="{ 'open': newUserOrgDropdownOpen }"
                         width="12"
                         height="12"
@@ -426,8 +424,15 @@
                     </div>
                     <transition name="dropdown">
                       <div v-if="newUserOrgDropdownOpen" class="select-dropdown">
-                        <div 
-                          v-for="org in organizations" 
+                        <div
+                          class="select-option"
+                          :class="{ 'selected': newUser.organization_id === null }"
+                          @click="selectNewUserOrg(null)"
+                        >
+                          Не выбрано
+                        </div>
+                        <div
+                          v-for="org in organizations"
                           :key="org.id"
                           class="select-option"
                           :class="{ 'selected': newUser.organization_id === org.id }"
@@ -440,13 +445,13 @@
                   </div>
                 </div>
                 <div class="input-group half">
-                  <label class="input-label">Компания</label>
+                  <label class="input-label">Компания <span class="required">*</span></label>
                   <div class="custom-select" @click="toggleNewUserCompanyDropdown">
                     <div class="select-trigger">
-                      <span>{{ getCompanyName(newUser.company_id) || 'Выберите компанию' }}</span>
-                      <img 
-                        src="@/assets/icons/arrow.png" 
-                        class="select-arrow" 
+                      <span>{{ getCompanyName(newUser.company_id) || 'Не выбрано' }}</span>
+                      <img
+                        src="@/assets/icons/arrow.png"
+                        class="select-arrow"
                         :class="{ 'open': newUserCompanyDropdownOpen }"
                         width="12"
                         height="12"
@@ -454,8 +459,15 @@
                     </div>
                     <transition name="dropdown">
                       <div v-if="newUserCompanyDropdownOpen" class="select-dropdown">
-                        <div 
-                          v-for="comp in companies" 
+                        <div
+                          class="select-option"
+                          :class="{ 'selected': newUser.company_id === null }"
+                          @click="selectNewUserCompany(null)"
+                        >
+                          Не выбрано
+                        </div>
+                        <div
+                          v-for="comp in companies"
                           :key="comp.id"
                           class="select-option"
                           :class="{ 'selected': newUser.company_id === comp.id }"
@@ -467,18 +479,14 @@
                     </transition>
                   </div>
                 </div>
-              </div>
-              
-              <!-- Третья строка (полная ширина) -->
-              <div class="form-row full-width">
-                <div class="input-group full">
+                <div class="input-group half">
                   <label class="input-label">Тип пользователя <span class="required">*</span></label>
                   <div class="custom-select" @click="toggleNewUserTypeDropdown">
                     <div class="select-trigger">
                       <span>{{ getUserTypeName(newUser.type_id) || 'Выберите тип' }}</span>
-                      <img 
-                        src="@/assets/icons/arrow.png" 
-                        class="select-arrow" 
+                      <img
+                        src="@/assets/icons/arrow.png"
+                        class="select-arrow"
                         :class="{ 'open': newUserTypeDropdownOpen }"
                         width="12"
                         height="12"
@@ -486,8 +494,8 @@
                     </div>
                     <transition name="dropdown">
                       <div v-if="newUserTypeDropdownOpen" class="select-dropdown">
-                        <div 
-                          v-for="type in userTypes" 
+                        <div
+                          v-for="type in userTypes"
                           :key="type.id"
                           class="select-option"
                           :class="{ 'selected': newUser.type_id === type.id }"
@@ -499,15 +507,29 @@
                     </transition>
                   </div>
                 </div>
-              </div>
-              
-              <!-- Четвертая строка -->
-              <div class="form-row">
                 <div class="input-group half">
                   <label class="input-label">Фамилия</label>
                   <input
                     v-model="newUser.last_name"
                     placeholder="Введите фамилию"
+                    class="modal-input"
+                    @input="saveDraft"
+                  >
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Имя</label>
+                  <input
+                    v-model="newUser.first_name"
+                    placeholder="Введите имя"
+                    class="modal-input"
+                    @input="saveDraft"
+                  >
+                </div>
+                <div class="input-group half">
+                  <label class="input-label">Отчество</label>
+                  <input
+                    v-model="newUser.middle_name"
+                    placeholder="Введите отчество"
                     class="modal-input"
                     @input="saveDraft"
                   >
@@ -521,19 +543,6 @@
                     @input="saveDraft"
                   >
                 </div>
-              </div>
-              
-              <!-- Пятая строка -->
-              <div class="form-row">
-                <div class="input-group half">
-                  <label class="input-label">Имя</label>
-                  <input
-                    v-model="newUser.first_name"
-                    placeholder="Введите имя"
-                    class="modal-input"
-                    @input="saveDraft"
-                  >
-                </div>
                 <div class="input-group half">
                   <label class="input-label">Email</label>
                   <input
@@ -541,19 +550,6 @@
                     placeholder="Введите email"
                     class="modal-input"
                     type="email"
-                    @input="saveDraft"
-                  >
-                </div>
-              </div>
-              
-              <!-- Шестая строка -->
-              <div class="form-row">
-                <div class="input-group half">
-                  <label class="input-label">Отчество</label>
-                  <input
-                    v-model="newUser.middle_name"
-                    placeholder="Введите отчество"
-                    class="modal-input"
                     @input="saveDraft"
                   >
                 </div>
@@ -775,7 +771,15 @@ export default {
       });
     },
     canCreateUser() {
-      return this.newUser.username && this.newUser.password && this.newUser.type_id;
+      return (
+        this.newUser.username &&
+        this.newUser.password &&
+        this.newUser.type_id &&
+        this.hasOrgOrCompany
+      );
+    },
+    hasOrgOrCompany() {
+      return Boolean(this.newUser.organization_id || this.newUser.company_id);
     }
   },
   mounted() {
@@ -899,13 +903,13 @@ export default {
     },
     
     selectNewUserOrg(org) {
-      this.newUser.organization_id = org.id;
+      this.newUser.organization_id = org ? org.id : null;
       this.newUserOrgDropdownOpen = false;
       this.saveDraft();
     },
-    
+
     selectNewUserCompany(comp) {
-      this.newUser.company_id = comp.id;
+      this.newUser.company_id = comp ? comp.id : null;
       this.newUserCompanyDropdownOpen = false;
       this.saveDraft();
     },
@@ -1897,14 +1901,24 @@ export default {
   flex: 1;
 }
 
-.form-row {
+.form-wrap {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  margin-bottom: 16px;
 }
 
-.form-row.full-width {
-  margin-bottom: 0;
+.form-hint {
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f3f3fb;
+}
+
+.form-hint--warning {
+  background: #FFE0B2;
+  color: #9A3412;
 }
 
 .input-group {
@@ -1914,13 +1928,12 @@ export default {
 }
 
 .input-group.half {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 calc(50% - 8px);
+  min-width: 220px;
 }
 
 .input-group.full {
-  width: 100%;
-  padding-bottom: 16px;
+  flex: 1 1 100%;
 }
 
 .input-label {
@@ -2085,9 +2098,13 @@ export default {
     max-height: 90vh;
   }
   
-  .form-row {
-    flex-direction: column;
+  .form-wrap {
     gap: 12px;
+  }
+
+  .input-group.half {
+    flex: 1 1 100%;
+    min-width: 0;
   }
 }
 </style>
