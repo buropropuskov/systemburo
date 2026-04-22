@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	"log/slog"
 	"systemburo/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -23,8 +21,9 @@ import (
 )
 
 // AuthService defines the auth business logic interface.
+// Создание пользователей идёт через UserService.Create (POST /users, admin-only).
+// Публичная регистрация (POST /register) не поддерживается - см. удалённый Register handler.
 type AuthService interface {
-	Register(ctx context.Context, req models.RegisterRequest) error
 	Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error)
 	RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error)
 	Logout(ctx context.Context, username string, req models.LogoutRequest) error
@@ -135,32 +134,6 @@ func hashRefreshToken(token string) string {
 }
 
 // --- Service Methods ---
-
-// Register регистрирует нового пользователя с хешированием пароля.
-func (s *authService) Register(ctx context.Context, req models.RegisterRequest) error {
-	hashed := hashPassword(req.Password)
-	user := models.User{
-		Username:       req.Username,
-		Password:       hashed,
-		OrganizationID: req.OrganizationID,
-		CompanyID:      req.CompanyID,
-		TypeID:         1,
-		LastName:       req.LastName,
-		FirstName:      req.FirstName,
-		MiddleName:     req.MiddleName,
-		Position:       req.Position,
-		Email:          req.Email,
-		Phone:          req.Phone,
-	}
-	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
-		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
-			return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
-		}
-		slog.Error("registration failed", "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Registration failed")
-	}
-	return nil
-}
 
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error) {
