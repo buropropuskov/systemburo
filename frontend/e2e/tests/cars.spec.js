@@ -46,57 +46,51 @@ test.describe('Cars View', () => {
     }
   });
 
-  // TODO: селектор .base-modal устарел, модалка открывается с другим классом.
-  // Возвращаем после аудита Vue-компонентов CarsView/BaseModal.
-  test.skip('add car button opens modal', async ({ page }) => {
+  test('add car button opens modal', async ({ page }) => {
     const username = `e2e_cars_add_${Date.now()}`;
     await loginAsUser(page, username);
 
     const carsPage = new CarsPage(page);
     await carsPage.goto();
 
-    const addBtn = page.getByRole('button', { name: 'Добавить' });
-    await addBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    await carsPage.addButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
-    if (await addBtn.isVisible()) {
-      await addBtn.click();
-      await expect(page.locator('.base-modal')).toBeVisible();
+    if (await carsPage.addButton.isVisible()) {
+      await carsPage.addButton.click();
+      await expect(carsPage.modal).toBeVisible();
     }
   });
 
-  test.skip('car modal has format dropdown', async ({ page }) => {
+  test('car modal has format dropdown', async ({ page }) => {
     const username = `e2e_cars_format_${Date.now()}`;
     await loginAsUser(page, username);
 
     const carsPage = new CarsPage(page);
     await carsPage.goto();
 
-    const addBtn = page.getByRole('button', { name: 'Добавить' });
-    await addBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    await carsPage.addButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
-    if (await addBtn.isVisible()) {
-      await addBtn.click();
-      await expect(page.locator('.base-modal')).toBeVisible();
-      const formatDropdown = page.locator('.format__dropdown .dropdown__button');
-      await expect(formatDropdown).toBeVisible();
+    if (await carsPage.addButton.isVisible()) {
+      await carsPage.addButton.click();
+      await expect(carsPage.modal).toBeVisible();
+      await expect(carsPage.formatDropdown).toBeVisible();
     }
   });
 
-  test.skip('car modal close button works', async ({ page }) => {
+  test('car modal close button works', async ({ page }) => {
     const username = `e2e_cars_close_${Date.now()}`;
     await loginAsUser(page, username);
 
     const carsPage = new CarsPage(page);
     await carsPage.goto();
 
-    const addBtn = page.getByRole('button', { name: 'Добавить' });
-    await addBtn.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    await carsPage.addButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
-    if (await addBtn.isVisible()) {
-      await addBtn.click();
-      await expect(page.locator('.base-modal')).toBeVisible();
+    if (await carsPage.addButton.isVisible()) {
+      await carsPage.addButton.click();
+      await expect(carsPage.modal).toBeVisible();
       await carsPage.modalCloseButton.click();
-      await expect(page.locator('.base-modal')).not.toBeVisible();
+      await expect(carsPage.modal).not.toBeVisible();
     }
   });
 

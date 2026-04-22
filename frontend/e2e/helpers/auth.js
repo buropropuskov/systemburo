@@ -1,6 +1,9 @@
 const { LoginPage } = require('../pages/LoginPage');
 
-const API_BASE = 'http://localhost:8080';
+// /api префикс для backend (router.Setup использует api := e.Group("/api")).
+// Для e2e хелпера зовём через абсолютный URL на localhost:8080 (docker compose dev);
+// в CI и staging тесты идут через playwright baseURL + /api относительно.
+const API_BASE = 'http://localhost:8080/api';
 
 // Сеид-пользователи создаются cmd/seed (с SEED_E2E_USERS=true в CI).
 const SEED_ADMIN = { username: 'e2e_admin', password: 'testpass123' };

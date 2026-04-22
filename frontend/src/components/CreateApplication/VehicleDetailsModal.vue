@@ -128,8 +128,7 @@
                                 </div>
                                 <div class="section-body">
                                     <div v-if="loadingHistory" class="loading-container">
-                                        <div class="loader"></div>
-                                        <span>Загрузка истории...</span>
+                                        <LoaderSpinner label="Загрузка истории…" />
                                     </div>
                                     
                                     <div v-else-if="entryExitHistory.length === 0" class="no-history">
@@ -205,6 +204,7 @@
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
@@ -212,7 +212,8 @@ export default {
     name: 'VehicleDetailsModal',
     components: {
         UnloadPlaceModal,
-        CarHistoryModal
+        CarHistoryModal,
+        LoaderSpinner
     },
     setup(_, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));

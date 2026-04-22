@@ -3,7 +3,7 @@
         <div class="confirmation-header">
             <h4>Согласование заявки</h4>
             <div v-if="updatingConfirmation" class="confirmation-loading">
-                <div class="loader"></div>
+                <LoaderSpinner size="small" :label="''" />
             </div>
         </div>
         
@@ -62,8 +62,11 @@
 </template>
 
 <script>
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+
 export default {
     name: 'ApplicationConfirmation',
+    components: { LoaderSpinner },
     props: {
         application: {
             type: Object,
