@@ -1,651 +1,1138 @@
 <template>
-  <BaseModal
-    :show="show"
-    :title="`История: ${fullName}`"
-    width="800px"
-    @close="$emit('close')"
-  >
-    <div class="history-modal">
-      <!-- Фильтры -->
-      <div class="filter-panel">
-        <div class="filter-row">
-          <input
-            v-model="searchText"
-            type="text"
-            class="filter-input"
-            placeholder="Поиск по действию, пользователю..."
-          />
-          <select v-model="filterUser" class="filter-select">
-            <option value="">Все пользователи</option>
-            <option v-for="user in uniqueUsers" :key="user.id" :value="user.id">
-              {{ user.name }}
-            </option>
-          </select>
-        </div>
-        <div class="filter-row">
-          <select v-model="filterPlace" class="filter-select">
-            <option value="">Все места</option>
-            <option v-for="place in uniquePlaces" :key="place.id" :value="place.id">
-              {{ place.name }}
-            </option>
-          </select>
-          <div class="date-range">
-            <input v-model="dateFrom" type="date" class="filter-date" />
-            <span class="date-separator">&mdash;</span>
-            <input v-model="dateTo" type="date" class="filter-date" />
-          </div>
-          <button class="sort-btn" @click="toggleSort">
-            {{ sortAsc ? 'Сначала старые' : 'Сначала новые' }}
+  <div class="modal-overlay" @click.self="close">
+    <div class="employee-history-modal">
+      <div class="modal-header">
+        <h3>История сотрудника {{ fullName }}</h3>
+        <div class="header-actions">
+          <button class="export-btn" @click="exportToExcel" :disabled="filteredHistory.length === 0 || isExporting">
+            <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
+            <span v-if="!isExporting">Экспорт</span>
+            <div v-else class="export-loader"></div>
           </button>
+          <button class="close-btn" @click="close">×</button>
         </div>
       </div>
 
-      <!-- Загрузка -->
-      <div v-if="loading" class="loading-state">Загрузка...</div>
-
-      <!-- Ошибка -->
-      <div v-else-if="error" class="error-state">{{ error }}</div>
-
-      <!-- Пустое состояние -->
-      <div v-else-if="filteredHistory.length === 0" class="empty-state">
-        История не найдена
+      <div class="history-filters">
+        <div class="filter-row">
+          <div class="search-filter">
+            <span class="filter-label">Поиск:</span>
+            <input 
+              type="text" 
+              v-model="searchQuery" 
+              class="search-input" 
+              placeholder="Поиск по пользователю, действию..."
+              @input="applyFilters"
+            />
+          </div>
+          <div class="user-filter">
+            <span class="filter-label">Пользователь:</span>
+            <div class="custom-select" @click="toggleUserDropdown">
+              <div class="select-trigger">
+                <span class="selected-value">{{ selectedUserName }}</span>
+                <img 
+                  src="@/assets/icons/arrow.png" 
+                  class="select-arrow" 
+                  :class="{ 'arrow-open': userDropdownOpen }"
+                />
+              </div>
+              <transition name="fade">
+                <div v-if="userDropdownOpen" class="select-dropdown">
+                  <div 
+                    class="select-option"
+                    :class="{ 'selected': selectedUserId === null }"
+                    @click="selectUser(null)"
+                  >
+                    Все пользователи
+                  </div>
+                  <div 
+                    v-for="user in uniqueUsers" 
+                    :key="user.id"
+                    class="select-option"
+                    :class="{ 'selected': selectedUserId === user.id }"
+                    @click="selectUser(user.id)"
+                  >
+                    {{ user.name }}
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+          
+          <div class="place-filter">
+            <span class="filter-label">Место прохода:</span>
+            <div class="custom-select" @click="togglePlaceDropdown">
+              <div class="select-trigger">
+                <span class="selected-value">{{ selectedPlaceName }}</span>
+                <img 
+                  src="@/assets/icons/arrow.png" 
+                  class="select-arrow" 
+                  :class="{ 'arrow-open': placeDropdownOpen }"
+                />
+              </div>
+              <transition name="fade">
+                <div v-if="placeDropdownOpen" class="select-dropdown">
+                  <div 
+                    class="select-option"
+                    :class="{ 'selected': selectedPlaceId === null }"
+                    @click="selectPlace(null)"
+                  >
+                    Все места
+                  </div>
+                  <div 
+                    v-for="place in uniquePlaces" 
+                    :key="place.id"
+                    class="select-option"
+                    :class="{ 'selected': selectedPlaceId === place.id }"
+                    @click="selectPlace(place.id)"
+                  >
+                    {{ place.name }}
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+          
+          <div class="date-filter">
+            <span class="filter-label">Период:</span>
+            <input 
+              type="date" 
+              v-model="dateFrom" 
+              class="date-input"
+              @change="applyFilters"
+            />
+            <span class="date-separator">—</span>
+            <input 
+              type="date" 
+              v-model="dateTo" 
+              class="date-input"
+              @change="applyFilters"
+            />
+          </div>
+          
+          <div class="sort-filter">
+            <span class="filter-label">Сортировка:</span>
+            <button class="sort-btn" @click="toggleSortOrder">
+              <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sort-asc': sortOrder === 'asc' }" />
+              <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Timeline -->
-      <div v-else class="timeline">
-        <div
-          v-for="item in filteredHistory"
-          :key="item.id"
-          class="timeline-item"
-        >
-          <div class="timeline-marker">
-            <span class="timeline-dot" :class="getDotClass(item.action)"></span>
-            <span class="timeline-line"></span>
-          </div>
-          <div class="timeline-content">
-            <div class="timeline-header">
-              <span class="timeline-action">{{ getActionLabel(item.action) }}</span>
-              <span class="timeline-date">{{ formatDate(item.created_at) }}</span>
+      <div class="modal-content" ref="scrollContainer">
+        <div v-if="loading" class="history-loading">
+          <div class="loader"></div>
+        </div>
+        
+        <div v-else-if="filteredHistory.length === 0" class="history-empty">
+          История пуста
+        </div>
+        
+        <div v-else class="history-timeline">
+          <div 
+            v-for="(item, index) in filteredHistory" 
+            :key="item.id" 
+            class="history-item"
+          >
+            <div class="timeline-dot" :class="getActionClass(item.action_type)"></div>
+            <div class="timeline-line" v-if="index < filteredHistory.length - 1"></div>
+            
+            <div class="history-content">
+              <div class="history-header">
+                <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+              </div>
+              
+              <div class="action-text">{{ getActionText(item) }}</div>
+              
+              <div class="action-comment" v-if="item.action_type === 'entry' || item.action_type === 'exit'">
+                {{ getActionComment(item) }}
+              </div>
+              
+              <div v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'" class="action-comment">
+                {{ item.comment }}
+              </div>
+              
+              <div v-if="item.old_value && item.new_value && item.old_value !== item.new_value" class="value-change">
+                <span class="old-value">{{ item.old_value }}</span>
+                <span class="arrow">→</span>
+                <span class="new-value">{{ item.new_value }}</span>
+              </div>
+              
+              <div v-if="item.field_name" class="field-name">
+                Поле: {{ item.field_name }}
+              </div>
+              <div v-if="item.table_name" class="place-name">
+                {{ item.table_name }}
+              </div>
             </div>
-            <div class="timeline-user">{{ item.user_name }}</div>
-            <div v-if="item.action === 'UPDATE' && item.field_name" class="timeline-changes">
-              <span class="field-name">{{ item.field_name }}:</span>
-              <span class="old-value">{{ item.old_value || '—' }}</span>
-              <span class="change-arrow">&rarr;</span>
-              <span class="new-value">{{ item.new_value || '—' }}</span>
-            </div>
-            <div v-if="item.comment" class="timeline-comment">{{ item.comment }}</div>
-            <div v-if="item.table_name" class="timeline-place">{{ item.table_name }}</div>
           </div>
         </div>
       </div>
     </div>
-
-    <template #actions>
-      <button class="btn btn--export" :disabled="filteredHistory.length === 0" @click="exportToExcel">
-        Экспорт
-      </button>
-      <button class="btn btn--secondary" @click="$emit('close')">Закрыть</button>
-    </template>
-  </BaseModal>
+  </div>
 </template>
 
 <script>
-import BaseModal from '@/components/ui/BaseModal.vue'
-import { apiRequest } from '@/api/client'
-import ExcelJS from 'exceljs'
-
-const actionLabels = {
-  entry: 'Вход на территорию',
-  exit: 'Выход с территории',
-  CREATE: 'Создание записи',
-  UPDATE: 'Обновление данных',
-  DELETE: 'Удаление',
-  TERRITORY_CHANGE: 'Изменение статуса территории',
-  DEACTIVATE: 'Деактивация',
-  ACTIVATE: 'Активация',
-  RESTORE: 'Восстановление',
-}
+import { apiRequest } from '@/api/client';
+import ExcelJS from 'exceljs';
 
 export default {
   name: 'EmployeeHistoryModal',
-  components: { BaseModal },
-
   props: {
-    show: { type: Boolean, default: false },
-    lastName: { type: String, default: '' },
-    firstName: { type: String, default: '' },
-    middleName: { type: String, default: '' },
-  },
-
-  emits: ['close'],
-
-  data() {
-    return {
-      history: [],
-      loading: false,
-      error: '',
-      searchText: '',
-      filterUser: '',
-      filterPlace: '',
-      dateFrom: '',
-      dateTo: '',
-      sortAsc: false,
+    lastName: {
+      type: String,
+      default: ''
+    },
+    firstName: {
+      type: String,
+      default: ''
+    },
+    middleName: {
+      type: String,
+      default: ''
+    },
+    currentUserId: {
+      type: Number,
+      default: null
+    },
+    currentUserName: {
+      type: String,
+      default: ''
     }
   },
-
+  data() {
+    return {
+      loading: false,
+      history: [],
+      sortOrder: 'desc',
+      searchQuery: '',
+      selectedUserId: null,
+      selectedPlaceId: null,
+      dateFrom: '',
+      dateTo: '',
+      userDropdownOpen: false,
+      placeDropdownOpen: false,
+      isExporting: false
+    };
+  },
   computed: {
     fullName() {
-      return [this.lastName, this.firstName, this.middleName].filter(Boolean).join(' ')
+      return [this.lastName, this.firstName, this.middleName].filter(Boolean).join(' ') || 'Сотрудник';
     },
-
     uniqueUsers() {
-      const map = new Map()
-      for (const item of this.history) {
-        if (item.user_id && !map.has(item.user_id)) {
-          map.set(item.user_id, { id: item.user_id, name: item.user_name })
+      const users = new Map();
+      this.history.forEach(item => {
+        if (item.user_id && !users.has(item.user_id)) {
+          users.set(item.user_id, {
+            id: item.user_id,
+            name: item.user_name || 'Система'
+          });
         }
-      }
-      return Array.from(map.values())
+      });
+      return Array.from(users.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
-
     uniquePlaces() {
-      const map = new Map()
-      for (const item of this.history) {
-        if (item.table_id && !map.has(item.table_id)) {
-          map.set(item.table_id, { id: item.table_id, name: item.table_name })
+      const places = new Map();
+      this.history.forEach(item => {
+        if (item.table_id && !places.has(item.table_id)) {
+          places.set(item.table_id, {
+            id: item.table_id,
+            name: item.table_name || `ID: ${item.table_id}`
+          });
         }
-      }
-      return Array.from(map.values())
+      });
+      return Array.from(places.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
-
+    selectedUserName() {
+      if (this.selectedUserId === null) return 'Все пользователи';
+      const user = this.uniqueUsers.find(u => u.id === this.selectedUserId);
+      return user ? user.name : 'Все пользователи';
+    },
+    selectedPlaceName() {
+      if (this.selectedPlaceId === null) return 'Все места';
+      const place = this.uniquePlaces.find(p => p.id === this.selectedPlaceId);
+      return place ? place.name : 'Все места';
+    },
     filteredHistory() {
-      let result = [...this.history]
-
-      if (this.searchText) {
-        const q = this.searchText.toLowerCase()
-        result = result.filter((item) => {
-          const label = this.getActionLabel(item.action).toLowerCase()
-          return (
-            (item.user_name && item.user_name.toLowerCase().includes(q)) ||
-            label.includes(q) ||
-            (item.comment && item.comment.toLowerCase().includes(q)) ||
-            (item.field_name && item.field_name.toLowerCase().includes(q)) ||
-            (item.old_value && item.old_value.toLowerCase().includes(q)) ||
-            (item.new_value && item.new_value.toLowerCase().includes(q))
-          )
-        })
+      let filtered = [...this.history];
+      
+      if (this.searchQuery && this.searchQuery.trim() !== '') {
+        const query = this.searchQuery.toLowerCase().trim();
+        filtered = filtered.filter(item => {
+          const userName = (item.user_name || '').toLowerCase();
+          const actionText = this.getActionText(item).toLowerCase();
+          const comment = (item.comment || '').toLowerCase();
+          const fieldName = (item.field_name || '').toLowerCase();
+          
+          return userName.includes(query) || 
+                 actionText.includes(query) || 
+                 comment.includes(query) ||
+                 fieldName.includes(query);
+        });
       }
-
-      if (this.filterUser) {
-        result = result.filter((item) => item.user_id === this.filterUser)
+      
+      if (this.selectedUserId) {
+        filtered = filtered.filter(item => item.user_id === this.selectedUserId);
       }
-
-      if (this.filterPlace) {
-        result = result.filter((item) => item.table_id === this.filterPlace)
+      
+      if (this.selectedPlaceId) {
+        filtered = filtered.filter(item => item.table_id === this.selectedPlaceId);
       }
-
+      
       if (this.dateFrom) {
-        const from = new Date(this.dateFrom)
-        from.setHours(0, 0, 0, 0)
-        result = result.filter((item) => new Date(item.created_at) >= from)
+        const fromDate = new Date(this.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filtered = filtered.filter(item => new Date(item.created_at) >= fromDate);
       }
-
+      
       if (this.dateTo) {
-        const to = new Date(this.dateTo)
-        to.setHours(23, 59, 59, 999)
-        result = result.filter((item) => new Date(item.created_at) <= to)
+        const toDate = new Date(this.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(item => new Date(item.created_at) <= toDate);
       }
-
-      result.sort((a, b) => {
-        const diff = new Date(a.created_at) - new Date(b.created_at)
-        return this.sortAsc ? diff : -diff
-      })
-
-      return result
+      
+      filtered = filtered.filter(item => {
+        if (item.old_value === 'approved' && item.new_value === 'pending') return false;
+        if (item.old_value === 'rejected' && item.new_value === 'pending') return false;
+        if (item.old_value && item.new_value && item.old_value === item.new_value) return false;
+        return true;
+      });
+      
+      return filtered.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+      });
     },
-  },
-
-  watch: {
-    show(val) {
-      if (val) {
-        this.fetchHistory()
-      } else {
-        this.resetFilters()
-      }
+    exportData() {
+      return this.filteredHistory.map(item => ({
+        'Дата и время': this.formatDateTime(item.created_at),
+        'Пользователь': item.user_name || 'Система',
+        'Действие': this.getActionText(item),
+        'Комментарий': item.comment || '',
+        'Тип действия': item.action_type,
+        'Старое значение': item.old_value || '',
+        'Новое значение': item.new_value || '',
+        'Поле': item.field_name || '',
+        'ID сотрудника': item.employee_id,
+        'Место': item.table_name || ''
+      }));
     },
-  },
-
-  methods: {
-    async fetchHistory() {
-      this.loading = true
-      this.error = ''
-      this.history = []
-
-      try {
-        const params = new URLSearchParams()
-        if (this.lastName) params.set('last_name', this.lastName)
-        if (this.firstName) params.set('first_name', this.firstName)
-        if (this.middleName) params.set('middle_name', this.middleName)
-
-        const response = await apiRequest(`/employees/history/unified?${params.toString()}`)
-        if (!response.ok) {
-          const err = await response.json()
-          throw new Error(err.message || 'Ошибка загрузки истории')
-        }
-        const data = await response.json()
-        this.history = Array.isArray(data) ? data : []
-      } catch (err) {
-        this.error = err.message || 'Не удалось загрузить историю'
-      } finally {
-        this.loading = false
-      }
-    },
-
-    resetFilters() {
-      this.searchText = ''
-      this.filterUser = ''
-      this.filterPlace = ''
-      this.dateFrom = ''
-      this.dateTo = ''
-      this.sortAsc = false
-    },
-
-    toggleSort() {
-      this.sortAsc = !this.sortAsc
-    },
-
-    getActionLabel(action) {
-      return actionLabels[action] || action
-    },
-
-    getDotClass(action) {
-      const map = {
-        entry: 'dot--entry',
-        exit: 'dot--exit',
-        CREATE: 'dot--create',
-        UPDATE: 'dot--update',
-        DELETE: 'dot--delete',
-        ACTIVATE: 'dot--activate',
-        DEACTIVATE: 'dot--deactivate',
-        RESTORE: 'dot--restore',
-        TERRITORY_CHANGE: 'dot--update',
-      }
-      return map[action] || 'dot--default'
-    },
-
-    formatDate(dateStr) {
-      if (!dateStr) return ''
-      return new Date(dateStr).toLocaleString('ru-RU', {
+    formattedCurrentDateTime() {
+      const now = new Date();
+      return now.toLocaleString('ru-RU', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      })
+        second: '2-digit'
+      }).replace(',', '');
+    },
+    currentUserDisplayName() {
+      if (!this.currentUserName) return 'Пользователь';
+      const parts = this.currentUserName.split(' ').filter(part => part && part !== 'null' && part !== 'undefined');
+      return parts.length > 0 ? parts.join(' ') : 'Пользователь';
+    },
+    safeFileName() {
+      return this.fullName.replace(/[\\/:"*?<>|]/g, '_').replace(/\s+/g, '_') || 'Sotrudnik';
+    }
+  },
+  methods: {
+    async loadHistory() {
+      this.loading = true;
+      try {
+        const params = new URLSearchParams();
+        params.append('last_name', this.lastName || '');
+        params.append('first_name', this.firstName || '');
+        if (this.middleName) params.append('middle_name', this.middleName);
+
+        const response = await apiRequest(`/employees/history/unified?${params.toString()}`, { method: "GET" });
+
+        if (response.ok) {
+          this.history = await response.json();
+        } else {
+          console.error('Ошибка загрузки истории:', response.status);
+        }
+      } catch (error) {
+        console.error("Error loading employee history:", error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    getActionClass(actionType) {
+      const classes = {
+        'create': 'dot-create',
+        'entry': 'dot-entry',
+        'exit': 'dot-exit',
+        'update': 'dot-update',
+        'delete': 'dot-delete',
+        'activate': 'dot-activate',
+        'deactivate': 'dot-deactivate',
+        'restore': 'dot-restore'
+      };
+      return classes[actionType] || 'dot-default';
+    },
+
+    getActionText(item) {
+      if (item.action_type === 'entry') {
+        return 'Проход на территорию';
+      } else if (item.action_type === 'exit') {
+        return 'Выход с территории';
+      }
+      
+      const texts = {
+        'create': 'Подана заявка на сотрудника',
+        'update': 'Данные обновлены',
+        'delete': 'Сотрудник удалён',
+        'activate': 'Сотрудник введён в работу',
+        'deactivate': 'Сотрудник выведен из работы',
+        'restore': 'Сотрудник восстановлен'
+      };
+      
+      let text = texts[item.action_type] || item.action_type;
+      
+      if (item.action_type === 'update' && item.field_name) {
+        text = `Изменено поле "${item.field_name}"`;
+      }
+      
+      return text;
+    },
+
+    getActionComment(item) {
+      const userName = item.user_name || 'Система';
+      const fullName = `${item.employee_last_name || ''} ${item.employee_first_name || ''} ${item.employee_middle_name || ''}`.trim() || this.fullName;
+      
+      switch (item.action_type) {
+        case 'entry':
+          return `Пользователь ${userName} отметил проход сотрудника ${fullName} на территорию`;
+        case 'exit':
+          return `Пользователь ${userName} отметил выход сотрудника ${fullName} с территории`;
+        case 'create':
+          return `Сотрудник ${fullName} создан`;
+        case 'activate':
+          return `Сотрудник ${fullName} введён в работу пользователем ${userName}`;
+        case 'deactivate':
+          return `Сотрудник ${fullName} выведен из работы пользователем ${userName}`;
+        case 'delete':
+          return `Сотрудник ${fullName} удалён пользователем ${userName}`;
+        case 'restore':
+          return `Сотрудник ${fullName} восстановлен пользователем ${userName}`;
+        case 'update':
+          if (item.field_name) {
+            const oldVal = item.old_value || 'пусто';
+            const newVal = item.new_value || 'пусто';
+            return `Пользователь ${userName} изменил поле "${item.field_name}" с "${oldVal}" на "${newVal}"`;
+          }
+          return `Пользователь ${userName} обновил данные сотрудника ${fullName}`;
+        default:
+          return item.comment || '';
+      }
+    },
+
+    formatDateTime(dateTimeString) {
+      if (!dateTimeString) return '';
+      const date = new Date(dateTimeString);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(',', '');
+    },
+
+    toggleSortOrder() {
+      this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+    },
+
+    toggleUserDropdown() {
+      this.userDropdownOpen = !this.userDropdownOpen;
+      this.placeDropdownOpen = false;
+    },
+
+    togglePlaceDropdown() {
+      this.placeDropdownOpen = !this.placeDropdownOpen;
+      this.userDropdownOpen = false;
+    },
+
+    selectUser(userId) {
+      this.selectedUserId = userId;
+      this.userDropdownOpen = false;
+    },
+
+    selectPlace(placeId) {
+      this.selectedPlaceId = placeId;
+      this.placeDropdownOpen = false;
+    },
+
+    applyFilters() {},
+
+    handleClickOutside(event) {
+      const selects = this.$el.querySelectorAll('.custom-select');
+      let clickedInside = false;
+      selects.forEach(select => {
+        if (select.contains(event.target)) clickedInside = true;
+      });
+      
+      if (!clickedInside) {
+        this.userDropdownOpen = false;
+        this.placeDropdownOpen = false;
+      }
     },
 
     async exportToExcel() {
-      const workbook = new ExcelJS.Workbook()
-      const sheet = workbook.addWorksheet('История')
-
-      sheet.columns = [
-        { header: 'Дата', key: 'date', width: 20 },
-        { header: 'Пользователь', key: 'user', width: 25 },
-        { header: 'Действие', key: 'action', width: 30 },
-        { header: 'Поле', key: 'field', width: 20 },
-        { header: 'Старое значение', key: 'oldValue', width: 25 },
-        { header: 'Новое значение', key: 'newValue', width: 25 },
-        { header: 'Комментарий', key: 'comment', width: 30 },
-        { header: 'Место', key: 'place', width: 25 },
-      ]
-
-      const headerRow = sheet.getRow(1)
-      headerRow.font = { bold: true }
-      headerRow.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE8EAF6' },
+      if (this.filteredHistory.length === 0) return;
+      
+      this.isExporting = true;
+      
+      try {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet(`Istoriya_${this.safeFileName}`);
+        
+        const headers = [
+          'Дата и время',
+          'Пользователь',
+          'Действие',
+          'Комментарий',
+          'Тип действия',
+          'Старое значение',
+          'Новое значение',
+          'Поле',
+          'ID сотрудника',
+          'Место'
+        ];
+        
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 25;
+        headerRow.eachCell((cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4F5BDF' }
+          };
+          cell.font = {
+            name: 'Verdana',
+            size: 11,
+            bold: true,
+            color: { argb: 'FFFFFFFF' }
+          };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+          };
+        });
+        
+        this.exportData.forEach((item, index) => {
+          const row = worksheet.addRow([
+            item['Дата и время'],
+            item['Пользователь'],
+            item['Действие'],
+            item['Комментарий'],
+            item['Тип действия'],
+            item['Старое значение'],
+            item['Новое значение'],
+            item['Поле'],
+            item['ID сотрудника'],
+            item['Место']
+          ]);
+          
+          row.height = 20;
+          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+          
+          row.eachCell((cell) => {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: fillColor }
+            };
+            cell.font = {
+              name: 'Verdana',
+              size: 9,
+              color: { argb: 'FF333333' }
+            };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+            };
+          });
+        });
+        
+        const lastDataRow = this.exportData.length;
+        
+        for (let row = 1; row <= lastDataRow + 1; row++) {
+          const rightCell = worksheet.getCell(row, 10);
+          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
+          const leftCell = worksheet.getCell(row, 1);
+          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        
+        for (let col = 1; col <= 10; col++) {
+          const topCell = worksheet.getCell(1, col);
+          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        
+        for (let col = 1; col <= 10; col++) {
+          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
+          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        
+        worksheet.addRow([]);
+        
+        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
+        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
+        
+        [infoRow1, infoRow2].forEach(row => {
+          row.eachCell((cell) => {
+            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+            };
+          });
+        });
+        
+        worksheet.columns = [
+          { width: 25 },
+          { width: 40 },
+          { width: 30 },
+          { width: 60 },
+          { width: 20 },
+          { width: 25 },
+          { width: 25 },
+          { width: 20 },
+          { width: 15 },
+          { width: 30 }
+        ];
+        
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        
+        a.download = `Istoriya_sotrudnika_${this.safeFileName}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
+        a.href = url;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+      } catch (error) {
+        console.error('Error exporting to Excel:', error);
+        alert('Ошибка при экспорте в Excel');
+      } finally {
+        this.isExporting = false;
       }
-
-      for (const item of this.filteredHistory) {
-        sheet.addRow({
-          date: this.formatDate(item.created_at),
-          user: item.user_name || '',
-          action: this.getActionLabel(item.action),
-          field: item.field_name || '',
-          oldValue: item.old_value || '',
-          newValue: item.new_value || '',
-          comment: item.comment || '',
-          place: item.table_name || '',
-        })
-      }
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `История_${this.fullName}.xlsx`
-      link.click()
-      URL.revokeObjectURL(url)
     },
+
+    close() {
+      this.$emit('close');
+    }
   },
-}
+  mounted() {
+    this.loadHistory();
+    document.addEventListener('click', this.handleClickOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
+  }
+};
 </script>
 
 <style scoped>
-.history-modal {
+/* Стили полностью совпадают с предыдущей версией, можно скопировать из EmployeeHistoryModal ранее */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-height: 55vh;
-}
-
-/* Фильтры */
-.filter-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 16px;
-  background: #fafafa;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.filter-row {
-  display: flex;
-  gap: 10px;
+  justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
+  z-index: 12000;
+  animation: fadeIn 0.2s ease-out;
 }
 
-.filter-input {
-  flex: 1;
-  min-width: 180px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--color-text);
-  background: #fff;
-  outline: none;
-  transition: border-color 0.2s;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.filter-input:focus {
-  border-color: var(--color-primary);
-}
-
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--color-text);
-  background: #fff;
-  outline: none;
-  min-width: 160px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.filter-select:focus {
-  border-color: var(--color-primary);
-}
-
-.date-range {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.filter-date {
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--color-text);
-  background: #fff;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.filter-date:focus {
-  border-color: var(--color-primary);
-}
-
-.date-separator {
-  color: #999;
-  font-size: 14px;
-}
-
-.sort-btn {
-  padding: 8px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  background: #fff;
-  color: var(--color-text);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-
-.sort-btn:hover {
-  background: var(--color-bg-hover);
-  border-color: var(--color-primary);
-}
-
-/* Состояния */
-.loading-state,
-.error-state,
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  font-size: 14px;
-  color: #999;
-}
-
-.error-state {
-  color: #f44336;
-}
-
-/* Timeline */
-.timeline {
+.employee-history-modal {
+  background: white;
+  border-radius: 30px;
+  width: 900px;
+  max-width: 95%;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  padding-right: 4px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.2s ease-out;
 }
 
-.timeline-item {
-  display: flex;
-  gap: 14px;
-  min-height: 60px;
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-.timeline-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex-shrink: 0;
-  width: 16px;
-}
-
-.timeline-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-
-.timeline-line {
-  width: 2px;
-  flex: 1;
-  background: var(--color-border);
-  min-height: 10px;
-}
-
-.timeline-item:last-child .timeline-line {
-  display: none;
-}
-
-/* Цвета точек */
-.dot--entry { background: #4caf50; }
-.dot--exit { background: #f44336; }
-.dot--create { background: #2196f3; }
-.dot--update { background: #ff9800; }
-.dot--delete { background: #9e9e9e; }
-.dot--activate,
-.dot--restore { background: #9c27b0; }
-.dot--deactivate { background: #795548; }
-.dot--default { background: #bdbdbd; }
-
-.timeline-content {
-  flex: 1;
-  padding-bottom: 16px;
-}
-
-.timeline-header {
+.modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  padding: 15px 25px;
+  border-bottom: 1px solid #e6e6e6;
 }
 
-.timeline-action {
-  font-size: 14px;
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
   font-weight: 600;
-  color: var(--color-text);
+  color: #333;
 }
 
-.timeline-date {
-  font-size: 12px;
-  color: #999;
-  white-space: nowrap;
-}
-
-.timeline-user {
-  font-size: 13px;
-  color: #666;
-  margin-top: 2px;
-}
-
-.timeline-changes {
-  margin-top: 6px;
-  padding: 8px 12px;
-  background: #f8f9fa;
-  border-radius: var(--radius-md);
-  font-size: 13px;
+.header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.field-name {
-  font-weight: 500;
-  color: #555;
-}
-
-.old-value {
-  color: #f44336;
-  text-decoration: line-through;
-}
-
-.change-arrow {
-  color: #999;
-}
-
-.new-value {
-  color: #4caf50;
-  font-weight: 500;
-}
-
-.timeline-comment {
-  margin-top: 4px;
+.export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
   font-size: 13px;
-  color: #888;
-  font-style: italic;
-}
-
-.timeline-place {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #aaa;
-}
-
-/* Кнопки */
-.btn {
-  padding: 10px 24px;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
+  color: #000;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  height: 32px;
 }
 
-.btn--export {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+.export-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
 }
 
-.btn--export:hover:not(:disabled) {
-  background: #c8e6c9;
-}
-
-.btn--export:disabled {
+.export-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn--secondary {
+.export-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.export-loader {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e6e6e6;
+  border-top: 2px solid #4F5BDF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #a2a2a2;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
   background: #f5f5f5;
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  color: #333;
 }
 
-.btn--secondary:hover {
-  background: var(--color-bg-hover);
+.history-filters {
+  padding: 15px 25px;
+  border-bottom: 1px solid #e6e6e6;
+  background-color: #fafafa;
 }
 
-@media (max-width: 640px) {
+.filter-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-filter,
+.user-filter,
+.place-filter,
+.date-filter,
+.sort-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 12px;
+  color: #a2a2a2;
+  white-space: nowrap;
+}
+
+.search-input {
+  padding: 6px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 12px;
+  width: 200px;
+  height: 32px;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+.custom-select {
+  position: relative;
+  width: 200px;
+  cursor: pointer;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  height: 32px;
+}
+
+.select-trigger:hover {
+  border-color: #4F5BDF;
+  background: #f5f5f5;
+}
+
+.selected-value {
+  font-size: 12px;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.select-arrow {
+  width: 8px;
+  height: 8px;
+  transition: transform 0.2s ease;
+}
+
+.select-arrow.arrow-open {
+  transform: rotate(90deg);
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.select-dropdown::-webkit-scrollbar {
+  width: 0px;
+}
+
+.select-option {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.select-option:last-child {
+  border-bottom: none;
+}
+
+.select-option:hover {
+  background-color: #f5f5f5;
+}
+
+.select-option.selected {
+  background-color: #f0f3ff;
+  font-weight: 500;
+}
+
+.date-input {
+  padding: 6px 8px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 12px;
+  width: 120px;
+  height: 32px;
+}
+
+.date-separator {
+  color: #a2a2a2;
+  font-size: 12px;
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 32px;
+  width: 150px;
+}
+
+.sort-btn:hover {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
+.sort-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.sort-icon.sort-asc {
+  transform: rotate(180deg);
+}
+
+.modal-content {
+  padding: 20px 25px;
+  overflow-y: auto;
+  max-height: calc(80vh - 180px);
+  position: relative;
+}
+
+.history-loading,
+.history-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #a2a2a2;
+}
+
+.loader {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #4F5BDF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.history-timeline {
+  position: relative;
+  padding-left: 20px;
+  min-height: 100px;
+}
+
+.history-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.history-item:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  z-index: 1;
+  position: relative;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 4px;
+  top: 18px;
+  width: 2px;
+  height: calc(100% + 2px);
+  background: #e6e6e6;
+}
+
+.dot-create { background: #4F5BDF; }
+.dot-entry { background: #059669; }
+.dot-exit { background: #dc2626; }
+.dot-update { background: #f59e0b; }
+.dot-delete { background: #6b7280; }
+.dot-activate { background: #10b981; }
+.dot-deactivate { background: #9ca3af; }
+.dot-default { background: #9ca3af; }
+
+.history-content {
+  flex: 1;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 13px;
+}
+
+.action-time {
+  color: #a2a2a2;
+  font-size: 11px;
+}
+
+.action-text {
+  color: #666;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.action-comment {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid #e6e6e6;
+}
+
+.place-name {
+  font-size: 11px;
+  color: #4F5BDF;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.value-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  background: #f9f9f9;
+  padding: 3px 8px;
+  border-radius: 16px;
+  display: inline-flex;
+  margin-top: 4px;
+}
+
+.old-value {
+  color: #dc2626;
+  text-decoration: line-through;
+  font-size: 11px;
+}
+
+.arrow {
+  color: #a2a2a2;
+  font-size: 10px;
+}
+
+.new-value {
+  color: #059669;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.field-name {
+  font-size: 11px;
+  color: #8b5cf6;
+  margin-top: 2px;
+}
+
+@media (max-width: 768px) {
   .filter-row {
     flex-direction: column;
+    align-items: flex-start;
   }
-
-  .filter-input,
-  .filter-select {
+  
+  .search-filter,
+  .user-filter,
+  .place-filter,
+  .date-filter,
+  .sort-filter {
     width: 100%;
-    min-width: unset;
   }
-
-  .date-range {
-    width: 100%;
-  }
-
-  .filter-date {
-    flex: 1;
-  }
-
+  
+  .custom-select,
+  .search-input,
+  .date-input,
   .sort-btn {
     width: 100%;
   }
-
-  .timeline-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .timeline-changes {
-    flex-direction: column;
-    align-items: flex-start;
+  
+  .date-input {
+    width: calc(50% - 20px);
   }
 }
 </style>
