@@ -1,6 +1,6 @@
 <template>
-  <div class="modal-overlay" @click.self="close">
-    <div class="car-history-modal">
+  <div class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
+    <div class="car-history-modal" @mousedown.stop>
       <div class="modal-header">
         <h3>История автомобиля {{ carNumber }}</h3>
         <div class="header-actions">
@@ -143,10 +143,15 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'CarHistoryModal',
+  setup(_, { emit }) {
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+    return { onOverlayMousedown, onOverlayMouseup };
+  },
   props: {
     carId: {
       type: Number,
