@@ -103,8 +103,7 @@
 
                         <!-- Состояния загрузки/пусто -->
                         <div v-if="loadingCars" class="loading-state">
-                            <div class="spinner"></div>
-                            <span>Загрузка машин...</span>
+                            <LoaderSpinner label="Загрузка машин…" />
                         </div>
                         <div v-else-if="displayedCars.length === 0" class="empty-state">
                             {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
@@ -133,11 +132,13 @@
 <script>
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 
 export default {
     name: 'ExistingCarsModal',
     components: {
-        SearchComponent
+        SearchComponent,
+        LoaderSpinner
     },
     props: {
         visible: {

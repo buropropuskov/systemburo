@@ -101,8 +101,7 @@
           <!-- Тело таблицы -->
           <div class="applications-body">
             <div v-if="isLoading" class="loading-message">
-              <div class="loader"></div>
-              <p>Загрузка заявок...</p>
+              <LoaderSpinner label="Загрузка заявок…" />
             </div>
             
             <template v-else>
@@ -178,12 +177,14 @@ import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
 
 export default {
   components: {
     RefreshButton,
     SearchComponent,
-    ApplicationDetail
+    ApplicationDetail,
+    LoaderSpinner
   },
   props: {
     userOrganizationId: {
