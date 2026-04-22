@@ -312,6 +312,7 @@ export default {
             sortDirection: 'desc',
             shouldShake: false,
             shakeInterval: null,
+            applicationsPollInterval: null,
             isInitialLoad: true,
             
             // Дата - теперь поддерживаем и одиночную дату, и диапазон
@@ -908,7 +909,16 @@ export default {
         this.fetchOrganizations();
         this.fetchApplications();
         this.getCurrentUser();
-        
+
+        // Динамическое обновление списка заявок - статусы/confirmations
+        // могут меняться из других сессий (согласование, взятие в работу, завершение).
+        // Polling 30s достаточен для UX без overkill.
+        this.applicationsPollInterval = setInterval(() => {
+            if (!this.isInitialLoad) {
+                this.fetchApplications();
+            }
+        }, 30000);
+
         setTimeout(() => {
             this.isInitialLoad = false;
         }, 1000);
@@ -916,6 +926,9 @@ export default {
     beforeUnmount() {
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
+        }
+        if (this.applicationsPollInterval) {
+            clearInterval(this.applicationsPollInterval);
         }
     }
 }
