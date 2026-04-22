@@ -255,7 +255,7 @@ export default {
 /* Стили для строк */
 .first-row {
   display: flex;
-  gap: 15px;
+  gap: 30px;
   margin-bottom: 15px;
 }
 
