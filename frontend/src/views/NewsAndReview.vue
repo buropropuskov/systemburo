@@ -15,8 +15,7 @@
           <div class="news-list">
             <!-- Лоадер -->
             <div v-if="loadingNews" class="loading-message">
-              <div class="loader"></div>
-              <p>Загрузка новостей...</p>
+              <LoaderSpinner label="Загрузка новостей…" />
             </div>
             <!-- Новости -->
             <div v-else-if="newsItems.length > 0" class="news-items">
@@ -244,12 +243,14 @@
 import { apiRequest } from '@/api/client'
 import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 
 export default {
   name: 'LatestNews',
-  components: { 
+  components: {
     RefreshButton,
-    AnnouncementModal
+    AnnouncementModal,
+    LoaderSpinner
   },
   data() {
     return {

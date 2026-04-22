@@ -86,8 +86,7 @@
             </div>
             
             <div v-if="loadingHistory" class="loading-container">
-              <div class="loader"></div>
-              <span>Загрузка истории...</span>
+              <LoaderSpinner label="Загрузка истории…" />
             </div>
             
             <div v-else-if="history.length === 0" class="no-history">
@@ -266,10 +265,12 @@
 <script>
 import { apiRequest } from '@/api/client'
 import CarHistoryModal from './CarHistoryModal.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
 export default {
+    components: { LoaderSpinner },
     setup(_, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         return { onOverlayMousedown, onOverlayMouseup };

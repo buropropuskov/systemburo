@@ -61,8 +61,7 @@
       
       <div class="items-container">
         <div v-if="isLoading" class="loading-message">
-          <div class="loader"></div>
-          <p>Загрузка сотрудников...</p>
+          <LoaderSpinner label="Загрузка сотрудников…" />
         </div>
         
         <div v-else-if="displayItems.length > 0" class="items-body">
@@ -120,12 +119,14 @@
 import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 
 export default {
   name: 'PeopleTable',
   components: {
     RefreshButton,
-    EmployeesTableHistoryModal
+    EmployeesTableHistoryModal,
+    LoaderSpinner
   },
   props: {
     tableName: {

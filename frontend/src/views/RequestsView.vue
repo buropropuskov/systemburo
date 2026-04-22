@@ -333,7 +333,7 @@
     </div>
 
     <div v-if="isLoading" class="loading-overlay">
-      <div class="spinner"></div>
+      <LoaderSpinner size="large" :label="''" />
     </div>
   </div>
 </template>
@@ -342,12 +342,14 @@
 import { apiRequest, apiRequestRaw } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import RealTimeChart from '@/components/RealTimeChart.vue'
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 
 export default {
   name: 'RequestsView',
   components: {
     SearchComponent,
-    RealTimeChart
+    RealTimeChart,
+    LoaderSpinner
   },
   data() {
     return {

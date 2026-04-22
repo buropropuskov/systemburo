@@ -68,8 +68,7 @@
       
       <div class="items-container">
         <div v-if="isLoading" class="loading-message">
-          <div class="loader"></div>
-          <p>Загрузка машин...</p>
+          <LoaderSpinner label="Загрузка машин…" />
         </div>
         
         <div v-else-if="displayItems.length > 0" class="items-body">
@@ -160,13 +159,15 @@ import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 
 export default {
   name: 'CarsTable',
   components: {
     RefreshButton,
     VehicleDetailsModal,
-    CarsTableHistoryModal
+    CarsTableHistoryModal,
+    LoaderSpinner
   },
   props: {
     tableName: { type: String, default: '' },
