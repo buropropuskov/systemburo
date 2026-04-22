@@ -6,9 +6,9 @@ type User struct {
 	ID             int          `json:"id"`
 	Username       string       `gorm:"uniqueIndex;size:100" json:"username"`
 	Password       string       `gorm:"size:255" json:"-"`
-	OrganizationID int          `json:"organization_id"`
+	OrganizationID *int         `json:"organization_id"`
 	Organization   Organization `json:"organization,omitempty"`
-	CompanyID      int          `json:"company_id"`
+	CompanyID      *int         `json:"company_id"`
 	Company        Company      `json:"company,omitempty"`
 	TypeID         int          `gorm:"default:1" json:"type_id"`
 	UserType       UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`

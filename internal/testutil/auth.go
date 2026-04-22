@@ -13,6 +13,15 @@ import (
 
 const adminPassword = "adminpass_long_enough_for_32chars!"
 
+// intPtrOrZero возвращает указатель на v или nil если v <= 0.
+// Дублирует services.intPtrOrNil чтобы избежать циклических импортов.
+func intPtrOrZero(v int) *int {
+	if v <= 0 {
+		return nil
+	}
+	return &v
+}
+
 // AuthHeader returns an Authorization header with the given Bearer token.
 func AuthHeader(token string) http.Header {
 	h := http.Header{}
@@ -26,8 +35,8 @@ func RegisterUser(t *testing.T, e *echo.Echo, username, password string, typeID,
 	user := models.User{
 		Username:       username,
 		Password:       hashTestPassword(password),
-		OrganizationID: orgID,
-		CompanyID:      companyID,
+		OrganizationID: intPtrOrZero(orgID),
+		CompanyID:      intPtrOrZero(companyID),
 		TypeID:         typeID,
 	}
 	err := cachedDB.Create(&user).Error
@@ -73,8 +82,8 @@ func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgI
 	user := models.User{
 		Username:       username,
 		Password:       hashTestPassword(adminPassword),
-		OrganizationID: orgID,
-		CompanyID:      companyID,
+		OrganizationID: intPtrOrZero(orgID),
+		CompanyID:      intPtrOrZero(companyID),
 		TypeID:         typeID,
 	}
 	err := cachedDB.Create(&user).Error

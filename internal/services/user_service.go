@@ -76,8 +76,8 @@ func (s *userService) Create(ctx context.Context, callerTypeID int, req models.R
 	user := models.User{
 		Username:       req.Username,
 		Password:       hashPassword(req.Password),
-		OrganizationID: req.OrganizationID,
-		CompanyID:      req.CompanyID,
+		OrganizationID: intPtrOrNil(req.OrganizationID),
+		CompanyID:      intPtrOrNil(req.CompanyID),
 		TypeID:         req.TypeID,
 		LastName:       req.LastName,
 		FirstName:      req.FirstName,
