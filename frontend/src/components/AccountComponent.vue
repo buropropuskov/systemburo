@@ -259,6 +259,17 @@ export default {
   margin-bottom: 15px;
 }
 
+/* SkeletonTransition оборачивает детей в div — раскладываем его в flex row
+   чтобы UserProfileHeader и UserNotificationsInline были side-by-side */
+.first-row > div {
+  display: flex;
+  flex-direction: row;
+  gap: 30px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
 .dashboard-row {
  padding: 15px 0;
 }
@@ -315,7 +326,11 @@ export default {
   .first-row {
     flex-direction: column;
   }
-  
+
+  .first-row > div {
+    flex-direction: column;
+  }
+
   .settings {
     width: 100%;
   }
