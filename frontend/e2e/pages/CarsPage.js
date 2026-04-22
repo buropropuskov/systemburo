@@ -2,7 +2,10 @@ class CarsPage {
   constructor(page) {
     this.page = page;
     this.root = page.getByTestId('cars-page');
-    this.modalCloseButton = page.getByTestId('modal-button-close');
+    this.addButton = page.getByTestId('cars-view-add-button');
+    this.modal = page.getByTestId('cars-view-modal');
+    this.modalCloseButton = page.getByTestId('cars-view-modal-close');
+    this.formatDropdown = page.getByTestId('cars-view-format-dropdown');
   }
 
   async goto() {

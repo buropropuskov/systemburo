@@ -71,8 +71,9 @@
                         </h3>
                     </div>
                     <div class="card-header__settings">
-                        <button 
-                            class="add-button" 
+                        <button
+                            class="add-button"
+                            data-testid="cars-view-add-button"
                             @click="showAddCarModal"
                             v-if="currentFilter !== 'all_system'"
                         >
@@ -239,7 +240,7 @@
         </div>
 
         <!-- Модальное окно добавления машины -->
-        <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" @click="closeModal">
+        <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" data-testid="cars-view-modal" @click="closeModal">
             <div class="modal-content" @click.stop>
                 <div class="modal-header">
                     <div class="modal-header__top">
@@ -248,7 +249,7 @@
                             {{ notification.message }}
                         </div>
                     </div>
-                    <button class="modal-close" @click="closeModal">×</button>
+                    <button class="modal-close" data-testid="cars-view-modal-close" @click="closeModal">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="data__completion">
@@ -260,7 +261,7 @@
                                 </button>
                             </div>
                             <div class="format__dropdown">
-                                <button class="dropdown__button" @click="toggleFormatDropdown">
+                                <button class="dropdown__button" data-testid="cars-view-format-dropdown" @click="toggleFormatDropdown">
                                     <div class="button__content">
                                         <span class="button__text">{{ selectedFormatText }}</span>
                                         <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isFormatDropdownOpen }" />
