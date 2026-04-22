@@ -1,11 +1,12 @@
 <template>
     <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @click.self="close">
+        <div v-if="show" class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
             <div class="modal-wrapper">
                 <!-- Основное модальное окно с деталями ТС -->
-                <div 
+                <div
                     class="modal-content compact-modal main-modal"
                     :class="{ 'shifted': isMainShifted }"
+                    @mousedown.stop
                 >
                     <div class="modal-header">
                         <h3 class="modal-title">{{ modalTitle }}</h3>
@@ -204,6 +205,7 @@
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
 export default {
@@ -211,6 +213,10 @@ export default {
     components: {
         UnloadPlaceModal,
         CarHistoryModal
+    },
+    setup(_, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+        return { onOverlayMousedown, onOverlayMouseup };
     },
     props: {
         show: {

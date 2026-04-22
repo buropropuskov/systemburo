@@ -1,11 +1,12 @@
 <template>
     <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @click.self="close">
+        <div v-if="show" class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
             <div class="modal-wrapper">
                 <!-- Основное модальное окно с деталями сотрудника -->
-                <div 
+                <div
                     class="modal-content compact-modal main-modal"
                     :class="{ 'shifted': isMainShifted }"
+                    @mousedown.stop
                 >
                     <div class="modal-header">
                         <h3 class="modal-title">Детальная информация о сотруднике</h3>
@@ -150,10 +151,15 @@
 <script>
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 
 export default {
     name: 'EmployeeDetailsModal',
     components: { TableInfoModal, EmployeeHistoryModal },
+    setup(_, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+        return { onOverlayMousedown, onOverlayMouseup };
+    },
     props: {
         show: {
             type: Boolean,

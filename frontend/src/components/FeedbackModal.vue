@@ -1,15 +1,17 @@
 <template>
   <teleport to="body">
     <transition name="modal-overlay" @after-leave="handleAfterLeave">
-      <div 
-        v-if="show" 
-        class="modal-overlay" 
-        @click.self="handleOverlayClick"
+      <div
+        v-if="show"
+        class="modal-overlay"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
         <transition name="modal" @after-leave="emitClose">
-          <div 
-            v-if="showContent" 
+          <div
+            v-if="showContent"
             class="modal"
+            @mousedown.stop
           >
             <div class="modal__header">
               <h3 class="modal__title">Сообщить о проблеме</h3>
@@ -129,6 +131,7 @@ export default {
       escListener: null,
       savedMessage: '',
       shouldSaveOnClose: true,
+      overlayMousedown: false,
       notification: {
         show: false,
         message: '',
@@ -256,11 +259,17 @@ export default {
       document.body.style.overflow = '';
     },
     
-    handleOverlayClick() {
-      if (!this.isSubmitting) {
-        this.saveMessage();
-        this.closeModal();
-      }
+    onOverlayMousedown(e) {
+      this.overlayMousedown = e.target === e.currentTarget;
+    },
+
+    onOverlayMouseup(e) {
+      const started = this.overlayMousedown;
+      this.overlayMousedown = false;
+      if (!started || e.target !== e.currentTarget) return;
+      if (this.isSubmitting) return;
+      this.saveMessage();
+      this.closeModal();
     },
     
     handleEnterKey(event) {
