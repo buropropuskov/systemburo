@@ -8,18 +8,22 @@ import (
 )
 
 func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, jwtSecret []byte) {
-	// Health check
+	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
 	})
 
+	// Все API-роуты под префиксом /api — разделяет API и SPA-роуты (/news, /center
+	// и т.д. в Vue router). Nginx проксирует /api/ на backend, остальное — на frontend.
+	api := e.Group("/api")
+
 	// Public routes
-	e.POST("/login", auth.Login)
-	e.POST("/refresh-token", auth.RefreshToken)
-	e.GET("/user-types", auth.GetUserTypes)
+	api.POST("/login", auth.Login)
+	api.POST("/refresh-token", auth.RefreshToken)
+	api.GET("/user-types", auth.GetUserTypes)
 
 	// Protected routes
-	protected := e.Group("")
+	protected := api.Group("")
 	protected.Use(mw.JWTAuth(jwtSecret))
 
 	protected.POST("/logout", auth.Logout)

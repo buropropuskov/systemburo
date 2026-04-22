@@ -36,10 +36,10 @@ describe('apiRequest basics', () => {
     vi.restoreAllMocks();
   });
 
-  it('calls fetch with the correct URL', async () => {
+  it('calls fetch with the correct URL (with /api prefix)', async () => {
     await apiRequest('/health');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('/health');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/health');
   });
 
   it('adds Authorization header when token exists in store', async () => {
@@ -126,9 +126,9 @@ describe('401 auto-refresh', () => {
     const resp = await apiRequest('/users/me');
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0][0]).toBe('/users/me');
-    expect(fetchMock.mock.calls[1][0]).toBe('/refresh-token');
-    expect(fetchMock.mock.calls[2][0]).toBe('/users/me');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/users/me');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/refresh-token');
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/users/me');
     expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('Bearer new-access');
     expect(await resp.json()).toEqual({ id: 42 });
 
@@ -177,7 +177,7 @@ describe('401 auto-refresh', () => {
 
     let refreshCalls = 0;
     fetchMock.mockImplementation(async (url) => {
-      if (url === '/refresh-token') {
+      if (url === '/api/refresh-token') {
         refreshCalls++;
         await new Promise((r) => setTimeout(r, 10));
         return ok({ token: 'new-access', refreshToken: 'new-refresh' });
