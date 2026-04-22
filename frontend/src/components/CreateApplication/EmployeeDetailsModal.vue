@@ -1,18 +1,24 @@
 <template>
     <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
+        <div v-if="show" class="modal-overlay" @click.self="close">
             <div class="modal-wrapper">
                 <!-- Основное модальное окно с деталями сотрудника -->
-                <div
+                <div 
                     class="modal-content compact-modal main-modal"
                     :class="{ 'shifted': isMainShifted }"
-                    @mousedown.stop
                 >
                     <div class="modal-header">
-                        <h3 class="modal-title">Детальная информация о сотруднике</h3>
+                        <h3 class="modal-title">{{ modalTitle }}</h3>
                         <div class="header-actions">
-                            <button class="history-btn" @click="showHistory = true">
+                            <button class="history-btn" @click="openFullHistory">
                                 <span>Полная история</span>
+                            </button>
+                            <button 
+                                v-if="source !== 'application' && employee?.applicationId" 
+                                class="application-btn" 
+                                @click="openApplication"
+                            >
+                                <span>Открыть заявку</span>
                             </button>
                         </div>
                         <button @click="close" class="modal-close">
@@ -24,99 +30,185 @@
                     
                     <div class="modal-body">
                         <div class="employee-details" v-if="employee">
+                            <!-- Основная информация -->
                             <div class="details-section">
-                                <h4 class="section-title">Основная информация</h4>
-                                <div class="details-grid two-columns">
-                                    <div class="detail-item">
-                                        <label class="detail-label">Фамилия:</label>
-                                        <span class="detail-value">{{ employee.lastName || 'Не указано' }}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label class="detail-label">Имя:</label>
-                                        <span class="detail-value">{{ employee.firstName || 'Не указано' }}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label class="detail-label">Отчество:</label>
-                                        <span class="detail-value">{{ employee.middleName || 'Не указано' }}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label class="detail-label">Должность:</label>
-                                        <span class="detail-value">{{ employee.position || 'Не указана' }}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label class="detail-label">Гражданство:</label>
-                                        <span class="detail-value">{{ employee.citizenshipName || 'Не указано' }}</span>
-                                    </div>
+                                <div class="section-header">
+                                    <h4 class="section-title">Основная информация</h4>
                                 </div>
-                            </div>
-
-                            <div class="details-section">
-                                <h4 class="section-title">Документы</h4>
-                                <div class="details-grid two-columns">
-                                    <div class="detail-item">
-                                        <label class="detail-label">Серия и номер паспорта:</label>
-                                        <div class="sensitive-data">
-                                            <span 
-                                                class="data-text"
-                                                :class="{ 'hidden-data': !showFullPassport }"
-                                            >
-                                                {{ employee.passportSeriesNumber || 'Не указан' }}
-                                            </span>
-                                            <button 
-                                                v-if="employee.passportSeriesNumber"
-                                                @click="togglePassportVisibility"
-                                                class="show-more-btn"
-                                                :class="{ 'active': showFullPassport }"
-                                            >
-                                                {{ showFullPassport ? 'Скрыть' : 'Показать' }}
-                                            </button>
+                                <div class="section-body">
+                                    <div class="details-grid two-columns">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Фамилия:</span>
+                                            <span class="detail-value">{{ employee.last_name || 'Не указано' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Имя:</span>
+                                            <span class="detail-value">{{ employee.first_name || 'Не указано' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Отчество:</span>
+                                            <span class="detail-value">{{ employee.middle_name || '-' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Должность:</span>
+                                            <span class="detail-value">{{ employee.position || 'Не указана' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Гражданство:</span>
+                                            <span class="detail-value">{{ employee.citizenshipName || 'Не указано' }}</span>
+                                        </div>
+                                        <div class="detail-item" v-if="employee.organization">
+                                            <span class="detail-label">Организация:</span>
+                                            <span class="detail-value">{{ employee.organization }}</span>
+                                        </div>
+                                        <div class="detail-item" v-if="employee.company">
+                                            <span class="detail-label">Компания:</span>
+                                            <span class="detail-value">{{ employee.company }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Действует до:</span>
+                                            <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Время прохода:</span>
+                                            <span class="detail-value">{{ employee.pass_time || '-' }}</span>
                                         </div>
                                     </div>
-                                    <div v-if="employee.patentNumber" class="detail-item">
-                                        <label class="detail-label">Номер патента:</label>
-                                        <div class="sensitive-data">
-                                            <span 
-                                                class="data-text"
-                                                :class="{ 'hidden-data': !showFullPatent }"
-                                            >
-                                                {{ employee.patentNumber }}
-                                            </span>
-                                            <button 
-                                                @click="togglePatentVisibility"
-                                                class="show-more-btn"
-                                                :class="{ 'active': showFullPatent }"
-                                            >
-                                                {{ showFullPatent ? 'Скрыть' : 'Показать' }}
-                                            </button>
+                                </div>
+                            </div>
+
+                            <!-- Документы (чувствительные данные) -->
+                            <div class="details-section">
+                                <div class="section-header">
+                                    <h4 class="section-title">Документы</h4>
+                                </div>
+                                <div class="section-body">
+                                    <div class="details-grid two-columns">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Серия и номер паспорта:</span>
+                                            <div class="sensitive-data">
+                                                <span 
+                                                    class="data-text"
+                                                    :class="{ 'hidden-data': !showFullPassport }"
+                                                >
+                                                    {{ employee.passport_series_number || 'Не указан' }}
+                                                </span>
+                                                <button 
+                                                    v-if="employee.passport_series_number"
+                                                    @click="togglePassport"
+                                                    class="show-more-btn"
+                                                >
+                                                    {{ showFullPassport ? 'Скрыть' : 'Показать' }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div v-if="employee.patent_number" class="detail-item">
+                                            <span class="detail-label">Номер патента:</span>
+                                            <div class="sensitive-data">
+                                                <span 
+                                                    class="data-text"
+                                                    :class="{ 'hidden-data': !showFullPatent }"
+                                                >
+                                                    {{ employee.patent_number }}
+                                                </span>
+                                                <button 
+                                                    @click="togglePatent"
+                                                    class="show-more-btn"
+                                                >
+                                                    {{ showFullPatent ? 'Скрыть' : 'Показать' }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div v-if="employee.other_permission" class="detail-item full-width">
+                                            <span class="detail-label">Иное разрешение:</span>
+                                            <span class="detail-value">{{ employee.other_permission }}</span>
                                         </div>
                                     </div>
-                                    <div v-if="employee.otherPermission" class="detail-item full-width">
-                                        <label class="detail-label">Иное разрешение:</label>
-                                        <span class="detail-value">{{ employee.otherPermission }}</span>
-                                    </div>
                                 </div>
                             </div>
 
+                            <!-- Места прохода (таблицы) -->
                             <div class="details-section">
-                                <h4 class="section-title">Места прохода</h4>
-                                <div class="places-list">
-                                    <div 
-                                        v-for="tableId in employee.targetTables" 
-                                        :key="tableId"
-                                        class="place-item"
-                                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.table && selectedTable.table.id === tableId }"
-                                        @click="showTableDetails(tableId)"
-                                    >
-                                        {{ getTableName(tableId) }}
-                                    </div>
-                                    <div v-if="!employee.targetTables || employee.targetTables.length === 0" class="no-places">
-                                        Места прохода не указаны
+                                <div class="section-header">
+                                    <h4 class="section-title">Места прохода</h4>
+                                </div>
+                                <div class="section-body">
+                                    <div class="places-list">
+                                        <div 
+                                            v-for="tableId in employee.target_tables" 
+                                            :key="tableId"
+                                            class="place-item"
+                                            :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === tableId }"
+                                            @click="showTableDetails(tableId)"
+                                        >
+                                            {{ getTableName(tableId) }}
+                                        </div>
+                                        <div v-if="!employee.target_tables || employee.target_tables.length === 0" class="no-places">
+                                            Места прохода не указаны
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div v-if="employee.isExisting" class="existing-badge">
-                                <span class="badge-text">Существующий сотрудник</span>
+                            <!-- Статус территории (скрыт только для employeeslist) -->
+                            <div v-if="showStatusSection" class="details-section">
+                                <div class="section-header">
+                                    <h4 class="section-title">Статус</h4>
+                                </div>
+                                <div class="section-body">
+                                    <div class="status-badge" :class="getStatusClass">
+                                        {{ getStatusText }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- История проходов (скрыта только для employeeslist) -->
+                            <div v-if="showHistorySection" class="details-section">
+                                <div class="section-header">
+                                    <h4 class="section-title">История проходов</h4>
+                                    <button class="export-btn" @click="exportHistory" :disabled="entryExitHistory.length === 0 || isExporting">
+                                        <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
+                                        <span v-if="!isExporting">Экспорт</span>
+                                        <div v-else class="export-loader"></div>
+                                    </button>
+                                </div>
+                                <div class="section-body">
+                                    <div v-if="loadingHistory" class="loading-container">
+                                        <div class="loader"></div>
+                                        <span>Загрузка истории...</span>
+                                    </div>
+                                    
+                                    <div v-else-if="entryExitHistory.length === 0" class="no-history">
+                                        История проходов отсутствует
+                                    </div>
+                                    
+                                    <div v-else class="history-timeline">
+                                        <div 
+                                            v-for="(item, index) in entryExitHistory" 
+                                            :key="item.id" 
+                                            class="history-item"
+                                        >
+                                            <div class="timeline-dot" :class="getActionClass(item)"></div>
+                                            <div class="timeline-line" v-if="index < entryExitHistory.length - 1"></div>
+                                            
+                                            <div class="history-content">
+                                                <div class="history-header">
+                                                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                                                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                                                </div>
+                                                
+                                                <div class="action-text">{{ getActionText(item) }}</div>
+                                                
+                                                <div class="action-comment">
+                                                    {{ item.comment || getActionComment(item) }}
+                                                </div>
+                                                <div v-if="item.table_name" class="place-name">
+                                                    {{ item.table_name }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -135,30 +227,33 @@
                         />
                     </div>
                 </transition>
-
-                <EmployeeHistoryModal
-                    :show="showHistory"
-                    :last-name="employee?.lastName || ''"
-                    :first-name="employee?.firstName || ''"
-                    :middle-name="employee?.middleName || ''"
-                    @close="showHistory = false"
-                />
             </div>
         </div>
     </transition>
+
+    <!-- Модальное окно полной истории сотрудника -->
+    <EmployeeHistoryModal
+        v-if="showFullHistoryModal"
+        :last-name="employee?.last_name"
+        :first-name="employee?.first_name"
+        :middle-name="employee?.middle_name"
+        :current-user-id="currentUserId"
+        :current-user-name="currentUserName"
+        @close="showFullHistoryModal = false"
+    />
 </template>
 
 <script>
+import { apiRequest } from '@/api/client';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
-import { useOverlayClose } from '@/composables/useOverlayClose';
+import ExcelJS from 'exceljs';
 
 export default {
     name: 'EmployeeDetailsModal',
-    components: { TableInfoModal, EmployeeHistoryModal },
-    setup(_, { emit }) {
-        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-        return { onOverlayMousedown, onOverlayMouseup };
+    components: {
+        TableInfoModal,
+        EmployeeHistoryModal
     },
     props: {
         show: {
@@ -172,9 +267,21 @@ export default {
         allTables: {
             type: Array,
             default: () => []
+        },
+        currentUserId: {
+            type: Number,
+            default: null
+        },
+        currentUserName: {
+            type: String,
+            default: ''
+        },
+        source: {
+            type: String,
+            default: 'general'
         }
     },
-    emits: ['close'],
+    emits: ['close', 'open-application'],
     data() {
         return {
             selectedTable: null,
@@ -183,76 +290,87 @@ export default {
             shiftTimer: null,
             showFullPassport: false,
             showFullPatent: false,
-            showHistory: false
+            history: [],
+            loadingHistory: false,
+            isExporting: false,
+            showFullHistoryModal: false,
+            territoryStatus: 0
         };
+    },
+    computed: {
+        modalTitle() {
+            if (this.source === 'application') {
+                return 'Информация о сотруднике';
+            } else if (this.source === 'employeeslist' || this.source === 'peopletable') {
+                return 'Информация';
+            }
+            return 'Детальная информация о сотруднике';
+        },
+        entryExitHistory() {
+            return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+        },
+        getStatusClass() {
+            const status = this.territoryStatus;
+            if (status === 1) return 'status-on-territory';
+            if (status === 2) return 'status-exited';
+            return 'status-not-entered';
+        },
+        getStatusText() {
+            const status = this.territoryStatus;
+            if (status === 1) return 'На территории';
+            if (status === 2) return 'Покинул территорию';
+            return 'Не входил';
+        },
+        showStatusSection() {
+            return this.source !== 'employeeslist';
+        },
+        showHistorySection() {
+            return this.source !== 'employeeslist';
+        }
     },
     methods: {
         close() {
-            this.$emit('close');
-            this.closeTableDetails();
-            if (this.shiftTimer) {
-                clearTimeout(this.shiftTimer);
-                this.shiftTimer = null;
-            }
-        },
+    this.$emit('close');
+    this.closeTableDetails();
+    if (this.shiftTimer) {
+        clearTimeout(this.shiftTimer);
+        this.shiftTimer = null;
+    }
+    this.isMainShifted = false; // принудительно сбрасываем
+    this.selectedTable = null;
+},
 
-        togglePassportVisibility() {
+        togglePassport() {
             this.showFullPassport = !this.showFullPassport;
         },
 
-        togglePatentVisibility() {
+        togglePatent() {
             this.showFullPatent = !this.showFullPatent;
         },
 
         getTableName(tableId) {
-            // Пробуем найти таблицу в разных форматах
-            let foundTable = null;
-            
-            for (const item of this.allTables) {
-                if (item.table && item.table.id === tableId) {
-                    foundTable = item.table;
-                    break;
-                }
-                if (item.id === tableId) {
-                    foundTable = item;
-                    break;
-                }
-            }
-            
-            if (foundTable) {
-                return foundTable.display_name || foundTable.name || `ID: ${tableId}`;
+            let found = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
+            if (found) {
+                let tbl = found.table || found;
+                return tbl.display_name || tbl.name || `ID: ${tableId}`;
             }
             return `Неизвестное место (ID: ${tableId})`;
         },
 
         showTableDetails(tableId) {
-            const tableData = this.allTables.find(t => {
-                if (t.table && t.table.id === tableId) return true;
-                if (t.id === tableId) return true;
-                return false;
-            });
-            
+            const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
             if (!tableData) {
-                console.error(`Таблица с ID ${tableId} не найдена`);
-                alert(`Информация о месте прохода с ID ${tableId} недоступна`);
+                alert('Информация о месте прохода недоступна');
                 return;
             }
-
-            // Нормализуем данные для единообразной работы
             this.selectedTable = {
                 table: tableData.table || tableData,
-                time_slots: tableData.time_slots || (tableData.table && tableData.table.time_slots) || [],
-                photos: tableData.photos || (tableData.table && tableData.table.photos) || [],
-                current_status: tableData.current_status || (tableData.table && tableData.table.current_status) || 'closed'
+                time_slots: tableData.time_slots || [],
+                photos: tableData.photos || [],
+                current_status: tableData.current_status || 'closed'
             };
-
-            if (this.shiftTimer) {
-                clearTimeout(this.shiftTimer);
-                this.shiftTimer = null;
-            }
-
+            if (this.shiftTimer) clearTimeout(this.shiftTimer);
             this.isMainShifted = true;
-
             this.shiftTimer = setTimeout(() => {
                 this.showPlaceModal = true;
                 this.shiftTimer = null;
@@ -266,46 +384,267 @@ export default {
         onPlaceLeave() {
             this.isMainShifted = false;
             this.selectedTable = null;
+        },
+
+        formatDate(dateString) {
+            if (!dateString) return '';
+            try {
+                const [y, m, d] = dateString.split('-');
+                const date = new Date(y, m-1, d);
+                return date.toLocaleDateString('ru-RU');
+            } catch { return ''; }
+        },
+
+        formatDateTime(dateTimeString) {
+            if (!dateTimeString) return '';
+            const date = new Date(dateTimeString);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }).replace(',', '');
+        },
+
+        getActionClass(item) {
+            if (!item.user_id) return 'dot-system';
+            const classes = { entry: 'dot-entry', exit: 'dot-exit' };
+            return classes[item.action_type] || 'dot-default';
+        },
+
+        getActionText(item) {
+            if (item.action_type === 'entry') return 'Проход на территорию';
+            if (item.action_type === 'exit') return 'Выход с территории';
+            return '';
+        },
+
+        getActionComment(item) {
+            if (item.comment) return item.comment;
+            const userName = item.user_name || 'Система';
+            const fullName = `${this.employee?.last_name || ''} ${this.employee?.first_name || ''}`.trim();
+            if (item.action_type === 'entry') return `Пользователь ${userName} отметил проход сотрудника ${fullName}`;
+            if (item.action_type === 'exit') return `Пользователь ${userName} отметил выход сотрудника ${fullName}`;
+            return '';
+        },
+
+        async loadHistory() {
+            if (!this.employee?.id) return;
+            this.loadingHistory = true;
+            try {
+                const res = await apiRequest(`/employees/${this.employee.id}/history`, { method: 'GET' });
+                if (res.ok) {
+                    this.history = await res.json();
+                }
+            } catch (e) {
+                console.error('Network error:', e);
+            } finally {
+                this.loadingHistory = false;
+            }
+        },
+
+        async loadEmployeeStatus() {
+            if (!this.employee?.id) return;
+            try {
+                const response = await apiRequest('/employees/history/current-status', { method: 'GET' });
+                if (response.ok) {
+                    const statuses = await response.json();
+                    const status = statuses.find(s => s.employee_id === this.employee.id);
+                    if (status) {
+                        this.territoryStatus = status.territory_status;
+                    } else {
+                        this.territoryStatus = 0;
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке статуса сотрудника:', error);
+            }
+        },
+
+        async exportHistory() {
+            if (this.entryExitHistory.length === 0) return;
+            this.isExporting = true;
+            try {
+                const workbook = new ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('Istoriya_prokhodov');
+                
+                const headers = ['Дата и время', 'Пользователь', 'Действие', 'Комментарий', 'Место'];
+                const headerRow = worksheet.addRow(headers);
+                headerRow.height = 25;
+                headerRow.eachCell((cell) => {
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FF4F5BDF' }
+                    };
+                    cell.font = {
+                        name: 'Verdana',
+                        size: 11,
+                        bold: true,
+                        color: { argb: 'FFFFFFFF' }
+                    };
+                    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                    cell.border = {
+                        top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                        bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                        left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                        right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+                    };
+                });
+
+                this.entryExitHistory.forEach((item, index) => {
+                    const row = worksheet.addRow([
+                        this.formatDateTime(item.created_at),
+                        item.user_name || 'Система',
+                        this.getActionText(item),
+                        item.comment || this.getActionComment(item),
+                        item.table_name || ''
+                    ]);
+                    
+                    row.height = 20;
+                    const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+                    
+                    row.eachCell((cell) => {
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: fillColor }
+                        };
+                        cell.font = {
+                            name: 'Verdana',
+                            size: 9,
+                            color: { argb: 'FF333333' }
+                        };
+                        cell.alignment = { vertical: 'middle' };
+                        cell.border = {
+                            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+                        };
+                    });
+                });
+
+                const lastDataRow = this.entryExitHistory.length;
+                for (let row = 1; row <= lastDataRow + 1; row++) {
+                    const rightCell = worksheet.getCell(row, 5);
+                    rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
+                    const leftCell = worksheet.getCell(row, 1);
+                    leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
+                }
+                for (let col = 1; col <= 5; col++) {
+                    const topCell = worksheet.getCell(1, col);
+                    topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
+                    const bottomCell = worksheet.getCell(lastDataRow + 1, col);
+                    bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+                }
+
+                worksheet.addRow([]);
+                const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserName || 'Пользователь']);
+                const infoRow2 = worksheet.addRow(['Дата формирования:', new Date().toLocaleString('ru-RU')]);
+                [infoRow1, infoRow2].forEach(row => {
+                    row.eachCell((cell) => {
+                        cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+                        cell.alignment = { vertical: 'middle' };
+                        cell.border = {
+                            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+                            right: { style: 'thin', color: { argb: 'FFE6E6E6' } }
+                        };
+                    });
+                });
+
+                worksheet.columns = [ { width: 25 }, { width: 40 }, { width: 30 }, { width: 60 }, { width: 30 } ];
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const fullName = `${this.employee.last_name}_${this.employee.first_name}`.replace(/[^a-zA-Z0-9]/g, '_');
+                a.download = `Istoriya_${fullName}.xlsx`;
+                a.href = url;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (e) { console.error(e); alert('Ошибка экспорта'); } finally { this.isExporting = false; }
+        },
+
+        openFullHistory() {
+            this.showFullHistoryModal = true;
+        },
+
+        openApplication() {
+            if (this.employee?.applicationId) {
+                this.$emit('open-application', this.employee.applicationId);
+            }
+        }
+    },
+    watch: {
+        show: {
+        immediate: true,
+        handler(val) {
+            if (val) {
+                this.loadHistory();
+                this.loadEmployeeStatus(); // для EmployeeDetailsModal
+                // для VehicleDetailsModal: this.loadCarStatus(); this.loadCarHistory();
+            } else {
+                this.close(); // вместо this.closeTableDetails()
+            }
+        }
+    },
+        employee: {
+            deep: true,
+            handler(newVal) {
+                if (newVal && this.show) {
+                    this.loadHistory();
+                    this.loadEmployeeStatus();
+                }
+            }
         }
     }
 };
 </script>
 
+
+
 <style scoped>
-/* Стили взяты из исходного EmployeesList для модального окна */
+/* Все стили остаются без изменений, как в предыдущей версии */
+.place-name {
+    font-size: 10px;
+    color: #4F5BDF;
+    margin-top: 2px;
+}
+
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    backdrop-filter: blur(1px);
     animation: overlayAppear 0.4s ease-out;
 }
 
 @keyframes overlayAppear {
     from {
         background: rgba(0, 0, 0, 0);
-        backdrop-filter: blur(0px);
+    
     }
     to {
-        background: rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(1px);
+        background: rgba(0, 0, 0, 0.5);
+       
     }
 }
 
 .modal-wrapper {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;  /* добавляем */
 }
 
 .modal-content {
@@ -315,11 +654,11 @@ export default {
     padding-bottom: 15px;
     width: 520px;
     height: 450px;
-    max-height: 450px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
     position: absolute;
+    pointer-events: auto;  /* добавляем */
 }
 
 .modal-content .modal-body {
@@ -331,10 +670,6 @@ export default {
 
 .modal-content .modal-body::-webkit-scrollbar {
     display: none;
-}
-
-.modal-content.compact-modal {
-    width: 520px;
 }
 
 .modal-content.main-modal {
@@ -362,6 +697,32 @@ export default {
     padding: 20px 30px 16px;
     border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
+    height: 70px;
+    box-sizing: border-box;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 10px;
+}
+
+.history-btn, .application-btn {
+    padding: 6px 12px;
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.history-btn:hover, .application-btn:hover {
+    background: #f5f5f5;
+    border-color: #4F5BDF;
 }
 
 .modal-title {
@@ -396,35 +757,45 @@ export default {
 .employee-details {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
 }
 
 .details-section {
     border: 1px solid #e6e6e6;
     border-radius: 20px;
-    padding: 20px;
     background: #fafafa;
+    overflow: hidden;
+}
+
+.section-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid #e6e6e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .section-title {
-    margin: 0 0 12px 0;
+    margin: 0;
     font-size: 14px;
     font-weight: 600;
     color: #333;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e6e6e6;
+}
+
+.section-body {
+    padding: 16px 20px;
 }
 
 .details-grid.two-columns {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 12px 16px;
 }
 
 .detail-item {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .detail-item.full-width {
@@ -432,15 +803,17 @@ export default {
 }
 
 .detail-label {
-    font-size: 12px;
-    color: #666;
-    font-weight: 500;
+    font-size: 11px;
+    color: #a2a2a2;
+    font-weight: 400;
+    letter-spacing: 0.3px;
 }
 
 .detail-value {
-    font-size: 13px;
+    font-size: 14px;
     color: #333;
     font-weight: 500;
+    word-break: break-word;
 }
 
 .sensitive-data {
@@ -484,13 +857,6 @@ export default {
     border-color: #4F5BDF;
 }
 
-.show-more-btn.active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
-    min-width: 75px;
-}
-
 .places-list {
     display: flex;
     flex-wrap: wrap;
@@ -527,47 +893,179 @@ export default {
     padding: 10px;
 }
 
-.existing-badge {
-    display: flex;
-    justify-content: center;
-    margin-top: 8px;
-}
-
-.badge-text {
-    background: #e3f2fd;
-    color: #1976d2;
-    padding: 6px 12px;
-    border-radius: 16px;
-    font-size: 12px;
+.status-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 50px;
+    font-size: 13px;
     font-weight: 500;
 }
 
-.header-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.history-btn {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
+.status-on-territory {
+    background: rgba(79, 91, 223, 0.1);
     color: #4F5BDF;
-    font-size: 12px;
-    cursor: pointer;
-    padding: 5px 12px;
-    border-radius: 15px;
-    transition: all 0.2s;
-    font-weight: 500;
-    white-space: nowrap;
+    border: 1px solid rgba(79, 91, 223, 0.3);
 }
 
-.history-btn:hover {
-    background: #4F5BDF;
-    color: white;
+.status-exited {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.status-not-entered {
+    background: #f5f5f5;
+    color: #9ca3af;
+    border: 1px solid #e6e6e6;
+}
+
+.export-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: white;
+    border: 1px solid #e6e6e6;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    height: 28px;
+}
+
+.export-btn:hover:not(:disabled) {
+    background: #f5f5f5;
     border-color: #4F5BDF;
 }
 
-/* Анимации */
+.export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.export-icon {
+    width: 12px;
+    height: 12px;
+}
+
+.export-loader {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e6e6e6;
+    border-top: 2px solid #4F5BDF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.history-timeline {
+    position: relative;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.history-item {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.history-item:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+    z-index: 1;
+}
+
+.timeline-line {
+    position: absolute;
+    left: 3px;
+    top: 16px;
+    width: 2px;
+    height: calc(100% + 2px);
+    background: #e6e6e6;
+}
+
+.dot-system { background: #8b5cf6; }
+.dot-entry { background: #059669; }
+.dot-exit { background: #dc2626; }
+.dot-default { background: #9ca3af; }
+
+.history-content {
+    flex: 1;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 2px;
+}
+
+.user-name {
+    font-weight: 500;
+    color: #333;
+    font-size: 12px;
+}
+
+.action-time {
+    color: #a2a2a2;
+    font-size: 10px;
+}
+
+.action-text {
+    color: #666;
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+
+.action-comment {
+    font-size: 10px;
+    color: #666;
+    font-style: italic;
+    margin-top: 2px;
+    padding-left: 6px;
+    border-left: 2px solid #e6e6e6;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    gap: 10px;
+}
+
+.loader {
+    width: 30px;
+    height: 30px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #4F5BDF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.no-history {
+    text-align: center;
+    color: #a2a2a2;
+    padding: 20px;
+    font-size: 13px;
+    font-style: italic;
+}
+
 .modal-fade-enter-active,
 .modal-fade-leave-active {
     transition: all 0.4s ease;
@@ -591,7 +1089,7 @@ export default {
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
     background: rgba(0, 0, 0, 0);
-    backdrop-filter: blur(0px);
+ 
 }
 
 .modal-fade-enter-from .modal-content,
@@ -622,41 +1120,57 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .modal-wrapper {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
     .modal-content {
-        position: static;
-        margin-bottom: 10px;
+        width: 90%;
+        left: 5% !important;
+        transform: none !important;
+        height: auto;
+        max-height: 80vh;
     }
     
-    .modal-content.main-modal {
-        left: auto;
-        transform: none !important;
+    .modal-content .modal-body {
+        height: auto;
+        max-height: calc(80vh - 70px);
     }
     
     .modal-content.main-modal.shifted {
         transform: none !important;
     }
     
-    .modal-content {
+    .place-modal-container {
+        width: 90%;
+        left: 5%;
         height: auto;
         max-height: 80vh;
+    }
+    
+    .modal-header {
+        padding: 16px 20px;
+        flex-wrap: wrap;
+        height: auto;
+    }
+    
+    .header-actions {
+        order: 3;
+        width: 100%;
+        justify-content: flex-start;
+        margin-top: 10px;
     }
     
     .modal-body {
         padding: 16px 20px;
     }
     
-    .modal-header {
-        padding: 16px 20px;
-    }
-    
     .details-section {
         border-radius: 16px;
-        padding: 16px;
+    }
+    
+    .section-header {
+        padding: 10px 16px;
+    }
+    
+    .section-body {
+        padding: 14px 16px;
     }
     
     .section-title {
@@ -684,37 +1198,6 @@ export default {
     
     .show-more-btn {
         align-self: flex-start;
-    }
-}
-
-@media (max-width: 480px) {
-    .modal-header {
-        padding: 12px 16px;
-    }
-    
-    .modal-title {
-        font-size: 14px;
-    }
-    
-    .section-title {
-        font-size: 13px;
-    }
-    
-    .detail-label {
-        font-size: 11px;
-    }
-    
-    .detail-value {
-        font-size: 12px;
-    }
-    
-    .modal-content.compact-modal {
-        border-radius: 20px;
-    }
-    
-    .details-section {
-        border-radius: 12px;
-        padding: 12px;
     }
 }
 </style>

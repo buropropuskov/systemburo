@@ -1,5 +1,5 @@
 <template>
-  <div class="selected-table-card" data-testid="people-table">
+  <div class="selected-table-card">
     <transition name="slide-down">
       <div v-if="notification.message" class="notification">
         <span>{{ notification.message }}</span>
@@ -16,9 +16,9 @@
       </div>
       <div class="card-header__settings">
         <span class="items-count">
-          Людей на территории: {{ activeItemsCount }}
+          Людей зашло: {{ peopleOnTerritory }}
+          <button class="history-btn" @click="openEmployeesHistory">История</button>
         </span>
-        <button class="history-btn" @click="showTableHistory = true">История</button>
         <RefreshButton @refresh="loadData" :disabled="isLoading" />
       </div>
     </div>
@@ -26,42 +26,44 @@
     <div class="card-content">
       <div class="items-header">
         <div class="header-row">
-          <div class="header-col checkbox-col"></div>
-          <div class="header-col name-col" @click="sortBy('last_name')">
+          <div class="col entry-col">Вход</div>
+          <div class="col exit-col">Выход</div>
+          <div class="col last-name-col" @click="sortBy('last_name')">
             <p :class="{ 'active-sort': sortField === 'last_name' }">Фамилия</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'last_name', 'desc': sortField === 'last_name' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col name-col" @click="sortBy('first_name')">
+          <div class="col first-name-col" @click="sortBy('first_name')">
             <p :class="{ 'active-sort': sortField === 'first_name' }">Имя</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'first_name', 'desc': sortField === 'first_name' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col name-col" @click="sortBy('middle_name')">
+          <div class="col middle-name-col" @click="sortBy('middle_name')">
             <p :class="{ 'active-sort': sortField === 'middle_name' }">Отчество</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'middle_name', 'desc': sortField === 'middle_name' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col organization-col" @click="sortBy('organization')">
+          <div class="col organization-col" @click="sortBy('organization')">
             <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col date-col" @click="sortBy('entry_date_to')">
+          <div class="col date-col" @click="sortBy('entry_date_to')">
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col time-col" @click="sortBy('entry_time')">
-            <p :class="{ 'active-sort': sortField === 'entry_time' }">Время прохода</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'entry_time', 'desc': sortField === 'entry_time' && sortDirection === 'desc' }" />
+          <div class="col time-col" @click="sortBy('pass_time')">
+            <p :class="{ 'active-sort': sortField === 'pass_time' }">Время прохода</p>
+            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'pass_time', 'desc': sortField === 'pass_time' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col status-col" @click="sortBy('status')">
+          <div class="col status-col" @click="sortBy('status')">
             <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
             <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }" />
           </div>
-          <div class="header-col actions-col"></div>
+          <div class="col actions-col"></div>
         </div>
       </div>
       
       <div class="items-container">
         <div v-if="isLoading" class="loading-message">
-          <LoaderSpinner label="Загрузка сотрудников…" />
+          <div class="loader"></div>
+          <p>Загрузка сотрудников...</p>
         </div>
         
         <div v-else-if="displayItems.length > 0" class="items-body">
@@ -71,26 +73,39 @@
               :key="item.id" 
               class="item-row"
               :style="{ animationDelay: `${index * 0.05}s` }"
+              @click="openEmployeeDetails(item)"
             >
               <div class="item-data">
-                <div class="item-col checkbox-col">
-                  <input 
-                    type="checkbox" 
-                    v-model="item.checked"
-                    class="checkbox-input"
-                    @change="updateActiveItemsCount"
-                  />
+                <div class="col entry-col" @click.stop>
+                  <button 
+                    class="action-btn entry-btn" 
+                    :class="{ 'active': item.entry_checked }"
+                    :disabled="item.entry_checked"
+                    @click="handleEntryExit(item, 'entry')"
+                  >
+                    Вход
+                  </button>
                 </div>
-                <div class="item-col name-col">{{ item.last_name }}</div>
-                <div class="item-col name-col">{{ item.first_name }}</div>
-                <div class="item-col name-col">{{ item.middle_name || '-' }}</div>
-                <div class="item-col organization-col">{{ item.organization_name }}</div>
-                <div class="item-col date-col">{{ formatDate(item.entry_date_to) }}</div>
-                <div class="item-col time-col">{{ formatPassTime(item.pass_time) }}</div>
-                <div class="item-col status-col">
+                <div class="col exit-col" @click.stop>
+                  <button 
+                    class="action-btn exit-btn" 
+                    :class="{ 'active': item.exit_checked }"
+                    :disabled="!item.entry_checked || item.exit_checked"
+                    @click="handleEntryExit(item, 'exit')"
+                  >
+                    Выход
+                  </button>
+                </div>
+                <div class="col last-name-col">{{ item.last_name }}</div>
+                <div class="col first-name-col">{{ item.first_name }}</div>
+                <div class="col middle-name-col">{{ item.middle_name || '-' }}</div>
+                <div class="col organization-col">{{ item.organization_name }}</div>
+                <div class="col date-col">{{ formatDate(item.entry_date_to) }}</div>
+                <div class="col time-col">{{ formatPassTime(item.pass_time) }}</div>
+                <div class="col status-col">
                   <span class="status-text">{{ item.status }}</span>
                 </div>
-                <div class="item-col actions-col">
+                <div class="col actions-col" @click.stop>
                   <button @click="removeItemWithNotification(item)" class="delete-btn" :disabled="isLoading">
                     <img src="@/assets/icons/trashcan.png" alt="Удалить" class="delete-icon" />
                   </button>
@@ -106,27 +121,41 @@
       </div>
     </div>
 
-    <EmployeesTableHistoryModal
-      :show="showTableHistory"
-      :table-id="currentTableId || 0"
-      :table-name="tableName"
-      @close="showTableHistory = false"
+    <!-- Модальное окно деталей сотрудника -->
+    <EmployeeDetailsModal
+      v-if="showDetailsModal"
+      :show="showDetailsModal"
+      :employee="selectedEmployee"
+      :all-tables="allTables"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :source="'peopletable'"
+      @close="closeDetailsModal"
+      @open-application="openApplicationDetail"
     />
+
+   <EmployeesTableHistoryModal
+    v-if="showEmployeesHistory"
+    :table-id="currentTableId"
+    :current-user-id="currentUserId"
+    :current-user-name="currentUserName"
+    @close="showEmployeesHistory = false"
+   />
   </div>
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { apiRequest } from '@/api/client';
 import RefreshButton from './RefreshButton.vue';
+import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
-import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 
 export default {
   name: 'PeopleTable',
   components: {
     RefreshButton,
-    EmployeesTableHistoryModal,
-    LoaderSpinner
+    EmployeeDetailsModal,
+    EmployeesTableHistoryModal
   },
   props: {
     tableName: {
@@ -156,8 +185,17 @@ export default {
     selectedDate: {
       type: Date,
       default: null
+    },
+    currentUserId: {
+      type: Number,
+      default: null
+    },
+    currentUserName: {
+      type: String,
+      default: ''
     }
   },
+  emits: ['open-application'],
   data() {
     return {
       sortField: null,
@@ -166,18 +204,20 @@ export default {
       notification: { message: null, item: null },
       progress: 100,
       progressInterval: null,
-      activeItemsCount: 0,
       isLoading: false,
       currentTableId: null,
       organizationsMap: {},
-      showTableHistory: false
+      allTables: [],
+      showDetailsModal: false,
+      selectedEmployee: null,
+      showEmployeesHistory: false,
+      pollingInterval: null
     };
   },
   computed: {
     displayItems() {
       let filtered = [...this.itemsData];
       
-      // Поиск
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase().trim();
         filtered = filtered.filter(item => {
@@ -187,21 +227,19 @@ export default {
             item.middle_name || '',
             item.organization_name,
             this.formatDate(item.entry_date_to),
+            item.pass_time || '',
             item.status
           ];
-
           return searchFields.some(field => 
             field && field.toString().toLowerCase().includes(query)
           );
         });
       }
 
-      // Фильтр по организации (теперь по organization_id)
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
 
-      // Фильтр по дате
       if (this.selectedDate) {
         const selectedDateStr = this.selectedDate.toISOString().split('T')[0];
         filtered = filtered.filter(item => item.entry_date_to === selectedDateStr);
@@ -212,7 +250,6 @@ export default {
         });
       }
 
-      // Сортировка
       if (this.sortField) {
         filtered.sort((a, b) => {
           let valueA, valueB;
@@ -226,17 +263,14 @@ export default {
               valueA = (a[this.sortField] || '').toString().toLowerCase();
               valueB = (b[this.sortField] || '').toString().toLowerCase();
               break;
-              
             case 'entry_date_to':
               valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
               valueB = b.entry_date_to ? new Date(b.entry_date_to) : new Date(0);
               break;
-              
-            case 'entry_time':
+            case 'pass_time':
               valueA = this.extractPassTime(a.pass_time);
               valueB = this.extractPassTime(b.pass_time);
               break;
-              
             default:
               return 0;
           }
@@ -253,6 +287,11 @@ export default {
 
       return filtered;
     },
+
+    peopleOnTerritory() {
+      return this.itemsData.filter(item => item.entry_checked && !item.exit_checked).length;
+    },
+
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
@@ -263,112 +302,124 @@ export default {
     }
   },
   methods: {
-    async loadData() {
-      if (this.isLoading) return;
-      
-      this.isLoading = true;
-      
+    async _loadData(silent = false) {
+      if (!silent && this.isLoading) return;
+      if (!silent) this.isLoading = true;
       try {
+        await this.fetchAllTables();
+        await this.fetchOrganizations();
         await this.fetchPeopleData();
-        this.updateActiveItemsCount();
+        await this.fetchEmployeesStatus();
       } catch (error) {
         console.error('Ошибка при загрузке людей:', error);
       } finally {
-        this.isLoading = false;
+        if (!silent) this.isLoading = false;
+      }
+    },
+
+    async loadData() {
+      await this._loadData(false);
+    },
+
+    async silentRefresh() {
+      await this._loadData(true);
+    },
+
+    async fetchAllTables() {
+      try {
+        const response = await apiRequest("/system-tables", { method: "GET" });
+        if (response.ok) {
+          this.allTables = await response.json();
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке таблиц:", error);
+      }
+    },
+
+    async fetchOrganizations() {
+      try {
+        const response = await apiRequest("/organizations", { method: "GET" });
+        if (response.ok) {
+          const data = await response.json();
+          this.organizationsMap = {};
+          data.forEach(org => { this.organizationsMap[org.id] = org.name; });
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке организаций:", error);
       }
     },
 
     async fetchPeopleData() {
-  try {
-    if (!this.tableName) {
-      throw new Error('Table name is required');
-    }
-    
-    // Получаем ID таблицы по имени
-    const tableResponse = await apiRequest(`/system-tables/name/${this.tableName}`, {
-      method: "GET"});
-    
-    if (!tableResponse.ok) {
-      throw new Error(`Failed to get table: ${tableResponse.status}`);
-    }
-    
-    const responseData = await tableResponse.json();
-    const table = responseData.table; // извлекаем вложенный объект
-    if (!table || !table.id) {
-      throw new Error('Table ID not found in response');
-    }
-    this.currentTableId = table.id;
-    
-    // Получаем карту организаций
-    await this.fetchOrganizations();
-    
-    // Создаем обратную карту: название организации → ID
-    const nameToIdMap = {};
-    Object.keys(this.organizationsMap).forEach(id => {
-      nameToIdMap[this.organizationsMap[id]] = id;
-    });
-    
-    // Получаем сотрудников для этой таблицы
-    const response = await apiRequest(`/employees/active-for-table/${table.id}`, {
-      method: "GET"});
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const employees = await response.json();
-    
-    this.itemsData = employees.map(emp => {
-      const orgName = emp.organization || '';
-      const orgId = nameToIdMap[orgName] || emp.organization_id;
-      
-      return {
-        id: emp.id,
-        last_name: emp.last_name || '',
-        first_name: emp.first_name || '',
-        middle_name: emp.middle_name || '',
-        organization_id: orgId,
-        organization_name: orgName || 'Не указана',
-        entry_date_to: emp.entry_date_to || '',
-        pass_time: emp.pass_time || '',
-        status: 'Активен',
-        checked: false
-      };
-    });
-    
-    console.log('Загружены сотрудники:', this.itemsData);
-    
-  } catch (error) {
-    console.error("Ошибка при загрузке данных сотрудников:", error);
-    this.itemsData = [];
-    throw error;
-  }
-},
-
-    async fetchOrganizations() {
       try {
-        const response = await apiRequest("/organizations", {
-          method: "GET",
+        if (!this.tableName) return;
+
+        const tableRes = await apiRequest(`/system-tables/name/${this.tableName}`, { method: "GET" });
+        if (!tableRes.ok) return;
+        const responseData = await tableRes.json();
+        const table = responseData.table;
+        this.currentTableId = table.id;
+
+        const employeesRes = await apiRequest(`/employees/active-for-table/${table.id}`, { method: "GET" });
+        if (!employeesRes.ok) return;
+        const employees = await employeesRes.json();
+
+        const nameToIdMap = {};
+        Object.keys(this.organizationsMap).forEach(id => {
+          nameToIdMap[this.organizationsMap[id]] = id;
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          // Создаем карту организаций для быстрого поиска по ID
-          this.organizationsMap = {};
-          data.forEach(org => {
-            this.organizationsMap[org.id] = org.name;
-          });
-        } else {
-          console.error("Ошибка при загрузке организаций");
-        }
+        this.itemsData = employees.map(emp => {
+          const orgName = emp.organization || '';
+          const orgId = nameToIdMap[orgName] || emp.organization_id;
+          return {
+            id: emp.id,
+            last_name: emp.last_name || '',
+            first_name: emp.first_name || '',
+            middle_name: emp.middle_name || '',
+            organization_id: orgId,
+            organization_name: orgName || 'Не указана',
+            entry_date_to: emp.entry_date_to || '',
+            pass_time: emp.pass_time || '',
+            status: 'Активен',
+            applicationId: emp.application_id,
+            target_tables: emp.target_tables || [],
+            passport_series_number: emp.passport_series_number,
+            patent_number: emp.patent_number,
+            other_permission: emp.other_permission,
+            citizenshipName: emp.citizenship_name,
+            position: emp.position,
+            company: emp.company,
+            company_id: emp.company_id,
+            entry_checked: false,
+            exit_checked: false,
+            territory_status: 0
+          };
+        });
       } catch (error) {
-        console.error("Ошибка сети при загрузке организаций:", error);
+        console.error("Ошибка при загрузке сотрудников:", error);
+        this.itemsData = [];
       }
     },
 
-    getOrganizationName(organizationId) {
-      if (!organizationId) return 'Не указана';
-      return this.organizationsMap[organizationId] || `Организация ID: ${organizationId}`;
+    async fetchEmployeesStatus() {
+      try {
+        const response = await apiRequest("/employees/history/current-status", { method: "GET" });
+        if (response.ok) {
+          const statuses = await response.json();
+          const statusMap = {};
+          statuses.forEach(status => { statusMap[status.employee_id] = status; });
+          this.itemsData.forEach(item => {
+            const status = statusMap[item.id];
+            if (status) {
+              item.territory_status = status.territory_status;
+              item.entry_checked = status.territory_status === 1;
+              item.exit_checked = status.territory_status === 2;
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Ошибка при загрузке статусов территории:", error);
+      }
     },
 
     formatDate(dateString) {
@@ -378,42 +429,24 @@ export default {
         const date = new Date(year, month - 1, day);
         return date.toLocaleDateString('ru-RU');
       } catch (error) {
-        console.error('Ошибка форматирования даты:', error);
         return '';
       }
     },
 
     formatPassTime(passTime) {
       if (!passTime) return '-';
-      
       const [timeFrom, timeTo] = passTime.split('-');
-      
-      if (!timeFrom && !timeTo) return '-';
-      
       const formatTime = (timeStr) => {
         if (!timeStr) return '';
         const parts = timeStr.trim().split(':');
-        if (parts.length >= 2) {
-          return `${parts[0]}:${parts[1]}`;
-        }
+        if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
         return timeStr;
       };
-
-      const formattedTimeFrom = formatTime(timeFrom);
-      const formattedTimeTo = formatTime(timeTo);
-      
-      if (!formattedTimeTo) return formattedTimeFrom;
-      if (!formattedTimeFrom) return formattedTimeTo;
-      return `${formattedTimeFrom} - ${formattedTimeTo}`;
-    },
-
-    sortBy(field) {
-      if (this.sortField === field) {
-        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        this.sortField = field;
-        this.sortDirection = 'desc';
-      }
+      const formattedFrom = formatTime(timeFrom);
+      const formattedTo = formatTime(timeTo);
+      if (!formattedTo) return formattedFrom;
+      if (!formattedFrom) return formattedTo;
+      return `${formattedFrom} - ${formattedTo}`;
     },
 
     extractPassTime(passTime) {
@@ -428,33 +461,55 @@ export default {
       return 0;
     },
 
+    sortBy(field) {
+      if (this.sortField === field) {
+        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortField = field;
+        this.sortDirection = 'desc';
+      }
+    },
+
+    async handleEntryExit(item, type) {
+      if (!this.currentUserId || !this.currentTableId) return;
+      const territory_status = type === 'entry' ? 1 : 2;
+      try {
+        const response = await apiRequest(`/employees/${item.id}/territory-status`, {
+          method: "PUT",
+          body: JSON.stringify({
+            territory_status,
+            user_id: this.currentUserId,
+            table_id: this.currentTableId
+          })
+        });
+        if (response.ok) {
+          item.entry_checked = type === 'entry';
+          item.exit_checked = type === 'exit';
+        } else {
+          console.error('Ошибка при обновлении статуса');
+        }
+      } catch (error) {
+        console.error('Ошибка сети:', error);
+      }
+    },
+
     removeItemWithNotification(item) {
       if (this.isLoading) return;
-      
       const originalItem = { ...item };
       const itemIndex = this.itemsData.findIndex(i => i.id === item.id);
-      
-      if (this.notification.message) {
-        clearInterval(this.progressInterval);
-      }
-      
+      if (this.notification.message) clearInterval(this.progressInterval);
       this.notification = { 
         message: `Сотрудник ${item.last_name} удален.`, 
         item,
-        originalItem: originalItem,
-        itemIndex: itemIndex,
+        originalItem,
+        itemIndex,
         undoFunction: () => {
           if (itemIndex !== -1) {
             this.itemsData[itemIndex] = { ...originalItem };
-            this.updateActiveItemsCount();
           }
         }
       };
-
       item.status = 'Удален';
-      item.checked = false;
-      this.updateActiveItemsCount();
-
       this.progress = 100;
       clearInterval(this.progressInterval);
       this.progressInterval = setInterval(() => {
@@ -471,58 +526,96 @@ export default {
 
     async actuallyDeleteItem(item, originalItem, itemIndex) {
       try {
-        // Для людей просто удаляем из массива (или делаем API запрос если нужно)
-        if (itemIndex !== -1) {
+        const response = await apiRequest(`/employees/${item.id}/deactivate`, {
+          method: "PUT",
+          body: JSON.stringify({ status: 0, user_id: this.currentUserId })
+        });
+        if (response.ok) {
           this.itemsData.splice(itemIndex, 1);
+        } else {
+          console.error("Ошибка при удалении");
+          if (itemIndex !== -1) this.itemsData[itemIndex] = { ...originalItem };
         }
-        
-        this.updateActiveItemsCount();
       } catch (error) {
-        console.error("Ошибка при удалении:", error);
-        if (itemIndex !== -1) {
-          this.itemsData[itemIndex] = { ...originalItem };
-        }
+        console.error("Ошибка сети при удалении:", error);
+        if (itemIndex !== -1) this.itemsData[itemIndex] = { ...originalItem };
       }
     },
 
     undoDelete() {
       clearInterval(this.progressInterval);
-      if (this.notification.undoFunction) {
-        this.notification.undoFunction();
-      }
+      if (this.notification.undoFunction) this.notification.undoFunction();
       this.notification = { message: null, item: null };
     },
 
-    updateActiveItemsCount() {
-      this.activeItemsCount = this.itemsData.filter(item => 
-        item.checked && item.status !== 'Удален'
-      ).length;
+    openEmployeeDetails(item) {
+      this.selectedEmployee = {
+        id: item.id,
+        last_name: item.last_name,
+        first_name: item.first_name,
+        middle_name: item.middle_name,
+        position: item.position,
+        citizenshipName: item.citizenshipName,
+        passport_series_number: item.passport_series_number,
+        patent_number: item.patent_number,
+        other_permission: item.other_permission,
+        organization: item.organization_name,
+        organizationId: item.organization_id,
+        company: item.company,
+        companyId: item.company_id,
+        entry_date_to: item.entry_date_to,
+        pass_time: item.pass_time,
+        target_tables: item.target_tables || [],
+        territory_status: item.territory_status,
+        applicationId: item.applicationId
+      };
+      this.showDetailsModal = true;
+    },
+
+    closeDetailsModal() {
+      this.showDetailsModal = false;
+      this.selectedEmployee = null;
+    },
+
+    openApplicationDetail(applicationId) {
+      // Убрано закрытие модалки сотрудника
+      this.$emit('open-application', applicationId);
+    },
+
+    openEmployeesHistory() {
+      this.showEmployeesHistory = true;
+    },
+
+    startPolling() {
+      if (this.pollingInterval) return;
+      this.silentRefresh();
+      this.pollingInterval = setInterval(() => {
+        this.silentRefresh();
+      }, 10000);
+    },
+
+    stopPolling() {
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
     }
   },
   mounted() {
-    this.loadData();
+    this.startPolling();
   },
   watch: {
     tableName: {
-      immediate: true,
-      async handler(newVal) {
-        console.log('Имя таблицы людей:', newVal);
-        if (newVal) {
-          await this.loadData();
-        }
-      }
-    },
-    selectedOrganizationId(newVal) {
-      console.log('Фильтр по организации ID:', newVal);
-    },
-    searchQuery(newVal) {
-      console.log('Поисковый запрос:', newVal);
+      handler() {
+        this.stopPolling();
+        this.startPolling();
+      },
+      immediate: true
     }
   },
   beforeUnmount() {
-    if (this.progressInterval) {
-      clearInterval(this.progressInterval);
-    }
+    this.stopPolling();
+    if (this.progressInterval) clearInterval(this.progressInterval);
   }
 };
 </script>
@@ -577,24 +670,24 @@ export default {
   color: #4F5BDF;
   font-weight: 500;
   font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .history-btn {
-  background: #f8f9fa;
-  border: 1px solid #e0e0e0;
-  color: #4F5BDF;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 5px 12px;
+  padding: 4px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
   border-radius: 15px;
-  transition: all 0.2s;
-  font-weight: 500;
-  white-space: nowrap;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .history-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: #f5f5f5;
   border-color: #4F5BDF;
 }
 
@@ -606,16 +699,9 @@ export default {
   overflow: hidden;
 }
 
-.items-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
 .items-header {
+  padding: 10px 16px;
   border-bottom: 1px solid #e6e6e6;
-  padding: 12px 16px;
   flex-shrink: 0;
 }
 
@@ -623,27 +709,45 @@ export default {
   display: flex;
   width: 100%;
   align-items: center;
+  gap: 4px;
 }
 
-.header-col {
+.col {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  text-align: left;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-col { width: 6.5%; }
+.exit-col { width: 8%; }
+.last-name-col { width: 12%; }
+.first-name-col { width: 12%; }
+.middle-name-col { width: 12%; }
+.organization-col { width: 18%; }
+.date-col { width: 11.5%; }
+.time-col { width: 10%; }
+.status-col { width: 7%; }
+.actions-col { width: 2%; }
+
+.header-row .col {
   font-weight: 500;
   color: #a2a2a2;
-  text-align: left;
-  padding: 0 4px;
-  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: .2s;
-  cursor: pointer;
-  user-select: none;
 }
 
-.header-col:hover {
+.header-row .col:hover {
   color: #333;
 }
 
-.header-col:hover .sort-icon {
+.header-row .col:hover .sort-icon {
   filter: brightness(0);
 }
 
@@ -666,58 +770,13 @@ export default {
   font-weight: 500 !important;
 }
 
-/* Колонки с фиксированной шириной */
-.checkbox-col {
-  width: 3%;
-  min-width: 25px;
+.items-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-.number-col {
-  width: 18%;
-  min-width: 90px;
-}
-
-.brand-col {
-  width: 12%;
-  min-width: 80px;
-}
-
-.name-col {
-  width: 12%;
-  min-width: 80px;
-}
-
-.organization-col {
-  width: 25%;
-  min-width: 100px;
-}
-
-.place-col {
-  width: 20%;
-  min-width: 110px;
-}
-
-.date-col {
-  width: 15%;
-  min-width: 90px;
-}
-
-.time-col {
-  width: 15%;
-  min-width: 90px;
-}
-
-.status-col {
-  width: 12%;
-  min-width: 90px;
-}
-
-.actions-col {
-  width: 9%;
-  min-width: 40px;
-}
-
-/* Тело таблицы */
 .items-body {
   overflow-y: auto;
   flex-grow: 1;
@@ -731,6 +790,11 @@ export default {
   opacity: 0;
   transform: translateY(10px);
   animation: fadeInUp 0.3s ease forwards;
+  cursor: pointer;
+}
+
+.item-row:hover {
+  background-color: #f5f5f5;
 }
 
 @keyframes fadeInUp {
@@ -744,31 +808,58 @@ export default {
   }
 }
 
-.item-row:hover {
-  background-color: #fafafa;
-}
-
 .item-data {
   display: flex;
   width: 100%;
   padding: 10px 16px;
   align-items: center;
   border-bottom: 1px solid #e6e6e6;
+  gap: 4px;
 }
 
-.item-col {
-  padding: 0 4px;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 15px;
+.entry-col, .exit-col {
+  display: flex;
 }
 
-.checkbox-input {
-  width: 13px;
-  height: 13px;
+.action-btn {
+  width: 70px;
+  height: 30px;
+  border-radius: 50px;
+  border: 1px solid #e6e6e6;
+  background: white;
+  color: #000;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #a2a2a2;
+}
+
+.action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.action-btn.entry-btn.active {
+  background: #e6f7e6;
+  color: #2e7d32;
+  border-color: #a5d6a7;
+  font-weight: 600;
+}
+
+.action-btn.exit-btn.active {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #ef9a9a;
+  font-weight: 600;
 }
 
 .status-text {
@@ -846,7 +937,6 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
-/* Анимация для списка */
 .fade-list-enter-active,
 .fade-list-leave-active {
   transition: all 0.3s ease;
@@ -862,7 +952,6 @@ export default {
   transition: transform 0.3s ease;
 }
 
-/* Стили для уведомления */
 .notification {
   position: fixed;
   top: 20px;
@@ -924,11 +1013,11 @@ export default {
   .header-row,
   .item-data {
     flex-wrap: wrap;
+    gap: 8px;
   }
   
-  .header-col,
-  .item-col {
-    width: 50% !important;
+  .col {
+    width: calc(50% - 4px) !important;
     margin-bottom: 4px;
   }
   
@@ -949,6 +1038,17 @@ export default {
     left: 20px;
     right: 20px;
     min-width: auto;
+  }
+  
+  .entry-col, .exit-col {
+    width: calc(50% - 4px) !important;
+    justify-content: flex-start;
+  }
+  
+  .action-btn {
+    width: 60px;
+    height: 28px;
+    font-size: 11px;
   }
 }
 </style>
