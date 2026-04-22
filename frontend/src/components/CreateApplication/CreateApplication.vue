@@ -11,8 +11,9 @@
             <h4>{{ currentFormTitle }}</h4>
         </div>
         <div class="create__container">
-            <BlankSelector 
+            <BlankSelector
                 ref="blankSelector"
+                :attachments="attachments"
                 :current-application-data="currentApplicationData"
                 @attachment-selected="handleAttachmentSelected"
                 @attachment-added="handleAttachmentAdded"
@@ -1666,10 +1667,8 @@ export default {
 
         saveToLocalStorage() {
             try {
-                const hasAttachments = Object.keys(this.vehiclesByAttachment).length > 0 || 
-                                      Object.keys(this.employeesByAttachment).length > 0 || 
-                                      Object.keys(this.itemsByAttachment).length > 0;
-                
+                const hasAttachments = this.attachments.length > 0;
+
                 const savedData = {
                     message: this.message,
                     organization: this.organization,
@@ -1678,20 +1677,25 @@ export default {
                     phoneNumber: this.phoneNumber,
                     rawPhoneNumber: this.rawPhoneNumber,
                     consentGiven: this.consentGiven,
-                    
+
+                    // attachments - источник истины для UI. Без них vehiclesByAttachment
+                    // остаётся сиротским (ключи без самих attachment-записей) - BlankSelector
+                    // не может отрендерить вложения.
+                    attachments: this.attachments,
+
                     vehiclesByAttachment: hasAttachments ? this.vehiclesByAttachment : {},
                     employeesByAttachment: hasAttachments ? this.employeesByAttachment : {},
                     itemsByAttachment: hasAttachments ? this.itemsByAttachment : {},
-                    
+
                     attachmentDatesByAttachment: hasAttachments ? this.attachmentDatesByAttachment : {},
-                    
+
                     vehicleIdCounter: this.vehicleIdCounter,
                     employeeIdCounter: this.employeeIdCounter,
                     itemIdCounter: this.itemIdCounter,
-                    
+
                     savedAt: new Date().toISOString()
                 };
-                
+
                 localStorage.setItem('draftApplicationState', JSON.stringify(savedData));
             } catch (error) {
                 console.error('Ошибка сохранения состояния в localStorage:', error);
@@ -1711,20 +1715,20 @@ export default {
                     this.phoneNumber = parsedData.phoneNumber || '';
                     this.rawPhoneNumber = parsedData.rawPhoneNumber || '';
                     this.consentGiven = parsedData.consentGiven || false;
-                    
+
+                    this.attachments = parsedData.attachments || [];
+
                     this.vehiclesByAttachment = parsedData.vehiclesByAttachment || {};
                     this.employeesByAttachment = parsedData.employeesByAttachment || {};
                     this.itemsByAttachment = parsedData.itemsByAttachment || {};
-                    
+
                     this.attachmentDatesByAttachment = parsedData.attachmentDatesByAttachment || {};
-                    
+
                     this.vehicleIdCounter = parsedData.vehicleIdCounter || 1;
                     this.employeeIdCounter = parsedData.employeeIdCounter || 1;
                     this.itemIdCounter = parsedData.itemIdCounter || 1;
-                    
-                    const hasAttachments = Object.keys(this.vehiclesByAttachment).length > 0 || 
-                                          Object.keys(this.employeesByAttachment).length > 0 || 
-                                          Object.keys(this.itemsByAttachment).length > 0;
+
+                    const hasAttachments = this.attachments.length > 0;
                     
                     if (!hasAttachments) {
                         this.message = '';
