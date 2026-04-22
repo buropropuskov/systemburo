@@ -267,6 +267,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	// Уведомления
 	notif := protected.Group("/notifications")
 	notif.GET("", notifications.GetNotifications)
+	notif.POST("", notifications.Create)
 	notif.PUT("/:id/read", notifications.MarkRead)
 	notif.DELETE("/:id", notifications.Delete)
 	notif.DELETE("", notifications.DeleteAll)
