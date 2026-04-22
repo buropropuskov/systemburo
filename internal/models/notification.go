@@ -18,3 +18,12 @@ type Notification struct {
 type MarkNotificationReadRequest struct {
 	IsRead bool `json:"is_read"`
 }
+
+// CreateNotificationRequest -- тело запроса на создание уведомления (admin-only).
+type CreateNotificationRequest struct {
+	UserID  int     `json:"user_id" validate:"required,min=1"`
+	Type    *string `json:"type"`
+	Title   *string `json:"title" validate:"required,max=255"`
+	Message *string `json:"message"`
+	Data    *string `json:"data"`
+}

@@ -439,13 +439,14 @@ type ItemInfo struct {
 // --- Реализация ---
 
 type applicationService struct {
-	db                *gorm.DB
-	permissionService PermissionService
+	db                  *gorm.DB
+	permissionService   PermissionService
+	notificationService NotificationService
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
-func NewApplicationService(db *gorm.DB, permSvc PermissionService) ApplicationService {
-	return &applicationService{db: db, permissionService: permSvc}
+func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService) ApplicationService {
+	return &applicationService{db: db, permissionService: permSvc, notificationService: notifSvc}
 }
 
 // --- Основные методы ---
@@ -1212,6 +1213,37 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	}
+
+	// Уведомление отправителю о создании заявки
+	if s.notificationService != nil {
+		if err := s.notificationService.CreateForUser(
+			ctx, user.ID,
+			"application_created",
+			"Заявка отправлена",
+			fmt.Sprintf("Ваша заявка %s отправлена и ожидает согласования.", applicationNumber),
+			nil,
+		); err != nil {
+			slog.Warn("notification create failed", "err", err, "user_id", user.ID, "app_id", appID)
+		}
+	}
+
+	// Уведомления ответственным (approvers) о новой заявке
+	if s.notificationService != nil {
+		for _, ru := range responsibleUsers {
+			if !ru.RequiredApproval || ru.UserID == user.ID {
+				continue
+			}
+			if err := s.notificationService.CreateForUser(
+				ctx, ru.UserID,
+				"application_approval_required",
+				"Требуется согласование",
+				fmt.Sprintf("Поступила новая заявка %s на согласование.", applicationNumber),
+				nil,
+			); err != nil {
+				slog.Warn("notification create failed", "err", err, "user_id", ru.UserID, "app_id", appID)
+			}
+		}
 	}
 
 	return &CompleteApplicationResponse{

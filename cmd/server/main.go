@@ -134,7 +134,7 @@ func main() {
 	notificationService := services.NewNotificationService(db)
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
-	applicationService := services.NewApplicationService(db, permissionService)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)

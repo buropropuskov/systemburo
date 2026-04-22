@@ -21,7 +21,8 @@ func TestCheckExpiredAttachments(t *testing.T) {
 
 	// Create the service directly for calling CheckExpiredAttachments.
 	permSvc := services.NewPermissionService(db)
-	appSvc := services.NewApplicationService(db, permSvc)
+	notifSvc := services.NewNotificationService(db)
+	appSvc := services.NewApplicationService(db, permSvc, notifSvc)
 
 	tests := []struct {
 		name string

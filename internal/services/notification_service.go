@@ -16,6 +16,8 @@ type NotificationService interface {
 	MarkRead(ctx context.Context, userID int, id int, req models.MarkNotificationReadRequest) (*models.Notification, error)
 	Delete(ctx context.Context, userID int, id int) error
 	DeleteAll(ctx context.Context, userID int) error
+	Create(ctx context.Context, req models.CreateNotificationRequest) (*models.Notification, error)
+	CreateForUser(ctx context.Context, userID int, notifType, title, message string, data *string) error
 }
 
 type notificationService struct {
@@ -82,4 +84,44 @@ func (s *notificationService) DeleteAll(ctx context.Context, userID int) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting notifications")
 	}
 	return nil
+}
+
+// Create создаёт уведомление (admin endpoint + внутренние триггеры).
+func (s *notificationService) Create(ctx context.Context, req models.CreateNotificationRequest) (*models.Notification, error) {
+	if req.UserID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "user_id is required")
+	}
+	if req.Title == nil || *req.Title == "" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "title is required")
+	}
+	n := models.Notification{
+		UserID:  req.UserID,
+		Type:    req.Type,
+		Title:   req.Title,
+		Message: req.Message,
+		Data:    req.Data,
+	}
+	if err := s.db.WithContext(ctx).Create(&n).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating notification")
+	}
+	return &n, nil
+}
+
+// CreateForUser -- helper для триггеров из других сервисов.
+// Ошибки логируются но не прерывают основной flow (уведомления не должны блокировать бизнес-операции).
+func (s *notificationService) CreateForUser(ctx context.Context, userID int, notifType, title, message string, data *string) error {
+	if userID <= 0 || title == "" {
+		return nil
+	}
+	t := notifType
+	ti := title
+	m := message
+	n := models.Notification{
+		UserID:  userID,
+		Type:    &t,
+		Title:   &ti,
+		Message: &m,
+		Data:    data,
+	}
+	return s.db.WithContext(ctx).Create(&n).Error
 }
