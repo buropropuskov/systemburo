@@ -144,11 +144,13 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
+	// nil loginLimiter - в тестах rate-limit на /login не применяется,
+	// т.к. тесты делают много логинов подряд. Отдельный Test* покрывает сам лимитер.
 	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler,
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(TestJWTSecret))
+		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(TestJWTSecret), nil)
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

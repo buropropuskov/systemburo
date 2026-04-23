@@ -145,6 +145,15 @@ func hashRefreshToken(token string) string {
 
 // --- Service Methods ---
 
+// Пороги lockout-а учётки по количеству неверных попыток. Защита от distributed
+// brute-force когда атакующие идут с разных IP (IP-лимитер их не ловит, т.к.
+// счётчик per-IP, но счётчик per-username общий и копится от всех источников).
+// 10 попыток за любое время подряд без успеха -> lock на 30 минут.
+const (
+	maxFailedLoginsBeforeLock = 10
+	accountLockDuration       = 30 * time.Minute
+)
+
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error) {
 	var user models.User
@@ -158,8 +167,26 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
 
+	// Учётка заблокирована - не разрешаем попытки (даже с правильным паролем),
+	// пока не истечёт lock-период. Это важно: иначе валидная попытка сбросила бы
+	// счётчик и атакующий мог бы "разморозить" учётку угадав пароль в моменте.
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
+		remaining := int(time.Until(*user.LockedUntil).Seconds())
+		return nil, echo.NewHTTPError(http.StatusTooManyRequests,
+			fmt.Sprintf("Учётная запись временно заблокирована. Повторите через %d секунд.", remaining))
+	}
+
 	if !verifyPassword(user.Password, req.Password) {
+		s.registerFailedLogin(ctx, &user)
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
+	}
+
+	// Успешный вход - сбрасываем счётчик неудачных попыток и lock.
+	if user.FailedLoginCount > 0 || user.LockedUntil != nil {
+		s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
+			"failed_login_count": 0,
+			"locked_until":       nil,
+		})
 	}
 
 	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID)
@@ -324,6 +351,21 @@ func (s *authService) GetUserTypes(ctx context.Context) ([]models.UserType, erro
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user types")
 	}
 	return types, nil
+}
+
+// registerFailedLogin увеличивает счётчик неудачных попыток и лочит учётку,
+// если достигнут порог. Ошибки логируются, но не прерывают запрос - клиент
+// всё равно получит "Invalid credentials", чтобы не раскрывать состояние лока.
+func (s *authService) registerFailedLogin(ctx context.Context, user *models.User) {
+	user.FailedLoginCount++
+	updates := map[string]interface{}{
+		"failed_login_count": user.FailedLoginCount,
+	}
+	if user.FailedLoginCount >= maxFailedLoginsBeforeLock {
+		lockUntil := time.Now().Add(accountLockDuration)
+		updates["locked_until"] = lockUntil
+	}
+	s.db.WithContext(ctx).Model(user).Updates(updates)
 }
 
 // --- Helpers ---
