@@ -152,6 +152,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { sanitizeHtml } from '@/utils/sanitize';
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
 import RefreshButton from './RefreshButton.vue';
@@ -274,26 +275,7 @@ export default {
         },
         
         sanitizeHtml(content) {
-            if (!content) return '';
-            
-            const forbiddenTags = [
-                'script', 'style', 'link', 'meta', 'iframe', 'frame', 'frameset', 
-                'object', 'embed', 'applet', 'form', 'input', 'button', 'select',
-                'textarea', 'label', 'fieldset', 'legend', 'marquee', 'blink'
-            ];
-            
-            let sanitizedContent = content;
-            
-            forbiddenTags.forEach(tag => {
-                const regex = new RegExp(`<${tag}[^>]*>.*?</${tag}>`, 'gis');
-                sanitizedContent = sanitizedContent.replace(regex, '');
-            });
-            
-            sanitizedContent = sanitizedContent.replace(/ on\w+="[^"]*"/gi, '');
-            sanitizedContent = sanitizedContent.replace(/ javascript:/gi, '');
-            sanitizedContent = sanitizedContent.replace(/ expression\(/gi, '');
-            
-            return sanitizedContent;
+            return sanitizeHtml(content);
         },
 
         async fetchTableData() {

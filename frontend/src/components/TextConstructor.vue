@@ -201,6 +201,8 @@
 </template>
 
 <script>
+import { sanitizeHtml } from '@/utils/sanitize';
+
 export default {
   name: 'TextConstructor',
   props: {
@@ -246,27 +248,7 @@ export default {
   },
   computed: {
     sanitizedContent() {
-      // Запрещенные теги для безопасности
-      const forbiddenTags = [
-        'script', 'style', 'link', 'meta', 'iframe', 'frame', 'frameset', 
-        'object', 'embed', 'applet', 'form', 'input', 'button', 'select',
-        'textarea', 'label', 'fieldset', 'legend', 'marquee', 'blink'
-      ];
-      
-      let content = this.modelValue;
-      
-      // Удаляем запрещенные теги
-      forbiddenTags.forEach(tag => {
-        const regex = new RegExp(`<${tag}[^>]*>.*?</${tag}>`, 'gis');
-        content = content.replace(regex, '');
-      });
-      
-      // Удаляем опасные атрибуты
-      content = content.replace(/ on\w+="[^"]*"/gi, '');
-      content = content.replace(/ javascript:/gi, '');
-      content = content.replace(/ expression\(/gi, '');
-      
-      return content;
+      return sanitizeHtml(this.modelValue);
     }
   },
   methods: {

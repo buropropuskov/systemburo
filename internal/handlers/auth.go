@@ -141,6 +141,25 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	return RespondMessage(c, "Logged out successfully")
 }
 
+// LogoutAll godoc
+// @Summary      Выйти со всех устройств
+// @Description  Отзывает все активные refresh-токены пользователя
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]int "количество отозванных сессий в поле revoked"
+// @Failure      401 {object} models.HTTPError
+// @Router       /logout-all [post]
+func (h *AuthHandler) LogoutAll(c echo.Context) error {
+	username := c.Get("username").(string)
+	revoked, err := h.service.LogoutAll(c.Request().Context(), username)
+	if err != nil {
+		return err
+	}
+	h.clearRefreshCookie(c)
+	return RespondSuccess(c, map[string]int{"revoked": revoked})
+}
+
 // requestMeta - helper для сбора IP/UA из echo.Context в services.RequestMeta.
 func requestMeta(c echo.Context) *services.RequestMeta {
 	return &services.RequestMeta{

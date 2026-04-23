@@ -37,6 +37,7 @@ type AuthService interface {
 	Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error)
 	RefreshToken(ctx context.Context, req models.RefreshTokenRequest, meta *RequestMeta) (*models.TokenPairResponse, error)
 	Logout(ctx context.Context, username string, req models.LogoutRequest, meta *RequestMeta) error
+	LogoutAll(ctx context.Context, username string) (int, error)
 	GetUserData(ctx context.Context, username string) (*models.UserDataResponse, error)
 	GetCurrentUser(ctx context.Context, username string) (*models.CurrentUserResponse, error)
 	GetUserTypes(ctx context.Context) ([]models.UserType, error)
@@ -338,6 +339,25 @@ func (s *authService) Logout(ctx context.Context, username string, req models.Lo
 	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLogout, true, meta, "")
 
 	return nil
+}
+
+// LogoutAll отзывает ВСЕ активные refresh_tokens пользователя. Использовать
+// когда подозревается компрометация (юзер сам инициировал "выйти везде"),
+// или автоматически при смене пароля. Возвращает количество отозванных токенов.
+func (s *authService) LogoutAll(ctx context.Context, username string) (int, error) {
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
+		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	}
+
+	result := s.db.WithContext(ctx).
+		Model(&models.RefreshToken{}).
+		Where("user_id = ? AND is_revoked = false", user.ID).
+		Update("is_revoked", true)
+	if result.Error != nil {
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke sessions")
+	}
+	return int(result.RowsAffected), nil
 }
 
 // GetUserData возвращает профильные данные пользователя по username.

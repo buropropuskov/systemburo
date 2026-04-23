@@ -154,6 +154,8 @@ func (s *userService) UpdateType(ctx context.Context, callerTypeID int, username
 }
 
 // UpdatePassword хеширует и обновляет пароль пользователя.
+// После смены пароля все refresh_tokens юзера отзываются - иначе старые
+// сессии (возможно скомпрометированные) продолжили бы жить до истечения TTL.
 func (s *userService) UpdatePassword(ctx context.Context, callerTypeID int, username string, req models.UpdatePasswordRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
@@ -166,6 +168,18 @@ func (s *userService) UpdatePassword(ctx context.Context, callerTypeID int, user
 		Where("username = ?", username).
 		Update("password", hashed).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating password")
+	}
+
+	// Revoke all active refresh tokens: чтобы существующие сессии с этой учёткой
+	// (возможно скомпрометированные) не дожили до своего TTL. Юзеру придётся
+	// перелогиниться на всех устройствах. Not-found = пользователь без активных
+	// сессий - это ок.
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err == nil {
+		s.db.WithContext(ctx).
+			Model(&models.RefreshToken{}).
+			Where("user_id = ? AND is_revoked = false", user.ID).
+			Update("is_revoked", true)
 	}
 
 	return nil
