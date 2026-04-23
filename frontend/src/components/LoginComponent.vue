@@ -22,33 +22,27 @@
                     <div class="inputs">
                         <div class="login__input" :style="input1Style">
                             <img src="@/assets/icons/login.png" alt="" class="input__icon" />
-                            <FormField label="Логин" :required="true" :error="fieldError('username')">
-                                <input v-model="formData.username" class="input" type="text"
-                                    data-testid="login-input-username"
-                                    autocomplete="off"
-                                    autocorrect="off"
-                                    autocapitalize="off"
-                                    spellcheck="false"
-                                    placeholder="Логин"
-                                    aria-label="Имя пользователя"
-                                    @blur="touchField('username')"
-                                    @keyup.enter="handleSubmit" />
-                            </FormField>
+                            <input v-model="formData.username" class="input" type="text"
+                                data-testid="login-input-username"
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                placeholder="Логин"
+                                aria-label="Имя пользователя"
+                                @keyup.enter="handleSubmit" />
                         </div>
                         <div class="login__input" :style="input2Style">
                             <img src="@/assets/icons/password.png" alt="" class="input__icon" />
-                            <FormField label="Пароль" :required="true" :error="fieldError('password')">
-                                <input v-model="formData.password" class="input" type="password"
-                                    data-testid="login-input-password"
-                                    autocomplete="new-password"
-                                    autocorrect="off"
-                                    autocapitalize="off"
-                                    spellcheck="false"
-                                    placeholder="Пароль"
-                                    aria-label="Пароль"
-                                    @blur="touchField('password')"
-                                    @keyup.enter="handleSubmit" />
-                            </FormField>
+                            <input v-model="formData.password" class="input" type="password"
+                                data-testid="login-input-password"
+                                autocomplete="new-password"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                placeholder="Пароль"
+                                aria-label="Пароль"
+                                @keyup.enter="handleSubmit" />
                         </div>
                     </div>
                     
@@ -78,18 +72,14 @@
                 </form>
             </div>
             <div class="login__info" :style="infoStyle">
-                <!-- Уведомления -->
-                <transition name="notification">
-                    <div v-if="showEmailNotification" class="notification email-notification">
-                        E-mail скопирован
-                    </div>
-                </transition>
-                <transition name="notification">
-                    <div v-if="showPhoneNotification" class="notification phone-notification">
-                        Номер телефона скопирован
-                    </div>
-                </transition>
-                
+                <div class="info-notifications">
+                    <transition name="notification" mode="out-in">
+                        <div v-if="showNotification" class="notification" :key="notificationText" data-testid="login-copy-notification">
+                            {{ notificationText }}
+                        </div>
+                    </transition>
+                </div>
+
                 <h2 class="info__title">Добро пожаловать!</h2>
                 <p class="info__text">
                     Для продолжения, необходимо войти в аккаунт,
@@ -125,10 +115,9 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
-import FormField from '@/components/ui/FormField.vue'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 export default {
-    components: { FormField, PasswordRecoveryModal },
+    components: { PasswordRecoveryModal },
     data() {
         return {
             formData: {
@@ -148,11 +137,9 @@ export default {
             mouseX: 0,
             mouseY: 0,
             elementsVisible: false,
-            // Новые данные для уведомлений
-            showEmailNotification: false,
-            showPhoneNotification: false,
+            showNotification: false,
+            notificationText: '',
             notificationTimeout: null,
-            touchedFields: {},
             showPasswordRecovery: false
         }
     },
@@ -232,15 +219,6 @@ export default {
         }, 100);
     },
     methods: {
-        touchField(name) {
-            this.touchedFields = { ...this.touchedFields, [name]: true }
-        },
-        fieldError(name) {
-            if (!this.touchedFields[name]) return ''
-            if (name === 'username' && !this.formData.username.trim()) return 'Введите логин'
-            if (name === 'password' && !this.formData.password) return 'Введите пароль'
-            return ''
-        },
         handleMouseMove(e) {
             this.mouseX = e.clientX;
             this.mouseY = e.clientY;
@@ -274,73 +252,58 @@ export default {
             }, 10000);
         },
         
-        // Метод для копирования email
-        async copyEmail() {
-            const email = 'buropropuskov@dreamisland.ru';
-            
-            try {
-                await navigator.clipboard.writeText(email);
-                this.showEmailNotification = true;
-                this.hideNotificationAfterDelay('email');
-            } catch (err) {
-                // Fallback для старых браузеров
-                const textArea = document.createElement('textarea');
-                textArea.value = email;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                
-                this.showEmailNotification = true;
-                this.hideNotificationAfterDelay('email');
-            }
-        },
-        
-        // Метод для копирования телефона
-        async copyPhone() {
-            const phone = '+7 (910) 083 00-55';
-            
-            try {
-                await navigator.clipboard.writeText(phone);
-                this.showPhoneNotification = true;
-                this.hideNotificationAfterDelay('phone');
-            } catch (err) {
-                // Fallback для старых браузеров
-                const textArea = document.createElement('textarea');
-                textArea.value = phone;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                
-                this.showPhoneNotification = true;
-                this.hideNotificationAfterDelay('phone');
-            }
-        },
-        
-        // Метод для скрытия уведомления через 2 секунды
-        hideNotificationAfterDelay(type) {
-            // Очищаем предыдущий таймаут
+        showNotificationMessage(text) {
             if (this.notificationTimeout) {
                 clearTimeout(this.notificationTimeout);
+                this.notificationTimeout = null;
             }
-            
+            this.notificationText = text;
+            this.showNotification = true;
             this.notificationTimeout = setTimeout(() => {
-                if (type === 'email') {
-                    this.showEmailNotification = false;
-                } else if (type === 'phone') {
-                    this.showPhoneNotification = false;
-                }
+                this.showNotification = false;
+                this.notificationTimeout = null;
             }, 2000);
+        },
+
+        async copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
+        },
+
+        async copyEmail() {
+            await this.copyToClipboard('buropropuskov@dreamisland.ru');
+            this.showNotificationMessage('E-mail скопирован');
+        },
+
+        async copyPhone() {
+            await this.copyToClipboard('+7 (910) 083 00-55');
+            this.showNotificationMessage('Номер телефона скопирован');
         },
         
         async handleSubmit() {
     this.resetAnimations();
     this.errors.general = '';
 
-    this.touchField('username')
-    this.touchField('password')
-    if (!this.formData.username.trim() || !this.formData.password) return
+    if (!this.formData.username.trim() || !this.formData.password) {
+        this.errors.general = 'Необходимо заполнить все поля';
+        this.showError = true;
+        this.hasError = true;
+        this.isShaking = true;
+        this.setupErrorAutoHide();
+        this.animationTimeout = setTimeout(() => {
+            this.isShaking = false;
+            this.hasError = false;
+        }, 500);
+        return;
+    }
 
     await new Promise(resolve => setTimeout(resolve, 100));
     
@@ -368,21 +331,18 @@ export default {
 
         if (response.ok) {
             const data = await response.json();
-            
+
             const authStore = useAuthStore()
-            authStore.setTokens(data.token, data.refreshToken)
-            
+            authStore.setTokens(data.token)
+
             this.isLoading = false;
             this.isSuccess = true;
-            
+
             await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            this.$emit('login-success', {
-                token: data.token,
-                refreshToken: data.refreshToken
-            });
-            
-            this.$router.push('/personal-cabinet');
+
+            this.$emit('login-success', { token: data.token });
+
+            this.$router.push('/news');
         } else {
             // Проверяем статус код для определения типа ошибки
             if (response.status === 429) {
@@ -611,12 +571,16 @@ export default {
         position: relative;
     }
 
-    /* Стили для уведомлений */
-    .notification {
+    .info-notifications {
         position: absolute;
         top: -40px;
         left: 50%;
         transform: translateX(-50%);
+        z-index: 1001;
+        pointer-events: none;
+    }
+
+    .notification {
         height: 25px;
         border-radius: 50px;
         background-color: #fff;
@@ -628,32 +592,25 @@ export default {
         justify-content: center;
         padding: 0 15px;
         box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        z-index: 1001;
         min-width: 150px;
         white-space: nowrap;
     }
 
-    .email-notification {
-        top: -35px;
+    .notification-enter-active,
+    .notification-leave-active {
+        transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
-    .phone-notification {
-        top: -35px;
-    }
-
-    /* Анимации для уведомлений */
-    .notification-enter-active, .notification-leave-active {
-        transition: all 0.3s ease;
-    }
-    
-    .notification-enter-from, .notification-leave-to {
+    .notification-enter-from,
+    .notification-leave-to {
         opacity: 0;
-        transform: translateX(-50%) translateY(-10px);
+        transform: translateY(-10px);
     }
-    
-    .notification-enter-to, .notification-leave-from {
+
+    .notification-enter-to,
+    .notification-leave-from {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
     }
 
     .info__title {
@@ -748,7 +705,7 @@ export default {
         padding: 5px 30px;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 15px;
     }
 

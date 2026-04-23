@@ -25,7 +25,7 @@
           class="dashboard-card-animated"
         />
 
-        <UserNotifications />
+        <UserNotificationsInline class="dashboard-card-animated" />
       </SkeletonTransition>
     </div>
     
@@ -97,7 +97,7 @@ import { useAuthStore } from '@/stores/auth'
 import UserControl from './UserControl.vue';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
-import UserNotifications from './UserNotifications.vue';
+import UserNotificationsInline from './UserNotificationsInline.vue';
 import OrganizationsManagement from './OrganizationsManagement.vue';
 import CompaniesManagement from './CompaniesManagement.vue';
 import UnloadPlacesContainer from './UnloadPlaces/UnloadPlacesContainer.vue';
@@ -115,7 +115,7 @@ export default {
     UserControl,
     UserApplications,
     UserProfileHeader,
-    UserNotifications,
+    UserNotificationsInline,
     OrganizationsManagement,
     CompaniesManagement,
     UnloadPlacesContainer,
@@ -255,8 +255,19 @@ export default {
 /* Стили для строк */
 .first-row {
   display: flex;
-  gap: 15px;
+  gap: 30px;
   margin-bottom: 15px;
+}
+
+/* SkeletonTransition оборачивает детей в div — раскладываем его в flex row
+   чтобы UserProfileHeader и UserNotificationsInline были side-by-side */
+.first-row > div {
+  display: flex;
+  flex-direction: row;
+  gap: 30px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
 }
 
 .dashboard-row {
@@ -315,7 +326,11 @@ export default {
   .first-row {
     flex-direction: column;
   }
-  
+
+  .first-row > div {
+    flex-direction: column;
+  }
+
   .settings {
     width: 100%;
   }

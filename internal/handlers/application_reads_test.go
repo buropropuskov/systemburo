@@ -204,6 +204,42 @@ func TestGetApplications_ArchiveTrue_ShowsOnlyArchived(t *testing.T) {
 	assert.Equal(t, float64(appID), apps[0]["id"])
 }
 
+// --- Part 3: Active today ---
+
+func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	// Заявка, активная сегодня: период действия вложения охватывает текущую дату.
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_today", "CarsToday")
+	todayAppID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	db.Model(&models.Attachment{}).Where("application_id = ?", todayAppID).Updates(map[string]interface{}{
+		"entry_date_from": "2025-01-01",
+		"entry_date_to":   "2099-12-31",
+	})
+
+	// Заявка с прошедшим периодом — попадает в общий список, но не в active_today.
+	uaID2 := seedUniqueAttachment(t, db, "cars", "cars_past", "CarsPast")
+	pastAppID := submitCompleteApplication(t, e, token, "Test Organization", uaID2)
+	db.Model(&models.Attachment{}).Where("application_id = ?", pastAppID).Updates(map[string]interface{}{
+		"entry_date_from": "2025-01-01",
+		"entry_date_to":   "2025-01-02",
+	})
+
+	rec := testutil.GET(t, e, "/applications?active_today=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	apps := testutil.ParseSlice(t, rec)
+
+	assert.Len(t, apps, 1)
+	assert.Equal(t, float64(todayAppID), apps[0]["id"])
+}
+
 func TestForwardApplication_ArchivedReturns403(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

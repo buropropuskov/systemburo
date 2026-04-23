@@ -387,19 +387,13 @@ export default {
             // Ждем небольшую паузу, чтобы не дёргать сервер на каждый символ
             this.checkingTimeout = setTimeout(async () => {
                 try {
-                    const url = new URL('/cars/check-active', window.location.origin);
-                    url.searchParams.append('car_number', plateNumber);
-                    url.searchParams.append('car_brand', this.selectedMark || '');
-                    
-                    if (this.userOrganizationId) {
-                        url.searchParams.append('organization_id', this.userOrganizationId);
-                    }
-                    
-                    if (this.userCompanyId) {
-                        url.searchParams.append('company_id', this.userCompanyId);
-                    }
+                    const params = new URLSearchParams();
+                    params.append('car_number', plateNumber);
+                    params.append('car_brand', this.selectedMark || '');
+                    if (this.userOrganizationId) params.append('organization_id', this.userOrganizationId);
+                    if (this.userCompanyId) params.append('company_id', this.userCompanyId);
 
-                    const response = await apiRequest(url, {});
+                    const response = await apiRequest(`/cars/check-active?${params.toString()}`, {});
 
                     if (response.ok) {
                         const data = await response.json();

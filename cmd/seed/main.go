@@ -71,4 +71,62 @@ func main() {
 	}
 
 	fmt.Printf("Admin user 'buropropuskov' seeded (password: %s, type_id: %d)\n", password, typeID)
+
+	// Дополнительные e2e-пользователи создаются только по флагу окружения.
+	// В production-деплое не вызывается (см. Makefile deploy-seed / staging-seed).
+	if os.Getenv("SEED_E2E_USERS") == "true" {
+		seedE2EUsers(db, orgID, compID, typeID)
+	}
+
+	// Демо-данные для UI-сценариев (объявления, новости, заявки с вложениями, cars_history).
+	// По флагу. Идемпотентно — повторный запуск не плодит дубликаты.
+	if os.Getenv("SEED_DEMO") == "true" {
+		var userID int
+		db.Raw("SELECT id FROM users WHERE username = 'buropropuskov' LIMIT 1").Scan(&userID)
+		if userID != 0 {
+			seedDemoData(db, orgID, compID, userID)
+		} else {
+			log.Printf("demo seed: buropropuskov user not found, skipping demo data")
+		}
+	}
+}
+
+func seedE2EUsers(db *gorm.DB, orgID, compID, buroTypeID int) {
+	const e2ePassword = "testpass123"
+	hash := hashPassword(e2ePassword)
+
+	// e2e_admin — тот же type_id что buropropuskov (админ).
+	adminResult := db.Exec(`
+		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name)
+		VALUES ('e2e_admin', ?, ?, ?, ?, 'E2E', 'Admin')
+		ON CONFLICT (username) DO UPDATE SET
+			password = EXCLUDED.password,
+			organization_id = EXCLUDED.organization_id,
+			company_id = EXCLUDED.company_id,
+			type_id = EXCLUDED.type_id
+	`, hash, orgID, compID, buroTypeID)
+	if adminResult.Error != nil {
+		log.Fatalf("Failed to seed e2e_admin: %v", adminResult.Error)
+	}
+
+	// e2e_user — обычный юзер. Берём type_id=1 (первый не-админ тип).
+	var userTypeID int
+	db.Raw("SELECT id FROM user_types WHERE code != 'buropropuskov' ORDER BY id LIMIT 1").Scan(&userTypeID)
+	if userTypeID == 0 {
+		userTypeID = 1
+	}
+	userResult := db.Exec(`
+		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name)
+		VALUES ('e2e_user', ?, ?, ?, ?, 'E2E', 'User')
+		ON CONFLICT (username) DO UPDATE SET
+			password = EXCLUDED.password,
+			organization_id = EXCLUDED.organization_id,
+			company_id = EXCLUDED.company_id,
+			type_id = EXCLUDED.type_id
+	`, hash, orgID, compID, userTypeID)
+	if userResult.Error != nil {
+		log.Fatalf("Failed to seed e2e_user: %v", userResult.Error)
+	}
+
+	fmt.Printf("E2E users seeded: e2e_admin (type_id=%d), e2e_user (type_id=%d), password=%s\n", buroTypeID, userTypeID, e2ePassword)
 }

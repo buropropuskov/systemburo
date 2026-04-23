@@ -25,6 +25,7 @@ func AllModels() []interface{} {
 		// Users (depends on UserType, Organization, Company)
 		&models.User{},
 		&models.RefreshToken{},
+		&models.AuthEvent{},
 		&models.OrganizationUser{},
 		&models.CompaniesUser{},
 
@@ -111,13 +112,22 @@ func AutoMigrate(db *gorm.DB) error {
 
 // Seed inserts initial data if tables are empty.
 func Seed(db *gorm.DB) error {
-	// Миграция: переводим заявки "Непрочитано" → "В обработке"
+	// Миграция: переводим заявки "Непрочитано" -> "В обработке"
 	if result := db.Model(&models.Application{}).
 		Where("status = ?", models.StatusUnread).
 		Update("status", models.StatusProcessing); result.Error != nil {
 		slog.Error("failed to migrate unread status", "error", result.Error)
 	} else if result.RowsAffected > 0 {
 		slog.Info("migrated unread applications to processing", "count", result.RowsAffected)
+	}
+
+	// Миграция: переводим feedback "Нерешено" -> "Не решено" (статус с пробелом)
+	if result := db.Model(&models.Feedback{}).
+		Where("status = ?", "Нерешено").
+		Update("status", models.FeedbackOpen); result.Error != nil {
+		slog.Error("failed to migrate feedback status", "error", result.Error)
+	} else if result.RowsAffected > 0 {
+		slog.Info("migrated feedback status to spaced form", "count", result.RowsAffected)
 	}
 
 	var count int64

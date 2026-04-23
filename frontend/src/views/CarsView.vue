@@ -4,8 +4,11 @@
             <h2 class="carsview__title">
                 Список <span class="blue">автомобилей</span>
             </h2>
+            <p class="carsview__subtitle">
+                Вкладка для просмотра автомобилей, которые вы или ваша организация/компания когда-либо привязывали к заявкам.
+            </p>
         </header>
-        
+
         <div class="carsview__filters">
             <div class="filters-container">
                 <SearchComponent
@@ -18,6 +21,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-organization"
                         :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                        title="Автомобили, которых привязывали пользователи вашей организации"
                         @click="switchFilter('organization')"
                     >
                         Машины организации
@@ -27,6 +31,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-company"
                         :class="{ 'filter-tab--active': currentFilter === 'company' }"
+                        title="Автомобили, которых привязывали пользователи вашей компании"
                         @click="switchFilter('company')"
                     >
                         Машины компании
@@ -35,6 +40,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-user"
                         :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                        title="Только те автомобили, которых привязывали лично вы"
                         @click="switchFilter('user')"
                     >
                         Мои машины
@@ -43,6 +49,7 @@
                         class="filter-tab"
                         data-testid="filter-tab-all-system"
                         :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+                        title="Все автомобили, когда-либо зарегистрированные в системе"
                         @click="switchFilter('all_system')"
                     >
                         Все машины системы
@@ -64,8 +71,9 @@
                         </h3>
                     </div>
                     <div class="card-header__settings">
-                        <button 
-                            class="add-button" 
+                        <button
+                            class="add-button"
+                            data-testid="cars-view-add-button"
                             @click="showAddCarModal"
                             v-if="currentFilter !== 'all_system'"
                         >
@@ -218,21 +226,41 @@
             
             <div class="carsview__right-side">
                 <div class="carsview__help">
-                    <p class="help__text" v-if="currentFilter === 'all_system'">
-                        Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
-                    </p>
-                    <p class="help__text" v-else>
-                        Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                    </p>
-                    <p class="help__text" v-if="currentFilter !== 'all_system'">
-                        Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                    </p>
+                    <template v-if="currentFilter === 'organization'">
+                        <p class="help__text">
+                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </p>
+                        <p class="help__text">
+                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'company'">
+                        <p class="help__text">
+                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+                        </p>
+                        <p class="help__text">
+                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'user'">
+                        <p class="help__text">
+                            Здесь находятся <strong class="blue">ваши автомобили</strong>, добавленные лично. Вы можете использовать их при подаче автозаявок.
+                        </p>
+                        <p class="help__text">
+                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+                        </p>
+                    </template>
+                    <template v-else-if="currentFilter === 'all_system'">
+                        <p class="help__text">
+                            Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
+                        </p>
+                    </template>
                 </div>
             </div>
         </div>
 
         <!-- Модальное окно добавления машины -->
-        <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" @click="closeModal">
+        <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" data-testid="cars-view-modal" @click="closeModal">
             <div class="modal-content" @click.stop>
                 <div class="modal-header">
                     <div class="modal-header__top">
@@ -241,7 +269,7 @@
                             {{ notification.message }}
                         </div>
                     </div>
-                    <button class="modal-close" @click="closeModal">×</button>
+                    <button class="modal-close" data-testid="cars-view-modal-close" @click="closeModal">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="data__completion">
@@ -253,7 +281,7 @@
                                 </button>
                             </div>
                             <div class="format__dropdown">
-                                <button class="dropdown__button" @click="toggleFormatDropdown">
+                                <button class="dropdown__button" data-testid="cars-view-format-dropdown" @click="toggleFormatDropdown">
                                     <div class="button__content">
                                         <span class="button__text">{{ selectedFormatText }}</span>
                                         <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isFormatDropdownOpen }" />
@@ -1074,13 +1102,21 @@ export default {
 .carsview__header {
     padding-bottom: 15px;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 25px;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .carsview__title {
     font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.carsview__subtitle {
+    font-size: 13px;
+    color: var(--color-text-muted, #6b7280);
+    margin: 0;
 }
 
 .carsview__filters {

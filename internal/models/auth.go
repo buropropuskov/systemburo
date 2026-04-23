@@ -53,9 +53,9 @@ type LoginResponse struct {
 	Token          string `json:"token"`
 	RefreshToken   string `json:"refreshToken"`
 	Organization   string `json:"organization"`
-	OrganizationID int    `json:"organization_id"`
+	OrganizationID *int   `json:"organization_id"`
 	Company        string `json:"company"`
-	CompanyID      int    `json:"company_id"`
+	CompanyID      *int   `json:"company_id"`
 	TypeID         int    `json:"type_id"`
 	UserType       string `json:"user_type"`
 }
@@ -68,9 +68,9 @@ type TokenPairResponse struct {
 type UserDataResponse struct {
 	Username       string  `json:"username"`
 	Organization   string  `json:"organization"`
-	OrganizationID int     `json:"organization_id"`
+	OrganizationID *int    `json:"organization_id"`
 	Company        string  `json:"company"`
-	CompanyID      int     `json:"company_id"`
+	CompanyID      *int    `json:"company_id"`
 	LastName       *string `json:"last_name"`
 	FirstName      *string `json:"first_name"`
 	MiddleName     *string `json:"middle_name"`
@@ -81,9 +81,9 @@ type CurrentUserResponse struct {
 	ID             int     `json:"id"`
 	Username       string  `json:"username"`
 	Organization   string  `json:"organization"`
-	OrganizationID int     `json:"organization_id"`
+	OrganizationID *int    `json:"organization_id"`
 	Company        string  `json:"company"`
-	CompanyID      int     `json:"company_id"`
+	CompanyID      *int    `json:"company_id"`
 	TypeID         int     `json:"type_id"`
 	UserType       string  `json:"user_type"`
 	UserTypeCode   string  `json:"user_type_code"`

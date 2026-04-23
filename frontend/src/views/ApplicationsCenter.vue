@@ -10,10 +10,12 @@
         </header>
         
         <div class="center__filters">
-            <FilterTabs
-                :tabs="archiveTabs"
-                v-model="archiveMode"
-            />
+            <div class="center__tabs">
+                <FilterTabs
+                    :tabs="archiveTabs"
+                    v-model="archiveMode"
+                />
+            </div>
             <div class="filters__main">
                 <div class="filters-row">
                     <div class="field search">
@@ -55,6 +57,15 @@
                         :disabled="!sortField"
                     >
                         Сбросить сортировку
+                    </button>
+
+                    <button
+                        class="today-filter-btn"
+                        :class="{ 'today-filter-btn--active': activeToday }"
+                        data-testid="center-button-today"
+                        @click="toggleActiveToday"
+                    >
+                        Заявки на сегодня
                     </button>
 
                     <button
@@ -301,6 +312,7 @@ export default {
             sortDirection: 'desc',
             shouldShake: false,
             shakeInterval: null,
+            applicationsPollInterval: null,
             isInitialLoad: true,
             
             // Дата - теперь поддерживаем и одиночную дату, и диапазон
@@ -327,6 +339,8 @@ export default {
                 { key: 'active', label: 'Активные' },
                 { key: 'archive', label: 'Архив' },
             ],
+
+            activeToday: false,
 
             loading: true,
 
@@ -466,12 +480,13 @@ export default {
         },
         
         hasActiveFilters() {
-            return !!this.searchQuery.trim() || 
-                   !!this.selectedOrganizationId || 
-                   this.selectedConfirmations.length > 0 || 
+            return !!this.searchQuery.trim() ||
+                   !!this.selectedOrganizationId ||
+                   this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
                    !!this.selectedDate ||
-                   (this.dateRangeStart && this.dateRangeEnd);
+                   (this.dateRangeStart && this.dateRangeEnd) ||
+                   this.activeToday;
         },
 
         unreadCount() {
@@ -548,6 +563,12 @@ export default {
             this.applyFilters();
         },
         
+        toggleActiveToday() {
+            this.activeToday = !this.activeToday;
+            this.isInitialLoad = false;
+            this.fetchApplications();
+        },
+
         toggleApplicationStatus(status) {
             const index = this.selectedApplicationStatuses.indexOf(status);
             if (index > -1) {
@@ -559,7 +580,6 @@ export default {
         },
         
         resetFilters() {
-            // Сбрасываем все фильтры
             this.searchQuery = '';
             this.selectedOrganizationId = null;
             this.selectedOrganizationName = '';
@@ -568,23 +588,23 @@ export default {
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            
-            // Сбрасываем сортировку
+            this.activeToday = false;
+
             this.resetSort();
-            
-            // Сбрасываем фильтр организации через метод reset
+
             if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
                 this.$refs.organizationFilter.reset();
             }
-            
-            // Сбрасываем фильтр даты
+
             if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
                 this.$refs.dateFilter.clearSelection();
             }
-            
-            // Сбрасываем анимацию загрузки и обновляем данные
+
             this.isInitialLoad = false;
-            this.applyFilters();
+            // fetchApplications() вместо applyFilters() — часть фильтров (organization_id,
+            // date, archive) применяется на бэке через URL params. Без fetch applications
+            // остаётся подмножеством, и после сброса таблица продолжает показывать только его.
+            this.fetchApplications();
         },
         
         applyFilters() {
@@ -704,6 +724,10 @@ export default {
                 
                 // Добавляем параметр архива
                 params.append('archive', this.archiveMode === 'archive' ? 'true' : 'false');
+
+                if (this.activeToday) {
+                    params.append('active_today', 'true');
+                }
 
                 // Добавляем параметры даты в запрос к API
                 if (this.selectedDate) {
@@ -885,7 +909,16 @@ export default {
         this.fetchOrganizations();
         this.fetchApplications();
         this.getCurrentUser();
-        
+
+        // Динамическое обновление списка заявок - статусы/confirmations
+        // могут меняться из других сессий (согласование, взятие в работу, завершение).
+        // Polling 30s достаточен для UX без overkill.
+        this.applicationsPollInterval = setInterval(() => {
+            if (!this.isInitialLoad) {
+                this.fetchApplications();
+            }
+        }, 30000);
+
         setTimeout(() => {
             this.isInitialLoad = false;
         }, 1000);
@@ -893,6 +926,9 @@ export default {
     beforeUnmount() {
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
+        }
+        if (this.applicationsPollInterval) {
+            clearInterval(this.applicationsPollInterval);
         }
     }
 }
@@ -945,6 +981,13 @@ export default {
 .center__filters {
     padding-bottom: 15px;
     border-bottom: 1px solid var(--color-border);
+}
+
+.center__tabs {
+    display: flex;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ededf5;
 }
 
 .filters-row {
@@ -1109,6 +1152,34 @@ export default {
 
 .reset-filters-btn:hover:not(:disabled) {
     background: #fed7d7;
+}
+
+.today-filter-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    background: white;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    height: 30px;
+    color: #333;
+    white-space: nowrap;
+}
+
+.today-filter-btn:hover {
+    background: #f5f5f5;
+}
+
+.today-filter-btn--active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.today-filter-btn--active:hover {
+    background: #3a45c0;
+    border-color: #3a45c0;
 }
 
 .applications-table {

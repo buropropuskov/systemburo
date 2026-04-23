@@ -3,22 +3,24 @@ package models
 import "time"
 
 type User struct {
-	ID             int          `json:"id"`
-	Username       string       `gorm:"uniqueIndex;size:100" json:"username"`
-	Password       string       `gorm:"size:255" json:"-"`
-	OrganizationID int          `json:"organization_id"`
-	Organization   Organization `json:"organization,omitempty"`
-	CompanyID      int          `json:"company_id"`
-	Company        Company      `json:"company,omitempty"`
-	TypeID         int          `gorm:"default:1" json:"type_id"`
-	UserType       UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
-	LastName       *string      `gorm:"size:100" json:"last_name"`
-	FirstName      *string      `gorm:"size:100" json:"first_name"`
-	MiddleName     *string      `gorm:"size:100" json:"middle_name"`
-	Position       *string      `gorm:"size:100;column:position" json:"position"`
-	Email          *string      `gorm:"size:100" json:"email"`
-	Phone          *string      `gorm:"size:20" json:"phone"`
-	LastLoginAt    *time.Time   `json:"last_login_at,omitempty"`
+	ID                int          `json:"id"`
+	Username          string       `gorm:"uniqueIndex;size:100" json:"username"`
+	Password          string       `gorm:"size:255" json:"-"`
+	OrganizationID    *int         `json:"organization_id"`
+	Organization      Organization `json:"organization,omitempty"`
+	CompanyID         *int         `json:"company_id"`
+	Company           Company      `json:"company,omitempty"`
+	TypeID            int          `gorm:"default:1" json:"type_id"`
+	UserType          UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
+	LastName          *string      `gorm:"size:100" json:"last_name"`
+	FirstName         *string      `gorm:"size:100" json:"first_name"`
+	MiddleName        *string      `gorm:"size:100" json:"middle_name"`
+	Position          *string      `gorm:"size:100;column:position" json:"position"`
+	Email             *string      `gorm:"size:100" json:"email"`
+	Phone             *string      `gorm:"size:20" json:"phone"`
+	LastLoginAt       *time.Time   `json:"last_login_at,omitempty"`
+	FailedLoginCount  int          `gorm:"default:0" json:"-"`
+	LockedUntil       *time.Time   `json:"-"`
 }
 
 type Organization struct {

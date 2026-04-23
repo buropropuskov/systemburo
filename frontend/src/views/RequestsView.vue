@@ -39,14 +39,21 @@
 
     <div class="chart-section">
       <div class="chart-header">
-        <h4 class="chart-title">Запросы за последние 24ч</h4>
-        <span class="chart-interval">интервал: 1 час</span>
+        <h4 class="chart-title">Запросы {{ selectedPeriod.title }}</h4>
+        <div class="chart-header-actions">
+          <span class="chart-interval">интервал: {{ selectedPeriod.intervalHuman }}</span>
+          <div class="chart-period-dropdown">
+            <select v-model="chartPeriod" @change="onChartPeriodChange" class="chart-period-select">
+              <option v-for="p in chartPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
+            </select>
+          </div>
+        </div>
       </div>
       <RealTimeChart
         :data="timelineData"
         :height="180"
         color="#4F5BDF"
-        intervalLabel="ч"
+        :intervalLabel="selectedPeriod.xAxisLabel"
       />
     </div>
 
@@ -333,7 +340,7 @@
     </div>
 
     <div v-if="isLoading" class="loading-overlay">
-      <div class="spinner"></div>
+      <LoaderSpinner size="large" :label="''" />
     </div>
   </div>
 </template>
@@ -342,12 +349,14 @@
 import { apiRequest, apiRequestRaw } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import RealTimeChart from '@/components/RealTimeChart.vue'
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 
 export default {
   name: 'RequestsView',
   components: {
     SearchComponent,
-    RealTimeChart
+    RealTimeChart,
+    LoaderSpinner
   },
   data() {
     return {
@@ -383,13 +392,27 @@ export default {
       },
       timelineData: [],
       realtimeInterval: null,
-      timelineInterval: null
+      timelineInterval: null,
+      chartPeriod: 'last-24h',
+      chartPeriods: [
+        { key: 'last-1m',    label: 'Минута',    title: 'за последнюю минуту',    interval: 1,      limit: 60, intervalHuman: '1 секунда',  xAxisLabel: 'с' },
+        { key: 'last-10m',   label: '10 минут',  title: 'за последние 10 минут',  interval: 10,     limit: 60, intervalHuman: '10 секунд',  xAxisLabel: '10с' },
+        { key: 'last-30m',   label: '30 минут',  title: 'за последние 30 минут',  interval: 30,     limit: 60, intervalHuman: '30 секунд',  xAxisLabel: '30с' },
+        { key: 'last-1h',    label: '1 час',     title: 'за последний час',       interval: 60,     limit: 60, intervalHuman: '1 минута',   xAxisLabel: 'мин' },
+        { key: 'last-24h',   label: '24 часа',   title: 'за последние 24ч',       interval: 3600,   limit: 24, intervalHuman: '1 час',      xAxisLabel: 'ч' },
+        { key: 'last-week',  label: 'Неделя',    title: 'за последнюю неделю',    interval: 21600,  limit: 28, intervalHuman: '6 часов',    xAxisLabel: '6ч' },
+        { key: 'last-month', label: 'Месяц',     title: 'за последний месяц',     interval: 86400,  limit: 30, intervalHuman: '1 сутки',    xAxisLabel: 'сут' },
+        { key: 'last-year',  label: 'Год',       title: 'за последний год',       interval: 604800, limit: 52, intervalHuman: '1 неделя',   xAxisLabel: 'нед' }
+      ]
     };
   },
   computed: {
     totalPages() {
       const perPage = this.pagination.per_page || 20;
       return Math.max(1, Math.ceil((this.pagination.total || 0) / perPage));
+    },
+    selectedPeriod() {
+      return this.chartPeriods.find(p => p.key === this.chartPeriod) || this.chartPeriods[4];
     }
   },
   methods: {
@@ -464,9 +487,10 @@ export default {
 
     async fetchTimeline() {
       try {
+        const p = this.selectedPeriod;
         const params = new URLSearchParams({
-          interval: '3600',
-          limit: '24'
+          interval: String(p.interval),
+          limit: String(p.limit)
         });
         const response = await apiRequest(`/request-logs/timeline?${params}`);
         if (response.ok) {
@@ -478,6 +502,10 @@ export default {
       } catch (error) {
         console.error('Error fetching timeline:', error);
       }
+    },
+
+    onChartPeriodChange() {
+      this.fetchTimeline();
     },
 
     async fetchUsers() {
@@ -794,6 +822,38 @@ export default {
 .chart-interval {
   font-size: 0.8em;
   color: #a2a2a2;
+}
+
+.chart-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chart-period-select {
+  padding: 4px 28px 4px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 50px;
+  font-size: 12px;
+  background: white;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234F5BDF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+  color: #333;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.chart-period-select:hover {
+  border-color: #4F5BDF;
+}
+
+.chart-period-select:focus {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.15);
 }
 
 .filters-bar {

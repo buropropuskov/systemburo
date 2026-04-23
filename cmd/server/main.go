@@ -108,6 +108,22 @@ func main() {
 	e.Use(mw.RequestID())
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
+	// Security headers: HSTS, CSP, X-Frame-Options и т.д. HSTS включается только
+	// в режиме CookieSecure (prod/staging) - на http://localhost HSTS бесполезен
+	// и даже вреден (браузер запомнит домен как HTTPS-only).
+	hstsMaxAge := 0
+	if cfg.CookieSecure {
+		hstsMaxAge = 63072000 // 2 года - рекомендация MDN/OWASP для production
+	}
+	e.Use(echomw.SecureWithConfig(echomw.SecureConfig{
+		XSSProtection:         "1; mode=block",
+		ContentTypeNosniff:    "nosniff",
+		XFrameOptions:         "DENY",
+		HSTSMaxAge:            hstsMaxAge,
+		HSTSPreloadEnabled:    cfg.CookieSecure,
+		ContentSecurityPolicy: "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'",
+		ReferrerPolicy:        "strict-origin-when-cross-origin",
+	}))
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
 	e.Use(mw.PDAudit(db))
@@ -134,13 +150,13 @@ func main() {
 	notificationService := services.NewNotificationService(db)
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
-	applicationService := services.NewApplicationService(db, permissionService)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
 
 	// Handlers
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, cfg.CookieSecure, cfg.JWTRefreshTTL)
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
@@ -172,14 +188,26 @@ func main() {
 
 	api.SetMaxLimit(cfg.PaginationMaxLimit)
 
+	// /login - отдельный per-IP rate limiter: 5 попыток / 15 минут.
+	// Защита от онлайн brute-force до попадания в Argon2id (который замедляет
+	// только офлайн-атаки). Дополняется per-user lockout в authService.Login.
+	loginLimiter := mw.LoginRateLimit(5, 15*time.Minute)
+
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret))
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret), loginLimiter)
+
+	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
+	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSig()
+
+	// Периодическая проверка истёкших вложений заявок: деактивирует вложения
+	// с прошедшим entry_date_to/entry_time_to, завершает заявку когда все
+	// вложения неактивны. См. ApplicationWorkflowService.CheckExpiredAttachments.
+	go startExpiryScheduler(ctxSig, applicationService, 15*time.Minute)
 
 	// Graceful shutdown
 	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
+		<-ctxSig.Done()
 		slog.Info("shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -196,4 +224,25 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("server stopped")
+}
+
+// startExpiryScheduler запускает периодическую проверку истёкших вложений заявок.
+// Первая проверка — сразу при старте; далее — каждый interval, пока ctx не отменён.
+func startExpiryScheduler(ctx context.Context, svc services.ApplicationService, interval time.Duration) {
+	if err := svc.CheckExpiredAttachments(ctx); err != nil {
+		slog.Error("initial expiry check failed", "error", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("expiry scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.CheckExpiredAttachments(ctx); err != nil {
+				slog.Error("expiry check failed", "error", err)
+			}
+		}
+	}
 }

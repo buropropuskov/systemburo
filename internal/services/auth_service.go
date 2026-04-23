@@ -6,14 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
-	"log/slog"
 	"systemburo/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/argon2"
 	"gorm.io/gorm"
@@ -22,12 +22,22 @@ import (
 	_ "crypto/rand"
 )
 
+// RequestMeta - метаданные HTTP-запроса, пробрасываемые в auth-операции.
+// IP и User-Agent нужны и для audit log (AuthEvent), и для binding на refresh
+// токен. nil допустим (обратная совместимость / тесты без meta).
+type RequestMeta struct {
+	IPAddress string
+	UserAgent string
+}
+
 // AuthService defines the auth business logic interface.
+// Создание пользователей идёт через UserService.Create (POST /users, admin-only).
+// Публичная регистрация (POST /register) не поддерживается - см. удалённый Register handler.
 type AuthService interface {
-	Register(ctx context.Context, req models.RegisterRequest) error
-	Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error)
-	RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error)
-	Logout(ctx context.Context, username string, req models.LogoutRequest) error
+	Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error)
+	RefreshToken(ctx context.Context, req models.RefreshTokenRequest, meta *RequestMeta) (*models.TokenPairResponse, error)
+	Logout(ctx context.Context, username string, req models.LogoutRequest, meta *RequestMeta) error
+	LogoutAll(ctx context.Context, username string) (int, error)
 	GetUserData(ctx context.Context, username string) (*models.UserDataResponse, error)
 	GetCurrentUser(ctx context.Context, username string) (*models.CurrentUserResponse, error)
 	GetUserTypes(ctx context.Context) ([]models.UserType, error)
@@ -59,6 +69,16 @@ func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, 
 		accessTTL:        accessTTL,
 		refreshTTL:       refreshTTL,
 	}
+}
+
+// intPtrOrNil возвращает указатель на v или nil если v <= 0.
+// Используется для FK-полей (organization_id, company_id) где 0 = "не привязан",
+// а в БД FK constraint требует либо NULL либо существующий id.
+func intPtrOrNil(v int) *int {
+	if v <= 0 {
+		return nil
+	}
+	return &v
 }
 
 // --- Password Hashing (Argon2id, compatible with Rust argon2 crate) ---
@@ -100,10 +120,14 @@ func (s *authService) createAccessToken(username string, userID int, typeID int)
 }
 
 func (s *authService) createRefreshJWT(username string) (string, error) {
+	// JTI (JWT ID) делает каждый refresh-JWT уникальным, даже если выдан
+	// в ту же секунду. Без него refresh-токены с одинаковым subject+exp
+	// генерируют идентичные JWT -> идентичный hash -> конфликт в uniqueIndex.
 	claims := Claims{
 		TypeID: 0,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
+			ID:        uuid.NewString(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.refreshTTL)),
 		},
 	}
@@ -136,34 +160,17 @@ func hashRefreshToken(token string) string {
 
 // --- Service Methods ---
 
-// Register регистрирует нового пользователя с хешированием пароля.
-func (s *authService) Register(ctx context.Context, req models.RegisterRequest) error {
-	hashed := hashPassword(req.Password)
-	user := models.User{
-		Username:       req.Username,
-		Password:       hashed,
-		OrganizationID: req.OrganizationID,
-		CompanyID:      req.CompanyID,
-		TypeID:         1,
-		LastName:       req.LastName,
-		FirstName:      req.FirstName,
-		MiddleName:     req.MiddleName,
-		Position:       req.Position,
-		Email:          req.Email,
-		Phone:          req.Phone,
-	}
-	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
-		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
-			return echo.NewHTTPError(http.StatusBadRequest, "Username already exists")
-		}
-		slog.Error("registration failed", "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Registration failed")
-	}
-	return nil
-}
+// Пороги lockout-а учётки по количеству неверных попыток. Защита от distributed
+// brute-force когда атакующие идут с разных IP (IP-лимитер их не ловит, т.к.
+// счётчик per-IP, но счётчик per-username общий и копится от всех источников).
+// 10 попыток за любое время подряд без успеха -> lock на 30 минут.
+const (
+	maxFailedLoginsBeforeLock = 10
+	accountLockDuration       = 30 * time.Minute
+)
 
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
-func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error) {
+func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error) {
 	var user models.User
 	err := s.db.WithContext(ctx).
 		Preload("Organization").
@@ -172,12 +179,36 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		Where("username = ?", req.Username).
 		First(&user).Error
 	if err != nil {
+		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
 
+	// Учётка заблокирована - не разрешаем попытки (даже с правильным паролем),
+	// пока не истечёт lock-период. Это важно: иначе валидная попытка сбросила бы
+	// счётчик и атакующий мог бы "разморозить" учётку угадав пароль в моменте.
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
+		remaining := int(time.Until(*user.LockedUntil).Seconds())
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
+			fmt.Sprintf("locked for %ds", remaining))
+		return nil, echo.NewHTTPError(http.StatusTooManyRequests,
+			fmt.Sprintf("Учётная запись временно заблокирована. Повторите через %d секунд.", remaining))
+	}
+
 	if !verifyPassword(user.Password, req.Password) {
+		s.registerFailedLogin(ctx, &user)
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
+
+	// Успешный вход - сбрасываем счётчик неудачных попыток и lock.
+	// Также апдейтим last_login_at для аудита активности.
+	now := time.Now()
+	updates := map[string]interface{}{"last_login_at": now}
+	if user.FailedLoginCount > 0 || user.LockedUntil != nil {
+		updates["failed_login_count"] = 0
+		updates["locked_until"] = nil
+	}
+	s.db.WithContext(ctx).Model(&user).Updates(updates)
 
 	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID)
 	if err != nil {
@@ -189,13 +220,21 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create refresh token")
 	}
 
-	// Store hashed refresh token in DB
+	// Store hashed refresh token in DB. FamilyID генерируется при login,
+	// наследуется всеми refresh-токенами одной сессии. IP/UA - soft-binding
+	// для аудита и детекции аномалий.
+	familyID := uuid.NewString()
 	rt := models.RefreshToken{
 		UserID:    user.ID,
+		FamilyID:  familyID,
 		TokenHash: hashRefreshToken(refreshJWT),
 		ExpiresAt: time.Now().Add(s.refreshTTL),
+		IPAddress: metaIPPtr(meta),
+		UserAgent: metaUAPtr(meta),
 	}
 	s.db.WithContext(ctx).Create(&rt)
+
+	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginSuccess, true, meta, "")
 
 	return &models.LoginResponse{
 		Token:          accessToken,
@@ -210,7 +249,11 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 }
 
 // RefreshToken обновляет пару access/refresh токенов с ротацией.
-func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error) {
+// Reuse detection: если пришёл валидный по подписи, но уже отозванный токен -
+// это признак кражи (либо attacker, либо legitimate user использовал старую копию
+// после ротации). Реакция: инвалидировать всю семью (family_id) и заставить
+// перелогиниться. См. Auth0 refresh token rotation pattern.
+func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest, meta *RequestMeta) (*models.TokenPairResponse, error) {
 	refreshToken := req.GetRefreshToken()
 	claims, err := s.decodeRefreshToken(refreshToken)
 	if err != nil {
@@ -224,20 +267,35 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
 
-	// Find and validate stored token
+	// Ищем запись без фильтра is_revoked - чтобы отличить "не существует" от
+	// "существует, но отозван" (второе - признак replay-атаки).
 	tokenHash := hashRefreshToken(refreshToken)
 	var storedToken models.RefreshToken
 	err = s.db.WithContext(ctx).
-		Where("user_id = ? AND token_hash = ? AND is_revoked = false", user.ID, tokenHash).
+		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
 		First(&storedToken).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
 	}
 
-	// Revoke old token (one-time use)
+	if storedToken.IsRevoked {
+		// Reuse detection: токен валиден по подписи, но уже отозван.
+		// Инвалидируем всю семью - включая текущий активный refresh attacker-а
+		// или legitimate user-а. Оба будут вынуждены перелогиниться.
+		s.db.WithContext(ctx).
+			Model(&models.RefreshToken{}).
+			Where("family_id = ? AND is_revoked = false", storedToken.FamilyID).
+			Update("is_revoked", true)
+		slog.Warn("refresh token reuse detected - family invalidated",
+			"user_id", user.ID, "family_id", storedToken.FamilyID)
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventTokenReuseDetected, false, meta,
+			"family_id="+storedToken.FamilyID)
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Refresh token reuse detected, please log in again")
+	}
+
+	// Ротация: помечаем старый revoked, выдаём новую пару в той же family.
 	s.db.WithContext(ctx).Model(&storedToken).Update("is_revoked", true)
 
-	// Create new pair
 	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
@@ -248,13 +306,17 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create refresh token")
 	}
 
-	// Store new refresh token
 	rt := models.RefreshToken{
 		UserID:    user.ID,
+		FamilyID:  storedToken.FamilyID,
 		TokenHash: hashRefreshToken(newRefresh),
 		ExpiresAt: time.Now().Add(s.refreshTTL),
+		IPAddress: metaIPPtr(meta),
+		UserAgent: metaUAPtr(meta),
 	}
 	s.db.WithContext(ctx).Create(&rt)
+
+	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventRefresh, true, meta, "")
 
 	return &models.TokenPairResponse{
 		Token:        newAccess,
@@ -263,7 +325,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 }
 
 // Logout отзывает refresh-токен пользователя.
-func (s *authService) Logout(ctx context.Context, username string, req models.LogoutRequest) error {
+func (s *authService) Logout(ctx context.Context, username string, req models.LogoutRequest, meta *RequestMeta) error {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
@@ -274,7 +336,28 @@ func (s *authService) Logout(ctx context.Context, username string, req models.Lo
 		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
 		Delete(&models.RefreshToken{})
 
+	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLogout, true, meta, "")
+
 	return nil
+}
+
+// LogoutAll отзывает ВСЕ активные refresh_tokens пользователя. Использовать
+// когда подозревается компрометация (юзер сам инициировал "выйти везде"),
+// или автоматически при смене пароля. Возвращает количество отозванных токенов.
+func (s *authService) LogoutAll(ctx context.Context, username string) (int, error) {
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
+		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	}
+
+	result := s.db.WithContext(ctx).
+		Model(&models.RefreshToken{}).
+		Where("user_id = ? AND is_revoked = false", user.ID).
+		Update("is_revoked", true)
+	if result.Error != nil {
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke sessions")
+	}
+	return int(result.RowsAffected), nil
 }
 
 // GetUserData возвращает профильные данные пользователя по username.
@@ -341,6 +424,71 @@ func (s *authService) GetUserTypes(ctx context.Context) ([]models.UserType, erro
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user types")
 	}
 	return types, nil
+}
+
+// registerFailedLogin увеличивает счётчик неудачных попыток и лочит учётку,
+// если достигнут порог. Ошибки логируются, но не прерывают запрос - клиент
+// всё равно получит "Invalid credentials", чтобы не раскрывать состояние лока.
+func (s *authService) registerFailedLogin(ctx context.Context, user *models.User) {
+	user.FailedLoginCount++
+	updates := map[string]interface{}{
+		"failed_login_count": user.FailedLoginCount,
+	}
+	if user.FailedLoginCount >= maxFailedLoginsBeforeLock {
+		lockUntil := time.Now().Add(accountLockDuration)
+		updates["locked_until"] = lockUntil
+		// Отдельное event - удобно алёртить "аккаунт только что залочили".
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventAccountLocked, false, nil,
+			fmt.Sprintf("locked for %s after %d failed attempts", accountLockDuration, user.FailedLoginCount))
+	}
+	s.db.WithContext(ctx).Model(user).Updates(updates)
+}
+
+// recordAuthEvent пишет запись в auth_events. meta может быть nil (тесты/тесты
+// без http-контекста). Ошибки логируются, но не пропагируются наверх - audit log
+// best-effort, он не должен ломать основной login/logout flow.
+func (s *authService) recordAuthEvent(ctx context.Context, userID *int, username, eventType string, success bool, meta *RequestMeta, detail string) {
+	ip, ua := "", ""
+	if meta != nil {
+		ip = meta.IPAddress
+		ua = meta.UserAgent
+	}
+	if len(ua) > 255 {
+		ua = ua[:255]
+	}
+	if len(detail) > 255 {
+		detail = detail[:255]
+	}
+	ev := models.AuthEvent{
+		UserID:    userID,
+		Username:  username,
+		EventType: eventType,
+		Success:   success,
+		IPAddress: ip,
+		UserAgent: ua,
+		Detail:    detail,
+	}
+	if err := s.db.WithContext(ctx).Create(&ev).Error; err != nil {
+		slog.Warn("failed to record auth event", "event_type", eventType, "username", username, "error", err)
+	}
+}
+
+// metaIPPtr возвращает *string к IP из meta или nil если meta nil / IP пустой.
+func metaIPPtr(meta *RequestMeta) *string {
+	if meta == nil || meta.IPAddress == "" {
+		return nil
+	}
+	v := meta.IPAddress
+	return &v
+}
+
+// metaUAPtr - аналогично для UA.
+func metaUAPtr(meta *RequestMeta) *string {
+	if meta == nil || meta.UserAgent == "" {
+		return nil
+	}
+	v := meta.UserAgent
+	return &v
 }
 
 // --- Helpers ---

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -9,33 +10,50 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const refreshCookieName = "refresh_token"
+
 type AuthHandler struct {
-	service services.AuthService
+	service       services.AuthService
+	cookieSecure  bool
+	refreshMaxAge int
 }
 
-func NewAuthHandler(service services.AuthService) *AuthHandler {
-	return &AuthHandler{service: service}
+// NewAuthHandler создаёт новый экземпляр AuthHandler.
+// cookieSecure должен быть true в prod/staging (HTTPS), false только для
+// локальной разработки на http://localhost.
+// refreshTTL задаёт MaxAge для refresh cookie в секундах.
+func NewAuthHandler(service services.AuthService, cookieSecure bool, refreshTTL time.Duration) *AuthHandler {
+	return &AuthHandler{
+		service:       service,
+		cookieSecure:  cookieSecure,
+		refreshMaxAge: int(refreshTTL.Seconds()),
+	}
 }
 
-// Register godoc
-// @Summary      Регистрация пользователя
-// @Description  Создаёт нового пользователя с указанными данными
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        request body models.RegisterRequest true "Данные регистрации"
-// @Success      200 {string} string "User registered successfully"
-// @Failure      400 {object} models.HTTPError "Username already exists"
-// @Router       /register [post]
-func (h *AuthHandler) Register(c echo.Context) error {
-	var req models.RegisterRequest
-	if err := BindAndValidate(c, &req); err != nil {
-		return err
-	}
-	if err := h.service.Register(c.Request().Context(), req); err != nil {
-		return err
-	}
-	return RespondMessage(c, "User registered successfully")
+// setRefreshCookie выставляет HttpOnly refresh cookie.
+func (h *AuthHandler) setRefreshCookie(c echo.Context, token string) {
+	c.SetCookie(&http.Cookie{
+		Name:     refreshCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   h.refreshMaxAge,
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// clearRefreshCookie удаляет refresh cookie (MaxAge: -1).
+func (h *AuthHandler) clearRefreshCookie(c echo.Context) {
+	c.SetCookie(&http.Cookie{
+		Name:     refreshCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteStrictMode,
+	})
 }
 
 // Login godoc
@@ -53,10 +71,13 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	resp, err := h.service.Login(c.Request().Context(), req)
+	resp, err := h.service.Login(c.Request().Context(), req, requestMeta(c))
 	if err != nil {
 		return err
 	}
+	// refresh_token уходит в HttpOnly cookie, в JSON его не отдаём.
+	h.setRefreshCookie(c, resp.RefreshToken)
+	resp.RefreshToken = ""
 	return RespondSuccess(c, resp)
 }
 
@@ -72,13 +93,22 @@ func (h *AuthHandler) Login(c echo.Context) error {
 // @Router       /refresh-token [post]
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	var req models.RefreshTokenRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	// Берём refresh_token из HttpOnly cookie. Body оставлен для
+	// обратной совместимости - если cookie нет, fallback на body.
+	if ck, err := c.Cookie(refreshCookieName); err == nil && ck.Value != "" {
+		req.RefreshToken = ck.Value
+	} else {
+		if err := c.Bind(&req); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+		}
 	}
-	resp, err := h.service.RefreshToken(c.Request().Context(), req)
+	resp, err := h.service.RefreshToken(c.Request().Context(), req, requestMeta(c))
 	if err != nil {
 		return err
 	}
+	// Новый refresh_token - снова в cookie.
+	h.setRefreshCookie(c, resp.RefreshToken)
+	resp.RefreshToken = ""
 	return RespondSuccess(c, resp)
 }
 
@@ -96,13 +126,46 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 func (h *AuthHandler) Logout(c echo.Context) error {
 	username := c.Get("username").(string)
 	var req models.LogoutRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	// Берём refresh из cookie, fallback на body.
+	if ck, err := c.Cookie(refreshCookieName); err == nil && ck.Value != "" {
+		req.RefreshToken = ck.Value
+	} else {
+		_ = c.Bind(&req)
 	}
-	if err := h.service.Logout(c.Request().Context(), username, req); err != nil {
+	if err := h.service.Logout(c.Request().Context(), username, req, requestMeta(c)); err != nil {
+		// Всё равно чистим cookie - даже если DB-запись не удалилась.
+		h.clearRefreshCookie(c)
 		return err
 	}
+	h.clearRefreshCookie(c)
 	return RespondMessage(c, "Logged out successfully")
+}
+
+// LogoutAll godoc
+// @Summary      Выйти со всех устройств
+// @Description  Отзывает все активные refresh-токены пользователя
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]int "количество отозванных сессий в поле revoked"
+// @Failure      401 {object} models.HTTPError
+// @Router       /logout-all [post]
+func (h *AuthHandler) LogoutAll(c echo.Context) error {
+	username := c.Get("username").(string)
+	revoked, err := h.service.LogoutAll(c.Request().Context(), username)
+	if err != nil {
+		return err
+	}
+	h.clearRefreshCookie(c)
+	return RespondSuccess(c, map[string]int{"revoked": revoked})
+}
+
+// requestMeta - helper для сбора IP/UA из echo.Context в services.RequestMeta.
+func requestMeta(c echo.Context) *services.RequestMeta {
+	return &services.RequestMeta{
+		IPAddress: c.RealIP(),
+		UserAgent: c.Request().UserAgent(),
+	}
 }
 
 // GetUserData godoc

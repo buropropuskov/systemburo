@@ -259,7 +259,9 @@ export default {
           phone: this.newUser.phone || null
         };
 
-        const response = await apiRequest("/register", {
+        // Админская регистрация через POST /users (JWT-защищённый).
+        // Публичный /register намеренно не экспонируется.
+        const response = await apiRequest("/users", {
           method: "POST",
           body: JSON.stringify(userData)
         });

@@ -15,8 +15,13 @@
       <button class="feedback-btn" data-testid="header-button-feedback" @click="openFeedbackModal">
         Сообщить о проблеме
       </button>
-      <button v-if="activeAnnouncement" class="broadcast" @click="showAnnouncement = true">
-        Важное объявление
+      <button
+        v-if="activeAnnouncement"
+        class="broadcast"
+        :class="{ 'broadcast--important': activeAnnouncement.is_important }"
+        @click="showAnnouncement = true"
+      >
+        {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
       </button>
       <p class="time">
         {{ currentDateTime }}
@@ -116,7 +121,7 @@ export default {
       }
     },
     navigateToSubmit() {
-      this.$router.push('/submit-form');
+      this.$router.push('/new-application');
     },
     async fetchUserData() {
       try {
@@ -259,18 +264,25 @@ h3 {
   padding: 0 15px;
   height: 35px;
   font-size: 14px;
-  color: #6E4A3A;
-  border: 1px solid #e6e6e6;
+  color: #9A3412;
+  border: 1px solid #FFE0B2;
   outline: none;
   border-radius: 50px;
   font-weight: 500;
-  background: linear-gradient(to right, rgba(255,255,240,1), rgba(255,246,217,1));
+  background: #FFE0B2;
   cursor: pointer;
   white-space: nowrap;
+  transition: filter 0.2s ease;
 }
 
 .broadcast:hover {
-  background: linear-gradient(to right, rgba(255,250,220,1), rgba(255,240,200,1));
+  filter: brightness(0.96);
+}
+
+.broadcast--important {
+  color: #B91C1C;
+  background: #FECACA;
+  border-color: #FECACA;
 }
 
 .time {

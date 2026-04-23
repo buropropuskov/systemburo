@@ -1,11 +1,12 @@
 <template>
     <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @click.self="close">
+        <div v-if="show" class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
             <div class="modal-wrapper">
                 <!-- Основное модальное окно с деталями ТС -->
-                <div 
+                <div
                     class="modal-content compact-modal main-modal"
                     :class="{ 'shifted': isMainShifted }"
+                    @mousedown.stop
                 >
                     <div class="modal-header">
                         <h3 class="modal-title">{{ modalTitle }}</h3>
@@ -127,8 +128,7 @@
                                 </div>
                                 <div class="section-body">
                                     <div v-if="loadingHistory" class="loading-container">
-                                        <div class="loader"></div>
-                                        <span>Загрузка истории...</span>
+                                        <LoaderSpinner label="Загрузка истории…" />
                                     </div>
                                     
                                     <div v-else-if="entryExitHistory.length === 0" class="no-history">
@@ -204,13 +204,20 @@
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
 export default {
     name: 'VehicleDetailsModal',
     components: {
         UnloadPlaceModal,
-        CarHistoryModal
+        CarHistoryModal,
+        LoaderSpinner
+    },
+    setup(_, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+        return { onOverlayMousedown, onOverlayMouseup };
     },
     props: {
         show: {
@@ -439,18 +446,20 @@ export default {
             
             this.loadingHistory = true;
             try {
-                // Используем unified endpoint, как в CarHistoryModal
-                const url = new URL('/cars/history/unified', window.location.origin);
-                url.searchParams.append('car_number', this.vehicle.plateNumber || this.vehicle.car_number || '');
-                url.searchParams.append('car_brand', this.vehicle.mark || this.vehicle.car_brand || '');
+                // Используем unified endpoint, как в CarHistoryModal.
+                // Собираем query-строку руками — apiRequest ожидает строку-путь,
+                // а не URL object (после /api префикса URL object ломается при конкатенации).
+                const params = new URLSearchParams();
+                params.append('car_number', this.vehicle.plateNumber || this.vehicle.car_number || '');
+                params.append('car_brand', this.vehicle.mark || this.vehicle.car_brand || '');
                 if (this.vehicle.organizationId) {
-                    url.searchParams.append('organization_id', this.vehicle.organizationId);
+                    params.append('organization_id', this.vehicle.organizationId);
                 }
                 if (this.vehicle.companyId) {
-                    url.searchParams.append('company_id', this.vehicle.companyId);
+                    params.append('company_id', this.vehicle.companyId);
                 }
 
-                const response = await apiRequest(url, {});
+                const response = await apiRequest(`/cars/history/unified?${params.toString()}`, {});
                 
                 if (response.ok) {
                     const allHistory = await response.json();

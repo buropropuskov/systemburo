@@ -2,9 +2,15 @@ package models
 
 import "time"
 
+// RefreshToken хранит хеш refresh-JWT с family_id для reuse detection.
+// FamilyID - uuid, общий для всех токенов-потомков одной сессии (login -> N refresh).
+// При попытке использовать уже revoked токен все токены family_id отзываются
+// (Auth0/OWASP паттерн): если и легитимный юзер, и attacker гоняют одну семью,
+// первый же conflict ломает всю сессию и заставляет перелогиниться.
 type RefreshToken struct {
 	ID        int       `json:"id"`
-	UserID    int       `json:"user_id"`
+	UserID    int       `gorm:"index" json:"user_id"`
+	FamilyID  string    `gorm:"size:36;index" json:"family_id"`
 	TokenHash string    `gorm:"uniqueIndex" json:"token_hash"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`

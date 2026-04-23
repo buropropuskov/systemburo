@@ -24,10 +24,6 @@
             {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
           </span>
         </div>
-        <router-link to="/center?archive=true" class="nav-item">
-          <img src="@/assets/icons/archive.png" alt="Архив" class="nav-icon">
-          <span class="nav-text">Архив</span>
-        </router-link>
       </div>
 
       <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
@@ -183,7 +179,8 @@ export default {
       dropdownLeaveTimeout: null,
       systemTables: [],
       newApplicationsCount: 0,
-      applicationsPollingInterval: null
+      applicationsPollingInterval: null,
+      tablesPollingInterval: null
     };
   },
   methods: {
@@ -335,11 +332,21 @@ export default {
         this.fetchNewApplicationsCount();
       }, 30000);
     },
-    
+
+    startTablesPolling() {
+      this.tablesPollingInterval = setInterval(() => {
+        this.fetchSystemTables();
+      }, 60000);
+    },
+
     stopApplicationsPolling() {
       if (this.applicationsPollingInterval) {
         clearInterval(this.applicationsPollingInterval);
         this.applicationsPollingInterval = null;
+      }
+      if (this.tablesPollingInterval) {
+        clearInterval(this.tablesPollingInterval);
+        this.tablesPollingInterval = null;
       }
     },
     
@@ -352,6 +359,7 @@ export default {
     document.body.classList.add('auth-active');
     await this.fetchSystemTables();
     this.startApplicationsPolling();
+    this.startTablesPolling();
   },
   beforeUnmount() {
     document.body.classList.remove('auth-active');

@@ -91,8 +91,7 @@
                         </div>
 
                         <div v-if="loadingEmployees" class="loading-state">
-                            <div class="spinner"></div>
-                            <span>Загрузка сотрудников...</span>
+                            <LoaderSpinner label="Загрузка сотрудников…" />
                         </div>
                         <div v-else-if="displayedEmployees.length === 0" class="empty-state">
                             {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных сотрудников' }}
@@ -120,11 +119,13 @@
 <script>
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 
 export default {
     name: 'ExistingEmployeesModal',
     components: {
-        SearchComponent
+        SearchComponent,
+        LoaderSpinner
     },
     props: {
         visible: {

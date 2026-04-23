@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed staging-seed deploy-seed staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security
 
 up:
 	docker compose up -d
@@ -43,6 +43,17 @@ staging-seed:
 
 deploy-seed:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./seed $(PASS)
+
+# Демо-данные для UI-сценариев (объявления, новости, заявки с вложениями, cars_history).
+# Не запускать на production без явной необходимости.
+seed-demo:
+	docker compose exec -e SEED_DEMO=true go-backend go run ./cmd/seed $(PASS)
+
+staging-seed-demo:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec -e SEED_DEMO=true backend ./seed $(PASS)
+
+deploy-seed-demo:
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -e SEED_DEMO=true backend ./seed $(PASS)
 
 init:
 	git config core.hooksPath .githooks

@@ -1,0 +1,68 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Введите "deploy" для подтверждения
+        required: true
+        default: ''
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Confirm manual dispatch
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirm input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "Подтверждение не получено (введите \"deploy\")."
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [gate]
+    if: |
+      always() &&
+      (github.event_name == 'push' || needs.gate.result == 'success')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: prod
+          fetch-depth: 0
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
+            cd /opt/systemburo
+            git fetch origin prod
+            git reset --hard origin/prod
+            test -f .env || bash scripts/init-env.sh production ${{ secrets.PROD_DOMAIN }}
+            # Frontend пересобираем без кеша — buildkit удерживает старые
+            # слои COPY . . даже при изменении исходников.
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull --no-cache frontend
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull backend nginx
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d --force-recreate
+            sleep 5
+            docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:8080/health || exit 1
+            echo "Production deploy completed at $(date)"

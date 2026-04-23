@@ -1,0 +1,67 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+    groups:
+      gorm-stack:
+        patterns:
+          - "gorm.io/*"
+          - "github.com/jackc/*"
+      echo-stack:
+        patterns:
+          - "github.com/labstack/echo/*"
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+    groups:
+      vue-stack:
+        patterns:
+          - vue
+          - vue-router
+          - pinia
+          - "@vue/*"
+      vite-tooling:
+        patterns:
+          - vite
+          - "@vitejs/*"
+          - vitest
+      playwright:
+        patterns:
+          - "@playwright/*"
+          - playwright
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - docker

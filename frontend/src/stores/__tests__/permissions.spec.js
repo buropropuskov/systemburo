@@ -48,7 +48,7 @@ describe('permissions store', () => {
 
     it('returns true for admin regardless of permission value', () => {
       const authStore = useAuthStore()
-      authStore.setTokens(createMockJWT({ type_id: 6 }), 'refresh')
+      authStore.setTokens(createMockJWT({ type_id: 6 }))
 
       const store = usePermissionsStore()
       store.permissions = { 'passes.create': 'deny' }
@@ -58,7 +58,7 @@ describe('permissions store', () => {
 
     it('returns true for admin even when permission is missing', () => {
       const authStore = useAuthStore()
-      authStore.setTokens(createMockJWT({ type_id: 6 }), 'refresh')
+      authStore.setTokens(createMockJWT({ type_id: 6 }))
 
       const store = usePermissionsStore()
       store.permissions = {}

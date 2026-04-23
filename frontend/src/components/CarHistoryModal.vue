@@ -1,6 +1,6 @@
 <template>
-  <div class="modal-overlay" @click.self="close">
-    <div class="car-history-modal">
+  <div class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
+    <div class="car-history-modal" @mousedown.stop>
       <div class="modal-header">
         <h3>История автомобиля {{ carNumber }}</h3>
         <div class="header-actions">
@@ -88,7 +88,7 @@
 
       <div class="modal-content" ref="scrollContainer">
         <div v-if="loading" class="history-loading">
-          <div class="loader"></div>
+          <LoaderSpinner label="Загрузка истории…" />
         </div>
         
         <div v-else-if="filteredHistory.length === 0" class="history-empty">
@@ -143,10 +143,17 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'CarHistoryModal',
+  components: { LoaderSpinner },
+  setup(_, { emit }) {
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+    return { onOverlayMousedown, onOverlayMouseup };
+  },
   props: {
     carId: {
       type: Number,
@@ -313,21 +320,14 @@ export default {
     async loadHistory() {
       this.loading = true;
       try {
-        const url = new URL('/cars/history/unified', window.location.origin);
-        url.searchParams.append('car_number', this.carNumber);
-        url.searchParams.append('car_brand', this.carBrand || '');
-        
-        if (this.organizationId) {
-          url.searchParams.append('organization_id', this.organizationId);
-        }
-        
-        if (this.companyId) {
-          url.searchParams.append('company_id', this.companyId);
-        }
+        // apiRequest ожидает строку-путь, не URL object — собираем query руками.
+        const params = new URLSearchParams();
+        params.append('car_number', this.carNumber);
+        params.append('car_brand', this.carBrand || '');
+        if (this.organizationId) params.append('organization_id', this.organizationId);
+        if (this.companyId) params.append('company_id', this.companyId);
 
-        console.log('Запрос истории по URL:', url.toString());
-
-        const response = await apiRequest(url, {});
+        const response = await apiRequest(`/cars/history/unified?${params.toString()}`, {});
 
         if (response.ok) {
           this.history = await response.json();

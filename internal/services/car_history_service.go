@@ -174,6 +174,10 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 		ID int
 	}
 	var carIDs []carIDRow
+	// Фильтры по organization_id/company_id работают так:
+	// - nil: не фильтруем (любая организация/компания) — агрегируем историю по ВСЕМ заявкам
+	//   с такой же парой car_number+car_brand. Клиент часто не знает org/comp машины.
+	// - не nil: точное совпадение.
 	err := s.db.WithContext(ctx).Raw(`
 		SELECT c.id
 		FROM cars c
@@ -181,14 +185,8 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 		JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(c.car_number)) = LOWER(TRIM(?))
 		AND LOWER(TRIM(c.car_brand)) = LOWER(TRIM(?))
-		AND (
-			(?::integer IS NULL AND app.organization_id IS NULL)
-			OR app.organization_id = ?
-		)
-		AND (
-			(?::integer IS NULL AND app.company_id IS NULL)
-			OR app.company_id = ?
-		)
+		AND (?::integer IS NULL OR app.organization_id = ?)
+		AND (?::integer IS NULL OR app.company_id = ?)
 		ORDER BY c.id
 	`, req.CarNumber, req.CarBrand,
 		req.OrganizationID, req.OrganizationID,

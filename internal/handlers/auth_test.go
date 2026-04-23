@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -167,9 +168,25 @@ func TestLogin_Success(t *testing.T) {
 	resp := testutil.ParseResponse[models.LoginResponse](t, rec)
 
 	assert.NotEmpty(t, resp.Token)
-	assert.NotEmpty(t, resp.RefreshToken)
-	assert.Equal(t, td.OrgID, resp.OrganizationID)
-	assert.Equal(t, td.CompanyID, resp.CompanyID)
+	// refresh_token теперь в HttpOnly cookie, не в JSON body.
+	assert.Empty(t, resp.RefreshToken, "refresh token должен быть пустым в JSON - он в cookie")
+
+	// Проверяем что cookie выставлена с правильными флагами.
+	var refreshCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "refresh_token" {
+			refreshCookie = c
+			break
+		}
+	}
+	require.NotNil(t, refreshCookie, "refresh_token cookie должна быть установлена")
+	assert.NotEmpty(t, refreshCookie.Value)
+	assert.True(t, refreshCookie.HttpOnly, "cookie должна быть HttpOnly")
+	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
+	assert.Equal(t, "/", refreshCookie.Path)
+
+	assert.Equal(t, td.OrgID, *resp.OrganizationID)
+	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 	assert.Equal(t, 1, resp.TypeID)
 	assert.Equal(t, "Test Organization", resp.Organization)
 	assert.Equal(t, "Test Company", resp.Company)
@@ -214,18 +231,30 @@ func TestRefreshToken_Success(t *testing.T) {
 	testutil.RegisterUser(t, e, "refreshuser", "pass123", 1, td.OrgID, td.CompanyID)
 	_, refreshToken := testutil.LoginUser(t, e, "refreshuser", "pass123")
 
-	body := `{"refreshToken":"` + refreshToken + `"}`
-	rec := testutil.POST(t, e, "/refresh-token", body, nil)
+	// Refresh token теперь в cookie, body оставлен для обратной совместимости.
+	h := http.Header{}
+	h.Set("Cookie", "refresh_token="+refreshToken)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	resp := testutil.ParseResponse[models.TokenPairResponse](t, rec)
 
 	assert.NotEmpty(t, resp.Token)
-	assert.NotEmpty(t, resp.RefreshToken)
+	// Новый refresh уходит снова в cookie, не в body.
+	assert.Empty(t, resp.RefreshToken)
+	var newRefreshCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "refresh_token" {
+			newRefreshCookie = c
+			break
+		}
+	}
+	require.NotNil(t, newRefreshCookie, "должна быть новая refresh cookie (ротация)")
+	assert.NotEmpty(t, newRefreshCookie.Value)
 }
 
-func TestRefreshToken_SnakeCaseField(t *testing.T) {
+func TestRefreshToken_BodyFallback(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -234,6 +263,7 @@ func TestRefreshToken_SnakeCaseField(t *testing.T) {
 	testutil.RegisterUser(t, e, "snakeuser", "pass123", 1, td.OrgID, td.CompanyID)
 	_, refreshToken := testutil.LoginUser(t, e, "snakeuser", "pass123")
 
+	// Fallback: если cookie нет, читаем из body snake_case.
 	body := `{"refresh_token":"` + refreshToken + `"}`
 	rec := testutil.POST(t, e, "/refresh-token", body, nil)
 
@@ -262,12 +292,13 @@ func TestRefreshToken_RevokedToken(t *testing.T) {
 	_, refreshToken := testutil.LoginUser(t, e, "revokeuser", "pass123")
 
 	// Use the refresh token once (revokes it)
-	body := `{"refreshToken":"` + refreshToken + `"}`
-	rec := testutil.POST(t, e, "/refresh-token", body, nil)
+	h := http.Header{}
+	h.Set("Cookie", "refresh_token="+refreshToken)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Try using the same refresh token again -- it has been revoked
-	rec = testutil.POST(t, e, "/refresh-token", body, nil)
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
@@ -319,9 +350,9 @@ func TestGetUserData_Success(t *testing.T) {
 
 	assert.Equal(t, "datauser", resp.Username)
 	assert.Equal(t, "Test Organization", resp.Organization)
-	assert.Equal(t, td.OrgID, resp.OrganizationID)
+	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, "Test Company", resp.Company)
-	assert.Equal(t, td.CompanyID, resp.CompanyID)
+	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 }
 
 func TestGetUserData_NoAuth(t *testing.T) {
@@ -355,9 +386,9 @@ func TestGetCurrentUser_Success(t *testing.T) {
 	assert.Equal(t, "Арендатор", resp.UserType)
 	assert.Equal(t, "renter", resp.UserTypeCode)
 	assert.Equal(t, "Test Organization", resp.Organization)
-	assert.Equal(t, td.OrgID, resp.OrganizationID)
+	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, "Test Company", resp.Company)
-	assert.Equal(t, td.CompanyID, resp.CompanyID)
+	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 	assert.Greater(t, resp.ID, 0)
 }
 
@@ -417,4 +448,215 @@ func TestGetUserTypes_PublicEndpoint(t *testing.T) {
 
 func itoa(n int) string {
 	return fmt.Sprintf("%d", n)
+}
+
+// --- Account lockout (P0.2) ---
+
+func TestLogin_FailedLoginIncrementsCounter(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "lockuser", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Неверный пароль -> counter увеличивается.
+	body := `{"username":"lockuser","password":"wrongpass"}`
+	rec := testutil.POST(t, e, "/login", body, nil)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "lockuser").First(&user).Error)
+	assert.Equal(t, 1, user.FailedLoginCount)
+	assert.Nil(t, user.LockedUntil, "до 10 попыток lock не ставится")
+}
+
+func TestLogin_SuccessResetsFailedCounter(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "resetuser", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Две неудачные попытки.
+	for i := 0; i < 2; i++ {
+		rec := testutil.POST(t, e, "/login", `{"username":"resetuser","password":"wrong"}`, nil)
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+	}
+
+	// Успешный вход - счётчик должен обнулиться.
+	rec := testutil.POST(t, e, "/login", `{"username":"resetuser","password":"correctpass"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "resetuser").First(&user).Error)
+	assert.Equal(t, 0, user.FailedLoginCount, "успешный вход обнуляет счётчик")
+	assert.Nil(t, user.LockedUntil)
+}
+
+func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "lockme", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Напрямую через БД выставляем счётчик в 9 - следующая неудача залочит.
+	// Это заодно обходит IP rate limiter (5 попыток/15м), не связанный с этим кейсом.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "lockme").
+		Update("failed_login_count", 9).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "lockme").First(&user).Error)
+	assert.Equal(t, 10, user.FailedLoginCount)
+	require.NotNil(t, user.LockedUntil, "после 10 неудач учётка залочена")
+	assert.True(t, user.LockedUntil.After(time.Now().Add(29*time.Minute)),
+		"lock примерно на 30 минут")
+}
+
+func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "locked", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Прямо в БД выставляем lock на 5 минут вперёд.
+	lockUntil := time.Now().Add(5 * time.Minute)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "locked").
+		Update("locked_until", lockUntil).Error)
+
+	// Даже правильный пароль возвращает 429 пока lock не истечёт.
+	rec := testutil.POST(t, e, "/login", `{"username":"locked","password":"correctpass"}`, nil)
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Contains(t, rec.Body.String(), "заблокирована")
+}
+
+func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "unlocked", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Lock в прошлом - не должен препятствовать входу.
+	pastLock := time.Now().Add(-1 * time.Minute)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "unlocked").
+		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 10}).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"unlocked","password":"correctpass"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// После успешного входа lock и счётчик сброшены.
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "unlocked").First(&user).Error)
+	assert.Equal(t, 0, user.FailedLoginCount)
+	assert.Nil(t, user.LockedUntil)
+}
+
+// --- Refresh token family invalidation (P0.1) ---
+
+func TestRefresh_ReuseDetection_InvalidatesFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "replayuser", "pass123", 1, td.OrgID, td.CompanyID)
+	_, refresh1 := testutil.LoginUser(t, e, "replayuser", "pass123")
+
+	// Легитимная ротация: refresh1 -> refresh2.
+	h1 := http.Header{}
+	h1.Set("Cookie", "refresh_token="+refresh1)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h1)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Достаём refresh2 из cookie в ответе.
+	var refresh2 string
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "refresh_token" {
+			refresh2 = c.Value
+			break
+		}
+	}
+	require.NotEmpty(t, refresh2)
+
+	// Attacker пробует заюзать revoked refresh1 - должно триггернуть reuse detection.
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h1)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "reuse detected")
+
+	// refresh2 (активный до reuse) теперь тоже revoked - вся family мертва.
+	h2 := http.Header{}
+	h2.Set("Cookie", "refresh_token="+refresh2)
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h2)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code,
+		"family invalidation: текущий активный токен тоже отозван")
+
+	// В БД все токены family должны быть is_revoked=true.
+	var activeCount int64
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = false", "replayuser").
+		Count(&activeCount)
+	assert.Equal(t, int64(0), activeCount, "все токены family должны быть отозваны")
+}
+
+func TestRefresh_NormalRotation_PreservesFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "rotateuser", "pass123", 1, td.OrgID, td.CompanyID)
+	_, refresh1 := testutil.LoginUser(t, e, "rotateuser", "pass123")
+
+	// Делаем 3 последовательных легитимных ротации.
+	current := refresh1
+	var familyIDs []string
+	for i := 0; i < 3; i++ {
+		h := http.Header{}
+		h.Set("Cookie", "refresh_token="+current)
+		rec := testutil.POST(t, e, "/refresh-token", "{}", h)
+		require.Equal(t, http.StatusOK, rec.Code, "итерация %d", i)
+
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == "refresh_token" {
+				current = c.Value
+				break
+			}
+		}
+	}
+
+	// Все 4 записи (login + 3 refresh) должны иметь один family_id.
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?)", "rotateuser").
+		Distinct().Pluck("family_id", &familyIDs)
+	assert.Len(t, familyIDs, 1, "все токены одной сессии должны быть в одной family")
+	assert.NotEmpty(t, familyIDs[0])
+}
+
+func TestLogin_GeneratesNewFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "multi", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// Два независимых login - каждый со своей family.
+	testutil.LoginUser(t, e, "multi", "pass123")
+	testutil.LoginUser(t, e, "multi", "pass123")
+
+	var familyIDs []string
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?)", "multi").
+		Distinct().Pluck("family_id", &familyIDs)
+	assert.Len(t, familyIDs, 2, "разные login-ы -> разные family")
 }

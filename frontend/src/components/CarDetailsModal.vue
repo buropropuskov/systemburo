@@ -1,10 +1,11 @@
 <template>
-  <div class="modal-overlay" @click.self="close">
+  <div class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
     <div class="modal-wrapper">
       <!-- Основное модальное окно с деталями автомобиля -->
-      <div 
+      <div
         class="car-details-modal main-modal"
         :class="{ 'shifted': isMainShifted }"
+        @mousedown.stop
       >
         <div class="modal-header">
           <h3>Детали автомобиля</h3>
@@ -85,8 +86,7 @@
             </div>
             
             <div v-if="loadingHistory" class="loading-container">
-              <div class="loader"></div>
-              <span>Загрузка истории...</span>
+              <LoaderSpinner label="Загрузка истории…" />
             </div>
             
             <div v-else-if="history.length === 0" class="no-history">
@@ -265,9 +265,16 @@
 <script>
 import { apiRequest } from '@/api/client'
 import CarHistoryModal from './CarHistoryModal.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
 export default {
+    components: { LoaderSpinner },
+    setup(_, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+        return { onOverlayMousedown, onOverlayMouseup };
+    },
   name: 'CarDetailsModal',
   components: {
     CarHistoryModal

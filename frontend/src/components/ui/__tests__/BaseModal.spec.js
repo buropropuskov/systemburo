@@ -38,13 +38,25 @@ describe('BaseModal', () => {
 
   it('emits close on overlay click when closeOnOverlay=true', async () => {
     const wrapper = mountModal({ closeOnOverlay: true });
-    await wrapper.find('.base-modal-overlay').trigger('click');
+    const overlay = wrapper.find('.base-modal-overlay');
+    await overlay.trigger('mousedown');
+    await overlay.trigger('mouseup');
     expect(wrapper.emitted('close')).toHaveLength(1);
   });
 
   it('does not emit close on overlay click when closeOnOverlay=false', async () => {
     const wrapper = mountModal({ closeOnOverlay: false });
-    await wrapper.find('.base-modal-overlay').trigger('click');
+    const overlay = wrapper.find('.base-modal-overlay');
+    await overlay.trigger('mousedown');
+    await overlay.trigger('mouseup');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+
+  it('does not emit close when mousedown starts inside modal and mouseup lands on overlay (drag-out)', async () => {
+    const wrapper = mountModal({ closeOnOverlay: true });
+    const overlay = wrapper.find('.base-modal-overlay');
+    await wrapper.find('.base-modal').trigger('mousedown');
+    await overlay.trigger('mouseup');
     expect(wrapper.emitted('close')).toBeUndefined();
   });
 

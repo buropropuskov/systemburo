@@ -103,3 +103,31 @@ func (h *NotificationHandler) DeleteAll(c echo.Context) error {
 	}
 	return RespondMessage(c, "Все уведомления удалены")
 }
+
+// Create godoc
+// @Summary      Создание уведомления (admin-only)
+// @Tags         notifications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.CreateNotificationRequest true "Данные уведомления"
+// @Success      200 {object} models.Notification
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /notifications [post]
+func (h *NotificationHandler) Create(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	if typeID != 5 && typeID != 6 {
+		return echo.NewHTTPError(403, "Insufficient permissions")
+	}
+	var req models.CreateNotificationRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	n, err := h.service.Create(c.Request().Context(), req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, n)
+}
