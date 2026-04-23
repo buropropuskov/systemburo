@@ -26,8 +26,8 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       workflows: ${{ steps.filter.outputs.workflows }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Validate commit messages
@@ -74,7 +74,7 @@ jobs:
     needs: paths
     if: needs.paths.outputs.backend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-go
       - run: go vet ./...
 
@@ -103,7 +103,7 @@ jobs:
       JWT_SECRET: ci-test-jwt-secret-that-is-at-least-32-chars!!
       JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-at-least-32-chars!
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-go
       - name: Run tests
         run: go test -race -count=1 -timeout 120s -p 4 ./...
@@ -114,7 +114,7 @@ jobs:
     needs: paths
     if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-frontend
       - working-directory: frontend
         run: npm run lint
@@ -125,7 +125,7 @@ jobs:
     needs: [paths, frontend-lint]
     if: needs.paths.outputs.frontend == 'true' || needs.paths.outputs.workflows == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-frontend
       - working-directory: frontend
         run: npm run test:run
@@ -136,10 +136,10 @@ jobs:
     needs: [paths, backend-test, frontend-test]
     if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
       - name: Build backend image (cached)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: production
@@ -148,7 +148,7 @@ jobs:
           cache-from: type=gha,scope=systemburo-backend
           cache-to: type=gha,mode=max,scope=systemburo-backend
       - name: Build frontend image (cached)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           target: production
@@ -168,7 +168,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: dev
           fetch-depth: 0

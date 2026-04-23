@@ -1,4 +1,4 @@
-FROM golang:1.25-bookworm AS dev
+FROM golang:1.26-bookworm AS dev
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN go mod tidy && swag init -g cmd/server/main.go -o docs && go build -o server
 CMD ["sh", "-c", "swag init -g cmd/server/main.go -o docs && go run ./cmd/server"]
 
 # --- Production ---
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ RUN go mod tidy && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o server ./cmd/server && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o seed ./cmd/seed
 
-FROM alpine:3.20 AS production
+FROM alpine:3.23 AS production
 RUN apk add --no-cache ca-certificates
 RUN addgroup -S -g 1001 appgroup && \
     adduser -S -u 1001 -G appgroup appuser
