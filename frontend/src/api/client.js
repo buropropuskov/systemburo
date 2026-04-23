@@ -13,22 +13,23 @@ function isAuthEndpoint(path) {
   return AUTH_ENDPOINTS.some((p) => path === p || path.startsWith(p + '?'))
 }
 
+// performRefresh вызывает POST /refresh-token. Refresh token живёт в
+// HttpOnly cookie - отправляется автоматически через credentials: 'include'.
 async function performRefresh() {
   const authStore = useAuthStore()
-  const refreshToken = authStore.refreshToken
-  if (!refreshToken) throw new Error('no refresh token')
 
   const response = await fetch(`${API_BASE_URL}/refresh-token`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    body: '{}',
   })
   if (!response.ok) throw new Error(`refresh failed: ${response.status}`)
 
   const body = await response.json()
   const data = body && typeof body === 'object' && 'success' in body ? body.data : body
-  if (!data || !data.token || !data.refreshToken) throw new Error('refresh: malformed response')
-  authStore.setTokens(data.token, data.refreshToken)
+  if (!data || !data.token) throw new Error('refresh: malformed response')
+  authStore.setTokens(data.token)
   return data.token
 }
 
@@ -39,6 +40,18 @@ function ensureRefreshed() {
     })
   }
   return refreshPromise
+}
+
+// tryRestoreSession - вызывается на монтировании App, пытается обновить сессию
+// из HttpOnly cookie. Используется после F5 когда token в памяти Pinia потерян,
+// но cookie сервера ещё жива.
+export async function tryRestoreSession() {
+  try {
+    await ensureRefreshed()
+    return true
+  } catch {
+    return false
+  }
 }
 
 function wrapJsonUnwrap(response) {
@@ -62,6 +75,7 @@ async function doFetch(path, options, token) {
   try {
     return await fetch(`${API_BASE_URL}${path}`, {
       ...options,
+      credentials: 'include',
       signal: options.signal || controller.signal,
       headers: {
         'Content-Type': 'application/json',

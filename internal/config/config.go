@@ -32,6 +32,11 @@ type Config struct {
 	RateLimitWindowSec int64  `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
 	PaginationMaxLimit int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
 	UploadPath         string `env:"UPLOAD_PATH" envDefault:"./uploads"`
+
+	// CookieSecure управляет флагом Secure на refresh-cookie. На staging/prod
+	// всегда true (HTTPS). На локальной разработке (http://localhost) - false,
+	// иначе браузер не отправит cookie.
+	CookieSecure bool `env:"COOKIE_SECURE" envDefault:"true"`
 }
 
 func Load() (*Config, error) {

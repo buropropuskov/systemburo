@@ -167,7 +167,23 @@ func TestLogin_Success(t *testing.T) {
 	resp := testutil.ParseResponse[models.LoginResponse](t, rec)
 
 	assert.NotEmpty(t, resp.Token)
-	assert.NotEmpty(t, resp.RefreshToken)
+	// refresh_token теперь в HttpOnly cookie, не в JSON body.
+	assert.Empty(t, resp.RefreshToken, "refresh token должен быть пустым в JSON - он в cookie")
+
+	// Проверяем что cookie выставлена с правильными флагами.
+	var refreshCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "refresh_token" {
+			refreshCookie = c
+			break
+		}
+	}
+	require.NotNil(t, refreshCookie, "refresh_token cookie должна быть установлена")
+	assert.NotEmpty(t, refreshCookie.Value)
+	assert.True(t, refreshCookie.HttpOnly, "cookie должна быть HttpOnly")
+	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
+	assert.Equal(t, "/", refreshCookie.Path)
+
 	assert.Equal(t, td.OrgID, *resp.OrganizationID)
 	assert.Equal(t, td.CompanyID, *resp.CompanyID)
 	assert.Equal(t, 1, resp.TypeID)
@@ -214,18 +230,30 @@ func TestRefreshToken_Success(t *testing.T) {
 	testutil.RegisterUser(t, e, "refreshuser", "pass123", 1, td.OrgID, td.CompanyID)
 	_, refreshToken := testutil.LoginUser(t, e, "refreshuser", "pass123")
 
-	body := `{"refreshToken":"` + refreshToken + `"}`
-	rec := testutil.POST(t, e, "/refresh-token", body, nil)
+	// Refresh token теперь в cookie, body оставлен для обратной совместимости.
+	h := http.Header{}
+	h.Set("Cookie", "refresh_token="+refreshToken)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	resp := testutil.ParseResponse[models.TokenPairResponse](t, rec)
 
 	assert.NotEmpty(t, resp.Token)
-	assert.NotEmpty(t, resp.RefreshToken)
+	// Новый refresh уходит снова в cookie, не в body.
+	assert.Empty(t, resp.RefreshToken)
+	var newRefreshCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "refresh_token" {
+			newRefreshCookie = c
+			break
+		}
+	}
+	require.NotNil(t, newRefreshCookie, "должна быть новая refresh cookie (ротация)")
+	assert.NotEmpty(t, newRefreshCookie.Value)
 }
 
-func TestRefreshToken_SnakeCaseField(t *testing.T) {
+func TestRefreshToken_BodyFallback(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -234,6 +262,7 @@ func TestRefreshToken_SnakeCaseField(t *testing.T) {
 	testutil.RegisterUser(t, e, "snakeuser", "pass123", 1, td.OrgID, td.CompanyID)
 	_, refreshToken := testutil.LoginUser(t, e, "snakeuser", "pass123")
 
+	// Fallback: если cookie нет, читаем из body snake_case.
 	body := `{"refresh_token":"` + refreshToken + `"}`
 	rec := testutil.POST(t, e, "/refresh-token", body, nil)
 
@@ -262,12 +291,13 @@ func TestRefreshToken_RevokedToken(t *testing.T) {
 	_, refreshToken := testutil.LoginUser(t, e, "revokeuser", "pass123")
 
 	// Use the refresh token once (revokes it)
-	body := `{"refreshToken":"` + refreshToken + `"}`
-	rec := testutil.POST(t, e, "/refresh-token", body, nil)
+	h := http.Header{}
+	h.Set("Cookie", "refresh_token="+refreshToken)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Try using the same refresh token again -- it has been revoked
-	rec = testutil.POST(t, e, "/refresh-token", body, nil)
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 

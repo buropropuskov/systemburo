@@ -61,7 +61,7 @@ describe('v-permission directive', () => {
 
   it('shows element for admin regardless of permission', () => {
     const authStore = useAuthStore()
-    authStore.setTokens(createMockJWT({ type_id: 6 }), 'refresh')
+    authStore.setTokens(createMockJWT({ type_id: 6 }))
 
     const store = usePermissionsStore()
     store.permissions = { 'passes.create': 'deny' }
@@ -73,7 +73,7 @@ describe('v-permission directive', () => {
 
   it('shows element for admin even when permission is missing', () => {
     const authStore = useAuthStore()
-    authStore.setTokens(createMockJWT({ type_id: 6 }), 'refresh')
+    authStore.setTokens(createMockJWT({ type_id: 6 }))
 
     const wrapper = mountWithPermission('passes.create', pinia)
 
