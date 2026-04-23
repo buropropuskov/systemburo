@@ -44,7 +44,7 @@ describe('apiRequest basics', () => {
 
   it('adds Authorization header when token exists in store', async () => {
     const { useAuthStore } = await import('@/stores/auth');
-    useAuthStore().setTokens('test-bearer-token', 'refresh');
+    useAuthStore().setTokens('test-bearer-token');
 
     await apiRequest('/users/me');
 
@@ -108,7 +108,7 @@ describe('401 auto-refresh', () => {
     localStorage.clear();
     routerPush.mockReset();
     const { useAuthStore } = await import('@/stores/auth');
-    useAuthStore().setTokens('old-access', 'refresh-token-value');
+    useAuthStore().setTokens('old-access');
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -134,7 +134,6 @@ describe('401 auto-refresh', () => {
 
     const { useAuthStore } = await import('@/stores/auth');
     expect(useAuthStore().token).toBe('new-access');
-    expect(useAuthStore().refreshToken).toBe('new-refresh');
   });
 
   it('on refresh failure clears tokens and redirects to /', async () => {
@@ -146,7 +145,6 @@ describe('401 auto-refresh', () => {
 
     const { useAuthStore } = await import('@/stores/auth');
     expect(useAuthStore().token).toBeNull();
-    expect(useAuthStore().refreshToken).toBeNull();
     expect(routerPush).toHaveBeenCalledWith('/');
   });
 

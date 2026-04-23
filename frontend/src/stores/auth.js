@@ -8,23 +8,22 @@ function decodeToken(token) {
   }
 }
 
+// Access token хранится только в памяти (Pinia state).
+// Refresh token живёт в HttpOnly cookie и JS его не видит - поэтому
+// isAuthenticated определяется наличием access и попыткой refresh на старте.
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    token: localStorage.getItem('token') || null,
-    refreshToken: localStorage.getItem('refreshToken') || null,
+    token: null,
   }),
 
   getters: {
     isAuthenticated() {
-      if (!this.refreshToken) return false;
-      const payload = decodeToken(this.refreshToken);
+      if (!this.token) return false;
+      const payload = decodeToken(this.token);
       return !!(payload && payload.exp > Math.floor(Date.now() / 1000));
     },
     userPayload() {
       return this.token ? decodeToken(this.token) : null;
-    },
-    refreshPayload() {
-      return this.refreshToken ? decodeToken(this.refreshToken) : null;
     },
     userType() {
       return this.userPayload?.type_id || null;
@@ -38,17 +37,11 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    setTokens(token, refreshToken) {
+    setTokens(token) {
       this.token = token;
-      this.refreshToken = refreshToken;
-      localStorage.setItem('token', token);
-      localStorage.setItem('refreshToken', refreshToken);
     },
     clearTokens() {
       this.token = null;
-      this.refreshToken = null;
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
     },
   },
 });

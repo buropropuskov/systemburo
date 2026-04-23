@@ -331,20 +331,17 @@ export default {
 
         if (response.ok) {
             const data = await response.json();
-            
+
             const authStore = useAuthStore()
-            authStore.setTokens(data.token, data.refreshToken)
-            
+            authStore.setTokens(data.token)
+
             this.isLoading = false;
             this.isSuccess = true;
-            
+
             await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            this.$emit('login-success', {
-                token: data.token,
-                refreshToken: data.refreshToken
-            });
-            
+
+            this.$emit('login-success', { token: data.token });
+
             this.$router.push('/news');
         } else {
             // Проверяем статус код для определения типа ошибки

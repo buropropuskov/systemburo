@@ -140,7 +140,7 @@ func main() {
 	settingsService := services.NewSettingsService(db, cfg)
 
 	// Handlers
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, cfg.CookieSecure, cfg.JWTRefreshTTL)
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
