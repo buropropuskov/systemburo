@@ -172,8 +172,13 @@ func main() {
 
 	api.SetMaxLimit(cfg.PaginationMaxLimit)
 
+	// /login - отдельный per-IP rate limiter: 5 попыток / 15 минут.
+	// Защита от онлайн brute-force до попадания в Argon2id (который замедляет
+	// только офлайн-атаки). Дополняется per-user lockout в authService.Login.
+	loginLimiter := mw.LoginRateLimit(5, 15*time.Minute)
+
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret))
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret), loginLimiter)
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
 	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

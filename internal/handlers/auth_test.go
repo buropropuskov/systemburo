@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
@@ -447,4 +448,115 @@ func TestGetUserTypes_PublicEndpoint(t *testing.T) {
 
 func itoa(n int) string {
 	return fmt.Sprintf("%d", n)
+}
+
+// --- Account lockout (P0.2) ---
+
+func TestLogin_FailedLoginIncrementsCounter(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "lockuser", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Неверный пароль -> counter увеличивается.
+	body := `{"username":"lockuser","password":"wrongpass"}`
+	rec := testutil.POST(t, e, "/login", body, nil)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "lockuser").First(&user).Error)
+	assert.Equal(t, 1, user.FailedLoginCount)
+	assert.Nil(t, user.LockedUntil, "до 10 попыток lock не ставится")
+}
+
+func TestLogin_SuccessResetsFailedCounter(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "resetuser", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Две неудачные попытки.
+	for i := 0; i < 2; i++ {
+		rec := testutil.POST(t, e, "/login", `{"username":"resetuser","password":"wrong"}`, nil)
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+	}
+
+	// Успешный вход - счётчик должен обнулиться.
+	rec := testutil.POST(t, e, "/login", `{"username":"resetuser","password":"correctpass"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "resetuser").First(&user).Error)
+	assert.Equal(t, 0, user.FailedLoginCount, "успешный вход обнуляет счётчик")
+	assert.Nil(t, user.LockedUntil)
+}
+
+func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "lockme", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Напрямую через БД выставляем счётчик в 9 - следующая неудача залочит.
+	// Это заодно обходит IP rate limiter (5 попыток/15м), не связанный с этим кейсом.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "lockme").
+		Update("failed_login_count", 9).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "lockme").First(&user).Error)
+	assert.Equal(t, 10, user.FailedLoginCount)
+	require.NotNil(t, user.LockedUntil, "после 10 неудач учётка залочена")
+	assert.True(t, user.LockedUntil.After(time.Now().Add(29*time.Minute)),
+		"lock примерно на 30 минут")
+}
+
+func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "locked", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Прямо в БД выставляем lock на 5 минут вперёд.
+	lockUntil := time.Now().Add(5 * time.Minute)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "locked").
+		Update("locked_until", lockUntil).Error)
+
+	// Даже правильный пароль возвращает 429 пока lock не истечёт.
+	rec := testutil.POST(t, e, "/login", `{"username":"locked","password":"correctpass"}`, nil)
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Contains(t, rec.Body.String(), "заблокирована")
+}
+
+func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "unlocked", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Lock в прошлом - не должен препятствовать входу.
+	pastLock := time.Now().Add(-1 * time.Minute)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "unlocked").
+		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 10}).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"unlocked","password":"correctpass"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// После успешного входа lock и счётчик сброшены.
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "unlocked").First(&user).Error)
+	assert.Equal(t, 0, user.FailedLoginCount)
+	assert.Nil(t, user.LockedUntil)
 }

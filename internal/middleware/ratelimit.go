@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -95,4 +97,29 @@ func (rl *rateLimiter) allow(key string) bool {
 
 	rl.requests[key] = append(valid, now)
 	return true
+}
+
+// LoginRateLimit - специализированный rate limiter для /login.
+// Ключ - client IP, окно и лимит задаются отдельно от общего RateLimit.
+// При превышении отвечает 429 + Retry-After, чтобы клиент знал через сколько
+// можно повторить. Защита от онлайн brute-force до попадания в Argon2id.
+func LoginRateLimit(maxAttempts int, window time.Duration) echo.MiddlewareFunc {
+	rl := &rateLimiter{
+		requests: make(map[string][]int64),
+		limit:    maxAttempts,
+		window:   int64(window.Seconds()),
+	}
+	go rl.cleanup(int64(window.Seconds()))
+
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			key := "login:" + c.RealIP()
+			if !rl.allow(key) {
+				c.Response().Header().Set("Retry-After", strconv.FormatInt(rl.window, 10))
+				return echo.NewHTTPError(http.StatusTooManyRequests,
+					fmt.Sprintf("Слишком много попыток входа. Повторите через %d секунд.", rl.window))
+			}
+			return next(c)
+		}
+	}
 }
