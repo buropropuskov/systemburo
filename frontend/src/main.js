@@ -10,13 +10,15 @@ import './assets/tokens.css'
 const app = createApp(App)
 app.config.globalProperties.$bus = bus
 app.use(createPinia())
-app.use(router)
 app.directive('permission', vPermission)
 
-// Bootstrap: пробуем восстановить сессию из HttpOnly refresh cookie
-// ДО первой navigation. Без этого router guard срабатывает раньше
-// чем access token попадает в Pinia, и юзер на F5 выкидывается на /.
-// Silent fail OK - если cookie мёртв, guard просто redirect'ит на /.
+// Bootstrap: восстанавливаем сессию из HttpOnly refresh cookie ДО app.use(router).
+// Vue Router 4.x триггерит initial navigation синхронно при install - если router
+// подключить раньше, guard успеет прочитать пустой authStore.token и редиректнуть
+// на /, а наш await tryRestoreSession() применится уже ПОСЛЕ редиректа.
+// Silent fail OK: если cookie мёртв, guard штатно отправит на /.
 await tryRestoreSession()
+
+app.use(router)
 await router.isReady()
 app.mount('#app')
