@@ -115,21 +115,13 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach(async (to, from, next) => {
+// Guard синхронный - tryRestoreSession вызывается в main.js ДО mount,
+// поэтому к моменту первой navigation auth store уже hydrated (token
+// в памяти если refresh cookie жив). На F5 guard сразу видит реальное
+// состояние без async гонок.
+router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
-  let isAuthenticated = authStore.isAuthenticated;
-
-  // После F5 access token в памяти потерян, но refresh cookie живёт
-  // на стороне сервера - пробуем восстановить сессию перед navigation.
-  // tryRestoreSession импортируется lazy чтобы избежать цикла.
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    const { tryRestoreSession } = await import('@/api/client');
-    const restored = await tryRestoreSession();
-    if (restored) {
-      isAuthenticated = authStore.isAuthenticated;
-    }
-  }
-
+  const isAuthenticated = authStore.isAuthenticated;
   const isBuroPropuskov = authStore.isAdmin;
 
   if (to.meta.requiresAuth && !isAuthenticated) {

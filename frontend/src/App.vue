@@ -19,7 +19,7 @@
 </template>
 
 <script>
-import { apiRequest, tryRestoreSession } from '@/api/client'
+import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import NavMenu from './components/NavMenu.vue';
@@ -79,16 +79,13 @@ export default {
       }
     },
   },
-  async created() {
-    // После F5 access_token в памяти потерян. Refresh cookie живёт на
-    // стороне сервера - пытаемся восстановить сессию одним запросом.
+  created() {
+    // tryRestoreSession вызывается в main.js ДО mount - auth уже hydrated.
+    // Здесь остаётся только загрузить permissions если юзер залогинен.
     const authStore = useAuthStore()
-    if (!authStore.token) {
-      const restored = await tryRestoreSession()
-      if (restored) {
-        const permissionsStore = usePermissionsStore()
-        permissionsStore.fetchPermissions()
-      }
+    if (authStore.token) {
+      const permissionsStore = usePermissionsStore()
+      permissionsStore.fetchPermissions()
     }
   },
 };
