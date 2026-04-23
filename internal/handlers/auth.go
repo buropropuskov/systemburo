@@ -71,7 +71,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	resp, err := h.service.Login(c.Request().Context(), req)
+	resp, err := h.service.Login(c.Request().Context(), req, requestMeta(c))
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 		}
 	}
-	resp, err := h.service.RefreshToken(c.Request().Context(), req)
+	resp, err := h.service.RefreshToken(c.Request().Context(), req, requestMeta(c))
 	if err != nil {
 		return err
 	}
@@ -132,13 +132,21 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	} else {
 		_ = c.Bind(&req)
 	}
-	if err := h.service.Logout(c.Request().Context(), username, req); err != nil {
+	if err := h.service.Logout(c.Request().Context(), username, req, requestMeta(c)); err != nil {
 		// Всё равно чистим cookie - даже если DB-запись не удалилась.
 		h.clearRefreshCookie(c)
 		return err
 	}
 	h.clearRefreshCookie(c)
 	return RespondMessage(c, "Logged out successfully")
+}
+
+// requestMeta - helper для сбора IP/UA из echo.Context в services.RequestMeta.
+func requestMeta(c echo.Context) *services.RequestMeta {
+	return &services.RequestMeta{
+		IPAddress: c.RealIP(),
+		UserAgent: c.Request().UserAgent(),
+	}
 }
 
 // GetUserData godoc
