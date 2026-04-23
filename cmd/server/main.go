@@ -108,6 +108,22 @@ func main() {
 	e.Use(mw.RequestID())
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
+	// Security headers: HSTS, CSP, X-Frame-Options и т.д. HSTS включается только
+	// в режиме CookieSecure (prod/staging) - на http://localhost HSTS бесполезен
+	// и даже вреден (браузер запомнит домен как HTTPS-only).
+	hstsMaxAge := 0
+	if cfg.CookieSecure {
+		hstsMaxAge = 63072000 // 2 года - рекомендация MDN/OWASP для production
+	}
+	e.Use(echomw.SecureWithConfig(echomw.SecureConfig{
+		XSSProtection:         "1; mode=block",
+		ContentTypeNosniff:    "nosniff",
+		XFrameOptions:         "DENY",
+		HSTSMaxAge:            hstsMaxAge,
+		HSTSPreloadEnabled:    cfg.CookieSecure,
+		ContentSecurityPolicy: "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'",
+		ReferrerPolicy:        "strict-origin-when-cross-origin",
+	}))
 	e.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	e.Use(mw.RateLimit(cfg.RateLimitPerMinute, cfg.RateLimitWindowSec))
 	e.Use(mw.PDAudit(db))

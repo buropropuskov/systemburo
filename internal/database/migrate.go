@@ -25,6 +25,7 @@ func AllModels() []interface{} {
 		// Users (depends on UserType, Organization, Company)
 		&models.User{},
 		&models.RefreshToken{},
+		&models.AuthEvent{},
 		&models.OrganizationUser{},
 		&models.CompaniesUser{},
 

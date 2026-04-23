@@ -22,13 +22,21 @@ import (
 	_ "crypto/rand"
 )
 
+// RequestMeta - метаданные HTTP-запроса, пробрасываемые в auth-операции.
+// IP и User-Agent нужны и для audit log (AuthEvent), и для binding на refresh
+// токен. nil допустим (обратная совместимость / тесты без meta).
+type RequestMeta struct {
+	IPAddress string
+	UserAgent string
+}
+
 // AuthService defines the auth business logic interface.
 // Создание пользователей идёт через UserService.Create (POST /users, admin-only).
 // Публичная регистрация (POST /register) не поддерживается - см. удалённый Register handler.
 type AuthService interface {
-	Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error)
-	RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error)
-	Logout(ctx context.Context, username string, req models.LogoutRequest) error
+	Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error)
+	RefreshToken(ctx context.Context, req models.RefreshTokenRequest, meta *RequestMeta) (*models.TokenPairResponse, error)
+	Logout(ctx context.Context, username string, req models.LogoutRequest, meta *RequestMeta) error
 	GetUserData(ctx context.Context, username string) (*models.UserDataResponse, error)
 	GetCurrentUser(ctx context.Context, username string) (*models.CurrentUserResponse, error)
 	GetUserTypes(ctx context.Context) ([]models.UserType, error)
@@ -161,7 +169,7 @@ const (
 )
 
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
-func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error) {
+func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error) {
 	var user models.User
 	err := s.db.WithContext(ctx).
 		Preload("Organization").
@@ -170,6 +178,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		Where("username = ?", req.Username).
 		First(&user).Error
 	if err != nil {
+		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
 
@@ -178,22 +187,27 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 	// счётчик и атакующий мог бы "разморозить" учётку угадав пароль в моменте.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
 		remaining := int(time.Until(*user.LockedUntil).Seconds())
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
+			fmt.Sprintf("locked for %ds", remaining))
 		return nil, echo.NewHTTPError(http.StatusTooManyRequests,
 			fmt.Sprintf("Учётная запись временно заблокирована. Повторите через %d секунд.", remaining))
 	}
 
 	if !verifyPassword(user.Password, req.Password) {
 		s.registerFailedLogin(ctx, &user)
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
 
 	// Успешный вход - сбрасываем счётчик неудачных попыток и lock.
+	// Также апдейтим last_login_at для аудита активности.
+	now := time.Now()
+	updates := map[string]interface{}{"last_login_at": now}
 	if user.FailedLoginCount > 0 || user.LockedUntil != nil {
-		s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
-			"failed_login_count": 0,
-			"locked_until":       nil,
-		})
+		updates["failed_login_count"] = 0
+		updates["locked_until"] = nil
 	}
+	s.db.WithContext(ctx).Model(&user).Updates(updates)
 
 	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID)
 	if err != nil {
@@ -206,15 +220,20 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 	}
 
 	// Store hashed refresh token in DB. FamilyID генерируется при login,
-	// наследуется всеми refresh-токенами одной сессии. См. RefreshToken.
+	// наследуется всеми refresh-токенами одной сессии. IP/UA - soft-binding
+	// для аудита и детекции аномалий.
 	familyID := uuid.NewString()
 	rt := models.RefreshToken{
 		UserID:    user.ID,
 		FamilyID:  familyID,
 		TokenHash: hashRefreshToken(refreshJWT),
 		ExpiresAt: time.Now().Add(s.refreshTTL),
+		IPAddress: metaIPPtr(meta),
+		UserAgent: metaUAPtr(meta),
 	}
 	s.db.WithContext(ctx).Create(&rt)
+
+	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginSuccess, true, meta, "")
 
 	return &models.LoginResponse{
 		Token:          accessToken,
@@ -233,7 +252,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 // это признак кражи (либо attacker, либо legitimate user использовал старую копию
 // после ротации). Реакция: инвалидировать всю семью (family_id) и заставить
 // перелогиниться. См. Auth0 refresh token rotation pattern.
-func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error) {
+func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest, meta *RequestMeta) (*models.TokenPairResponse, error) {
 	refreshToken := req.GetRefreshToken()
 	claims, err := s.decodeRefreshToken(refreshToken)
 	if err != nil {
@@ -268,6 +287,8 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 			Update("is_revoked", true)
 		slog.Warn("refresh token reuse detected - family invalidated",
 			"user_id", user.ID, "family_id", storedToken.FamilyID)
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventTokenReuseDetected, false, meta,
+			"family_id="+storedToken.FamilyID)
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Refresh token reuse detected, please log in again")
 	}
 
@@ -289,8 +310,12 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		FamilyID:  storedToken.FamilyID,
 		TokenHash: hashRefreshToken(newRefresh),
 		ExpiresAt: time.Now().Add(s.refreshTTL),
+		IPAddress: metaIPPtr(meta),
+		UserAgent: metaUAPtr(meta),
 	}
 	s.db.WithContext(ctx).Create(&rt)
+
+	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventRefresh, true, meta, "")
 
 	return &models.TokenPairResponse{
 		Token:        newAccess,
@@ -299,7 +324,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 }
 
 // Logout отзывает refresh-токен пользователя.
-func (s *authService) Logout(ctx context.Context, username string, req models.LogoutRequest) error {
+func (s *authService) Logout(ctx context.Context, username string, req models.LogoutRequest, meta *RequestMeta) error {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
@@ -309,6 +334,8 @@ func (s *authService) Logout(ctx context.Context, username string, req models.Lo
 	s.db.WithContext(ctx).
 		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
 		Delete(&models.RefreshToken{})
+
+	s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLogout, true, meta, "")
 
 	return nil
 }
@@ -390,8 +417,58 @@ func (s *authService) registerFailedLogin(ctx context.Context, user *models.User
 	if user.FailedLoginCount >= maxFailedLoginsBeforeLock {
 		lockUntil := time.Now().Add(accountLockDuration)
 		updates["locked_until"] = lockUntil
+		// Отдельное event - удобно алёртить "аккаунт только что залочили".
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventAccountLocked, false, nil,
+			fmt.Sprintf("locked for %s after %d failed attempts", accountLockDuration, user.FailedLoginCount))
 	}
 	s.db.WithContext(ctx).Model(user).Updates(updates)
+}
+
+// recordAuthEvent пишет запись в auth_events. meta может быть nil (тесты/тесты
+// без http-контекста). Ошибки логируются, но не пропагируются наверх - audit log
+// best-effort, он не должен ломать основной login/logout flow.
+func (s *authService) recordAuthEvent(ctx context.Context, userID *int, username, eventType string, success bool, meta *RequestMeta, detail string) {
+	ip, ua := "", ""
+	if meta != nil {
+		ip = meta.IPAddress
+		ua = meta.UserAgent
+	}
+	if len(ua) > 255 {
+		ua = ua[:255]
+	}
+	if len(detail) > 255 {
+		detail = detail[:255]
+	}
+	ev := models.AuthEvent{
+		UserID:    userID,
+		Username:  username,
+		EventType: eventType,
+		Success:   success,
+		IPAddress: ip,
+		UserAgent: ua,
+		Detail:    detail,
+	}
+	if err := s.db.WithContext(ctx).Create(&ev).Error; err != nil {
+		slog.Warn("failed to record auth event", "event_type", eventType, "username", username, "error", err)
+	}
+}
+
+// metaIPPtr возвращает *string к IP из meta или nil если meta nil / IP пустой.
+func metaIPPtr(meta *RequestMeta) *string {
+	if meta == nil || meta.IPAddress == "" {
+		return nil
+	}
+	v := meta.IPAddress
+	return &v
+}
+
+// metaUAPtr - аналогично для UA.
+func metaUAPtr(meta *RequestMeta) *string {
+	if meta == nil || meta.UserAgent == "" {
+		return nil
+	}
+	v := meta.UserAgent
+	return &v
 }
 
 // --- Helpers ---
