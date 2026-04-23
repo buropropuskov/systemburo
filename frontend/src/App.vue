@@ -103,26 +103,52 @@ export default {
   color: white;
   padding: 8px 16px;
   z-index: 10000;
-  transition: top 0.2s ease;
-  text-decoration: none;
+  transition: top 0.2s;
 }
-
 .skip-link:focus {
   top: 0;
 }
 
-.page-fade-enter-active,
+* {
+    font-family: 'Montserrat', sans-serif;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+}
+
+body.auth-active #app {
+  margin-left: 25px;
+}
+
+body:not(.auth-active) #app {
+  margin-left: 0;
+}
+
+.form-input-sm {
+  border-radius: 10px !important;
+}
+
+.blue {
+  color: #4F5BDF;
+}
+
+.red {
+  color: rgb(241, 76, 76);
+}
+
+.page-fade-enter-active {
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
 .page-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
+.page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
 }
 </style>
