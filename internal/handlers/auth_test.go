@@ -560,3 +560,103 @@ func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {
 	assert.Equal(t, 0, user.FailedLoginCount)
 	assert.Nil(t, user.LockedUntil)
 }
+
+// --- Refresh token family invalidation (P0.1) ---
+
+func TestRefresh_ReuseDetection_InvalidatesFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "replayuser", "pass123", 1, td.OrgID, td.CompanyID)
+	_, refresh1 := testutil.LoginUser(t, e, "replayuser", "pass123")
+
+	// Легитимная ротация: refresh1 -> refresh2.
+	h1 := http.Header{}
+	h1.Set("Cookie", "refresh_token="+refresh1)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h1)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Достаём refresh2 из cookie в ответе.
+	var refresh2 string
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "refresh_token" {
+			refresh2 = c.Value
+			break
+		}
+	}
+	require.NotEmpty(t, refresh2)
+
+	// Attacker пробует заюзать revoked refresh1 - должно триггернуть reuse detection.
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h1)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "reuse detected")
+
+	// refresh2 (активный до reuse) теперь тоже revoked - вся family мертва.
+	h2 := http.Header{}
+	h2.Set("Cookie", "refresh_token="+refresh2)
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h2)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code,
+		"family invalidation: текущий активный токен тоже отозван")
+
+	// В БД все токены family должны быть is_revoked=true.
+	var activeCount int64
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = false", "replayuser").
+		Count(&activeCount)
+	assert.Equal(t, int64(0), activeCount, "все токены family должны быть отозваны")
+}
+
+func TestRefresh_NormalRotation_PreservesFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "rotateuser", "pass123", 1, td.OrgID, td.CompanyID)
+	_, refresh1 := testutil.LoginUser(t, e, "rotateuser", "pass123")
+
+	// Делаем 3 последовательных легитимных ротации.
+	current := refresh1
+	var familyIDs []string
+	for i := 0; i < 3; i++ {
+		h := http.Header{}
+		h.Set("Cookie", "refresh_token="+current)
+		rec := testutil.POST(t, e, "/refresh-token", "{}", h)
+		require.Equal(t, http.StatusOK, rec.Code, "итерация %d", i)
+
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == "refresh_token" {
+				current = c.Value
+				break
+			}
+		}
+	}
+
+	// Все 4 записи (login + 3 refresh) должны иметь один family_id.
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?)", "rotateuser").
+		Distinct().Pluck("family_id", &familyIDs)
+	assert.Len(t, familyIDs, 1, "все токены одной сессии должны быть в одной family")
+	assert.NotEmpty(t, familyIDs[0])
+}
+
+func TestLogin_GeneratesNewFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "multi", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// Два независимых login - каждый со своей family.
+	testutil.LoginUser(t, e, "multi", "pass123")
+	testutil.LoginUser(t, e, "multi", "pass123")
+
+	var familyIDs []string
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?)", "multi").
+		Distinct().Pluck("family_id", &familyIDs)
+	assert.Len(t, familyIDs, 2, "разные login-ы -> разные family")
+}
