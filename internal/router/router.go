@@ -34,6 +34,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	protected.Use(mw.JWTAuth(jwtSecret))
 
 	protected.POST("/logout", auth.Logout)
+	protected.POST("/logout-all", auth.LogoutAll)
 	protected.GET("/user-data", auth.GetUserData)
 	protected.GET("/users/me", auth.GetCurrentUser)
 	protected.GET("/users/current", auth.GetCurrentUser)
