@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"systemburo/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/argon2"
 	"gorm.io/gorm"
@@ -109,10 +111,14 @@ func (s *authService) createAccessToken(username string, userID int, typeID int)
 }
 
 func (s *authService) createRefreshJWT(username string) (string, error) {
+	// JTI (JWT ID) делает каждый refresh-JWT уникальным, даже если выдан
+	// в ту же секунду. Без него refresh-токены с одинаковым subject+exp
+	// генерируют идентичные JWT -> идентичный hash -> конфликт в uniqueIndex.
 	claims := Claims{
 		TypeID: 0,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
+			ID:        uuid.NewString(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.refreshTTL)),
 		},
 	}
@@ -199,9 +205,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create refresh token")
 	}
 
-	// Store hashed refresh token in DB
+	// Store hashed refresh token in DB. FamilyID генерируется при login,
+	// наследуется всеми refresh-токенами одной сессии. См. RefreshToken.
+	familyID := uuid.NewString()
 	rt := models.RefreshToken{
 		UserID:    user.ID,
+		FamilyID:  familyID,
 		TokenHash: hashRefreshToken(refreshJWT),
 		ExpiresAt: time.Now().Add(s.refreshTTL),
 	}
@@ -220,6 +229,10 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 }
 
 // RefreshToken обновляет пару access/refresh токенов с ротацией.
+// Reuse detection: если пришёл валидный по подписи, но уже отозванный токен -
+// это признак кражи (либо attacker, либо legitimate user использовал старую копию
+// после ротации). Реакция: инвалидировать всю семью (family_id) и заставить
+// перелогиниться. См. Auth0 refresh token rotation pattern.
 func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenRequest) (*models.TokenPairResponse, error) {
 	refreshToken := req.GetRefreshToken()
 	claims, err := s.decodeRefreshToken(refreshToken)
@@ -234,20 +247,33 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
 
-	// Find and validate stored token
+	// Ищем запись без фильтра is_revoked - чтобы отличить "не существует" от
+	// "существует, но отозван" (второе - признак replay-атаки).
 	tokenHash := hashRefreshToken(refreshToken)
 	var storedToken models.RefreshToken
 	err = s.db.WithContext(ctx).
-		Where("user_id = ? AND token_hash = ? AND is_revoked = false", user.ID, tokenHash).
+		Where("user_id = ? AND token_hash = ?", user.ID, tokenHash).
 		First(&storedToken).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid refresh token")
 	}
 
-	// Revoke old token (one-time use)
+	if storedToken.IsRevoked {
+		// Reuse detection: токен валиден по подписи, но уже отозван.
+		// Инвалидируем всю семью - включая текущий активный refresh attacker-а
+		// или legitimate user-а. Оба будут вынуждены перелогиниться.
+		s.db.WithContext(ctx).
+			Model(&models.RefreshToken{}).
+			Where("family_id = ? AND is_revoked = false", storedToken.FamilyID).
+			Update("is_revoked", true)
+		slog.Warn("refresh token reuse detected - family invalidated",
+			"user_id", user.ID, "family_id", storedToken.FamilyID)
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Refresh token reuse detected, please log in again")
+	}
+
+	// Ротация: помечаем старый revoked, выдаём новую пару в той же family.
 	s.db.WithContext(ctx).Model(&storedToken).Update("is_revoked", true)
 
-	// Create new pair
 	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
@@ -258,9 +284,9 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create refresh token")
 	}
 
-	// Store new refresh token
 	rt := models.RefreshToken{
 		UserID:    user.ID,
+		FamilyID:  storedToken.FamilyID,
 		TokenHash: hashRefreshToken(newRefresh),
 		ExpiresAt: time.Now().Add(s.refreshTTL),
 	}
