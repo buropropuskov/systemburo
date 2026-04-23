@@ -115,6 +115,10 @@ const router = createRouter({
   routes
 });
 
+// Guard синхронный - tryRestoreSession вызывается в main.js ДО mount,
+// поэтому к моменту первой navigation auth store уже hydrated (token
+// в памяти если refresh cookie жив). На F5 guard сразу видит реальное
+// состояние без async гонок.
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const isAuthenticated = authStore.isAuthenticated;
