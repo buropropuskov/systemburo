@@ -2224,22 +2224,37 @@ export default {
     height: 300px;
   }
   
-  /* Таблица - horizontal scroll вместо wrap в столбик */
+  /*
+   * Таблица - horizontal scroll вместо wrap в столбик.
+   * Scroll на .users-list - оба child'а (.users-header + .users-body) получают
+   * min-width 600px и двигаются синхронно.
+   */
   .users-list {
-    overflow-x: auto;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  .users-header,
+  .users-body {
+    min-width: 600px;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   .header-row,
   .user-row {
     flex-wrap: nowrap !important;
     min-width: 600px;
+    width: 100%;
   }
 
   .header-col,
   .user-col {
     width: auto !important;
     min-width: 110px !important;
-    flex: 0 0 auto !important;
+    flex: 1 1 auto !important;
     margin-bottom: 0;
     white-space: nowrap;
     overflow: hidden;
