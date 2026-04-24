@@ -766,4 +766,14 @@ export default {
   background-color: var(--color-border);
   margin: 4px 0;
 }
+
+/*
+ * На <768px fixed sidebar съедает 50px слева и ломает контент.
+ * Временно скрываем - полноценный burger + drawer в #167.
+ */
+@media (max-width: 768px) {
+  .nav-menu {
+    display: none;
+  }
+}
 </style>

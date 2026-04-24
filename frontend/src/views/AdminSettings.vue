@@ -836,5 +836,27 @@ export default {
   .range-labels {
     max-width: 100%;
   }
+
+  /* Длинные MIME-типы (application/vnd.openxmlformats...) переполняли flex-row */
+  .checkbox-label {
+    max-width: 100%;
+  }
+
+  .checkbox-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-settings__content {
+    padding: 16px;
+  }
+
+  .sidebar-item {
+    font-size: 11px;
+    padding: 8px 6px;
+  }
 }
 </style>
