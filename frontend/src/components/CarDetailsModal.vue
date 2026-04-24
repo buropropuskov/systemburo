@@ -270,15 +270,12 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import ExcelJS from 'exceljs';
 
 export default {
-    components: { LoaderSpinner },
+    name: 'CarDetailsModal',
+    components: { LoaderSpinner, CarHistoryModal },
     setup(_, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         return { onOverlayMousedown, onOverlayMouseup };
     },
-  name: 'CarDetailsModal',
-  components: {
-    CarHistoryModal
-  },
   props: {
     car: {
       type: Object,
@@ -350,7 +347,7 @@ export default {
         const [year, month, day] = dateString.split('-');
         const date = new Date(year, month - 1, day);
         return date.toLocaleDateString('ru-RU');
-      } catch (error) {
+      } catch {
         return '';
       }
     },

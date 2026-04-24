@@ -1,6 +1,5 @@
 <template>
-  <transition name="modal-fade">
-    <div class="modal-overlay" @click.self="handleClose">
+  <div class="modal-overlay" @click.self="handleClose">
       <div class="modal-content horizontal-modal">
         <div class="modal-header">
           <h3>Создать новую таблицу</h3>
@@ -135,7 +134,6 @@
         </div>
       </div>
     </div>
-  </transition>
 </template>
 
 <script>

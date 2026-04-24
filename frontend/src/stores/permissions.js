@@ -25,7 +25,7 @@ export const usePermissionsStore = defineStore('permissions', {
           data.forEach(p => { this.permissions[p.key] = p.value })
         }
         this.loaded = true
-      } catch (e) {
+      } catch {
         // ignore — permissions will stay empty
       }
     },

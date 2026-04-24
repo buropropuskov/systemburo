@@ -1,0 +1,27 @@
+// ESLint 10 flat config.
+// В eslint-plugin-vue 10 конфиги экспортируются как массивы "flat/<preset>",
+// которые уже содержат parser, globals и рекомендованные правила для Vue SFC.
+// Для .js-файлов в проекте просто накидываем eslint:recommended + browser/node globals.
+
+import js from '@eslint/js'
+import vue from 'eslint-plugin-vue'
+import globals from 'globals'
+
+export default [
+  {
+    ignores: ['dist/', 'node_modules/', 'coverage/', 'playwright-report/', 'test-results/', 'e2e/.auth/']
+  },
+  js.configs.recommended,
+  ...vue.configs['flat/essential'],
+  {
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.node
+      }
+    },
+    rules: {}
+  }
+]
