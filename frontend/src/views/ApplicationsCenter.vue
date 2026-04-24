@@ -133,8 +133,10 @@
     </div>
 
     <div
+      ref="tableScrollEl"
       class="applications-table"
       :class="{ 'with-details': selectedApplication }"
+      @scroll="updateScrollIndicator"
     >
       <div class="table-header">
         <div class="header-row">
@@ -317,6 +319,23 @@
       </div>
     </div>
 
+    <!--
+      Кастомный scroll-indicator под таблицей для мобильного.
+      Native scrollbar скрывается после touch-скролла на iOS/Android - этот
+      всегда видим и реагирует на scroll через updateScrollIndicator().
+      На desktop скрыт через CSS media-query.
+    -->
+    <div
+      v-if="scrollbarVisible"
+      class="table-scroll-indicator"
+      aria-hidden="true"
+    >
+      <div
+        class="table-scroll-indicator__thumb"
+        :style="{ width: scrollThumbWidth + '%', transform: `translateX(${scrollThumbLeft}%)` }"
+      />
+    </div>
+
     <!-- Исправлено: используем selectedApplication вместо showDetail -->
     <ApplicationDetail
       v-if="selectedApplication"
@@ -406,7 +425,12 @@ export default {
             // Детали заявки
             selectedApplication: null,
             currentUserId: null,
-            currentUserName: ''
+            currentUserName: '',
+
+            // Scroll indicator (только на mobile)
+            scrollbarVisible: false,
+            scrollThumbWidth: 100,
+            scrollThumbLeft: 0,
         };
     },
     computed: {
@@ -580,6 +604,11 @@ export default {
         setTimeout(() => {
             this.isInitialLoad = false;
         }, 1000);
+
+        // Scroll indicator: инициализация и ресайз
+        this._scrollResizeHandler = this.updateScrollIndicator.bind(this);
+        window.addEventListener('resize', this._scrollResizeHandler);
+        this.$nextTick(() => this.updateScrollIndicator());
     },
     beforeUnmount() {
         if (this.shakeInterval) {
@@ -588,8 +617,31 @@ export default {
         if (this.applicationsPollInterval) {
             clearInterval(this.applicationsPollInterval);
         }
+        if (this._scrollResizeHandler) {
+            window.removeEventListener('resize', this._scrollResizeHandler);
+        }
     },
     methods: {
+        // Обновление кастомного scroll-indicator'a. Вызывается на scroll таблицы и
+        // resize окна. Показываем только когда таблица реально overflow'ит
+        // (scrollWidth > clientWidth) - на desktop таблица fit'ится, индикатор не нужен.
+        updateScrollIndicator() {
+            const el = this.$refs.tableScrollEl;
+            if (!el) {
+                this.scrollbarVisible = false;
+                return;
+            }
+            const overflow = el.scrollWidth - el.clientWidth;
+            if (overflow <= 0) {
+                this.scrollbarVisible = false;
+                return;
+            }
+            this.scrollbarVisible = true;
+            this.scrollThumbWidth = Math.max(15, (el.clientWidth / el.scrollWidth) * 100);
+            const maxTranslate = 100 - this.scrollThumbWidth;
+            this.scrollThumbLeft = (el.scrollLeft / overflow) * maxTranslate;
+        },
+
         // Организация
         getOrganizationName(application) {
             if (application.organization_name && application.organization_name.trim()) {
@@ -1604,6 +1656,28 @@ export default {
     scrollbar-color: #D9E2FF transparent;
 }
 
+/*
+ * Кастомный scroll-indicator под таблицей. Отображается только когда
+ * видимость включается из JS (scrollbarVisible). Native scrollbar на
+ * touch-устройствах скрывается после инерции - этот остаётся всегда.
+ */
+.table-scroll-indicator {
+    display: none;
+    height: 6px;
+    margin: 8px 16px 0;
+    background: #ededf5;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.table-scroll-indicator__thumb {
+    height: 100%;
+    background: #4F5BDF;
+    border-radius: 3px;
+    transition: transform 0.08s linear;
+    will-change: transform;
+}
+
 @media (max-width: 768px) {
     .center {
         padding: 12px;
@@ -1639,31 +1713,35 @@ export default {
 
     /*
      * Таблица с фиксированными % колонками не помещается на мобильный экран.
-     * .applications-table имеет overflow: hidden - поэтому горизонтальный scroll
-     * делаем на самой таблице. При 700px суммы min-width колонок текст заголовков
-     * ("Подтверждение", "Организация") помещается в одну строку и не наезжает.
-     * Scrollbar визуально показан чтобы юзер видел что таблицу можно скроллить.
+     * overflow-x: scroll + БЕЗ -webkit-overflow-scrolling: touch - momentum
+     * scrolling на iOS скрывает scrollbar после свайпа. Без него scrollbar
+     * остаётся видимым всегда, а трек подсказывает юзеру что листать можно.
      */
     .applications-table {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
+        overflow-x: scroll;
+        scrollbar-width: auto;
         scrollbar-color: #4F5BDF #ededf5;
     }
 
     .applications-table::-webkit-scrollbar {
-        height: 8px;
+        height: 10px;
         -webkit-appearance: none;
+        display: block;
     }
 
     .applications-table::-webkit-scrollbar-track {
         background: #ededf5;
-        border-radius: 4px;
+        border-radius: 5px;
     }
 
     .applications-table::-webkit-scrollbar-thumb {
         background: #4F5BDF;
-        border-radius: 4px;
+        border-radius: 5px;
+        border: 2px solid #ededf5;
+    }
+
+    .applications-table::-webkit-scrollbar-thumb:hover {
+        background: #3d49c7;
     }
 
     .table-header,
@@ -1694,6 +1772,11 @@ export default {
 
     .applications-list {
         -webkit-overflow-scrolling: touch;
+    }
+
+    /* На мобильном индикатор всегда видим */
+    .table-scroll-indicator {
+        display: block;
     }
 }
 
