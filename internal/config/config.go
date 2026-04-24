@@ -37,6 +37,11 @@ type Config struct {
 	// всегда true (HTTPS). На локальной разработке (http://localhost) - false,
 	// иначе браузер не отправит cookie.
 	CookieSecure bool `env:"COOKIE_SECURE" envDefault:"true"`
+
+	// Telegram bot для bug-report-ов со страницы Error500. Оба поля опциональные:
+	// если пустые - репорты пишутся только в БД, TG-отправка пропускается (warn-лог).
+	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN" envDefault:""`
+	TelegramChatID   string `env:"TELEGRAM_CHAT_ID" envDefault:""`
 }
 
 func Load() (*Config, error) {

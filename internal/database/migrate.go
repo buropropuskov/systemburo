@@ -81,6 +81,7 @@ func AllModels() []interface{} {
 		// Feedback & notifications
 		&models.Feedback{},
 		&models.Notification{},
+		&models.BugReport{},
 
 		// News
 		&models.News{},
