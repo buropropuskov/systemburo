@@ -187,6 +187,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # Default command_timeout=10m - не хватает на полный npm ci + Docker rebuild
+          # с npmmirror (медленнее чем прежний Cloudflare-кеш). Ставим 30m.
+          command_timeout: 30m
           script: |
             set -e
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
