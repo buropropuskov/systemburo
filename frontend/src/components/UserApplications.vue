@@ -1122,28 +1122,27 @@ export default {
 }
 
 @media (max-width: 768px) {
-  /* Таблица - horizontal scroll вместо wrap (колонки в столбик нечитаемы) */
-  .applications-list,
+  /*
+   * Синхронный horizontal scroll: scroll на .applications-list (общий parent
+   * header+body), inner header/body имеют visible overflow чтобы наследовать
+   * scroll от parent'а. Headers и data двигаются вместе.
+   */
+  .applications-list {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
   .applications-header,
   .applications-body,
   .applications-list-content {
-    overflow: visible !important;
+    overflow-x: visible !important;
+    min-width: 600px;
   }
 
   .applications-body {
-    overflow-x: scroll !important;
-    overflow-y: auto !important;
-  }
-
-  .applications-header {
-    overflow-x: scroll !important;
-    overflow-y: hidden !important;
-    scrollbar-width: none;
-  }
-
-  .applications-header::-webkit-scrollbar,
-  .applications-body::-webkit-scrollbar:horizontal {
-    display: none;
+    overflow-y: visible !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   .header-row,
@@ -1156,7 +1155,7 @@ export default {
   .application-col {
     width: auto !important;
     min-width: 110px !important;
-    flex: 0 0 auto !important;
+    flex: 1 1 auto !important;
     white-space: nowrap;
   }
 
