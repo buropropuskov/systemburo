@@ -2224,15 +2224,26 @@ export default {
     height: 300px;
   }
   
+  /* Таблица - horizontal scroll вместо wrap в столбик */
+  .users-list {
+    overflow-x: auto;
+  }
+
   .header-row,
   .user-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap !important;
+    min-width: 600px;
   }
-  
+
   .header-col,
   .user-col {
-    width: 50% !important;
-    margin-bottom: 4px;
+    width: auto !important;
+    min-width: 110px !important;
+    flex: 0 0 auto !important;
+    margin-bottom: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .details-grid-two-columns {
