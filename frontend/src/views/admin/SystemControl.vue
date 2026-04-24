@@ -430,8 +430,32 @@ export default {
 .sc-fade-enter-from,
 .sc-fade-leave-to { opacity: 0; }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .sc__card { padding: 28px 24px; }
   .sc__status-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* Bottom-sheet modal на мобильном - прилипает к низу, высота по контенту */
+  .sc__modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .sc__modal {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+    overflow-y: auto;
+  }
+
+  .sc__modal-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .sc__modal-actions .sc__btn {
+    width: 100%;
+  }
 }
 </style>

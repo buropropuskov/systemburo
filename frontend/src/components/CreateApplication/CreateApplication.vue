@@ -2289,4 +2289,52 @@ export default {
         margin: 0;
         padding: 20px;
     }
+
+    /* Mobile: stacked layout, forms в 1 колонку */
+    @media (max-width: 768px) {
+        .create__header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            padding-bottom: 12px;
+        }
+
+        .create__title {
+            font-size: 18px;
+        }
+
+        .create__container {
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form__header {
+            height: auto;
+            padding: 12px;
+        }
+
+        .header__content {
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form__textarea {
+            width: 100%;
+        }
+
+        .header__right {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .create__title {
+            font-size: 16px;
+        }
+
+        .tables__instruction {
+            font-size: 12px;
+            padding: 0 8px;
+        }
+    }
 </style>

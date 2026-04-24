@@ -254,4 +254,37 @@ export default {
     opacity: 0;
   }
 }
+
+/* Bottom-sheet на мобильном */
+@media (max-width: 768px) {
+  .base-modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .base-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+    overflow-y: auto;
+  }
+
+  .base-modal__close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .base-modal__body input[type="text"],
+  .base-modal__body input[type="email"],
+  .base-modal__body input[type="password"],
+  .base-modal__body input[type="tel"],
+  .base-modal__body input[type="number"],
+  .base-modal__body textarea,
+  .base-modal__body select {
+    font-size: 16px;
+  }
+}
 </style>

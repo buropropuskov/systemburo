@@ -171,6 +171,43 @@ body:not(.auth-active) #app {
 .page-fade-leave-active {
   transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/*
+ * Mobile bottom-sheet паттерн для всех модалок с классами
+ * .modal-overlay > .modal-content. На <768px модалка прилипает к низу
+ * экрана, ширина 100%, высота - по контенту (короткие confirmations
+ * не тянутся на весь экран). Длинные модалки получают internal scroll
+ * до 90dvh. !important нужен потому что большинство использует scoped.
+ */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    max-height: 90dvh !important;
+    border-radius: 16px 16px 0 0 !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+  }
+
+  /* Для inputs и textarea внутри модалок - font-size 16px предотвращает
+   * авто-зум на iOS при focus'е. */
+  .modal-content input[type="text"],
+  .modal-content input[type="email"],
+  .modal-content input[type="password"],
+  .modal-content input[type="tel"],
+  .modal-content input[type="number"],
+  .modal-content input[type="date"],
+  .modal-content textarea,
+  .modal-content select {
+    font-size: 16px !important;
+  }
+}
 .page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
