@@ -1189,18 +1189,52 @@ export default {
     max-height: none;
     height: auto;
   }
-  
+
+  /*
+   * Синхронный horizontal scroll: scroll на .card-content, header и body
+   * имеют overflow visible и наследуют scroll от parent'а.
+   */
+  .card-content {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  .items-header,
+  .items-body {
+    overflow: visible !important;
+    min-width: 800px;
+  }
+
   .header-row,
   .item-data {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap !important;
+    gap: 0;
+    min-width: 800px;
   }
-  
+
   .col {
-    width: calc(50% - 4px) !important;
-    margin-bottom: 4px;
+    width: auto !important;
+    min-width: 90px !important;
+    flex: 1 1 auto !important;
+    margin-bottom: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  
+
+  .col.last-name-col,
+  .col.first-name-col,
+  .col.organization-col,
+  .col.pass-places-col {
+    min-width: 110px !important;
+  }
+
+  .entry-col, .exit-col {
+    width: auto !important;
+    min-width: 60px !important;
+    justify-content: flex-start;
+  }
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
@@ -1208,23 +1242,18 @@ export default {
     height: auto;
     padding: 16px;
   }
-  
+
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
   }
-  
+
   .notification {
     left: 20px;
     right: 20px;
     min-width: auto;
   }
-  
-  .entry-col, .exit-col {
-    width: calc(50% - 4px) !important;
-    justify-content: flex-start;
-  }
-  
+
   .action-btn {
     width: 60px;
     height: 28px;

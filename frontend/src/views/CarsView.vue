@@ -2073,15 +2073,33 @@ export default {
         height: auto;
     }
 
+    /* Синхронный horizontal scroll: scroll на .card-content */
+    .card-content {
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+    }
+
+    .cars-header,
+    .cars-body {
+        overflow: visible !important;
+        min-width: 800px;
+    }
+
     .header-row,
     .car-row {
-        flex-wrap: wrap;
+        flex-wrap: nowrap !important;
+        min-width: 800px;
     }
 
     .header-col,
     .car-col {
-        width: 50% !important;
-        margin-bottom: 4px;
+        width: auto !important;
+        min-width: 100px !important;
+        flex: 1 1 auto !important;
+        margin-bottom: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* filter-tabs не помещаются в 1 строку - горизонтальный scroll */

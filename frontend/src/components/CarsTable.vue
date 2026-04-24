@@ -1188,18 +1188,50 @@ export default {
     max-height: none;
     height: auto;
   }
-  
+
+  /* Синхронный horizontal scroll - scroll на .card-content */
+  .card-content {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+
+  .items-header,
+  .items-body {
+    overflow: visible !important;
+    min-width: 900px;
+  }
+
   .header-row,
   .item-data {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap !important;
+    gap: 0;
+    min-width: 900px;
   }
-  
+
   .col {
-    width: calc(50% - 4px) !important;
-    margin-bottom: 4px;
+    width: auto !important;
+    min-width: 90px !important;
+    flex: 1 1 auto !important;
+    margin-bottom: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  
+
+  .col.number-col,
+  .col.brand-col,
+  .col.organization-col,
+  .col.company-col,
+  .col.place-col {
+    min-width: 110px !important;
+  }
+
+  .entry-col, .exit-col {
+    width: auto !important;
+    min-width: 60px !important;
+    justify-content: flex-start;
+  }
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
@@ -1207,23 +1239,18 @@ export default {
     height: auto;
     padding: 16px;
   }
-  
+
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
   }
-  
+
   .notification {
     left: 20px;
     right: 20px;
     min-width: auto;
   }
-  
-  .entry-col, .exit-col {
-    width: calc(50% - 4px) !important;
-    justify-content: flex-start;
-  }
-  
+
   .action-btn {
     width: 60px;
     height: 28px;
