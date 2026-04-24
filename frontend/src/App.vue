@@ -138,8 +138,15 @@ export default {
   width: 0;
 }
 
-body.auth-active #app {
-  margin-left: 25px;
+/*
+ * margin-left: 25px компенсирует ширину NavMenu на desktop.
+ * На мобильном (<768px) NavMenu скрывается/становится burger-menu,
+ * поэтому margin не нужен - даёт только горизонтальный overflow.
+ */
+@media (min-width: 768px) {
+  body.auth-active #app {
+    margin-left: 25px;
+  }
 }
 
 body:not(.auth-active) #app {

@@ -15,4 +15,14 @@
   --spacing-md: 20px;
   --color-skeleton: #e9eaef;
   --color-skeleton-shine: #f4f5f9;
+
+  /*
+   * Breakpoints - единый стандарт проекта для responsive-дизайна.
+   * Custom-properties не работают внутри @media - используем числовые
+   * литералы в коде. Переменные ниже - источник правды (документация).
+   */
+  --bp-mobile-sm: 480px;
+  --bp-mobile: 768px;
+  --bp-tablet: 1024px;
+  --bp-desktop: 1280px;
 }
