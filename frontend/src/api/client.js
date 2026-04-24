@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 import router from '@/router'
+import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
 // API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
 // но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
@@ -92,9 +93,34 @@ async function doFetch(path, options, token) {
   }
 }
 
+// Эндпоинты, на которых 5xx НЕ редиректим на /500 - это внутренние
+// механизмы (refresh, отправка самого bug-report), их ответы должны
+// обрабатываться локально, иначе получим infinite redirect loop.
+const SKIP_500_REDIRECT = ['/bug-report', '/refresh-token', '/login', '/logout']
+
+function shouldHandleAsServerError(path, status) {
+  if (status < 500 || status > 599) return false
+  if (SKIP_500_REDIRECT.some((p) => path === p || path.startsWith(p + '?'))) return false
+  if (router.currentRoute.value.path === '/500') return false
+  return true
+}
+
 async function baseRequest(path, options = {}) {
   const authStore = useAuthStore()
   let response = await doFetch(path, options, authStore.token)
+
+  // 5xx -> сохраняем безопасный контекст и редиректим на /500.
+  // Ответ не читаем: тело может содержать детали ошибки, которые нам
+  // показывать юзеру нельзя (leak архитектуры). Используем только status и path.
+  if (shouldHandleAsServerError(path, response.status)) {
+    saveBugContext(buildBugContext({
+      route: `${options.method || 'GET'} ${path}`,
+      httpStatus: response.status,
+      message: response.statusText || `HTTP ${response.status}`,
+    }))
+    router.push('/500')
+    return response
+  }
 
   if (response.status !== 401 || isAuthEndpoint(path) || options._retried) {
     return response

@@ -138,6 +138,9 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	telegramService := services.NewTelegramService("", "")
+	bugReportService := services.NewBugReportService(db, telegramService)
+	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -150,7 +153,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(TestJWTSecret), nil)
+		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, []byte(TestJWTSecret), nil)
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

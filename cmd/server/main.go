@@ -154,6 +154,8 @@ func main() {
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
+	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
+	bugReportService := services.NewBugReportService(db, telegramService)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, cfg.CookieSecure, cfg.JWTRefreshTTL)
@@ -180,6 +182,7 @@ func main() {
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -194,7 +197,7 @@ func main() {
 	loginLimiter := mw.LoginRateLimit(5, 15*time.Minute)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, []byte(cfg.JWTSecret), loginLimiter)
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, []byte(cfg.JWTSecret), loginLimiter)
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
 	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

@@ -63,13 +63,14 @@ export default {
     },
     /**
      * Показывать шапку, навигацию и связанный chrome только когда юзер
-     * аутентифицирован и находится не на странице логина. Иначе после
+     * аутентифицирован и находится не на странице логина/ошибки. Иначе после
      * setTokens() в LoginComponent до router.push('/news')
      * (задержан на 1.5с из-за success-анимации) шапка и меню моргают
-     * поверх формы логина.
+     * поверх формы логина. На /500 chrome тоже скрываем - это full-page view.
      */
     showChrome() {
-      return this.isAuthenticated && this.$route.path !== '/';
+      const hidePaths = ['/', '/500']
+      return this.isAuthenticated && !hidePaths.includes(this.$route.path);
     }
   },
   created() {

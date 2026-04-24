@@ -107,6 +107,12 @@ const routes = [
     name: 'AdminUsers',
     component: () => import('./views/AdminUsers.vue'),
     meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/500',
+    name: 'Error500',
+    component: () => import('./views/Error500.vue'),
+    meta: { requiresAuth: false }
   }
 ];
 
