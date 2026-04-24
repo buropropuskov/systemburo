@@ -40,6 +40,31 @@ func (h *EmployeeHandler) CreateEmployee(c echo.Context) error {
 	return RespondSuccess(c, resp)
 }
 
+// UpdateEmployeeTerritoryStatus обрабатывает PUT /employees/:id/territory-status.
+// @Summary Обновление статуса нахождения сотрудника на территории
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "ID сотрудника"
+// @Param body body services.UpdateTerritoryStatusRequest true "Новый территориальный статус"
+// @Success 200 {object} map[string]interface{}
+// @Router /employees/{id}/territory-status [put]
+func (h *EmployeeHandler) UpdateEmployeeTerritoryStatus(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
+	}
+	var req services.UpdateTerritoryStatusRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateEmployeeTerritoryStatus(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Employee territory status updated successfully")
+}
+
 // GetActiveEmployeesForTable обрабатывает GET /employees/active-for-table/:table_id.
 // @Summary Получение активных сотрудников для таблицы
 // @Tags employees

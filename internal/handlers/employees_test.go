@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // --- 401 Unauthorized tests ---
@@ -274,4 +275,97 @@ func TestGetActiveEmployeesForTable_NonexistentTable(t *testing.T) {
 
 	employees := testutil.ParseSlice(t, rec)
 	assert.Empty(t, employees)
+}
+
+// --- PUT /employees/:id/territory-status ---
+
+// seedEmployeeDirect вставляет сотрудника напрямую в БД для тестов territory-status.
+// Создание через POST /employees требует заявку с attachment_id - тут нам нужен
+// минимальный employee row, без привязок.
+func seedEmployeeDirect(t *testing.T, db *gorm.DB, lastName, firstName string) int {
+	t.Helper()
+	zero := 0
+	emp := models.Employee{
+		LastName:  &lastName,
+		FirstName: &firstName,
+		Status:    &zero,
+	}
+	if err := db.Create(&emp).Error; err != nil {
+		t.Fatalf("seed employee: %v", err)
+	}
+	return emp.ID
+}
+
+func TestUpdateEmployeeTerritoryStatus_Entry(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	empID := seedEmployeeDirect(t, db, "Ivanov", "Ivan")
+	token := testutil.RegisterAndLogin(t, e, "territory_u1", "pass123", 1, td.OrgID, td.CompanyID)
+	userID := getUserID(t, db, "territory_u1")
+
+	body := fmt.Sprintf(`{"territory_status": 1, "user_id": %d}`, userID)
+	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+
+	var updated models.Employee
+	require.NoError(t, db.First(&updated, empID).Error)
+	require.NotNil(t, updated.TerritoryStatus)
+	assert.Equal(t, 1, *updated.TerritoryStatus)
+	require.NotNil(t, updated.TerritoryEntryTime, "entry_time должен быть установлен при въезде")
+
+	var historyCount int64
+	db.Model(&models.EmployeeHistory{}).
+		Where("employee_id = ? AND action_type = ?", empID, "entry").Count(&historyCount)
+	assert.Equal(t, int64(1), historyCount, "в history должна быть запись action_type=entry")
+}
+
+func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	empID := seedEmployeeDirect(t, db, "Petrov", "Petr")
+	token := testutil.RegisterAndLogin(t, e, "territory_u2", "pass123", 1, td.OrgID, td.CompanyID)
+
+	body := `{"territory_status": 2}`
+	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var updated models.Employee
+	require.NoError(t, db.First(&updated, empID).Error)
+	require.NotNil(t, updated.TerritoryStatus)
+	assert.Equal(t, 2, *updated.TerritoryStatus)
+
+	var historyCount int64
+	db.Model(&models.EmployeeHistory{}).
+		Where("employee_id = ? AND action_type = ?", empID, "exit").Count(&historyCount)
+	assert.Equal(t, int64(1), historyCount)
+}
+
+func TestUpdateEmployeeTerritoryStatus_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "territory_u3", "pass123", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.PUT(t, e, "/employees/999999/territory-status", `{"territory_status": 1}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestUpdateEmployeeTerritoryStatus_InvalidID(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "territory_u4", "pass123", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.PUT(t, e, "/employees/abc/territory-status", `{"territory_status": 1}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
