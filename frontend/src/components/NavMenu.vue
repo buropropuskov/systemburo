@@ -1,12 +1,32 @@
 <template>
-  <nav
-    class="nav-menu"
-    role="navigation"
-    aria-label="Основная навигация"
-    :class="{ expanded: isExpanded }"
-    @mouseenter="expandMenu"
-    @mouseleave="collapseMenu"
-  >
+  <div>
+    <!-- Backdrop для мобильного drawer'а -->
+    <transition name="nav-backdrop">
+      <div
+        v-if="mobileOpen"
+        class="nav-menu__backdrop"
+        @click="closeMobile"
+      />
+    </transition>
+
+    <nav
+      class="nav-menu"
+      role="navigation"
+      aria-label="Основная навигация"
+      :class="{ expanded: isExpanded, 'nav-menu--mobile-open': mobileOpen }"
+      @mouseenter="expandMenu"
+      @mouseleave="collapseMenu"
+    >
+      <!-- Кнопка закрытия для мобильного -->
+      <button
+        v-if="mobileOpen"
+        class="nav-menu__close"
+        aria-label="Закрыть меню"
+        @click="closeMobile"
+      >
+        ✕
+      </button>
+
     <!-- Внутренний контейнер для контента -->
     <div class="nav-content">
       <!-- ЗАЯВКИ -->
@@ -250,7 +270,8 @@
         </div>
       </div>
     </div>
-  </nav>
+    </nav>
+  </div>
 </template>
 
 <script>
@@ -272,19 +293,36 @@ export default {
       systemTables: [],
       newApplicationsCount: 0,
       applicationsPollingInterval: null,
-      tablesPollingInterval: null
+      tablesPollingInterval: null,
+      mobileOpen: false
     };
+  },
+  watch: {
+    // Закрываем drawer при переходе по пункту меню
+    '$route'() {
+      this.closeMobile();
+    }
   },
   async mounted() {
     document.body.classList.add('auth-active');
     await this.fetchSystemTables();
     this.startApplicationsPolling();
     this.startTablesPolling();
+
+    // Слушаем событие от burger-кнопки в TheHeader
+    this.$bus.on('mobile-nav-toggle', this.toggleMobile);
+    // Esc закрывает drawer
+    this._escHandler = (e) => {
+      if (e.key === 'Escape' && this.mobileOpen) {
+        this.closeMobile();
+      }
+    };
+    window.addEventListener('keydown', this._escHandler);
   },
   beforeUnmount() {
     document.body.classList.remove('auth-active');
     this.stopApplicationsPolling();
-    
+
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
     }
@@ -294,8 +332,25 @@ export default {
     if (this.dropdownLeaveTimeout) {
       clearTimeout(this.dropdownLeaveTimeout);
     }
+
+    this.$bus.off('mobile-nav-toggle', this.toggleMobile);
+    if (this._escHandler) {
+      window.removeEventListener('keydown', this._escHandler);
+    }
+    // Обязательно снимаем body lock если компонент unmount'нулся в открытом состоянии
+    document.body.classList.remove('nav-drawer-open');
   },
   methods: {
+    toggleMobile() {
+      this.mobileOpen = !this.mobileOpen;
+      // Блокируем scroll body когда drawer открыт
+      document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
+    },
+    closeMobile() {
+      if (!this.mobileOpen) return;
+      this.mobileOpen = false;
+      document.body.classList.remove('nav-drawer-open');
+    },
     expandMenu() {
       if (this.hoverTimeout) {
         clearTimeout(this.hoverTimeout);
@@ -768,12 +823,96 @@ export default {
 }
 
 /*
- * На <768px fixed sidebar съедает 50px слева и ломает контент.
- * Временно скрываем - полноценный burger + drawer в #167.
+ * Mobile drawer (<768px): nav скрыт по-умолчанию, открывается через burger
+ * в TheHeader (emits $bus mobile-nav-toggle). Drawer выезжает слева,
+ * занимает 280px (или 85% viewport), с backdrop позади.
  */
+.nav-menu__backdrop {
+  display: none;
+}
+
+.nav-menu__close {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  color: #333;
+  cursor: pointer;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.nav-menu__close:hover {
+  background: #f0f0f5;
+}
+
+.nav-backdrop-enter-active,
+.nav-backdrop-leave-active {
+  transition: opacity 0.25s ease;
+}
+.nav-backdrop-enter-from,
+.nav-backdrop-leave-to {
+  opacity: 0;
+}
+
 @media (max-width: 768px) {
   .nav-menu {
-    display: none;
+    /* Позиция - слева, выезжает drawer-style */
+    width: 280px;
+    max-width: 85vw;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 10000;
+    box-shadow: none;
+  }
+
+  .nav-menu.nav-menu--mobile-open {
+    transform: translateX(0);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .nav-menu .nav-content {
+    width: 100%;
+    padding-top: 48px;
+  }
+
+  /* На мобильном содержимое всегда развёрнуто - hover не работает на touch */
+  .nav-menu .nav-text,
+  .nav-menu .section-title {
+    opacity: 1 !important;
+  }
+
+  .nav-menu .nav-item {
+    min-height: 48px;
+  }
+
+  .nav-menu__backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 41, 0.5);
+    z-index: 9999;
+  }
+
+  .nav-menu__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* dropdown'ы в drawer - inline (не абсолютные) на мобильном */
+  .dropdown-list {
+    position: static !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin-left: 20px !important;
   }
 }
+
 </style>

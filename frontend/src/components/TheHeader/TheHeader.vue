@@ -3,6 +3,17 @@
     ref="header"
     class="header"
   >
+    <button
+      class="header__burger"
+      aria-label="Открыть меню"
+      type="button"
+      @click="toggleMobileNav"
+    >
+      <span />
+      <span />
+      <span />
+    </button>
+
     <div class="header__title">
       <template v-if="loading">
         <SkeletonLine
@@ -162,6 +173,9 @@ export default {
     },
     openFeedbackModal() {
       this.showFeedbackModal = true;
+    },
+    toggleMobileNav() {
+      this.$bus.emit('mobile-nav-toggle');
     },
     handleFeedbackSubmitted(message) {
       console.log('Обратная связь отправлена:', message);
@@ -433,11 +447,45 @@ h3 {
   }
 }
 
+/* Burger-кнопка - только на мобильном */
+.header__burger {
+  display: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.header__burger:hover {
+  background: #f0f0f5;
+}
+
+.header__burger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #333;
+  border-radius: 1px;
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
   .header {
     padding: 0 12px;
     gap: 8px;
+  }
+
+  .header__burger {
+    display: flex;
   }
 
   .header__info {
