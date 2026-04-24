@@ -137,6 +137,7 @@
       :show="showDetailsModal"
       :employee="selectedEmployee"
       :all-tables="allTables"
+      source="employeeslist"
       @close="closeDetailsModal"
     />
   </div>
@@ -169,7 +170,28 @@ export default {
     },
     methods: {
         showEmployeeDetails(employee) {
-            this.selectedEmployee = employee;
+            // EmployeeForm кладёт в employeesByAttachment объекты в camelCase
+            // (lastName, firstName, citizenshipName, targetTables, ...), а
+            // EmployeeDetailsModal читает snake_case (last_name, ..., target_tables).
+            // Трансформируем перед передачей — иначе ФИО, места прохода, паспорт
+            // не отображаются в модалке details (баг из issue #116).
+            this.selectedEmployee = {
+                id: employee.id,
+                last_name: employee.lastName,
+                first_name: employee.firstName,
+                middle_name: employee.middleName,
+                position: employee.position,
+                citizenshipName: employee.citizenshipName,
+                passport_series_number: employee.passportSeriesNumber,
+                patent_number: employee.patentNumber,
+                other_permission: employee.otherPermission,
+                target_tables: employee.targetTables || [],
+                entry_date_to: employee.entryDateTo,
+                pass_time: employee.passTime,
+                organization: employee.organization,
+                company: employee.company,
+                applicationId: employee.applicationId
+            };
             this.showDetailsModal = true;
         },
         closeDetailsModal() {
