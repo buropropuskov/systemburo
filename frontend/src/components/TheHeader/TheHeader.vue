@@ -435,52 +435,64 @@ h3 {
 
 /* Адаптивность */
 @media (max-width: 768px) {
+  .header {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
   .header__info {
     gap: 10px;
   }
-  
-  .feedback-btn {
-    padding: 0 10px;
-    font-size: 13px;
+
+  .header__title {
+    min-width: 0;
+    flex: 1 1 auto;
   }
-  
-  .broadcast {
-    padding: 0 12px;
-    font-size: 13px;
-  }
-  
-  .time {
-    min-width: 140px;
+
+  .header__title h3 {
     font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  
+
+  .header__subtitle {
+    display: none;
+  }
+
+  /* Вторичная информация не помещается на мобильном - скрываем */
+  .feedback-btn,
+  .broadcast,
+  .time,
+  .language-selector {
+    display: none;
+  }
+
+  .user__notifications {
+    padding: 0 8px;
+    gap: 8px;
+  }
+
+  .appl-btn {
+    padding: 0 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
   .appl-btn--fixed {
     right: 10px;
     top: 10px;
   }
 }
 
-@media (max-width: 576px) {
+@media (max-width: 480px) {
   .header {
     padding: 0 10px;
   }
-  
-  .header__title h3 {
-    font-size: 14px;
-  }
-  
-  .header__subtitle {
-    font-size: 11px;
-  }
-  
-  .user__notifications {
-    padding: 0 10px;
-    gap: 10px;
-  }
-  
-  .feedback-btn {
+
+  .appl-btn {
+    padding: 0 12px;
     font-size: 12px;
-    padding: 0 8px;
   }
 }
 </style>
