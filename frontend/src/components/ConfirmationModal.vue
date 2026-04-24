@@ -66,6 +66,7 @@ export default {
             default: false
         }
     },
+    emits: ['cancel', 'confirm'],
     methods: {
         handleConfirm() {
             this.$emit('confirm');

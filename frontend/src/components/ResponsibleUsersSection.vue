@@ -186,6 +186,7 @@ export default {
       validator: value => ['organization', 'company'].includes(value)
     }
   },
+  emits: ['users-updated'],
   data() {
     return {
       allUsers: [],

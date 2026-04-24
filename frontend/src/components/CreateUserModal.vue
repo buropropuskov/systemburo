@@ -258,6 +258,7 @@ export default {
       required: true
     }
   },
+  emits: ['close', 'user-created'],
   data() {
     return {
       newUser: {

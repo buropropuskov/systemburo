@@ -268,6 +268,7 @@ export default {
             default: null,
         },
     },
+    emits: ['apply', 'clear', 'update:dateRangeEnd', 'update:dateRangeStart', 'update:selectedDate'],
     data() {
         return {
             showCalendar: false,

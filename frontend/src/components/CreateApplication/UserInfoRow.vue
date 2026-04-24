@@ -76,11 +76,11 @@
 export default {
     name: 'UserInfoRow',
     props: {
-        organization: String,
-        company: String,
-        responsiblePerson: String,
-        phoneNumber: String,
-        errors: Object
+        organization: { type: String, default: null },
+        company: { type: String, default: null },
+        responsiblePerson: { type: String, default: null },
+        phoneNumber: { type: String, default: null },
+        errors: { type: Object, default: () => ({}) }
     },
     emits: [
         'update:organization',

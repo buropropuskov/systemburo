@@ -153,8 +153,8 @@ export default {
             type: Array,
             required: true
         },
-        sortField: String,
-        sortDirection: String,
+        sortField: { type: String, default: null },
+        sortDirection: { type: String, default: null },
         allTables: {
             type: Array,
             default: () => []

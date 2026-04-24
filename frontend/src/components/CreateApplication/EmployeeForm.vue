@@ -383,6 +383,7 @@ export default {
             default: () => []
         }
     },
+    emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
     setup() {
         const instance = getCurrentInstance()
 

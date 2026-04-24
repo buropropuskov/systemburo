@@ -65,6 +65,7 @@ export default {
       validator: value => ['organization', 'company'].includes(value)
     }
   },
+  emits: ['tables-updated'],
   data() {
     return {
       allTables: [],

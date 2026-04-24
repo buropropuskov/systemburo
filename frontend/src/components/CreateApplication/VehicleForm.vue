@@ -349,6 +349,7 @@ export default {
             default: () => []
         }
     },
+    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added'],
     setup() {
         const instance = getCurrentInstance()
 

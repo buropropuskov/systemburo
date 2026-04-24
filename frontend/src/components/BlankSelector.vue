@@ -113,6 +113,7 @@ export default {
             default: () => ({})
         }
     },
+    emits: ['attachment-added', 'attachment-removed', 'attachment-selected'],
     data() {
         return {
             allTemplates: [],

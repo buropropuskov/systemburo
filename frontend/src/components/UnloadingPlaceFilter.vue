@@ -79,6 +79,7 @@ export default {
             default: null
         }
     },
+    emits: ['change', 'input'],
     data() {
         return {
             isOpen: false,

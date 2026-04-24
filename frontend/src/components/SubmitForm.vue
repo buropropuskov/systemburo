@@ -153,6 +153,7 @@ export default {
   components: {
     vSelect
   },
+  emits: ['submitted'],
   data() {
     return {
       formData: {

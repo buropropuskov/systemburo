@@ -68,6 +68,7 @@ export default {
             default: () => []
         }
     },
+    emits: ['attachment-selected'],
     data() {
         return {
             selectedAttachment: null

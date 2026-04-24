@@ -105,6 +105,7 @@ export default {
     UserNotifications,
     SkeletonLine,
   },
+  emits: ['refresh-feedback'],
   data() {
     return {
       loading: true,

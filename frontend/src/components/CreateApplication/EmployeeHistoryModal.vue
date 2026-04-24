@@ -275,6 +275,7 @@ export default {
       default: ''
     }
   },
+  emits: ['close'],
   data() {
     return {
       loading: false,

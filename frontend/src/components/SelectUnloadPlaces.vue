@@ -66,6 +66,7 @@ export default {
       validator: value => ['organization', 'company'].includes(value)
     }
   },
+  emits: ['places-updated'],
   data() {
     return {
       allUnloadPlaces: [],

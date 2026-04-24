@@ -95,9 +95,9 @@
 export default {
     name: 'EmployeeBindingModal',
     props: {
-        newEmployeesToBind: Array,
-        organization: String,
-        company: String,
+        newEmployeesToBind: { type: Array, default: () => [] },
+        organization: { type: String, default: null },
+        company: { type: String, default: null },
         hasOrganization: Boolean,
         hasCompany: Boolean
     },

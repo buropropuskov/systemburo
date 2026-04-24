@@ -175,6 +175,7 @@ export default {
             default: true
         }
     },
+    emits: ['apply', 'clear', 'input'],
     data() {
         return {
             isOpen: false,
