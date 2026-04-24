@@ -50,15 +50,21 @@ type CreateEmployeeResponse struct {
 // --- DTO ответов ---
 
 // TableEmployeeResponse -- сотрудник для отображения в таблице.
+// CitizenshipName / Position / Company / PassPlaces добавлены для отображения
+// соответствующих колонок в PeopleTable.vue (#116 пункт 10).
 type TableEmployeeResponse struct {
-	ID           int     `json:"id"`
-	LastName     string  `json:"last_name"`
-	FirstName    string  `json:"first_name"`
-	MiddleName   *string `json:"middle_name"`
-	Organization *string `json:"organization"`
-	EntryDateTo  *string `json:"entry_date_to"`
-	PassTime     *string `json:"pass_time"`
-	Status       int     `json:"status"`
+	ID              int     `json:"id"`
+	LastName        string  `json:"last_name"`
+	FirstName       string  `json:"first_name"`
+	MiddleName      *string `json:"middle_name"`
+	Organization    *string `json:"organization"`
+	Company         *string `json:"company"`
+	CitizenshipName *string `json:"citizenship_name"`
+	Position        *string `json:"position"`
+	PassPlaces      *string `json:"pass_places"`
+	EntryDateTo     *string `json:"entry_date_to"`
+	PassTime        *string `json:"pass_time"`
+	Status          int     `json:"status"`
 }
 
 // --- Реализация ---
@@ -123,16 +129,22 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 }
 
 // GetActiveEmployeesForTable возвращает активных сотрудников для указанной таблицы.
+// Включает citizenship / position / company / pass_places (#116 пункт 10) чтобы
+// PeopleTable.vue мог отрисовать соответствующие колонки.
 func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableID int) ([]TableEmployeeResponse, error) {
 	type employeeRow struct {
-		ID           int
-		LastName     string
-		FirstName    string
-		MiddleName   *string
-		Organization *string
-		EntryDateTo  *string
-		PassTime     *string
-		Status       *int
+		ID              int
+		LastName        string
+		FirstName       string
+		MiddleName      *string
+		Organization    *string
+		Company         *string
+		CitizenshipName *string
+		Position        *string
+		PassPlaces      *string
+		EntryDateTo     *string
+		PassTime        *string
+		Status          *int
 	}
 
 	rows := make([]employeeRow, 0)
@@ -143,6 +155,15 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			e.first_name,
 			e.middle_name,
 			COALESCE(o.name, co.name) AS organization,
+			COALESCE(co.name, '') AS company,
+			c.name AS citizenship_name,
+			e.position,
+			(
+				SELECT STRING_AGG(DISTINCT st.display_name, ', ' ORDER BY st.display_name)
+				FROM employee_target_tables ett2
+				JOIN system_tables st ON ett2.table_id = st.id
+				WHERE ett2.employee_id = e.id
+			) AS pass_places,
 			a.entry_date_to,
 			CONCAT(a.entry_time_from, ' - ', a.entry_time_to) AS pass_time,
 			e.status
@@ -152,13 +173,15 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies co ON app.company_id = co.id
+		LEFT JOIN citizenships c ON e.citizenship_id = c.id
 		WHERE ett.table_id = ?
 		AND e.status = 1
 		AND app.confirmation = ?
 		AND app.status IN (?, ?)
 		AND CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date
 		GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
-				 o.name, co.name, a.entry_date_to, a.entry_time_from,
+				 o.name, co.name, c.name, e.position,
+				 a.entry_date_to, a.entry_time_from,
 				 a.entry_time_to, e.status
 		ORDER BY e.last_name, e.first_name
 	`, tableID, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted).Scan(&rows).Error
@@ -173,14 +196,18 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			status = *r.Status
 		}
 		employees = append(employees, TableEmployeeResponse{
-			ID:           r.ID,
-			LastName:     r.LastName,
-			FirstName:    r.FirstName,
-			MiddleName:   r.MiddleName,
-			Organization: r.Organization,
-			EntryDateTo:  r.EntryDateTo,
-			PassTime:     r.PassTime,
-			Status:       status,
+			ID:              r.ID,
+			LastName:        r.LastName,
+			FirstName:       r.FirstName,
+			MiddleName:      r.MiddleName,
+			Organization:    r.Organization,
+			Company:         r.Company,
+			CitizenshipName: r.CitizenshipName,
+			Position:        r.Position,
+			PassPlaces:      r.PassPlaces,
+			EntryDateTo:     r.EntryDateTo,
+			PassTime:        r.PassTime,
+			Status:          status,
 		})
 	}
 	return employees, nil
