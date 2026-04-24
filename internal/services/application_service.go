@@ -389,15 +389,19 @@ type AttachmentInfo struct {
 
 // CarWithPlaces автомобиль с привязанными местами разгрузки.
 type CarWithPlaces struct {
-	ID            int              `json:"id"`
-	CarNumber     string           `json:"car_number"`
-	CarBrand      string           `json:"car_brand"`
-	UnloadPlace   *string          `json:"unload_place"`
-	EntryDateFrom *string          `json:"entry_date_from"`
-	EntryTimeFrom *string          `json:"entry_time_from"`
-	EntryDateTo   *string          `json:"entry_date_to"`
-	EntryTimeTo   *string          `json:"entry_time_to"`
-	UnloadPlaces  []UnloadPlaceRef `json:"unload_places"`
+	ID             int              `json:"id"`
+	CarNumber      string           `json:"car_number"`
+	CarBrand       string           `json:"car_brand"`
+	UnloadPlace    *string          `json:"unload_place"`
+	EntryDateFrom  *string          `json:"entry_date_from"`
+	EntryTimeFrom  *string          `json:"entry_time_from"`
+	EntryDateTo    *string          `json:"entry_date_to"`
+	EntryTimeTo    *string          `json:"entry_time_to"`
+	Organization   *string          `json:"organization"`
+	OrganizationID *int             `json:"organization_id"`
+	Company        *string          `json:"company"`
+	CompanyID      *int             `json:"company_id"`
+	UnloadPlaces   []UnloadPlaceRef `json:"unload_places"`
 }
 
 // UnloadPlaceRef ссылка на место разгрузки.
@@ -415,9 +419,16 @@ type EmployeeWithTables struct {
 	MiddleName           *string        `json:"middle_name"`
 	Position             *string        `json:"position"`
 	CitizenshipID        *int           `json:"citizenship_id"`
+	CitizenshipName      *string        `json:"citizenship_name"`
 	PassportSeriesNumber *string        `json:"passport_series_number"`
 	PatentNumber         *string        `json:"patent_number"`
 	OtherPermission      *string        `json:"other_permission"`
+	EntryDateTo          *string        `json:"entry_date_to"`
+	PassTime             *string        `json:"pass_time"`
+	Organization         *string        `json:"organization"`
+	OrganizationID       *int           `json:"organization_id"`
+	Company              *string        `json:"company"`
+	CompanyID            *int           `json:"company_id"`
 	TargetTables         []TableInfoRef `json:"target_tables"`
 }
 
