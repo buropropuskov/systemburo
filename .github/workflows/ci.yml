@@ -163,7 +163,14 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: docker-build
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    # always() нужен чтобы deploy не skipped транзитивно когда какие-то
+    # upstream jobs (backend-test/frontend-test) skip из-за paths filter.
+    # Docker Build сам использует always() по той же причине.
+    if: |
+      always() &&
+      github.ref == 'refs/heads/dev' &&
+      github.event_name == 'push' &&
+      needs.docker-build.result == 'success'
     environment: staging
     permissions:
       contents: write
