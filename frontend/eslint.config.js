@@ -22,6 +22,10 @@ export default [
         ...globals.node
       }
     },
-    rules: {}
+    rules: {
+      // v-html используется только для admin-editable инструкций, sanitize
+      // через DOMPurify в utils/sanitize.js. Правило не актуально для нас.
+      'vue/no-v-html': 'off'
+    }
   }
 ]

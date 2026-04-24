@@ -258,6 +258,7 @@ import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
 export default {
   name: 'NavMenu',
+  emits: ['logout'],
   data() {
     return {
       isExpanded: false,

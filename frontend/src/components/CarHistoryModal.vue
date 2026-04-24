@@ -259,6 +259,7 @@ export default {
       default: ''
     }
   },
+  emits: ['close'],
   setup(_, { emit }) {
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
     return { onOverlayMousedown, onOverlayMouseup };

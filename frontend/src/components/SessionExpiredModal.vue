@@ -53,14 +53,14 @@ export default {
   props: {
     timeRemaining: {
       type: Number,
-      required: true,
-      default: 300
+      required: true
     },
     maxTime: {
       type: Number,
       default: 600
     }
   },
+  emits: ['extend-session', 'logout'],
   computed: {
     formattedTime() {
       const minutes = Math.floor(this.timeRemaining / 60);

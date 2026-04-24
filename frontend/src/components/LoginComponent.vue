@@ -223,6 +223,7 @@ import { useAuthStore } from '@/stores/auth'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
 export default {
     components: { PasswordRecoveryModal },
+    emits: ['login-success'],
     data() {
         return {
             formData: {

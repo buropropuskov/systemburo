@@ -804,6 +804,7 @@ export default {
       required: true
     }
   },
+  emits: ['fetch-users', 'user-updated'],
   setup() {
     const showCreateModal = ref(false);
     return { showCreateModal };

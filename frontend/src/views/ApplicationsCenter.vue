@@ -355,6 +355,7 @@ export default {
         SkeletonTransition,
         SkeletonTable
     },
+    emits: ['refresh-data'],
     data() {
         return {
             searchQuery: '',

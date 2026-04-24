@@ -127,9 +127,9 @@
 export default {
     name: 'BindingModal',
     props: {
-        newCarsToBind: Array,
-        organization: String,
-        company: String,
+        newCarsToBind: { type: Array, default: () => [] },
+        organization: { type: String, default: null },
+        company: { type: String, default: null },
         hasOrganization: Boolean,
         hasCompany: Boolean
     },

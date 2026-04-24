@@ -135,16 +135,16 @@
 <script>
 export default {
   props: {
-    organization: String,
-    company: String,
-    lastName: String,
-    firstName: String,
-    middleName: String,
-    position: String,
-    email: String,
-    phone: String,
-    userType: String,
-    typeId: Number
+    organization: { type: String, default: null },
+    company: { type: String, default: null },
+    lastName: { type: String, default: null },
+    firstName: { type: String, default: null },
+    middleName: { type: String, default: null },
+    position: { type: String, default: null },
+    email: { type: String, default: null },
+    phone: { type: String, default: null },
+    userType: { type: String, default: null },
+    typeId: { type: Number, default: null }
   },
   data() {
     return {

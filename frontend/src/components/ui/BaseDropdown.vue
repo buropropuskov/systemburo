@@ -90,6 +90,7 @@ export default {
   name: 'BaseDropdown',
   props: {
     modelValue: {
+      type: [String, Number, Object, Array, Boolean],
       default: null,
     },
     options: {

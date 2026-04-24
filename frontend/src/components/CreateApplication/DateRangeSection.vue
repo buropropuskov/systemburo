@@ -351,15 +351,15 @@ export default {
     name: 'DateRangeSection',
     props: {
         isOneDay: Boolean,
-        startDate: String,
-        endDate: String,
-        singleDate: String,
-        startTime: String,
-        endTime: String,
+        startDate: { type: String, default: null },
+        endDate: { type: String, default: null },
+        singleDate: { type: String, default: null },
+        startTime: { type: String, default: null },
+        endTime: { type: String, default: null },
         roofAccess: Boolean,
         freeParking: Boolean,
         notifySituationCenter: Boolean,
-        errors: Object
+        errors: { type: Object, default: () => ({}) }
     },
     emits: [
         'update:is-one-day',

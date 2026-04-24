@@ -226,6 +226,7 @@ export default {
         PeopleTable,
         ApplicationDetail
     },
+    emits: ['refresh-data'],
     data() {
         return {
             tableData: null,

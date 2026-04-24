@@ -17,8 +17,8 @@
       <div class="modal-content">
         <div class="user-search-section">
           <input
-            v-model="searchQuery"
             ref="searchInput"
+            v-model="searchQuery"
             class="forward-search-input"
             placeholder="Поиск пользователей..."
             type="text"

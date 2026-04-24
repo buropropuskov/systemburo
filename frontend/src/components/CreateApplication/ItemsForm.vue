@@ -117,6 +117,7 @@ export default {
             default: () => []
         }
     },
+    emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added'],
     data() {
         return {
             tempItems: [

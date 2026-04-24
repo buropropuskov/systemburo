@@ -114,9 +114,9 @@
 export default {
     name: 'ItemsList',
     props: {
-        items: Array,
-        sortField: String,
-        sortDirection: String
+        items: { type: Array, default: () => [] },
+        sortField: { type: String, default: null },
+        sortDirection: { type: String, default: null }
     },
     emits: ['sort', 'edit-item', 'delete-item'],
     methods: {
