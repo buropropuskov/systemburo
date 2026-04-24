@@ -289,15 +289,16 @@
                 
                 <div class="detail-group">
                   <label class="detail-label">Телефон:</label>
-                  <input 
-                    v-model="selectedUser.phone" 
+                  <input
+                    :value="selectedUser.phone"
                     class="form-input-sm"
-                    placeholder="Введите телефон"
+                    placeholder="+7 (___) ___ __-__"
                     type="tel"
                     autocomplete="new-password"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @input="onPhoneInput($event, 'selectedUser')"
                     @change="updateUserInfo(selectedUser)"
                   >
                 </div>
@@ -493,12 +494,6 @@
             </div>
             
             <div class="modal-body">
-              <div
-                v-if="!hasOrgOrCompany"
-                class="form-hint form-hint--warning"
-              >
-                Укажите организацию или компанию - хотя бы одно из двух обязательно.
-              </div>
               <div class="form-wrap">
                 <div class="input-group half">
                   <label class="input-label">Логин <span class="required">*</span></label>
@@ -606,7 +601,7 @@
                     </transition>
                   </div>
                 </div>
-                <div class="input-group half">
+                <div class="input-group full">
                   <label class="input-label">Тип пользователя <span class="required">*</span></label>
                   <div
                     class="custom-select"
@@ -689,11 +684,11 @@
                 <div class="input-group half">
                   <label class="input-label">Телефон</label>
                   <input
-                    v-model="newUser.phone"
-                    placeholder="Введите телефон"
+                    :value="newUser.phone"
+                    placeholder="+7 (___) ___ __-__"
                     class="modal-input"
                     type="tel"
-                    @input="saveDraft"
+                    @input="onPhoneInput($event, 'newUser')"
                   >
                 </div>
               </div>
@@ -787,6 +782,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { ref } from 'vue';
+import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PermissionTree from './PermissionTree.vue';
@@ -954,6 +950,17 @@ export default {
   },
  
   methods: {
+    // onPhoneInput применяет российскую маску к введённому телефону и записывает
+    // результат обратно в reactive model. Используется для newUser/selectedUser
+    // чтобы явно триггерить saveDraft (где он нужен) отдельно.
+    onPhoneInput(event, modelKey) {
+      const masked = formatRussianPhone(event.target.value)
+      this[modelKey].phone = masked
+      if (modelKey === 'newUser') {
+        this.saveDraft()
+      }
+    },
+
     refreshAllData() {
       this.fetchOrganizations();
       this.fetchCompanies();
