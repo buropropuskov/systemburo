@@ -778,6 +778,9 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Ограничиваем высоту panel'а - остальные user'ы доступны через
+   * внутренний vertical-scroll в .admin-users__table-wrap */
+  max-height: calc(100dvh - 180px);
 }
 
 .admin-users__detail-panel {
@@ -836,8 +839,23 @@ export default {
   white-space: nowrap;
 }
 
-.admin-users__th--type {
-  width: 120px;
+/* Все cells truncate'ятся ellipsis'ом - помещаются в любую ширину panel'а */
+.admin-users__td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-users__td--type {
+  overflow: hidden;
+}
+
+.admin-users__td--type :deep(*) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 }
 
 .admin-users__row {
@@ -1202,26 +1220,42 @@ export default {
   }
 
   /*
-   * Synced horizontal scroll - table-layout: fixed + width: 120px на type-col
-   * давали суммарную ширину больше wrapper, last col обрезалась справа.
+   * Compact table - данные truncate'ятся ellipsis'ом и помещаются в
+   * narrow list-panel БЕЗ horizontal-scroll. StatusBadge внутри type-col
+   * через :deep ужимаем чтобы badge не задавал свою min-width.
    */
   .admin-users__table-wrap {
-    overflow-x: auto;
-    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .admin-users__table {
-    table-layout: auto;
-    min-width: 600px;
+    table-layout: fixed;
+    width: 100%;
   }
 
   .admin-users__th,
   .admin-users__row td {
+    padding: 6px 8px;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .admin-users__th--type {
-    width: auto;
+    width: 28%;
+  }
+
+  .admin-users__td--type {
+    overflow: hidden;
+  }
+
+  .admin-users__td--type :deep(*) {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
   }
 }
 
