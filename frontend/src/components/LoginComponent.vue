@@ -541,6 +541,7 @@ export default {
     .login {
         width: 100%;
         height: 100vh;
+        height: 100dvh;
         background-color: var(--color-primary);
         padding: 40px;
         display: flex;
@@ -1113,5 +1114,157 @@ export default {
     }
     .fade-enter, .fade-leave-to {
         opacity: 0;
+    }
+
+    /* Tablet и меньше: stacked layout (форма сверху, info снизу) */
+    @media (max-width: 1024px) {
+        .login__container {
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            overflow-y: auto;
+            padding-bottom: 40px;
+        }
+
+        .login__info {
+            width: 100%;
+            max-width: 550px;
+            margin-top: 0;
+        }
+    }
+
+    /* Mobile: <768px */
+    @media (max-width: 768px) {
+        .login {
+            padding: 24px 16px;
+        }
+
+        .login__header {
+            padding-bottom: 30px;
+        }
+
+        .login__title {
+            font-size: 40px;
+        }
+
+        .login__subtitle {
+            font-size: 16px;
+        }
+
+        .login__input {
+            width: 100%;
+            max-width: 100%;
+            height: 60px;
+            padding: 5px 20px;
+        }
+
+        .input {
+            font-size: 16px;
+        }
+
+        .remember-password {
+            padding-left: 20px;
+            font-size: 14px;
+        }
+
+        .login__info {
+            height: auto;
+            border-radius: 30px;
+            padding: 30px 24px;
+        }
+
+        .info__title {
+            font-size: 28px;
+            padding-bottom: 14px;
+        }
+
+        .help {
+            font-size: 20px;
+        }
+
+        .info__text {
+            font-size: 14px;
+            padding-bottom: 24px;
+        }
+
+        .contact__text {
+            font-size: 14px;
+        }
+
+        .time {
+            font-size: 12px;
+        }
+
+        /* Floating shapes занимают место и тормозят на мобильных - убираем */
+        .floating-shape {
+            display: none;
+        }
+    }
+
+    /* Mobile small: <=480px */
+    @media (max-width: 480px) {
+        .login {
+            padding: 20px 14px;
+        }
+
+        .login__header {
+            padding-bottom: 24px;
+        }
+
+        .login__title {
+            font-size: 32px;
+            text-shadow: 2px 2px rgba(0,0,0,0.1);
+        }
+
+        .login__subtitle {
+            font-size: 14px;
+        }
+
+        .inputs {
+            gap: 14px;
+        }
+
+        .login__input {
+            height: 56px;
+            border-radius: 30px;
+            padding: 5px 18px;
+        }
+
+        .error-container {
+            height: auto;
+            min-height: 40px;
+            margin-bottom: 12px;
+        }
+
+        .error-message {
+            font-size: 13px;
+            padding: 10px 16px;
+        }
+
+        .footer__button {
+            gap: 12px;
+        }
+
+        .login__button {
+            width: 170px;
+            height: 54px;
+        }
+
+        .button__text {
+            font-size: 18px;
+        }
+
+        .login__info {
+            border-radius: 24px;
+            padding: 24px 18px;
+        }
+
+        .info__title {
+            font-size: 24px;
+        }
+
+        .help {
+            font-size: 18px;
+        }
     }
 </style>
