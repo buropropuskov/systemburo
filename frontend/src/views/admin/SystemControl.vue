@@ -430,8 +430,40 @@ export default {
 .sc-fade-enter-from,
 .sc-fade-leave-to { opacity: 0; }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .sc__card { padding: 28px 24px; }
   .sc__status-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* Fullscreen modal для confirmation на мобильном */
+  .sc__modal-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .sc__modal {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sc__modal p {
+    flex-grow: 1;
+  }
+
+  .sc__modal-actions {
+    margin-top: auto;
+    justify-content: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .sc__modal-actions .sc__btn {
+    width: 100%;
+  }
 }
 </style>

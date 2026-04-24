@@ -171,6 +171,43 @@ body:not(.auth-active) #app {
 .page-fade-leave-active {
   transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/*
+ * Mobile-fullscreen паттерн для всех модалок с классами
+ * .modal-overlay > .modal-content. На <768px модалка занимает весь
+ * viewport вместо центрированной карточки. !important нужен потому что
+ * большинство модалок используют scoped стили.
+ */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .modal-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Для inputs и textarea внутри модалок - font-size 16px предотвращает
+   * авто-зум на iOS при focus'е. */
+  .modal-content input[type="text"],
+  .modal-content input[type="email"],
+  .modal-content input[type="password"],
+  .modal-content input[type="tel"],
+  .modal-content input[type="number"],
+  .modal-content input[type="date"],
+  .modal-content textarea,
+  .modal-content select {
+    font-size: 16px !important;
+  }
+}
 .page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
