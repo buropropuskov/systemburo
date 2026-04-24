@@ -1,90 +1,113 @@
 <template>
-    <div class="data__list">
-        <div class="header-with-badge">
-            <h4>Список ТМЦ</h4>
-            <span class="items-badge">{{ items.length }}</span>
-        </div>
-        <div class="items-table">
-            <div class="table-header">
-                <div class="header-col number-col" @click="$emit('sort', 'number')">
-                    <p :class="{ 'active-sort': sortField === 'number' }">№</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'number' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col name-col" @click="$emit('sort', 'name')">
-                    <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'name' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col quantity-col" @click="$emit('sort', 'quantity')">
-                    <p :class="{ 'active-sort': sortField === 'quantity' }">Количество</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'quantity' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col actions-col">
-                    Действия
-                </div>
-            </div>
-            <div class="table-body">
-                <transition-group name="fade" tag="div">
-                    <div 
-                        v-for="(item, index) in items" 
-                        :key="item.id"
-                        class="table-row"
-                    >
-                        <div class="table-col number-col">{{ index + 1 }}</div>
-                        <div class="table-col name-col">
-                            {{ item.itemName || 'Не указано' }}
-                        </div>
-                        <div class="table-col quantity-col">
-                            {{ item.quantity || 0 }}
-                        </div>
-                        <div class="table-col actions-col">
-                            <button 
-                                class="edit-btn"
-                                @click="$emit('edit-item', item)"
-                                title="Редактировать"
-                            >
-                                <img 
-                                    src="@/assets/icons/edit.png" 
-                                    alt="Редактировать" 
-                                    class="edit-icon"
-                                />
-                            </button>
-                            <button 
-                                class="delete-btn"
-                                @click="deleteItemWithAnimation(item.id)"
-                            >
-                                <img 
-                                    src="@/assets/icons/trashcan.png" 
-                                    alt="Удалить" 
-                                    class="delete-icon"
-                                />
-                            </button>
-                        </div>
-                    </div>
-                </transition-group>
-                <div v-if="items.length === 0" class="no-items">
-                    Нет добавленных ТМЦ
-                </div>
-            </div>
-        </div>
+  <div class="data__list">
+    <div class="header-with-badge">
+      <h4>Список ТМЦ</h4>
+      <span class="items-badge">{{ items.length }}</span>
     </div>
+    <div class="items-table">
+      <div class="table-header">
+        <div
+          class="header-col number-col"
+          @click="$emit('sort', 'number')"
+        >
+          <p :class="{ 'active-sort': sortField === 'number' }">
+            №
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'number' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col name-col"
+          @click="$emit('sort', 'name')"
+        >
+          <p :class="{ 'active-sort': sortField === 'name' }">
+            Наименование
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'name' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col quantity-col"
+          @click="$emit('sort', 'quantity')"
+        >
+          <p :class="{ 'active-sort': sortField === 'quantity' }">
+            Количество
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'quantity' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div class="header-col actions-col">
+          Действия
+        </div>
+      </div>
+      <div class="table-body">
+        <transition-group
+          name="fade"
+          tag="div"
+        >
+          <div 
+            v-for="(item, index) in items" 
+            :key="item.id"
+            class="table-row"
+          >
+            <div class="table-col number-col">
+              {{ index + 1 }}
+            </div>
+            <div class="table-col name-col">
+              {{ item.itemName || 'Не указано' }}
+            </div>
+            <div class="table-col quantity-col">
+              {{ item.quantity || 0 }}
+            </div>
+            <div class="table-col actions-col">
+              <button 
+                class="edit-btn"
+                title="Редактировать"
+                @click="$emit('edit-item', item)"
+              >
+                <img 
+                  src="@/assets/icons/edit.png" 
+                  alt="Редактировать" 
+                  class="edit-icon"
+                >
+              </button>
+              <button 
+                class="delete-btn"
+                @click="deleteItemWithAnimation(item.id)"
+              >
+                <img 
+                  src="@/assets/icons/trashcan.png" 
+                  alt="Удалить" 
+                  class="delete-icon"
+                >
+              </button>
+            </div>
+          </div>
+        </transition-group>
+        <div
+          v-if="items.length === 0"
+          class="no-items"
+        >
+          Нет добавленных ТМЦ
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>

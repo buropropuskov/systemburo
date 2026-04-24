@@ -1,60 +1,72 @@
 <template>
-    <div class="field field--select" @click="toggleDropdown">
-        <span class="select-text">{{ displayText }}</span>
-        <img 
-            src="@/assets/icons/arrow.png" 
-            class="select-icon" 
-            :class="{ 'select-icon--rotated': isOpen }" 
-        />
+  <div
+    class="field field--select"
+    @click="toggleDropdown"
+  >
+    <span class="select-text">{{ displayText }}</span>
+    <img 
+      src="@/assets/icons/arrow.png" 
+      class="select-icon" 
+      :class="{ 'select-icon--rotated': isOpen }" 
+    >
         
-        <transition name="dropdown">
-            <div 
-                class="custom-dropdown"
-                v-if="isOpen"
-                @click.stop
-            >
-                <div class="dropdown-search">
-                    <input 
-                        type="text" 
-                        placeholder="Поиск..." 
-                        v-model="searchQuery"
-                        @click.stop
-                        class="dropdown-search__input"
-                        ref="searchInput"
-                        @input="handleSearchInput"
-                    />
-                </div>
+    <transition name="dropdown">
+      <div 
+        v-if="isOpen"
+        class="custom-dropdown"
+        @click.stop
+      >
+        <div class="dropdown-search">
+          <input 
+            ref="searchInput" 
+            v-model="searchQuery" 
+            type="text"
+            placeholder="Поиск..."
+            class="dropdown-search__input"
+            @click.stop
+            @input="handleSearchInput"
+          >
+        </div>
                 
-                <div class="dropdown-list" ref="listContainer">
-                    <div 
-                        class="dropdown-item"
-                        :class="{ 'dropdown-item--selected': !internalValue }"
-                        @click="selectItem(null, 'Все места разгрузки')"
-                    >
-                        <span class="item-text" title="Все места разгрузки">Все места разгрузки</span>
-                    </div>
+        <div
+          ref="listContainer"
+          class="dropdown-list"
+        >
+          <div 
+            class="dropdown-item"
+            :class="{ 'dropdown-item--selected': !internalValue }"
+            @click="selectItem(null, 'Все места разгрузки')"
+          >
+            <span
+              class="item-text"
+              title="Все места разгрузки"
+            >Все места разгрузки</span>
+          </div>
                     
-                    <div 
-                        v-for="place in filteredPlaces"
-                        :key="place.id"
-                        class="dropdown-item"
-                        :class="{ 'dropdown-item--selected': internalValue === place.id }"
-                        @click="selectItem(place.id, place.name)"
-                    >
-                        <span class="item-text" :title="place.name">{{ place.name }}</span>
-                    </div>
+          <div 
+            v-for="place in filteredPlaces"
+            :key="place.id"
+            class="dropdown-item"
+            :class="{ 'dropdown-item--selected': internalValue === place.id }"
+            @click="selectItem(place.id, place.name)"
+          >
+            <span
+              class="item-text"
+              :title="place.name"
+            >{{ place.name }}</span>
+          </div>
                     
-                    <div 
-                        v-if="filteredPlaces.length === 0" 
-                        class="dropdown-no-results"
-                        :class="{ 'with-border': searchQuery }"
-                    >
-                        Ничего не найдено
-                    </div>
-                </div>
-            </div>
-        </transition>
-    </div>
+          <div 
+            v-if="filteredPlaces.length === 0" 
+            class="dropdown-no-results"
+            :class="{ 'with-border': searchQuery }"
+          >
+            Ничего не найдено
+          </div>
+        </div>
+      </div>
+    </transition>
+  </div>
 </template>
 
 <script>
@@ -119,6 +131,9 @@ export default {
     mounted() {
         this.fetchUnloadingPlaces();
         this.updateSelectedName();
+    },
+    beforeUnmount() {
+        this.removeClickOutside();
     },
     methods: {
         async fetchUnloadingPlaces() {
@@ -209,9 +224,6 @@ export default {
             this.$emit('input', null);
             this.$emit('change', { id: null, name: '' });
         }
-    },
-    beforeUnmount() {
-        this.removeClickOutside();
     }
 };
 </script>

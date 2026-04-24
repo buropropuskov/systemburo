@@ -1,115 +1,220 @@
 <template>
-    <div class="login" @mousemove="handleMouseMove">
-        <div class="login-background">
-            <div class="floating-shape shape-1"></div>
-            <div class="floating-shape shape-2"></div>
-            <div class="floating-shape shape-3"></div>
-            <div class="floating-shape shape-4"></div>
-            <div class="floating-shape shape-5"></div>
-            <div class="floating-shape shape-6"></div>
-            <div class="floating-shape shape-7"></div>
-        </div>
-        
-        <div class="background-image" :style="parallaxStyle"></div>
-        
-        <div class="login__container">
-            <div class="login__active">
-                <div class="login__header">
-                    <h1 class="login__title" :style="titleStyle">Войдите в аккаунт</h1>
-                    <h3 class="login__subtitle" :style="subtitleStyle">для продолжения</h3>
-                </div>
-                <form class="login__form" data-testid="login-form" @submit.prevent="handleSubmit">
-                    <div class="inputs">
-                        <div class="login__input" :style="input1Style">
-                            <img src="@/assets/icons/login.png" alt="" class="input__icon" />
-                            <input v-model="formData.username" class="input" type="text"
-                                data-testid="login-input-username"
-                                autocomplete="off"
-                                autocorrect="off"
-                                autocapitalize="off"
-                                spellcheck="false"
-                                placeholder="Логин"
-                                aria-label="Имя пользователя"
-                                @keyup.enter="handleSubmit" />
-                        </div>
-                        <div class="login__input" :style="input2Style">
-                            <img src="@/assets/icons/password.png" alt="" class="input__icon" />
-                            <input v-model="formData.password" class="input" type="password"
-                                data-testid="login-input-password"
-                                autocomplete="new-password"
-                                autocorrect="off"
-                                autocapitalize="off"
-                                spellcheck="false"
-                                placeholder="Пароль"
-                                aria-label="Пароль"
-                                @keyup.enter="handleSubmit" />
-                        </div>
-                    </div>
-                    
-                    <a href="#" class="remember-password" :style="linkStyle" @click.prevent="showPasswordRecovery = true">Забыли пароль?</a>
-                    
-                    <div class="login__footer" :style="footerStyle">
-                        <div class="error-container">
-                            <transition name="fade">
-                                <div v-if="showError" class="error-message" data-testid="login-error-message">
-                                    {{ errors.general }}
-                                </div>
-                            </transition>
-                        </div>
-                        
-                        <div class="footer__button">
-                            <button class="login__button" data-testid="login-button-submit" :class="{'loading': isLoading, 'success': isSuccess}" :disabled="isLoading || isSuccess">
-                                <p class="button__text">{{ getButtonText }}</p>
-                                <img v-if="!isLoading && !isSuccess" src="@/assets/icons/key-blue.png" alt="" class="input__icon"/>
-                                <div v-if="isLoading" class="spinner"></div>
-                            </button>
-                            <div class="custom-lock" :class="{'error': hasError, 'shaking': isShaking, 'success': isSuccess}">
-                                <div class="lock-arc"></div>
-                                <div class="lock-body"></div>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="login__info" :style="infoStyle">
-                <div class="info-notifications">
-                    <transition name="notification" mode="out-in">
-                        <div v-if="showNotification" class="notification" :key="notificationText" data-testid="login-copy-notification">
-                            {{ notificationText }}
-                        </div>
-                    </transition>
-                </div>
-
-                <h2 class="info__title">Добро пожаловать!</h2>
-                <p class="info__text">
-                    Для продолжения, необходимо войти в аккаунт,
-                    используя выданные данные.
-                </p>
-                <h3 class="info__title help">Помощь и поддержка</h3>
-                <p class="info__text">
-                  Обратитесь к нам, чтобы получить учётную запись, восстановить доступ или решить другие проблемы:
-                </p>
-                <div class="info__contacts">
-                    <div class="contact" @click="copyEmail">
-                        <img src="@/assets/icons/email-blue.png" class="contact__icon" alt="" />
-                        <p class="contact__text">buropropuskov@dreamisland.ru</p>
-                    </div>
-                    <div class="contact" @click="copyPhone">
-                        <img src="@/assets/icons/phone-blue.png" class="contact__icon" alt="" />
-                        <p class="contact__text">+7 (910) 083 00-55</p>
-                    </div>
-                    <p class="time">
-                        ПН-ПТ: <strong>08:00 - 22:00</strong> СБ-ВС и ПРАЗДНИКИ: <strong>08:00 - 20:00</strong>
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <PasswordRecoveryModal
-            :show="showPasswordRecovery"
-            @close="showPasswordRecovery = false"
-        />
+  <div
+    class="login"
+    @mousemove="handleMouseMove"
+  >
+    <div class="login-background">
+      <div class="floating-shape shape-1" />
+      <div class="floating-shape shape-2" />
+      <div class="floating-shape shape-3" />
+      <div class="floating-shape shape-4" />
+      <div class="floating-shape shape-5" />
+      <div class="floating-shape shape-6" />
+      <div class="floating-shape shape-7" />
     </div>
+        
+    <div
+      class="background-image"
+      :style="parallaxStyle"
+    />
+        
+    <div class="login__container">
+      <div class="login__active">
+        <div class="login__header">
+          <h1
+            class="login__title"
+            :style="titleStyle"
+          >
+            Войдите в аккаунт
+          </h1>
+          <h3
+            class="login__subtitle"
+            :style="subtitleStyle"
+          >
+            для продолжения
+          </h3>
+        </div>
+        <form
+          class="login__form"
+          data-testid="login-form"
+          @submit.prevent="handleSubmit"
+        >
+          <div class="inputs">
+            <div
+              class="login__input"
+              :style="input1Style"
+            >
+              <img
+                src="@/assets/icons/login.png"
+                alt=""
+                class="input__icon"
+              >
+              <input
+                v-model="formData.username"
+                class="input"
+                type="text"
+                data-testid="login-input-username"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="Логин"
+                aria-label="Имя пользователя"
+                @keyup.enter="handleSubmit"
+              >
+            </div>
+            <div
+              class="login__input"
+              :style="input2Style"
+            >
+              <img
+                src="@/assets/icons/password.png"
+                alt=""
+                class="input__icon"
+              >
+              <input
+                v-model="formData.password"
+                class="input"
+                type="password"
+                data-testid="login-input-password"
+                autocomplete="new-password"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="Пароль"
+                aria-label="Пароль"
+                @keyup.enter="handleSubmit"
+              >
+            </div>
+          </div>
+                    
+          <a
+            href="#"
+            class="remember-password"
+            :style="linkStyle"
+            @click.prevent="showPasswordRecovery = true"
+          >Забыли пароль?</a>
+                    
+          <div
+            class="login__footer"
+            :style="footerStyle"
+          >
+            <div class="error-container">
+              <transition name="fade">
+                <div
+                  v-if="showError"
+                  class="error-message"
+                  data-testid="login-error-message"
+                >
+                  {{ errors.general }}
+                </div>
+              </transition>
+            </div>
+                        
+            <div class="footer__button">
+              <button
+                class="login__button"
+                data-testid="login-button-submit"
+                :class="{'loading': isLoading, 'success': isSuccess}"
+                :disabled="isLoading || isSuccess"
+              >
+                <p class="button__text">
+                  {{ getButtonText }}
+                </p>
+                <img
+                  v-if="!isLoading && !isSuccess"
+                  src="@/assets/icons/key-blue.png"
+                  alt=""
+                  class="input__icon"
+                >
+                <div
+                  v-if="isLoading"
+                  class="spinner"
+                />
+              </button>
+              <div
+                class="custom-lock"
+                :class="{'error': hasError, 'shaking': isShaking, 'success': isSuccess}"
+              >
+                <div class="lock-arc" />
+                <div class="lock-body" />
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div
+        class="login__info"
+        :style="infoStyle"
+      >
+        <div class="info-notifications">
+          <transition
+            name="notification"
+            mode="out-in"
+          >
+            <div
+              v-if="showNotification"
+              :key="notificationText"
+              class="notification"
+              data-testid="login-copy-notification"
+            >
+              {{ notificationText }}
+            </div>
+          </transition>
+        </div>
+
+        <h2 class="info__title">
+          Добро пожаловать!
+        </h2>
+        <p class="info__text">
+          Для продолжения, необходимо войти в аккаунт,
+          используя выданные данные.
+        </p>
+        <h3 class="info__title help">
+          Помощь и поддержка
+        </h3>
+        <p class="info__text">
+          Обратитесь к нам, чтобы получить учётную запись, восстановить доступ или решить другие проблемы:
+        </p>
+        <div class="info__contacts">
+          <div
+            class="contact"
+            @click="copyEmail"
+          >
+            <img
+              src="@/assets/icons/email-blue.png"
+              class="contact__icon"
+              alt=""
+            >
+            <p class="contact__text">
+              buropropuskov@dreamisland.ru
+            </p>
+          </div>
+          <div
+            class="contact"
+            @click="copyPhone"
+          >
+            <img
+              src="@/assets/icons/phone-blue.png"
+              class="contact__icon"
+              alt=""
+            >
+            <p class="contact__text">
+              +7 (910) 083 00-55
+            </p>
+          </div>
+          <p class="time">
+            ПН-ПТ: <strong>08:00 - 22:00</strong> СБ-ВС и ПРАЗДНИКИ: <strong>08:00 - 20:00</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <PasswordRecoveryModal
+      :show="showPasswordRecovery"
+      @close="showPasswordRecovery = false"
+    />
+  </div>
 </template>
 
 <script>
@@ -217,6 +322,17 @@ export default {
         setTimeout(() => {
             this.elementsVisible = true;
         }, 100);
+    },
+    beforeUnmount() {
+        if (this.animationTimeout) {
+            clearTimeout(this.animationTimeout);
+        }
+        if (this.errorTimeout) {
+            clearTimeout(this.errorTimeout);
+        }
+        if (this.notificationTimeout) {
+            clearTimeout(this.notificationTimeout);
+        }
     },
     methods: {
         handleMouseMove(e) {
@@ -415,17 +531,6 @@ export default {
                 }, 300);
             }, 700);
         },
-    },
-    beforeUnmount() {
-        if (this.animationTimeout) {
-            clearTimeout(this.animationTimeout);
-        }
-        if (this.errorTimeout) {
-            clearTimeout(this.errorTimeout);
-        }
-        if (this.notificationTimeout) {
-            clearTimeout(this.notificationTimeout);
-        }
     }
 }
 </script>

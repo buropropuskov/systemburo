@@ -1,417 +1,530 @@
 <template>
-    <section class="carsview" data-testid="cars-page">
-        <header class="carsview__header">
-            <h2 class="carsview__title">
-                Список <span class="blue">автомобилей</span>
-            </h2>
-            <p class="carsview__subtitle">
-                Вкладка для просмотра автомобилей, которые вы или ваша организация/компания когда-либо привязывали к заявкам.
-            </p>
-        </header>
+  <section
+    class="carsview"
+    data-testid="cars-page"
+  >
+    <header class="carsview__header">
+      <h2 class="carsview__title">
+        Список <span class="blue">автомобилей</span>
+      </h2>
+      <p class="carsview__subtitle">
+        Вкладка для просмотра автомобилей, которые вы или ваша организация/компания когда-либо привязывали к заявкам.
+      </p>
+    </header>
 
-        <div class="carsview__filters">
-            <div class="filters-container">
-                <SearchComponent
-                    :title="'Поиск машин...'"
-                    v-model="searchQuery"
-                />
-                <div class="filter-tabs" v-if="ownershipInfo">
-                    <button
-                        v-if="ownershipInfo.has_organization"
-                        class="filter-tab"
-                        data-testid="filter-tab-organization"
-                        :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-                        title="Автомобили, которых привязывали пользователи вашей организации"
-                        @click="switchFilter('organization')"
-                    >
-                        Машины организации
-                    </button>
-                    <button
-                        v-if="ownershipInfo.has_company"
-                        class="filter-tab"
-                        data-testid="filter-tab-company"
-                        :class="{ 'filter-tab--active': currentFilter === 'company' }"
-                        title="Автомобили, которых привязывали пользователи вашей компании"
-                        @click="switchFilter('company')"
-                    >
-                        Машины компании
-                    </button>
-                    <button
-                        class="filter-tab"
-                        data-testid="filter-tab-user"
-                        :class="{ 'filter-tab--active': currentFilter === 'user' }"
-                        title="Только те автомобили, которых привязывали лично вы"
-                        @click="switchFilter('user')"
-                    >
-                        Мои машины
-                    </button>
-                    <button
-                        class="filter-tab"
-                        data-testid="filter-tab-all-system"
-                        :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-                        title="Все автомобили, когда-либо зарегистрированные в системе"
-                        @click="switchFilter('all_system')"
-                    >
-                        Все машины системы
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="carsview__container">
-            <!-- Таблица автомобилей -->
-            <div class="cars-card">
-                <div class="card-header">
-                    <div class="card-header__title">
-                        <h3 class="card-title">
-                            <span v-if="currentFilter === 'organization'" class="highlight-text">Машины <span class="blue">организации</span></span>
-                            <span v-else-if="currentFilter === 'company'" class="highlight-text">Машины <span class="blue">компании</span></span>
-                            <span v-else-if="currentFilter === 'all_system'" class="highlight-text">Все <span class="blue">машины системы</span></span>
-                            <span v-else class="highlight-text">Мои <span class="blue">автомобили</span></span>
-                        </h3>
-                    </div>
-                    <div class="card-header__settings">
-                        <button
-                            class="add-button"
-                            data-testid="cars-view-add-button"
-                            @click="showAddCarModal"
-                            v-if="currentFilter !== 'all_system'"
-                        >
-                            Добавить
-                        </button>
-                        <RefreshButton @refresh="fetchCars" />
-                    </div>
-                </div>
-                
-                <div class="card-content">
-                    <!-- Заголовок таблицы всегда отображается -->
-                    <div class="cars-header">
-                        <div class="header-row">
-                            <div class="header-col number-col" @click="sortBy('id')">
-                                <p :class="{ 'active-sort': sortField === 'id' }">№</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'id',
-                                        'desc': sortField === 'id' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col car-number-col" @click="sortBy('number')">
-                                <p :class="{ 'active-sort': sortField === 'number' }">Номер</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'number',
-                                        'desc': sortField === 'number' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col brand-col" @click="sortBy('mark')">
-                                <p :class="{ 'active-sort': sortField === 'mark' }">Марка</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'mark',
-                                        'desc': sortField === 'mark' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col format-col" @click="sortBy('format_name')">
-                                <p :class="{ 'active-sort': sortField === 'format_name' }">Формат номера</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'format_name',
-                                        'desc': sortField === 'format_name' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col status-col" @click="sortBy('status')">
-                                <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'status',
-                                        'desc': sortField === 'status' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col actions-col">
-                                Действия
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Тело таблицы -->
-                    <div class="cars-container">
-                        <SkeletonTransition :loading="loading">
-                            <template #skeleton>
-                                <SkeletonTable :rows="6" :columns="5" />
-                            </template>
-                        <div v-if="filteredCars.length > 0" class="cars-body">
-                            <div 
-                                v-for="(car) in sortedCars" 
-                                :key="car.id" 
-                                class="car-item"
-                            >
-                                <div class="car-row">
-                                    <div class="car-col number-col">
-                                        {{ car.id }}
-                                    </div>
-                                    <div class="car-col car-number-col">
-                                        {{ car.number }}
-                                    </div>
-                                    <div class="car-col brand-col">
-                                        {{ car.mark }}
-                                    </div>
-                                    <div class="car-col format-col">
-                                        {{ car.format_name || 'Не указан' }}
-                                    </div>
-                                    <div class="car-col status-col">
-                                        <span 
-                                            class="status-badge"
-                                            :class="{
-                                                'status-active': car.status,
-                                                'status-inactive': !car.status
-                                            }"
-                                        >
-                                            {{ car.status ? 'Активна' : 'Неактивна' }}
-                                        </span>
-                                    </div>
-                                    <div class="car-col actions-col">
-                                        <button 
-                                            v-if="currentFilter !== 'all_system'"
-                                            @click="editCar(car)" 
-                                            class="edit-btn"
-                                            title="Редактировать"
-                                        >
-                                            <img 
-                                                src="@/assets/icons/edit.png" 
-                                                alt="Редактировать" 
-                                                class="edit-icon"
-                                            />
-                                        </button>
-                                        <button
-                                            v-if="currentFilter !== 'all_system'"
-                                            @click="openDeleteCarConfirmation(car)"
-                                            class="delete-btn"
-                                            title="Удалить"
-                                        >
-                                            <img 
-                                                src="@/assets/icons/trashcan.png" 
-                                                alt="Удалить" 
-                                                class="delete-icon"
-                                            />
-                                        </button>
-                                        <span v-if="currentFilter === 'all_system'" class="read-only-text">
-                                            Только просмотр
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <p v-else class="no-data-message">
-                            {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Автомобилей нет' }}
-                        </p>
-                        </SkeletonTransition>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="carsview__right-side">
-                <div class="carsview__help">
-                    <template v-if="currentFilter === 'organization'">
-                        <p class="help__text">
-                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                        </p>
-                        <p class="help__text">
-                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                        </p>
-                    </template>
-                    <template v-else-if="currentFilter === 'company'">
-                        <p class="help__text">
-                            Здесь находятся автомобили, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
-                        </p>
-                        <p class="help__text">
-                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                        </p>
-                    </template>
-                    <template v-else-if="currentFilter === 'user'">
-                        <p class="help__text">
-                            Здесь находятся <strong class="blue">ваши автомобили</strong>, добавленные лично. Вы можете использовать их при подаче автозаявок.
-                        </p>
-                        <p class="help__text">
-                            Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                        </p>
-                    </template>
-                    <template v-else-if="currentFilter === 'all_system'">
-                        <p class="help__text">
-                            Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
-                        </p>
-                    </template>
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно добавления машины -->
-        <div v-if="showModal && currentFilter !== 'all_system'" class="modal-overlay" data-testid="cars-view-modal" @click="closeModal">
-            <div class="modal-content" @click.stop>
-                <div class="modal-header">
-                    <div class="modal-header__top">
-                        <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
-                        <div v-if="notification.show" class="notification-badge" :class="notification.type">
-                            {{ notification.message }}
-                        </div>
-                    </div>
-                    <button class="modal-close" data-testid="cars-view-modal-close" @click="closeModal">×</button>
-                </div>
-                <div class="modal-body">
-                    <div class="data__completion">
-                        <div class="completion__format">
-                            <div class="format__header">
-                                <label class="format__label">Формат номеров</label>
-                                <button class="add-button" @click="saveCar" :disabled="!canSaveCar">
-                                    {{ editingCar ? 'Сохранить' : 'Добавить' }}
-                                </button>
-                            </div>
-                            <div class="format__dropdown">
-                                <button class="dropdown__button" data-testid="cars-view-format-dropdown" @click="toggleFormatDropdown">
-                                    <div class="button__content">
-                                        <span class="button__text">{{ selectedFormatText }}</span>
-                                        <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isFormatDropdownOpen }" />
-                                    </div>
-                                </button>
-                                <transition name="dropdown">
-                                    <div v-if="isFormatDropdownOpen" class="dropdown__menu">
-                                        <div 
-                                            v-for="format in availableFormats" 
-                                            :key="format.format.id"
-                                            class="dropdown__item" 
-                                            @click="selectFormat(format)"
-                                        >
-                                            <span class="item__text">{{ format.format.name }}</span>
-                                        </div>
-                                    </div>
-                                </transition>
-                            </div>
-                        </div>
-                        
-                        <div class="completion__fields">
-                            <div class="completion__number">
-                                <div class="completion__number-header">
-                                    <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                                </div>
-                                
-                                <!-- Динамический формат из базы данных -->
-                                <div class="number__field" v-if="selectedFormat">
-                                    <input 
-                                        v-for="(cell, index) in selectedFormat.cells" 
-                                        :key="index"
-                                        class="number__input" 
-                                        :placeholder="getPlaceholder(cell)"
-                                        v-model="numberParts[index]"
-                                        @input="validatePart(index, $event, cell)"
-                                        @blur="formatPart(index, cell)"
-                                        :maxlength="cell.max_length"
-                                        :style="{ width: getInputWidth(cell) }"
-                                    />
-                                </div>
-                                <div v-else class="no-format-message">
-                                    Выберите формат номера
-                                </div>
-                            </div>
-                            
-                            <div class="completion__mark">
-                                <div class="completion__mark-header">
-                                    <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                                </div>
-                                <div class="mark__field">
-                                    <div class="mark__dropdown">
-                                        <button class="mark__dropdown-button" @click="toggleMarkDropdown">
-                                            <div class="mark__button-content">
-                                                <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                                                <img src="@/assets/icons/arrow.png" class="mark__button-arrow" :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }" />
-                                            </div>
-                                        </button>
-                                        <transition name="dropdown">
-                                            <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
-                                                <div class="mark__search">
-                                                    <input 
-                                                        class="mark__search-input" 
-                                                        placeholder="Поиск марки..."
-                                                        v-model="markSearch"
-                                                        @input="filterMarks"
-                                                    />
-                                                </div>
-                                                <div class="mark__dropdown-list">
-                                                    <div 
-                                                        v-for="mark in filteredMarks" 
-                                                        :key="mark"
-                                                        class="mark__dropdown-item"
-                                                        @click="selectMark(mark)"
-                                                    >
-                                                        <span class="mark__item-text">{{ mark }}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </transition>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Привязка -->
-                        <div class="completion__binding" v-if="currentFilter !== 'all_system'">
-                            <label class="input__label">Привязка</label>
-                            <div class="binding-info">
-                                <p class="binding-note">
-                                    <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
-                                    Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
-                                </p>
-                            </div>
-                            <div class="binding-options">
-                                <label class="binding-option" v-if="ownershipInfo && ownershipInfo.has_organization">
-                                    <input 
-                                        type="checkbox" 
-                                        v-model="bindToOrganization"
-                                        :disabled="bindToCompany"
-                                    />
-                                    <span>Привязать к организации</span>
-                                </label>
-                                <label class="binding-option" v-if="ownershipInfo && ownershipInfo.has_company">
-                                    <input 
-                                        type="checkbox" 
-                                        v-model="bindToCompany"
-                                        :disabled="bindToOrganization"
-                                    />
-                                    <span>Привязать к компании</span>
-                                </label>
-                                <div class="user-binding">
-                                    <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <ConfirmationModal
-            :show="showDeleteCarModal"
-            title="Подтверждение удаления"
-            :message="`Вы уверены, что хотите удалить автомобиль ${carToDelete?.number || ''}?`"
-            confirm-text="Удалить"
-            cancel-text="Отмена"
-            :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
-            @confirm="confirmDeleteCar"
-            @cancel="cancelDeleteCar"
+    <div class="carsview__filters">
+      <div class="filters-container">
+        <SearchComponent
+          v-model="searchQuery"
+          :title="'Поиск машин...'"
         />
-    </section>
+        <div
+          v-if="ownershipInfo"
+          class="filter-tabs"
+        >
+          <button
+            v-if="ownershipInfo.has_organization"
+            class="filter-tab"
+            data-testid="filter-tab-organization"
+            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+            title="Автомобили, которых привязывали пользователи вашей организации"
+            @click="switchFilter('organization')"
+          >
+            Машины организации
+          </button>
+          <button
+            v-if="ownershipInfo.has_company"
+            class="filter-tab"
+            data-testid="filter-tab-company"
+            :class="{ 'filter-tab--active': currentFilter === 'company' }"
+            title="Автомобили, которых привязывали пользователи вашей компании"
+            @click="switchFilter('company')"
+          >
+            Машины компании
+          </button>
+          <button
+            class="filter-tab"
+            data-testid="filter-tab-user"
+            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+            title="Только те автомобили, которых привязывали лично вы"
+            @click="switchFilter('user')"
+          >
+            Мои машины
+          </button>
+          <button
+            class="filter-tab"
+            data-testid="filter-tab-all-system"
+            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+            title="Все автомобили, когда-либо зарегистрированные в системе"
+            @click="switchFilter('all_system')"
+          >
+            Все машины системы
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="carsview__container">
+      <!-- Таблица автомобилей -->
+      <div class="cars-card">
+        <div class="card-header">
+          <div class="card-header__title">
+            <h3 class="card-title">
+              <span
+                v-if="currentFilter === 'organization'"
+                class="highlight-text"
+              >Машины <span class="blue">организации</span></span>
+              <span
+                v-else-if="currentFilter === 'company'"
+                class="highlight-text"
+              >Машины <span class="blue">компании</span></span>
+              <span
+                v-else-if="currentFilter === 'all_system'"
+                class="highlight-text"
+              >Все <span class="blue">машины системы</span></span>
+              <span
+                v-else
+                class="highlight-text"
+              >Мои <span class="blue">автомобили</span></span>
+            </h3>
+          </div>
+          <div class="card-header__settings">
+            <button
+              v-if="currentFilter !== 'all_system'"
+              class="add-button"
+              data-testid="cars-view-add-button"
+              @click="showAddCarModal"
+            >
+              Добавить
+            </button>
+            <RefreshButton @refresh="fetchCars" />
+          </div>
+        </div>
+                
+        <div class="card-content">
+          <!-- Заголовок таблицы всегда отображается -->
+          <div class="cars-header">
+            <div class="header-row">
+              <div
+                class="header-col number-col"
+                @click="sortBy('id')"
+              >
+                <p :class="{ 'active-sort': sortField === 'id' }">
+                  №
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'id',
+                    'desc': sortField === 'id' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col car-number-col"
+                @click="sortBy('number')"
+              >
+                <p :class="{ 'active-sort': sortField === 'number' }">
+                  Номер
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'number',
+                    'desc': sortField === 'number' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col brand-col"
+                @click="sortBy('mark')"
+              >
+                <p :class="{ 'active-sort': sortField === 'mark' }">
+                  Марка
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'mark',
+                    'desc': sortField === 'mark' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col format-col"
+                @click="sortBy('format_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'format_name' }">
+                  Формат номера
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'format_name',
+                    'desc': sortField === 'format_name' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col status-col"
+                @click="sortBy('status')"
+              >
+                <p :class="{ 'active-sort': sortField === 'status' }">
+                  Статус
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'status',
+                    'desc': sortField === 'status' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div class="header-col actions-col">
+                Действия
+              </div>
+            </div>
+          </div>
+                    
+          <!-- Тело таблицы -->
+          <div class="cars-container">
+            <SkeletonTransition :loading="loading">
+              <template #skeleton>
+                <SkeletonTable
+                  :rows="6"
+                  :columns="5"
+                />
+              </template>
+              <div
+                v-if="filteredCars.length > 0"
+                class="cars-body"
+              >
+                <div 
+                  v-for="(car) in sortedCars" 
+                  :key="car.id" 
+                  class="car-item"
+                >
+                  <div class="car-row">
+                    <div class="car-col number-col">
+                      {{ car.id }}
+                    </div>
+                    <div class="car-col car-number-col">
+                      {{ car.number }}
+                    </div>
+                    <div class="car-col brand-col">
+                      {{ car.mark }}
+                    </div>
+                    <div class="car-col format-col">
+                      {{ car.format_name || 'Не указан' }}
+                    </div>
+                    <div class="car-col status-col">
+                      <span 
+                        class="status-badge"
+                        :class="{
+                          'status-active': car.status,
+                          'status-inactive': !car.status
+                        }"
+                      >
+                        {{ car.status ? 'Активна' : 'Неактивна' }}
+                      </span>
+                    </div>
+                    <div class="car-col actions-col">
+                      <button 
+                        v-if="currentFilter !== 'all_system'"
+                        class="edit-btn" 
+                        title="Редактировать"
+                        @click="editCar(car)"
+                      >
+                        <img 
+                          src="@/assets/icons/edit.png" 
+                          alt="Редактировать" 
+                          class="edit-icon"
+                        >
+                      </button>
+                      <button
+                        v-if="currentFilter !== 'all_system'"
+                        class="delete-btn"
+                        title="Удалить"
+                        @click="openDeleteCarConfirmation(car)"
+                      >
+                        <img 
+                          src="@/assets/icons/trashcan.png" 
+                          alt="Удалить" 
+                          class="delete-icon"
+                        >
+                      </button>
+                      <span
+                        v-if="currentFilter === 'all_system'"
+                        class="read-only-text"
+                      >
+                        Только просмотр
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p
+                v-else
+                class="no-data-message"
+              >
+                {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Автомобилей нет' }}
+              </p>
+            </SkeletonTransition>
+          </div>
+        </div>
+      </div>
+            
+      <div class="carsview__right-side">
+        <div class="carsview__help">
+          <template v-if="currentFilter === 'organization'">
+            <p class="help__text">
+              Здесь находятся автомобили, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+            </p>
+            <p class="help__text">
+              Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+            </p>
+          </template>
+          <template v-else-if="currentFilter === 'company'">
+            <p class="help__text">
+              Здесь находятся автомобили, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать эти автомобили при подаче автозаявок.
+            </p>
+            <p class="help__text">
+              Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+            </p>
+          </template>
+          <template v-else-if="currentFilter === 'user'">
+            <p class="help__text">
+              Здесь находятся <strong class="blue">ваши автомобили</strong>, добавленные лично. Вы можете использовать их при подаче автозаявок.
+            </p>
+            <p class="help__text">
+              Новые номера машин попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+            </p>
+          </template>
+          <template v-else-if="currentFilter === 'all_system'">
+            <p class="help__text">
+              Здесь отображаются <strong class="blue">все автомобили</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление машин недоступно.
+            </p>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно добавления машины -->
+    <div
+      v-if="showModal && currentFilter !== 'all_system'"
+      class="modal-overlay"
+      data-testid="cars-view-modal"
+      @click="closeModal"
+    >
+      <div
+        class="modal-content"
+        @click.stop
+      >
+        <div class="modal-header">
+          <div class="modal-header__top">
+            <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
+            <div
+              v-if="notification.show"
+              class="notification-badge"
+              :class="notification.type"
+            >
+              {{ notification.message }}
+            </div>
+          </div>
+          <button
+            class="modal-close"
+            data-testid="cars-view-modal-close"
+            @click="closeModal"
+          >
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="data__completion">
+            <div class="completion__format">
+              <div class="format__header">
+                <label class="format__label">Формат номеров</label>
+                <button
+                  class="add-button"
+                  :disabled="!canSaveCar"
+                  @click="saveCar"
+                >
+                  {{ editingCar ? 'Сохранить' : 'Добавить' }}
+                </button>
+              </div>
+              <div class="format__dropdown">
+                <button
+                  class="dropdown__button"
+                  data-testid="cars-view-format-dropdown"
+                  @click="toggleFormatDropdown"
+                >
+                  <div class="button__content">
+                    <span class="button__text">{{ selectedFormatText }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="button__arrow"
+                      :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                    >
+                  </div>
+                </button>
+                <transition name="dropdown">
+                  <div
+                    v-if="isFormatDropdownOpen"
+                    class="dropdown__menu"
+                  >
+                    <div 
+                      v-for="format in availableFormats" 
+                      :key="format.format.id"
+                      class="dropdown__item" 
+                      @click="selectFormat(format)"
+                    >
+                      <span class="item__text">{{ format.format.name }}</span>
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+                        
+            <div class="completion__fields">
+              <div class="completion__number">
+                <div class="completion__number-header">
+                  <label class="input__label">Номер Т/C <span class="required">*</span></label>
+                </div>
+                                
+                <!-- Динамический формат из базы данных -->
+                <div
+                  v-if="selectedFormat"
+                  class="number__field"
+                >
+                  <input 
+                    v-for="(cell, index) in selectedFormat.cells" 
+                    :key="index"
+                    v-model="numberParts[index]" 
+                    class="number__input"
+                    :placeholder="getPlaceholder(cell)"
+                    :maxlength="cell.max_length"
+                    :style="{ width: getInputWidth(cell) }"
+                    @input="validatePart(index, $event, cell)"
+                    @blur="formatPart(index, cell)"
+                  >
+                </div>
+                <div
+                  v-else
+                  class="no-format-message"
+                >
+                  Выберите формат номера
+                </div>
+              </div>
+                            
+              <div class="completion__mark">
+                <div class="completion__mark-header">
+                  <label class="input__label">Марка Т/С <span class="required">*</span></label>
+                </div>
+                <div class="mark__field">
+                  <div class="mark__dropdown">
+                    <button
+                      class="mark__dropdown-button"
+                      @click="toggleMarkDropdown"
+                    >
+                      <div class="mark__button-content">
+                        <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                        <img
+                          src="@/assets/icons/arrow.png"
+                          class="mark__button-arrow"
+                          :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                        >
+                      </div>
+                    </button>
+                    <transition name="dropdown">
+                      <div
+                        v-if="isMarkDropdownOpen"
+                        class="mark__dropdown-menu"
+                      >
+                        <div class="mark__search">
+                          <input 
+                            v-model="markSearch" 
+                            class="mark__search-input"
+                            placeholder="Поиск марки..."
+                            @input="filterMarks"
+                          >
+                        </div>
+                        <div class="mark__dropdown-list">
+                          <div 
+                            v-for="mark in filteredMarks" 
+                            :key="mark"
+                            class="mark__dropdown-item"
+                            @click="selectMark(mark)"
+                          >
+                            <span class="mark__item-text">{{ mark }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Привязка -->
+            <div
+              v-if="currentFilter !== 'all_system'"
+              class="completion__binding"
+            >
+              <label class="input__label">Привязка</label>
+              <div class="binding-info">
+                <p class="binding-note">
+                  <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
+                  Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
+                </p>
+              </div>
+              <div class="binding-options">
+                <label
+                  v-if="ownershipInfo && ownershipInfo.has_organization"
+                  class="binding-option"
+                >
+                  <input 
+                    v-model="bindToOrganization" 
+                    type="checkbox"
+                    :disabled="bindToCompany"
+                  >
+                  <span>Привязать к организации</span>
+                </label>
+                <label
+                  v-if="ownershipInfo && ownershipInfo.has_company"
+                  class="binding-option"
+                >
+                  <input 
+                    v-model="bindToCompany" 
+                    type="checkbox"
+                    :disabled="bindToOrganization"
+                  >
+                  <span>Привязать к компании</span>
+                </label>
+                <div class="user-binding">
+                  <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ConfirmationModal
+      :show="showDeleteCarModal"
+      title="Подтверждение удаления"
+      :message="`Вы уверены, что хотите удалить автомобиль ${carToDelete?.number || ''}?`"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+      @confirm="confirmDeleteCar"
+      @cancel="cancelDeleteCar"
+    />
+  </section>
 </template>
 
 <script>
@@ -594,6 +707,24 @@ export default {
                 this.bindToOrganization = false;
             }
         }
+    },
+    async mounted() {
+        await Promise.all([
+            this.fetchOwnershipInfo(),
+            this.fetchFormats()
+        ]);
+        await this.fetchCars();
+        
+        // Закрытие dropdown при клике вне
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.format__dropdown')) {
+                this.isFormatDropdownOpen = false;
+            }
+            
+            if (!e.target.closest('.mark__dropdown')) {
+                this.isMarkDropdownOpen = false;
+            }
+        });
     },
     methods: {
         async fetchCars() {
@@ -1062,24 +1193,6 @@ export default {
                 this.showNotification("Ошибка при сохранении автомобиля", 'error');
             }
         }
-    },
-    async mounted() {
-        await Promise.all([
-            this.fetchOwnershipInfo(),
-            this.fetchFormats()
-        ]);
-        await this.fetchCars();
-        
-        // Закрытие dropdown при клике вне
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.format__dropdown')) {
-                this.isFormatDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.mark__dropdown')) {
-                this.isMarkDropdownOpen = false;
-            }
-        });
     }
 }
 </script>

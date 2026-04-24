@@ -1,14 +1,17 @@
 <template>
-    <div class="search">
-        <input 
-            type="text" 
-            :placeholder="title" 
-            class="search__input"
-            :value="modelValue"
-            @input="handleInput"
-        />
-        <img src="@/assets/icons/search.png" class="search__icon" />
-    </div>
+  <div class="search">
+    <input 
+      type="text" 
+      :placeholder="title" 
+      class="search__input"
+      :value="modelValue"
+      @input="handleInput"
+    >
+    <img
+      src="@/assets/icons/search.png"
+      class="search__icon"
+    >
+  </div>
 </template>
 
 <script>

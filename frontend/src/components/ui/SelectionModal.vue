@@ -1,13 +1,24 @@
 <template>
-  <BaseModal :show="show" :title="title" width="900px" @close="$emit('close')">
+  <BaseModal
+    :show="show"
+    :title="title"
+    width="900px"
+    @close="$emit('close')"
+  >
     <div class="selection-modal">
       <!-- Search -->
       <div class="selection-modal__search">
-        <SearchComponent :title="searchPlaceholder" @search="handleSearch" />
+        <SearchComponent
+          :title="searchPlaceholder"
+          @search="handleSearch"
+        />
       </div>
 
       <!-- Filter tabs -->
-      <div v-if="tabs.length" class="selection-modal__filters">
+      <div
+        v-if="tabs.length"
+        class="selection-modal__filters"
+      >
         <div class="selection-modal__tabs">
           <button
             v-for="tab in visibleTabs"
@@ -19,7 +30,10 @@
             {{ tab.label }}
           </button>
         </div>
-        <span class="selection-modal__count" v-if="tempSelected.length">
+        <span
+          v-if="tempSelected.length"
+          class="selection-modal__count"
+        >
           Выбрано: {{ tempSelected.length }}
         </span>
       </div>
@@ -27,15 +41,25 @@
       <!-- Table -->
       <div class="selection-modal__table">
         <div class="selection-modal__header">
-          <div class="selection-modal__cell selection-modal__cell--checkbox"></div>
-          <slot name="columns"></slot>
+          <div class="selection-modal__cell selection-modal__cell--checkbox" />
+          <slot name="columns" />
         </div>
         <div class="selection-modal__body">
-          <div v-if="loading" class="selection-modal__loading">Загрузка...</div>
-          <div v-else-if="!items.length" class="selection-modal__empty">{{ emptyText }}</div>
           <div
-            v-else
+            v-if="loading"
+            class="selection-modal__loading"
+          >
+            Загрузка...
+          </div>
+          <div
+            v-else-if="!items.length"
+            class="selection-modal__empty"
+          >
+            {{ emptyText }}
+          </div>
+          <div
             v-for="item in items"
+            v-else
             :key="item.id"
             class="selection-modal__row"
             :class="{
@@ -49,16 +73,26 @@
                 type="checkbox"
                 :checked="isSelected(item)"
                 :disabled="isDisabled(item)"
-              />
+              >
             </div>
-            <slot name="row" :item="item" :isSelected="isSelected(item)" :isDisabled="isDisabled(item)"></slot>
+            <slot
+              name="row"
+              :item="item"
+              :is-selected="isSelected(item)"
+              :is-disabled="isDisabled(item)"
+            />
           </div>
         </div>
       </div>
     </div>
 
     <template #actions>
-      <button class="selection-modal__cancel" @click="$emit('close')">Отмена</button>
+      <button
+        class="selection-modal__cancel"
+        @click="$emit('close')"
+      >
+        Отмена
+      </button>
       <button
         class="selection-modal__confirm"
         :disabled="!tempSelected.length"

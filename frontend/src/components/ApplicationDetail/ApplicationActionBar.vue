@@ -1,260 +1,345 @@
 <template>
-    <div class="action-buttons-wrapper">
-        <!-- Режим центра заявок -->
-        <div v-if="mode === 'center'" class="action-buttons">
-            <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-            <template v-if="isApproverUser && isResponsibleUser">
-                <!-- Если пользователь еще не голосовал -->
-                <template v-if="!hasUserVoted">
-                    <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
-                    <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
-                        <button
-                            class="accept-btn"
-                            data-testid="app-detail-button-approve"
-                            @click="handleCombinedAction('accept')"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Согласовать и принять</span>
-                        </button>
-                        <button
-                            class="reject-btn"
-                            data-testid="app-detail-button-reject"
-                            @click="handleCombinedAction('reject')"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Отказать</span>
-                        </button>
-                    </template>
-                    <!-- Если заявка завершена -->
-                    <div v-else-if="application.status === 'Завершено'" class="status-badge status-completed-badge">
-                        Завершено
-                    </div>
-                    <!-- Если заявка отклонена окончательно -->
-                    <div v-else class="info-badge">
-                        Заявка отклонена
-                    </div>
-                </template>
+  <div class="action-buttons-wrapper">
+    <!-- Режим центра заявок -->
+    <div
+      v-if="mode === 'center'"
+      class="action-buttons"
+    >
+      <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
+      <template v-if="isApproverUser && isResponsibleUser">
+        <!-- Если пользователь еще не голосовал -->
+        <template v-if="!hasUserVoted">
+          <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
+          <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
+            <button
+              class="accept-btn"
+              data-testid="app-detail-button-approve"
+              :disabled="processing"
+              @click="handleCombinedAction('accept')"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Согласовать и принять</span>
+            </button>
+            <button
+              class="reject-btn"
+              data-testid="app-detail-button-reject"
+              :disabled="processing"
+              @click="handleCombinedAction('reject')"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Отказать</span>
+            </button>
+          </template>
+          <!-- Если заявка завершена -->
+          <div
+            v-else-if="application.status === 'Завершено'"
+            class="status-badge status-completed-badge"
+          >
+            Завершено
+          </div>
+          <!-- Если заявка отклонена окончательно -->
+          <div
+            v-else
+            class="info-badge"
+          >
+            Заявка отклонена
+          </div>
+        </template>
 
-                <!-- Если пользователь уже проголосовал -->
-                <template v-else>
-                    <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
-                    <template v-if="application.status === 'В работе'">
-                        <button
-                            class="subtle-btn"
-                            @click="revokeApplication"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Отозвать из работы</span>
-                        </button>
-                        <div class="status-badge status-in-work-badge">
-                            В работе
-                        </div>
-                    </template>
-                    <!-- Если заявка отказана - показываем статус и кнопку возврата -->
-                    <template v-else-if="application.status === 'Отказано'">
-                        <button
-                            class="subtle-btn"
-                            @click="restoreApplication"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Вернуть в работу</span>
-                        </button>
-                        <div class="status-badge status-rejected-badge">
-                            Отказано
-                        </div>
-                    </template>
-                    <!-- Если заявка завершена - просто показываем статус -->
-                    <template v-else-if="application.status === 'Завершено'">
-                        <div class="status-badge status-completed-badge">
-                            Завершено
-                        </div>
-                    </template>
-                    <!-- Если заявка не в работе, не отказана и не завершена, но согласована - показываем кнопки принять/отказать -->
-                    <template v-else-if="application.confirmation === 'Согласовано'">
-                        <button
-                            class="accept-btn"
-                            data-testid="app-detail-button-take-to-work"
-                            @click="handleApplicationAction('accept')"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Принять</span>
-                        </button>
-                        <button
-                            class="reject-btn"
-                            data-testid="app-detail-button-reject"
-                            @click="handleApplicationAction('reject')"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Отказать</span>
-                        </button>
-                    </template>
-                    <!-- Если пользователь проголосовал, но заявка не согласована (ждет других) -->
-                    <div v-else class="vote-status-badge" :class="userVoteStatus.class">
-                        {{ userVoteStatus.text }} (ожидание других)
-                    </div>
-                </template>
-            </template>
+        <!-- Если пользователь уже проголосовал -->
+        <template v-else>
+          <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
+          <template v-if="application.status === 'В работе'">
+            <button
+              class="subtle-btn"
+              :disabled="processing"
+              @click="revokeApplication"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Отозвать из работы</span>
+            </button>
+            <div class="status-badge status-in-work-badge">
+              В работе
+            </div>
+          </template>
+          <!-- Если заявка отказана - показываем статус и кнопку возврата -->
+          <template v-else-if="application.status === 'Отказано'">
+            <button
+              class="subtle-btn"
+              :disabled="processing"
+              @click="restoreApplication"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Вернуть в работу</span>
+            </button>
+            <div class="status-badge status-rejected-badge">
+              Отказано
+            </div>
+          </template>
+          <!-- Если заявка завершена - просто показываем статус -->
+          <template v-else-if="application.status === 'Завершено'">
+            <div class="status-badge status-completed-badge">
+              Завершено
+            </div>
+          </template>
+          <!-- Если заявка не в работе, не отказана и не завершена, но согласована - показываем кнопки принять/отказать -->
+          <template v-else-if="application.confirmation === 'Согласовано'">
+            <button
+              class="accept-btn"
+              data-testid="app-detail-button-take-to-work"
+              :disabled="processing"
+              @click="handleApplicationAction('accept')"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Принять</span>
+            </button>
+            <button
+              class="reject-btn"
+              data-testid="app-detail-button-reject"
+              :disabled="processing"
+              @click="handleApplicationAction('reject')"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Отказать</span>
+            </button>
+          </template>
+          <!-- Если пользователь проголосовал, но заявка не согласована (ждет других) -->
+          <div
+            v-else
+            class="vote-status-badge"
+            :class="userVoteStatus.class"
+          >
+            {{ userVoteStatus.text }} (ожидание других)
+          </div>
+        </template>
+      </template>
 
-            <!-- Для принимающих заявки (не ответственных) -->
-            <template v-else-if="isApproverUser">
-                <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
-                <template v-if="application.status === 'В работе'">
-                    <button
-                        class="subtle-btn"
-                        @click="revokeApplication"
-                        :disabled="processing"
-                    >
-                        <span v-if="processing" class="button-loading"></span>
-                        <span v-else>Отозвать из работы</span>
-                    </button>
-                    <div class="status-badge status-in-work-badge">
-                        В работе
-                    </div>
-                </template>
-                <!-- Если заявка отказана - показываем статус и кнопку возврата -->
-                <template v-else-if="application.status === 'Отказано'">
-                    <button
-                        class="subtle-btn"
-                        @click="restoreApplication"
-                        :disabled="processing"
-                    >
-                        <span v-if="processing" class="button-loading"></span>
-                        <span v-else>Вернуть в работу</span>
-                    </button>
-                    <div class="status-badge status-rejected-badge">
-                        Отказано
-                    </div>
-                </template>
-                <!-- Если заявка завершена -->
-                <template v-else-if="application.status === 'Завершено'">
-                    <div class="status-badge status-completed-badge">
-                        Завершено
-                    </div>
-                </template>
-                <!-- Если заявка не в работе и согласована - показываем кнопки принять/отказать -->
-                <template v-else-if="application.confirmation === 'Согласовано'">
-                    <button
-                        class="accept-btn"
-                        data-testid="app-detail-button-take-to-work"
-                        @click="handleApplicationAction('accept')"
-                        :disabled="processing"
-                    >
-                        <span v-if="processing" class="button-loading"></span>
-                        <span v-else>Принять</span>
-                    </button>
-                    <button
-                        class="reject-btn"
-                        data-testid="app-detail-button-reject"
-                        @click="handleApplicationAction('reject')"
-                        :disabled="processing"
-                    >
-                        <span v-if="processing" class="button-loading"></span>
-                        <span v-else>Отказать</span>
-                    </button>
-                </template>
-                <!-- Если заявка не согласована - показываем информационное сообщение -->
-                <div v-else class="info-badge">
-                    {{ getApproverStatusMessage }}
-                </div>
-            </template>
-
-            <!-- Для ответственных за согласование (не принимающих) -->
-            <template v-else-if="isResponsibleUser">
-                <!-- Если пользователь еще не голосовал -->
-                <template v-if="!hasUserVoted">
-                    <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
-                    <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
-                        <button
-                            class="confirm-btn"
-                            data-testid="app-detail-button-approve"
-                            @click="updateConfirmation('Согласовано')"
-                            :disabled="updatingConfirmation || processing"
-                        >
-                            <span v-if="updatingConfirmation" class="button-loading"></span>
-                            <span v-else>Согласовать</span>
-                        </button>
-                        <button
-                            class="reject-btn"
-                            data-testid="app-detail-button-reject"
-                            @click="updateConfirmation('Не согласовано')"
-                            :disabled="updatingConfirmation || processing"
-                        >
-                            <span v-if="updatingConfirmation" class="button-loading"></span>
-                            <span v-else>Отказать</span>
-                        </button>
-                    </template>
-                    <!-- Если заявка завершена -->
-                    <div v-else-if="application.status === 'Завершено'" class="status-badge status-completed-badge">
-                        Завершено
-                    </div>
-                    <!-- Если заявка отклонена окончательно -->
-                    <div v-else class="info-badge">
-                        Заявка отклонена
-                    </div>
-                </template>
-
-                <!-- Если пользователь уже проголосовал -->
-                <template v-else>
-                    <!-- Если заявка в работе - показываем только статус (нельзя отозвать) -->
-                    <template v-if="application.status === 'В работе'">
-                        <div class="vote-status-badge" :class="userVoteStatus.class">
-                            {{ userVoteStatus.text }}
-                        </div>
-                    </template>
-                    <!-- Если заявка завершена -->
-                    <template v-else-if="application.status === 'Завершено'">
-                        <div class="status-badge status-completed-badge">
-                            Завершено
-                        </div>
-                    </template>
-                    <!-- Если заявка не в работе и не завершена - показываем кнопку отзыва согласования -->
-                    <template v-else>
-                        <button
-                            class="revoke-approval-btn subtle-btn"
-                            @click="revokeOwnApproval"
-                            :disabled="processing"
-                        >
-                            <span v-if="processing" class="button-loading"></span>
-                            <span v-else>Отозвать своё решение</span>
-                        </button>
-                        <div class="vote-status-badge" :class="userVoteStatus.class">
-                            {{ userVoteStatus.text }}
-                        </div>
-                    </template>
-                </template>
-            </template>
-
-            <!-- Для остальных пользователей - только информация -->
-            <template v-else>
-                <div v-if="application.status === 'В работе'" class="status-badge status-in-work-badge">
-                    В работе
-                </div>
-                <div v-else-if="application.status === 'Отказано'" class="status-badge status-rejected-badge">
-                    Отказано
-                </div>
-                <div v-else-if="application.status === 'Завершено'" class="status-badge status-completed-badge">
-                    Завершено
-                </div>
-                <div v-else-if="application.confirmation === 'Согласовано'" class="status-badge status-approved-badge">
-                    Согласовано
-                </div>
-                <div v-else-if="application.confirmation === 'Согласование'" class="status-badge status-pending-badge">
-                    На согласовании
-                </div>
-            </template>
+      <!-- Для принимающих заявки (не ответственных) -->
+      <template v-else-if="isApproverUser">
+        <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
+        <template v-if="application.status === 'В работе'">
+          <button
+            class="subtle-btn"
+            :disabled="processing"
+            @click="revokeApplication"
+          >
+            <span
+              v-if="processing"
+              class="button-loading"
+            />
+            <span v-else>Отозвать из работы</span>
+          </button>
+          <div class="status-badge status-in-work-badge">
+            В работе
+          </div>
+        </template>
+        <!-- Если заявка отказана - показываем статус и кнопку возврата -->
+        <template v-else-if="application.status === 'Отказано'">
+          <button
+            class="subtle-btn"
+            :disabled="processing"
+            @click="restoreApplication"
+          >
+            <span
+              v-if="processing"
+              class="button-loading"
+            />
+            <span v-else>Вернуть в работу</span>
+          </button>
+          <div class="status-badge status-rejected-badge">
+            Отказано
+          </div>
+        </template>
+        <!-- Если заявка завершена -->
+        <template v-else-if="application.status === 'Завершено'">
+          <div class="status-badge status-completed-badge">
+            Завершено
+          </div>
+        </template>
+        <!-- Если заявка не в работе и согласована - показываем кнопки принять/отказать -->
+        <template v-else-if="application.confirmation === 'Согласовано'">
+          <button
+            class="accept-btn"
+            data-testid="app-detail-button-take-to-work"
+            :disabled="processing"
+            @click="handleApplicationAction('accept')"
+          >
+            <span
+              v-if="processing"
+              class="button-loading"
+            />
+            <span v-else>Принять</span>
+          </button>
+          <button
+            class="reject-btn"
+            data-testid="app-detail-button-reject"
+            :disabled="processing"
+            @click="handleApplicationAction('reject')"
+          >
+            <span
+              v-if="processing"
+              class="button-loading"
+            />
+            <span v-else>Отказать</span>
+          </button>
+        </template>
+        <!-- Если заявка не согласована - показываем информационное сообщение -->
+        <div
+          v-else
+          class="info-badge"
+        >
+          {{ getApproverStatusMessage }}
         </div>
+      </template>
 
-        <!-- Режим просмотра заявок пользователя -->
-        <div v-if="mode === 'user'" class="view-buttons">
-            <slot name="user-actions"></slot>
+      <!-- Для ответственных за согласование (не принимающих) -->
+      <template v-else-if="isResponsibleUser">
+        <!-- Если пользователь еще не голосовал -->
+        <template v-if="!hasUserVoted">
+          <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
+          <template v-if="application.confirmation !== 'Не согласовано' && application.status !== 'Завершено'">
+            <button
+              class="confirm-btn"
+              data-testid="app-detail-button-approve"
+              :disabled="updatingConfirmation || processing"
+              @click="updateConfirmation('Согласовано')"
+            >
+              <span
+                v-if="updatingConfirmation"
+                class="button-loading"
+              />
+              <span v-else>Согласовать</span>
+            </button>
+            <button
+              class="reject-btn"
+              data-testid="app-detail-button-reject"
+              :disabled="updatingConfirmation || processing"
+              @click="updateConfirmation('Не согласовано')"
+            >
+              <span
+                v-if="updatingConfirmation"
+                class="button-loading"
+              />
+              <span v-else>Отказать</span>
+            </button>
+          </template>
+          <!-- Если заявка завершена -->
+          <div
+            v-else-if="application.status === 'Завершено'"
+            class="status-badge status-completed-badge"
+          >
+            Завершено
+          </div>
+          <!-- Если заявка отклонена окончательно -->
+          <div
+            v-else
+            class="info-badge"
+          >
+            Заявка отклонена
+          </div>
+        </template>
+
+        <!-- Если пользователь уже проголосовал -->
+        <template v-else>
+          <!-- Если заявка в работе - показываем только статус (нельзя отозвать) -->
+          <template v-if="application.status === 'В работе'">
+            <div
+              class="vote-status-badge"
+              :class="userVoteStatus.class"
+            >
+              {{ userVoteStatus.text }}
+            </div>
+          </template>
+          <!-- Если заявка завершена -->
+          <template v-else-if="application.status === 'Завершено'">
+            <div class="status-badge status-completed-badge">
+              Завершено
+            </div>
+          </template>
+          <!-- Если заявка не в работе и не завершена - показываем кнопку отзыва согласования -->
+          <template v-else>
+            <button
+              class="revoke-approval-btn subtle-btn"
+              :disabled="processing"
+              @click="revokeOwnApproval"
+            >
+              <span
+                v-if="processing"
+                class="button-loading"
+              />
+              <span v-else>Отозвать своё решение</span>
+            </button>
+            <div
+              class="vote-status-badge"
+              :class="userVoteStatus.class"
+            >
+              {{ userVoteStatus.text }}
+            </div>
+          </template>
+        </template>
+      </template>
+
+      <!-- Для остальных пользователей - только информация -->
+      <template v-else>
+        <div
+          v-if="application.status === 'В работе'"
+          class="status-badge status-in-work-badge"
+        >
+          В работе
         </div>
+        <div
+          v-else-if="application.status === 'Отказано'"
+          class="status-badge status-rejected-badge"
+        >
+          Отказано
+        </div>
+        <div
+          v-else-if="application.status === 'Завершено'"
+          class="status-badge status-completed-badge"
+        >
+          Завершено
+        </div>
+        <div
+          v-else-if="application.confirmation === 'Согласовано'"
+          class="status-badge status-approved-badge"
+        >
+          Согласовано
+        </div>
+        <div
+          v-else-if="application.confirmation === 'Согласование'"
+          class="status-badge status-pending-badge"
+        >
+          На согласовании
+        </div>
+      </template>
     </div>
+
+    <!-- Режим просмотра заявок пользователя -->
+    <div
+      v-if="mode === 'user'"
+      class="view-buttons"
+    >
+      <slot name="user-actions" />
+    </div>
+  </div>
 </template>
 
 <script>

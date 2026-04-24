@@ -1,18 +1,33 @@
 <template>
-  <header class="header" ref="header">
+  <header
+    ref="header"
+    class="header"
+  >
     <div class="header__title">
       <template v-if="loading">
-        <SkeletonLine width="200px" height="20px" />
-        <SkeletonLine width="150px" height="14px" />
+        <SkeletonLine
+          width="200px"
+          height="20px"
+        />
+        <SkeletonLine
+          width="150px"
+          height="14px"
+        />
       </template>
       <template v-else>
         <h3>Добрый день, {{ displayName }}!</h3>
-        <p class="header__subtitle">Мы рады, что вы здесь!</p>
+        <p class="header__subtitle">
+          Мы рады, что вы здесь!
+        </p>
       </template>
     </div>
 
     <div class="header__info">
-      <button class="feedback-btn" data-testid="header-button-feedback" @click="openFeedbackModal">
+      <button
+        class="feedback-btn"
+        data-testid="header-button-feedback"
+        @click="openFeedbackModal"
+      >
         Сообщить о проблеме
       </button>
       <button
@@ -27,18 +42,35 @@
         {{ currentDateTime }}
       </p>
       <div class="language-selector">
-        <p class="current-language">RU</p>
+        <p class="current-language">
+          RU
+        </p>
       </div>
-      <div class="user__notifications" @click="showNotifications = !showNotifications">
-        <img src="@/assets/icons/messages.png" class="notifications__icon" alt="Сообщения" />
-        <span v-if="unreadCount > 0" class="notifications__badge">{{ unreadCount }}</span>
+      <div
+        class="user__notifications"
+        @click="showNotifications = !showNotifications"
+      >
+        <img
+          src="@/assets/icons/messages.png"
+          class="notifications__icon"
+          alt="Сообщения"
+        >
+        <span
+          v-if="unreadCount > 0"
+          class="notifications__badge"
+        >{{ unreadCount }}</span>
       </div>
       <UserNotifications
         :show="showNotifications"
         @update:unread-count="unreadCount = $event"
       />
       <div class="appl-btn__container">
-        <button class="appl-btn" data-testid="header-button-submit-app" @click="navigateToSubmit" :class="{ 'appl-btn--fixed': isHeaderHidden }">
+        <button
+          class="appl-btn"
+          data-testid="header-button-submit-app"
+          :class="{ 'appl-btn--fixed': isHeaderHidden }"
+          @click="navigateToSubmit"
+        >
           Подать заявку
         </button>
       </div>
@@ -97,6 +129,23 @@ export default {
   watch: {
     '$route'() {
       this.fetchUserData();
+    }
+  },
+  mounted() {
+    this.fetchUserData();
+    this.fetchActiveAnnouncement();
+    this.startDateTimeTimer();
+    this.$nextTick(() => {
+      this.initIntersectionObserver();
+    });
+  },
+  beforeUnmount() {
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
+    
+    if (this.observer) {
+      this.observer.disconnect();
     }
   },
   methods: {
@@ -180,23 +229,6 @@ export default {
       if (this.$refs.header) {
         this.observer.observe(this.$refs.header);
       }
-    }
-  },
-  mounted() {
-    this.fetchUserData();
-    this.fetchActiveAnnouncement();
-    this.startDateTimeTimer();
-    this.$nextTick(() => {
-      this.initIntersectionObserver();
-    });
-  },
-  beforeUnmount() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
-    
-    if (this.observer) {
-      this.observer.disconnect();
     }
   },
 }

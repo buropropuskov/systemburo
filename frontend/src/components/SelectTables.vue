@@ -3,18 +3,21 @@
     <div class="detail-group">
       <div class="select-tables__header">
         <label class="detail-label">Целевые таблицы (по умолчанию):</label>
-        <div v-if="hasSelectedTables" class="tables-actions">
+        <div
+          v-if="hasSelectedTables"
+          class="tables-actions"
+        >
           <button 
-            @click="saveOrganizationTables" 
-            class="save-tables-btn"
+            class="save-tables-btn" 
             :disabled="isSaving"
+            @click="saveOrganizationTables"
           >
             {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
           </button>
           <button 
-            @click="cancelTablesChanges" 
-            class="cancel-tables-btn"
+            class="cancel-tables-btn" 
             :disabled="isSaving"
+            @click="cancelTablesChanges"
           >
             Отмена
           </button>
@@ -36,7 +39,10 @@
           </div>
         </div>
 
-        <div v-if="filteredTables.length === 0" class="no-tables-message">
+        <div
+          v-if="filteredTables.length === 0"
+          class="no-tables-message"
+        >
           <p>Нет доступных таблиц для людей</p>
         </div>
       </div>
@@ -89,6 +95,13 @@ export default {
           this.fetchEntityTables(newEntity.id);
         }
       }
+    }
+  },
+  async mounted() {
+    await this.fetchAllTables();
+    
+    if (this.entity && this.entity.id) {
+      await this.fetchEntityTables(this.entity.id);
     }
   },
   methods: {
@@ -266,13 +279,6 @@ export default {
       setTimeout(() => {
         notification.remove();
       }, 3000);
-    }
-  },
-  async mounted() {
-    await this.fetchAllTables();
-    
-    if (this.entity && this.entity.id) {
-      await this.fetchEntityTables(this.entity.id);
     }
   },
 };

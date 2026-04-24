@@ -1,13 +1,18 @@
 <template>
   <div class="number-format-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Управление форматами номеров</h3>
+      <h3 class="management-title">
+        Управление форматами номеров
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск форматов...'"
           v-model="searchQuery"
+          :title="'Поиск форматов...'"
         />
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Добавить
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -16,11 +21,19 @@
 
     <div class="content-container">
       <!-- Левая часть - таблица форматов -->
-      <div class="table-section" :class="{'with-details': selectedFormat}">
+      <div
+        class="table-section"
+        :class="{'with-details': selectedFormat}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -28,10 +41,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('name')">
-              <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -39,7 +57,7 @@
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
 
@@ -55,7 +73,10 @@
                 <span class="cell-content id-value">{{ format.format.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="format.format.name">
+                <span
+                  class="truncate-text"
+                  :title="format.format.name"
+                >
                   {{ format.format.name }}
                 </span>
               </div>
@@ -69,16 +90,27 @@
       </div>
 
       <!-- Правая часть - детали формата -->
-      <div v-if="selectedFormat" class="details-section">
+      <div
+        v-if="selectedFormat"
+        class="details-section"
+      >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-                <h3 class="details-title">{{ selectedFormat.format.name }}</h3>
-                <span class="format-preview">{{ getFormatPreview(selectedFormat) }}</span>
+              <h3 class="details-title">
+                {{ selectedFormat.format.name }}
+              </h3>
+              <span class="format-preview">{{ getFormatPreview(selectedFormat) }}</span>
             </div>
             <div class="details-header-actions">
-              <button @click="confirmDeleteFormat(selectedFormat.format)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeleteFormat(selectedFormat.format)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -90,20 +122,20 @@
                   <label class="detail-label">Наименование:</label>
                   <input 
                     v-model="selectedFormat.format.name" 
-                    @change="updateFormat(selectedFormat)"
                     class="form-input-sm"
                     placeholder="Название формата"
                     autocomplete="off"
+                    @change="updateFormat(selectedFormat)"
                   >
                 </div>
                 <div class="form-group compact">
                   <label class="detail-label">Код страны:</label>
                   <input 
                     v-model="selectedFormat.format.country_code" 
-                    @change="updateFormat(selectedFormat)"
                     class="form-input-sm"
                     placeholder="RU, AZ, KZ"
                     autocomplete="off"
+                    @change="updateFormat(selectedFormat)"
                   >
                 </div>
               </div>
@@ -111,11 +143,11 @@
               <div class="default-checkbox-section">
                 <label class="default-checkbox-label">
                   <input 
-                    type="checkbox" 
-                    v-model="selectedFormat.format.is_default"
-                    @change="handleDefaultFormatChange"
+                    v-model="selectedFormat.format.is_default" 
+                    type="checkbox"
                     class="default-checkbox"
-                  />
+                    @change="handleDefaultFormatChange"
+                  >
                   <span class="default-checkbox-text">Формат по умолчанию</span>
                 </label>
                 <span class="default-checkbox-hint">
@@ -134,16 +166,26 @@
                   >
                     <div class="cell-horizontal-header">
                       <span class="cell-badge">Клетка №{{ index + 1 }}</span>
-                      <span class="cell-type-badge" :class="cell.cell_type">
+                      <span
+                        class="cell-type-badge"
+                        :class="cell.cell_type"
+                      >
                         {{ getCellTypeLabel(cell.cell_type) }}
                       </span>
                     </div>
                     <div class="cell-horizontal-details">
                       <span class="cell-length">{{ cell.min_length }}-{{ cell.max_length }} симв.</span>
-                      <span v-if="cell.allowed_letters" class="cell-letters" :title="cell.allowed_letters">
+                      <span
+                        v-if="cell.allowed_letters"
+                        class="cell-letters"
+                        :title="cell.allowed_letters"
+                      >
                         {{ truncateLetters(cell.allowed_letters) }}
                       </span>
-                      <span v-if="cell.cell_type === 'numbers'" class="cell-padding">
+                      <span
+                        v-if="cell.cell_type === 'numbers'"
+                        class="cell-padding"
+                      >
                         Дополнение: {{ cell.padding_side === 'left' ? 'слева' : 'справа' }}
                       </span>
                     </div>
@@ -155,22 +197,39 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите формат номеров для просмотра</p>
       </div>
     </div>
 
-    <div v-if="filteredFormats.length === 0" class="no-results">
-      <div class="no-results-icon">🚗</div>
+    <div
+      v-if="filteredFormats.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        🚗
+      </div>
       <p>Форматы номеров не найдены</p>
     </div>
 
     <!-- Модальное окно добавления формата -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
+    <div
+      v-if="showAddModal"
+      class="modal-overlay"
+      @click.self="showAddModal = false"
+    >
       <div class="modal-content horizontal-modal">
         <div class="modal-header">
           <h3>Добавить формат номеров</h3>
-          <button @click="showAddModal = false" class="modal-close">×</button>
+          <button
+            class="modal-close"
+            @click="showAddModal = false"
+          >
+            ×
+          </button>
         </div>
         
         <div class="modal-body-horizontal">
@@ -198,10 +257,10 @@
               <div class="default-checkbox-modal">
                 <label class="default-checkbox-label-modal">
                   <input 
-                    type="checkbox" 
-                    v-model="newFormat.is_default"
+                    v-model="newFormat.is_default" 
+                    type="checkbox"
                     class="default-checkbox"
-                  />
+                  >
                   <span class="default-checkbox-text-modal">Формат по умолчанию</span>
                 </label>
                 <span class="default-checkbox-hint-modal">
@@ -214,8 +273,13 @@
           <!-- Правая часть - клетки -->
           <div class="modal-cells-section">
             <div class="cells-header-compact">
-              <h4 class="cells-title-compact">Клетки формата</h4>
-              <button @click="addCell" class="add-cell-btn-header">
+              <h4 class="cells-title-compact">
+                Клетки формата
+              </h4>
+              <button
+                class="add-cell-btn-header"
+                @click="addCell"
+              >
                 + Добавить клетку
               </button>
             </div>
@@ -231,9 +295,9 @@
                     <span class="cell-number-mini">Клетка №{{ index + 1 }}</span>
                     <button 
                       v-if="newFormat.cells.length > 1"
-                      @click="removeCell(index)"
                       class="remove-cell-btn-mini"
                       title="Удалить клетку"
+                      @click="removeCell(index)"
                     >
                       ×
                     </button>
@@ -242,10 +306,19 @@
                   <div class="cell-config-mini">
                     <div class="config-group-mini">
                       <label>Тип</label>
-                      <select v-model="cell.cell_type" class="select-mini">
-                        <option value="letters">Буквы</option>
-                        <option value="numbers">Цифры</option>
-                        <option value="mixed">Смешанный</option>
+                      <select
+                        v-model="cell.cell_type"
+                        class="select-mini"
+                      >
+                        <option value="letters">
+                          Буквы
+                        </option>
+                        <option value="numbers">
+                          Цифры
+                        </option>
+                        <option value="mixed">
+                          Смешанный
+                        </option>
                       </select>
                     </div>
                     
@@ -272,24 +345,49 @@
                       </div>
                     </div>
 
-                    <div v-if="cell.cell_type !== 'numbers'" class="config-group-mini">
+                    <div
+                      v-if="cell.cell_type !== 'numbers'"
+                      class="config-group-mini"
+                    >
                       <label>Алфавит</label>
-                      <select v-model="cell.alphabet_type" class="select-mini">
-                        <option value="cyrillic">Кириллица</option>
-                        <option value="latin">Латиница</option>
-                        <option value="both">Оба</option>
+                      <select
+                        v-model="cell.alphabet_type"
+                        class="select-mini"
+                      >
+                        <option value="cyrillic">
+                          Кириллица
+                        </option>
+                        <option value="latin">
+                          Латиница
+                        </option>
+                        <option value="both">
+                          Оба
+                        </option>
                       </select>
                     </div>
                     
-                    <div v-if="cell.cell_type === 'numbers'" class="config-group-mini">
+                    <div
+                      v-if="cell.cell_type === 'numbers'"
+                      class="config-group-mini"
+                    >
                       <label>Дополнение</label>
-                      <select v-model="cell.padding_side" class="select-mini">
-                        <option value="left">Слева</option>
-                        <option value="right">Справа</option>
+                      <select
+                        v-model="cell.padding_side"
+                        class="select-mini"
+                      >
+                        <option value="left">
+                          Слева
+                        </option>
+                        <option value="right">
+                          Справа
+                        </option>
                       </select>
                     </div>
 
-                    <div v-if="cell.cell_type !== 'numbers'" class="config-group-full-mini">
+                    <div
+                      v-if="cell.cell_type !== 'numbers'"
+                      class="config-group-full-mini"
+                    >
                       <label>Разрешенные буквы</label>
                       <input 
                         v-model="cell.allowed_letters"
@@ -305,18 +403,37 @@
         </div>
         
         <div class="modal-footer">
-          <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="addFormat" class="modal-confirm">Добавить</button>
+          <button
+            class="modal-cancel"
+            @click="showAddModal = false"
+          >
+            Отмена
+          </button>
+          <button
+            class="modal-confirm"
+            @click="addFormat"
+          >
+            Добавить
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Модальное окно редактирования клетки -->
-    <div v-if="showCellEditModal" class="modal-overlay" @click.self="showCellEditModal = false">
+    <div
+      v-if="showCellEditModal"
+      class="modal-overlay"
+      @click.self="showCellEditModal = false"
+    >
       <div class="modal-content horizontal-modal cell-edit-modal">
         <div class="modal-header">
           <h3>Редактировать клетку {{ editingCellIndex + 1 }}</h3>
-          <button @click="showCellEditModal = false" class="modal-close">×</button>
+          <button
+            class="modal-close"
+            @click="showCellEditModal = false"
+          >
+            ×
+          </button>
         </div>
         
         <div class="modal-body-horizontal">
@@ -325,10 +442,19 @@
             <div class="main-fields">
               <div class="form-group-compact">
                 <label class="form-label-compact">Тип клетки</label>
-                <select v-model="editingCell.cell_type" class="select-mini">
-                  <option value="letters">Буквы</option>
-                  <option value="numbers">Цифры</option>
-                  <option value="mixed">Смешанный</option>
+                <select
+                  v-model="editingCell.cell_type"
+                  class="select-mini"
+                >
+                  <option value="letters">
+                    Буквы
+                  </option>
+                  <option value="numbers">
+                    Цифры
+                  </option>
+                  <option value="mixed">
+                    Смешанный
+                  </option>
                 </select>
               </div>
               
@@ -355,20 +481,42 @@
                 </div>
               </div>
 
-              <div v-if="editingCell.cell_type !== 'numbers'" class="form-group-compact">
+              <div
+                v-if="editingCell.cell_type !== 'numbers'"
+                class="form-group-compact"
+              >
                 <label class="form-label-compact">Алфавит</label>
-                <select v-model="editingCell.alphabet_type" class="select-mini">
-                  <option value="cyrillic">Кириллица</option>
-                  <option value="latin">Латиница</option>
-                  <option value="both">Оба</option>
+                <select
+                  v-model="editingCell.alphabet_type"
+                  class="select-mini"
+                >
+                  <option value="cyrillic">
+                    Кириллица
+                  </option>
+                  <option value="latin">
+                    Латиница
+                  </option>
+                  <option value="both">
+                    Оба
+                  </option>
                 </select>
               </div>
               
-              <div v-if="editingCell.cell_type === 'numbers'" class="form-group-compact">
+              <div
+                v-if="editingCell.cell_type === 'numbers'"
+                class="form-group-compact"
+              >
                 <label class="form-label-compact">Дополнение нулями</label>
-                <select v-model="editingCell.padding_side" class="select-mini">
-                  <option value="left">Слева</option>
-                  <option value="right">Справа</option>
+                <select
+                  v-model="editingCell.padding_side"
+                  class="select-mini"
+                >
+                  <option value="left">
+                    Слева
+                  </option>
+                  <option value="right">
+                    Справа
+                  </option>
                 </select>
               </div>
             </div>
@@ -377,12 +525,17 @@
           <!-- Правая часть - дополнительные настройки -->
           <div class="modal-cells-section">
             <div class="cells-header-compact">
-              <h4 class="cells-title-compact">Дополнительные настройки</h4>
+              <h4 class="cells-title-compact">
+                Дополнительные настройки
+              </h4>
             </div>
             
             <div class="cells-scroll-container">
               <div class="cell-edit-details">
-                <div v-if="editingCell.cell_type !== 'numbers'" class="form-group-compact">
+                <div
+                  v-if="editingCell.cell_type !== 'numbers'"
+                  class="form-group-compact"
+                >
                   <label class="form-label-compact">Разрешенные буквы</label>
                   <input 
                     v-model="editingCell.allowed_letters"
@@ -395,7 +548,9 @@
                 </div>
                 
                 <div class="cell-preview-section">
-                  <h5 class="preview-title">Предпросмотр клетки</h5>
+                  <h5 class="preview-title">
+                    Предпросмотр клетки
+                  </h5>
                   <div class="preview-content">
                     <div class="preview-example">
                       {{ getCellPreview(editingCell) }}
@@ -404,7 +559,10 @@
                       <span class="preview-length">
                         Длина: {{ editingCell.min_length }}-{{ editingCell.max_length }} символов
                       </span>
-                      <span v-if="editingCell.allowed_letters" class="preview-letters">
+                      <span
+                        v-if="editingCell.allowed_letters"
+                        class="preview-letters"
+                      >
                         Разрешённые символы: {{ editingCell.allowed_letters }}
                       </span>
                     </div>
@@ -416,8 +574,18 @@
         </div>
         
         <div class="modal-footer">
-          <button @click="showCellEditModal = false" class="modal-cancel">Отмена</button>
-          <button @click="saveCellEdit" class="modal-confirm">Сохранить</button>
+          <button
+            class="modal-cancel"
+            @click="showCellEditModal = false"
+          >
+            Отмена
+          </button>
+          <button
+            class="modal-confirm"
+            @click="saveCellEdit"
+          >
+            Сохранить
+          </button>
         </div>
       </div>
     </div>
@@ -505,6 +673,9 @@ export default {
         return 0;
       });
     }
+  },
+  mounted() {
+    this.refreshData();
   },
   methods: {
     async refreshData() {
@@ -824,9 +995,6 @@ export default {
         notification.remove();
       }, 3000);
     }
-  },
-  mounted() {
-    this.refreshData();
   },
 };
 </script>

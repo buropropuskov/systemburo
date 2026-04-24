@@ -2,27 +2,32 @@
   <section class="feedback">
     <header class="feedback__header">
       <div class="header-top">
-        <h2 class="feedback__title">Обратная связь</h2>
+        <h2 class="feedback__title">
+          Обратная связь
+        </h2>
         <div class="header-stats">
           <div class="stat-item">
             <span class="stat-label">Всего:</span>
             <span class="stat-value">{{ feedbacks.length }}</span>
           </div>
-          <div class="stat-item" v-if="unreadCount > 0">
+          <div
+            v-if="unreadCount > 0"
+            class="stat-item"
+          >
             <span class="stat-label">Новые:</span>
             <span class="stat-value stat-new">{{ unreadCount }}</span>
           </div>
         </div>
         <SearchComponent
-          title="Поиск по имени или сообщению..."
           v-model="searchQuery"
-          @search="handleSearch"
+          title="Поиск по имени или сообщению..."
           class="search-component"
+          @search="handleSearch"
         />
         <button 
           class="refresh-btn-header"
-          @click="fetchFeedbacks"
           :disabled="loading"
+          @click="fetchFeedbacks"
         >
           Обновить
         </button>
@@ -73,7 +78,10 @@
       </div>
     </div>
 
-    <div class="feedback__list" :class="{ loading }">
+    <div
+      class="feedback__list"
+      :class="{ loading }"
+    >
       <SkeletonTransition :loading="loading">
         <template #skeleton>
           <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px;">
@@ -84,11 +92,19 @@
           </div>
         </template>
 
-        <div v-if="filteredFeedbacks.length === 0" class="empty-state">
-          <p class="no-data-message">{{ getEmptyMessage() }}</p>
+        <div
+          v-if="filteredFeedbacks.length === 0"
+          class="empty-state"
+        >
+          <p class="no-data-message">
+            {{ getEmptyMessage() }}
+          </p>
         </div>
 
-        <div v-else class="feedbacks-container">
+        <div
+          v-else
+          class="feedbacks-container"
+        >
           <div
             v-for="feedback in filteredFeedbacks"
             :key="feedback.id"
@@ -103,24 +119,38 @@
                 <div class="user-name-container">
                   <span class="user-name">{{ feedback.user_name || 'Неизвестный пользователь' }}</span>
                   <span class="ticket-number">#{{ feedback.id }}</span>
-                  <span class="unread-dot" v-if="!feedback.is_read"></span>
+                  <span
+                    v-if="!feedback.is_read"
+                    class="unread-dot"
+                  />
                 </div>
                 <div class="user-meta">
                   <span class="timestamp">Создано: {{ formatDateTime(feedback.created_at) }}</span>
-                  <span v-if="feedback.resolved_at" class="timestamp resolved-time">Выполнено: {{ formatDateTime(feedback.resolved_at) }}</span>
+                  <span
+                    v-if="feedback.resolved_at"
+                    class="timestamp resolved-time"
+                  >Выполнено: {{ formatDateTime(feedback.resolved_at) }}</span>
                 </div>
               </div>
 
               <div class="status-indicators">
-                <span class="status-badge" :class="getStatusClass(feedback.status)">
+                <span
+                  class="status-badge"
+                  :class="getStatusClass(feedback.status)"
+                >
                   {{ feedback.status }}
                 </span>
               </div>
             </div>
 
             <div class="feedback-content">
-              <p class="message">{{ feedback.message }}</p>
-              <div v-if="feedback.resolution_comment" class="resolution-comment">
+              <p class="message">
+                {{ feedback.message }}
+              </p>
+              <div
+                v-if="feedback.resolution_comment"
+                class="resolution-comment"
+              >
                 <strong>Ответ заявителю:</strong> {{ feedback.resolution_comment }}
               </div>
             </div>
@@ -129,18 +159,21 @@
               <div class="action-buttons">
                 <button
                   v-if="!feedback.is_read"
-                  @click="markAsRead(feedback.id)"
                   class="action-btn mark-read-btn"
                   :disabled="updating === feedback.id"
+                  @click="markAsRead(feedback.id)"
                 >
                   Прочитано
                 </button>
 
-                <div v-if="feedback.status === 'Не решено'" class="resolve-section">
+                <div
+                  v-if="feedback.status === 'Не решено'"
+                  class="resolve-section"
+                >
                   <button
-                    @click="markAsResolved(feedback.id)"
                     class="action-btn resolve-btn"
                     :disabled="updating === feedback.id"
+                    @click="markAsResolved(feedback.id)"
                   >
                     Выполнить
                   </button>
@@ -150,14 +183,14 @@
                     class="resolve-comment-input"
                     rows="2"
                     :disabled="updating === feedback.id"
-                  ></textarea>
+                  />
                 </div>
 
                 <button
                   v-if="feedback.status === 'Решено'"
-                  @click="markAsPending(feedback.id)"
                   class="action-btn return-btn"
                   :disabled="updating === feedback.id"
+                  @click="markAsPending(feedback.id)"
                 >
                   Вернуть в обращение
                 </button>
@@ -236,6 +269,9 @@ export default {
     unreadCount() {
       return this.feedbacks.filter(f => !f.is_read).length;
     }
+  },
+  mounted() {
+    this.fetchFeedbacks();
   },
   methods: {
     handleSearch(variants) {
@@ -394,9 +430,6 @@ export default {
       }
       return 'Обращений пока нет';
     }
-  },
-  mounted() {
-    this.fetchFeedbacks();
   }
 }
 </script>

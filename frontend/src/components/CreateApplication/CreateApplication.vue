@@ -1,247 +1,285 @@
 <template>
-    <div class="create">
-        <div class="create__header">
-            <div class="create__title">
-                <h3>Оформление и подача заявки</h3>
-                <button class="tables__instruction">
-                    <img src="@/assets/icons/instruction.png" class="tables__icon" />
-                    <p class="instruction__text">Инструкция</p>
-                </button>
-            </div>
-            <h4>{{ currentFormTitle }}</h4>
-        </div>
-        <div class="create__container">
-            <BlankSelector
-                ref="blankSelector"
-                :attachments="attachments"
-                :current-application-data="currentApplicationData"
-                @attachment-selected="handleAttachmentSelected"
-                @attachment-added="handleAttachmentAdded"
-                @attachment-removed="handleAttachmentRemoved"
-            />
-            
-            <div v-if="selectedAttachment" class="create__form">
-                <!-- 1 ряд: Письмо сопроводительное, Согласие, Отправка -->
-                <div class="form__header">
-                    <div class="header__content">
-                        <textarea 
-                            placeholder="Введите сопроводительное письмо / сообщение" 
-                            class="form__textarea"
-                            v-model="message"
-                        ></textarea>
-                        <div class="header__right">
-                            <div class="consent-section">
-                                <div class="consent-checkbox">
-                                    <input
-                                        type="checkbox"
-                                        id="consent"
-                                        data-testid="create-app-consent-checkbox"
-                                        v-model="consentGiven"
-                                        required
-                                    />
-                                    <label for="consent">
-                                        Даю <span class="blue">согласие</span> на обработку, хранение, передачу
-                                        персональных данных, изложенных в заявке
-                                    </label>
-                                </div>
-                                <div
-                                    class="submit-button-container"
-                                    :data-testid="'create-app-submit-wrapper'"
-                                    @mouseenter="tooltipMouseEnter"
-                                    @mouseleave="tooltipMouseLeave"
-                                >
-                                    <button class="send-all-btn" data-testid="create-app-button-submit" @click="submitApplication" :disabled="!canSubmit">
-                                        Отправить заявку
-                                    </button>
-                                    <div
-                                        v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
-                                        class="submit-tooltip"
-                                        @mouseenter="tooltipMouseEnter"
-                                        @mouseleave="tooltipMouseLeave"
-                                        @click="handleTooltipClick"
-                                    >
-                                        <div class="tooltip-content">
-                                            <div v-for="(section, idx) in tooltipSections" :key="idx" class="tooltip-section">
-                                                <div v-if="section.type === 'global'" class="tooltip-global">
-                                                    <div class="tooltip-section-title">Необходимо заполнить:</div>
-                                                    <ul>
-                                                        <li v-for="(msg, i) in section.messages" :key="i">{{ msg }}</li>
-                                                    </ul>
-                                                </div>
-                                                <div v-else-if="section.type === 'attachment'" class="tooltip-attachment">
-                                                    <div class="tooltip-attachment-title">
-                                                        <span
-                                                            class="attachment-clickable"
-                                                            :data-attachment-key="section.attachmentKey"
-                                                            @click="handleTooltipAttachmentClick(section)"
-                                                        >
-                                                            Вложение "{{ section.attachmentName }}"
-                                                        </span>
-                                                    </div>
-                                                    <ul>
-                                                        <li v-for="(msg, i) in section.messages" :key="i">{{ msg }}</li>
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2 ряд: Организация, Компания, Ответственное лицо -->
-                <UserInfoRow 
-                    :organization="organization"
-                    :company="company"
-                    :responsible-person="responsiblePerson"
-                    :phone-number="phoneNumber"
-                    :errors="errors"
-                    @update:organization="organization = $event"
-                    @update:company="company = $event"
-                    @update:responsible-person="responsiblePerson = $event"
-                    @update:phone-number="phoneNumber = $event"
-                    @validate-field="validateField"
-                    @format-phone="handleFormatPhoneNumber"
-                    @clear-phone="handleClearPhoneFormat"
-                />
-
-                <!-- 3 ряд: Заголовок, Дата действия, Время пребывания (теперь индивидуально для вложения) -->
-                <div class="form__info-row">
-                    <DateRangeSection
-                        :is-one-day="currentAttachmentData.isOneDay"
-                        :start-date="currentAttachmentData.startDate"
-                        :end-date="currentAttachmentData.endDate"
-                        :single-date="currentAttachmentData.singleDate"
-                        :start-time="currentAttachmentData.startTime"
-                        :end-time="currentAttachmentData.endTime"
-                        :roof-access="currentAttachmentData.roofAccess"
-                        :free-parking="currentAttachmentData.freeParking"
-                        :notify-situation-center="currentAttachmentData.notifySituationCenter"
-                        :errors="currentAttachmentErrors"
-                        @update:is-one-day="updateAttachmentData('isOneDay', $event)"
-                        @update:start-date="updateAttachmentData('startDate', $event)"
-                        @update:end-date="updateAttachmentData('endDate', $event)"
-                        @update:single-date="updateAttachmentData('singleDate', $event)"
-                        @update:start-time="updateAttachmentData('startTime', $event)"
-                        @update:end-time="updateAttachmentData('endTime', $event)"
-                        @update:roof-access="updateAttachmentData('roofAccess', $event)"
-                        @update:free-parking="updateAttachmentData('freeParking', $event)"
-                        @update:notify-situation-center="updateAttachmentData('notifySituationCenter', $event)"
-                        @validate-field="validateAttachmentField"
-                        @validate-date-range="validateAttachmentDateRange"
-                        @validate-time-range="validateAttachmentTimeRange"
-                    />
-                </div>
-
-                <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
-                <div class="form__data">
-                    <!-- Для автомобилей -->
-                    <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
-                        <VehicleForm 
-                            :user-organization="organization"
-                            :user-organization-id="organizationId"
-                            :user-company="company"
-                            :user-company-id="companyId"
-                            :existing-vehicles="vehicles"
-                            :key="vehicleFormKey"
-                            @vehicle-added="handleVehicleAdded"
-                            @vehicles-added="handleVehiclesAdded"
-                            @vehicle-updated="handleVehicleUpdated"
-                            @edit-cancelled="handleVehicleEditCancelled"
-                            ref="vehicleForm"
-                        />
-                        <VehiclesList 
-                            :vehicles="sortedVehicles"
-                            :sort-field="sortField"
-                            :sort-direction="sortDirection"
-                            :all-unloading-places="allUnloadingPlaces"
-                            :license-plate-formats="licensePlateFormats"
-                            @sort="sortBy"
-                            @edit-vehicle="editVehicle"
-                            @delete-vehicle="deleteVehicle"
-                        />
-                    </template>
-
-                    <!-- Для людей/сотрудников -->
-                    <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'people'">
-                        <EmployeeForm 
-                            :user-organization="organization"
-                            :user-organization-id="organizationId"
-                            :user-company="company"
-                            :user-company-id="companyId"
-                            :existing-employees="employees"
-                            :key="employeeFormKey"
-                            @employee-added="handleEmployeeAdded"
-                            @employees-added="handleEmployeesAdded"
-                            @employee-updated="handleEmployeeUpdated"
-                            @edit-cancelled="handleEmployeeEditCancelled"
-                            ref="employeeForm"
-                        />
-                        <EmployeesList 
-                            :employees="sortedEmployees"
-                            :sort-field="sortField"
-                            :sort-direction="sortDirection"
-                            :all-tables="allPassageTables"
-                            @sort="sortBy"
-                            @edit-employee="editEmployee"
-                            @delete-employee="deleteEmployee"
-                        />
-                    </template>
-
-                    <!-- Для ТМЦ -->
-                    <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'items'">
-                        <ItemsForm 
-                            :existing-items="items"
-                            :key="itemsFormKey"
-                            @item-added="handleItemAdded"
-                            @items-added="handleItemsAdded"
-                            @item-updated="handleItemUpdated"
-                            @edit-cancelled="handleItemEditCancelled"
-                            ref="itemsForm"
-                        />
-                        <ItemsList 
-                            :items="sortedItems"
-                            :sort-field="sortField"
-                            :sort-direction="sortDirection"
-                            @sort="sortBy"
-                            @edit-item="editItem"
-                            @delete-item="deleteItem"
-                        />
-                    </template>
-                </div>
-            </div>
-            
-            <!-- Заглушка для формы, когда вложение не выбрано -->
-            <div v-else class="form-placeholder">
-                <div class="placeholder-content">
-                    <p>Добавьте или выберите вложение для начала работы</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Универсальное модальное окно привязки -->
-        <UniversalBindingModal
-            v-if="showBindingModal"
-            :new-vehicles-to-bind="newVehiclesToBind"
-            :new-employees-to-bind="newEmployeesToBind"
-            :organization="organization"
-            :company="company"
-            :has-organization="hasOrganization"
-            :has-company="hasCompany"
-            @confirm-binding="confirmBinding"
-            @skip-binding="skipBinding"
-            @close="closeBindingModal"
-        />
-
-        <ApplicationSuccessModal
-            :show="showSuccessModal"
-            :application-number="createdApplicationNumber"
-            :attachments-data="createdAttachmentsData"
-            @close="showSuccessModal = false; clearAllAttachments()"
-        />
+  <div class="create">
+    <div class="create__header">
+      <div class="create__title">
+        <h3>Оформление и подача заявки</h3>
+        <button class="tables__instruction">
+          <img
+            src="@/assets/icons/instruction.png"
+            class="tables__icon"
+          >
+          <p class="instruction__text">
+            Инструкция
+          </p>
+        </button>
+      </div>
+      <h4>{{ currentFormTitle }}</h4>
     </div>
+    <div class="create__container">
+      <BlankSelector
+        ref="blankSelector"
+        :attachments="attachments"
+        :current-application-data="currentApplicationData"
+        @attachment-selected="handleAttachmentSelected"
+        @attachment-added="handleAttachmentAdded"
+        @attachment-removed="handleAttachmentRemoved"
+      />
+            
+      <div
+        v-if="selectedAttachment"
+        class="create__form"
+      >
+        <!-- 1 ряд: Письмо сопроводительное, Согласие, Отправка -->
+        <div class="form__header">
+          <div class="header__content">
+            <textarea 
+              v-model="message" 
+              placeholder="Введите сопроводительное письмо / сообщение"
+              class="form__textarea"
+            />
+            <div class="header__right">
+              <div class="consent-section">
+                <div class="consent-checkbox">
+                  <input
+                    id="consent"
+                    v-model="consentGiven"
+                    type="checkbox"
+                    data-testid="create-app-consent-checkbox"
+                    required
+                  >
+                  <label for="consent">
+                    Даю <span class="blue">согласие</span> на обработку, хранение, передачу
+                    персональных данных, изложенных в заявке
+                  </label>
+                </div>
+                <div
+                  class="submit-button-container"
+                  :data-testid="'create-app-submit-wrapper'"
+                  @mouseenter="tooltipMouseEnter"
+                  @mouseleave="tooltipMouseLeave"
+                >
+                  <button
+                    class="send-all-btn"
+                    data-testid="create-app-button-submit"
+                    :disabled="!canSubmit"
+                    @click="submitApplication"
+                  >
+                    Отправить заявку
+                  </button>
+                  <div
+                    v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
+                    class="submit-tooltip"
+                    @mouseenter="tooltipMouseEnter"
+                    @mouseleave="tooltipMouseLeave"
+                    @click="handleTooltipClick"
+                  >
+                    <div class="tooltip-content">
+                      <div
+                        v-for="(section, idx) in tooltipSections"
+                        :key="idx"
+                        class="tooltip-section"
+                      >
+                        <div
+                          v-if="section.type === 'global'"
+                          class="tooltip-global"
+                        >
+                          <div class="tooltip-section-title">
+                            Необходимо заполнить:
+                          </div>
+                          <ul>
+                            <li
+                              v-for="(msg, i) in section.messages"
+                              :key="i"
+                            >
+                              {{ msg }}
+                            </li>
+                          </ul>
+                        </div>
+                        <div
+                          v-else-if="section.type === 'attachment'"
+                          class="tooltip-attachment"
+                        >
+                          <div class="tooltip-attachment-title">
+                            <span
+                              class="attachment-clickable"
+                              :data-attachment-key="section.attachmentKey"
+                              @click="handleTooltipAttachmentClick(section)"
+                            >
+                              Вложение "{{ section.attachmentName }}"
+                            </span>
+                          </div>
+                          <ul>
+                            <li
+                              v-for="(msg, i) in section.messages"
+                              :key="i"
+                            >
+                              {{ msg }}
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2 ряд: Организация, Компания, Ответственное лицо -->
+        <UserInfoRow 
+          :organization="organization"
+          :company="company"
+          :responsible-person="responsiblePerson"
+          :phone-number="phoneNumber"
+          :errors="errors"
+          @update:organization="organization = $event"
+          @update:company="company = $event"
+          @update:responsible-person="responsiblePerson = $event"
+          @update:phone-number="phoneNumber = $event"
+          @validate-field="validateField"
+          @format-phone="handleFormatPhoneNumber"
+          @clear-phone="handleClearPhoneFormat"
+        />
+
+        <!-- 3 ряд: Заголовок, Дата действия, Время пребывания (теперь индивидуально для вложения) -->
+        <div class="form__info-row">
+          <DateRangeSection
+            :is-one-day="currentAttachmentData.isOneDay"
+            :start-date="currentAttachmentData.startDate"
+            :end-date="currentAttachmentData.endDate"
+            :single-date="currentAttachmentData.singleDate"
+            :start-time="currentAttachmentData.startTime"
+            :end-time="currentAttachmentData.endTime"
+            :roof-access="currentAttachmentData.roofAccess"
+            :free-parking="currentAttachmentData.freeParking"
+            :notify-situation-center="currentAttachmentData.notifySituationCenter"
+            :errors="currentAttachmentErrors"
+            @update:is-one-day="updateAttachmentData('isOneDay', $event)"
+            @update:start-date="updateAttachmentData('startDate', $event)"
+            @update:end-date="updateAttachmentData('endDate', $event)"
+            @update:single-date="updateAttachmentData('singleDate', $event)"
+            @update:start-time="updateAttachmentData('startTime', $event)"
+            @update:end-time="updateAttachmentData('endTime', $event)"
+            @update:roof-access="updateAttachmentData('roofAccess', $event)"
+            @update:free-parking="updateAttachmentData('freeParking', $event)"
+            @update:notify-situation-center="updateAttachmentData('notifySituationCenter', $event)"
+            @validate-field="validateAttachmentField"
+            @validate-date-range="validateAttachmentDateRange"
+            @validate-time-range="validateAttachmentTimeRange"
+          />
+        </div>
+
+        <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
+        <div class="form__data">
+          <!-- Для автомобилей -->
+          <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
+            <VehicleForm 
+              :key="vehicleFormKey"
+              ref="vehicleForm"
+              :user-organization="organization"
+              :user-organization-id="organizationId"
+              :user-company="company"
+              :user-company-id="companyId"
+              :existing-vehicles="vehicles"
+              @vehicle-added="handleVehicleAdded"
+              @vehicles-added="handleVehiclesAdded"
+              @vehicle-updated="handleVehicleUpdated"
+              @edit-cancelled="handleVehicleEditCancelled"
+            />
+            <VehiclesList 
+              :vehicles="sortedVehicles"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              :all-unloading-places="allUnloadingPlaces"
+              :license-plate-formats="licensePlateFormats"
+              @sort="sortBy"
+              @edit-vehicle="editVehicle"
+              @delete-vehicle="deleteVehicle"
+            />
+          </template>
+
+          <!-- Для людей/сотрудников -->
+          <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'people'">
+            <EmployeeForm 
+              :key="employeeFormKey"
+              ref="employeeForm"
+              :user-organization="organization"
+              :user-organization-id="organizationId"
+              :user-company="company"
+              :user-company-id="companyId"
+              :existing-employees="employees"
+              @employee-added="handleEmployeeAdded"
+              @employees-added="handleEmployeesAdded"
+              @employee-updated="handleEmployeeUpdated"
+              @edit-cancelled="handleEmployeeEditCancelled"
+            />
+            <EmployeesList 
+              :employees="sortedEmployees"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              :all-tables="allPassageTables"
+              @sort="sortBy"
+              @edit-employee="editEmployee"
+              @delete-employee="deleteEmployee"
+            />
+          </template>
+
+          <!-- Для ТМЦ -->
+          <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'items'">
+            <ItemsForm 
+              :key="itemsFormKey"
+              ref="itemsForm"
+              :existing-items="items"
+              @item-added="handleItemAdded"
+              @items-added="handleItemsAdded"
+              @item-updated="handleItemUpdated"
+              @edit-cancelled="handleItemEditCancelled"
+            />
+            <ItemsList 
+              :items="sortedItems"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              @sort="sortBy"
+              @edit-item="editItem"
+              @delete-item="deleteItem"
+            />
+          </template>
+        </div>
+      </div>
+            
+      <!-- Заглушка для формы, когда вложение не выбрано -->
+      <div
+        v-else
+        class="form-placeholder"
+      >
+        <div class="placeholder-content">
+          <p>Добавьте или выберите вложение для начала работы</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Универсальное модальное окно привязки -->
+    <UniversalBindingModal
+      v-if="showBindingModal"
+      :new-vehicles-to-bind="newVehiclesToBind"
+      :new-employees-to-bind="newEmployeesToBind"
+      :organization="organization"
+      :company="company"
+      :has-organization="hasOrganization"
+      :has-company="hasCompany"
+      @confirm-binding="confirmBinding"
+      @skip-binding="skipBinding"
+      @close="closeBindingModal"
+    />
+
+    <ApplicationSuccessModal
+      :show="showSuccessModal"
+      :application-number="createdApplicationNumber"
+      :attachments-data="createdAttachmentsData"
+      @close="showSuccessModal = false; clearAllAttachments()"
+    />
+  </div>
 </template>
 
 <script>
@@ -603,6 +641,21 @@ export default {
                 return 0;
             });
         }
+    },
+    mounted() {
+        this.restoreFromLocalStorage();
+        this.loadUserData();
+        this.loadAllUnloadingPlaces();
+        this.loadLicensePlateFormats();
+        this.loadPassageTables();
+        
+        window.addEventListener('beforeunload', () => {
+            this.saveCurrentAttachmentData();
+            this.saveToLocalStorage();
+        });
+    },
+    beforeUnmount() {
+        window.removeEventListener('beforeunload', this.saveToLocalStorage);
     },
     methods: {
         
@@ -1951,21 +2004,6 @@ export default {
             const [year, month, day] = dateStr.split('-');
             return `${day}.${month}.${year}`;
         }
-    },
-    mounted() {
-        this.restoreFromLocalStorage();
-        this.loadUserData();
-        this.loadAllUnloadingPlaces();
-        this.loadLicensePlateFormats();
-        this.loadPassageTables();
-        
-        window.addEventListener('beforeunload', () => {
-            this.saveCurrentAttachmentData();
-            this.saveToLocalStorage();
-        });
-    },
-    beforeUnmount() {
-        window.removeEventListener('beforeunload', this.saveToLocalStorage);
     }
 }
 </script>

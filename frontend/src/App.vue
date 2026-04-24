@@ -1,16 +1,35 @@
 <template>
   <div id="app">
-    <a href="#main-content" class="skip-link">Перейти к основному содержанию</a>
+    <a
+      href="#main-content"
+      class="skip-link"
+    >Перейти к основному содержанию</a>
     <NavMenu
       v-if="showChrome"
       :is-buropropuskov="isBuropropuskov"
       @logout="logout"
     />
-    <div class="content" id="main-content">
-      <TheHeader class="theheader" v-if="showChrome"/>
-      <router-view v-slot="{ Component }" class="content__container">
-        <transition name="page-fade" mode="out-in">
-          <component :is="Component" @login-success="handleSuccessfulLogin" :key="$route.path" />
+    <div
+      id="main-content"
+      class="content"
+    >
+      <TheHeader
+        v-if="showChrome"
+        class="theheader"
+      />
+      <router-view
+        v-slot="{ Component }"
+        class="content__container"
+      >
+        <transition
+          name="page-fade"
+          mode="out-in"
+        >
+          <component
+            :is="Component"
+            :key="$route.path"
+            @login-success="handleSuccessfulLogin"
+          />
         </transition>
       </router-view>
       <ScrollTopButton v-if="showChrome" />
@@ -53,6 +72,15 @@ export default {
       return this.isAuthenticated && this.$route.path !== '/';
     }
   },
+  created() {
+    // tryRestoreSession вызывается в main.js ДО mount - auth уже hydrated.
+    // Здесь остаётся только загрузить permissions если юзер залогинен.
+    const authStore = useAuthStore()
+    if (authStore.token) {
+      const permissionsStore = usePermissionsStore()
+      permissionsStore.fetchPermissions()
+    }
+  },
   methods: {
     handleSuccessfulLogin(tokenData) {
       const authStore = useAuthStore()
@@ -78,15 +106,6 @@ export default {
         }
       }
     },
-  },
-  created() {
-    // tryRestoreSession вызывается в main.js ДО mount - auth уже hydrated.
-    // Здесь остаётся только загрузить permissions если юзер залогинен.
-    const authStore = useAuthStore()
-    if (authStore.token) {
-      const permissionsStore = usePermissionsStore()
-      permissionsStore.fetchPermissions()
-    }
   },
 };
 </script>

@@ -1,37 +1,64 @@
 <template>
   <div class="permission-tree">
-    <div v-for="group in groupedTree" :key="group.category" class="permission-group">
-      <div class="group-header" @click="toggleGroup(group.category)">
+    <div
+      v-for="group in groupedTree"
+      :key="group.category"
+      class="permission-group"
+    >
+      <div
+        class="group-header"
+        @click="toggleGroup(group.category)"
+      >
         <span class="group-toggle">{{ expandedGroups[group.category] ? '▼' : '▶' }}</span>
         <span class="group-name">{{ group.category }}</span>
       </div>
 
-      <div v-if="expandedGroups[group.category]" class="group-items">
-        <div v-for="node in group.items" :key="node.key" class="permission-item">
+      <div
+        v-if="expandedGroups[group.category]"
+        class="group-items"
+      >
+        <div
+          v-for="node in group.items"
+          :key="node.key"
+          class="permission-item"
+        >
           <label class="permission-label">
             <input
               type="checkbox"
               :checked="selected[node.key] === 'allow'"
               :disabled="readonly"
               @change="onToggle(node)"
-            />
+            >
             <span class="permission-name">{{ node.display_name }}</span>
-            <span v-if="node.granted_by_name" class="granted-by">
+            <span
+              v-if="node.granted_by_name"
+              class="granted-by"
+            >
               ({{ node.granted_by_name }})
             </span>
           </label>
 
-          <div v-if="node.children && node.children.length" class="permission-children">
-            <div v-for="child in node.children" :key="child.key" class="permission-item child">
+          <div
+            v-if="node.children && node.children.length"
+            class="permission-children"
+          >
+            <div
+              v-for="child in node.children"
+              :key="child.key"
+              class="permission-item child"
+            >
               <label class="permission-label">
                 <input
                   type="checkbox"
                   :checked="selected[child.key] === 'allow'"
                   :disabled="readonly"
                   @change="onToggle(child)"
-                />
+                >
                 <span class="permission-name">{{ child.display_name }}</span>
-                <span v-if="child.granted_by_name" class="granted-by">
+                <span
+                  v-if="child.granted_by_name"
+                  class="granted-by"
+                >
                   ({{ child.granted_by_name }})
                 </span>
               </label>
@@ -41,7 +68,12 @@
       </div>
     </div>
 
-    <p v-if="!tree || tree.length === 0" class="empty-message">Нет доступных разрешений</p>
+    <p
+      v-if="!tree || tree.length === 0"
+      class="empty-message"
+    >
+      Нет доступных разрешений
+    </p>
   </div>
 </template>
 

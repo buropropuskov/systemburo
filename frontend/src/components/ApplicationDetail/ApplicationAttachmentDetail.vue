@@ -1,136 +1,184 @@
 <template>
-    <div class="attachment-details">
-        <div class="attachment-header-section">
-            <h4>{{ attachment.attachment_display_name }}</h4>
+  <div class="attachment-details">
+    <div class="attachment-header-section">
+      <h4>{{ attachment.attachment_display_name }}</h4>
 
-            <!-- Даты действия -->
-            <div v-if="attachment.entry_date_from || attachment.entry_date_to" class="date-range">
-                <span class="date-label">Срок действия:</span>
-                <span class="date-value">
-                    {{ formatDateRange(attachment.entry_date_from, attachment.entry_date_to) }}
-                </span>
-            </div>
+      <!-- Даты действия -->
+      <div
+        v-if="attachment.entry_date_from || attachment.entry_date_to"
+        class="date-range"
+      >
+        <span class="date-label">Срок действия:</span>
+        <span class="date-value">
+          {{ formatDateRange(attachment.entry_date_from, attachment.entry_date_to) }}
+        </span>
+      </div>
 
-            <!-- Время действия -->
-            <div v-if="attachment.entry_time_from || attachment.entry_time_to" class="time-range">
-                <span class="time-label">Время:</span>
-                <span class="time-value">
-                    {{ formatTimeRange(attachment.entry_time_from, attachment.entry_time_to) }}
-                </span>
-            </div>
-        </div>
-
-        <div class="attachment-data-section">
-            <div class="attachment-data">
-                <!-- Автомобили -->
-                <div v-if="attachment.attachment_type === 'cars'" class="cars-section">
-                    <h5>Список автомобилей</h5>
-                    <template v-if="loading">
-                        <div class="loading-container">
-                            <div class="loading-spinner"></div>
-                            <span class="loading-text">Загрузка...</span>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div v-if="cars.length > 0" class="cars-list">
-                            <div v-for="(car, index) in cars" :key="car.id" class="car-item" @click="$emit('open-vehicle', car)">
-                                <div class="car-item-content">
-                                    <div class="item-number">
-                                        {{ index + 1 }}.
-                                    </div>
-                                    <div class="car-main-info">
-                                        <span class="car-number">{{ car.car_number }}</span>
-                                        <span class="car-brand">{{ car.car_brand }}</span>
-                                    </div>
-                                    <div v-if="car.unload_places && car.unload_places.length > 0"
-                                        class="unload-places-container"
-                                        :title="getFullPlacesList(car.unload_places)"
-                                    >
-                                        <span class="places-list">
-                                            {{ getTruncatedPlacesList(car.unload_places) }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="no-data">
-                            Нет данных об автомобилях
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Сотрудники -->
-                <div v-if="attachment.attachment_type === 'people'" class="employees-section">
-                    <h5>Сотрудники</h5>
-                    <template v-if="loading">
-                        <div class="loading-container">
-                            <div class="loading-spinner"></div>
-                            <span class="loading-text">Загрузка...</span>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div v-if="employees.length > 0" class="employees-list">
-                            <div v-for="(employee, index) in employees" :key="employee.id" class="employee-item" @click="$emit('open-employee', employee)">
-                                <div class="employee-item-content">
-                                    <div class="item-number">
-                                        {{ index + 1 }}.
-                                    </div>
-                                    <div class="employee-main-info">
-                                        <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
-                                        <span class="employee-position">{{ employee.position }}</span>
-                                    </div>
-                                    <div v-if="employee.target_tables && employee.target_tables.length > 0"
-                                        class="target-tables-container"
-                                        :title="getFullTablesList(employee.target_tables)"
-                                    >
-                                        <span class="tables-list">
-                                            {{ getTruncatedTablesList(employee.target_tables) }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="no-data">
-                            Нет данных о сотрудниках
-                        </div>
-                    </template>
-                </div>
-
-                <!-- ТМЦ -->
-                <div v-if="attachment.attachment_type === 'items'" class="items-section">
-                    <h5>Товарно-материальные ценности</h5>
-                    <template v-if="loading">
-                        <div class="loading-container">
-                            <div class="loading-spinner"></div>
-                            <span class="loading-text">Загрузка...</span>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div v-if="items.length > 0" class="items-list">
-                            <div v-for="(item, index) in items" :key="item.id" class="item-item">
-                                <div class="item-item-content">
-                                    <div class="item-number">
-                                        {{ index + 1 }}.
-                                    </div>
-                                    <span class="item-name">{{ item.name }}</span>
-                                    <span class="item-count">Количество: {{ item.count }}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="no-data">
-                            Нет данных о ТМЦ
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </div>
+      <!-- Время действия -->
+      <div
+        v-if="attachment.entry_time_from || attachment.entry_time_to"
+        class="time-range"
+      >
+        <span class="time-label">Время:</span>
+        <span class="time-value">
+          {{ formatTimeRange(attachment.entry_time_from, attachment.entry_time_to) }}
+        </span>
+      </div>
     </div>
+
+    <div class="attachment-data-section">
+      <div class="attachment-data">
+        <!-- Автомобили -->
+        <div
+          v-if="attachment.attachment_type === 'cars'"
+          class="cars-section"
+        >
+          <h5>Список автомобилей</h5>
+          <template v-if="loading">
+            <div class="loading-container">
+              <div class="loading-spinner" />
+              <span class="loading-text">Загрузка...</span>
+            </div>
+          </template>
+          <template v-else>
+            <div
+              v-if="cars.length > 0"
+              class="cars-list"
+            >
+              <div
+                v-for="(car, index) in cars"
+                :key="car.id"
+                class="car-item"
+                @click="$emit('open-vehicle', car)"
+              >
+                <div class="car-item-content">
+                  <div class="item-number">
+                    {{ index + 1 }}.
+                  </div>
+                  <div class="car-main-info">
+                    <span class="car-number">{{ car.car_number }}</span>
+                    <span class="car-brand">{{ car.car_brand }}</span>
+                  </div>
+                  <div
+                    v-if="car.unload_places && car.unload_places.length > 0"
+                    class="unload-places-container"
+                    :title="getFullPlacesList(car.unload_places)"
+                  >
+                    <span class="places-list">
+                      {{ getTruncatedPlacesList(car.unload_places) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-data"
+            >
+              Нет данных об автомобилях
+            </div>
+          </template>
+        </div>
+
+        <!-- Сотрудники -->
+        <div
+          v-if="attachment.attachment_type === 'people'"
+          class="employees-section"
+        >
+          <h5>Сотрудники</h5>
+          <template v-if="loading">
+            <div class="loading-container">
+              <div class="loading-spinner" />
+              <span class="loading-text">Загрузка...</span>
+            </div>
+          </template>
+          <template v-else>
+            <div
+              v-if="employees.length > 0"
+              class="employees-list"
+            >
+              <div
+                v-for="(employee, index) in employees"
+                :key="employee.id"
+                class="employee-item"
+                @click="$emit('open-employee', employee)"
+              >
+                <div class="employee-item-content">
+                  <div class="item-number">
+                    {{ index + 1 }}.
+                  </div>
+                  <div class="employee-main-info">
+                    <span class="employee-name">{{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name || '' }}</span>
+                    <span class="employee-position">{{ employee.position }}</span>
+                  </div>
+                  <div
+                    v-if="employee.target_tables && employee.target_tables.length > 0"
+                    class="target-tables-container"
+                    :title="getFullTablesList(employee.target_tables)"
+                  >
+                    <span class="tables-list">
+                      {{ getTruncatedTablesList(employee.target_tables) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-data"
+            >
+              Нет данных о сотрудниках
+            </div>
+          </template>
+        </div>
+
+        <!-- ТМЦ -->
+        <div
+          v-if="attachment.attachment_type === 'items'"
+          class="items-section"
+        >
+          <h5>Товарно-материальные ценности</h5>
+          <template v-if="loading">
+            <div class="loading-container">
+              <div class="loading-spinner" />
+              <span class="loading-text">Загрузка...</span>
+            </div>
+          </template>
+          <template v-else>
+            <div
+              v-if="items.length > 0"
+              class="items-list"
+            >
+              <div
+                v-for="(item, index) in items"
+                :key="item.id"
+                class="item-item"
+              >
+                <div class="item-item-content">
+                  <div class="item-number">
+                    {{ index + 1 }}.
+                  </div>
+                  <span class="item-name">{{ item.name }}</span>
+                  <span class="item-count">Количество: {{ item.count }}</span>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-data"
+            >
+              Нет данных о ТМЦ
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
 export default {
     name: 'ApplicationAttachmentDetail',
-    emits: ['open-vehicle', 'open-employee'],
     props: {
         attachment: {
             type: Object,
@@ -153,6 +201,7 @@ export default {
             default: false
         }
     },
+    emits: ['open-vehicle', 'open-employee'],
     methods: {
         formatDate(date) {
             if (!date) return '';

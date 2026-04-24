@@ -1,120 +1,145 @@
 <template>
-    <div class="data__list">
-        <div class="header-with-badge">
-            <h4>Список сотрудников</h4>
-            <span class="employees-badge">{{ employees.length }}</span>
-        </div>
-        <div class="employees-table">
-            <div class="table-header">
-                <div class="header-col number-col" @click="$emit('sort', 'number')">
-                    <p :class="{ 'active-sort': sortField === 'number' }">№</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'number' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col lastName-col" @click="$emit('sort', 'lastName')">
-                    <p :class="{ 'active-sort': sortField === 'lastName' }">Фамилия</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'lastName' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col firstName-col" @click="$emit('sort', 'firstName')">
-                    <p :class="{ 'active-sort': sortField === 'firstName' }">Имя</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'firstName' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col middleName-col" @click="$emit('sort', 'middleName')">
-                    <p :class="{ 'active-sort': sortField === 'middleName' }">Отчество</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'middleName' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col actions-col">
-                    Действия
-                </div>
-            </div>
-            <div class="table-body">
-                <div 
-                    v-for="(employee, index) in employees" 
-                    :key="employee.id"
-                    class="table-row"
-                >
-                    <div class="table-col number-col">{{ index + 1 }}</div>
-                    <div class="table-col lastName-col">
-                        {{ employee.lastName || 'Не указано' }}
-                    </div>
-                    <div class="table-col firstName-col">
-                        {{ employee.firstName || 'Не указано' }}
-                    </div>
-                    <div class="table-col middleName-col">
-                        {{ employee.middleName || 'Не указано' }}
-                    </div>
-                    <div class="table-col actions-col">
-                        <button 
-                            class="details-btn"
-                            @click="showEmployeeDetails(employee)"
-                            title="Детали"
-                        >
-                            <img 
-                                src="@/assets/icons/info.png" 
-                                alt="Детали" 
-                                class="details-icon"
-                            />
-                        </button>
-                        <button 
-                            class="edit-btn"
-                            @click="$emit('edit-employee', employee)"
-                            title="Редактировать"
-                        >
-                            <img 
-                                src="@/assets/icons/edit.png" 
-                                alt="Редактировать" 
-                                class="edit-icon"
-                            />
-                        </button>
-                        <button 
-                            class="delete-btn"
-                            @click="$emit('delete-employee', employee.id)"
-                        >
-                            <img 
-                                src="@/assets/icons/trashcan.png" 
-                                alt="Удалить" 
-                                class="delete-icon"
-                            />
-                        </button>
-                    </div>
-                </div>
-                <div v-if="employees.length === 0" class="no-employees">
-                    Нет добавленных сотрудников
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно деталей сотрудника -->
-        <EmployeeDetailsModal
-            :show="showDetailsModal"
-            :employee="selectedEmployee"
-            :all-tables="allTables"
-            @close="closeDetailsModal"
-        />
+  <div class="data__list">
+    <div class="header-with-badge">
+      <h4>Список сотрудников</h4>
+      <span class="employees-badge">{{ employees.length }}</span>
     </div>
+    <div class="employees-table">
+      <div class="table-header">
+        <div
+          class="header-col number-col"
+          @click="$emit('sort', 'number')"
+        >
+          <p :class="{ 'active-sort': sortField === 'number' }">
+            №
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'number' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col lastName-col"
+          @click="$emit('sort', 'lastName')"
+        >
+          <p :class="{ 'active-sort': sortField === 'lastName' }">
+            Фамилия
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'lastName' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col firstName-col"
+          @click="$emit('sort', 'firstName')"
+        >
+          <p :class="{ 'active-sort': sortField === 'firstName' }">
+            Имя
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'firstName' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col middleName-col"
+          @click="$emit('sort', 'middleName')"
+        >
+          <p :class="{ 'active-sort': sortField === 'middleName' }">
+            Отчество
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'middleName' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div class="header-col actions-col">
+          Действия
+        </div>
+      </div>
+      <div class="table-body">
+        <div 
+          v-for="(employee, index) in employees" 
+          :key="employee.id"
+          class="table-row"
+        >
+          <div class="table-col number-col">
+            {{ index + 1 }}
+          </div>
+          <div class="table-col lastName-col">
+            {{ employee.lastName || 'Не указано' }}
+          </div>
+          <div class="table-col firstName-col">
+            {{ employee.firstName || 'Не указано' }}
+          </div>
+          <div class="table-col middleName-col">
+            {{ employee.middleName || 'Не указано' }}
+          </div>
+          <div class="table-col actions-col">
+            <button 
+              class="details-btn"
+              title="Детали"
+              @click="showEmployeeDetails(employee)"
+            >
+              <img 
+                src="@/assets/icons/info.png" 
+                alt="Детали" 
+                class="details-icon"
+              >
+            </button>
+            <button 
+              class="edit-btn"
+              title="Редактировать"
+              @click="$emit('edit-employee', employee)"
+            >
+              <img 
+                src="@/assets/icons/edit.png" 
+                alt="Редактировать" 
+                class="edit-icon"
+              >
+            </button>
+            <button 
+              class="delete-btn"
+              @click="$emit('delete-employee', employee.id)"
+            >
+              <img 
+                src="@/assets/icons/trashcan.png" 
+                alt="Удалить" 
+                class="delete-icon"
+              >
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="employees.length === 0"
+          class="no-employees"
+        >
+          Нет добавленных сотрудников
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно деталей сотрудника -->
+    <EmployeeDetailsModal
+      :show="showDetailsModal"
+      :employee="selectedEmployee"
+      :all-tables="allTables"
+      @close="closeDetailsModal"
+    />
+  </div>
 </template>
 
 <script>

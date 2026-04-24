@@ -1,8 +1,16 @@
 <template>
-    <button @click="handleRefresh" class="refresh-btn">
-        <img src="@/assets/icons/refresh.png" class="refresh-btn__icon" />
-        <p class="refresh-btn__text">Обновить</p>
-    </button>
+  <button
+    class="refresh-btn"
+    @click="handleRefresh"
+  >
+    <img
+      src="@/assets/icons/refresh.png"
+      class="refresh-btn__icon"
+    >
+    <p class="refresh-btn__text">
+      Обновить
+    </p>
+  </button>
 </template>
 <script>
 export default {

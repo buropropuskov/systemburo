@@ -1,119 +1,207 @@
 <template>
-    <div class="modal-overlay" @click.self="closeModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Привязка новых данных</h3>
-                <button class="modal-close" @click="closeModal">
-                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                        <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                </button>
-            </div>
+  <div
+    class="modal-overlay"
+    @click.self="closeModal"
+  >
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          Привязка новых данных
+        </h3>
+        <button
+          class="modal-close"
+          @click="closeModal"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 14 14"
+            fill="none"
+          >
+            <path
+              d="M13 1L1 13M1 1L13 13"
+              stroke="#666"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </div>
 
-            <div class="modal-body">
-                <div class="binding-description">
-                    Все добавленные данные будут <strong>автоматически привязаны</strong> к вашему аккаунту.
-                    Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
-                </div>
-
-                <div v-if="newVehiclesToBind.length > 0" class="data-section">
-                    <div class="section-header">
-                        <h4 class="section-title">Новые автомобили</h4>
-                        <span class="count-badge">{{ newVehiclesToBind.length }}</span>
-                    </div>
-                    <div class="section-body">
-                        <div class="items-list">
-                            <div
-                                v-for="vehicle in newVehiclesToBind"
-                                :key="vehicle.id"
-                                class="item"
-                                :class="{ 'item-fact': isVehicleByFact(vehicle) }"
-                            >
-                                <div class="item-info">
-                                    <span class="item-number">{{ vehicle.plateNumber }}</span>
-                                    <span class="item-detail">{{ vehicle.mark }}</span>
-                                    <span v-if="isVehicleByFact(vehicle)" class="fact-badge">По факту</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div v-if="hasVehiclesForBinding" class="binding-options">
-                            <p class="options-title">Привязать автомобили к:</p>
-                            <div class="options-group">
-                                <label v-if="hasOrganization" class="binding-option">
-                                    <input type="checkbox" v-model="vehiclesBindToOrganization" />
-                                    <span>Организации "{{ organization }}"</span>
-                                </label>
-                                <label v-if="hasCompany" class="binding-option">
-                                    <input type="checkbox" v-model="vehiclesBindToCompany" />
-                                    <span>Компании "{{ company }}"</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div v-else class="no-binding-message">
-                            Автомобили "По факту" не требуют привязки к организации/компании
-                        </div>
-                    </div>
-                </div>
-
-                <div v-if="newEmployeesToBind.length > 0" class="data-section">
-                    <div class="section-header">
-                        <h4 class="section-title">Новые сотрудники</h4>
-                        <span class="count-badge">{{ newEmployeesToBind.length }}</span>
-                    </div>
-                    <div class="section-body">
-                        <div class="items-list">
-                            <div
-                                v-for="employee in newEmployeesToBind"
-                                :key="employee.id"
-                                class="item"
-                                :class="{ 'item-fact': isEmployeeByFact(employee) }"
-                            >
-                                <div class="item-info">
-                                    <span class="item-name">{{ formatFullName(employee) }}</span>
-                                    <span class="item-detail">{{ employee.position }}</span>
-                                    <span v-if="isEmployeeByFact(employee)" class="fact-badge">По факту</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div v-if="hasEmployeesForBinding" class="binding-options">
-                            <p class="options-title">Привязать сотрудников к:</p>
-                            <div class="options-group">
-                                <label v-if="hasOrganization" class="binding-option">
-                                    <input type="checkbox" v-model="employeesBindToOrganization" />
-                                    <span>Организации "{{ organization }}"</span>
-                                </label>
-                                <label v-if="hasCompany" class="binding-option">
-                                    <input type="checkbox" v-model="employeesBindToCompany" />
-                                    <span>Компании "{{ company }}"</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div v-else class="no-binding-message">
-                            Сотрудники "По факту" не требуют привязки к организации/компании
-                        </div>
-                    </div>
-                </div>
-
-                <div class="warning-section">
-                    <p class="warning-text">
-                        <strong class="warning-strong">Внимание!</strong> При привязке данных к организации или компании,
-                        они будут доступны для отображения и использования <strong>всем</strong> сотрудникам, которые в них числятся.
-                    </p>
-                </div>
-
-                <div class="modal-actions">
-                    <button class="btn skip-btn" @click="handleSkip">Отправить без привязки</button>
-                    <button class="btn confirm-btn" @click="handleConfirm">
-                        <transition name="fade" mode="out-in">
-                            <span :key="buttonText" class="button-text">{{ buttonText }}</span>
-                        </transition>
-                    </button>
-                </div>
-            </div>
+      <div class="modal-body">
+        <div class="binding-description">
+          Все добавленные данные будут <strong>автоматически привязаны</strong> к вашему аккаунту.
+          Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
         </div>
+
+        <div
+          v-if="newVehiclesToBind.length > 0"
+          class="data-section"
+        >
+          <div class="section-header">
+            <h4 class="section-title">
+              Новые автомобили
+            </h4>
+            <span class="count-badge">{{ newVehiclesToBind.length }}</span>
+          </div>
+          <div class="section-body">
+            <div class="items-list">
+              <div
+                v-for="vehicle in newVehiclesToBind"
+                :key="vehicle.id"
+                class="item"
+                :class="{ 'item-fact': isVehicleByFact(vehicle) }"
+              >
+                <div class="item-info">
+                  <span class="item-number">{{ vehicle.plateNumber }}</span>
+                  <span class="item-detail">{{ vehicle.mark }}</span>
+                  <span
+                    v-if="isVehicleByFact(vehicle)"
+                    class="fact-badge"
+                  >По факту</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="hasVehiclesForBinding"
+              class="binding-options"
+            >
+              <p class="options-title">
+                Привязать автомобили к:
+              </p>
+              <div class="options-group">
+                <label
+                  v-if="hasOrganization"
+                  class="binding-option"
+                >
+                  <input
+                    v-model="vehiclesBindToOrganization"
+                    type="checkbox"
+                  >
+                  <span>Организации "{{ organization }}"</span>
+                </label>
+                <label
+                  v-if="hasCompany"
+                  class="binding-option"
+                >
+                  <input
+                    v-model="vehiclesBindToCompany"
+                    type="checkbox"
+                  >
+                  <span>Компании "{{ company }}"</span>
+                </label>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-binding-message"
+            >
+              Автомобили "По факту" не требуют привязки к организации/компании
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="newEmployeesToBind.length > 0"
+          class="data-section"
+        >
+          <div class="section-header">
+            <h4 class="section-title">
+              Новые сотрудники
+            </h4>
+            <span class="count-badge">{{ newEmployeesToBind.length }}</span>
+          </div>
+          <div class="section-body">
+            <div class="items-list">
+              <div
+                v-for="employee in newEmployeesToBind"
+                :key="employee.id"
+                class="item"
+                :class="{ 'item-fact': isEmployeeByFact(employee) }"
+              >
+                <div class="item-info">
+                  <span class="item-name">{{ formatFullName(employee) }}</span>
+                  <span class="item-detail">{{ employee.position }}</span>
+                  <span
+                    v-if="isEmployeeByFact(employee)"
+                    class="fact-badge"
+                  >По факту</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="hasEmployeesForBinding"
+              class="binding-options"
+            >
+              <p class="options-title">
+                Привязать сотрудников к:
+              </p>
+              <div class="options-group">
+                <label
+                  v-if="hasOrganization"
+                  class="binding-option"
+                >
+                  <input
+                    v-model="employeesBindToOrganization"
+                    type="checkbox"
+                  >
+                  <span>Организации "{{ organization }}"</span>
+                </label>
+                <label
+                  v-if="hasCompany"
+                  class="binding-option"
+                >
+                  <input
+                    v-model="employeesBindToCompany"
+                    type="checkbox"
+                  >
+                  <span>Компании "{{ company }}"</span>
+                </label>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-binding-message"
+            >
+              Сотрудники "По факту" не требуют привязки к организации/компании
+            </div>
+          </div>
+        </div>
+
+        <div class="warning-section">
+          <p class="warning-text">
+            <strong class="warning-strong">Внимание!</strong> При привязке данных к организации или компании,
+            они будут доступны для отображения и использования <strong>всем</strong> сотрудникам, которые в них числятся.
+          </p>
+        </div>
+
+        <div class="modal-actions">
+          <button
+            class="btn skip-btn"
+            @click="handleSkip"
+          >
+            Отправить без привязки
+          </button>
+          <button
+            class="btn confirm-btn"
+            @click="handleConfirm"
+          >
+            <transition
+              name="fade"
+              mode="out-in"
+            >
+              <span
+                :key="buttonText"
+                class="button-text"
+              >{{ buttonText }}</span>
+            </transition>
+          </button>
+        </div>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>

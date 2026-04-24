@@ -1,70 +1,94 @@
 <template>
-    <div class="modal-overlay" @click="$emit('close')">
-        <div class="modal-content" @click.stop>
-            <div class="modal-header">
-                <div class="modal-header__top">
-                    <h3>Привязка новых сотрудников</h3>
-                </div>
-                <button class="modal-close" @click="$emit('close')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="binding-info">
-                    <p class="binding-description">
-                        Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
-                        Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
-                    </p>
-                    
-                    <div class="employees-list-section">
-                        <p class="section-title">Новые сотрудники ({{ newEmployeesToBind.length }}):</p>
-                        <div class="employees-list">
-                            <div 
-                                v-for="employee in newEmployeesToBind" 
-                                :key="employee.passportSeriesNumber"
-                                class="employee-item"
-                            >
-                                <div class="employee-info">
-                                    <span class="employee-name">{{ formatFullName(employee) }}</span>
-                                    <span class="employee-position">{{ employee.position }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="binding-options-section">
-                        <p class="section-title">Привязать всех сотрудников к:</p>
-                        <div class="binding-options">
-                            <label class="binding-option" v-if="hasOrganization">
-                                <input 
-                                    type="checkbox" 
-                                    v-model="bindToOrganization"
-                                />
-                                <span class="option-text">Организации "{{ organization }}"</span>
-                            </label>
-                            <label class="binding-option" v-if="hasCompany">
-                                <input 
-                                    type="checkbox" 
-                                    v-model="bindToCompany"
-                                />
-                                <span class="option-text">Компании "{{ company }}"</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="warning-section">
-                        <p class="warning-text">
-                            <strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="modal-actions">
-                    <button class="confirm-btn" @click="handleConfirm">
-                        {{ buttonText }}
-                    </button>
-                </div>
-            </div>
+  <div
+    class="modal-overlay"
+    @click="$emit('close')"
+  >
+    <div
+      class="modal-content"
+      @click.stop
+    >
+      <div class="modal-header">
+        <div class="modal-header__top">
+          <h3>Привязка новых сотрудников</h3>
         </div>
+        <button
+          class="modal-close"
+          @click="$emit('close')"
+        >
+          ×
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="binding-info">
+          <p class="binding-description">
+            Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
+            Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
+          </p>
+                    
+          <div class="employees-list-section">
+            <p class="section-title">
+              Новые сотрудники ({{ newEmployeesToBind.length }}):
+            </p>
+            <div class="employees-list">
+              <div 
+                v-for="employee in newEmployeesToBind" 
+                :key="employee.passportSeriesNumber"
+                class="employee-item"
+              >
+                <div class="employee-info">
+                  <span class="employee-name">{{ formatFullName(employee) }}</span>
+                  <span class="employee-position">{{ employee.position }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="binding-options-section">
+            <p class="section-title">
+              Привязать всех сотрудников к:
+            </p>
+            <div class="binding-options">
+              <label
+                v-if="hasOrganization"
+                class="binding-option"
+              >
+                <input 
+                  v-model="bindToOrganization" 
+                  type="checkbox"
+                >
+                <span class="option-text">Организации "{{ organization }}"</span>
+              </label>
+              <label
+                v-if="hasCompany"
+                class="binding-option"
+              >
+                <input 
+                  v-model="bindToCompany" 
+                  type="checkbox"
+                >
+                <span class="option-text">Компании "{{ company }}"</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="warning-section">
+            <p class="warning-text">
+              <strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
+            </p>
+          </div>
+        </div>
+                
+        <div class="modal-actions">
+          <button
+            class="confirm-btn"
+            @click="handleConfirm"
+          >
+            {{ buttonText }}
+          </button>
+        </div>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>

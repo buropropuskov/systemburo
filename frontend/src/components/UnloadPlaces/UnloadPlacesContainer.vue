@@ -1,13 +1,18 @@
 <template>
   <div class="unload-places-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Управление местами разгрузки</h3>
+      <h3 class="management-title">
+        Управление местами разгрузки
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск мест разгрузки...'"
           v-model="searchQuery"
+          :title="'Поиск мест разгрузки...'"
         />
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Добавить
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -16,11 +21,19 @@
 
     <div class="content-container">
       <!-- Левая часть - таблица мест разгрузки -->
-      <div class="table-section" :class="{'with-details': selectedPlace}">
+      <div
+        class="table-section"
+        :class="{'with-details': selectedPlace}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -28,10 +41,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('name')">
-              <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -39,7 +57,7 @@
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
             <div class="header-col status-col">
               <p>Статус</p>
@@ -58,12 +76,18 @@
                 <span class="cell-content id-value">{{ place.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="place.name">
+                <span
+                  class="truncate-text"
+                  :title="place.name"
+                >
                   {{ place.name }}
                 </span>
               </div>
               <div class="table-col status-col">
-                <span class="status-badge" :class="getStatusClass(place)">
+                <span
+                  class="status-badge"
+                  :class="getStatusClass(place)"
+                >
                   {{ getStatusText(place) }}
                 </span>
               </div>
@@ -77,7 +101,10 @@
       </div>
 
       <!-- Правая часть - детали места разгрузки -->
-      <div v-if="selectedPlace" class="details-section">
+      <div
+        v-if="selectedPlace"
+        class="details-section"
+      >
         <div class="details-tabs">
           <button 
             class="tab-btn" 
@@ -103,17 +130,31 @@
         </div>
 
         <!-- Вкладка Основное -->
-        <div v-if="activeTab === 'main'" class="tab-content">
+        <div
+          v-if="activeTab === 'main'"
+          class="tab-content"
+        >
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">{{ selectedPlace.name }}</h3>
-              <span class="current-status-badge" :class="getCurrentStatusClass(selectedPlace)">
+              <h3 class="details-title">
+                {{ selectedPlace.name }}
+              </h3>
+              <span
+                class="current-status-badge"
+                :class="getCurrentStatusClass(selectedPlace)"
+              >
                 {{ getCurrentStatusText(selectedPlace) }}
               </span>
             </div>
             <div class="details-header-actions">
-              <button @click="confirmDeletePlace(selectedPlace)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeletePlace(selectedPlace)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -123,10 +164,10 @@
               <label class="detail-label">Наименование:</label>
               <input 
                 v-model="selectedPlace.name" 
-                @change="updatePlace(selectedPlace)"
                 class="form-input"
                 placeholder="Введите название места"
                 autocomplete="off"
+                @change="updatePlace(selectedPlace)"
               >
             </div>
 
@@ -134,11 +175,11 @@
               <label class="detail-label">Описание:</label>
               <textarea 
                 v-model="selectedPlace.description" 
-                @change="updatePlace(selectedPlace)"
                 class="form-textarea"
                 placeholder="Введите описание"
                 rows="2"
-              ></textarea>
+                @change="updatePlace(selectedPlace)"
+              />
             </div>
 
             <!-- Статус в виде кнопок -->
@@ -163,21 +204,27 @@
             </div>
 
             <!-- Комментарий к статусу (только для неактивных) -->
-            <div v-if="selectedPlace.status !== 'active'" class="detail-group">
+            <div
+              v-if="selectedPlace.status !== 'active'"
+              class="detail-group"
+            >
               <label class="detail-label">Причина:</label>
               <textarea 
                 v-model="selectedPlace.status_comment" 
-                @change="updatePlace(selectedPlace)"
                 class="form-textarea"
                 placeholder="Укажите причину закрытия"
                 rows="2"
-              ></textarea>
+                @change="updatePlace(selectedPlace)"
+              />
             </div>
           </div>
         </div>
 
         <!-- Вкладка Расписание -->
-        <div v-if="activeTab === 'schedule'" class="tab-content">
+        <div
+          v-if="activeTab === 'schedule'"
+          class="tab-content"
+        >
           <ScheduleTab 
             :place-id="selectedPlace.id"
             :time-slots="selectedPlace.time_slots"
@@ -186,16 +233,21 @@
         </div>
 
         <!-- Вкладка Маршрут -->
-        <div v-if="activeTab === 'route'" class="tab-content">
+        <div
+          v-if="activeTab === 'route'"
+          class="tab-content"
+        >
           <div class="route-section">
-            <h4 class="section-title">Ссылка на локацию на карте</h4>
+            <h4 class="section-title">
+              Ссылка на локацию на карте
+            </h4>
             <div class="map-link-group">
               <input 
                 v-model="selectedPlace.map_link" 
-                @change="updatePlace(selectedPlace)"
                 class="form-input"
                 placeholder="https://maps.google.com/..."
                 autocomplete="off"
+                @change="updatePlace(selectedPlace)"
               >
               <a 
                 v-if="selectedPlace.map_link" 
@@ -210,35 +262,67 @@
 
           <div class="route-section">
             <div class="photos-header">
-              <h4 class="section-title">Изображение(-я)</h4>
+              <h4 class="section-title">
+                Изображение(-я)
+              </h4>
               <label class="upload-photo-btn">
                 + Загрузить
                 <input 
                   type="file" 
                   accept="image/*" 
                   multiple 
-                  @change="uploadPhotos"
                   style="display: none"
+                  @change="uploadPhotos"
                 >
               </label>
             </div>
 
             <div class="photos-grid">
-              <div v-for="photo in selectedPlace.photos" :key="photo.id" class="photo-item" :class="{ 'main-photo': photo.is_main }">
-                <div class="photo-preview" @click="viewPhoto(photo)">
-                  <img :src="photo.photo_url" :alt="photo.file_name">
+              <div
+                v-for="photo in selectedPlace.photos"
+                :key="photo.id"
+                class="photo-item"
+                :class="{ 'main-photo': photo.is_main }"
+              >
+                <div
+                  class="photo-preview"
+                  @click="viewPhoto(photo)"
+                >
+                  <img
+                    :src="photo.photo_url"
+                    :alt="photo.file_name"
+                  >
                 </div>
                 <div class="photo-actions">
-                  <button v-if="!photo.is_main" @click="setMainPhoto(photo)" class="photo-main-btn" title="Сделать главной">
+                  <button
+                    v-if="!photo.is_main"
+                    class="photo-main-btn"
+                    title="Сделать главной"
+                    @click="setMainPhoto(photo)"
+                  >
                     ★
                   </button>
-                  <span v-else class="photo-main-badge" title="Главная фотография">★</span>
-                  <button @click="deletePhoto(photo)" class="photo-delete-btn" title="Удалить">
-                    <img src="@/assets/icons/trashcan.png" class="action-icon-small" />
+                  <span
+                    v-else
+                    class="photo-main-badge"
+                    title="Главная фотография"
+                  >★</span>
+                  <button
+                    class="photo-delete-btn"
+                    title="Удалить"
+                    @click="deletePhoto(photo)"
+                  >
+                    <img
+                      src="@/assets/icons/trashcan.png"
+                      class="action-icon-small"
+                    >
                   </button>
                 </div>
               </div>
-              <div v-if="!selectedPlace.photos || selectedPlace.photos.length === 0" class="no-photos">
+              <div
+                v-if="!selectedPlace.photos || selectedPlace.photos.length === 0"
+                class="no-photos"
+              >
                 <p>Фотографии не загружены</p>
               </div>
             </div>
@@ -246,25 +330,52 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите место разгрузки для просмотра</p>
       </div>
     </div>
 
-    <div v-if="filteredUnloadPlaces.length === 0" class="no-results">
-      <div class="no-results-icon">📍</div>
+    <div
+      v-if="filteredUnloadPlaces.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        📍
+      </div>
       <p>Места разгрузки не найдены</p>
     </div>
 
     <!-- Модальное окно добавления места -->
     <transition name="modal-fade">
-      <div v-if="showAddModal" class="modal-overlay" @click.self="closeModal">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="closeModal"
+      >
         <div class="modal-content">
           <div class="modal-header">
-            <h3 class="modal-title">Добавить место разгрузки</h3>
-            <button @click="closeModal" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+            <h3 class="modal-title">
+              Добавить место разгрузки
+            </h3>
+            <button
+              class="modal-close"
+              @click="closeModal"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </button>
           </div>
@@ -273,11 +384,11 @@
             <div class="input-group">
               <label class="input-label">Наименование *</label>
               <input
+                ref="nameInput"
                 v-model="newPlaceName"
                 placeholder="Введите название места"
                 class="modal-input"
                 @keyup.enter="addPlace"
-                ref="nameInput"
               >
             </div>
             
@@ -288,17 +399,22 @@
                 placeholder="Введите описание (необязательно)"
                 class="modal-textarea"
                 rows="3"
-              ></textarea>
+              />
             </div>
           </div>
           
           <div class="modal-footer">
-            <button @click="closeModal" class="modal-btn modal-btn--cancel">Отмена</button>
+            <button
+              class="modal-btn modal-btn--cancel"
+              @click="closeModal"
+            >
+              Отмена
+            </button>
             <button 
-              @click="addPlace" 
-              class="modal-btn modal-btn--confirm"
+              class="modal-btn modal-btn--confirm" 
               :disabled="!newPlaceName.trim()"
               :class="{'modal-btn--disabled': !newPlaceName.trim()}"
+              @click="addPlace"
             >
               Добавить
             </button>
@@ -309,25 +425,52 @@
 
     <!-- Модальное окно просмотра фото -->
     <transition name="modal-fade">
-      <div v-if="showPhotoModal" class="modal-overlay" @click.self="showPhotoModal = false">
+      <div
+        v-if="showPhotoModal"
+        class="modal-overlay"
+        @click.self="showPhotoModal = false"
+      >
         <div class="modal-content photo-view-modal">
           <div class="modal-header">
-            <h3 class="modal-title">{{ viewingPhoto?.file_name }}</h3>
-            <button @click="showPhotoModal = false" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+            <h3 class="modal-title">
+              {{ viewingPhoto?.file_name }}
+            </h3>
+            <button
+              class="modal-close"
+              @click="showPhotoModal = false"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </button>
           </div>
           <div class="modal-body photo-view-body">
-            <img :src="viewingPhoto?.photo_url" class="full-photo" alt="Full size">
+            <img
+              :src="viewingPhoto?.photo_url"
+              class="full-photo"
+              alt="Full size"
+            >
           </div>
         </div>
       </div>
     </transition>
 
     <!-- Уведомления -->
-    <div v-if="notification.show" class="notification" :class="notification.type">
+    <div
+      v-if="notification.show"
+      class="notification"
+      :class="notification.type"
+    >
       <span class="notification-message">{{ notification.message }}</span>
     </div>
   </div>
@@ -405,6 +548,15 @@ export default {
         }
         return 0;
       });
+    }
+  },
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          this.$refs.nameInput?.focus();
+        });
+      }
     }
   },
   mounted() {
@@ -763,15 +915,6 @@ async uploadPhotos(event) {
     
     hideNotification() {
       this.notification.show = false;
-    }
-  },
-  watch: {
-    showAddModal(newVal) {
-      if (newVal) {
-        this.$nextTick(() => {
-          this.$refs.nameInput?.focus();
-        });
-      }
     }
   }
 };

@@ -1,6 +1,9 @@
 <template>
   <div class="skeleton-card">
-    <SkeletonLine width="45%" height="16px" />
+    <SkeletonLine
+      width="45%"
+      height="16px"
+    />
     <div class="skeleton-card__body">
       <SkeletonLine
         v-for="i in lines"
@@ -9,7 +12,11 @@
         height="12px"
       />
     </div>
-    <SkeletonLine v-if="showBadge" width="80px" height="10px" />
+    <SkeletonLine
+      v-if="showBadge"
+      width="80px"
+      height="10px"
+    />
   </div>
 </template>
 

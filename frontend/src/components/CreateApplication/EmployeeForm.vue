@@ -1,262 +1,352 @@
 <template>
-    <div class="data__completion">
-        <div class="completion__header">
-            <h3>Новый сотрудник</h3>
-            <button class="completion__button" @click="openExistingEmployeesModal">
-                Добавить существующего(-их)
-            </button>
-        </div>
-
-        <div v-if="selectedExistingEmployees.length > 0" class="existing-employees-info">
-            <div class="existing-employees-header">
-                <span class="existing-employees-count">Сотрудников добавлено: {{ selectedExistingEmployees.length }}</span>
-                <div class="existing-employees-actions">
-                    <button class="view-employees-btn" @click="openExistingEmployeesModal">Просмотреть</button>
-                    <button class="add-existing-btn" @click="addExistingEmployees" :disabled="!canAddExistingEmployees">
-                        Добавить
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div v-else>
-            <div class="completion__citizenship">
-                <div class="citizenship__header">
-                    <label class="citizenship__label">Гражданство <span class="required">*</span></label>
-                    <div class="citizenship-actions">
-                        <button class="cancel-edit-btn" @click="cancelEdit" v-if="editingEmployee">
-                            Отменить
-                        </button>
-                        <button 
-                            class="add-button" 
-                            @click="addEmployee"
-                            :disabled="!canAddEmployee"
-                            @mouseenter="showTooltip = true"
-                            @mouseleave="showTooltip = false"
-                        >
-                            {{ editingEmployee ? 'Применить' : 'Добавить' }}
-                        </button>
-                        <div v-if="showTooltip && !canAddEmployee" class="tooltip">
-                            <div class="tooltip-content">
-                                {{ getTooltipMessage }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="citizenship__dropdown">
-                    <button 
-                        class="dropdown__button" 
-                        @click="toggleCitizenshipDropdown"
-                        :disabled="editingEmployee && editingEmployee.isExisting"
-                    >
-                        <div class="button__content">
-                            <span class="button__text">{{ selectedCitizenshipText }}</span>
-                            <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }" />
-                        </div>
-                    </button>
-                    <transition name="dropdown">
-                        <div v-if="isCitizenshipDropdownOpen" class="dropdown__menu">
-                            <div 
-                                v-for="citizenship in availableCitizenships" 
-                                :key="citizenship.id"
-                                class="dropdown__item" 
-                                @click="selectCitizenship(citizenship)"
-                            >
-                                <span class="item__text">{{ citizenship.name }}</span>
-                                <span v-if="citizenship.patent_required" class="patent-required-badge">Требуется патент</span>
-                            </div>
-                        </div>
-                    </transition>
-                </div>
-            </div>
-            
-            <div class="completion__fields">
-                <div class="completion__name-row">
-                    <div class="completion__last-name">
-                        <div class="completion__last-name-header">
-                            <label class="input__label">Фамилия <span class="required">*</span></label>
-                        </div>
-                        <input 
-                            class="name__input" 
-                            placeholder="Введите фамилию"
-                            v-model="lastName"
-                            @blur="formatNameField('lastName')"
-                            :disabled="editingEmployee && editingEmployee.isExisting"
-                        />
-                    </div>
-                    <div class="completion__first-name">
-                        <div class="completion__first-name-header">
-                            <label class="input__label">Имя <span class="required">*</span></label>
-                        </div>
-                        <input 
-                            class="name__input" 
-                            placeholder="Введите имя"
-                            v-model="firstName"
-                            @blur="formatNameField('firstName')"
-                            :disabled="editingEmployee && editingEmployee.isExisting"
-                        />
-                    </div>
-                </div>
-                
-                <div class="completion__name-row">
-                    <div class="completion__middle-name">
-                        <div class="completion__middle-name-header">
-                            <label class="input__label">Отчество</label>
-                        </div>
-                        <input 
-                            class="name__input" 
-                            placeholder="Введите отчество"
-                            v-model="middleName"
-                            @blur="formatNameField('middleName')"
-                            :disabled="editingEmployee && editingEmployee.isExisting"
-                        />
-                    </div>
-                    <div class="completion__position">
-                        <div class="completion__position-header">
-                            <label class="input__label">Должность <span class="required">*</span></label>
-                        </div>
-                        <input 
-                            class="name__input" 
-                            placeholder="Введите должность"
-                            v-model="position"
-                            @blur="formatNameField('position')"
-                            :disabled="editingEmployee && editingEmployee.isExisting"
-                        />
-                    </div>
-                </div>
-                
-                <div class="completion__name-row">
-                    <div class="completion__passport">
-                        <div class="completion__passport-header">
-                            <label class="input__label">Паспортные данные <span class="required">*</span></label>
-                        </div>
-                        <input 
-                            class="name__input" 
-                            placeholder="Введите паспортные данные"
-                            v-model="passportSeriesNumber"
-                            :disabled="editingEmployee && editingEmployee.isExisting"
-                        />
-                    </div>
-                    <div class="completion__patent" :class="{ 'disabled-field': !isPatentRequired }">
-                        <div class="completion__patent-header">
-                            <label class="input__label">Номер патента</label>
-                        </div>
-                        <input 
-                            class="name__input" 
-                            :placeholder="isPatentRequired ? 'Номер патента' : 'Не требуется'"
-                            v-model="patentNumber"
-                            :disabled="!isPatentRequired || patentFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
-                            @input="handlePatentInput"
-                        />
-                    </div>
-                </div>
-                
-                <div class="completion__permission" :class="{ 'disabled-field': !isPatentRequired }">
-                    <div class="completion__permission-header">
-                        <label class="input__label">Иное разрешение на работы</label>
-                    </div>
-                    <div class="permission__dropdown">
-                        <button class="permission__dropdown-button" 
-                                @click="togglePermissionDropdown" 
-                                :disabled="!isPatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)">
-                            <div class="permission__button-content">
-                                <span class="permission__button-text">{{ selectedPermission || (isPatentRequired ? 'Выберите разрешение' : 'Не требуется') }}</span>
-                                <img src="@/assets/icons/arrow.png" class="permission__button-arrow" :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }" />
-                            </div>
-                        </button>
-                        <transition name="dropdown">
-                            <div v-if="isPermissionDropdownOpen" class="permission__dropdown-menu">
-                                <div 
-                                    v-for="permission in availablePermissions" 
-                                    :key="permission"
-                                    class="permission__dropdown-item"
-                                    @click="selectPermission(permission)"
-                                >
-                                    <span class="permission__item-text">{{ permission }}</span>
-                                </div>
-                            </div>
-                        </transition>
-                    </div>
-                </div>
-                
-                <div class="completion__files" v-if="isPatentRequired">
-                    <div class="completion__files-header">
-                        <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
-                    </div>
-                    <div class="files__upload">
-                        <input 
-                            type="file" 
-                            ref="fileInput"
-                            @change="handleFileUpload"
-                            multiple
-                            accept="image/*,.pdf,.doc,.docx,.xlsx,.xls"
-                            class="file-input"
-                            :disabled="editingEmployee && editingEmployee.isExisting"
-                        />
-                        <button class="upload-button" @click="triggerFileInput" :disabled="editingEmployee && editingEmployee.isExisting">
-                            Загрузить
-                        </button>
-                    </div>
-                    <div v-if="uploadedFiles.length > 0" class="uploaded-files">
-                        <div v-for="(file, index) in uploadedFiles" :key="index" class="uploaded-file">
-                            <div class="file-preview">
-                                <img v-if="file.type === 'image'" :src="file.preview" class="file-preview-image" />
-                                <img v-else :src="getFileIcon(file.extension)" class="file-icon" />
-                            </div>
-                            <span class="file-name">{{ file.name }}</span>
-                            <button @click="removeFile(index)" class="remove-file-btn" :disabled="editingEmployee && editingEmployee.isExisting">×</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="completion__passage">
-            <label class="input__label">Места прохода (целевые таблицы) <span class="required">*</span></label>
-            <div class="passage__grid" v-if="!loadingPassageTables && filteredPassageTables.length > 0">
-                <div 
-                    v-for="table in filteredPassageTables" 
-                    :key="table.table.id"
-                    class="passage__item"
-                    :class="{ 
-                        'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
-                        'passage__item--attached': attachedTablesIds.includes(table.table.id),
-                        'passage__item--inactive': table.table.status !== 'active'
-                    }"
-                    @click="togglePassageTable(table)"
-                    @mouseenter="showTableTooltip(table, $event)"
-                    @mouseleave="hideTableTooltip"
-                >
-                    {{ table.table.display_name }}
-                </div>
-            </div>
-            <div v-else-if="loadingPassageTables" class="loading-message">
-                Загрузка мест прохода...
-            </div>
-            <div v-else class="no-tables-message">
-                Нет доступных мест прохода
-            </div>
-            <div v-if="errors.passageTables" class="error-message">{{ errors.passageTables }}</div>
-        </div>
-
-        <div v-if="tableTooltip.visible" 
-             class="inactive-tooltip"
-             :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
-        >
-            <div class="inactive-tooltip-content">
-                {{ tableTooltip.text }}
-            </div>
-        </div>
-
-        <ExistingEmployeesModal
-            :visible="showExistingEmployeesModal"
-            :already-added-employees="existingEmployees"
-            :user-organization-id="userOrganizationId"
-            :initial-selected-employees="selectedExistingEmployees"
-            @employees-selected="onEmployeesSelected"
-            @close="closeExistingEmployeesModal"
-        />
+  <div class="data__completion">
+    <div class="completion__header">
+      <h3>Новый сотрудник</h3>
+      <button
+        class="completion__button"
+        @click="openExistingEmployeesModal"
+      >
+        Добавить существующего(-их)
+      </button>
     </div>
+
+    <div
+      v-if="selectedExistingEmployees.length > 0"
+      class="existing-employees-info"
+    >
+      <div class="existing-employees-header">
+        <span class="existing-employees-count">Сотрудников добавлено: {{ selectedExistingEmployees.length }}</span>
+        <div class="existing-employees-actions">
+          <button
+            class="view-employees-btn"
+            @click="openExistingEmployeesModal"
+          >
+            Просмотреть
+          </button>
+          <button
+            class="add-existing-btn"
+            :disabled="!canAddExistingEmployees"
+            @click="addExistingEmployees"
+          >
+            Добавить
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-else>
+      <div class="completion__citizenship">
+        <div class="citizenship__header">
+          <label class="citizenship__label">Гражданство <span class="required">*</span></label>
+          <div class="citizenship-actions">
+            <button
+              v-if="editingEmployee"
+              class="cancel-edit-btn"
+              @click="cancelEdit"
+            >
+              Отменить
+            </button>
+            <button 
+              class="add-button" 
+              :disabled="!canAddEmployee"
+              @click="addEmployee"
+              @mouseenter="showTooltip = true"
+              @mouseleave="showTooltip = false"
+            >
+              {{ editingEmployee ? 'Применить' : 'Добавить' }}
+            </button>
+            <div
+              v-if="showTooltip && !canAddEmployee"
+              class="tooltip"
+            >
+              <div class="tooltip-content">
+                {{ getTooltipMessage }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="citizenship__dropdown">
+          <button 
+            class="dropdown__button" 
+            :disabled="editingEmployee && editingEmployee.isExisting"
+            @click="toggleCitizenshipDropdown"
+          >
+            <div class="button__content">
+              <span class="button__text">{{ selectedCitizenshipText }}</span>
+              <img
+                src="@/assets/icons/arrow.png"
+                class="button__arrow"
+                :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
+              >
+            </div>
+          </button>
+          <transition name="dropdown">
+            <div
+              v-if="isCitizenshipDropdownOpen"
+              class="dropdown__menu"
+            >
+              <div 
+                v-for="citizenship in availableCitizenships" 
+                :key="citizenship.id"
+                class="dropdown__item" 
+                @click="selectCitizenship(citizenship)"
+              >
+                <span class="item__text">{{ citizenship.name }}</span>
+                <span
+                  v-if="citizenship.patent_required"
+                  class="patent-required-badge"
+                >Требуется патент</span>
+              </div>
+            </div>
+          </transition>
+        </div>
+      </div>
+            
+      <div class="completion__fields">
+        <div class="completion__name-row">
+          <div class="completion__last-name">
+            <div class="completion__last-name-header">
+              <label class="input__label">Фамилия <span class="required">*</span></label>
+            </div>
+            <input 
+              v-model="lastName" 
+              class="name__input"
+              placeholder="Введите фамилию"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+              @blur="formatNameField('lastName')"
+            >
+          </div>
+          <div class="completion__first-name">
+            <div class="completion__first-name-header">
+              <label class="input__label">Имя <span class="required">*</span></label>
+            </div>
+            <input 
+              v-model="firstName" 
+              class="name__input"
+              placeholder="Введите имя"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+              @blur="formatNameField('firstName')"
+            >
+          </div>
+        </div>
+                
+        <div class="completion__name-row">
+          <div class="completion__middle-name">
+            <div class="completion__middle-name-header">
+              <label class="input__label">Отчество</label>
+            </div>
+            <input 
+              v-model="middleName" 
+              class="name__input"
+              placeholder="Введите отчество"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+              @blur="formatNameField('middleName')"
+            >
+          </div>
+          <div class="completion__position">
+            <div class="completion__position-header">
+              <label class="input__label">Должность <span class="required">*</span></label>
+            </div>
+            <input 
+              v-model="position" 
+              class="name__input"
+              placeholder="Введите должность"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+              @blur="formatNameField('position')"
+            >
+          </div>
+        </div>
+                
+        <div class="completion__name-row">
+          <div class="completion__passport">
+            <div class="completion__passport-header">
+              <label class="input__label">Паспортные данные <span class="required">*</span></label>
+            </div>
+            <input 
+              v-model="passportSeriesNumber" 
+              class="name__input"
+              placeholder="Введите паспортные данные"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+            >
+          </div>
+          <div
+            class="completion__patent"
+            :class="{ 'disabled-field': !isPatentRequired }"
+          >
+            <div class="completion__patent-header">
+              <label class="input__label">Номер патента</label>
+            </div>
+            <input 
+              v-model="patentNumber" 
+              class="name__input"
+              :placeholder="isPatentRequired ? 'Номер патента' : 'Не требуется'"
+              :disabled="!isPatentRequired || patentFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
+              @input="handlePatentInput"
+            >
+          </div>
+        </div>
+                
+        <div
+          class="completion__permission"
+          :class="{ 'disabled-field': !isPatentRequired }"
+        >
+          <div class="completion__permission-header">
+            <label class="input__label">Иное разрешение на работы</label>
+          </div>
+          <div class="permission__dropdown">
+            <button
+              class="permission__dropdown-button" 
+              :disabled="!isPatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)" 
+              @click="togglePermissionDropdown"
+            >
+              <div class="permission__button-content">
+                <span class="permission__button-text">{{ selectedPermission || (isPatentRequired ? 'Выберите разрешение' : 'Не требуется') }}</span>
+                <img
+                  src="@/assets/icons/arrow.png"
+                  class="permission__button-arrow"
+                  :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
+                >
+              </div>
+            </button>
+            <transition name="dropdown">
+              <div
+                v-if="isPermissionDropdownOpen"
+                class="permission__dropdown-menu"
+              >
+                <div 
+                  v-for="permission in availablePermissions" 
+                  :key="permission"
+                  class="permission__dropdown-item"
+                  @click="selectPermission(permission)"
+                >
+                  <span class="permission__item-text">{{ permission }}</span>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
+                
+        <div
+          v-if="isPatentRequired"
+          class="completion__files"
+        >
+          <div class="completion__files-header">
+            <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
+          </div>
+          <div class="files__upload">
+            <input 
+              ref="fileInput" 
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.xlsx,.xls"
+              class="file-input"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+              @change="handleFileUpload"
+            >
+            <button
+              class="upload-button"
+              :disabled="editingEmployee && editingEmployee.isExisting"
+              @click="triggerFileInput"
+            >
+              Загрузить
+            </button>
+          </div>
+          <div
+            v-if="uploadedFiles.length > 0"
+            class="uploaded-files"
+          >
+            <div
+              v-for="(file, index) in uploadedFiles"
+              :key="index"
+              class="uploaded-file"
+            >
+              <div class="file-preview">
+                <img
+                  v-if="file.type === 'image'"
+                  :src="file.preview"
+                  class="file-preview-image"
+                >
+                <img
+                  v-else
+                  :src="getFileIcon(file.extension)"
+                  class="file-icon"
+                >
+              </div>
+              <span class="file-name">{{ file.name }}</span>
+              <button
+                class="remove-file-btn"
+                :disabled="editingEmployee && editingEmployee.isExisting"
+                @click="removeFile(index)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="completion__passage">
+      <label class="input__label">Места прохода (целевые таблицы) <span class="required">*</span></label>
+      <div
+        v-if="!loadingPassageTables && filteredPassageTables.length > 0"
+        class="passage__grid"
+      >
+        <div 
+          v-for="table in filteredPassageTables" 
+          :key="table.table.id"
+          class="passage__item"
+          :class="{ 
+            'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
+            'passage__item--attached': attachedTablesIds.includes(table.table.id),
+            'passage__item--inactive': table.table.status !== 'active'
+          }"
+          @click="togglePassageTable(table)"
+          @mouseenter="showTableTooltip(table, $event)"
+          @mouseleave="hideTableTooltip"
+        >
+          {{ table.table.display_name }}
+        </div>
+      </div>
+      <div
+        v-else-if="loadingPassageTables"
+        class="loading-message"
+      >
+        Загрузка мест прохода...
+      </div>
+      <div
+        v-else
+        class="no-tables-message"
+      >
+        Нет доступных мест прохода
+      </div>
+      <div
+        v-if="errors.passageTables"
+        class="error-message"
+      >
+        {{ errors.passageTables }}
+      </div>
+    </div>
+
+    <div
+      v-if="tableTooltip.visible" 
+      class="inactive-tooltip"
+      :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
+    >
+      <div class="inactive-tooltip-content">
+        {{ tableTooltip.text }}
+      </div>
+    </div>
+
+    <ExistingEmployeesModal
+      :visible="showExistingEmployeesModal"
+      :already-added-employees="existingEmployees"
+      :user-organization-id="userOrganizationId"
+      :initial-selected-employees="selectedExistingEmployees"
+      @employees-selected="onEmployeesSelected"
+      @close="closeExistingEmployeesModal"
+    />
+  </div>
 </template>
 
 <script>
@@ -410,6 +500,22 @@ export default {
                 }
             });
         }
+    },
+    async mounted() {
+        await Promise.all([
+            this.loadCitizenships(),
+            this.loadPassageTables()
+        ]);
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.citizenship__dropdown')) {
+                this.isCitizenshipDropdownOpen = false;
+            }
+            
+            if (!e.target.closest('.permission__dropdown')) {
+                this.isPermissionDropdownOpen = false;
+            }
+        });
     },
     methods: {
         async loadCitizenships() {
@@ -878,22 +984,6 @@ export default {
         removeFile(index) {
             this.uploadedFiles.splice(index, 1);
         }
-    },
-    async mounted() {
-        await Promise.all([
-            this.loadCitizenships(),
-            this.loadPassageTables()
-        ]);
-
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.citizenship__dropdown')) {
-                this.isCitizenshipDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.permission__dropdown')) {
-                this.isPermissionDropdownOpen = false;
-            }
-        });
     }
 }
 </script>

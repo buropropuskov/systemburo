@@ -11,16 +11,32 @@
     <div class="nav-content">
       <!-- ЗАЯВКИ -->
       <div class="nav-section">
-        <div class="section-title">ЗАЯВКИ</div>
-        <div class="nav-item" data-testid="nav-link-center" @click="navigateToCenter">
+        <div class="section-title">
+          ЗАЯВКИ
+        </div>
+        <div
+          class="nav-item"
+          data-testid="nav-link-center"
+          @click="navigateToCenter"
+        >
           <div class="nav-icon-wrapper">
-            <img src="@/assets/icons/envelope.png" alt="Центр заявок" class="nav-icon">
-            <span v-if="newApplicationsCount > 0" class="icon-badge">
+            <img
+              src="@/assets/icons/envelope.png"
+              alt="Центр заявок"
+              class="nav-icon"
+            >
+            <span
+              v-if="newApplicationsCount > 0"
+              class="icon-badge"
+            >
               {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
             </span>
           </div>
           <span class="nav-text">Центр заявок</span>
-          <span v-if="newApplicationsCount > 0" class="notification-badge">
+          <span
+            v-if="newApplicationsCount > 0"
+            class="notification-badge"
+          >
             {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
           </span>
         </div>
@@ -28,7 +44,9 @@
 
       <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
       <div class="nav-section">
-        <div class="section-title">УПРАВЛЕНИЕ ДАННЫМИ</div>
+        <div class="section-title">
+          УПРАВЛЕНИЕ ДАННЫМИ
+        </div>
         
         <!-- Элемент с выпадающим списком таблиц -->
         <div class="nav-item-container">
@@ -38,10 +56,19 @@
             @mouseleave="handleDropdownLeave('tables')"
           >
             <div class="nav-item-content">
-              <img src="@/assets/icons/table.png" alt="Таблицы" class="nav-icon">
+              <img
+                src="@/assets/icons/table.png"
+                alt="Таблицы"
+                class="nav-icon"
+              >
               <span class="nav-text">Таблицы</span>
             </div>
-            <img src="@/assets/icons/arrow.png" alt="▼" class="dropdown-arrow" :class="{ rotated: dropdowns.tables }">
+            <img
+              src="@/assets/icons/arrow.png"
+              alt="▼"
+              class="dropdown-arrow"
+              :class="{ rotated: dropdowns.tables }"
+            >
           </div>
           
           <!-- Выпадающий список таблиц (справа от меню) -->
@@ -60,7 +87,10 @@
               >
                 {{ getTableDisplayName(table) }}
               </div>
-              <div v-if="systemTables.length === 0" class="dropdown-item disabled">
+              <div
+                v-if="systemTables.length === 0"
+                class="dropdown-item disabled"
+              >
                 Нет доступных таблиц
               </div>
             </div>
@@ -68,34 +98,70 @@
         </div>
 
         <!-- Элемент с выпадающим списком сотрудников -->
-        <div class="nav-item" data-testid="nav-link-employees" @click="navigateToEmployeesView">
-          <img src="@/assets/icons/employees.png" alt="Сотрудники" class="nav-icon">
+        <div
+          class="nav-item"
+          data-testid="nav-link-employees"
+          @click="navigateToEmployeesView"
+        >
+          <img
+            src="@/assets/icons/employees.png"
+            alt="Сотрудники"
+            class="nav-icon"
+          >
           <span class="nav-text">Сотрудники</span>
         </div>
-        <div class="nav-item" data-testid="nav-link-cars" @click="navigateToCarsView">
-          <img src="@/assets/icons/car.png" alt="Автомобили" class="nav-icon">
+        <div
+          class="nav-item"
+          data-testid="nav-link-cars"
+          @click="navigateToCarsView"
+        >
+          <img
+            src="@/assets/icons/car.png"
+            alt="Автомобили"
+            class="nav-icon"
+          >
           <span class="nav-text">Автомобили</span>
         </div>
       </div>
 
       <!-- АНАЛИТИКА -->
       <div class="nav-section">
-        <div class="section-title">АНАЛИТИКА</div>
+        <div class="section-title">
+          АНАЛИТИКА
+        </div>
         <div class="nav-item disabled">
-          <img src="@/assets/icons/stats.png" alt="Статистика" class="nav-icon">
+          <img
+            src="@/assets/icons/stats.png"
+            alt="Статистика"
+            class="nav-icon"
+          >
           <span class="nav-text disabled ">Статистика</span>
         </div>
         <div class="nav-item disabled">
-          <img src="@/assets/icons/clipboard.png" alt="Отчёты" class="nav-icon">
+          <img
+            src="@/assets/icons/clipboard.png"
+            alt="Отчёты"
+            class="nav-icon"
+          >
           <span class="nav-text disabled">Отчёты</span>
         </div>
       </div>
 
       <!-- ПОЛЬЗОВАТЕЛЬ (в нижней части) -->
       <div class="nav-section user-section">
-        <div class="section-title">ПОЛЬЗОВАТЕЛЬ</div>
-        <div class="nav-item" data-testid="nav-link-news" @click="navigateToNews">
-          <img src="@/assets/icons/newspaper.png" alt="Новости" class="nav-icon">
+        <div class="section-title">
+          ПОЛЬЗОВАТЕЛЬ
+        </div>
+        <div
+          class="nav-item"
+          data-testid="nav-link-news"
+          @click="navigateToNews"
+        >
+          <img
+            src="@/assets/icons/newspaper.png"
+            alt="Новости"
+            class="nav-icon"
+          >
           <span class="nav-text">Обзор и новости</span>
         </div>
         
@@ -107,10 +173,19 @@
             @mouseleave="handleDropdownLeave('admin')"
           >
             <div class="nav-item-content">
-              <img src="@/assets/settings.png" alt="Админка" class="nav-icon">
+              <img
+                src="@/assets/settings.png"
+                alt="Админка"
+                class="nav-icon"
+              >
               <span class="nav-text">Админка</span>
             </div>
-            <img src="@/assets/icons/arrow.png" alt="▼" class="dropdown-arrow" :class="{ rotated: dropdowns.admin }">
+            <img
+              src="@/assets/icons/arrow.png"
+              alt="▼"
+              class="dropdown-arrow"
+              :class="{ rotated: dropdowns.admin }"
+            >
           </div>
           
           <!-- Выпадающий список админки (справа от меню) -->
@@ -149,12 +224,28 @@
           </transition>
         </div>
         
-        <div class="nav-item" data-testid="nav-link-cabinet" @click="navigateToAccount">
-          <img src="@/assets/icons/user.png" alt="Личный кабинет" class="nav-icon">
+        <div
+          class="nav-item"
+          data-testid="nav-link-cabinet"
+          @click="navigateToAccount"
+        >
+          <img
+            src="@/assets/icons/user.png"
+            alt="Личный кабинет"
+            class="nav-icon"
+          >
           <span class="nav-text">Личный кабинет</span>
         </div>
-        <div class="nav-item" data-testid="nav-button-logout" @click="logout">
-          <img src="@/assets/icons/logout.png" alt="Выйти" class="nav-icon">
+        <div
+          class="nav-item"
+          data-testid="nav-button-logout"
+          @click="logout"
+        >
+          <img
+            src="@/assets/icons/logout.png"
+            alt="Выйти"
+            class="nav-icon"
+          >
           <span class="nav-text exit">Выйти</span>
         </div>
       </div>
@@ -182,6 +273,26 @@ export default {
       applicationsPollingInterval: null,
       tablesPollingInterval: null
     };
+  },
+  async mounted() {
+    document.body.classList.add('auth-active');
+    await this.fetchSystemTables();
+    this.startApplicationsPolling();
+    this.startTablesPolling();
+  },
+  beforeUnmount() {
+    document.body.classList.remove('auth-active');
+    this.stopApplicationsPolling();
+    
+    if (this.hoverTimeout) {
+      clearTimeout(this.hoverTimeout);
+    }
+    if (this.dropdownTimeout) {
+      clearTimeout(this.dropdownTimeout);
+    }
+    if (this.dropdownLeaveTimeout) {
+      clearTimeout(this.dropdownLeaveTimeout);
+    }
   },
   methods: {
     expandMenu() {
@@ -353,26 +464,6 @@ export default {
     logout() {
       this.stopApplicationsPolling();
       this.$emit('logout');
-    }
-  },
-  async mounted() {
-    document.body.classList.add('auth-active');
-    await this.fetchSystemTables();
-    this.startApplicationsPolling();
-    this.startTablesPolling();
-  },
-  beforeUnmount() {
-    document.body.classList.remove('auth-active');
-    this.stopApplicationsPolling();
-    
-    if (this.hoverTimeout) {
-      clearTimeout(this.hoverTimeout);
-    }
-    if (this.dropdownTimeout) {
-      clearTimeout(this.dropdownTimeout);
-    }
-    if (this.dropdownLeaveTimeout) {
-      clearTimeout(this.dropdownLeaveTimeout);
     }
   }
 };

@@ -1,119 +1,164 @@
 <template>
-    <div v-if="visible" class="modal-overlay" @click="$emit('close')">
-        <div class="modal-content" @click.stop>
-            <div class="modal-header">
-                <h3>Выбор существующих сотрудников</h3>
-                <div class="header-right">
-                    <SearchComponent
-                        title="Поиск сотрудников..."
-                        v-model="searchQuery"
-                        @update:modelValue="handleSearch"
-                    />
-                </div>
-                <button class="modal-close" @click="$emit('close')">×</button>
-            </div>
-
-            <div class="filter-section">
-                <div class="filter-tabs">
-                    <button
-                        class="filter-tab"
-                        :class="{ 'filter-tab--active': currentFilter === 'all' }"
-                        @click="switchFilter('all')"
-                    >
-                        Все сотрудники
-                    </button>
-                    <button
-                        v-if="userOrganizationId"
-                        class="filter-tab"
-                        :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-                        @click="switchFilter('organization')"
-                    >
-                        Организация
-                    </button>
-                    <button
-                        class="filter-tab"
-                        :class="{ 'filter-tab--active': currentFilter === 'user' }"
-                        @click="switchFilter('user')"
-                    >
-                        Мои
-                    </button>
-                </div>
-                <div v-if="tempSelectedEmployees.length > 0" class="selected-counter">
-                    Выбрано: <span class="selected-count">{{ tempSelectedEmployees.length }}</span>
-                </div>
-            </div>
-
-            <div class="employees-table-container">
-                <div class="employees-table">
-                    <div class="table-header">
-                        <div class="header-cell select-cell"></div>
-                        <div class="header-cell number-cell">№</div>
-                        <div class="header-cell name-col">ФИО</div>
-                        <div class="header-cell position-col">Должность</div>
-                        <div class="header-cell citizenship-col">Гражданство</div>
-                        <div class="header-cell status-cell">Статус</div>
-                    </div>
-
-                    <div class="table-body">
-                        <div
-                            v-for="employee in displayedEmployees"
-                            :key="employee.id"
-                            class="table-row"
-                            :class="{
-                                'table-row--disabled': isEmployeeDisabled(employee),
-                                'table-row--selected': isEmployeeSelected(employee)
-                            }"
-                            @click="handleRowClick(employee)"
-                        >
-                            <div class="table-cell select-cell" @click.stop>
-                                <input
-                                    type="checkbox"
-                                    :checked="isEmployeeSelected(employee)"
-                                    :disabled="isEmployeeDisabled(employee)"
-                                    @change="toggleEmployeeSelection(employee)"
-                                />
-                            </div>
-                            <div class="table-cell number-cell">{{ employee.id }}</div>
-                            <div class="table-cell name-col">{{ formatFullName(employee) }}</div>
-                            <div class="table-cell position-col">{{ employee.position || 'Не указана' }}</div>
-                            <div class="table-cell citizenship-col">{{ employee.citizenship_name || 'Не указано' }}</div>
-                            <div class="table-cell status-cell">
-                                <span
-                                    class="status-badge"
-                                    :class="{
-                                        'status-active': employee.status,
-                                        'status-inactive': !employee.status
-                                    }"
-                                >
-                                    {{ employee.status ? 'Активен' : 'Неактивен' }}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div v-if="loadingEmployees" class="loading-state">
-                            <LoaderSpinner label="Загрузка сотрудников…" />
-                        </div>
-                        <div v-else-if="displayedEmployees.length === 0" class="empty-state">
-                            {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных сотрудников' }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-actions">
-                <button class="btn btn-secondary" @click="$emit('close')">
-                    Отмена
-                </button>
-                <button
-                    class="btn btn-primary"
-                    @click="confirmSelection"
-                    :disabled="tempSelectedEmployees.length === 0"
-                >
-                    {{ tempSelectedEmployees.length > 0 ? `Добавить (${tempSelectedEmployees.length})` : 'Добавить' }}
-                </button>
-            </div>
+  <div
+    v-if="visible"
+    class="modal-overlay"
+    @click="$emit('close')"
+  >
+    <div
+      class="modal-content"
+      @click.stop
+    >
+      <div class="modal-header">
+        <h3>Выбор существующих сотрудников</h3>
+        <div class="header-right">
+          <SearchComponent
+            v-model="searchQuery"
+            title="Поиск сотрудников..."
+            @update:model-value="handleSearch"
+          />
         </div>
+        <button
+          class="modal-close"
+          @click="$emit('close')"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-tabs">
+          <button
+            class="filter-tab"
+            :class="{ 'filter-tab--active': currentFilter === 'all' }"
+            @click="switchFilter('all')"
+          >
+            Все сотрудники
+          </button>
+          <button
+            v-if="userOrganizationId"
+            class="filter-tab"
+            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+            @click="switchFilter('organization')"
+          >
+            Организация
+          </button>
+          <button
+            class="filter-tab"
+            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+            @click="switchFilter('user')"
+          >
+            Мои
+          </button>
+        </div>
+        <div
+          v-if="tempSelectedEmployees.length > 0"
+          class="selected-counter"
+        >
+          Выбрано: <span class="selected-count">{{ tempSelectedEmployees.length }}</span>
+        </div>
+      </div>
+
+      <div class="employees-table-container">
+        <div class="employees-table">
+          <div class="table-header">
+            <div class="header-cell select-cell" />
+            <div class="header-cell number-cell">
+              №
+            </div>
+            <div class="header-cell name-col">
+              ФИО
+            </div>
+            <div class="header-cell position-col">
+              Должность
+            </div>
+            <div class="header-cell citizenship-col">
+              Гражданство
+            </div>
+            <div class="header-cell status-cell">
+              Статус
+            </div>
+          </div>
+
+          <div class="table-body">
+            <div
+              v-for="employee in displayedEmployees"
+              :key="employee.id"
+              class="table-row"
+              :class="{
+                'table-row--disabled': isEmployeeDisabled(employee),
+                'table-row--selected': isEmployeeSelected(employee)
+              }"
+              @click="handleRowClick(employee)"
+            >
+              <div
+                class="table-cell select-cell"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  :checked="isEmployeeSelected(employee)"
+                  :disabled="isEmployeeDisabled(employee)"
+                  @change="toggleEmployeeSelection(employee)"
+                >
+              </div>
+              <div class="table-cell number-cell">
+                {{ employee.id }}
+              </div>
+              <div class="table-cell name-col">
+                {{ formatFullName(employee) }}
+              </div>
+              <div class="table-cell position-col">
+                {{ employee.position || 'Не указана' }}
+              </div>
+              <div class="table-cell citizenship-col">
+                {{ employee.citizenship_name || 'Не указано' }}
+              </div>
+              <div class="table-cell status-cell">
+                <span
+                  class="status-badge"
+                  :class="{
+                    'status-active': employee.status,
+                    'status-inactive': !employee.status
+                  }"
+                >
+                  {{ employee.status ? 'Активен' : 'Неактивен' }}
+                </span>
+              </div>
+            </div>
+
+            <div
+              v-if="loadingEmployees"
+              class="loading-state"
+            >
+              <LoaderSpinner label="Загрузка сотрудников…" />
+            </div>
+            <div
+              v-else-if="displayedEmployees.length === 0"
+              class="empty-state"
+            >
+              {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных сотрудников' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button
+          class="btn btn-secondary"
+          @click="$emit('close')"
+        >
+          Отмена
+        </button>
+        <button
+          class="btn btn-primary"
+          :disabled="tempSelectedEmployees.length === 0"
+          @click="confirmSelection"
+        >
+          {{ tempSelectedEmployees.length > 0 ? `Добавить (${tempSelectedEmployees.length})` : 'Добавить' }}
+        </button>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>

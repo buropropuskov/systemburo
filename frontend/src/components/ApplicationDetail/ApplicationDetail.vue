@@ -1,243 +1,303 @@
 <template>
-    <!-- Внешний контейнер для модального окна -->
-    <div class="application-detail-overlay" @click.self="closeApplicationDetail">
-        <!-- Уведомление -->
-        <div v-if="notification.show" class="notification" :class="notification.type">
-            {{ notification.message }}
-        </div>
-
-        <!-- Модальное окно пересылки -->
-        <ForwardModal
-            v-if="showForwardModal"
-            :all-users="allUsers"
-            :responsible-users="responsibleUsers"
-            :existing-approvers="approvers"  
-            :existing-viewers="viewers"       
-            :is-sending="isForwarding"
-            @close="closeForwardModal"
-            @send="sendForwardRequest"
-        />
-
-        <div class="application-detail">
-            <!-- Заголовок и кнопки -->
-            <div class="detail-header">
-                <div class="detail-header-left">
-                    <div class="detail-title-row">
-                        <h3 class="detail-title">Заявка {{ applicationData.application_number }}</h3>
-                        <div class="detail-datetime">
-                            {{ formatDateTime(applicationData.sending_datetime) }}
-                            <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
-                        </div>
-                        <!-- Кнопка пересылки (рядом с датой) -->
-                        <button
-                            v-if="mode === 'center'"
-                            class="forward-btn"
-                            data-testid="app-detail-button-forward"
-                            @click="forwardApplication"
-                            :disabled="updatingConfirmation || processingApplication"
-                        >
-                            <span v-if="updatingConfirmation || processingApplication" class="button-loading"></span>
-                            <span v-else>Переслать</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="detail-header-right">
-                    <ApplicationActionBar
-                        :application="applicationData"
-                        :current-user-id="currentUserId"
-                        :responsible-users="responsibleUsers"
-                        :approvers="approvers"
-                        :mode="mode"
-                        :processing="processingApplication"
-                        :updating-confirmation="updatingConfirmation"
-                        :action-comment="actionComment"
-                        @action-completed="handleActionCompleted"
-                        @processing-change="processingApplication = $event"
-                        @updating-confirmation-change="updatingConfirmation = $event"
-                        @comment-clear="clearCommentFromLocalStorage"
-                    >
-                        <template #user-actions>
-                            <button
-                                class="duplicate-btn"
-                                @click="duplicateApplication"
-                            >
-                                Продублировать
-                            </button>
-                        </template>
-                    </ApplicationActionBar>
-
-                    <button class="close-detail-btn" @click="close">×</button>
-                </div>
-            </div>
-
-            <div class="detail-content">
-                <!-- Левая колонка - вложения -->
-                <div class="detail-left-column" :class="{ collapsed: isLeftColumnCollapsed }">
-                    <ApplicationAttachments 
-                        :application-id="applicationData.id"
-                        :attachments="attachments"
-                        :collapsed="isLeftColumnCollapsed"
-                        @attachment-selected="selectAttachment"
-                        @toggle-collapse="toggleLeftColumn"
-                    />
-                </div>
-
-                <!-- Центральная колонка - детали -->
-                <div class="detail-main-column">
-                    <!-- Сообщение заявки -->
-                    <div class="message-section">
-                        <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
-                        <div class="message-content">
-                            {{ applicationData.message || 'Сообщение отсутствует' }}
-                        </div>
-                    </div>
-
-                    <!-- Детали выбранного вложения -->
-                    <ApplicationAttachmentDetail
-                        v-if="selectedAttachment"
-                        :attachment="selectedAttachment"
-                        :cars="attachmentCars"
-                        :employees="attachmentEmployees"
-                        :items="attachmentItems"
-                        :loading="loadingAttachmentDetails"
-                        @open-vehicle="openVehicleModal"
-                        @open-employee="openEmployeeModal"
-                    />
-                </div>
-
-                <!-- Правая колонка - информация о заявке и согласовании -->
-                <div class="detail-right-column">
-                    <!-- Основная информация -->
-                    <div class="basic-info-section">
-                        <h4>Основная информация</h4>
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <span class="info-label">Организация / Отдел:</span>
-                                <span class="info-value">{{ applicationData.organization_name }}</span>
-                            </div>
-                            <div v-if="applicationData.company_name" class="info-row">
-                                <span class="info-label">Компания:</span>
-                                <span class="info-value">{{ applicationData.company_name }}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Отправитель:</span>
-                                <span class="info-value">{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Блок статуса заявки (для принятых/отказанных/завершенных) -->
-                    <div v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано' || applicationData.status === 'Завершено'" class="application-status-section">
-                        <div class="status-header">
-                            <h4>Статус заявки</h4>
-                            <span class="status-mini-badge" :class="getStatusBadgeClass(applicationData.status)">
-                                {{ applicationData.status }}
-                            </span>
-                        </div>
-                        
-                        <!-- Для статусов В работе и Отказано -->
-                        <div class="status-info" v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'">
-                            <div class="status-info-row" v-if="applicationData.responsible_user_id">
-                                <span class="status-info-label">{{ applicationData.status === 'В работе' ? 'Принял(-а):' : 'Отказал(а):' }}</span>
-                                <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
-                            </div>
-                            <div v-if="applicationData.confirmation_datetime" class="status-info-row">
-                                <span class="status-info-label">Время:</span>
-                                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
-                            </div>
-                            <div class="status-info-row comment-row">
-                                <span class="status-info-label">Комментарий:</span>
-                                <div class="status-info-value comment-text">{{ applicationData.responsible_comment || 'Комментария нет' }}</div>
-                            </div>
-                        </div>
-
-                        <!-- Для статуса Завершено (показываем и принятие, и завершение) -->
-                        <div class="status-info" v-else-if="applicationData.status === 'Завершено'">
-                            <!-- Информация о принятии -->
-                            <div class="status-info-row" v-if="applicationData.responsible_name">
-                                <span class="status-info-label">Принял(-а):</span>
-                                <span class="status-info-value">{{ applicationData.responsible_name }}</span>
-                            </div>
-                            <div v-if="applicationData.confirmation_datetime" class="status-info-row">
-                                <span class="status-info-label">Время принятия:</span>
-                                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
-                            </div>
-                            <!-- Информация о завершении -->
-                            <div class="status-info-row" v-if="applicationData.completed_by_name">
-                                <span class="status-info-label">Завершил(-а):</span>
-                                <span class="status-info-value">{{ applicationData.completed_by_name }}</span>
-                            </div>
-                            <div v-if="applicationData.completed_at" class="status-info-row">
-                                <span class="status-info-label">Время завершения:</span>
-                                <span class="status-info-value">{{ formatDateTime(applicationData.completed_at) }}</span>
-                            </div>
-                            <!-- Комментарий к завершению (или общий) -->
-                            <div class="status-info-row comment-row">
-                                <span class="status-info-label">Комментарий:</span>
-                                <div class="status-info-value comment-text">{{ applicationData.completion_comment || 'Комментария нет' }}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Поле для комментария (только для пользователей, которые еще не выполнили действие) -->
-                    <div v-if="canLeaveComment && !hasUserVoted && !isApproverActionDone" class="comment-action-section">
-                        <h4>Комментарий</h4>
-                        <textarea
-                            v-model="actionComment"
-                            class="comment-action-textarea"
-                            placeholder="Вы можете написать здесь комментарий (необязательно)"
-                            rows="3"
-                            @input="saveCommentToLocalStorage"
-                        ></textarea>
-                    </div>
-
-                    <!-- Компонент согласования (без информации о принявшем) -->
-                    <ApplicationConfirmation 
-                        ref="confirmationComponent"
-                        :application="applicationData"
-                        :responsible-users="responsibleUsers"
-                        :current-user-id="currentUserId"
-                        :updating-confirmation="updatingConfirmation"
-                    />
-
-                    <div class="history-button-section">
-                        <ApplicationHistory
-                            ref="historyComponent"
-                            :application-id="applicationData.id"
-                            :application-number="applicationData.application_number"
-                            :current-user-id="currentUserId"
-                            :current-user-name="currentUserName"
-                            :application-organization="applicationData.organization_name"
-                            @application-updated="handleApplicationUpdate"
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
-        <VehicleDetailsModal
-            v-if="showVehicleModal"
-            :show="showVehicleModal"
-            :vehicle="selectedVehicle"
-            :all-unloading-places="allUnloadingPlaces"
-            :license-plate-formats="licensePlateFormats"
-            :current-user-id="currentUserId"
-            :current-user-name="currentUserName"
-            :show-car-features="true"
-            :source="'application'"
-            @close="showVehicleModal = false"
-        />
-
-        <EmployeeDetailsModal
-            v-if="showEmployeeModal"
-            :show="showEmployeeModal"
-            :employee="selectedEmployee"
-            :all-tables="allTables"
-            :current-user-id="currentUserId"
-            :current-user-name="currentUserName"
-            :source="'application'"
-            @close="showEmployeeModal = false"
-        />
+  <!-- Внешний контейнер для модального окна -->
+  <div
+    class="application-detail-overlay"
+    @click.self="closeApplicationDetail"
+  >
+    <!-- Уведомление -->
+    <div
+      v-if="notification.show"
+      class="notification"
+      :class="notification.type"
+    >
+      {{ notification.message }}
     </div>
+
+    <!-- Модальное окно пересылки -->
+    <ForwardModal
+      v-if="showForwardModal"
+      :all-users="allUsers"
+      :responsible-users="responsibleUsers"
+      :existing-approvers="approvers"  
+      :existing-viewers="viewers"       
+      :is-sending="isForwarding"
+      @close="closeForwardModal"
+      @send="sendForwardRequest"
+    />
+
+    <div class="application-detail">
+      <!-- Заголовок и кнопки -->
+      <div class="detail-header">
+        <div class="detail-header-left">
+          <div class="detail-title-row">
+            <h3 class="detail-title">
+              Заявка {{ applicationData.application_number }}
+            </h3>
+            <div class="detail-datetime">
+              {{ formatDateTime(applicationData.sending_datetime) }}
+              <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
+            </div>
+            <!-- Кнопка пересылки (рядом с датой) -->
+            <button
+              v-if="mode === 'center'"
+              class="forward-btn"
+              data-testid="app-detail-button-forward"
+              :disabled="updatingConfirmation || processingApplication"
+              @click="forwardApplication"
+            >
+              <span
+                v-if="updatingConfirmation || processingApplication"
+                class="button-loading"
+              />
+              <span v-else>Переслать</span>
+            </button>
+          </div>
+        </div>
+        <div class="detail-header-right">
+          <ApplicationActionBar
+            :application="applicationData"
+            :current-user-id="currentUserId"
+            :responsible-users="responsibleUsers"
+            :approvers="approvers"
+            :mode="mode"
+            :processing="processingApplication"
+            :updating-confirmation="updatingConfirmation"
+            :action-comment="actionComment"
+            @action-completed="handleActionCompleted"
+            @processing-change="processingApplication = $event"
+            @updating-confirmation-change="updatingConfirmation = $event"
+            @comment-clear="clearCommentFromLocalStorage"
+          >
+            <template #user-actions>
+              <button
+                class="duplicate-btn"
+                @click="duplicateApplication"
+              >
+                Продублировать
+              </button>
+            </template>
+          </ApplicationActionBar>
+
+          <button
+            class="close-detail-btn"
+            @click="close"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div class="detail-content">
+        <!-- Левая колонка - вложения -->
+        <div
+          class="detail-left-column"
+          :class="{ collapsed: isLeftColumnCollapsed }"
+        >
+          <ApplicationAttachments 
+            :application-id="applicationData.id"
+            :attachments="attachments"
+            :collapsed="isLeftColumnCollapsed"
+            @attachment-selected="selectAttachment"
+            @toggle-collapse="toggleLeftColumn"
+          />
+        </div>
+
+        <!-- Центральная колонка - детали -->
+        <div class="detail-main-column">
+          <!-- Сообщение заявки -->
+          <div class="message-section">
+            <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
+            <div class="message-content">
+              {{ applicationData.message || 'Сообщение отсутствует' }}
+            </div>
+          </div>
+
+          <!-- Детали выбранного вложения -->
+          <ApplicationAttachmentDetail
+            v-if="selectedAttachment"
+            :attachment="selectedAttachment"
+            :cars="attachmentCars"
+            :employees="attachmentEmployees"
+            :items="attachmentItems"
+            :loading="loadingAttachmentDetails"
+            @open-vehicle="openVehicleModal"
+            @open-employee="openEmployeeModal"
+          />
+        </div>
+
+        <!-- Правая колонка - информация о заявке и согласовании -->
+        <div class="detail-right-column">
+          <!-- Основная информация -->
+          <div class="basic-info-section">
+            <h4>Основная информация</h4>
+            <div class="info-grid">
+              <div class="info-row">
+                <span class="info-label">Организация / Отдел:</span>
+                <span class="info-value">{{ applicationData.organization_name }}</span>
+              </div>
+              <div
+                v-if="applicationData.company_name"
+                class="info-row"
+              >
+                <span class="info-label">Компания:</span>
+                <span class="info-value">{{ applicationData.company_name }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Отправитель:</span>
+                <span class="info-value">{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Блок статуса заявки (для принятых/отказанных/завершенных) -->
+          <div
+            v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано' || applicationData.status === 'Завершено'"
+            class="application-status-section"
+          >
+            <div class="status-header">
+              <h4>Статус заявки</h4>
+              <span
+                class="status-mini-badge"
+                :class="getStatusBadgeClass(applicationData.status)"
+              >
+                {{ applicationData.status }}
+              </span>
+            </div>
+                        
+            <!-- Для статусов В работе и Отказано -->
+            <div
+              v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'"
+              class="status-info"
+            >
+              <div
+                v-if="applicationData.responsible_user_id"
+                class="status-info-row"
+              >
+                <span class="status-info-label">{{ applicationData.status === 'В работе' ? 'Принял(-а):' : 'Отказал(а):' }}</span>
+                <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
+              </div>
+              <div
+                v-if="applicationData.confirmation_datetime"
+                class="status-info-row"
+              >
+                <span class="status-info-label">Время:</span>
+                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+              </div>
+              <div class="status-info-row comment-row">
+                <span class="status-info-label">Комментарий:</span>
+                <div class="status-info-value comment-text">
+                  {{ applicationData.responsible_comment || 'Комментария нет' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Для статуса Завершено (показываем и принятие, и завершение) -->
+            <div
+              v-else-if="applicationData.status === 'Завершено'"
+              class="status-info"
+            >
+              <!-- Информация о принятии -->
+              <div
+                v-if="applicationData.responsible_name"
+                class="status-info-row"
+              >
+                <span class="status-info-label">Принял(-а):</span>
+                <span class="status-info-value">{{ applicationData.responsible_name }}</span>
+              </div>
+              <div
+                v-if="applicationData.confirmation_datetime"
+                class="status-info-row"
+              >
+                <span class="status-info-label">Время принятия:</span>
+                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+              </div>
+              <!-- Информация о завершении -->
+              <div
+                v-if="applicationData.completed_by_name"
+                class="status-info-row"
+              >
+                <span class="status-info-label">Завершил(-а):</span>
+                <span class="status-info-value">{{ applicationData.completed_by_name }}</span>
+              </div>
+              <div
+                v-if="applicationData.completed_at"
+                class="status-info-row"
+              >
+                <span class="status-info-label">Время завершения:</span>
+                <span class="status-info-value">{{ formatDateTime(applicationData.completed_at) }}</span>
+              </div>
+              <!-- Комментарий к завершению (или общий) -->
+              <div class="status-info-row comment-row">
+                <span class="status-info-label">Комментарий:</span>
+                <div class="status-info-value comment-text">
+                  {{ applicationData.completion_comment || 'Комментария нет' }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Поле для комментария (только для пользователей, которые еще не выполнили действие) -->
+          <div
+            v-if="canLeaveComment && !hasUserVoted && !isApproverActionDone"
+            class="comment-action-section"
+          >
+            <h4>Комментарий</h4>
+            <textarea
+              v-model="actionComment"
+              class="comment-action-textarea"
+              placeholder="Вы можете написать здесь комментарий (необязательно)"
+              rows="3"
+              @input="saveCommentToLocalStorage"
+            />
+          </div>
+
+          <!-- Компонент согласования (без информации о принявшем) -->
+          <ApplicationConfirmation 
+            ref="confirmationComponent"
+            :application="applicationData"
+            :responsible-users="responsibleUsers"
+            :current-user-id="currentUserId"
+            :updating-confirmation="updatingConfirmation"
+          />
+
+          <div class="history-button-section">
+            <ApplicationHistory
+              ref="historyComponent"
+              :application-id="applicationData.id"
+              :application-number="applicationData.application_number"
+              :current-user-id="currentUserId"
+              :current-user-name="currentUserName"
+              :application-organization="applicationData.organization_name"
+              @application-updated="handleApplicationUpdate"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+    <VehicleDetailsModal
+      v-if="showVehicleModal"
+      :show="showVehicleModal"
+      :vehicle="selectedVehicle"
+      :all-unloading-places="allUnloadingPlaces"
+      :license-plate-formats="licensePlateFormats"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :show-car-features="true"
+      :source="'application'"
+      @close="showVehicleModal = false"
+    />
+
+    <EmployeeDetailsModal
+      v-if="showEmployeeModal"
+      :show="showEmployeeModal"
+      :employee="selectedEmployee"
+      :all-tables="allTables"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :source="'application'"
+      @close="showEmployeeModal = false"
+    />
+  </div>
 </template>
 
 <script>
@@ -282,6 +342,7 @@ export default {
             default: 'center'
         }
     },
+    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application', 'application-changed'],
     data() {
         return {
             applicationData: { ...this.application },
@@ -762,8 +823,7 @@ export default {
             };
             this.showEmployeeModal = true;
         }
-    },
-    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application', 'application-changed']
+    }
 }
 </script>
 

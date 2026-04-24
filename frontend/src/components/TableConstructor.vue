@@ -1,13 +1,18 @@
 <template>
   <div class="table-constructor-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Таблицы системы</h3>
+      <h3 class="management-title">
+        Таблицы системы
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск таблиц...'"
           v-model="searchQuery"
+          :title="'Поиск таблиц...'"
         />
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Создать таблицу
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -16,11 +21,19 @@
 
     <div class="content-container">
       <!-- Левая часть - список таблиц -->
-      <div class="table-section" :class="{'with-details': selectedTable}">
+      <div
+        class="table-section"
+        :class="{'with-details': selectedTable}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -28,10 +41,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('name')">
-              <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -39,10 +57,15 @@
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col type-col" @click="sortBy('type')">
-              <p :class="{ 'active-sort': sortField === 'type' }">Тип</p>
+            <div
+              class="header-col type-col"
+              @click="sortBy('type')"
+            >
+              <p :class="{ 'active-sort': sortField === 'type' }">
+                Тип
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -50,7 +73,7 @@
                   'sorted': sortField === 'type',
                   'desc': sortField === 'type' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
             <div class="header-col status-col">
               <p>Статус</p>
@@ -69,17 +92,26 @@
                 <span class="cell-content id-value">{{ table.table.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="table.table.display_name">
+                <span
+                  class="truncate-text"
+                  :title="table.table.display_name"
+                >
                   {{ table.table.display_name }}
                 </span>
               </div>
               <div class="table-col type-col">
-                <span class="type-badge" :class="table.table.table_type">
+                <span
+                  class="type-badge"
+                  :class="table.table.table_type"
+                >
                   {{ getTableTypeLabel(table.table.table_type) }}
                 </span>
               </div>
               <div class="table-col status-col">
-                <span class="status-badge" :class="getTableStatusClass(table)">
+                <span
+                  class="status-badge"
+                  :class="getTableStatusClass(table)"
+                >
                   {{ getTableStatusText(table) }}
                 </span>
               </div>
@@ -93,7 +125,10 @@
       </div>
 
       <!-- Правая часть - детали таблицы -->
-      <div v-if="selectedTable" class="details-section">
+      <div
+        v-if="selectedTable"
+        class="details-section"
+      >
         <div class="details-tabs">
           <button 
             class="tab-btn" 
@@ -119,28 +154,48 @@
         </div>
 
         <!-- Вкладка Основное -->
-        <div v-if="activeTab === 'main'" class="tab-content">
+        <div
+          v-if="activeTab === 'main'"
+          class="tab-content"
+        >
           <div class="details-header">
             <div class="details-title-wrapper">
               <div class="table-info-title">
-                <h3 class="details-title">{{ selectedTable.table.display_name }}</h3>
-                <span class="table-type-badge" :class="selectedTable.table.table_type">
+                <h3 class="details-title">
+                  {{ selectedTable.table.display_name }}
+                </h3>
+                <span
+                  class="table-type-badge"
+                  :class="selectedTable.table.table_type"
+                >
                   {{ getTableTypeLabel(selectedTable.table.table_type) }}
                 </span>
               </div>
               <div class="table-info-row">
                 <span class="system-name">{{ selectedTable.table.name }}</span>
-                <span class="current-status-badge" :class="getTableCurrentStatusClass(selectedTable)">
+                <span
+                  class="current-status-badge"
+                  :class="getTableCurrentStatusClass(selectedTable)"
+                >
                   {{ getTableCurrentStatusText(selectedTable) }}
                 </span>
               </div>
             </div>
             <div class="details-header-actions">
-              <button @click="openTable" class="action-btn view-btn">
+              <button
+                class="action-btn view-btn"
+                @click="openTable"
+              >
                 Открыть
               </button>
-              <button @click="confirmDeleteTable(selectedTable)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeleteTable(selectedTable)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -152,21 +207,31 @@
                   <label class="detail-label">Наименование таблицы:</label>
                   <input 
                     v-model="selectedTable.table.display_name" 
-                    @change="updateTableField('display_name')"
                     class="form-input-sm"
                     placeholder="Название таблицы"
                     autocomplete="off"
+                    @change="updateTableField('display_name')"
                   >
                 </div>
                 <div class="form-group compact">
                   <label class="detail-label">Тип таблицы:</label>
                   <div class="custom-select">
-                    <div class="select-header" @click="toggleTableTypeDropdown">
+                    <div
+                      class="select-header"
+                      @click="toggleTableTypeDropdown"
+                    >
                       <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
-                      <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: tableTypeDropdownOpen }" />
+                      <img
+                        src="@/assets/icons/arrow.png"
+                        class="select-arrow"
+                        :class="{ rotated: tableTypeDropdownOpen }"
+                      >
                     </div>
                     <transition name="dropdown-fade">
-                      <div v-if="tableTypeDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="tableTypeDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div 
                           class="select-option"
                           :class="{ active: selectedTable.table.table_type === 'cars' }"
@@ -216,15 +281,18 @@
               </div>
 
               <!-- Комментарий к статусу (только для неактивных) -->
-              <div v-if="selectedTable.table.status !== 'active'" class="form-group">
+              <div
+                v-if="selectedTable.table.status !== 'active'"
+                class="form-group"
+              >
                 <label class="detail-label">Причина:</label>
                 <textarea 
                   v-model="selectedTable.table.status_comment" 
-                  @change="updateTableField('status_comment')"
                   class="form-textarea"
                   placeholder="Укажите причину"
                   rows="2"
-                ></textarea>
+                  @change="updateTableField('status_comment')"
+                />
               </div>
 
               <div class="settings-section">
@@ -233,28 +301,44 @@
                 <div class="checkbox-group">
                   <label class="checkbox-label">
                     <input 
-                      type="checkbox" 
-                      v-model="selectedTable.table.show_fact_table"
-                      @change="updateTableField('show_fact_table')"
+                      v-model="selectedTable.table.show_fact_table" 
+                      type="checkbox"
                       class="checkbox-input"
-                    />
+                      @change="updateTableField('show_fact_table')"
+                    >
                     <span class="checkbox-text">Отображать таблицу "по факту"</span>
                   </label>
                 </div>
 
-                <div v-if="selectedTable.table.show_fact_table" class="hint-section">
+                <div
+                  v-if="selectedTable.table.show_fact_table"
+                  class="hint-section"
+                >
                   <div class="section-header-with-actions">
                     <label class="detail-label">Подсказка для таблицы "по факту":</label>
-                    <div class="editor-actions" v-if="hintHasChanges">
-                      <button @click="cancelHintEdit" class="compact-btn cancel-btn">Отмена</button>
-                      <button @click="saveHint" class="compact-btn save-btn">Сохранить</button>
+                    <div
+                      v-if="hintHasChanges"
+                      class="editor-actions"
+                    >
+                      <button
+                        class="compact-btn cancel-btn"
+                        @click="cancelHintEdit"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        class="compact-btn save-btn"
+                        @click="saveHint"
+                      >
+                        Сохранить
+                      </button>
                     </div>
                   </div>
                   <TextConstructor
+                    ref="hintConstructor"
                     v-model="selectedTable.table.fact_table_hint"
                     :placeholder="getDefaultHint(selectedTable.table.table_type)"
                     rows="4"
-                    ref="hintConstructor"
                   />
                 </div>
               </div>
@@ -262,16 +346,29 @@
               <div class="instruction-section">
                 <div class="section-header-with-actions">
                   <label class="detail-label">Инструкция к таблице:</label>
-                  <div class="editor-actions" v-if="instructionHasChanges">
-                    <button @click="cancelInstructionEdit" class="compact-btn cancel-btn">Отмена</button>
-                    <button @click="saveInstruction" class="compact-btn save-btn">Сохранить</button>
+                  <div
+                    v-if="instructionHasChanges"
+                    class="editor-actions"
+                  >
+                    <button
+                      class="compact-btn cancel-btn"
+                      @click="cancelInstructionEdit"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      class="compact-btn save-btn"
+                      @click="saveInstruction"
+                    >
+                      Сохранить
+                    </button>
                   </div>
                 </div>
                 <TextConstructor
+                  ref="instructionConstructor"
                   v-model="selectedTable.table.instruction"
                   placeholder="Введите инструкцию для таблицы..."
                   rows="4"
-                  ref="instructionConstructor"
                 />
               </div>
 
@@ -293,7 +390,10 @@
         </div>
 
         <!-- Вкладка Расписание -->
-        <div v-if="activeTab === 'schedule'" class="tab-content">
+        <div
+          v-if="activeTab === 'schedule'"
+          class="tab-content"
+        >
           <SystemTableScheduleTab 
             :table-id="selectedTable.table.id"
             :time-slots="selectedTable.time_slots"
@@ -302,27 +402,34 @@
         </div>
 
         <!-- Вкладка Местоположение -->
-        <div v-if="activeTab === 'location'" class="tab-content">
+        <div
+          v-if="activeTab === 'location'"
+          class="tab-content"
+        >
           <div class="location-section">
-            <h4 class="section-title">Описание местоположения</h4>
+            <h4 class="section-title">
+              Описание местоположения
+            </h4>
             <textarea 
               v-model="selectedTable.table.location_description" 
-              @change="updateTableField('location_description')"
               class="form-textarea"
               placeholder="Введите описание местоположения..."
               rows="3"
-            ></textarea>
+              @change="updateTableField('location_description')"
+            />
           </div>
 
           <div class="location-section">
-            <h4 class="section-title">Ссылка на карту</h4>
+            <h4 class="section-title">
+              Ссылка на карту
+            </h4>
             <div class="map-link-group">
               <input 
                 v-model="selectedTable.table.map_link" 
-                @change="updateTableField('map_link')"
                 class="form-input"
                 placeholder="https://maps.google.com/..."
                 autocomplete="off"
+                @change="updateTableField('map_link')"
               >
               <a 
                 v-if="selectedTable.table.map_link" 
@@ -343,13 +450,21 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите таблицу для просмотра и редактирования</p>
       </div>
     </div>
 
-    <div v-if="filteredTables.length === 0" class="no-results">
-      <div class="no-results-icon">📊</div>
+    <div
+      v-if="filteredTables.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        📊
+      </div>
       <p>Таблицы не найдены</p>
     </div>
 
@@ -361,7 +476,11 @@
     />
 
     <!-- Уведомления -->
-    <div v-if="notification.show" class="notification" :class="notification.type">
+    <div
+      v-if="notification.show"
+      class="notification"
+      :class="notification.type"
+    >
       <span class="notification-message">{{ notification.message }}</span>
     </div>
   </div>

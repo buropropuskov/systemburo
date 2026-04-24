@@ -1,101 +1,111 @@
 <template>
-    <div class="data__completion">
-        <div class="completion__header">
-            <h3>Новые ТМЦ</h3>
-            <div class="completion__actions">
-                <button 
-                    class="cancel-edit-btn" 
-                    @click="cancelEdit" 
-                    v-if="editingItem"
-                >
-                    Отменить
-                </button>
-                <button 
-                    class="add-button" 
-                    @click="addItems"
-                    :disabled="!canAddItems"
-                    @mouseenter="showTooltip = true"
-                    @mouseleave="showTooltip = false"
-                >
-                    {{ editingItem ? 'Применить' : 'Добавить' }}
-                </button>
-                <!-- Подсказка для кнопки -->
-                <div v-if="showTooltip && !canAddItems" class="tooltip">
-                    <div class="tooltip-content">
-                        {{ getTooltipMessage }}
-                    </div>
-                </div>
-            </div>
+  <div class="data__completion">
+    <div class="completion__header">
+      <h3>Новые ТМЦ</h3>
+      <div class="completion__actions">
+        <button 
+          v-if="editingItem" 
+          class="cancel-edit-btn" 
+          @click="cancelEdit"
+        >
+          Отменить
+        </button>
+        <button 
+          class="add-button" 
+          :disabled="!canAddItems"
+          @click="addItems"
+          @mouseenter="showTooltip = true"
+          @mouseleave="showTooltip = false"
+        >
+          {{ editingItem ? 'Применить' : 'Добавить' }}
+        </button>
+        <!-- Подсказка для кнопки -->
+        <div
+          v-if="showTooltip && !canAddItems"
+          class="tooltip"
+        >
+          <div class="tooltip-content">
+            {{ getTooltipMessage }}
+          </div>
         </div>
-
-        <!-- Форма для добавления новых ТМЦ -->
-        <div class="items-form-container">
-            <!-- Таблица для ввода ТМЦ -->
-            <div class="items-table-wrapper">
-                <div class="items-table">
-                    <div class="table-header">
-                        <div class="header-cell number-header">
-                            <label class="input__label">№</label>
-                        </div>
-                        <div class="header-cell name-header">
-                            <label class="input__label">Наименование ТМЦ <span class="required">*</span></label>
-                        </div>
-                        <div class="header-cell quantity-header">
-                            <label class="input__label">Количество <span class="required">*</span></label>
-                        </div>
-                        <div class="header-cell actions-header"></div>
-                    </div>
-                    
-                    <div class="table-body">
-                        <div v-for="(item, index) in tempItems" :key="item.key" class="table-row">
-                            <div class="table-cell number-cell">
-                                <span class="item-number">{{ index + 1 }}</span>
-                            </div>
-                            <div class="table-cell name-cell">
-                                <input 
-                                    type="text" 
-                                    v-model="item.itemName"
-                                    placeholder="Введите наименование"
-                                    class="name__input"
-                                    :class="{ 'input--error': !item.itemName && submitted }"
-                                    @input="updateItem(index, $event.target.value, 'itemName')"
-                                />
-                            </div>
-                            <div class="table-cell quantity-cell">
-                                <input 
-                                    type="number" 
-                                    v-model.number="item.quantity"
-                                    min="1"
-                                    placeholder="1"
-                                    class="name__input"
-                                    :class="{ 'input--error': (!item.quantity || item.quantity < 1) && submitted }"
-                                    @input="updateItem(index, parseInt($event.target.value) || 1, 'quantity')"
-                                />
-                            </div>
-                            <div class="table-cell actions-cell">
-                                <button 
-                                    class="remove-row-btn"
-                                    @click="removeRow(index)"
-                                    :disabled="tempItems.length <= 1"
-                                >
-                                    ×
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="table-actions">
-                    <button class="add-row-btn" @click="addRow">
-                        + Добавить строку
-                    </button>
-                    <div class="total-items">
-                        Всего позиций: {{ tempItems.length }}
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
+
+    <!-- Форма для добавления новых ТМЦ -->
+    <div class="items-form-container">
+      <!-- Таблица для ввода ТМЦ -->
+      <div class="items-table-wrapper">
+        <div class="items-table">
+          <div class="table-header">
+            <div class="header-cell number-header">
+              <label class="input__label">№</label>
+            </div>
+            <div class="header-cell name-header">
+              <label class="input__label">Наименование ТМЦ <span class="required">*</span></label>
+            </div>
+            <div class="header-cell quantity-header">
+              <label class="input__label">Количество <span class="required">*</span></label>
+            </div>
+            <div class="header-cell actions-header" />
+          </div>
+                    
+          <div class="table-body">
+            <div
+              v-for="(item, index) in tempItems"
+              :key="item.key"
+              class="table-row"
+            >
+              <div class="table-cell number-cell">
+                <span class="item-number">{{ index + 1 }}</span>
+              </div>
+              <div class="table-cell name-cell">
+                <input 
+                  v-model="item.itemName" 
+                  type="text"
+                  placeholder="Введите наименование"
+                  class="name__input"
+                  :class="{ 'input--error': !item.itemName && submitted }"
+                  @input="updateItem(index, $event.target.value, 'itemName')"
+                >
+              </div>
+              <div class="table-cell quantity-cell">
+                <input 
+                  v-model.number="item.quantity" 
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  class="name__input"
+                  :class="{ 'input--error': (!item.quantity || item.quantity < 1) && submitted }"
+                  @input="updateItem(index, parseInt($event.target.value) || 1, 'quantity')"
+                >
+              </div>
+              <div class="table-cell actions-cell">
+                <button 
+                  class="remove-row-btn"
+                  :disabled="tempItems.length <= 1"
+                  @click="removeRow(index)"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+                
+        <div class="table-actions">
+          <button
+            class="add-row-btn"
+            @click="addRow"
+          >
+            + Добавить строку
+          </button>
+          <div class="total-items">
+            Всего позиций: {{ tempItems.length }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -146,6 +156,17 @@ export default {
             }
             
             return '';
+        }
+    },
+    watch: {
+        // Следим за изменениями в tempItems и сбрасываем submitted при изменении
+        tempItems: {
+            handler() {
+                if (this.submitted) {
+                    this.submitted = false;
+                }
+            },
+            deep: true
         }
     },
     methods: {
@@ -269,17 +290,6 @@ export default {
             
             // Эмитируем событие отмены
             this.$emit('edit-cancelled');
-        }
-    },
-    watch: {
-        // Следим за изменениями в tempItems и сбрасываем submitted при изменении
-        tempItems: {
-            handler() {
-                if (this.submitted) {
-                    this.submitted = false;
-                }
-            },
-            deep: true
         }
     }
 }

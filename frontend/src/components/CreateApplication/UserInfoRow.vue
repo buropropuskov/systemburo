@@ -1,52 +1,75 @@
 <template>
-    <div class="user-info-row">
-        <div class="user__input">
-            <label class="input__label">Организация / Отдел <span class="required">*</span></label>
-            <input 
-                class="input" 
-                placeholder="Введите организацию" 
-                :value="organization"
-                @input="$emit('update:organization', $event.target.value)"
-                @blur="$emit('validate-field', 'organization')"
-                :class="{ 'input--error': errors.organization }"
-            />
-            <div v-if="errors.organization" class="error-message">{{ errors.organization }}</div>
-        </div>
-        <div class="user__input">
-            <label class="input__label">Компания <span class="required">*</span></label>
-            <input 
-                class="input" 
-                placeholder="Введите компанию" 
-                :value="company"
-                @input="$emit('update:company', $event.target.value)"
-                @blur="$emit('validate-field', 'company')"
-                :class="{ 'input--error': errors.company }"
-            />
-            <div v-if="errors.company" class="error-message">{{ errors.company }}</div>
-        </div>
-        <div class="user__input responsible">
-            <label class="input__label responsible">Ответственное лицо <span class="required">*</span></label>
-            <div class="input contacts" :class="{ 'input--error': errors.responsiblePerson || errors.phone }">
-                <input 
-                    class="contact-input" 
-                    placeholder="Введите ФИО" 
-                    :value="responsiblePerson"
-                    @input="$emit('update:responsible-person', $event.target.value)"
-                    @blur="$emit('validate-field', 'responsiblePerson')"
-                />
-                <input 
-                    class="contact-input phone" 
-                    placeholder="Номер телефона"
-                    :value="phoneNumber"
-                    @input="handlePhoneInput($event)"
-                    @blur="$emit('format-phone')"
-                    @focus="$emit('clear-phone')"
-                />
-            </div>
-            <div v-if="errors.responsiblePerson" class="error-message">{{ errors.responsiblePerson }}</div>
-            <div v-if="errors.phone" class="error-message">{{ errors.phone }}</div>
-        </div>
+  <div class="user-info-row">
+    <div class="user__input">
+      <label class="input__label">Организация / Отдел <span class="required">*</span></label>
+      <input 
+        class="input" 
+        placeholder="Введите организацию" 
+        :value="organization"
+        :class="{ 'input--error': errors.organization }"
+        @input="$emit('update:organization', $event.target.value)"
+        @blur="$emit('validate-field', 'organization')"
+      >
+      <div
+        v-if="errors.organization"
+        class="error-message"
+      >
+        {{ errors.organization }}
+      </div>
     </div>
+    <div class="user__input">
+      <label class="input__label">Компания <span class="required">*</span></label>
+      <input 
+        class="input" 
+        placeholder="Введите компанию" 
+        :value="company"
+        :class="{ 'input--error': errors.company }"
+        @input="$emit('update:company', $event.target.value)"
+        @blur="$emit('validate-field', 'company')"
+      >
+      <div
+        v-if="errors.company"
+        class="error-message"
+      >
+        {{ errors.company }}
+      </div>
+    </div>
+    <div class="user__input responsible">
+      <label class="input__label responsible">Ответственное лицо <span class="required">*</span></label>
+      <div
+        class="input contacts"
+        :class="{ 'input--error': errors.responsiblePerson || errors.phone }"
+      >
+        <input 
+          class="contact-input" 
+          placeholder="Введите ФИО" 
+          :value="responsiblePerson"
+          @input="$emit('update:responsible-person', $event.target.value)"
+          @blur="$emit('validate-field', 'responsiblePerson')"
+        >
+        <input 
+          class="contact-input phone" 
+          placeholder="Номер телефона"
+          :value="phoneNumber"
+          @input="handlePhoneInput($event)"
+          @blur="$emit('format-phone')"
+          @focus="$emit('clear-phone')"
+        >
+      </div>
+      <div
+        v-if="errors.responsiblePerson"
+        class="error-message"
+      >
+        {{ errors.responsiblePerson }}
+      </div>
+      <div
+        v-if="errors.phone"
+        class="error-message"
+      >
+        {{ errors.phone }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>

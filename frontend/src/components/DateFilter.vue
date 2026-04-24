@@ -1,150 +1,250 @@
 <template>
-    <div class="date-filter">
-        <div class="date-field" @click="toggleCalendar">
-            <div class="field-wrapper">
-                <div class="field-input">
-                    {{ displayText }}
-                </div>
-                <img src="@/assets/icons/calendar.png" class="field-icon" />
-            </div>
-            
-            <transition name="calendar-slide">
-                <div v-if="showCalendar" class="calendar-modal" @click.stop>
-                    <div class="calendar-container">
-                        <!-- Header -->
-                        <div class="calendar-header">
-                            <div class="header-actions">
-                                <button @click="prevMonth" class="nav-btn prev-btn">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                        <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </button>
-                                <div class="date-display">
-                                    <span class="current-month-year">{{ capitalizeFirstLetter(currentMonthYear) }}</span>
-                                </div>
-                                <button @click="nextMonth" class="nav-btn next-btn">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                        <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="calendar-body">
-                            <!-- Quick selection слева -->
-                            <div class="quick-selection">
-                                <div class="quick-buttons-list">
-                                    <button @click="setQuickDate('today')" class="quick-btn" :class="{ 'active': isQuickActive('today') }">
-                                        Сегодня
-                                    </button>
-                                    <button @click="setQuickDate('yesterday')" class="quick-btn" :class="{ 'active': isQuickActive('yesterday') }">
-                                        Вчера
-                                    </button>
-                                    <button @click="setQuickDate('tomorrow')" class="quick-btn" :class="{ 'active': isQuickActive('tomorrow') }">
-                                        Завтра
-                                    </button>
-                                    <button @click="setQuickDate('dayBeforeYesterday')" class="quick-btn" :class="{ 'active': isQuickActive('dayBeforeYesterday') }">
-                                        Позавчера
-                                    </button>
-                                    <button @click="setQuickDate('dayAfterTomorrow')" class="quick-btn" :class="{ 'active': isQuickActive('dayAfterTomorrow') }">
-                                        Послезавтра
-                                    </button>
-                                    <button @click="setQuickDate('thisWeek')" class="quick-btn" :class="{ 'active': isQuickActive('thisWeek') }">
-                                        Эта неделя
-                                    </button>
-                                    <button @click="setQuickDate('lastWeek')" class="quick-btn" :class="{ 'active': isQuickActive('lastWeek') }">
-                                        Прошлая неделя
-                                    </button>
-                                    <button @click="setQuickDate('nextWeek')" class="quick-btn" :class="{ 'active': isQuickActive('nextWeek') }">
-                                        Следующая неделя
-                                    </button>
-                                    <button @click="setQuickDate('thisMonth')" class="quick-btn" :class="{ 'active': isQuickActive('thisMonth') }">
-                                        Этот месяц
-                                    </button>
-                                    <button @click="setQuickDate('lastMonth')" class="quick-btn" :class="{ 'active': isQuickActive('lastMonth') }">
-                                        Прошлый месяц
-                                    </button>
-                                    <button @click="setQuickDate('nextMonth')" class="quick-btn" :class="{ 'active': isQuickActive('nextMonth') }">
-                                        Следующий месяц
-                                    </button>
-                                    <button @click="setQuickDate('thisYear')" class="quick-btn" :class="{ 'active': isQuickActive('thisYear') }">
-                                        Этот год
-                                    </button>
-                                    <button @click="setQuickDate('lastYear')" class="quick-btn" :class="{ 'active': isQuickActive('lastYear') }">
-                                        Прошлый год
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <!-- Calendar справа -->
-                            <div class="calendar-main">
-                                <div class="calendar-mode-switch">
-                                    <button 
-                                        class="mode-btn" 
-                                        :class="{ 'active': !selectingRange }"
-                                        @click="setMode('single')"
-                                    >
-                                        Один день
-                                    </button>
-                                    <button 
-                                        class="mode-btn" 
-                                        :class="{ 'active': selectingRange }"
-                                        @click="setMode('range')"
-                                    >
-                                        Период
-                                    </button>
-                                </div>
-                                
-                                <div class="weekdays">
-                                    <div v-for="day in weekdays" :key="day" class="weekday">
-                                        {{ day }}
-                                    </div>
-                                </div>
-                                
-                                <div class="days-grid">
-                                    <div 
-                                        v-for="day in daysInMonth" 
-                                        :key="day.date ? day.date.getTime() : `empty-${day.index}`"
-                                        class="day"
-                                        :class="getDayClass(day)"
-                                        @click="selectDay(day)"
-                                    >
-                                        <span class="day-number">{{ day.number }}</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Selected range display - всегда отображается -->
-                                <div class="selected-range">
-                                    <div class="range-display">
-                                        <template v-if="!selectingRange">
-                                            <span class="range-label">Отобразить дату:</span>
-                                            <span class="range-date">{{ formatDateForDisplay(internalSelectedDate) || '...' }}</span>
-                                        </template>
-                                        <template v-else>
-                                            <span class="range-label">Отобразить с</span>
-                                            <span class="range-date">{{ formatDateForDisplay(internalRangeStart) || '...' }}</span>
-                                            <span class="range-label">по</span>
-                                            <span class="range-date">{{ formatDateForDisplay(internalRangeEnd) || '...' }}</span>
-                                        </template>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Actions -->
-                        <div class="calendar-actions">
-                            <button @click="clearSelection" class="action-btn action-btn--clear">
-                                Очистить
-                            </button>
-                            <button @click="applySelection" class="action-btn action-btn--apply">
-                                Применить
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </transition>
+  <div class="date-filter">
+    <div
+      class="date-field"
+      @click="toggleCalendar"
+    >
+      <div class="field-wrapper">
+        <div class="field-input">
+          {{ displayText }}
         </div>
+        <img
+          src="@/assets/icons/calendar.png"
+          class="field-icon"
+        >
+      </div>
+            
+      <transition name="calendar-slide">
+        <div
+          v-if="showCalendar"
+          class="calendar-modal"
+          @click.stop
+        >
+          <div class="calendar-container">
+            <!-- Header -->
+            <div class="calendar-header">
+              <div class="header-actions">
+                <button
+                  class="nav-btn prev-btn"
+                  @click="prevMonth"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M15 18L9 12L15 6"
+                      stroke="#4F5BDF"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <div class="date-display">
+                  <span class="current-month-year">{{ capitalizeFirstLetter(currentMonthYear) }}</span>
+                </div>
+                <button
+                  class="nav-btn next-btn"
+                  @click="nextMonth"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M9 18L15 12L9 6"
+                      stroke="#4F5BDF"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+                        
+            <div class="calendar-body">
+              <!-- Quick selection слева -->
+              <div class="quick-selection">
+                <div class="quick-buttons-list">
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('today') }"
+                    @click="setQuickDate('today')"
+                  >
+                    Сегодня
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('yesterday') }"
+                    @click="setQuickDate('yesterday')"
+                  >
+                    Вчера
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('tomorrow') }"
+                    @click="setQuickDate('tomorrow')"
+                  >
+                    Завтра
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('dayBeforeYesterday') }"
+                    @click="setQuickDate('dayBeforeYesterday')"
+                  >
+                    Позавчера
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('dayAfterTomorrow') }"
+                    @click="setQuickDate('dayAfterTomorrow')"
+                  >
+                    Послезавтра
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('thisWeek') }"
+                    @click="setQuickDate('thisWeek')"
+                  >
+                    Эта неделя
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('lastWeek') }"
+                    @click="setQuickDate('lastWeek')"
+                  >
+                    Прошлая неделя
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('nextWeek') }"
+                    @click="setQuickDate('nextWeek')"
+                  >
+                    Следующая неделя
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('thisMonth') }"
+                    @click="setQuickDate('thisMonth')"
+                  >
+                    Этот месяц
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('lastMonth') }"
+                    @click="setQuickDate('lastMonth')"
+                  >
+                    Прошлый месяц
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('nextMonth') }"
+                    @click="setQuickDate('nextMonth')"
+                  >
+                    Следующий месяц
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('thisYear') }"
+                    @click="setQuickDate('thisYear')"
+                  >
+                    Этот год
+                  </button>
+                  <button
+                    class="quick-btn"
+                    :class="{ 'active': isQuickActive('lastYear') }"
+                    @click="setQuickDate('lastYear')"
+                  >
+                    Прошлый год
+                  </button>
+                </div>
+              </div>
+                            
+              <!-- Calendar справа -->
+              <div class="calendar-main">
+                <div class="calendar-mode-switch">
+                  <button 
+                    class="mode-btn" 
+                    :class="{ 'active': !selectingRange }"
+                    @click="setMode('single')"
+                  >
+                    Один день
+                  </button>
+                  <button 
+                    class="mode-btn" 
+                    :class="{ 'active': selectingRange }"
+                    @click="setMode('range')"
+                  >
+                    Период
+                  </button>
+                </div>
+                                
+                <div class="weekdays">
+                  <div
+                    v-for="day in weekdays"
+                    :key="day"
+                    class="weekday"
+                  >
+                    {{ day }}
+                  </div>
+                </div>
+                                
+                <div class="days-grid">
+                  <div 
+                    v-for="day in daysInMonth" 
+                    :key="day.date ? day.date.getTime() : `empty-${day.index}`"
+                    class="day"
+                    :class="getDayClass(day)"
+                    @click="selectDay(day)"
+                  >
+                    <span class="day-number">{{ day.number }}</span>
+                  </div>
+                </div>
+                                
+                <!-- Selected range display - всегда отображается -->
+                <div class="selected-range">
+                  <div class="range-display">
+                    <template v-if="!selectingRange">
+                      <span class="range-label">Отобразить дату:</span>
+                      <span class="range-date">{{ formatDateForDisplay(internalSelectedDate) || '...' }}</span>
+                    </template>
+                    <template v-else>
+                      <span class="range-label">Отобразить с</span>
+                      <span class="range-date">{{ formatDateForDisplay(internalRangeStart) || '...' }}</span>
+                      <span class="range-label">по</span>
+                      <span class="range-date">{{ formatDateForDisplay(internalRangeEnd) || '...' }}</span>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+                        
+            <!-- Actions -->
+            <div class="calendar-actions">
+              <button
+                class="action-btn action-btn--clear"
+                @click="clearSelection"
+              >
+                Очистить
+              </button>
+              <button
+                class="action-btn action-btn--apply"
+                @click="applySelection"
+              >
+                Применить
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
+  </div>
 </template>
 
 <script>

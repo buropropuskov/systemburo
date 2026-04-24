@@ -4,15 +4,29 @@
       <!-- Основная информация -->
       <div class="main-info">
         <div class="name-and-type">
-          <h2 class="user-name" data-testid="cabinet-text-username">{{ displayName }}</h2>
+          <h2
+            class="user-name"
+            data-testid="cabinet-text-username"
+          >
+            {{ displayName }}
+          </h2>
           <span class="user-type-badge">{{ userTypeDisplay }}</span>
         </div>
         <div class="org-company-block">
-          <h3 class="user-organization" v-if="fullName && organization">
+          <h3
+            v-if="fullName && organization"
+            class="user-organization"
+          >
             {{ organization }}
           </h3>
-          <div class="user-company" v-if="company">
-            <svg class="icon" viewBox="0 0 24 24">
+          <div
+            v-if="company"
+            class="user-company"
+          >
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+            >
               <path d="M18,15H16V17H18M18,11H16V13H18M20,19H12V17H14V15H12V13H14V11H12V9H20M10,7H8V5H10M10,11H8V9H10M10,15H8V13H10M10,19H8V17H10M6,7H4V5H6M6,11H4V9H6M6,15H4V13H6M6,19H4V17H6M12,7V3H2V21H22V7H12Z" />
             </svg>
             {{ company }}
@@ -21,48 +35,93 @@
       </div>
       
       <!-- Дополнительные данные -->
-      <div class="user-details-row" v-if="hasContactDetails">
-        <div class="user-detail" v-if="position">
+      <div
+        v-if="hasContactDetails"
+        class="user-details-row"
+      >
+        <div
+          v-if="position"
+          class="user-detail"
+        >
           <span class="detail-badge position-badge">
-            <svg class="icon" viewBox="0 0 24 24">
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+            >
               <path d="M12,3L2,12H5V20H19V12H22L12,3M12,7.7C14.1,7.7 15.8,9.4 15.8,11.5C15.8,14.5 12,18 12,18C12,18 8.2,14.5 8.2,11.5C8.2,9.4 9.9,7.7 12,7.7M12,10A1.5,1.5 0 0,0 10.5,11.5A1.5,1.5 0 0,0 12,13A1.5,1.5 0 0,0 13.5,11.5A1.5,1.5 0 0,0 12,10Z" />
             </svg>
             {{ position }}
           </span>
         </div>
-        <div class="user-detail" v-if="email" @click="copyEmail">
+        <div
+          v-if="email"
+          class="user-detail"
+          @click="copyEmail"
+        >
           <span
-            class="detail-badge email-badge clickable"
             ref="emailBadge"
+            class="detail-badge email-badge clickable"
             :style="{ width: emailBadgeWidth ? emailBadgeWidth + 'px' : null }"
           >
-            <transition name="fade" mode="out-in">
-              <div v-if="!copiedEmail" key="original" class="badge-content">
-                <svg class="icon" viewBox="0 0 24 24">
+            <transition
+              name="fade"
+              mode="out-in"
+            >
+              <div
+                v-if="!copiedEmail"
+                key="original"
+                class="badge-content"
+              >
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z" />
                 </svg>
                 <span class="badge-text">{{ email }}</span>
               </div>
-              <div v-else key="copied" class="badge-content">
+              <div
+                v-else
+                key="copied"
+                class="badge-content"
+              >
                 <span class="badge-text">Почта скопирована!</span>
               </div>
             </transition>
           </span>
         </div>
-        <div class="user-detail" v-if="phone" @click="copyPhone">
+        <div
+          v-if="phone"
+          class="user-detail"
+          @click="copyPhone"
+        >
           <span
-            class="detail-badge phone-badge clickable"
             ref="phoneBadge"
+            class="detail-badge phone-badge clickable"
             :style="{ width: phoneBadgeWidth ? phoneBadgeWidth + 'px' : null }"
           >
-            <transition name="fade" mode="out-in">
-              <div v-if="!copiedPhone" key="original" class="badge-content">
-                <svg class="icon" viewBox="0 0 24 24">
+            <transition
+              name="fade"
+              mode="out-in"
+            >
+              <div
+                v-if="!copiedPhone"
+                key="original"
+                class="badge-content"
+              >
+                <svg
+                  class="icon"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z" />
                 </svg>
                 <span class="badge-text">{{ formattedPhone }}</span>
               </div>
-              <div v-else key="copied" class="badge-content">
+              <div
+                v-else
+                key="copied"
+                class="badge-content"
+              >
                 <span class="badge-text">Скопировано!</span>
               </div>
             </transition>
@@ -137,11 +196,6 @@ export default {
       return this.phone;
     }
   },
-  mounted() {
-    this.$nextTick(() => {
-      this.updateBadgeWidths();
-    });
-  },
   watch: {
     email: {
       handler() {
@@ -159,6 +213,15 @@ export default {
       },
       immediate: false
     }
+  },
+  mounted() {
+    this.$nextTick(() => {
+      this.updateBadgeWidths();
+    });
+  },
+  beforeUnmount() {
+    if (this.timeoutEmail) clearTimeout(this.timeoutEmail);
+    if (this.timeoutPhone) clearTimeout(this.timeoutPhone);
   },
   methods: {
     updateBadgeWidths() {
@@ -233,10 +296,6 @@ export default {
         console.error('Ошибка копирования телефона:', err);
       });
     }
-  },
-  beforeUnmount() {
-    if (this.timeoutEmail) clearTimeout(this.timeoutEmail);
-    if (this.timeoutPhone) clearTimeout(this.timeoutPhone);
   }
 };
 </script>

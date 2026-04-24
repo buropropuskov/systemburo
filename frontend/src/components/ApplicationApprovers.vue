@@ -1,14 +1,19 @@
 <template>
   <div class="approvers-management-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Принимающие заявки</h3>
+      <h3 class="management-title">
+        Принимающие заявки
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск принимающих...'"
           v-model="searchQuery"
+          :title="'Поиск принимающих...'"
         />
         
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Добавить принимающего
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -17,11 +22,19 @@
 
     <div class="content-container">
       <!-- Левая часть - список принимающих (50%) -->
-      <div class="table-section" :class="{'with-details': selectedApprover}">
+      <div
+        class="table-section"
+        :class="{'with-details': selectedApprover}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -29,10 +42,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('full_name')">
-              <p :class="{ 'active-sort': sortField === 'full_name' }">ФИО</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('full_name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'full_name' }">
+                ФИО
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -40,10 +58,15 @@
                   'sorted': sortField === 'full_name',
                   'desc': sortField === 'full_name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col date-col" @click="sortBy('created_at')">
-              <p :class="{ 'active-sort': sortField === 'created_at' }">Добавлен</p>
+            <div
+              class="header-col date-col"
+              @click="sortBy('created_at')"
+            >
+              <p :class="{ 'active-sort': sortField === 'created_at' }">
+                Добавлен
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -51,7 +74,7 @@
                   'sorted': sortField === 'created_at',
                   'desc': sortField === 'created_at' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
 
@@ -67,7 +90,10 @@
                 <span class="cell-content id-value">{{ approver.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="getFullName(approver)">
+                <span
+                  class="truncate-text"
+                  :title="getFullName(approver)"
+                >
                   {{ getFullName(approver) }}
                 </span>
               </div>
@@ -86,16 +112,24 @@
       </div>
 
       <!-- Правая часть - детали принимающего (50%) -->
-      <div v-if="selectedApprover" class="details-section">
+      <div
+        v-if="selectedApprover"
+        class="details-section"
+      >
         <div class="details-content">
           <div class="details-header">
-            <h3 class="details-title">{{ getFullName(selectedApprover) }}</h3>
+            <h3 class="details-title">
+              {{ getFullName(selectedApprover) }}
+            </h3>
             <button 
-              @click="confirmDeleteApprover(selectedApprover)"
               class="delete-btn"
               title="Удалить"
+              @click="confirmDeleteApprover(selectedApprover)"
             >
-              <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <img
+                src="@/assets/icons/delete.png"
+                class="delete-icon"
+              >
             </button>
           </div>
           
@@ -120,37 +154,55 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите принимающего</p>
       </div>
     </div>
 
-    <div v-if="filteredApprovers.length === 0 && !searchQuery" class="no-results">
+    <div
+      v-if="filteredApprovers.length === 0 && !searchQuery"
+      class="no-results"
+    >
       <p>Нет принимающих</p>
     </div>
 
     <!-- Модальное окно добавления принимающего -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
+    <div
+      v-if="showAddModal"
+      class="modal-overlay"
+      @click.self="closeAddModal"
+    >
       <div class="modal modal-compact">
         <div class="modal-header">
           <h3>Добавить принимающего</h3>
-          <button class="modal-close" @click="closeAddModal">×</button>
+          <button
+            class="modal-close"
+            @click="closeAddModal"
+          >
+            ×
+          </button>
         </div>
         
         <div class="modal-content">
           <div class="user-search-section">
             <input
+              ref="searchInput"
               v-model="userSearchQuery"
-              @input="searchUsers"
-              @focus="showUserDropdown = true"
-              @blur="onSearchBlur"
               class="search-input"
               placeholder="Поиск пользователей..."
               type="text"
-              ref="searchInput"
               autocomplete="off"
-            />
-            <div v-if="showUserDropdown && filteredAvailableUsers.length > 0" class="user-dropdown">
+              @input="searchUsers"
+              @focus="showUserDropdown = true"
+              @blur="onSearchBlur"
+            >
+            <div
+              v-if="showUserDropdown && filteredAvailableUsers.length > 0"
+              class="user-dropdown"
+            >
               <div class="user-dropdown-content">
                 <div 
                   v-for="user in filteredAvailableUsers" 
@@ -159,16 +211,24 @@
                   @mousedown.prevent="addUser(user)"
                 >
                   <div class="user-info">
-                    <div class="user-name">{{ getFullName(user) }}</div>
+                    <div class="user-name">
+                      {{ getFullName(user) }}
+                    </div>
                     <div class="user-details">
                       <span class="user-username">@{{ user.username }}</span>
-                      <span v-if="user.position" class="user-position">{{ user.position }}</span>
+                      <span
+                        v-if="user.position"
+                        class="user-position"
+                      >{{ user.position }}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            <div v-else-if="showUserDropdown && filteredAvailableUsers.length === 0" class="user-dropdown no-results-dropdown">
+            <div
+              v-else-if="showUserDropdown && filteredAvailableUsers.length === 0"
+              class="user-dropdown no-results-dropdown"
+            >
               <div class="user-dropdown-content">
                 <div class="no-results-message">
                   Нет доступных пользователей
@@ -193,12 +253,15 @@
                   <div class="selected-user-info">
                     <span class="selected-user-name">{{ getFullName(user) }}</span>
                     <span class="selected-user-username">@{{ user.username }}</span>
-                    <span v-if="user.position" class="selected-user-position">{{ user.position }}</span>
+                    <span
+                      v-if="user.position"
+                      class="selected-user-position"
+                    >{{ user.position }}</span>
                   </div>
                   <button 
-                    @click="removeUser(user)"
                     class="remove-user-btn"
                     title="Удалить из списка"
+                    @click="removeUser(user)"
                   >
                     ×
                   </button>
@@ -209,13 +272,16 @@
         </div>
         
         <div class="modal-footer">
-          <button class="modal-cancel-btn" @click="closeAddModal">
+          <button
+            class="modal-cancel-btn"
+            @click="closeAddModal"
+          >
             Отмена
           </button>
           <button 
             class="modal-add-btn"
-            @click="addApprovers"
             :disabled="selectedUsers.length === 0 || loading"
+            @click="addApprovers"
           >
             {{ loading ? 'Добавление...' : `Добавить (${selectedUsers.length})` }}
           </button>
@@ -224,7 +290,11 @@
     </div>
 
     <!-- Уведомления -->
-    <div v-if="notification.show" class="notification" :class="notification.type">
+    <div
+      v-if="notification.show"
+      class="notification"
+      :class="notification.type"
+    >
       {{ notification.message }}
     </div>
   </div>
@@ -339,6 +409,9 @@ export default {
                position.includes(query);
       }).slice(0, 10);
     }
+  },
+  mounted() {
+    this.refreshData();
   },
   methods: {
     getFullName(user) {
@@ -503,9 +576,6 @@ export default {
         this.notification.show = false;
       }, 3000);
     }
-  },
-  mounted() {
-    this.refreshData();
   }
 };
 </script>

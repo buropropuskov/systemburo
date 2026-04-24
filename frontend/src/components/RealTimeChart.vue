@@ -1,7 +1,13 @@
 <template>
-  <div class="realtime-chart" :style="{ height: height + 'px' }">
-    <canvas ref="canvas"></canvas>
-    <div v-if="!data.length" class="chart-empty">
+  <div
+    class="realtime-chart"
+    :style="{ height: height + 'px' }"
+  >
+    <canvas ref="canvas" />
+    <div
+      v-if="!data.length"
+      class="chart-empty"
+    >
       <span>Нет данных для отображения</span>
     </div>
   </div>

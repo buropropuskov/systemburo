@@ -5,20 +5,33 @@
       <div class="left-column">
         <div class="news-container">
           <div class="news-header">
-            <h2 class="news-title">Последние новости</h2>
+            <h2 class="news-title">
+              Последние новости
+            </h2>
             <div class="header-actions">
-              <button class="manage-btn" @click="openManageModal">Управление</button>
+              <button
+                class="manage-btn"
+                @click="openManageModal"
+              >
+                Управление
+              </button>
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
-          <div class="divider"></div>
+          <div class="divider" />
           <div class="news-list">
             <!-- Лоадер -->
-            <div v-if="loadingNews" class="loading-message">
+            <div
+              v-if="loadingNews"
+              class="loading-message"
+            >
               <LoaderSpinner label="Загрузка новостей…" />
             </div>
             <!-- Новости -->
-            <div v-else-if="newsItems.length > 0" class="news-items">
+            <div
+              v-else-if="newsItems.length > 0"
+              class="news-items"
+            >
               <article
                 v-for="(item, index) in newsItems"
                 :key="item.id"
@@ -29,30 +42,72 @@
                   <time class="news-date">{{ formatDate(item.created_at) }}</time>
                   <span class="item-type">Новость</span>
                 </div>
-                <h3 class="news-item-title">{{ item.title }}</h3>
-                <p class="news-item-description">{{ item.description }}</p>
-                <button class="news-details-button" @click="openNewsModal(item)">Читать далее</button>
+                <h3 class="news-item-title">
+                  {{ item.title }}
+                </h3>
+                <p class="news-item-description">
+                  {{ item.description }}
+                </p>
+                <button
+                  class="news-details-button"
+                  @click="openNewsModal(item)"
+                >
+                  Читать далее
+                </button>
               </article>
             </div>
-            <div v-else class="empty-state"><p>Нет новостей</p></div>
+            <div
+              v-else
+              class="empty-state"
+            >
+              <p>Нет новостей</p>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Правая колонка -->
       <div class="right-column">
-        <div class="guide-card" :style="{ animationDelay: '0.2s' }" @click="openGuide">
+        <div
+          class="guide-card"
+          :style="{ animationDelay: '0.2s' }"
+          @click="openGuide"
+        >
           <div class="guide-content">
             <div class="guide-text">
               <h3 class="guide-title">
                 <div class="guide-icon">
-                  <svg width="35" height="35" viewBox="0 0 35 35" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="35" height="35" fill="url(#pattern0)" />
+                  <svg
+                    width="35"
+                    height="35"
+                    viewBox="0 0 35 35"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <rect
+                      width="35"
+                      height="35"
+                      fill="url(#pattern0)"
+                    />
                     <defs>
-                      <pattern id="pattern0" patternContentUnits="objectBoundingBox" width="1" height="1">
-                        <use xlink:href="#image0" transform="scale(0.015625)" />
+                      <pattern
+                        id="pattern0"
+                        patternContentUnits="objectBoundingBox"
+                        width="1"
+                        height="1"
+                      >
+                        <use
+                          xlink:href="#image0"
+                          transform="scale(0.015625)"
+                        />
                       </pattern>
-                      <image id="image0" width="64" height="64" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAHYAAAB2AH6XKZyAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAwxJREFUeJzt209oHkUcxvGPMQlqBAk9WCoBJZdoDuLJQyMtlBZSKv4Be6m3QpRcKmoN9RQPpVCCUA+e9FRPCqWlHixeVGwPUpFCrNhi0ItQJH+MQpU2TQ+7L+8SeHl3N7OZTbJfWN7Z3fnNPPMw876zs/PSsL15oGRcP17AM3gknJyg/IwvQxfajynMY3UTHM+HbPwgvqtBo4ocr3drVG/OxvfiC0m3bzGHS1jOWcZaxrA7TV/G94FiDmG0pKaOvKHt6grexYPrLHM6U+Z0wJizKugBxzPpDzCTM6729OTI8zSG0/QiTlcnZ+PJY8BwJn0F/1WkJQp5DHgsk16qSkgs8hiQnSytViUkFnkM2NI0BsQWEJvGgNgCOjCDf2zAhKuOBkzhHTyafr5XZWV1M+AgTq65dgovV1VhnQx4Dp9rP2TdTT978Fl6Pzh1MWAnLmAgPf8dz+K39HxAsrrzROiK62LABIbS9DJexHVJ12+tN+zC0dAV18WA1nR7RfIMP5uez+Kw9nAou4bZkboY0OJtXFxz7ZJkAaYS6mTAp/iow70z+LiKSmMakH20/hpvdsl/LM3XYjGEiLxLYlXwCZ5EH97XHueduIvXJPOC/9P4dRPTgH/xVsGYvzEZUkSdvgOi0BgQW0BsGgNiC4hNY0BsAbFpDIgtIDaNAbEFxKYxILaA2DQGxBYQm8aA2AJis+0NKLskNoZXJRsSd4STE4SnimQuasAQvsGegnGxWOmWoagBm6XhJMvuV7plKjsE/pK8qLiMhZJlVM2cHO8OyhjwE8Zxq0Rs7Sj6K3Abr9gijad4DziHP9L0wziBkaCKwnAPV/Fhml4XR7S3n2f360yq5k8OIY8D3RqXZwhkX2I+lEn/mSM2JityDNU8Gw5G8Eua/hZ7M/d2S3Zu1JEbuBaqsJva3Wo8VKGbiQltA5bwUlw54ci756YXX2Ff5tqPkn+RLeBOYF0h+BXnQxY4KHkOiP3NXuQY69aoIhOhReyX/BTOF4irNWW3nfVJ3B3F4+l5nbiHHwQeAg1bkfsR5B+/y7yHCAAAAABJRU5ErkJggg=="/>
+                      <image
+                        id="image0"
+                        width="64"
+                        height="64"
+                        preserveAspectRatio="none"
+                        xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAHYAAAB2AH6XKZyAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAwxJREFUeJzt209oHkUcxvGPMQlqBAk9WCoBJZdoDuLJQyMtlBZSKv4Be6m3QpRcKmoN9RQPpVCCUA+e9FRPCqWlHixeVGwPUpFCrNhi0ItQJH+MQpU2TQ+7L+8SeHl3N7OZTbJfWN7Z3fnNPPMw876zs/PSsL15oGRcP17AM3gknJyg/IwvQxfajynMY3UTHM+HbPwgvqtBo4ocr3drVG/OxvfiC0m3bzGHS1jOWcZaxrA7TV/G94FiDmG0pKaOvKHt6grexYPrLHM6U+Z0wJizKugBxzPpDzCTM6729OTI8zSG0/QiTlcnZ+PJY8BwJn0F/1WkJQp5DHgsk16qSkgs8hiQnSytViUkFnkM2NI0BsQWEJvGgNgCOjCDf2zAhKuOBkzhHTyafr5XZWV1M+AgTq65dgovV1VhnQx4Dp9rP2TdTT978Fl6Pzh1MWAnLmAgPf8dz+K39HxAsrrzROiK62LABIbS9DJexHVJ12+tN+zC0dAV18WA1nR7RfIMP5uez+Kw9nAou4bZkboY0OJtXFxz7ZJkAaYS6mTAp/iow70z+LiKSmMakH20/hpvdsl/LM3XYjGEiLxLYlXwCZ5EH97XHueduIvXJPOC/9P4dRPTgH/xVsGYvzEZUkSdvgOi0BgQW0BsGgNiC4hNY0BsAbFpDIgtIDaNAbEFxKYxILaA2DQGxBYQm8aA2AJis+0NKLskNoZXJRsSd4STE4SnimQuasAQvsGegnGxWOmWoagBm6XhJMvuV7plKjsE/pK8qLiMhZJlVM2cHO8OyhjwE8Zxq0Rs7Sj6K3Abr9gijad4DziHP9L0wziBkaCKwnAPV/Fhml4XR7S3n2f360yq5k8OIY8D3RqXZwhkX2I+lEn/mSM2JityDNU8Gw5G8Eua/hZ7M/d2S3Zu1JEbuBaqsJva3Wo8VKGbiQltA5bwUlw54ci756YXX2Ff5tqPkn+RLeBOYF0h+BXnQxY4KHkOiP3NXuQY69aoIhOhReyX/BTOF4irNWW3nfVJ3B3F4+l5nbiHHwQeAg1bkfsR5B+/y7yHCAAAAABJRU5ErkJggg=="
+                      />
                     </defs>
                   </svg>
                 </div>
@@ -75,45 +130,101 @@
           @click="openAnnouncementModal(activeAnnouncement)"
         >
           <div class="card-header">
-            <span class="card-type" :class="{ important: activeAnnouncement.is_important }">
+            <span
+              class="card-type"
+              :class="{ important: activeAnnouncement.is_important }"
+            >
               {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
             </span>
             <time class="card-date">{{ formatDate(activeAnnouncement.created_at) }}</time>
           </div>
-          <h3 class="card-title">{{ activeAnnouncement.title }}</h3>
-          <p class="card-description">{{ activeAnnouncement.description }}</p>
-          <button class="card-button">Читать далее</button>
+          <h3 class="card-title">
+            {{ activeAnnouncement.title }}
+          </h3>
+          <p class="card-description">
+            {{ activeAnnouncement.description }}
+          </p>
+          <button class="card-button">
+            Читать далее
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Модальное окно управления -->
     <transition name="modal-fade">
-      <div v-if="showManageModal" class="modal-overlay" @click.self="closeManageModal">
+      <div
+        v-if="showManageModal"
+        class="modal-overlay"
+        @click.self="closeManageModal"
+      >
         <div class="modal-content manage-modal">
           <div class="modal-header">
-            <h3 class="modal-title">Управление контентом</h3>
-            <button class="modal-close" @click="closeManageModal">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/></svg>
+            <h3 class="modal-title">
+              Управление контентом
+            </h3>
+            <button
+              class="modal-close"
+              @click="closeManageModal"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              ><path
+                d="M13 1L1 13M1 1L13 13"
+                stroke="#666"
+                stroke-width="2"
+                stroke-linecap="round"
+              /></svg>
             </button>
           </div>
 
           <div class="modal-body">
             <div class="manage-tabs">
-              <button class="tab-btn" :class="{ active: activeTab === 'news' }" @click="activeTab = 'news'">Новости</button>
-              <button class="tab-btn" :class="{ active: activeTab === 'announcements' }" @click="activeTab = 'announcements'">Объявления</button>
+              <button
+                class="tab-btn"
+                :class="{ active: activeTab === 'news' }"
+                @click="activeTab = 'news'"
+              >
+                Новости
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ active: activeTab === 'announcements' }"
+                @click="activeTab = 'announcements'"
+              >
+                Объявления
+              </button>
             </div>
 
             <!-- Новости -->
-            <div v-if="activeTab === 'news'" class="manage-section">
+            <div
+              v-if="activeTab === 'news'"
+              class="manage-section"
+            >
               <div class="section-header">
-                <div class="section-title">Список новостей</div>
-                <button class="add-btn" @click="openCreateNewsModal">+ Добавить новость</button>
+                <div class="section-title">
+                  Список новостей
+                </div>
+                <button
+                  class="add-btn"
+                  @click="openCreateNewsModal"
+                >
+                  + Добавить новость
+                </button>
               </div>
               <div class="items-list">
-                <div v-for="item in allNewsItems" :key="item.id" class="manage-item">
+                <div
+                  v-for="item in allNewsItems"
+                  :key="item.id"
+                  class="manage-item"
+                >
                   <div class="item-main">
-                    <div class="item-title">{{ item.title }}</div>
+                    <div class="item-title">
+                      {{ item.title }}
+                    </div>
                     <div class="item-meta">
                       <span>{{ formatDate(item.created_at) }}</span>
                       <span>{{ item.created_by_name || 'Система' }}</span>
@@ -121,31 +232,71 @@
                     </div>
                   </div>
                   <div class="item-actions">
-                    <button class="action-btn edit-btn" @click="editNewsItem(item)">Редактировать</button>
-                    <button class="action-btn toggle-btn" @click="toggleNewsActive(item)">{{ item.is_active ? 'Скрыть' : 'Показать' }}</button>
-                    <button class="action-btn delete-btn" @click="deleteNewsItem(item.id)">Удалить</button>
+                    <button
+                      class="action-btn edit-btn"
+                      @click="editNewsItem(item)"
+                    >
+                      Редактировать
+                    </button>
+                    <button
+                      class="action-btn toggle-btn"
+                      @click="toggleNewsActive(item)"
+                    >
+                      {{ item.is_active ? 'Скрыть' : 'Показать' }}
+                    </button>
+                    <button
+                      class="action-btn delete-btn"
+                      @click="deleteNewsItem(item.id)"
+                    >
+                      Удалить
+                    </button>
                   </div>
                 </div>
-                <div v-if="allNewsItems.length === 0" class="empty-manage">Нет новостей</div>
+                <div
+                  v-if="allNewsItems.length === 0"
+                  class="empty-manage"
+                >
+                  Нет новостей
+                </div>
               </div>
             </div>
 
             <!-- Объявления -->
-            <div v-if="activeTab === 'announcements'" class="manage-section">
+            <div
+              v-if="activeTab === 'announcements'"
+              class="manage-section"
+            >
               <div class="section-header">
-                <div class="section-title">Список объявлений</div>
-                <button class="add-btn" @click="openCreateAnnouncementModal">+ Добавить объявление</button>
+                <div class="section-title">
+                  Список объявлений
+                </div>
+                <button
+                  class="add-btn"
+                  @click="openCreateAnnouncementModal"
+                >
+                  + Добавить объявление
+                </button>
               </div>
               <div class="info-message">
                 <span>Активно может быть только одно объявление</span>
               </div>
               <div class="items-list">
-                <div v-for="item in allAnnouncements" :key="item.id" class="manage-item">
+                <div
+                  v-for="item in allAnnouncements"
+                  :key="item.id"
+                  class="manage-item"
+                >
                   <div class="item-main">
                     <div class="item-title">
                       {{ item.title }}
-                      <span v-if="item.is_important" class="important-badge">Важное</span>
-                      <span v-if="item.is_active" class="active-badge">Активно</span>
+                      <span
+                        v-if="item.is_important"
+                        class="important-badge"
+                      >Важное</span>
+                      <span
+                        v-if="item.is_active"
+                        class="active-badge"
+                      >Активно</span>
                     </div>
                     <div class="item-meta">
                       <span>{{ formatDate(item.created_at) }}</span>
@@ -154,19 +305,51 @@
                     </div>
                   </div>
                   <div class="item-actions">
-                    <button class="action-btn edit-btn" @click="editAnnouncement(item)">Редактировать</button>
-                    <button v-if="!item.is_active" class="action-btn activate-btn" @click="setActiveAnnouncement(item.id)">Активировать</button>
-                    <button v-if="item.is_active" class="action-btn deactivate-btn" @click="deactivateAnnouncement(item.id)">Деактивировать</button>
-                    <button class="action-btn delete-btn" @click="deleteAnnouncement(item.id)">Удалить</button>
+                    <button
+                      class="action-btn edit-btn"
+                      @click="editAnnouncement(item)"
+                    >
+                      Редактировать
+                    </button>
+                    <button
+                      v-if="!item.is_active"
+                      class="action-btn activate-btn"
+                      @click="setActiveAnnouncement(item.id)"
+                    >
+                      Активировать
+                    </button>
+                    <button
+                      v-if="item.is_active"
+                      class="action-btn deactivate-btn"
+                      @click="deactivateAnnouncement(item.id)"
+                    >
+                      Деактивировать
+                    </button>
+                    <button
+                      class="action-btn delete-btn"
+                      @click="deleteAnnouncement(item.id)"
+                    >
+                      Удалить
+                    </button>
                   </div>
                 </div>
-                <div v-if="allAnnouncements.length === 0" class="empty-manage">Нет объявлений</div>
+                <div
+                  v-if="allAnnouncements.length === 0"
+                  class="empty-manage"
+                >
+                  Нет объявлений
+                </div>
               </div>
             </div>
           </div>
 
           <div class="modal-footer">
-            <button class="btn close-btn" @click="closeManageModal">Закрыть</button>
+            <button
+              class="btn close-btn"
+              @click="closeManageModal"
+            >
+              Закрыть
+            </button>
           </div>
         </div>
       </div>
@@ -174,20 +357,72 @@
 
     <!-- Модальное окно создания/редактирования новости -->
     <transition name="modal-fade">
-      <div v-if="showNewsModal" class="modal-overlay" @click.self="closeNewsModal">
+      <div
+        v-if="showNewsModal"
+        class="modal-overlay"
+        @click.self="closeNewsModal"
+      >
         <div class="modal-content">
           <div class="modal-header">
-            <h3 class="modal-title">{{ editingNews ? 'Редактировать новость' : 'Создать новость' }}</h3>
-            <button class="modal-close" @click="closeNewsModal"><svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <h3 class="modal-title">
+              {{ editingNews ? 'Редактировать новость' : 'Создать новость' }}
+            </h3>
+            <button
+              class="modal-close"
+              @click="closeNewsModal"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              ><path
+                d="M13 1L1 13M1 1L13 13"
+                stroke="#666"
+                stroke-width="2"
+                stroke-linecap="round"
+              /></svg>
+            </button>
           </div>
           <div class="modal-body">
-            <div class="form-group"><label class="form-label">Заголовок</label><input type="text" class="form-input" v-model="newsForm.title" placeholder="Введите заголовок" /></div>
-            <div class="form-group"><label class="form-label">Краткое описание</label><textarea class="form-textarea" v-model="newsForm.description" placeholder="Введите краткое описание" rows="3"></textarea></div>
-            <div class="form-group"><label class="form-label">Полный текст</label><textarea class="form-textarea" v-model="newsForm.fullText" placeholder="Введите полный текст" rows="5"></textarea></div>
+            <div class="form-group">
+              <label class="form-label">Заголовок</label><input
+                v-model="newsForm.title"
+                type="text"
+                class="form-input"
+                placeholder="Введите заголовок"
+              >
+            </div>
+            <div class="form-group">
+              <label class="form-label">Краткое описание</label><textarea
+                v-model="newsForm.description"
+                class="form-textarea"
+                placeholder="Введите краткое описание"
+                rows="3"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Полный текст</label><textarea
+                v-model="newsForm.fullText"
+                class="form-textarea"
+                placeholder="Введите полный текст"
+                rows="5"
+              />
+            </div>
           </div>
           <div class="modal-footer">
-            <button class="btn cancel-btn" @click="closeNewsModal">Отмена</button>
-            <button class="btn save-btn" @click="submitNews">Сохранить</button>
+            <button
+              class="btn cancel-btn"
+              @click="closeNewsModal"
+            >
+              Отмена
+            </button>
+            <button
+              class="btn save-btn"
+              @click="submitNews"
+            >
+              Сохранить
+            </button>
           </div>
         </div>
       </div>
@@ -195,21 +430,78 @@
 
     <!-- Модальное окно создания/редактирования объявления -->
     <transition name="modal-fade">
-      <div v-if="showAnnouncementModal" class="modal-overlay" @click.self="closeAnnouncementModal">
+      <div
+        v-if="showAnnouncementModal"
+        class="modal-overlay"
+        @click.self="closeAnnouncementModal"
+      >
         <div class="modal-content">
           <div class="modal-header">
-            <h3 class="modal-title">{{ editingAnnouncement ? 'Редактировать объявление' : 'Создать объявление' }}</h3>
-            <button class="modal-close" @click="closeAnnouncementModal"><svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <h3 class="modal-title">
+              {{ editingAnnouncement ? 'Редактировать объявление' : 'Создать объявление' }}
+            </h3>
+            <button
+              class="modal-close"
+              @click="closeAnnouncementModal"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              ><path
+                d="M13 1L1 13M1 1L13 13"
+                stroke="#666"
+                stroke-width="2"
+                stroke-linecap="round"
+              /></svg>
+            </button>
           </div>
           <div class="modal-body">
-            <div class="form-group"><label class="form-label">Заголовок</label><input type="text" class="form-input" v-model="announcementForm.title" placeholder="Введите заголовок" /></div>
-            <div class="form-group"><label class="form-label">Краткое описание</label><textarea class="form-textarea" v-model="announcementForm.description" placeholder="Введите краткое описание" rows="3"></textarea></div>
-            <div class="form-group"><label class="form-label">Полный текст</label><textarea class="form-textarea" v-model="announcementForm.fullText" placeholder="Введите полный текст" rows="5"></textarea></div>
-            <div class="form-group"><label class="checkbox-label"><input type="checkbox" v-model="announcementForm.isImportant" /><span>Важное объявление</span></label></div>
+            <div class="form-group">
+              <label class="form-label">Заголовок</label><input
+                v-model="announcementForm.title"
+                type="text"
+                class="form-input"
+                placeholder="Введите заголовок"
+              >
+            </div>
+            <div class="form-group">
+              <label class="form-label">Краткое описание</label><textarea
+                v-model="announcementForm.description"
+                class="form-textarea"
+                placeholder="Введите краткое описание"
+                rows="3"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Полный текст</label><textarea
+                v-model="announcementForm.fullText"
+                class="form-textarea"
+                placeholder="Введите полный текст"
+                rows="5"
+              />
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label"><input
+                v-model="announcementForm.isImportant"
+                type="checkbox"
+              ><span>Важное объявление</span></label>
+            </div>
           </div>
           <div class="modal-footer">
-            <button class="btn cancel-btn" @click="closeAnnouncementModal">Отмена</button>
-            <button class="btn save-btn" @click="submitAnnouncement">Сохранить</button>
+            <button
+              class="btn cancel-btn"
+              @click="closeAnnouncementModal"
+            >
+              Отмена
+            </button>
+            <button
+              class="btn save-btn"
+              @click="submitAnnouncement"
+            >
+              Сохранить
+            </button>
           </div>
         </div>
       </div>
@@ -217,15 +509,37 @@
 
     <!-- Модальное окно просмотра новости -->
     <transition name="modal-fade">
-      <div v-if="showNewsDetailsModal" class="modal-overlay" @click.self="closeNewsDetailsModal">
+      <div
+        v-if="showNewsDetailsModal"
+        class="modal-overlay"
+        @click.self="closeNewsDetailsModal"
+      >
         <div class="modal-content">
           <div class="modal-body">
-            <div class="modal-info"><time class="modal-date">{{ formatDate(selectedNews?.created_at) }}</time><span class="modal-type">Новость</span></div>
-            <h3 class="modal-title">{{ selectedNews?.title }}</h3>
-            <p class="modal-description">{{ selectedNews?.description }}</p>
-            <div v-if="selectedNews?.full_text" class="modal-full-text">{{ selectedNews.full_text }}</div>
+            <div class="modal-info">
+              <time class="modal-date">{{ formatDate(selectedNews?.created_at) }}</time><span class="modal-type">Новость</span>
+            </div>
+            <h3 class="modal-title">
+              {{ selectedNews?.title }}
+            </h3>
+            <p class="modal-description">
+              {{ selectedNews?.description }}
+            </p>
+            <div
+              v-if="selectedNews?.full_text"
+              class="modal-full-text"
+            >
+              {{ selectedNews.full_text }}
+            </div>
           </div>
-          <div class="modal-footer"><button class="btn close-btn" @click="closeNewsDetailsModal">Закрыть</button></div>
+          <div class="modal-footer">
+            <button
+              class="btn close-btn"
+              @click="closeNewsDetailsModal"
+            >
+              Закрыть
+            </button>
+          </div>
         </div>
       </div>
     </transition>
@@ -272,6 +586,9 @@ export default {
       activeAnnouncement: null,
       allAnnouncements: []
     }
+  },
+  mounted() {
+    this.fetchAllData()
   },
   methods: {
     formatDate(dateString) {
@@ -470,9 +787,6 @@ export default {
     closeAnnouncementModal() { this.showAnnouncementModal = false; this.editingAnnouncement = null },
     submitAnnouncement() { if (!this.announcementForm.title || !this.announcementForm.description) { alert('Заполните заголовок и описание'); return } this.editingAnnouncement ? this.updateAnnouncement() : this.createAnnouncement() },
     openGuide() { console.log('Открыть инструкцию') }
-  },
-  mounted() {
-    this.fetchAllData()
   }
 }
 </script>

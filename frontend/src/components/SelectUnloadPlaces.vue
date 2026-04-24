@@ -3,18 +3,21 @@
     <div class="detail-group">
       <div class="unload-places__header">
         <label class="detail-label">Места разгрузки (по умолчанию):</label>
-        <div v-if="hasSelectedPlaces" class="places-actions">
+        <div
+          v-if="hasSelectedPlaces"
+          class="places-actions"
+        >
           <button 
-            @click="saveUnloadPlaces" 
-            class="save-places-btn"
+            class="save-places-btn" 
             :disabled="isSaving"
+            @click="saveUnloadPlaces"
           >
             {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
           </button>
           <button 
-            @click="cancelUnloadPlacesChanges" 
-            class="cancel-places-btn"
+            class="cancel-places-btn" 
             :disabled="isSaving"
+            @click="cancelUnloadPlacesChanges"
           >
             Отмена
           </button>
@@ -37,7 +40,10 @@
           </div>
         </div>
 
-        <div v-if="allUnloadPlaces.length === 0" class="no-places-message">
+        <div
+          v-if="allUnloadPlaces.length === 0"
+          class="no-places-message"
+        >
           <p>Нет доступных мест разгрузки</p>
         </div>
       </div>
@@ -82,6 +88,13 @@ export default {
           this.fetchEntityUnloadPlaces(newEntity.id);
         }
       }
+    }
+  },
+  async mounted() {
+    await this.fetchAllUnloadPlaces();
+    
+    if (this.entity && this.entity.id) {
+      await this.fetchEntityUnloadPlaces(this.entity.id);
     }
   },
   methods: {
@@ -198,13 +211,6 @@ export default {
       setTimeout(() => {
         notification.remove();
       }, 3000);
-    }
-  },
-  async mounted() {
-    await this.fetchAllUnloadPlaces();
-    
-    if (this.entity && this.entity.id) {
-      await this.fetchEntityUnloadPlaces(this.entity.id);
     }
   },
 };

@@ -5,20 +5,26 @@
         <div class="header-content">
           <div class="title-with-count">
             <label class="detail-label">Ответственные:</label>
-            <span v-if="selectedUsers.length > 0" class="count-badge">{{ selectedUsers.length }}</span>
+            <span
+              v-if="selectedUsers.length > 0"
+              class="count-badge"
+            >{{ selectedUsers.length }}</span>
           </div>
-          <div v-if="hasSelectedUsers" class="users-actions">
+          <div
+            v-if="hasSelectedUsers"
+            class="users-actions"
+          >
             <button 
-              @click="saveResponsibleUsers" 
-              class="save-users-btn"
+              class="save-users-btn" 
               :disabled="isSavingUsers"
+              @click="saveResponsibleUsers"
             >
               {{ isSavingUsers ? 'Сохранение...' : 'Сохранить' }}
             </button>
             <button 
-              @click="cancelResponsibleUsersChanges" 
-              class="cancel-users-btn"
+              class="cancel-users-btn" 
               :disabled="isSavingUsers"
+              @click="cancelResponsibleUsersChanges"
             >
               Отмена
             </button>
@@ -31,14 +37,17 @@
         <div class="user-search-container">
           <input
             v-model="userSearchQuery"
-            @focus="showUserDropdown = true"
-            @blur="onUserSearchBlur"
-            @input="handleSearchInput"
             class="user-search-input"
             placeholder="Добавить ответственного"
             type="text"
-          />
-          <div v-if="showUserDropdown && sortedAvailableUsers.length > 0" class="user-dropdown">
+            @focus="showUserDropdown = true"
+            @blur="onUserSearchBlur"
+            @input="handleSearchInput"
+          >
+          <div
+            v-if="showUserDropdown && sortedAvailableUsers.length > 0"
+            class="user-dropdown"
+          >
             <div class="user-dropdown-content">
               <div 
                 v-for="user in sortedAvailableUsers" 
@@ -52,15 +61,27 @@
                     <span class="user-username">@{{ user.username }}</span>
                   </div>
                   <div class="user-details">
-                    <span v-if="user.position" class="user-tag position-tag">{{ user.position }}</span>
-                    <span v-if="user.organization" class="user-tag org-tag">{{ user.organization }}</span>
-                    <span v-if="user.company" class="user-tag company-tag">{{ user.company }}</span>
+                    <span
+                      v-if="user.position"
+                      class="user-tag position-tag"
+                    >{{ user.position }}</span>
+                    <span
+                      v-if="user.organization"
+                      class="user-tag org-tag"
+                    >{{ user.organization }}</span>
+                    <span
+                      v-if="user.company"
+                      class="user-tag company-tag"
+                    >{{ user.company }}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div v-if="showUserDropdown && userSearchQuery && sortedAvailableUsers.length === 0" class="user-dropdown">
+          <div
+            v-if="showUserDropdown && userSearchQuery && sortedAvailableUsers.length === 0"
+            class="user-dropdown"
+          >
             <div class="no-users-dropdown">
               Пользователи не найдены
             </div>
@@ -68,7 +89,10 @@
         </div>
 
         <!-- Список ответственных -->
-        <div v-if="selectedUsers.length > 0" class="users-list-section">
+        <div
+          v-if="selectedUsers.length > 0"
+          class="users-list-section"
+        >
           <div class="selected-users-list">
             <div 
               v-for="user in sortedUsers" 
@@ -78,22 +102,31 @@
             >
               <div class="selected-user-info">
                 <div class="selected-user-main">
-                    <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
+                  <span class="selected-user-name">{{ getUserDisplayName(user) }}</span>
                   <span class="selected-user-username">@{{ user.username }}</span>
                 </div>
                 <div class="selected-user-details">
-                  <span v-if="user.position" class="user-tag position-tag">{{ user.position }}</span>
-                  <span v-if="user.organization" class="user-tag org-tag">{{ user.organization }}</span>
-                  <span v-if="user.company" class="user-tag company-tag">{{ user.company }}</span>
+                  <span
+                    v-if="user.position"
+                    class="user-tag position-tag"
+                  >{{ user.position }}</span>
+                  <span
+                    v-if="user.organization"
+                    class="user-tag org-tag"
+                  >{{ user.organization }}</span>
+                  <span
+                    v-if="user.company"
+                    class="user-tag company-tag"
+                  >{{ user.company }}</span>
                 </div>
                 <div class="user-settings">
                   <label class="toggle-switch">
                     <input 
-                      type="checkbox" 
-                      v-model="user.required_approval"
+                      v-model="user.required_approval" 
+                      type="checkbox"
                       @change="updateUserRequiredApproval(user)"
-                    />
-                    <span class="toggle-slider"></span>
+                    >
+                    <span class="toggle-slider" />
                   </label>
                   <span class="toggle-label-text">Обязательное согласование</span>
                 </div>
@@ -101,24 +134,24 @@
               <div class="selected-user-actions">
                 <button 
                   v-if="!user.is_primary"
-                  @click="setAsPrimary(user)"
                   class="primary-btn"
                   title="Сделать главным"
+                  @click="setAsPrimary(user)"
                 >
                   ↑
                 </button>
                 <button 
                   v-if="user.is_primary"
-                  @click="removePrimaryUser(user)"
                   class="unprimary-btn"
                   title="Убрать главного"
+                  @click="removePrimaryUser(user)"
                 >
                   ↓
                 </button>
                 <button 
-                  @click="removeResponsibleUser(user)"
                   class="remove-btn"
                   title="Удалить"
+                  @click="removeResponsibleUser(user)"
                 >
                   ×
                 </button>
@@ -127,7 +160,10 @@
           </div>
         </div>
 
-        <div v-if="selectedUsers.length === 0" class="no-selected-users">
+        <div
+          v-if="selectedUsers.length === 0"
+          class="no-selected-users"
+        >
           <p>Нет ответственных</p>
         </div>
       </div>
@@ -227,6 +263,13 @@ export default {
           this.fetchEntityUsers(newEntity.id);
         }
       }
+    }
+  },
+  async mounted() {
+    await this.fetchAllUsers();
+    
+    if (this.entity && this.entity.id) {
+      await this.fetchEntityUsers(this.entity.id);
     }
   },
   methods: {
@@ -441,13 +484,6 @@ export default {
       setTimeout(() => {
         notification.remove();
       }, 3000);
-    }
-  },
-  async mounted() {
-    await this.fetchAllUsers();
-    
-    if (this.entity && this.entity.id) {
-      await this.fetchEntityUsers(this.entity.id);
     }
   },
 };

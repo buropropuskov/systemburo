@@ -1,42 +1,80 @@
 <template>
   <div class="account__settings">
     <div class="settings__container">
-      <img src="@/assets/icons/settings.png" class="settings__icon" />
-      <h2 class="settings__title">Управление и настройка системы</h2>
+      <img
+        src="@/assets/icons/settings.png"
+        class="settings__icon"
+      >
+      <h2 class="settings__title">
+        Управление и настройка системы
+      </h2>
     </div>
     <ul class="settings__navigation">
       <li class="navigation__link">
-        <a href="#users" class="link">Пользователи</a>
+        <a
+          href="#users"
+          class="link"
+        >Пользователи</a>
       </li>
       <li class="navigation__link">
-        <a href="#organizations" class="link">Организации</a>
+        <a
+          href="#organizations"
+          class="link"
+        >Организации</a>
       </li>
       <li class="navigation__link">
-        <a href="#companies" class="link">Компании</a>
+        <a
+          href="#companies"
+          class="link"
+        >Компании</a>
       </li>
       <li class="navigation__link">
-        <a href="#" class="link disabled">Доступ</a>
+        <a
+          href="#"
+          class="link disabled"
+        >Доступ</a>
       </li>
       <li class="navigation__link">
-        <a href="#tables" class="link">Таблицы</a>
+        <a
+          href="#tables"
+          class="link"
+        >Таблицы</a>
       </li>
       <li class="navigation__link">
-        <a href="#number" class="link">Авто-номера</a>
+        <a
+          href="#number"
+          class="link"
+        >Авто-номера</a>
       </li>
       <li class="navigation__link">
-        <a href="#unload_place" class="link">Разгрузка</a>
+        <a
+          href="#unload_place"
+          class="link"
+        >Разгрузка</a>
       </li>
       <li class="navigation__link">
-        <a href="#" class="link disabled">Уведомления</a>
+        <a
+          href="#"
+          class="link disabled"
+        >Уведомления</a>
       </li>
       <li class="navigation__link">
-        <a href="#attachments" class="link">Бланки</a>
-      </li>
-       <li class="navigation__link">
-        <a href="#" class="link disabled">Карта</a>
+        <a
+          href="#attachments"
+          class="link"
+        >Бланки</a>
       </li>
       <li class="navigation__link">
-        <a href="#user_types" class="link">Типы аккаунта</a>
+        <a
+          href="#"
+          class="link disabled"
+        >Карта</a>
+      </li>
+      <li class="navigation__link">
+        <a
+          href="#user_types"
+          class="link"
+        >Типы аккаунта</a>
       </li>
     </ul>
   </div>

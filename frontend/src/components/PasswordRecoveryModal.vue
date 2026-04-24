@@ -6,7 +6,9 @@
     @close="$emit('close')"
   >
     <template #header>
-      <h2 class="recovery-title">Восстановление доступа</h2>
+      <h2 class="recovery-title">
+        Восстановление доступа
+      </h2>
     </template>
 
     <p class="recovery-text">
@@ -14,26 +16,57 @@
     </p>
 
     <div class="recovery-contacts">
-      <button type="button" class="recovery-contact" @click.stop="copyEmail" data-testid="recovery-copy-email">
-        <img src="@/assets/icons/email-blue.png" class="recovery-contact__icon" alt="" />
+      <button
+        type="button"
+        class="recovery-contact"
+        data-testid="recovery-copy-email"
+        @click.stop="copyEmail"
+      >
+        <img
+          src="@/assets/icons/email-blue.png"
+          class="recovery-contact__icon"
+          alt=""
+        >
         <span class="recovery-contact__text">buropropuskov@dreamisland.ru</span>
       </button>
-      <button type="button" class="recovery-contact" @click.stop="copyPhone" data-testid="recovery-copy-phone">
-        <img src="@/assets/icons/phone-blue.png" class="recovery-contact__icon" alt="" />
+      <button
+        type="button"
+        class="recovery-contact"
+        data-testid="recovery-copy-phone"
+        @click.stop="copyPhone"
+      >
+        <img
+          src="@/assets/icons/phone-blue.png"
+          class="recovery-contact__icon"
+          alt=""
+        >
         <span class="recovery-contact__text">+7 (910) 083 00-55</span>
       </button>
     </div>
 
     <div class="recovery-notifications">
-      <transition name="recovery-notification" mode="out-in">
-        <div v-if="showNotification" :key="notificationText" class="recovery-notification" data-testid="recovery-notification">
+      <transition
+        name="recovery-notification"
+        mode="out-in"
+      >
+        <div
+          v-if="showNotification"
+          :key="notificationText"
+          class="recovery-notification"
+          data-testid="recovery-notification"
+        >
           {{ notificationText }}
         </div>
       </transition>
     </div>
 
     <template #actions>
-      <button type="button" class="recovery-button" @click="$emit('close')" data-testid="recovery-close">
+      <button
+        type="button"
+        class="recovery-button"
+        data-testid="recovery-close"
+        @click="$emit('close')"
+      >
         Понятно
       </button>
     </template>
@@ -61,6 +94,12 @@ export default {
       showNotification: false,
       notificationText: '',
       notificationTimeout: null,
+    }
+  },
+
+  beforeUnmount() {
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout)
     }
   },
 
@@ -102,12 +141,6 @@ export default {
       await this.copyToClipboard('+7 (910) 083 00-55')
       this.showNotificationMessage('Номер телефона скопирован')
     },
-  },
-
-  beforeUnmount() {
-    if (this.notificationTimeout) {
-      clearTimeout(this.notificationTimeout)
-    }
   },
 }
 </script>

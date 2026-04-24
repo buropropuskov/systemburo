@@ -1,88 +1,165 @@
 <template>
-    <div class="date-picker-container">
-        <div class="date-field" @click="toggleDropdown">
-            <span class="select-text">{{ displayText }}</span>
-            <img 
-                src="@/assets/icons/calendar.png" 
-                class="select-icon" 
-                :class="{ 'select-icon--rotated': isOpen }" 
-            />
+  <div class="date-picker-container">
+    <div
+      class="date-field"
+      @click="toggleDropdown"
+    >
+      <span class="select-text">{{ displayText }}</span>
+      <img 
+        src="@/assets/icons/calendar.png" 
+        class="select-icon" 
+        :class="{ 'select-icon--rotated': isOpen }" 
+      >
             
-            <transition name="dropdown">
-                <div 
-                    class="custom-datepicker"
-                    v-if="isOpen"
-                    @click.stop
-                >
-                    <div class="datepicker-header">
-                        <h4 class="datepicker-title">Выберите период</h4>
-                        <button class="datepicker-close" @click="closeDatePicker">×</button>
-                    </div>
+      <transition name="dropdown">
+        <div 
+          v-if="isOpen"
+          class="custom-datepicker"
+          @click.stop
+        >
+          <div class="datepicker-header">
+            <h4 class="datepicker-title">
+              Выберите период
+            </h4>
+            <button
+              class="datepicker-close"
+              @click="closeDatePicker"
+            >
+              ×
+            </button>
+          </div>
                     
-                    <div class="quick-buttons">
-                        <button @click="setQuickDate('today')" class="quick-btn">Сегодня</button>
-                        <button @click="setQuickDate('yesterday')" class="quick-btn">Вчера</button>
-                        <button @click="setQuickDate('tomorrow')" class="quick-btn">Завтра</button>
-                        <button @click="setQuickDate('thisWeek')" class="quick-btn">Эта неделя</button>
-                        <button @click="setQuickDate('lastWeek')" class="quick-btn">Прошлая неделя</button>
-                        <button @click="setQuickDate('thisMonth')" class="quick-btn">Этот месяц</button>
-                        <button @click="setQuickDate('lastMonth')" class="quick-btn">Прошлый месяц</button>
-                        <button @click="setQuickDate('thisYear')" class="quick-btn">Этот год</button>
-                    </div>
+          <div class="quick-buttons">
+            <button
+              class="quick-btn"
+              @click="setQuickDate('today')"
+            >
+              Сегодня
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('yesterday')"
+            >
+              Вчера
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('tomorrow')"
+            >
+              Завтра
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('thisWeek')"
+            >
+              Эта неделя
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('lastWeek')"
+            >
+              Прошлая неделя
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('thisMonth')"
+            >
+              Этот месяц
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('lastMonth')"
+            >
+              Прошлый месяц
+            </button>
+            <button
+              class="quick-btn"
+              @click="setQuickDate('thisYear')"
+            >
+              Этот год
+            </button>
+          </div>
                     
-                    <div class="date-range-section">
-                        <div class="date-input-group">
-                            <label>С:</label>
-                            <input 
-                                type="date" 
-                                v-model="dateRangeStartInput"
-                                @change="updateDateRange"
-                                class="date-input"
-                            />
-                        </div>
-                        <div class="date-input-group">
-                            <label>ПО:</label>
-                            <input 
-                                type="date" 
-                                v-model="dateRangeEndInput"
-                                @change="updateDateRange"
-                                class="date-input"
-                            />
-                        </div>
-                    </div>
+          <div class="date-range-section">
+            <div class="date-input-group">
+              <label>С:</label>
+              <input 
+                v-model="dateRangeStartInput" 
+                type="date"
+                class="date-input"
+                @change="updateDateRange"
+              >
+            </div>
+            <div class="date-input-group">
+              <label>ПО:</label>
+              <input 
+                v-model="dateRangeEndInput" 
+                type="date"
+                class="date-input"
+                @change="updateDateRange"
+              >
+            </div>
+          </div>
                     
-                    <div class="calendar-section" v-if="showCalendar">
-                        <div class="calendar-header">
-                            <button class="calendar-nav-btn" @click="prevMonth">&lt;</button>
-                            <span class="current-month">{{ monthNames[currentMonth] }} {{ currentYear }}</span>
-                            <button class="calendar-nav-btn" @click="nextMonth">&gt;</button>
-                        </div>
-                        <div class="calendar-weekdays">
-                            <div v-for="day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']" :key="day" class="weekday">
-                                {{ day }}
-                            </div>
-                        </div>
-                        <div class="calendar-days">
-                            <div 
-                                v-for="day in calendarDays" 
-                                :key="day.date"
-                                class="calendar-day"
-                                :class="getDayClasses(day)"
-                                @click="selectCalendarDate(day)"
-                            >
-                                {{ day.day }}
-                            </div>
-                        </div>
-                    </div>
+          <div
+            v-if="showCalendar"
+            class="calendar-section"
+          >
+            <div class="calendar-header">
+              <button
+                class="calendar-nav-btn"
+                @click="prevMonth"
+              >
+                &lt;
+              </button>
+              <span class="current-month">{{ monthNames[currentMonth] }} {{ currentYear }}</span>
+              <button
+                class="calendar-nav-btn"
+                @click="nextMonth"
+              >
+                &gt;
+              </button>
+            </div>
+            <div class="calendar-weekdays">
+              <div
+                v-for="day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']"
+                :key="day"
+                class="weekday"
+              >
+                {{ day }}
+              </div>
+            </div>
+            <div class="calendar-days">
+              <div 
+                v-for="day in calendarDays" 
+                :key="day.date"
+                class="calendar-day"
+                :class="getDayClasses(day)"
+                @click="selectCalendarDate(day)"
+              >
+                {{ day.day }}
+              </div>
+            </div>
+          </div>
                     
-                    <div class="datepicker-actions">
-                        <button @click="applyDateRange" class="apply-btn">Применить</button>
-                        <button @click="clearDateRange" class="clear-btn">Очистить</button>
-                    </div>
-                </div>
-            </transition>
+          <div class="datepicker-actions">
+            <button
+              class="apply-btn"
+              @click="applyDateRange"
+            >
+              Применить
+            </button>
+            <button
+              class="clear-btn"
+              @click="clearDateRange"
+            >
+              Очистить
+            </button>
+          </div>
         </div>
+      </transition>
     </div>
+  </div>
 </template>
 
 <script>
@@ -207,6 +284,9 @@ export default {
                 this.removeClickOutside();
             }
         }
+    },
+    beforeUnmount() {
+        this.removeClickOutside();
     },
     methods: {
         toggleDropdown() {
@@ -419,9 +499,6 @@ export default {
         reset() {
             this.clearDateRange();
         }
-    },
-    beforeUnmount() {
-        this.removeClickOutside();
     }
 };
 </script>

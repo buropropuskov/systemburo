@@ -1,42 +1,57 @@
 <template>
   <teleport to="body">
-    <transition name="modal-overlay" @after-leave="handleAfterLeave">
+    <transition
+      name="modal-overlay"
+      @after-leave="handleAfterLeave"
+    >
       <div
         v-if="show"
         class="modal-overlay"
         @mousedown="onOverlayMousedown"
         @mouseup="onOverlayMouseup"
       >
-        <transition name="modal" @after-leave="emitClose">
+        <transition
+          name="modal"
+          @after-leave="emitClose"
+        >
           <div
             v-if="showContent"
             class="modal"
             @mousedown.stop
           >
             <div class="modal__header">
-              <h3 class="modal__title">Сообщить о проблеме</h3>
-              <button class="modal__close" @click="handleCloseClick" aria-label="Закрыть">
+              <h3 class="modal__title">
+                Сообщить о проблеме
+              </h3>
+              <button
+                class="modal__close"
+                aria-label="Закрыть"
+                @click="handleCloseClick"
+              >
                 <span class="close-icon">&times;</span>
               </button>
             </div>
             <div class="modal__body">
               <div class="modal__content">
-                <label for="feedback-textarea" class="textarea-label">
-                    Ниже вы можете дать обратную связь по работе системы. Расскажите о вашей проблеме, что не работает, с чем вам нужна помощь. Вы можете оставить предложение по улучшению работы системы.
+                <label
+                  for="feedback-textarea"
+                  class="textarea-label"
+                >
+                  Ниже вы можете дать обратную связь по работе системы. Расскажите о вашей проблеме, что не работает, с чем вам нужна помощь. Вы можете оставить предложение по улучшению работы системы.
                 </label>
                 <div class="textarea-wrapper">
                   <textarea 
-                    v-model="message" 
-                    id="feedback-textarea"
+                    id="feedback-textarea" 
+                    ref="textareaRef"
+                    v-model="message"
                     placeholder="Например: не работает кнопка отправки формы на странице..."
                     class="feedback-textarea"
                     :class="{ 'feedback-textarea--error': hasError }"
                     rows="6"
-                    ref="textareaRef"
+                    :disabled="isSubmitting"
                     @keydown.enter.prevent="handleEnterKey"
                     @input="handleInput"
-                    :disabled="isSubmitting"
-                  ></textarea>
+                  />
                   <div 
                     class="textarea-counter-wrapper"
                     :class="{ 
@@ -47,7 +62,11 @@
                     {{ message.length }}/{{ maxLength }}
                   </div>
                 </div>
-                <div v-if="error" class="error-message" role="alert">
+                <div
+                  v-if="error"
+                  class="error-message"
+                  role="alert"
+                >
                   <span class="error-icon">⚠</span>
                   {{ error }}
                 </div>
@@ -56,22 +75,28 @@
             <div class="modal__footer">
               <button 
                 class="modal-btn modal-btn--cancel" 
-                @click="handleCancelClick"
                 :disabled="isSubmitting"
+                @click="handleCancelClick"
               >
                 Отмена
               </button>
               <button 
                 class="modal-btn modal-btn--submit" 
-                @click="submitFeedback" 
-                :disabled="isSubmitDisabled"
+                :disabled="isSubmitDisabled" 
                 :class="{ 
                   'modal-btn--disabled': isSubmitDisabled,
                   'modal-btn--loading': isSubmitting 
                 }"
+                @click="submitFeedback"
               >
-                <span v-if="isSubmitting" class="submit-spinner"></span>
-                <span v-else class="submit-text">
+                <span
+                  v-if="isSubmitting"
+                  class="submit-spinner"
+                />
+                <span
+                  v-else
+                  class="submit-text"
+                >
                   {{ submitButtonText }}
                 </span>
               </button>
@@ -198,6 +223,25 @@ export default {
   
   created() {
     this.message = this.savedMessage;
+  },
+  
+  mounted() {
+    
+    this.$watch(
+      () => this.show,
+      (newVal) => {
+        if (newVal) {
+          document.body.style.overflow = 'hidden';
+        }
+      },
+      { immediate: true }
+    );
+  },
+  
+  beforeUnmount() {
+    this.removeEscListener();
+    document.body.style.overflow = '';
+    if (this.notificationTimer) clearTimeout(this.notificationTimer);
   },
   
   methods: {
@@ -374,25 +418,6 @@ export default {
         this.escListener = null;
       }
     }
-  },
-  
-  mounted() {
-    
-    this.$watch(
-      () => this.show,
-      (newVal) => {
-        if (newVal) {
-          document.body.style.overflow = 'hidden';
-        }
-      },
-      { immediate: true }
-    );
-  },
-  
-  beforeUnmount() {
-    this.removeEscListener();
-    document.body.style.overflow = '';
-    if (this.notificationTimer) clearTimeout(this.notificationTimer);
   }
 };
 </script>

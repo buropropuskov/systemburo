@@ -1,19 +1,49 @@
 <template>
   <teleport to="body">
     <transition name="modal-fade">
-      <div v-if="show" class="base-modal-overlay" @mousedown="handleOverlayMousedown" @mouseup="handleOverlayMouseup">
-        <div ref="modal" class="base-modal" :style="{ maxWidth: width }" @click.stop @mousedown.stop role="dialog" aria-modal="true" :aria-label="title">
-          <div class="base-modal__header" v-if="title || $slots.header || closable">
+      <div
+        v-if="show"
+        class="base-modal-overlay"
+        @mousedown="handleOverlayMousedown"
+        @mouseup="handleOverlayMouseup"
+      >
+        <div
+          ref="modal"
+          class="base-modal"
+          :style="{ maxWidth: width }"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title"
+          @click.stop
+          @mousedown.stop
+        >
+          <div
+            v-if="title || $slots.header || closable"
+            class="base-modal__header"
+          >
             <slot name="header">
-              <h3 class="base-modal__title">{{ title }}</h3>
+              <h3 class="base-modal__title">
+                {{ title }}
+              </h3>
             </slot>
-            <button v-if="closable" class="base-modal__close" data-testid="modal-button-close" @click="$emit('close')" aria-label="Закрыть">&times;</button>
+            <button
+              v-if="closable"
+              class="base-modal__close"
+              data-testid="modal-button-close"
+              aria-label="Закрыть"
+              @click="$emit('close')"
+            >
+              &times;
+            </button>
           </div>
           <div class="base-modal__body">
-            <slot></slot>
+            <slot />
           </div>
-          <div class="base-modal__actions" v-if="$slots.actions">
-            <slot name="actions"></slot>
+          <div
+            v-if="$slots.actions"
+            class="base-modal__actions"
+          >
+            <slot name="actions" />
           </div>
         </div>
       </div>
@@ -51,6 +81,18 @@ export default {
     return {
       overlayMousedown: false,
     };
+  },
+  watch: {
+    show(val) {
+      document.body.style.overflow = val ? 'hidden' : '';
+    },
+  },
+  mounted() {
+    document.addEventListener('keydown', this.handleKeydown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.handleKeydown);
+    document.body.style.overflow = '';
   },
   methods: {
     handleOverlayMousedown(e) {
@@ -93,18 +135,6 @@ export default {
         first.focus();
       }
     },
-  },
-  watch: {
-    show(val) {
-      document.body.style.overflow = val ? 'hidden' : '';
-    },
-  },
-  mounted() {
-    document.addEventListener('keydown', this.handleKeydown);
-  },
-  beforeUnmount() {
-    document.removeEventListener('keydown', this.handleKeydown);
-    document.body.style.overflow = '';
   },
 };
 </script>

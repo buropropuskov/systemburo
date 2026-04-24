@@ -1,59 +1,145 @@
 <template>
   <div class="table-container">
     <transition name="slide-down">
-      <div v-if="notification.message" class="notification">
+      <div
+        v-if="notification.message"
+        class="notification"
+      >
         <span>{{ notification.message }}</span>
-        <button @click="undoDelete">Отменить</button>
-        <div class="progress-bar" :style="{ width: `${progress}%` }"></div>
+        <button @click="undoDelete">
+          Отменить
+        </button>
+        <div
+          class="progress-bar"
+          :style="{ width: `${progress}%` }"
+        />
       </div>
     </transition>
     <div class="header-container">
       <h2>Таблица автомобилей КПП №4</h2>
       <!-- Поле поиска и кнопка для массового удаления -->
       <div class="search-controls">
-        <input type="text" v-model="searchQuery" placeholder="Поиск" class="search-input" />
-        <button class="delete-all" @click="deleteSelectedCars" :disabled="selectedCars.length === 0">Удалить выбранные</button>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Поиск"
+          class="search-input"
+        >
+        <button
+          class="delete-all"
+          :disabled="selectedCars.length === 0"
+          @click="deleteSelectedCars"
+        >
+          Удалить выбранные
+        </button>
       </div>
     </div>
 
     <table>
       <thead>
         <tr>
-          <th style="width: 40px;"><input type="checkbox" @change="toggleSelectAll" /></th>
-          <th style="width: 120px; cursor: pointer;" @click="sortBy('car_number')">
+          <th style="width: 40px;">
+            <input
+              type="checkbox"
+              @change="toggleSelectAll"
+            >
+          </th>
+          <th
+            style="width: 120px; cursor: pointer;"
+            @click="sortBy('car_number')"
+          >
             Номер<span v-if="sortKey === 'car_number'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
           </th>
-          <th style="width: 120px; cursor: pointer;" @click="sortBy('car_brand')">
+          <th
+            style="width: 120px; cursor: pointer;"
+            @click="sortBy('car_brand')"
+          >
             Марка <span v-if="sortKey === 'car_brand'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
           </th>
-          <th style="width: 150px; cursor: pointer;" @click="sortBy('organization')">
+          <th
+            style="width: 150px; cursor: pointer;"
+            @click="sortBy('organization')"
+          >
             Организация <span v-if="sortKey === 'organization'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
           </th>
-          <th style="width: 150px;">Место разгрузки</th>
-          <th style="width: 100px; cursor: pointer;" @click="sortBy('entry_date')">
+          <th style="width: 150px;">
+            Место разгрузки
+          </th>
+          <th
+            style="width: 100px; cursor: pointer;"
+            @click="sortBy('entry_date')"
+          >
             Дата <span v-if="sortKey === 'entry_date'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
           </th>
-          <th style="width: 80px;">Время</th>
-          <th style="width: 100px;">Действия</th>
+          <th style="width: 80px;">
+            Время
+          </th>
+          <th style="width: 100px;">
+            Действия
+          </th>
         </tr>
       </thead>
       <tbody>
         <template v-if="filteredCars.length > 0">
-          <tr v-for="carData in filteredCars" :key="carData.car.id" :class="{ overdue: isOverdue(carData.application) }">
-            <td><input type="checkbox" v-model="selectedCars" :value="carData.car.id" /></td>
-            <td><input v-model="carData.car.car_number" @blur="updateCar(carData.application.id, carData.car)" placeholder="Номер авто" /></td>
-            <td><input v-model="carData.car.car_brand" @blur="updateCar(carData.application.id, carData.car)" placeholder="Марка авто" /></td>
-            <td>{{ carData.application.organization }}</td>
-            <td><input v-model="carData.car.unload_place" @blur="updateCar(carData.application.id, carData.car)" placeholder="Место разгрузки" /></td>
-            <td><input type="date" v-model="carData.application.entry_date" @blur="updateApplication(carData.application)" /></td>
-            <td><input type="time" v-model="carData.application.entry_time" @blur="updateApplication(carData.application)" /></td>
+          <tr
+            v-for="carData in filteredCars"
+            :key="carData.car.id"
+            :class="{ overdue: isOverdue(carData.application) }"
+          >
             <td>
-              <button @click="removeCarWithNotification(carData.application.id, carData.car)">Удалить</button>
+              <input
+                v-model="selectedCars"
+                type="checkbox"
+                :value="carData.car.id"
+              >
+            </td>
+            <td>
+              <input
+                v-model="carData.car.car_number"
+                placeholder="Номер авто"
+                @blur="updateCar(carData.application.id, carData.car)"
+              >
+            </td>
+            <td>
+              <input
+                v-model="carData.car.car_brand"
+                placeholder="Марка авто"
+                @blur="updateCar(carData.application.id, carData.car)"
+              >
+            </td>
+            <td>{{ carData.application.organization }}</td>
+            <td>
+              <input
+                v-model="carData.car.unload_place"
+                placeholder="Место разгрузки"
+                @blur="updateCar(carData.application.id, carData.car)"
+              >
+            </td>
+            <td>
+              <input
+                v-model="carData.application.entry_date"
+                type="date"
+                @blur="updateApplication(carData.application)"
+              >
+            </td>
+            <td>
+              <input
+                v-model="carData.application.entry_time"
+                type="time"
+                @blur="updateApplication(carData.application)"
+              >
+            </td>
+            <td>
+              <button @click="removeCarWithNotification(carData.application.id, carData.car)">
+                Удалить
+              </button>
             </td>
           </tr>
         </template>
         <tr v-else>
-          <td colspan="8">Ничего не найдено</td>
+          <td colspan="8">
+            Ничего не найдено
+          </td>
         </tr>
       </tbody>
     </table>
@@ -90,6 +176,9 @@ export default {
         )
         .sort((a, b) => this.sortFunction(a, b));
     }
+  },
+  mounted() {
+    this.fetchApplications();
   },
   methods: {
     async actuallyDeleteCar(applicationId, car) {
@@ -235,9 +324,6 @@ export default {
   }
   this.notification = { message: null, car: null };
 }
-  },
-  mounted() {
-    this.fetchApplications();
   }
 };
 </script>

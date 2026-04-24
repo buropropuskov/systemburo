@@ -12,7 +12,7 @@ export default [
     ignores: ['dist/', 'node_modules/', 'coverage/', 'playwright-report/', 'test-results/', 'e2e/.auth/']
   },
   js.configs.recommended,
-  ...vue.configs['flat/essential'],
+  ...vue.configs['flat/recommended'],
   {
     languageOptions: {
       ecmaVersion: 'latest',

@@ -4,27 +4,48 @@
     <form @submit.prevent="submitApplication">
       <div class="form-group">
         <label>Организация:</label>
-        <input type="text" v-model="formData.organization" required disabled />
+        <input
+          v-model="formData.organization"
+          type="text"
+          required
+          disabled
+        >
       </div>
 
       <div class="form-group">
         <label>Ответственное лицо:</label>
-        <input type="text" v-model="formData.responsible_person" required />
+        <input
+          v-model="formData.responsible_person"
+          type="text"
+          required
+        >
       </div>
 
       <div class="form-group">
         <label>Контактный телефон:</label>
-        <input type="tel" v-model="formData.contact_phone" required />
+        <input
+          v-model="formData.contact_phone"
+          type="tel"
+          required
+        >
       </div>
 
       <div class="form-group">
         <label>Дата въезда:</label>
-        <input type="date" v-model="formData.entry_date" required />
+        <input
+          v-model="formData.entry_date"
+          type="date"
+          required
+        >
       </div>
 
       <div class="form-group">
         <label>Время пребывания:</label>
-        <input type="time" v-model="formData.entry_time" required />
+        <input
+          v-model="formData.entry_time"
+          type="time"
+          required
+        >
       </div>
 
       <div class="form-group">
@@ -32,36 +53,36 @@
         <div class="car-boxes">
           <input 
             v-model="carNumber.part1" 
-            @input="formatPart1" 
             maxlength="1" 
             placeholder="X" 
             :required="isCarNumberRequired" 
             pattern="[А-ЯA-Za-z]" 
-          />
+            @input="formatPart1" 
+          >
           <input 
             v-model="carNumber.part2" 
-            @input="formatPart2" 
             maxlength="3" 
             placeholder="123" 
             :required="isCarNumberRequired" 
             pattern="[0-9]{3}" 
-          />
+            @input="formatPart2" 
+          >
           <input 
             v-model="carNumber.part3" 
-            @input="formatPart3" 
             maxlength="2" 
             placeholder="AB" 
             :required="isCarNumberRequired" 
             pattern="[А-ЯA-Za-z]{2}" 
-          />
+            @input="formatPart3" 
+          >
           <input 
             v-model="carNumber.part4" 
-            @input="formatPart4" 
             maxlength="3" 
             placeholder="123" 
             :required="isCarNumberRequired" 
             pattern="[0-9]{3}" 
-          />
+            @input="formatPart4" 
+          >
         </div>
       </div>
 
@@ -72,15 +93,20 @@
           :options="carBrands" 
           :filterable="true"
           placeholder="Выберите или введите марку"
-          @search="filterBrands"
           :required="isCarNumberRequired"
+          @search="filterBrands"
         />
       </div>
 
       <div class="form-group">
         <label>Место разгрузки:</label>
         <select v-model="unloadPlace">
-          <option value="" disabled>Выберите место разгрузки</option>
+          <option
+            value=""
+            disabled
+          >
+            Выберите место разгрузки
+          </option>
           <option>1 дебаркадер</option>
           <option>2 дебаркадер</option>
           <option>3 дебаркадер</option>
@@ -91,19 +117,29 @@
         </select>
       </div>
 
-      <button @click.prevent="addCar">Добавить автомобиль</button>
+      <button @click.prevent="addCar">
+        Добавить автомобиль
+      </button>
     </form>
 
     <div class="car-list">
       <h3>Добавленные автомобили</h3>
       <ul>
-        <li v-for="(car, index) in formData.cars" :key="index">
+        <li
+          v-for="(car, index) in formData.cars"
+          :key="index"
+        >
           {{ car.car_number }} | {{ car.car_brand }} | {{ car.unload_place }}
         </li>
       </ul>
     </div>
 
-    <button @click.prevent="submitApplication" :disabled="formData.cars.length === 0">Отправить заявку</button>
+    <button
+      :disabled="formData.cars.length === 0"
+      @click.prevent="submitApplication"
+    >
+      Отправить заявку
+    </button>
   </div>
 </template>
 
@@ -144,6 +180,9 @@ export default {
     fullCarNumber() {
       return `${this.carNumber.part1} ${this.carNumber.part2} ${this.carNumber.part3} ${this.carNumber.part4}`;
     }
+  },
+  async mounted() {
+    await this.fetchOrganization();
   },
   methods: {
     formatPart1() {
@@ -279,9 +318,6 @@ export default {
       };
       this.resetCarForm();
     }
-  },
-  async mounted() {
-    await this.fetchOrganization();
   }
 };
 </script>

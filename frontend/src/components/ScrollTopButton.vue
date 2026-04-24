@@ -3,8 +3,8 @@
     <button
       v-show="visible"
       class="scroll-top-btn"
-      @click="scrollToTop"
       aria-label="Наверх"
+      @click="scrollToTop"
     >
       <svg
         width="20"
@@ -32,6 +32,15 @@ export default {
     }
   },
 
+  mounted() {
+    this._scrollHandler = this.handleScroll.bind(this)
+    window.addEventListener('scroll', this._scrollHandler, { passive: true })
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('scroll', this._scrollHandler)
+  },
+
   methods: {
     handleScroll() {
       this.visible = window.scrollY > 150
@@ -40,15 +49,6 @@ export default {
     scrollToTop() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-  },
-
-  mounted() {
-    this._scrollHandler = this.handleScroll.bind(this)
-    window.addEventListener('scroll', this._scrollHandler, { passive: true })
-  },
-
-  beforeUnmount() {
-    window.removeEventListener('scroll', this._scrollHandler)
   },
 }
 </script>

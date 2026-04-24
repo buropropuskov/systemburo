@@ -1,17 +1,23 @@
 <template>
   <section class="admin-settings">
     <header class="admin-settings__header">
-      <h2 class="admin-settings__title">Настройки системы</h2>
+      <h2 class="admin-settings__title">
+        Настройки системы
+      </h2>
     </header>
 
     <div class="admin-settings__layout">
-      <nav class="admin-settings__sidebar" role="navigation" aria-label="Разделы настроек">
+      <nav
+        class="admin-settings__sidebar"
+        role="navigation"
+        aria-label="Разделы настроек"
+      >
         <div
           class="sidebar-item"
           :class="{ 'sidebar-item--active': activeSection === 'upload' }"
-          @click="activeSection = 'upload'"
           role="button"
           tabindex="0"
+          @click="activeSection = 'upload'"
           @keydown.enter="activeSection = 'upload'"
         >
           Загрузка файлов
@@ -19,9 +25,9 @@
         <div
           class="sidebar-item"
           :class="{ 'sidebar-item--active': activeSection === 'pagination' }"
-          @click="activeSection = 'pagination'"
           role="button"
           tabindex="0"
+          @click="activeSection = 'pagination'"
           @keydown.enter="activeSection = 'pagination'"
         >
           Пагинация
@@ -29,9 +35,9 @@
         <div
           class="sidebar-item"
           :class="{ 'sidebar-item--active': activeSection === 'notifications' }"
-          @click="activeSection = 'notifications'"
           role="button"
           tabindex="0"
+          @click="activeSection = 'notifications'"
           @keydown.enter="activeSection = 'notifications'"
         >
           Уведомления
@@ -42,171 +48,224 @@
         <SkeletonTransition :loading="loading">
           <template #skeleton>
             <div style="display: flex; flex-direction: column; gap: 16px;">
-              <SkeletonLine width="40%" height="16px" />
-              <SkeletonBlock height="40px" radius="var(--radius-sm)" />
-              <SkeletonBlock height="80px" radius="var(--radius-sm)" />
-              <SkeletonBlock height="80px" radius="var(--radius-sm)" />
-              <SkeletonLine width="120px" height="36px" />
+              <SkeletonLine
+                width="40%"
+                height="16px"
+              />
+              <SkeletonBlock
+                height="40px"
+                radius="var(--radius-sm)"
+              />
+              <SkeletonBlock
+                height="80px"
+                radius="var(--radius-sm)"
+              />
+              <SkeletonBlock
+                height="80px"
+                radius="var(--radius-sm)"
+              />
+              <SkeletonLine
+                width="120px"
+                height="36px"
+              />
             </div>
           </template>
 
-        <div v-if="loadError" class="error-state">
-          <p class="error-message">{{ loadError }}</p>
-          <button class="btn btn--primary" @click="fetchSettings">Повторить</button>
-        </div>
-
-        <!-- Загрузка файлов -->
-        <div v-else-if="activeSection === 'upload'" class="settings-section">
-          <h3 class="section-title">Загрузка файлов</h3>
-
-          <div class="form-group">
-            <label class="form-label" for="max-file-size">
-              Максимальный размер файла: <strong>{{ fileSizeMB }} МБ</strong>
-            </label>
-            <input
-              id="max-file-size"
-              type="range"
-              class="form-range"
-              :min="1"
-              :max="50"
-              :step="1"
-              :value="fileSizeMB"
-              @input="settings.max_file_size = $event.target.value * 1024 * 1024"
+          <div
+            v-if="loadError"
+            class="error-state"
+          >
+            <p class="error-message">
+              {{ loadError }}
+            </p>
+            <button
+              class="btn btn--primary"
+              @click="fetchSettings"
             >
-            <div class="range-labels">
-              <span>1 МБ</span>
-              <span>50 МБ</span>
-            </div>
+              Повторить
+            </button>
           </div>
 
-          <div class="form-group">
-            <span class="form-label">Разрешённые типы изображений</span>
-            <div class="checkbox-group">
+          <!-- Загрузка файлов -->
+          <div
+            v-else-if="activeSection === 'upload'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Загрузка файлов
+            </h3>
+
+            <div class="form-group">
               <label
-                v-for="imgType in availableImageTypes"
-                :key="imgType"
-                class="checkbox-label"
+                class="form-label"
+                for="max-file-size"
               >
-                <input
-                  type="checkbox"
-                  :value="imgType"
-                  :checked="selectedImageTypes.includes(imgType)"
-                  @change="toggleImageType(imgType)"
+                Максимальный размер файла: <strong>{{ fileSizeMB }} МБ</strong>
+              </label>
+              <input
+                id="max-file-size"
+                type="range"
+                class="form-range"
+                :min="1"
+                :max="50"
+                :step="1"
+                :value="fileSizeMB"
+                @input="settings.max_file_size = $event.target.value * 1024 * 1024"
+              >
+              <div class="range-labels">
+                <span>1 МБ</span>
+                <span>50 МБ</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <span class="form-label">Разрешённые типы изображений</span>
+              <div class="checkbox-group">
+                <label
+                  v-for="imgType in availableImageTypes"
+                  :key="imgType"
+                  class="checkbox-label"
                 >
-                <span class="checkbox-text">{{ imgType }}</span>
+                  <input
+                    type="checkbox"
+                    :value="imgType"
+                    :checked="selectedImageTypes.includes(imgType)"
+                    @change="toggleImageType(imgType)"
+                  >
+                  <span class="checkbox-text">{{ imgType }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <span class="form-label">Разрешённые типы документов</span>
+              <div class="checkbox-group">
+                <label
+                  v-for="docType in availableDocTypes"
+                  :key="docType"
+                  class="checkbox-label"
+                >
+                  <input
+                    type="checkbox"
+                    :value="docType"
+                    :checked="selectedDocTypes.includes(docType)"
+                    @change="toggleDocType(docType)"
+                  >
+                  <span class="checkbox-text">{{ docType }}</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              class="btn btn--primary"
+              :disabled="saving"
+              @click="saveUploadSettings"
+            >
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </div>
+
+          <!-- Пагинация -->
+          <div
+            v-else-if="activeSection === 'pagination'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Пагинация
+            </h3>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="max-per-page"
+              >
+                Записей на странице
+              </label>
+              <input
+                id="max-per-page"
+                v-model.number="settings.max_per_page"
+                type="number"
+                class="form-input"
+                :min="10"
+                :max="500"
+              >
+              <span class="form-hint">От 10 до 500</span>
+            </div>
+
+            <button
+              class="btn btn--primary"
+              :disabled="saving"
+              @click="savePaginationSettings"
+            >
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </div>
+
+          <!-- Уведомления -->
+          <div
+            v-else-if="activeSection === 'notifications'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Уведомления
+            </h3>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span class="switch-text">Уведомления включены</span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings.notifications_enabled }"
+                  role="switch"
+                  :aria-checked="String(settings.notifications_enabled)"
+                  tabindex="0"
+                  @click="settings.notifications_enabled = !settings.notifications_enabled"
+                  @keydown.enter="settings.notifications_enabled = !settings.notifications_enabled"
+                  @keydown.space.prevent="settings.notifications_enabled = !settings.notifications_enabled"
+                >
+                  <span class="switch__thumb" />
+                </span>
               </label>
             </div>
-          </div>
 
-          <div class="form-group">
-            <span class="form-label">Разрешённые типы документов</span>
-            <div class="checkbox-group">
+            <div class="form-group">
               <label
-                v-for="docType in availableDocTypes"
-                :key="docType"
-                class="checkbox-label"
+                class="form-label"
+                for="poll-interval"
               >
-                <input
-                  type="checkbox"
-                  :value="docType"
-                  :checked="selectedDocTypes.includes(docType)"
-                  @change="toggleDocType(docType)"
-                >
-                <span class="checkbox-text">{{ docType }}</span>
+                Интервал опроса (секунды)
               </label>
-            </div>
-          </div>
-
-          <button
-            class="btn btn--primary"
-            :disabled="saving"
-            @click="saveUploadSettings"
-          >
-            {{ saving ? 'Сохранение...' : 'Сохранить' }}
-          </button>
-        </div>
-
-        <!-- Пагинация -->
-        <div v-else-if="activeSection === 'pagination'" class="settings-section">
-          <h3 class="section-title">Пагинация</h3>
-
-          <div class="form-group">
-            <label class="form-label" for="max-per-page">
-              Записей на странице
-            </label>
-            <input
-              id="max-per-page"
-              type="number"
-              class="form-input"
-              v-model.number="settings.max_per_page"
-              :min="10"
-              :max="500"
-            >
-            <span class="form-hint">От 10 до 500</span>
-          </div>
-
-          <button
-            class="btn btn--primary"
-            :disabled="saving"
-            @click="savePaginationSettings"
-          >
-            {{ saving ? 'Сохранение...' : 'Сохранить' }}
-          </button>
-        </div>
-
-        <!-- Уведомления -->
-        <div v-else-if="activeSection === 'notifications'" class="settings-section">
-          <h3 class="section-title">Уведомления</h3>
-
-          <div class="form-group">
-            <label class="switch-label">
-              <span class="switch-text">Уведомления включены</span>
-              <span
-                class="switch"
-                :class="{ 'switch--on': settings.notifications_enabled }"
-                role="switch"
-                :aria-checked="String(settings.notifications_enabled)"
-                tabindex="0"
-                @click="settings.notifications_enabled = !settings.notifications_enabled"
-                @keydown.enter="settings.notifications_enabled = !settings.notifications_enabled"
-                @keydown.space.prevent="settings.notifications_enabled = !settings.notifications_enabled"
+              <input
+                id="poll-interval"
+                v-model.number="settings.notifications_poll_interval"
+                type="number"
+                class="form-input"
+                :min="10"
+                :max="120"
+                :disabled="!settings.notifications_enabled"
               >
-                <span class="switch__thumb"></span>
-              </span>
-            </label>
-          </div>
+              <span class="form-hint">От 10 до 120 секунд</span>
+            </div>
 
-          <div class="form-group">
-            <label class="form-label" for="poll-interval">
-              Интервал опроса (секунды)
-            </label>
-            <input
-              id="poll-interval"
-              type="number"
-              class="form-input"
-              v-model.number="settings.notifications_poll_interval"
-              :min="10"
-              :max="120"
-              :disabled="!settings.notifications_enabled"
+            <button
+              class="btn btn--primary"
+              :disabled="saving"
+              @click="saveNotificationSettings"
             >
-            <span class="form-hint">От 10 до 120 секунд</span>
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
           </div>
-
-          <button
-            class="btn btn--primary"
-            :disabled="saving"
-            @click="saveNotificationSettings"
-          >
-            {{ saving ? 'Сохранение...' : 'Сохранить' }}
-          </button>
-        </div>
         </SkeletonTransition>
       </div>
     </div>
 
     <!-- Toast-уведомление -->
     <transition name="toast-fade">
-      <div v-if="toast.visible" class="toast" :class="'toast--' + toast.type">
+      <div
+        v-if="toast.visible"
+        class="toast"
+        :class="'toast--' + toast.type"
+      >
         {{ toast.message }}
       </div>
     </transition>
@@ -270,6 +329,14 @@ export default {
         return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
       }
     },
+  },
+  mounted() {
+    this.fetchSettings();
+  },
+  beforeUnmount() {
+    if (this.toast.timer) {
+      clearTimeout(this.toast.timer);
+    }
   },
   methods: {
     async fetchSettings() {
@@ -397,14 +464,6 @@ export default {
         this.toast.visible = false;
       }, 3000);
     },
-  },
-  mounted() {
-    this.fetchSettings();
-  },
-  beforeUnmount() {
-    if (this.toast.timer) {
-      clearTimeout(this.toast.timer);
-    }
   },
 };
 </script>
