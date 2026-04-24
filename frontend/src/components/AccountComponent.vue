@@ -34,7 +34,7 @@
           class="dashboard-card-animated"
         />
 
-        <UserNotificationsInline class="dashboard-card-animated" />
+        <UserNotificationsInline class="dashboard-card-animated notifications" />
       </SkeletonTransition>
     </div>
     
@@ -301,8 +301,12 @@ export default {
 /* Стили для строк */
 .first-row {
   display: flex;
-  gap: 30px;
+  gap: 15px;
   margin-bottom: 15px;
+}
+
+.first-row :deep(.notifications) {
+  max-width: 38%;
 }
 
 /* SkeletonTransition оборачивает детей в div — раскладываем его в flex row
@@ -310,7 +314,7 @@ export default {
 .first-row > div {
   display: flex;
   flex-direction: row;
-  gap: 30px;
+  gap: 15px;
   flex: 1;
   min-width: 0;
   width: 100%;
