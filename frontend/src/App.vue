@@ -173,26 +173,26 @@ body:not(.auth-active) #app {
 }
 
 /*
- * Mobile-fullscreen паттерн для всех модалок с классами
- * .modal-overlay > .modal-content. На <768px модалка занимает весь
- * viewport вместо центрированной карточки. !important нужен потому что
- * большинство модалок используют scoped стили.
+ * Mobile bottom-sheet паттерн для всех модалок с классами
+ * .modal-overlay > .modal-content. На <768px модалка прилипает к низу
+ * экрана, ширина 100%, высота - по контенту (короткие confirmations
+ * не тянутся на весь экран). Длинные модалки получают internal scroll
+ * до 90dvh. !important нужен потому что большинство использует scoped.
  */
 @media (max-width: 768px) {
   .modal-overlay {
     padding: 0 !important;
-    align-items: stretch !important;
+    align-items: flex-end !important;
   }
 
   .modal-content {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    min-height: 100dvh !important;
-    border-radius: 0 !important;
+    max-height: 90dvh !important;
+    border-radius: 16px 16px 0 0 !important;
     margin: 0 !important;
+    overflow-y: auto !important;
   }
 
   /* Для inputs и textarea внутри модалок - font-size 16px предотвращает

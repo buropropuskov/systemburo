@@ -255,21 +255,21 @@ export default {
   }
 }
 
-/* Fullscreen modal на мобильном */
+/* Bottom-sheet на мобильном */
 @media (max-width: 768px) {
   .base-modal-overlay {
     padding: 0;
-    align-items: stretch;
+    align-items: flex-end;
   }
 
   .base-modal {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
-    height: 100dvh;
-    max-height: 100dvh;
-    border-radius: 0;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
     margin: 0;
+    overflow-y: auto;
   }
 
   .base-modal__close {

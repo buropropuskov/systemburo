@@ -434,30 +434,22 @@ export default {
   .sc__card { padding: 28px 24px; }
   .sc__status-row { flex-direction: column; align-items: flex-start; gap: 8px; }
 
-  /* Fullscreen modal для confirmation на мобильном */
+  /* Bottom-sheet modal на мобильном - прилипает к низу, высота по контенту */
   .sc__modal-overlay {
     padding: 0;
-    align-items: stretch;
+    align-items: flex-end;
   }
 
   .sc__modal {
     width: 100vw;
     max-width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
-    border-radius: 0;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
     margin: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .sc__modal p {
-    flex-grow: 1;
+    overflow-y: auto;
   }
 
   .sc__modal-actions {
-    margin-top: auto;
-    justify-content: stretch;
     flex-direction: column;
     gap: 10px;
   }
