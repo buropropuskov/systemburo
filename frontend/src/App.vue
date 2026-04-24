@@ -132,6 +132,15 @@ export default {
     margin: 0;
     box-sizing: border-box;
     scroll-behavior: smooth;
+    /* Убираем серую вспышку при тапе на iOS - наши hover/active стили
+     * уже дают visual feedback. */
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Отключаем pull-to-refresh на мобильных - наша логика обновления
+ * через явные кнопки "Обновить", не через свайп. */
+html, body {
+    overscroll-behavior-y: contain;
 }
 
 ::-webkit-scrollbar {
