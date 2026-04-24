@@ -1716,10 +1716,24 @@ export default {
      * Native scrollbar скрываем - вместо него рендерим собственный
      * .table-scroll-indicator под таблицей (всегда visible, не пропадает после
      * touch-скролла на iOS/Android).
+     *
+     * display: block вместо flex-column - базовый flex-container не даёт
+     * children реально overflow'ить parent по X, scrollLeft кеппировался
+     * на ~34px вместо 388. Плюс убираем max-height - vertical scroll делается
+     * страницей body, inner overflow-y: scroll в .table-body отключён.
      */
     .applications-table {
+        display: block;
         overflow-x: scroll;
+        /* overflow-y: visible недопустим с overflow-x: scroll (CSS spec: computes to auto),
+         * поэтому hidden. Вертикальный scroll страницы остаётся. */
+        overflow-y: hidden;
+        max-height: none;
+        height: auto;
         scrollbar-width: none;
+        /* transition: all 0.3s в базе анимировал scrollLeft - programmatic и
+         * touch-scroll клэмпились на середине. Отключаем на мобильном. */
+        transition: none;
     }
 
     .applications-table::-webkit-scrollbar {
@@ -1730,7 +1744,35 @@ export default {
     .table-body,
     .header-row,
     .application-item {
-        min-width: 700px;
+        min-width: 780px;
+    }
+
+    /* Padding 0 16px делал scrollWidth больше реальной ширины content - scroll
+     * упирался в середину. Убираем padding, переносим в первый/последний col. */
+    .table-header,
+    .application-row {
+        padding: 0;
+    }
+
+    .header-col:first-child,
+    .application-col:first-child {
+        padding-left: 16px;
+    }
+
+    .header-col:last-child,
+    .application-col:last-child {
+        padding-right: 16px;
+    }
+
+    .table-body {
+        overflow-y: visible;
+        overflow-x: visible;
+        flex-grow: unset;
+    }
+
+    .applications-list {
+        overflow: visible;
+        -webkit-overflow-scrolling: touch;
     }
 
     .confirmation-col { min-width: 110px; }
@@ -1739,7 +1781,7 @@ export default {
     .organization-col { min-width: 120px; }
     .sender-col { min-width: 110px; }
     .status-col { min-width: 110px; }
-    .actions-col { min-width: 40px; }
+    .actions-col { min-width: 100px; }
 
     /* Заголовки header-col в одну строку - без wrap, визуально выровнены */
     .header-col p {
@@ -1750,10 +1792,6 @@ export default {
 
     .header-col {
         font-size: 13px;
-    }
-
-    .applications-list {
-        -webkit-overflow-scrolling: touch;
     }
 
     /* На мобильном индикатор всегда видим */
