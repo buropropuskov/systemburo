@@ -627,12 +627,7 @@ export default {
                 return;
             }
             
-            let plateNumber = '';
-            if (this.isNumberByFact) {
-                plateNumber = 'По факту';
-            } else {
-                plateNumber = this.numberParts.join(' ');
-            }
+            const plateNumber = this.isNumberByFact ? 'По факту' : this.numberParts.join(' ');
             
             const mark = this.isMarkByFact ? 'По факту' : this.selectedMark;
 

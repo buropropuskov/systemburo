@@ -115,7 +115,7 @@ export default {
         const response = await apiRequest("/applications/active-cars");
         const data = await response.json();
         this.applications = data;
-      } catch (error) {
+      } catch {
         alert("Ошибка при загрузке заявок");
       }
     },
@@ -146,7 +146,7 @@ export default {
         });
 
         if (!response.ok) alert("Ошибка при обновлении машины");
-      } catch (error) {
+      } catch {
         alert("Ошибка при обновлении машины");
       }
     },

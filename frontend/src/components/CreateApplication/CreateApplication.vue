@@ -395,7 +395,7 @@ export default {
             this.attachments.forEach(attachment => {
                 const key = this.attachmentKey(attachment);
                 const label = attachment.attachment_display_name || attachment.attachment_name || attachment.display_name || `вложение #${attachment.id}`;
-                let hasAttachmentData = false;
+                let hasAttachmentData;
                 switch (attachment.attachment_type) {
                     case 'cars':
                         hasAttachmentData = (this.vehiclesByAttachment[key] || []).length > 0;

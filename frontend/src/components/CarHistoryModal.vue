@@ -433,7 +433,7 @@ export default {
             if (parsed.unload_places) return `Мест разгрузки: ${parsed.unload_places.length}`;
             return JSON.stringify(parsed);
           }
-        } catch (e) {
+        } catch {
           // Невалидный JSON, оставляем как есть
         }
       }
