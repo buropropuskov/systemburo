@@ -52,11 +52,11 @@
               >
             </div>
 
-            <div class="form-group">
+            <div class="form-group form-group--full">
               <label class="form-label">Тип пользователя:</label>
-              <select 
-                v-model="newUser.type_id" 
-                required 
+              <select
+                v-model="newUser.type_id"
+                required
                 class="form-select"
               >
                 <option
@@ -154,15 +154,16 @@
 
             <div class="form-group">
               <label class="form-label">Телефон:</label>
-              <input 
-                v-model="newUser.phone" 
-                type="tel" 
-                placeholder="Введите телефон"
+              <input
+                :value="newUser.phone"
+                type="tel"
+                placeholder="+7 (___) ___ __-__"
                 class="form-input"
                 autocomplete="off"
                 autocorrect="off"
                 autocapitalize="off"
                 spellcheck="false"
+                @input="newUser.phone = formatRussianPhone($event.target.value)"
               >
             </div>
           </div>
@@ -243,6 +244,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 export default {
   props: {
     organizations: {
@@ -288,6 +290,7 @@ export default {
     }
   },
   methods: {
+    formatRussianPhone,
     async createNewUser() {
       try {
         const userData = {
@@ -446,6 +449,11 @@ export default {
 
 .form-group {
   margin-bottom: 0;
+}
+
+/* Растягиваем "Тип пользователя" на всю ширину form-grid (2 колонки) */
+.form-group--full {
+  grid-column: 1 / -1;
 }
 
 .form-label {
