@@ -1637,14 +1637,62 @@ export default {
         width: 100%;
     }
 
-    /* Таблица с фиксированными % колонками не помещается - горизонтальный scroll */
+    /*
+     * Таблица с фиксированными % колонками не помещается на мобильный экран.
+     * .applications-table имеет overflow: hidden - поэтому горизонтальный scroll
+     * делаем на самой таблице. При 700px суммы min-width колонок текст заголовков
+     * ("Подтверждение", "Организация") помещается в одну строку и не наезжает.
+     * Scrollbar визуально показан чтобы юзер видел что таблицу можно скроллить.
+     */
+    .applications-table {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: #4F5BDF #ededf5;
+    }
+
+    .applications-table::-webkit-scrollbar {
+        height: 8px;
+        -webkit-appearance: none;
+    }
+
+    .applications-table::-webkit-scrollbar-track {
+        background: #ededf5;
+        border-radius: 4px;
+    }
+
+    .applications-table::-webkit-scrollbar-thumb {
+        background: #4F5BDF;
+        border-radius: 4px;
+    }
+
+    .table-header,
     .table-body,
-    .header-row {
-        min-width: 640px;
+    .header-row,
+    .application-item {
+        min-width: 700px;
+    }
+
+    .confirmation-col { min-width: 110px; }
+    .number-col { min-width: 100px; }
+    .date-col { min-width: 110px; }
+    .organization-col { min-width: 120px; }
+    .sender-col { min-width: 110px; }
+    .status-col { min-width: 110px; }
+    .actions-col { min-width: 40px; }
+
+    /* Заголовки header-col в одну строку - без wrap, визуально выровнены */
+    .header-col p {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .header-col {
+        font-size: 13px;
     }
 
     .applications-list {
-        overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
 }
