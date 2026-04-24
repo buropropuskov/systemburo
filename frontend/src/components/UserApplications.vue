@@ -1122,21 +1122,69 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Таблица - horizontal scroll вместо wrap (колонки в столбик нечитаемы) */
+  .applications-list,
+  .applications-header,
+  .applications-body,
+  .applications-list-content {
+    overflow: visible !important;
+  }
+
+  .applications-body {
+    overflow-x: scroll !important;
+    overflow-y: auto !important;
+  }
+
+  .applications-header {
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+  }
+
+  .applications-header::-webkit-scrollbar,
+  .applications-body::-webkit-scrollbar:horizontal {
+    display: none;
+  }
+
+  .header-row,
+  .application-row {
+    flex-wrap: nowrap !important;
+    min-width: 600px;
+  }
+
   .header-col,
   .application-col {
-    width: 50% !important;
+    width: auto !important;
+    min-width: 110px !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap;
   }
-  
-  .confirmation-col,
-  .status-col {
-    width: 50% !important;
+
+  .header-col.date-col,
+  .application-col.date-col {
+    min-width: 140px !important;
+  }
+
+  .header-col p,
+  .header-col {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
 @media (max-width: 576px) {
+  /* Оставляем horizontal-scroll from 768px, просто уменьшаем min-widths для экономии места */
   .header-col,
   .application-col {
-    width: 100% !important;
+    min-width: 100px !important;
+    font-size: 13px;
+    padding: 0 10px !important;
+  }
+
+  .header-col.date-col,
+  .application-col.date-col {
+    min-width: 120px !important;
   }
 }
 </style>
