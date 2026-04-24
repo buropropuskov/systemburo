@@ -113,8 +113,11 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		PaginationMaxLimit:      100,
 	})
 
+	// Create maintenance service early so authHandler can get it.
+	maintenanceService := services.NewMaintenanceService(db)
+
 	// Create all handlers
-	authHandler := handlers.NewAuthHandler(authService, false, 168*time.Hour)
+	authHandler := handlers.NewAuthHandler(authService, maintenanceService, false, 168*time.Hour)
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
@@ -141,6 +144,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
+	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -153,7 +157,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, []byte(TestJWTSecret), nil)
+		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, nil, []byte(TestJWTSecret), nil)
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

@@ -10,7 +10,7 @@ import (
 // Setup регистрирует все маршруты.
 // loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
 // В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, maintenanceBlock echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -28,10 +28,18 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	api.POST("/login", auth.Login, loginHandlers...)
 	api.POST("/refresh-token", auth.RefreshToken)
 	api.GET("/user-types", auth.GetUserTypes)
+	// Публичный статус техработ - без JWT, чтобы страница /maintenance и форма /login
+	// могли его опросить.
+	api.GET("/settings/maintenance", maintenance.GetPublicStatus)
 
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(mw.JWTAuth(jwtSecret))
+	// Maintenance block - после JWTAuth (нужен type_id в context). Super-admin
+	// проходит, остальным 503. Передаём nil в тестах чтобы не блочить.
+	if maintenanceBlock != nil {
+		protected.Use(maintenanceBlock)
+	}
 
 	protected.POST("/logout", auth.Logout)
 	protected.POST("/logout-all", auth.LogoutAll)
@@ -292,4 +300,9 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 
 	// Bug-report - юзер отправляет со страницы Error500 (POST /api/bug-report)
 	protected.POST("/bug-report", bugReport.Submit)
+
+	// Админский toggle maintenance-режима (только type_id=6).
+	adminMaint := protected.Group("/admin")
+	adminMaint.GET("/maintenance", maintenance.GetAdminStatus)
+	adminMaint.PUT("/maintenance", maintenance.ToggleMaintenance)
 }

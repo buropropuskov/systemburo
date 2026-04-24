@@ -5,6 +5,7 @@ import router from './router'
 import { vPermission } from './directives/permission'
 import bus from './eventBus'
 import { tryRestoreSession } from '@/api/client'
+import { useMaintenanceStore } from '@/stores/maintenance'
 import './assets/tokens.css'
 
 const app = createApp(App)
@@ -18,6 +19,9 @@ app.directive('permission', vPermission)
 // на /, а наш await tryRestoreSession() применится уже ПОСЛЕ редиректа.
 // Silent fail OK: если cookie мёртв, guard штатно отправит на /.
 await tryRestoreSession()
+// Загружаем maintenance-статус до mount - чтобы router.beforeEach guard мог
+// сразу решать, пускать ли юзера на любую страницу или отправлять на /maintenance.
+await useMaintenanceStore().fetchStatus()
 
 app.use(router)
 await router.isReady()

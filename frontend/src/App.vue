@@ -69,7 +69,7 @@ export default {
      * поверх формы логина. На /500 chrome тоже скрываем - это full-page view.
      */
     showChrome() {
-      const hidePaths = ['/', '/500']
+      const hidePaths = ['/', '/500', '/maintenance']
       return this.isAuthenticated && !hidePaths.includes(this.$route.path);
     }
   },
