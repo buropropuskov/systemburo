@@ -1603,4 +1603,159 @@ export default {
     scrollbar-width: thin;
     scrollbar-color: #D9E2FF transparent;
 }
+
+@media (max-width: 768px) {
+    .center {
+        padding: 12px;
+    }
+
+    .filters-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filters-row--secondary {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .filter-section--refresh {
+        margin-left: 0;
+        margin-top: 0;
+        width: 100%;
+    }
+
+    .field {
+        width: 100%;
+    }
+
+    .field__input {
+        width: 100%;
+    }
+
+    .status-buttons {
+        width: 100%;
+    }
+
+    /*
+     * Таблица с фиксированными % колонками не помещается на мобильный экран.
+     * Native scrollbar скрываем - вместо него рендерим собственный
+     * .table-scroll-indicator под таблицей (всегда visible, не пропадает после
+     * touch-скролла на iOS/Android).
+     *
+     * display: block вместо flex-column - базовый flex-container не даёт
+     * children реально overflow'ить parent по X, scrollLeft кеппировался
+     * на ~34px вместо 388. Плюс убираем max-height - vertical scroll делается
+     * страницей body, inner overflow-y: scroll в .table-body отключён.
+     */
+    .applications-table {
+        display: block;
+        overflow-x: scroll;
+        /* overflow-y: visible недопустим с overflow-x: scroll (CSS spec: computes to auto),
+         * поэтому hidden. Вертикальный scroll страницы остаётся. */
+        overflow-y: hidden;
+        max-height: none;
+        height: auto;
+        /* transition: all 0.3s и глобальный scroll-behavior: smooth анимировали
+         * scrollLeft - scroll останавливался посередине. Отключаем оба. */
+        transition: none;
+        scroll-behavior: auto;
+        /* Native scrollbar виден в начальном состоянии (Firefox thin + Chrome 10px),
+         * на touch-устройствах он скроется после инерции - это native-поведение. */
+        scrollbar-width: auto;
+        scrollbar-color: #4F5BDF #ededf5;
+    }
+
+    .applications-table::-webkit-scrollbar {
+        height: 10px;
+        -webkit-appearance: none;
+    }
+
+    .applications-table::-webkit-scrollbar-track {
+        background: #ededf5;
+        border-radius: 5px;
+    }
+
+    .applications-table::-webkit-scrollbar-thumb {
+        background: #4F5BDF;
+        border-radius: 5px;
+    }
+
+    .table-header,
+    .table-body,
+    .header-row,
+    .application-item {
+        /* actions-col скрыт на мобильном, суммарная ширина: 110+100+110+120+110+110 = 660 */
+        min-width: 660px;
+    }
+
+    /* Padding 0 16px делал scrollWidth больше реальной ширины content - scroll
+     * упирался в середину. Убираем padding, переносим в первый/последний col. */
+    .table-header,
+    .application-row {
+        padding: 0;
+    }
+
+    .header-col:first-child,
+    .application-col:first-child {
+        padding-left: 16px;
+    }
+
+    /* actions-col скрыта, последний visible - status-col */
+    .header-col.status-col,
+    .application-col.status-col {
+        padding-right: 16px;
+    }
+
+    .table-body {
+        overflow-y: visible;
+        overflow-x: visible;
+        flex-grow: unset;
+    }
+
+    .applications-list {
+        overflow: visible;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .confirmation-col { min-width: 110px; }
+    .number-col { min-width: 100px; }
+    .date-col { min-width: 110px; }
+    .organization-col { min-width: 120px; }
+    .sender-col { min-width: 110px; }
+    .status-col { min-width: 110px; }
+
+    /* На мобильном actions-col (download button в каждой строке) скрываем -
+     * download доступен через детали заявки при клике на строку. */
+    .header-col.actions-col,
+    .application-col.actions-col {
+        display: none;
+    }
+
+    /* Заголовки header-col в одну строку - без wrap, визуально выровнены */
+    .header-col p {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .header-col {
+        font-size: 13px;
+    }
+
+    /* На мобильном индикатор всегда видим */
+    .table-scroll-indicator {
+        display: block;
+    }
+}
+
+@media (max-width: 480px) {
+    .center {
+        padding: 10px;
+    }
+
+    .center__tabs {
+        gap: 6px;
+    }
+}
 </style>

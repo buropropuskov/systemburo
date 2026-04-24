@@ -1587,19 +1587,43 @@ export default {
     .content-wrapper {
         flex-direction: column;
     }
-    
+
     .left-column,
     .right-column {
         width: 100%;
     }
-    
+
     .guide-card {
         width: 100%;
     }
-    
+
     .modal-content,
     .manage-modal .modal-content {
         width: 95vw;
+    }
+}
+
+@media (max-width: 768px) {
+    .news-header {
+        flex-direction: column;
+        align-items: stretch;
+        height: auto;
+        gap: 10px;
+        padding: 12px 14px;
+    }
+
+    .news-title {
+        font-size: 16px;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .manage-btn {
+        flex-shrink: 0;
     }
 }
 </style>

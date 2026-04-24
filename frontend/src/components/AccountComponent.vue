@@ -381,6 +381,10 @@ export default {
     flex-direction: column;
   }
 
+  .first-row :deep(.notifications) {
+    max-width: 100%;
+  }
+
   .settings {
     width: 100%;
   }

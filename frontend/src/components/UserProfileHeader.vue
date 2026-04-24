@@ -379,6 +379,9 @@ export default {
   opacity: 0;
   transform: translateX(-10px);
   animation: fadeInRight 0.4s ease-out 0.3s forwards;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .org-company-block {
