@@ -1122,21 +1122,68 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /*
+   * Синхронный horizontal scroll: scroll на .applications-list (общий parent
+   * header+body), inner header/body имеют visible overflow чтобы наследовать
+   * scroll от parent'а. Headers и data двигаются вместе.
+   */
+  .applications-list {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  .applications-header,
+  .applications-body,
+  .applications-list-content {
+    overflow-x: visible !important;
+    min-width: 600px;
+  }
+
+  .applications-body {
+    overflow-y: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .header-row,
+  .application-row {
+    flex-wrap: nowrap !important;
+    min-width: 600px;
+  }
+
   .header-col,
   .application-col {
-    width: 50% !important;
+    width: auto !important;
+    min-width: 110px !important;
+    flex: 1 1 auto !important;
+    white-space: nowrap;
   }
-  
-  .confirmation-col,
-  .status-col {
-    width: 50% !important;
+
+  .header-col.date-col,
+  .application-col.date-col {
+    min-width: 140px !important;
+  }
+
+  .header-col p,
+  .header-col {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
 @media (max-width: 576px) {
+  /* Оставляем horizontal-scroll from 768px, просто уменьшаем min-widths для экономии места */
   .header-col,
   .application-col {
-    width: 100% !important;
+    min-width: 100px !important;
+    font-size: 13px;
+    padding: 0 10px !important;
+  }
+
+  .header-col.date-col,
+  .application-col.date-col {
+    min-width: 120px !important;
   }
 }
 </style>

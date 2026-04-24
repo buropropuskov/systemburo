@@ -153,6 +153,11 @@ body:not(.auth-active) #app {
   margin-left: 0;
 }
 
+/* Блокировка body-scroll пока mobile drawer открыт */
+body.nav-drawer-open {
+  overflow: hidden;
+}
+
 .form-input-sm {
   border-radius: 10px !important;
 }

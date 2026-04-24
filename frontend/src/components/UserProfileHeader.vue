@@ -580,6 +580,8 @@ export default {
     align-items: center;
     text-align: center;
     padding: 15px;
+    width: 100%;
+    height: auto;
   }
   
   .user-avatar {
