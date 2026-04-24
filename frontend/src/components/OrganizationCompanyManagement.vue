@@ -1,11 +1,13 @@
 <template>
   <div class="organization-management dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Управление организациями и компаниями</h3>
+      <h3 class="management-title">
+        Управление организациями и компаниями
+      </h3>
       <div class="search-container">
         <SearchComponent
-          :title="'Поиск...'"
           v-model="searchQuery"
+          :title="'Поиск...'"
         />
         <RefreshButton @refresh="refreshData" />
       </div>
@@ -15,9 +17,9 @@
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        @click="activeTab = tab.id"
         :class="{ active: activeTab === tab.id }"
         class="tab-button"
+        @click="activeTab = tab.id"
       >
         {{ tab.label }}
       </button>
@@ -25,7 +27,10 @@
 
     <div class="tab-content">
       <!-- Организации -->
-      <div v-if="activeTab === 'organizations'" class="tab-pane">
+      <div
+        v-if="activeTab === 'organizations'"
+        class="tab-pane"
+      >
         <div class="add-item-section">
           <div class="add-item-form">
             <input
@@ -34,7 +39,10 @@
               class="form-input"
               @keyup.enter="addOrganization"
             >
-            <button @click="addOrganization" class="add-button">
+            <button
+              class="add-button"
+              @click="addOrganization"
+            >
               <span class="button-icon">+</span>
               Добавить
             </button>
@@ -46,9 +54,15 @@
           <div class="table-section">
             <div class="table-container">
               <div class="table-header-row">
-                <div class="table-col id-col">ID</div>
-                <div class="table-col name-col">Наименование</div>
-                <div class="table-col users-col">Кол-во пользователей</div>
+                <div class="table-col id-col">
+                  ID
+                </div>
+                <div class="table-col name-col">
+                  Наименование
+                </div>
+                <div class="table-col users-col">
+                  Кол-во пользователей
+                </div>
               </div>
 
               <div class="table-body">
@@ -63,9 +77,9 @@
                   <div class="table-col name-col">
                     <input
                       v-model="org.name"
-                      @change="updateOrganization(org)"
                       class="editable-input"
                       :class="{ 'editing': org.name !== org.originalName }"
+                      @change="updateOrganization(org)"
                     >
                   </div>
                   <div class="table-col users-col">
@@ -85,20 +99,32 @@
           <!-- Правая часть - детали (пока пустая) -->
           <div class="details-section">
             <div class="empty-details">
-              <div class="empty-icon">🏢</div>
-              <p class="empty-text">Выберите организацию для просмотра деталей</p>
+              <div class="empty-icon">
+                🏢
+              </div>
+              <p class="empty-text">
+                Выберите организацию для просмотра деталей
+              </p>
             </div>
           </div>
         </div>
 
-        <div v-if="filteredOrganizations.length === 0" class="no-results">
-          <div class="no-results-icon">🏢</div>
+        <div
+          v-if="filteredOrganizations.length === 0"
+          class="no-results"
+        >
+          <div class="no-results-icon">
+            🏢
+          </div>
           <p>Организации не найдены</p>
         </div>
       </div>
 
       <!-- Компании -->
-      <div v-if="activeTab === 'companies'" class="tab-pane">
+      <div
+        v-if="activeTab === 'companies'"
+        class="tab-pane"
+      >
         <div class="add-item-section">
           <div class="add-item-form">
             <input
@@ -107,7 +133,10 @@
               class="form-input"
               @keyup.enter="addCompany"
             >
-            <button @click="addCompany" class="add-button">
+            <button
+              class="add-button"
+              @click="addCompany"
+            >
               <span class="button-icon">+</span>
               Добавить
             </button>
@@ -119,9 +148,15 @@
           <div class="table-section">
             <div class="table-container">
               <div class="table-header-row">
-                <div class="table-col id-col">ID</div>
-                <div class="table-col name-col">Наименование</div>
-                <div class="table-col users-col">Кол-во пользователей</div>
+                <div class="table-col id-col">
+                  ID
+                </div>
+                <div class="table-col name-col">
+                  Наименование
+                </div>
+                <div class="table-col users-col">
+                  Кол-во пользователей
+                </div>
               </div>
 
               <div class="table-body">
@@ -136,9 +171,9 @@
                   <div class="table-col name-col">
                     <input
                       v-model="comp.name"
-                      @change="updateCompany(comp)"
                       class="editable-input"
                       :class="{ 'editing': comp.name !== comp.originalName }"
+                      @change="updateCompany(comp)"
                     >
                   </div>
                   <div class="table-col users-col">
@@ -158,14 +193,23 @@
           <!-- Правая часть - детали (пока пустая) -->
           <div class="details-section">
             <div class="empty-details">
-              <div class="empty-icon">🏭</div>
-              <p class="empty-text">Выберите компанию для просмотра деталей</p>
+              <div class="empty-icon">
+                🏭
+              </div>
+              <p class="empty-text">
+                Выберите компанию для просмотра деталей
+              </p>
             </div>
           </div>
         </div>
 
-        <div v-if="filteredCompanies.length === 0" class="no-results">
-          <div class="no-results-icon">🏭</div>
+        <div
+          v-if="filteredCompanies.length === 0"
+          class="no-results"
+        >
+          <div class="no-results-icon">
+            🏭
+          </div>
           <p>Компании не найдены</p>
         </div>
       </div>
@@ -214,6 +258,9 @@ export default {
         comp.id.toString().includes(query)
       );
     }
+  },
+  mounted() {
+    this.refreshData();
   },
   methods: {
     async refreshData() {
@@ -434,9 +481,6 @@ export default {
         notification.remove();
       }, 3000);
     }
-  },
-  mounted() {
-    this.refreshData();
   },
 };
 </script>

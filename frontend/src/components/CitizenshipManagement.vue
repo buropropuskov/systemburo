@@ -1,13 +1,18 @@
 <template>
   <div class="citizenship-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Управление гражданствами</h3>
+      <h3 class="management-title">
+        Управление гражданствами
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск гражданств...'"
           v-model="searchQuery"
+          :title="'Поиск гражданств...'"
         />
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Добавить
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -16,11 +21,19 @@
 
     <div class="content-container">
       <!-- Левая часть - таблица гражданств -->
-      <div class="table-section" :class="{'with-details': selectedCitizenship}">
+      <div
+        class="table-section"
+        :class="{'with-details': selectedCitizenship}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -28,10 +41,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('name')">
-              <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -39,10 +57,15 @@
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col status-col" @click="sortBy('is_active')">
-              <p :class="{ 'active-sort': sortField === 'is_active' }">Статус</p>
+            <div
+              class="header-col status-col"
+              @click="sortBy('is_active')"
+            >
+              <p :class="{ 'active-sort': sortField === 'is_active' }">
+                Статус
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -50,7 +73,7 @@
                   'sorted': sortField === 'is_active',
                   'desc': sortField === 'is_active' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
 
@@ -66,13 +89,22 @@
                 <span class="cell-content id-value">{{ citizenship.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="citizenship.name">
+                <span
+                  class="truncate-text"
+                  :title="citizenship.name"
+                >
                   {{ citizenship.name }}
-                  <span v-if="citizenship.is_default" class="default-badge">По умолчанию</span>
+                  <span
+                    v-if="citizenship.is_default"
+                    class="default-badge"
+                  >По умолчанию</span>
                 </span>
               </div>
               <div class="table-col status-col">
-                <span class="status-badge" :class="citizenship.is_active ? 'active' : 'inactive'">
+                <span
+                  class="status-badge"
+                  :class="citizenship.is_active ? 'active' : 'inactive'"
+                >
                   {{ citizenship.is_active ? 'Активно' : 'Неактивно' }}
                 </span>
               </div>
@@ -86,19 +118,33 @@
       </div>
 
       <!-- Правая часть - детали гражданства -->
-      <div v-if="selectedCitizenship" class="details-section">
+      <div
+        v-if="selectedCitizenship"
+        class="details-section"
+      >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-                <h3 class="details-title">{{ selectedCitizenship.name }}</h3>
-                <div class="timestamps-header">
-                  <span class="timestamp">Создано: {{ formatDate(selectedCitizenship.created_at) }}</span>
-                  <span v-if="selectedCitizenship.updated_at" class="timestamp">Обновлено: {{ formatDate(selectedCitizenship.updated_at) }}</span>
-                </div>
+              <h3 class="details-title">
+                {{ selectedCitizenship.name }}
+              </h3>
+              <div class="timestamps-header">
+                <span class="timestamp">Создано: {{ formatDate(selectedCitizenship.created_at) }}</span>
+                <span
+                  v-if="selectedCitizenship.updated_at"
+                  class="timestamp"
+                >Обновлено: {{ formatDate(selectedCitizenship.updated_at) }}</span>
+              </div>
             </div>
             <div class="details-header-actions">
-              <button @click="confirmDeleteCitizenship(selectedCitizenship)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeleteCitizenship(selectedCitizenship)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -109,21 +155,21 @@
                 <label class="detail-label">Наименование:</label>
                 <input 
                   v-model="selectedCitizenship.name" 
-                  @change="updateCitizenship(selectedCitizenship)"
                   class="form-input-sm"
                   placeholder="Название гражданства"
                   autocomplete="off"
+                  @change="updateCitizenship(selectedCitizenship)"
                 >
               </div>
 
               <div class="checkbox-section">
                 <label class="checkbox-label">
                   <input 
-                    type="checkbox" 
-                    v-model="selectedCitizenship.is_active"
-                    @change="updateCitizenship(selectedCitizenship)"
+                    v-model="selectedCitizenship.is_active" 
+                    type="checkbox"
                     class="checkbox"
-                  />
+                    @change="updateCitizenship(selectedCitizenship)"
+                  >
                   <span class="checkbox-text">Активное гражданство</span>
                 </label>
                 <span class="checkbox-hint">
@@ -134,11 +180,11 @@
               <div class="checkbox-section">
                 <label class="checkbox-label">
                   <input 
-                    type="checkbox" 
-                    v-model="selectedCitizenship.is_default"
-                    @change="handleDefaultCitizenshipChange"
+                    v-model="selectedCitizenship.is_default" 
+                    type="checkbox"
                     class="checkbox"
-                  />
+                    @change="handleDefaultCitizenshipChange"
+                  >
                   <span class="checkbox-text">Гражданство по умолчанию</span>
                 </label>
                 <span class="checkbox-hint">
@@ -149,11 +195,11 @@
               <div class="checkbox-section">
                 <label class="checkbox-label">
                   <input 
-                    type="checkbox" 
-                    v-model="selectedCitizenship.patent_required"
-                    @change="updateCitizenship(selectedCitizenship)"
+                    v-model="selectedCitizenship.patent_required" 
+                    type="checkbox"
                     class="checkbox"
-                  />
+                    @change="updateCitizenship(selectedCitizenship)"
+                  >
                   <span class="checkbox-text">Требуется патент</span>
                 </label>
                 <span class="checkbox-hint">
@@ -165,22 +211,39 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите гражданство для просмотра</p>
       </div>
     </div>
 
-    <div v-if="filteredCitizenships.length === 0" class="no-results">
-      <div class="no-results-icon">🌍</div>
+    <div
+      v-if="filteredCitizenships.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        🌍
+      </div>
       <p>Гражданства не найдены</p>
     </div>
 
     <!-- Модальное окно добавления гражданства -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
+    <div
+      v-if="showAddModal"
+      class="modal-overlay"
+      @click.self="showAddModal = false"
+    >
       <div class="modal-content small-modal">
         <div class="modal-header">
           <h3>Добавить гражданство</h3>
-          <button @click="showAddModal = false" class="modal-close">×</button>
+          <button
+            class="modal-close"
+            @click="showAddModal = false"
+          >
+            ×
+          </button>
         </div>
         
         <div class="modal-body">
@@ -197,10 +260,10 @@
           <div class="checkbox-group">
             <label class="checkbox-label">
               <input 
-                type="checkbox" 
-                v-model="newCitizenship.is_default"
+                v-model="newCitizenship.is_default" 
+                type="checkbox"
                 class="checkbox"
-              />
+              >
               <span class="checkbox-text">Гражданство по умолчанию</span>
             </label>
           </div>
@@ -208,18 +271,28 @@
           <div class="checkbox-group">
             <label class="checkbox-label">
               <input 
-                type="checkbox" 
-                v-model="newCitizenship.patent_required"
+                v-model="newCitizenship.patent_required" 
+                type="checkbox"
                 class="checkbox"
-              />
+              >
               <span class="checkbox-text">Требуется патент</span>
             </label>
           </div>
         </div>
         
         <div class="modal-footer">
-          <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="addCitizenship" class="modal-confirm">Добавить</button>
+          <button
+            class="modal-cancel"
+            @click="showAddModal = false"
+          >
+            Отмена
+          </button>
+          <button
+            class="modal-confirm"
+            @click="addCitizenship"
+          >
+            Добавить
+          </button>
         </div>
       </div>
     </div>
@@ -296,6 +369,9 @@ export default {
         return 0;
       });
     }
+  },
+  mounted() {
+    this.refreshData();
   },
   methods: {
     async refreshData() {
@@ -488,9 +564,6 @@ export default {
         notification.remove();
       }, 3000);
     }
-  },
-  mounted() {
-    this.refreshData();
   },
 };
 </script>

@@ -1,153 +1,205 @@
 <template>
-    <div class="tables">
-        <div class="tables__header">
-            <h1 class="tables__title">Таблица <span class="table-name">{{ tableDisplayName }}</span></h1>
-            <button class="tables__instruction" @click="showInstruction = true">
-                <img src="@/assets/icons/instruction.png" class="tables__icon" />
-                <p class="instruction__text">Инструкция</p>
-            </button>
-        </div>
-        
-        <!-- Модальное окно с инструкцией -->
-        <div v-if="showInstruction" class="modal-overlay" @click.self="showInstruction = false">
-            <div class="instruction-modal-large">
-                <div class="modal-header">
-                    <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
-                    <button @click="showInstruction = false" class="modal-close">×</button>
-                </div>
-                <div class="instruction-content">
-                    <div v-if="tableInstruction" class="text-constructor-content" v-html="sanitizedInstruction"></div>
-                    <div v-else class="no-instruction">
-                        <div class="no-instruction-icon">📝</div>
-                        <h4>Инструкция не добавлена</h4>
-                        <p>Для этой таблицы пока не создана и не написана инструкция.</p>
-                        <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="tables__filters">
-            <div class="filters__fields">
-                <!-- Поиск -->
-                <div class="field search">
-                    <input 
-                        placeholder="Поиск.." 
-                        type="text" 
-                        class="field__input search" 
-                        v-model="searchQuery"
-                        @input="applyFilters"
-                    />
-                    <img src="@/assets/icons/search.png" class="tables__icon" />
-                </div>
-                
-                <!-- Организация через компонент -->
-                <OrganizationFilter
-                    v-if="showOrganizationFilter"
-                    ref="organizationFilter"
-                    v-model="selectedOrganizationId"
-                    :organizations="organizations"
-                    @change="handleOrganizationChange"
-                />
-
-                <!-- Место разгрузки через компонент -->
-                <UnloadingPlaceFilter
-                    v-if="showUnloadingFilter"
-                    ref="unloadingPlaceFilter"
-                    v-model="selectedUnloadingPlaceId"
-                    @change="handleUnloadingPlaceChange"
-                />
-
-                <!-- Новый DateFilter -->
-                <DateFilter
-                    ref="dateFilter"
-                    :mode="'range'"
-                    :selected-date="selectedDate"
-                    :date-range-start="dateRangeStart"
-                    :date-range-end="dateRangeEnd"
-                    @update:selectedDate="updateSelectedDate"
-                    @update:dateRangeStart="updateDateRangeStart"
-                    @update:dateRangeEnd="updateDateRangeEnd"
-                    @apply="applyDateFilters"
-                    @clear="clearDate"
-                />
-            </div>
-            <div class="filters__options">
-                <img src="@/assets/icons/trashcan.png" class="options__icon" @click="clearFilters" />
-                <img src="@/assets/icons/recent-changes.png" class="options__icon" />
-                <button class="options__export">
-                    <img src="@/assets/icons/export.png" class="tables__icon" />
-                    <p class="options__text">Экспорт</p>
-                </button>
-                <RefreshButton @refresh="refreshData" />
-            </div>
-        </div>
-
-        <div class="tables__content">
-            <!-- Таблица по факту с подсказкой -->
-            <div v-if="showFactTable" class="fact-section">
-                <FactTable 
-                    v-if="currentUserId" 
-                    :table-type="tableType"
-                    :search-query="searchQuery"
-                    :selected-organization="selectedOrganizationName"
-                    :selected-unloading-place="selectedUnloadingPlaceName"
-                    :date-range-start="dateRangeStart"
-                    :date-range-end="dateRangeEnd"
-                    :selected-date="selectedDate"
-                    :current-user-id="currentUserId"
-                    :current-user-name="currentUserName"
-                    @refresh-data="refreshData"
-                />
-                <!-- Подсказка на синем фоне -->
-                <div class="fact-hint-card" v-if="tableFactHint">
-                    <div class="text-constructor-content hint-content" v-html="sanitizedHint"></div>
-                </div>
-            </div>
-            
-            <!-- Основная таблица - разные компоненты для разных типов -->
-            <CarsTable
-                v-if="tableType === 'cars' && currentUserId"
-                :table-name="tableSystemName"
-                :table-id="tableData?.table?.id"
-                :search-query="searchQuery"
-                :selected-organization-id="selectedOrganizationId"
-                :selected-unloading-place-id="selectedUnloadingPlaceId"
-                :date-range-start="dateRangeStart"
-                :date-range-end="dateRangeEnd"
-                :selected-date="selectedDate"
-                :current-user-id="currentUserId"
-                :current-user-name="currentUserName"
-                @refresh-data="refreshData"
-                @open-application="handleOpenApplication"
-            />
-            
-            <PeopleTable
-                v-if="tableType === 'people'"
-                :table-name="tableSystemName"
-                :search-query="searchQuery"
-                :selected-organization-id="selectedOrganizationId"
-                :selected-unloading-place-id="selectedUnloadingPlaceId"
-                :date-range-start="dateRangeStart"
-                :date-range-end="dateRangeEnd"
-                :selected-date="selectedDate"
-                :current-user-id="currentUserId"
-                :current-user-name="currentUserName"
-                @refresh-data="refreshData"
-                @open-application="handleOpenApplication"
-            />
-        </div>
-
-        <ApplicationDetail
-            v-if="showApplicationDetail"
-            :application="selectedApplication"
-            :current-user-id="currentUserId"
-            :current-user-name="currentUserName"
-            :mode="'center'"
-            @close="closeApplicationDetail"
-            @application-changed="handleApplicationChanged"
-        />
+  <div class="tables">
+    <div class="tables__header">
+      <h1 class="tables__title">
+        Таблица <span class="table-name">{{ tableDisplayName }}</span>
+      </h1>
+      <button
+        class="tables__instruction"
+        @click="showInstruction = true"
+      >
+        <img
+          src="@/assets/icons/instruction.png"
+          class="tables__icon"
+        >
+        <p class="instruction__text">
+          Инструкция
+        </p>
+      </button>
     </div>
+        
+    <!-- Модальное окно с инструкцией -->
+    <div
+      v-if="showInstruction"
+      class="modal-overlay"
+      @click.self="showInstruction = false"
+    >
+      <div class="instruction-modal-large">
+        <div class="modal-header">
+          <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
+          <button
+            class="modal-close"
+            @click="showInstruction = false"
+          >
+            ×
+          </button>
+        </div>
+        <div class="instruction-content">
+          <div
+            v-if="tableInstruction"
+            class="text-constructor-content"
+            v-html="sanitizedInstruction"
+          />
+          <div
+            v-else
+            class="no-instruction"
+          >
+            <div class="no-instruction-icon">
+              📝
+            </div>
+            <h4>Инструкция не добавлена</h4>
+            <p>Для этой таблицы пока не создана и не написана инструкция.</p>
+            <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tables__filters">
+      <div class="filters__fields">
+        <!-- Поиск -->
+        <div class="field search">
+          <input 
+            v-model="searchQuery" 
+            placeholder="Поиск.." 
+            type="text" 
+            class="field__input search"
+            @input="applyFilters"
+          >
+          <img
+            src="@/assets/icons/search.png"
+            class="tables__icon"
+          >
+        </div>
+                
+        <!-- Организация через компонент -->
+        <OrganizationFilter
+          v-if="showOrganizationFilter"
+          ref="organizationFilter"
+          v-model="selectedOrganizationId"
+          :organizations="organizations"
+          @change="handleOrganizationChange"
+        />
+
+        <!-- Место разгрузки через компонент -->
+        <UnloadingPlaceFilter
+          v-if="showUnloadingFilter"
+          ref="unloadingPlaceFilter"
+          v-model="selectedUnloadingPlaceId"
+          @change="handleUnloadingPlaceChange"
+        />
+
+        <!-- Новый DateFilter -->
+        <DateFilter
+          ref="dateFilter"
+          :mode="'range'"
+          :selected-date="selectedDate"
+          :date-range-start="dateRangeStart"
+          :date-range-end="dateRangeEnd"
+          @update:selected-date="updateSelectedDate"
+          @update:date-range-start="updateDateRangeStart"
+          @update:date-range-end="updateDateRangeEnd"
+          @apply="applyDateFilters"
+          @clear="clearDate"
+        />
+      </div>
+      <div class="filters__options">
+        <img
+          src="@/assets/icons/trashcan.png"
+          class="options__icon"
+          @click="clearFilters"
+        >
+        <img
+          src="@/assets/icons/recent-changes.png"
+          class="options__icon"
+        >
+        <button class="options__export">
+          <img
+            src="@/assets/icons/export.png"
+            class="tables__icon"
+          >
+          <p class="options__text">
+            Экспорт
+          </p>
+        </button>
+        <RefreshButton @refresh="refreshData" />
+      </div>
+    </div>
+
+    <div class="tables__content">
+      <!-- Таблица по факту с подсказкой -->
+      <div
+        v-if="showFactTable"
+        class="fact-section"
+      >
+        <FactTable 
+          v-if="currentUserId" 
+          :table-type="tableType"
+          :search-query="searchQuery"
+          :selected-organization="selectedOrganizationName"
+          :selected-unloading-place="selectedUnloadingPlaceName"
+          :date-range-start="dateRangeStart"
+          :date-range-end="dateRangeEnd"
+          :selected-date="selectedDate"
+          :current-user-id="currentUserId"
+          :current-user-name="currentUserName"
+          @refresh-data="refreshData"
+        />
+        <!-- Подсказка на синем фоне -->
+        <div
+          v-if="tableFactHint"
+          class="fact-hint-card"
+        >
+          <div
+            class="text-constructor-content hint-content"
+            v-html="sanitizedHint"
+          />
+        </div>
+      </div>
+            
+      <!-- Основная таблица - разные компоненты для разных типов -->
+      <CarsTable
+        v-if="tableType === 'cars' && currentUserId"
+        :table-name="tableSystemName"
+        :table-id="tableData?.table?.id"
+        :search-query="searchQuery"
+        :selected-organization-id="selectedOrganizationId"
+        :selected-unloading-place-id="selectedUnloadingPlaceId"
+        :date-range-start="dateRangeStart"
+        :date-range-end="dateRangeEnd"
+        :selected-date="selectedDate"
+        :current-user-id="currentUserId"
+        :current-user-name="currentUserName"
+        @refresh-data="refreshData"
+        @open-application="handleOpenApplication"
+      />
+            
+      <PeopleTable
+        v-if="tableType === 'people'"
+        :table-name="tableSystemName"
+        :search-query="searchQuery"
+        :selected-organization-id="selectedOrganizationId"
+        :selected-unloading-place-id="selectedUnloadingPlaceId"
+        :date-range-start="dateRangeStart"
+        :date-range-end="dateRangeEnd"
+        :selected-date="selectedDate"
+        :current-user-id="currentUserId"
+        :current-user-name="currentUserName"
+        @refresh-data="refreshData"
+        @open-application="handleOpenApplication"
+      />
+    </div>
+
+    <ApplicationDetail
+      v-if="showApplicationDetail"
+      :application="selectedApplication"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :mode="'center'"
+      @close="closeApplicationDetail"
+      @application-changed="handleApplicationChanged"
+    />
+  </div>
 </template>
 
 <script>
@@ -245,6 +297,19 @@ export default {
                    !!this.selectedDate ||
                    (this.dateRangeStart && this.dateRangeEnd);
         }
+    },
+    watch: {
+        '$route.params.tableName': {
+            handler() {
+                this.fetchTableData();
+                this.clearFilters();
+            },
+            immediate: true
+        }
+    },
+    async mounted() {
+        await this.fetchCurrentUser();  // Ждём загрузки пользователя
+        this.fetchTableData();          // потом таблицы
     },
     methods: {
         handleApplicationUpdate(updatedApp) {
@@ -404,19 +469,6 @@ export default {
 
         handleApplicationChanged() {
             this.refreshData();
-        }
-    },
-    async mounted() {
-        await this.fetchCurrentUser();  // Ждём загрузки пользователя
-        this.fetchTableData();          // потом таблицы
-    },
-    watch: {
-        '$route.params.tableName': {
-            handler() {
-                this.fetchTableData();
-                this.clearFilters();
-            },
-            immediate: true
         }
     }
 }

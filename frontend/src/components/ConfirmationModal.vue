@@ -1,30 +1,36 @@
 <template>
-    <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @click.self="handleCancel">
-            <div class="modal">
-                <div class="modal-header">{{ title }}</div>
-                <div class="modal-content">
-                    {{ message }}
-                </div>
-                <div class="modal-actions">
-                    <button 
-                        class="cancel-btn" 
-                        @click="handleCancel"
-                        :style="cancelButtonStyle"
-                    >
-                        {{ cancelText }}
-                    </button>
-                    <button 
-                        class="confirm-btn" 
-                        @click="handleConfirm"
-                        :style="confirmButtonStyle"
-                    >
-                        {{ confirmText }}
-                    </button>
-                </div>
-            </div>
+  <transition name="modal-fade">
+    <div
+      v-if="show"
+      class="modal-overlay"
+      @click.self="handleCancel"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          {{ title }}
         </div>
-    </transition>
+        <div class="modal-content">
+          {{ message }}
+        </div>
+        <div class="modal-actions">
+          <button 
+            class="cancel-btn" 
+            :style="cancelButtonStyle"
+            @click="handleCancel"
+          >
+            {{ cancelText }}
+          </button>
+          <button 
+            class="confirm-btn" 
+            :style="confirmButtonStyle"
+            @click="handleConfirm"
+          >
+            {{ confirmText }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script>

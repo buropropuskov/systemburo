@@ -1,15 +1,34 @@
 <template>
-  <div class="modal-overlay" @click.self="close">
+  <div
+    class="modal-overlay"
+    @click.self="close"
+  >
     <div class="employees-history-modal">
       <div class="modal-header">
         <h3>История проходов сотрудников (таблица)</h3>
         <div class="header-actions">
-          <button class="export-btn" @click="exportToExcel" :disabled="filteredHistory.length === 0 || isExporting">
-            <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
+          <button
+            class="export-btn"
+            :disabled="filteredHistory.length === 0 || isExporting"
+            @click="exportToExcel"
+          >
+            <img
+              v-if="!isExporting"
+              src="@/assets/icons/export.png"
+              class="export-icon"
+            >
             <span v-if="!isExporting">Экспорт</span>
-            <div v-else class="export-loader"></div>
+            <div
+              v-else
+              class="export-loader"
+            />
           </button>
-          <button class="close-btn" @click="close">×</button>
+          <button
+            class="close-btn"
+            @click="close"
+          >
+            ×
+          </button>
         </div>
       </div>
 
@@ -18,26 +37,32 @@
           <div class="search-filter">
             <span class="filter-label">Поиск:</span>
             <input 
-              type="text" 
               v-model="searchQuery" 
+              type="text" 
               class="search-input" 
               placeholder="Поиск по сотруднику, пользователю..."
               @input="applyFilters"
-            />
+            >
           </div>
           <div class="user-filter">
             <span class="filter-label">Пользователь:</span>
-            <div class="custom-select" @click="toggleUserDropdown">
+            <div
+              class="custom-select"
+              @click="toggleUserDropdown"
+            >
               <div class="select-trigger">
                 <span class="selected-value">{{ selectedUserName }}</span>
                 <img 
                   src="@/assets/icons/arrow.png" 
                   class="select-arrow" 
                   :class="{ 'arrow-open': userDropdownOpen }"
-                />
+                >
               </div>
               <transition name="fade">
-                <div v-if="userDropdownOpen" class="select-dropdown">
+                <div
+                  v-if="userDropdownOpen"
+                  class="select-dropdown"
+                >
                   <div 
                     class="select-option"
                     :class="{ 'selected': selectedUserId === null }"
@@ -61,17 +86,23 @@
           
           <div class="employee-filter">
             <span class="filter-label">Сотрудник:</span>
-            <div class="custom-select" @click="toggleEmployeeDropdown">
+            <div
+              class="custom-select"
+              @click="toggleEmployeeDropdown"
+            >
               <div class="select-trigger">
                 <span class="selected-value">{{ selectedEmployeeName }}</span>
                 <img 
                   src="@/assets/icons/arrow.png" 
                   class="select-arrow" 
                   :class="{ 'arrow-open': employeeDropdownOpen }"
-                />
+                >
               </div>
               <transition name="fade">
-                <div v-if="employeeDropdownOpen" class="select-dropdown">
+                <div
+                  v-if="employeeDropdownOpen"
+                  class="select-dropdown"
+                >
                   <div 
                     class="select-option"
                     :class="{ 'selected': selectedEmployeeId === null }"
@@ -96,57 +127,87 @@
           <div class="date-filter">
             <span class="filter-label">Период:</span>
             <input 
-              type="date" 
               v-model="dateFrom" 
+              type="date" 
               class="date-input"
               @change="applyFilters"
-            />
+            >
             <span class="date-separator">—</span>
             <input 
-              type="date" 
               v-model="dateTo" 
+              type="date" 
               class="date-input"
               @change="applyFilters"
-            />
+            >
           </div>
           
           <div class="sort-filter">
             <span class="filter-label">Сортировка:</span>
-            <button class="sort-btn" @click="toggleSortOrder">
-              <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sort-asc': sortOrder === 'asc' }" />
+            <button
+              class="sort-btn"
+              @click="toggleSortOrder"
+            >
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ 'sort-asc': sortOrder === 'asc' }"
+              >
               <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div class="modal-content" ref="scrollContainer">
-        <div v-if="loading" class="history-loading">
-          <div class="loader"></div>
+      <div
+        ref="scrollContainer"
+        class="modal-content"
+      >
+        <div
+          v-if="loading"
+          class="history-loading"
+        >
+          <div class="loader" />
         </div>
         
-        <div v-else-if="filteredHistory.length === 0" class="history-empty">
+        <div
+          v-else-if="filteredHistory.length === 0"
+          class="history-empty"
+        >
           История пуста
         </div>
         
-        <div v-else class="history-timeline">
+        <div
+          v-else
+          class="history-timeline"
+        >
           <div 
             v-for="(item, index) in filteredHistory" 
             :key="item.id" 
             class="history-item"
           >
-            <div class="timeline-dot" :class="getActionClass(item.action_type)"></div>
-            <div class="timeline-line" v-if="index < filteredHistory.length - 1"></div>
+            <div
+              class="timeline-dot"
+              :class="getActionClass(item.action_type)"
+            />
+            <div
+              v-if="index < filteredHistory.length - 1"
+              class="timeline-line"
+            />
             
             <div class="history-content">
               <div class="history-header">
                 <span class="employee-info">{{ getEmployeeName(item) }}</span>
-                <span v-if="item.table_name" class="table-name">{{ item.table_name }}</span>
+                <span
+                  v-if="item.table_name"
+                  class="table-name"
+                >{{ item.table_name }}</span>
                 <span class="user-name">{{ item.user_name || 'Система' }}</span>
                 <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
               </div>
               
-              <div class="action-text">{{ getActionText(item) }}</div>
+              <div class="action-text">
+                {{ getActionText(item) }}
+              </div>
               
               <div class="action-comment">
                 {{ item.comment || getActionComment(item) }}
@@ -307,6 +368,13 @@ export default {
       const parts = this.currentUserName.split(' ').filter(part => part && part !== 'null' && part !== 'undefined');
       return parts.length > 0 ? parts.join(' ') : 'Пользователь';
     }
+  },
+  mounted() {
+    this.loadHistory();
+    document.addEventListener('click', this.handleClickOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
   },
   methods: {
     async loadHistory() {
@@ -549,13 +617,6 @@ export default {
     close() {
       this.$emit('close');
     }
-  },
-  mounted() {
-    this.loadHistory();
-    document.addEventListener('click', this.handleClickOutside);
-  },
-  beforeUnmount() {
-    document.removeEventListener('click', this.handleClickOutside);
   }
 };
 </script>

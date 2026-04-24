@@ -1,136 +1,210 @@
 <template>
-    <div class="modal-content-inner">
-        <div class="modal-header">
-            <div class="header-with-status">
-                <h3 class="modal-title">Информация о месте прохода</h3>
-                <span class="status-badge" :class="getTableStatusClass">
-                    {{ getTableStatusText }}
-                </span>
-                <div v-if="table && table.table && table.table.status === 'active'" class="time-info">
-                    {{ getTableTimeInfoText() }}
-                </div>
-            </div>
-            <button @click="close" class="modal-close">
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                    <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </button>
+  <div class="modal-content-inner">
+    <div class="modal-header">
+      <div class="header-with-status">
+        <h3 class="modal-title">
+          Информация о месте прохода
+        </h3>
+        <span
+          class="status-badge"
+          :class="getTableStatusClass"
+        >
+          {{ getTableStatusText }}
+        </span>
+        <div
+          v-if="table && table.table && table.table.status === 'active'"
+          class="time-info"
+        >
+          {{ getTableTimeInfoText() }}
         </div>
-
-        <div class="modal-body">
-            <div class="place-details" v-if="table && table.table">
-                <!-- Секция Основная информация -->
-                <div class="details-section">
-                    <div class="section-header">
-                        <h4 class="section-title">Основная информация</h4>
-                    </div>
-                    <div class="section-body">
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <span class="info-label">Наименование:</span>
-                                <span class="info-value">{{ table.table.display_name }}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Тип:</span>
-                                <span class="info-value">{{ getTableTypeLabel }}</span>
-                            </div>
-                        </div>
-                        <div v-if="table.table.status !== 'active' && table.table.status_comment" class="comment-text">
-                            {{ table.table.status_comment }}
-                        </div>
-                        <div v-if="table.table.location_description" class="location-description">
-                            {{ table.table.location_description }}
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Секция Режим работы -->
-                <div class="details-section">
-                    <div class="section-header">
-                        <h4 class="section-title">Режим работы</h4>
-                    </div>
-                    <div class="section-body">
-                        <div v-if="hasTimeSlots" class="schedule-grid">
-                            <div 
-                                v-for="day in daysWithSlots" 
-                                :key="day" 
-                                class="schedule-day-card"
-                                :class="{ 'current-day': isCurrentDay(day) }"
-                            >
-                                <div class="day-name">{{ getFullDayName(day) }}</div>
-                                <div class="day-slots">
-                                    <div 
-                                        v-for="slot in getSlotsForDay(day)" 
-                                        :key="slot.id" 
-                                        class="slot-badge"
-                                        :class="{ 
-                                            'active-slot': isCurrentDay(day) && isActiveSlot(slot)
-                                        }"
-                                    >
-                                        <span v-if="isRoundTheClockSlot(slot)" class="round-clock-text">круглосуточно</span>
-                                        <template v-else>
-                                            <span class="slot-time">
-                                                {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
-                                            </span>
-                                            <div class="slot-badges">
-                                                <span v-if="slot.is_next_day" class="next-day-badge">+1</span>
-                                                <span v-if="!slot.is_active" class="inactive-badge">неакт</span>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="no-schedule">
-                            Режим работы не указан
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Секция Местоположение -->
-                <div class="details-section">
-                    <div class="section-header location-header">
-                        <h4 class="section-title">Местоположение</h4>
-                        <a 
-                            v-if="table.table.map_link" 
-                            :href="table.table.map_link" 
-                            target="_blank" 
-                            class="map-link-btn"
-                        >
-                            Как добраться?
-                        </a>
-                    </div>
-                    <div class="section-body photo-body">
-                        <div v-if="table.photos && table.photos.length > 0" class="photo-container">
-                            <div 
-                                class="photo-wrapper"
-                                ref="photoWrapper"
-                                @mousedown="startDrag"
-                                @wheel="onZoom"
-                            >
-                                <img 
-                                    :src="getMainPhotoUrl" 
-                                    alt="Место прохода"
-                                    class="place-photo"
-                                    :style="photoStyle"
-                                    draggable="false"
-                                    @load="updateImageDimensions"
-                                >
-                            </div>
-                            <div class="photo-controls">
-                                <button @click="zoomIn" class="photo-control-btn">+</button>
-                                <button @click="zoomOut" class="photo-control-btn">−</button>
-                                <button @click="resetPhoto" class="photo-control-btn">↺</button>
-                            </div>
-                        </div>
-                        <div v-else class="no-photo-placeholder">
-                            Нет фотографии
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
+      <button
+        class="modal-close"
+        @click="close"
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 14 14"
+          fill="none"
+        >
+          <path
+            d="M13 1L1 13M1 1L13 13"
+            stroke="#666"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
     </div>
+
+    <div class="modal-body">
+      <div
+        v-if="table && table.table"
+        class="place-details"
+      >
+        <!-- Секция Основная информация -->
+        <div class="details-section">
+          <div class="section-header">
+            <h4 class="section-title">
+              Основная информация
+            </h4>
+          </div>
+          <div class="section-body">
+            <div class="info-grid">
+              <div class="info-row">
+                <span class="info-label">Наименование:</span>
+                <span class="info-value">{{ table.table.display_name }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Тип:</span>
+                <span class="info-value">{{ getTableTypeLabel }}</span>
+              </div>
+            </div>
+            <div
+              v-if="table.table.status !== 'active' && table.table.status_comment"
+              class="comment-text"
+            >
+              {{ table.table.status_comment }}
+            </div>
+            <div
+              v-if="table.table.location_description"
+              class="location-description"
+            >
+              {{ table.table.location_description }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Секция Режим работы -->
+        <div class="details-section">
+          <div class="section-header">
+            <h4 class="section-title">
+              Режим работы
+            </h4>
+          </div>
+          <div class="section-body">
+            <div
+              v-if="hasTimeSlots"
+              class="schedule-grid"
+            >
+              <div 
+                v-for="day in daysWithSlots" 
+                :key="day" 
+                class="schedule-day-card"
+                :class="{ 'current-day': isCurrentDay(day) }"
+              >
+                <div class="day-name">
+                  {{ getFullDayName(day) }}
+                </div>
+                <div class="day-slots">
+                  <div 
+                    v-for="slot in getSlotsForDay(day)" 
+                    :key="slot.id" 
+                    class="slot-badge"
+                    :class="{ 
+                      'active-slot': isCurrentDay(day) && isActiveSlot(slot)
+                    }"
+                  >
+                    <span
+                      v-if="isRoundTheClockSlot(slot)"
+                      class="round-clock-text"
+                    >круглосуточно</span>
+                    <template v-else>
+                      <span class="slot-time">
+                        {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
+                      </span>
+                      <div class="slot-badges">
+                        <span
+                          v-if="slot.is_next_day"
+                          class="next-day-badge"
+                        >+1</span>
+                        <span
+                          v-if="!slot.is_active"
+                          class="inactive-badge"
+                        >неакт</span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-schedule"
+            >
+              Режим работы не указан
+            </div>
+          </div>
+        </div>
+
+        <!-- Секция Местоположение -->
+        <div class="details-section">
+          <div class="section-header location-header">
+            <h4 class="section-title">
+              Местоположение
+            </h4>
+            <a 
+              v-if="table.table.map_link" 
+              :href="table.table.map_link" 
+              target="_blank" 
+              class="map-link-btn"
+            >
+              Как добраться?
+            </a>
+          </div>
+          <div class="section-body photo-body">
+            <div
+              v-if="table.photos && table.photos.length > 0"
+              class="photo-container"
+            >
+              <div 
+                ref="photoWrapper"
+                class="photo-wrapper"
+                @mousedown="startDrag"
+                @wheel="onZoom"
+              >
+                <img 
+                  :src="getMainPhotoUrl" 
+                  alt="Место прохода"
+                  class="place-photo"
+                  :style="photoStyle"
+                  draggable="false"
+                  @load="updateImageDimensions"
+                >
+              </div>
+              <div class="photo-controls">
+                <button
+                  class="photo-control-btn"
+                  @click="zoomIn"
+                >
+                  +
+                </button>
+                <button
+                  class="photo-control-btn"
+                  @click="zoomOut"
+                >
+                  −
+                </button>
+                <button
+                  class="photo-control-btn"
+                  @click="resetPhoto"
+                >
+                  ↺
+                </button>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-photo-placeholder"
+            >
+              Нет фотографии
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -205,6 +279,22 @@ export default {
                 transform: `translate(${this.photoTranslateX}px, ${this.photoTranslateY}px) scale(${this.photoScale})`,
                 cursor: this.isDragging ? 'grabbing' : 'grab'
             };
+        }
+    },
+    watch: {
+        table(newVal) {
+            if (newVal) {
+                this.$nextTick(() => {
+                    this.updateContainerDimensions();
+                });
+                this.resetPhoto();
+            }
+        }
+    },
+    beforeUnmount() {
+        if (this.windowMouseMoveHandler) {
+            window.removeEventListener('mousemove', this.windowMouseMoveHandler);
+            window.removeEventListener('mouseup', this.windowMouseUpHandler);
         }
     },
     methods: {
@@ -474,22 +564,6 @@ export default {
             this.photoScale = 1.5;
             this.photoTranslateX = 0;
             this.photoTranslateY = 0;
-        }
-    },
-    watch: {
-        table(newVal) {
-            if (newVal) {
-                this.$nextTick(() => {
-                    this.updateContainerDimensions();
-                });
-                this.resetPhoto();
-            }
-        }
-    },
-    beforeUnmount() {
-        if (this.windowMouseMoveHandler) {
-            window.removeEventListener('mousemove', this.windowMouseMoveHandler);
-            window.removeEventListener('mouseup', this.windowMouseUpHandler);
         }
     }
 };

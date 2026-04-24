@@ -1,53 +1,108 @@
 <template>
   <div class="location-section">
     <div class="photos-header">
-      <h4 class="section-title">Фотографии места</h4>
+      <h4 class="section-title">
+        Фотографии места
+      </h4>
       <label class="upload-photo-btn">
         + Загрузить
         <input
           type="file"
           accept="image/*"
           multiple
-          @change="uploadPhotos"
           style="display: none"
+          @change="uploadPhotos"
         >
       </label>
     </div>
 
     <div class="photos-grid">
-      <div v-for="photo in photos" :key="photo.id" class="photo-item" :class="{ 'main-photo': photo.is_main }">
-        <div class="photo-preview" @click="viewPhoto(photo)">
-          <img :src="photo.photo_url" :alt="photo.file_name">
+      <div
+        v-for="photo in photos"
+        :key="photo.id"
+        class="photo-item"
+        :class="{ 'main-photo': photo.is_main }"
+      >
+        <div
+          class="photo-preview"
+          @click="viewPhoto(photo)"
+        >
+          <img
+            :src="photo.photo_url"
+            :alt="photo.file_name"
+          >
         </div>
         <div class="photo-actions">
-          <button v-if="!photo.is_main" @click="setMainPhoto(photo)" class="photo-main-btn" title="Сделать главной">
+          <button
+            v-if="!photo.is_main"
+            class="photo-main-btn"
+            title="Сделать главной"
+            @click="setMainPhoto(photo)"
+          >
             ★
           </button>
-          <span v-else class="photo-main-badge" title="Главная фотография">★</span>
-          <button @click="deletePhoto(photo)" class="photo-delete-btn" title="Удалить">
-            <img src="@/assets/icons/trashcan.png" class="action-icon-small" />
+          <span
+            v-else
+            class="photo-main-badge"
+            title="Главная фотография"
+          >★</span>
+          <button
+            class="photo-delete-btn"
+            title="Удалить"
+            @click="deletePhoto(photo)"
+          >
+            <img
+              src="@/assets/icons/trashcan.png"
+              class="action-icon-small"
+            >
           </button>
         </div>
       </div>
-      <div v-if="!photos || photos.length === 0" class="no-photos">
+      <div
+        v-if="!photos || photos.length === 0"
+        class="no-photos"
+      >
         <p>Фотографии не загружены</p>
       </div>
     </div>
 
     <!-- Модальное окно просмотра фото -->
     <transition name="modal-fade">
-      <div v-if="showPhotoModal" class="modal-overlay" @click.self="showPhotoModal = false">
+      <div
+        v-if="showPhotoModal"
+        class="modal-overlay"
+        @click.self="showPhotoModal = false"
+      >
         <div class="modal-content photo-view-modal">
           <div class="modal-header">
-            <h3 class="modal-title">{{ viewingPhoto?.file_name }}</h3>
-            <button @click="showPhotoModal = false" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+            <h3 class="modal-title">
+              {{ viewingPhoto?.file_name }}
+            </h3>
+            <button
+              class="modal-close"
+              @click="showPhotoModal = false"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </button>
           </div>
           <div class="modal-body photo-view-body">
-            <img :src="viewingPhoto?.photo_url" class="full-photo" alt="Full size">
+            <img
+              :src="viewingPhoto?.photo_url"
+              class="full-photo"
+              alt="Full size"
+            >
           </div>
         </div>
       </div>

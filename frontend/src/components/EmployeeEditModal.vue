@@ -1,210 +1,284 @@
 <template>
-    <div v-if="visible" class="modal-overlay" @click="$emit('close')">
-        <div class="modal-content" @click.stop>
-            <div class="modal-header">
-                <div class="modal-header__top">
-                    <h3>{{ editingEmployee ? 'Редактирование' : 'Добавление сотрудника' }}</h3>
-                    <div v-if="notification.show" class="notification-badge" :class="notification.type">
-                        {{ notification.message }}
-                    </div>
-                </div>
-                <button class="modal-close" @click="$emit('close')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="data__completion">
-                    <div class="completion__citizenship">
-                        <div class="citizenship__header">
-                            <label class="citizenship__label">Гражданство <span class="required">*</span></label>
-                            <button class="add-button" @click="saveEmployee" :disabled="!canSaveEmployee">
-                                {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
-                            </button>
-                        </div>
-                        <div class="citizenship__dropdown">
-                            <button class="dropdown__button" @click="toggleCitizenshipDropdown">
-                                <div class="button__content">
-                                    <span class="button__text">{{ selectedCitizenshipText }}</span>
-                                    <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }" />
-                                </div>
-                            </button>
-                            <transition name="dropdown">
-                                <div v-if="isCitizenshipDropdownOpen" class="dropdown__menu">
-                                    <div
-                                        v-for="citizenship in citizenships"
-                                        :key="citizenship.id"
-                                        class="dropdown__item"
-                                        @click="selectCitizenship(citizenship)"
-                                    >
-                                        <span class="item__text">{{ citizenship.name }}</span>
-                                        <span v-if="citizenship.patent_required" class="patent-required-badge">Требуется патент</span>
-                                    </div>
-                                </div>
-                            </transition>
-                        </div>
-                    </div>
-
-                    <div class="completion__fields">
-                        <!-- Первая строка: Фамилия и Имя -->
-                        <div class="completion__name-row">
-                            <div class="completion__last-name">
-                                <div class="completion__last-name-header">
-                                    <label class="input__label">Фамилия <span class="required">*</span></label>
-                                </div>
-                                <input
-                                    class="name__input"
-                                    placeholder="Введите фамилию"
-                                    v-model="lastName"
-                                />
-                            </div>
-                            <div class="completion__first-name">
-                                <div class="completion__first-name-header">
-                                    <label class="input__label">Имя <span class="required">*</span></label>
-                                </div>
-                                <input
-                                    class="name__input"
-                                    placeholder="Введите имя"
-                                    v-model="firstName"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Вторая строка: Отчество и Должность -->
-                        <div class="completion__name-row">
-                            <div class="completion__middle-name">
-                                <div class="completion__middle-name-header">
-                                    <label class="input__label">Отчество</label>
-                                </div>
-                                <input
-                                    class="name__input"
-                                    placeholder="Введите отчество"
-                                    v-model="middleName"
-                                />
-                            </div>
-                            <div class="completion__position">
-                                <div class="completion__position-header">
-                                    <label class="input__label">Должность <span class="required">*</span></label>
-                                </div>
-                                <input
-                                    class="name__input"
-                                    placeholder="Введите должность"
-                                    v-model="position"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Третья строка: Паспорт и Номер патента -->
-                        <div class="completion__name-row">
-                            <div class="completion__passport">
-                                <div class="completion__passport-header">
-                                    <label class="input__label">Серия и номер паспорта <span class="required">*</span></label>
-                                </div>
-                                <input
-                                    class="name__input"
-                                    placeholder="XXXX XXXXXX"
-                                    v-model="passportSeriesNumber"
-                                    @input="formatPassport"
-                                />
-                            </div>
-                            <div class="completion__patent" :class="{ 'disabled-field': !isPatentRequired }">
-                                <div class="completion__patent-header">
-                                    <label class="input__label">Номер патента</label>
-                                </div>
-                                <input
-                                    class="name__input"
-                                    placeholder="Введите номер патента"
-                                    v-model="patentNumber"
-                                    :disabled="!isPatentRequired || selectedPermission !== 'Не выбрано'"
-                                    @input="handlePatentInput"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Четвертая строка: Иное разрешение -->
-                        <div class="completion__permission" :class="{ 'disabled-field': !isPatentRequired }">
-                            <div class="completion__permission-header">
-                                <label class="input__label">Иное разрешение на работы</label>
-                            </div>
-                            <div class="permission__dropdown">
-                                <button class="permission__dropdown-button" @click="togglePermissionDropdown" :disabled="!isPatentRequired || patentNumber.trim() !== ''">
-                                    <div class="permission__button-content">
-                                        <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
-                                        <img src="@/assets/icons/arrow.png" class="permission__button-arrow" :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }" />
-                                    </div>
-                                </button>
-                                <transition name="dropdown">
-                                    <div v-if="isPermissionDropdownOpen" class="permission__dropdown-menu">
-                                        <div
-                                            v-for="permission in availablePermissions"
-                                            :key="permission"
-                                            class="permission__dropdown-item"
-                                            @click="selectPermission(permission)"
-                                        >
-                                            <span class="permission__item-text">{{ permission }}</span>
-                                        </div>
-                                    </div>
-                                </transition>
-                            </div>
-                        </div>
-
-                        <!-- Загрузка файлов -->
-                        <div class="completion__files" v-if="isPatentRequired">
-                            <div class="completion__files-header">
-                                <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
-                            </div>
-                            <div class="files__upload">
-                                <input
-                                    type="file"
-                                    ref="fileInput"
-                                    @change="handleFileUpload"
-                                    multiple
-                                    accept="image/*,.pdf,.doc,.docx"
-                                    class="file-input"
-                                />
-                                <button class="upload-button" @click="triggerFileInput">
-                                    Загрузить
-                                </button>
-                            </div>
-                            <div v-if="uploadedFiles.length > 0" class="uploaded-files">
-                                <div v-for="(file, index) in uploadedFiles" :key="index" class="uploaded-file">
-                                    <span class="file-name">{{ truncateText(file.name, 30) }}</span>
-                                    <button @click="removeFile(index)" class="remove-file-btn">×</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Привязка -->
-                    <div class="completion__binding">
-                        <label class="input__label">Привязка</label>
-                        <div class="binding-info">
-                            <p class="binding-note">
-                                <strong>Добавляемый сотрудник автоматически привязывается к аккаунту пользователя.</strong>
-                                Сотрудника можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
-                            </p>
-                        </div>
-                        <div class="binding-options">
-                            <label class="binding-option" v-if="ownershipInfo && ownershipInfo.has_organization">
-                                <input
-                                    type="checkbox"
-                                    v-model="bindToOrganization"
-                                />
-                                <span>Привязать к организации</span>
-                            </label>
-                            <label class="binding-option" v-if="ownershipInfo && ownershipInfo.has_company">
-                                <input
-                                    type="checkbox"
-                                    v-model="bindToCompany"
-                                />
-                                <span>Привязать к компании</span>
-                            </label>
-                            <div class="user-binding">
-                                <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  <div
+    v-if="visible"
+    class="modal-overlay"
+    @click="$emit('close')"
+  >
+    <div
+      class="modal-content"
+      @click.stop
+    >
+      <div class="modal-header">
+        <div class="modal-header__top">
+          <h3>{{ editingEmployee ? 'Редактирование' : 'Добавление сотрудника' }}</h3>
+          <div
+            v-if="notification.show"
+            class="notification-badge"
+            :class="notification.type"
+          >
+            {{ notification.message }}
+          </div>
         </div>
+        <button
+          class="modal-close"
+          @click="$emit('close')"
+        >
+          ×
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="data__completion">
+          <div class="completion__citizenship">
+            <div class="citizenship__header">
+              <label class="citizenship__label">Гражданство <span class="required">*</span></label>
+              <button
+                class="add-button"
+                :disabled="!canSaveEmployee"
+                @click="saveEmployee"
+              >
+                {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
+              </button>
+            </div>
+            <div class="citizenship__dropdown">
+              <button
+                class="dropdown__button"
+                @click="toggleCitizenshipDropdown"
+              >
+                <div class="button__content">
+                  <span class="button__text">{{ selectedCitizenshipText }}</span>
+                  <img
+                    src="@/assets/icons/arrow.png"
+                    class="button__arrow"
+                    :class="{ 'button__arrow--open': isCitizenshipDropdownOpen }"
+                  >
+                </div>
+              </button>
+              <transition name="dropdown">
+                <div
+                  v-if="isCitizenshipDropdownOpen"
+                  class="dropdown__menu"
+                >
+                  <div
+                    v-for="citizenship in citizenships"
+                    :key="citizenship.id"
+                    class="dropdown__item"
+                    @click="selectCitizenship(citizenship)"
+                  >
+                    <span class="item__text">{{ citizenship.name }}</span>
+                    <span
+                      v-if="citizenship.patent_required"
+                      class="patent-required-badge"
+                    >Требуется патент</span>
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+
+          <div class="completion__fields">
+            <!-- Первая строка: Фамилия и Имя -->
+            <div class="completion__name-row">
+              <div class="completion__last-name">
+                <div class="completion__last-name-header">
+                  <label class="input__label">Фамилия <span class="required">*</span></label>
+                </div>
+                <input
+                  v-model="lastName"
+                  class="name__input"
+                  placeholder="Введите фамилию"
+                >
+              </div>
+              <div class="completion__first-name">
+                <div class="completion__first-name-header">
+                  <label class="input__label">Имя <span class="required">*</span></label>
+                </div>
+                <input
+                  v-model="firstName"
+                  class="name__input"
+                  placeholder="Введите имя"
+                >
+              </div>
+            </div>
+
+            <!-- Вторая строка: Отчество и Должность -->
+            <div class="completion__name-row">
+              <div class="completion__middle-name">
+                <div class="completion__middle-name-header">
+                  <label class="input__label">Отчество</label>
+                </div>
+                <input
+                  v-model="middleName"
+                  class="name__input"
+                  placeholder="Введите отчество"
+                >
+              </div>
+              <div class="completion__position">
+                <div class="completion__position-header">
+                  <label class="input__label">Должность <span class="required">*</span></label>
+                </div>
+                <input
+                  v-model="position"
+                  class="name__input"
+                  placeholder="Введите должность"
+                >
+              </div>
+            </div>
+
+            <!-- Третья строка: Паспорт и Номер патента -->
+            <div class="completion__name-row">
+              <div class="completion__passport">
+                <div class="completion__passport-header">
+                  <label class="input__label">Серия и номер паспорта <span class="required">*</span></label>
+                </div>
+                <input
+                  v-model="passportSeriesNumber"
+                  class="name__input"
+                  placeholder="XXXX XXXXXX"
+                  @input="formatPassport"
+                >
+              </div>
+              <div
+                class="completion__patent"
+                :class="{ 'disabled-field': !isPatentRequired }"
+              >
+                <div class="completion__patent-header">
+                  <label class="input__label">Номер патента</label>
+                </div>
+                <input
+                  v-model="patentNumber"
+                  class="name__input"
+                  placeholder="Введите номер патента"
+                  :disabled="!isPatentRequired || selectedPermission !== 'Не выбрано'"
+                  @input="handlePatentInput"
+                >
+              </div>
+            </div>
+
+            <!-- Четвертая строка: Иное разрешение -->
+            <div
+              class="completion__permission"
+              :class="{ 'disabled-field': !isPatentRequired }"
+            >
+              <div class="completion__permission-header">
+                <label class="input__label">Иное разрешение на работы</label>
+              </div>
+              <div class="permission__dropdown">
+                <button
+                  class="permission__dropdown-button"
+                  :disabled="!isPatentRequired || patentNumber.trim() !== ''"
+                  @click="togglePermissionDropdown"
+                >
+                  <div class="permission__button-content">
+                    <span class="permission__button-text">{{ selectedPermission || 'Не выбрано' }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="permission__button-arrow"
+                      :class="{ 'permission__button-arrow--open': isPermissionDropdownOpen }"
+                    >
+                  </div>
+                </button>
+                <transition name="dropdown">
+                  <div
+                    v-if="isPermissionDropdownOpen"
+                    class="permission__dropdown-menu"
+                  >
+                    <div
+                      v-for="permission in availablePermissions"
+                      :key="permission"
+                      class="permission__dropdown-item"
+                      @click="selectPermission(permission)"
+                    >
+                      <span class="permission__item-text">{{ permission }}</span>
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+
+            <!-- Загрузка файлов -->
+            <div
+              v-if="isPatentRequired"
+              class="completion__files"
+            >
+              <div class="completion__files-header">
+                <label class="input__label">Фото, скан документа(-ов), подтверждающее иное разрешение на работы</label>
+              </div>
+              <div class="files__upload">
+                <input
+                  ref="fileInput"
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  class="file-input"
+                  @change="handleFileUpload"
+                >
+                <button
+                  class="upload-button"
+                  @click="triggerFileInput"
+                >
+                  Загрузить
+                </button>
+              </div>
+              <div
+                v-if="uploadedFiles.length > 0"
+                class="uploaded-files"
+              >
+                <div
+                  v-for="(file, index) in uploadedFiles"
+                  :key="index"
+                  class="uploaded-file"
+                >
+                  <span class="file-name">{{ truncateText(file.name, 30) }}</span>
+                  <button
+                    class="remove-file-btn"
+                    @click="removeFile(index)"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Привязка -->
+          <div class="completion__binding">
+            <label class="input__label">Привязка</label>
+            <div class="binding-info">
+              <p class="binding-note">
+                <strong>Добавляемый сотрудник автоматически привязывается к аккаунту пользователя.</strong>
+                Сотрудника можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
+              </p>
+            </div>
+            <div class="binding-options">
+              <label
+                v-if="ownershipInfo && ownershipInfo.has_organization"
+                class="binding-option"
+              >
+                <input
+                  v-model="bindToOrganization"
+                  type="checkbox"
+                >
+                <span>Привязать к организации</span>
+              </label>
+              <label
+                v-if="ownershipInfo && ownershipInfo.has_company"
+                class="binding-option"
+              >
+                <input
+                  v-model="bindToCompany"
+                  type="checkbox"
+                >
+                <span>Привязать к компании</span>
+              </label>
+              <div class="user-binding">
+                <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>
@@ -329,6 +403,20 @@ export default {
             if (newVal !== 'Не выбрано' && newVal !== '') {
                 this.patentNumber = '';
             }
+        }
+    },
+    mounted() {
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.citizenship__dropdown')) {
+                this.isCitizenshipDropdownOpen = false;
+            }
+            if (!e.target.closest('.permission__dropdown')) {
+                this.isPermissionDropdownOpen = false;
+            }
+        });
+
+        if (this.visible) {
+            this.initForm();
         }
     },
     methods: {
@@ -618,20 +706,6 @@ export default {
             } catch (error) {
                 console.error('Ошибка при загрузке файлов:', error);
             }
-        }
-    },
-    mounted() {
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.citizenship__dropdown')) {
-                this.isCitizenshipDropdownOpen = false;
-            }
-            if (!e.target.closest('.permission__dropdown')) {
-                this.isPermissionDropdownOpen = false;
-            }
-        });
-
-        if (this.visible) {
-            this.initForm();
         }
     }
 }

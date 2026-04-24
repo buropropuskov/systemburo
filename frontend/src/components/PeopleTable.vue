@@ -1,10 +1,18 @@
 <template>
   <div class="selected-table-card">
     <transition name="slide-down">
-      <div v-if="notification.message" class="notification">
+      <div
+        v-if="notification.message"
+        class="notification"
+      >
         <span>{{ notification.message }}</span>
-        <button @click="undoDelete">Отменить</button>
-        <div class="progress-bar" :style="{ width: `${progress}%` }"></div>
+        <button @click="undoDelete">
+          Отменить
+        </button>
+        <div
+          class="progress-bar"
+          :style="{ width: `${progress}%` }"
+        />
       </div>
     </transition>
 
@@ -17,57 +25,139 @@
       <div class="card-header__settings">
         <span class="items-count">
           Людей зашло: {{ peopleOnTerritory }}
-          <button class="history-btn" @click="openEmployeesHistory">История</button>
+          <button
+            class="history-btn"
+            @click="openEmployeesHistory"
+          >История</button>
         </span>
-        <RefreshButton @refresh="loadData" :disabled="isLoading" />
+        <RefreshButton
+          :disabled="isLoading"
+          @refresh="loadData"
+        />
       </div>
     </div>
     
     <div class="card-content">
       <div class="items-header">
         <div class="header-row">
-          <div class="col entry-col">Вход</div>
-          <div class="col exit-col">Выход</div>
-          <div class="col last-name-col" @click="sortBy('last_name')">
-            <p :class="{ 'active-sort': sortField === 'last_name' }">Фамилия</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'last_name', 'desc': sortField === 'last_name' && sortDirection === 'desc' }" />
+          <div class="col entry-col">
+            Вход
           </div>
-          <div class="col first-name-col" @click="sortBy('first_name')">
-            <p :class="{ 'active-sort': sortField === 'first_name' }">Имя</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'first_name', 'desc': sortField === 'first_name' && sortDirection === 'desc' }" />
+          <div class="col exit-col">
+            Выход
           </div>
-          <div class="col middle-name-col" @click="sortBy('middle_name')">
-            <p :class="{ 'active-sort': sortField === 'middle_name' }">Отчество</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'middle_name', 'desc': sortField === 'middle_name' && sortDirection === 'desc' }" />
+          <div
+            class="col last-name-col"
+            @click="sortBy('last_name')"
+          >
+            <p :class="{ 'active-sort': sortField === 'last_name' }">
+              Фамилия
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'last_name', 'desc': sortField === 'last_name' && sortDirection === 'desc' }"
+            >
           </div>
-          <div class="col organization-col" @click="sortBy('organization')">
-            <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }" />
+          <div
+            class="col first-name-col"
+            @click="sortBy('first_name')"
+          >
+            <p :class="{ 'active-sort': sortField === 'first_name' }">
+              Имя
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'first_name', 'desc': sortField === 'first_name' && sortDirection === 'desc' }"
+            >
           </div>
-          <div class="col date-col" @click="sortBy('entry_date_to')">
-            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }" />
+          <div
+            class="col middle-name-col"
+            @click="sortBy('middle_name')"
+          >
+            <p :class="{ 'active-sort': sortField === 'middle_name' }">
+              Отчество
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'middle_name', 'desc': sortField === 'middle_name' && sortDirection === 'desc' }"
+            >
           </div>
-          <div class="col time-col" @click="sortBy('pass_time')">
-            <p :class="{ 'active-sort': sortField === 'pass_time' }">Время прохода</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'pass_time', 'desc': sortField === 'pass_time' && sortDirection === 'desc' }" />
+          <div
+            class="col organization-col"
+            @click="sortBy('organization')"
+          >
+            <p :class="{ 'active-sort': sortField === 'organization' }">
+              Организация
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
+            >
           </div>
-          <div class="col status-col" @click="sortBy('status')">
-            <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
-            <img src="@/assets/icons/sort.png" class="sort-icon" :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }" />
+          <div
+            class="col date-col"
+            @click="sortBy('entry_date_to')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
+              Действует до
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }"
+            >
           </div>
-          <div class="col actions-col"></div>
+          <div
+            class="col time-col"
+            @click="sortBy('pass_time')"
+          >
+            <p :class="{ 'active-sort': sortField === 'pass_time' }">
+              Время прохода
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'pass_time', 'desc': sortField === 'pass_time' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
+            class="col status-col"
+            @click="sortBy('status')"
+          >
+            <p :class="{ 'active-sort': sortField === 'status' }">
+              Статус
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div class="col actions-col" />
         </div>
       </div>
       
       <div class="items-container">
-        <div v-if="isLoading" class="loading-message">
-          <div class="loader"></div>
+        <div
+          v-if="isLoading"
+          class="loading-message"
+        >
+          <div class="loader" />
           <p>Загрузка сотрудников...</p>
         </div>
         
-        <div v-else-if="displayItems.length > 0" class="items-body">
-          <transition-group name="fade-list" tag="div">
+        <div
+          v-else-if="displayItems.length > 0"
+          class="items-body"
+        >
+          <transition-group
+            name="fade-list"
+            tag="div"
+          >
             <div 
               v-for="(item, index) in displayItems" 
               :key="item.id" 
@@ -76,7 +166,10 @@
               @click="openEmployeeDetails(item)"
             >
               <div class="item-data">
-                <div class="col entry-col" @click.stop>
+                <div
+                  class="col entry-col"
+                  @click.stop
+                >
                   <button 
                     class="action-btn entry-btn" 
                     :class="{ 'active': item.entry_checked }"
@@ -86,7 +179,10 @@
                     Вход
                   </button>
                 </div>
-                <div class="col exit-col" @click.stop>
+                <div
+                  class="col exit-col"
+                  @click.stop
+                >
                   <button 
                     class="action-btn exit-btn" 
                     :class="{ 'active': item.exit_checked }"
@@ -96,18 +192,41 @@
                     Выход
                   </button>
                 </div>
-                <div class="col last-name-col">{{ item.last_name }}</div>
-                <div class="col first-name-col">{{ item.first_name }}</div>
-                <div class="col middle-name-col">{{ item.middle_name || '-' }}</div>
-                <div class="col organization-col">{{ item.organization_name }}</div>
-                <div class="col date-col">{{ formatDate(item.entry_date_to) }}</div>
-                <div class="col time-col">{{ formatPassTime(item.pass_time) }}</div>
+                <div class="col last-name-col">
+                  {{ item.last_name }}
+                </div>
+                <div class="col first-name-col">
+                  {{ item.first_name }}
+                </div>
+                <div class="col middle-name-col">
+                  {{ item.middle_name || '-' }}
+                </div>
+                <div class="col organization-col">
+                  {{ item.organization_name }}
+                </div>
+                <div class="col date-col">
+                  {{ formatDate(item.entry_date_to) }}
+                </div>
+                <div class="col time-col">
+                  {{ formatPassTime(item.pass_time) }}
+                </div>
                 <div class="col status-col">
                   <span class="status-text">{{ item.status }}</span>
                 </div>
-                <div class="col actions-col" @click.stop>
-                  <button @click="removeItemWithNotification(item)" class="delete-btn" :disabled="isLoading">
-                    <img src="@/assets/icons/trashcan.png" alt="Удалить" class="delete-icon" />
+                <div
+                  class="col actions-col"
+                  @click.stop
+                >
+                  <button
+                    class="delete-btn"
+                    :disabled="isLoading"
+                    @click="removeItemWithNotification(item)"
+                  >
+                    <img
+                      src="@/assets/icons/trashcan.png"
+                      alt="Удалить"
+                      class="delete-icon"
+                    >
                   </button>
                 </div>
               </div>
@@ -115,7 +234,10 @@
           </transition-group>
         </div>
         
-        <div v-else class="no-data-message">
+        <div
+          v-else
+          class="no-data-message"
+        >
           {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Нет активных сотрудников' }}
         </div>
       </div>
@@ -134,13 +256,13 @@
       @open-application="openApplicationDetail"
     />
 
-   <EmployeesTableHistoryModal
-    v-if="showEmployeesHistory"
-    :table-id="currentTableId"
-    :current-user-id="currentUserId"
-    :current-user-name="currentUserName"
-    @close="showEmployeesHistory = false"
-   />
+    <EmployeesTableHistoryModal
+      v-if="showEmployeesHistory"
+      :table-id="currentTableId"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      @close="showEmployeesHistory = false"
+    />
   </div>
 </template>
 
@@ -300,6 +422,22 @@ export default {
         (this.dateRangeStart && this.dateRangeEnd)
       );
     }
+  },
+  watch: {
+    tableName: {
+      handler() {
+        this.stopPolling();
+        this.startPolling();
+      },
+      immediate: true
+    }
+  },
+  mounted() {
+    this.startPolling();
+  },
+  beforeUnmount() {
+    this.stopPolling();
+    if (this.progressInterval) clearInterval(this.progressInterval);
   },
   methods: {
     async _loadData(silent = false) {
@@ -600,22 +738,6 @@ export default {
         this.pollingInterval = null;
       }
     }
-  },
-  mounted() {
-    this.startPolling();
-  },
-  watch: {
-    tableName: {
-      handler() {
-        this.stopPolling();
-        this.startPolling();
-      },
-      immediate: true
-    }
-  },
-  beforeUnmount() {
-    this.stopPolling();
-    if (this.progressInterval) clearInterval(this.progressInterval);
   }
 };
 </script>

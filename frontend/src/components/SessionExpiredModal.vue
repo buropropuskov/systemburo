@@ -1,16 +1,26 @@
 <template>
-  <div class="modal-overlay" @click.self="handleOverlayClick">
+  <div
+    class="modal-overlay"
+    @click.self="handleOverlayClick"
+  >
     <div class="session-expired-modal">
       <div class="modal-header">
-        <h2 class="modal-title">Ваш сеанс скоро закончится</h2>
+        <h2 class="modal-title">
+          Ваш сеанс скоро закончится
+        </h2>
       </div>
       
       <div class="modal-body">
-        <div class="time-remaining">{{ formattedTime }}</div>
+        <div class="time-remaining">
+          {{ formattedTime }}
+        </div>
         
         <div class="countdown">
           <div class="countdown-bar">
-            <div class="countdown-progress" :style="progressStyle"></div>
+            <div
+              class="countdown-progress"
+              :style="progressStyle"
+            />
           </div>
         </div>
         
@@ -20,10 +30,16 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="logout">
+        <button
+          class="btn btn-secondary"
+          @click="logout"
+        >
           Выйти
         </button>
-        <button class="btn btn-primary" @click="extendSession">
+        <button
+          class="btn btn-primary"
+          @click="extendSession"
+        >
           Продлить сеанс
         </button>
       </div>

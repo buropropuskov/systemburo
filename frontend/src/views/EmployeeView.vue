@@ -1,253 +1,306 @@
 <template>
-    <section class="employeesview" data-testid="employees-page">
-        <header class="employeesview__header">
-            <h2 class="employeesview__title">
-                Список <span class="blue">сотрудников</span>
-            </h2>
-            <p class="employeesview__subtitle">
-                Вкладка для просмотра сотрудников, которых вы или ваша организация/компания когда-либо привязывали к заявкам.
-            </p>
-        </header>
+  <section
+    class="employeesview"
+    data-testid="employees-page"
+  >
+    <header class="employeesview__header">
+      <h2 class="employeesview__title">
+        Список <span class="blue">сотрудников</span>
+      </h2>
+      <p class="employeesview__subtitle">
+        Вкладка для просмотра сотрудников, которых вы или ваша организация/компания когда-либо привязывали к заявкам.
+      </p>
+    </header>
 
-        <div class="employeesview__filters">
-            <div class="filters-container">
-                <SearchComponent
-                    :title="'Поиск сотрудников...'"
-                    v-model="searchQuery"
-                />
-                <div class="filter-tabs" v-if="ownershipInfo">
-                    <button
-                        v-if="ownershipInfo.has_organization"
-                        class="filter-tab"
-                        data-testid="filter-tab-organization"
-                        :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-                        title="Сотрудники, которых привязывали пользователи вашей организации"
-                        @click="switchFilter('organization')"
-                    >
-                        Сотрудники организации
-                    </button>
-                    <button
-                        v-if="ownershipInfo.has_company"
-                        class="filter-tab"
-                        data-testid="filter-tab-company"
-                        :class="{ 'filter-tab--active': currentFilter === 'company' }"
-                        title="Сотрудники, которых привязывали пользователи вашей компании"
-                        @click="switchFilter('company')"
-                    >
-                        Сотрудники компании
-                    </button>
-                    <button
-                        class="filter-tab"
-                        data-testid="filter-tab-user"
-                        :class="{ 'filter-tab--active': currentFilter === 'user' }"
-                        title="Только те сотрудники, которых привязывали лично вы"
-                        @click="switchFilter('user')"
-                    >
-                        Мои сотрудники
-                    </button>
-                    <button
-                        class="filter-tab"
-                        data-testid="filter-tab-all-system"
-                        :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
-                        title="Все сотрудники, когда-либо зарегистрированные в системе"
-                        @click="switchFilter('all_system')"
-                    >
-                        Все сотрудники системы
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="employeesview__container">
-            <!-- Таблица сотрудников -->
-            <div class="employees-card">
-                <div class="card-header">
-                    <div class="card-header__title">
-                        <h3 class="card-title">
-                            <span v-if="currentFilter === 'organization'" class="highlight-text">Сотрудники <span class="blue">организации</span></span>
-                            <span v-else-if="currentFilter === 'company'" class="highlight-text">Сотрудники <span class="blue">компании</span></span>
-                            <span v-else-if="currentFilter === 'all_system'" class="highlight-text">Все <span class="blue">сотрудники системы</span></span>
-                            <span v-else class="highlight-text">Мои <span class="blue">сотрудники</span></span>
-                        </h3>
-                    </div>
-                    <div class="card-header__settings">
-                        <button
-                            class="add-button"
-                            v-if="currentFilter !== 'all_system'"
-                            @click="showAddEmployeeModal"
-                        >
-                            Добавить
-                        </button>
-                        <RefreshButton @refresh="fetchEmployees" />
-                    </div>
-                </div>
-                
-                <div class="card-content">
-                    <!-- Заголовок таблицы всегда отображается -->
-                    <div class="employees-header">
-                        <div class="header-row">
-                            <div class="header-col number-col" @click="sortBy('id')">
-                                <p :class="{ 'active-sort': sortField === 'id' }">№</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'id',
-                                        'desc': sortField === 'id' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col name-col" @click="sortBy('last_name')">
-                                <p :class="{ 'active-sort': sortField === 'last_name' }">ФИО</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'last_name',
-                                        'desc': sortField === 'last_name' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col position-col" @click="sortBy('position')">
-                                <p :class="{ 'active-sort': sortField === 'position' }">Должность</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'position',
-                                        'desc': sortField === 'position' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col status-col" @click="sortBy('status')">
-                                <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
-                                <img 
-                                    src="@/assets/icons/sort.png" 
-                                    class="sort-icon" 
-                                    :class="{ 
-                                        'sorted': sortField === 'status',
-                                        'desc': sortField === 'status' && sortDirection === 'desc'
-                                    }" 
-                                />
-                            </div>
-                            <div class="header-col actions-col">
-                                Действия
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Тело таблицы -->
-                    <div class="employees-container">
-                        <SkeletonTransition :loading="loading">
-                            <template #skeleton>
-                                <SkeletonTable :rows="6" :columns="5" />
-                            </template>
-                        <div v-if="filteredEmployees.length > 0" class="employees-body">
-                            <div 
-                                v-for="(employee) in sortedEmployees" 
-                                :key="employee.id" 
-                                class="employee-item"
-                            >
-                                <div class="employee-row">
-                                    <div class="employee-col number-col">
-                                        {{ employee.id }}
-                                    </div>
-                                    <div class="employee-col name-col" :title="formatFullName(employee)">
-                                        {{ truncateText(formatFullName(employee), 20) }}
-                                    </div>
-                                    <div class="employee-col position-col" :title="employee.position || 'Не указана'">
-                                        {{ truncateText(employee.position || 'Не указана', 20) }}
-                                    </div>
-                                    <div class="employee-col status-col">
-                                        <span 
-                                            class="status-badge"
-                                            :class="{
-                                                'status-active': employee.status,
-                                                'status-inactive': !employee.status
-                                            }"
-                                        >
-                                            {{ employee.status ? 'Активен' : 'Неактивен' }}
-                                        </span>
-                                    </div>
-                                    <div class="employee-col actions-col">
-                                        <button 
-                                            @click="editEmployee(employee)" 
-                                            class="edit-btn"
-                                            title="Редактировать"
-                                        >
-                                            <img 
-                                                src="@/assets/icons/edit.png" 
-                                                alt="Редактировать" 
-                                                class="edit-icon"
-                                            />
-                                        </button>
-                                        <button 
-                                            @click="deleteEmployee(employee)" 
-                                            class="delete-btn"
-                                            title="Удалить"
-                                        >
-                                            <img 
-                                                src="@/assets/icons/trashcan.png" 
-                                                alt="Удалить" 
-                                                class="delete-icon"
-                                            />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <p v-else class="no-data-message">
-                            {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Сотрудников нет' }}
-                        </p>
-                        </SkeletonTransition>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="employeesview__right-side">
-                <div class="employeesview__help">
-                    <template v-if="currentFilter === 'organization'">
-                        <p class="help__text">
-                            Здесь находятся сотрудники, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
-                        </p>
-                        <p class="help__text">
-                            Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                        </p>
-                    </template>
-                    <template v-else-if="currentFilter === 'company'">
-                        <p class="help__text">
-                            Здесь находятся сотрудники, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
-                        </p>
-                        <p class="help__text">
-                            Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                        </p>
-                    </template>
-                    <template v-else-if="currentFilter === 'user'">
-                        <p class="help__text">
-                            Здесь находятся <strong class="blue">ваши сотрудники</strong>, добавленные лично. Вы можете использовать их при подаче заявок на пропуск.
-                        </p>
-                        <p class="help__text">
-                            Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
-                        </p>
-                    </template>
-                    <template v-else-if="currentFilter === 'all_system'">
-                        <p class="help__text">
-                            Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление сотрудников недоступно.
-                        </p>
-                    </template>
-                </div>
-            </div>
-        </div>
-
-        <EmployeeEditModal
-            :visible="showModal"
-            :editingEmployee="editingEmployee"
-            :citizenships="availableCitizenships"
-            :ownershipInfo="ownershipInfo"
-            @saved="onEmployeeSaved"
-            @close="closeModal"
+    <div class="employeesview__filters">
+      <div class="filters-container">
+        <SearchComponent
+          v-model="searchQuery"
+          :title="'Поиск сотрудников...'"
         />
-    </section>
+        <div
+          v-if="ownershipInfo"
+          class="filter-tabs"
+        >
+          <button
+            v-if="ownershipInfo.has_organization"
+            class="filter-tab"
+            data-testid="filter-tab-organization"
+            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+            title="Сотрудники, которых привязывали пользователи вашей организации"
+            @click="switchFilter('organization')"
+          >
+            Сотрудники организации
+          </button>
+          <button
+            v-if="ownershipInfo.has_company"
+            class="filter-tab"
+            data-testid="filter-tab-company"
+            :class="{ 'filter-tab--active': currentFilter === 'company' }"
+            title="Сотрудники, которых привязывали пользователи вашей компании"
+            @click="switchFilter('company')"
+          >
+            Сотрудники компании
+          </button>
+          <button
+            class="filter-tab"
+            data-testid="filter-tab-user"
+            :class="{ 'filter-tab--active': currentFilter === 'user' }"
+            title="Только те сотрудники, которых привязывали лично вы"
+            @click="switchFilter('user')"
+          >
+            Мои сотрудники
+          </button>
+          <button
+            class="filter-tab"
+            data-testid="filter-tab-all-system"
+            :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+            title="Все сотрудники, когда-либо зарегистрированные в системе"
+            @click="switchFilter('all_system')"
+          >
+            Все сотрудники системы
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="employeesview__container">
+      <!-- Таблица сотрудников -->
+      <div class="employees-card">
+        <div class="card-header">
+          <div class="card-header__title">
+            <h3 class="card-title">
+              <span
+                v-if="currentFilter === 'organization'"
+                class="highlight-text"
+              >Сотрудники <span class="blue">организации</span></span>
+              <span
+                v-else-if="currentFilter === 'company'"
+                class="highlight-text"
+              >Сотрудники <span class="blue">компании</span></span>
+              <span
+                v-else-if="currentFilter === 'all_system'"
+                class="highlight-text"
+              >Все <span class="blue">сотрудники системы</span></span>
+              <span
+                v-else
+                class="highlight-text"
+              >Мои <span class="blue">сотрудники</span></span>
+            </h3>
+          </div>
+          <div class="card-header__settings">
+            <button
+              v-if="currentFilter !== 'all_system'"
+              class="add-button"
+              @click="showAddEmployeeModal"
+            >
+              Добавить
+            </button>
+            <RefreshButton @refresh="fetchEmployees" />
+          </div>
+        </div>
+                
+        <div class="card-content">
+          <!-- Заголовок таблицы всегда отображается -->
+          <div class="employees-header">
+            <div class="header-row">
+              <div
+                class="header-col number-col"
+                @click="sortBy('id')"
+              >
+                <p :class="{ 'active-sort': sortField === 'id' }">
+                  №
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'id',
+                    'desc': sortField === 'id' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col name-col"
+                @click="sortBy('last_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'last_name' }">
+                  ФИО
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'last_name',
+                    'desc': sortField === 'last_name' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col position-col"
+                @click="sortBy('position')"
+              >
+                <p :class="{ 'active-sort': sortField === 'position' }">
+                  Должность
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'position',
+                    'desc': sortField === 'position' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col status-col"
+                @click="sortBy('status')"
+              >
+                <p :class="{ 'active-sort': sortField === 'status' }">
+                  Статус
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'status',
+                    'desc': sortField === 'status' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div class="header-col actions-col">
+                Действия
+              </div>
+            </div>
+          </div>
+                    
+          <!-- Тело таблицы -->
+          <div class="employees-container">
+            <SkeletonTransition :loading="loading">
+              <template #skeleton>
+                <SkeletonTable
+                  :rows="6"
+                  :columns="5"
+                />
+              </template>
+              <div
+                v-if="filteredEmployees.length > 0"
+                class="employees-body"
+              >
+                <div 
+                  v-for="(employee) in sortedEmployees" 
+                  :key="employee.id" 
+                  class="employee-item"
+                >
+                  <div class="employee-row">
+                    <div class="employee-col number-col">
+                      {{ employee.id }}
+                    </div>
+                    <div
+                      class="employee-col name-col"
+                      :title="formatFullName(employee)"
+                    >
+                      {{ truncateText(formatFullName(employee), 20) }}
+                    </div>
+                    <div
+                      class="employee-col position-col"
+                      :title="employee.position || 'Не указана'"
+                    >
+                      {{ truncateText(employee.position || 'Не указана', 20) }}
+                    </div>
+                    <div class="employee-col status-col">
+                      <span 
+                        class="status-badge"
+                        :class="{
+                          'status-active': employee.status,
+                          'status-inactive': !employee.status
+                        }"
+                      >
+                        {{ employee.status ? 'Активен' : 'Неактивен' }}
+                      </span>
+                    </div>
+                    <div class="employee-col actions-col">
+                      <button 
+                        class="edit-btn" 
+                        title="Редактировать"
+                        @click="editEmployee(employee)"
+                      >
+                        <img 
+                          src="@/assets/icons/edit.png" 
+                          alt="Редактировать" 
+                          class="edit-icon"
+                        >
+                      </button>
+                      <button 
+                        class="delete-btn" 
+                        title="Удалить"
+                        @click="deleteEmployee(employee)"
+                      >
+                        <img 
+                          src="@/assets/icons/trashcan.png" 
+                          alt="Удалить" 
+                          class="delete-icon"
+                        >
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p
+                v-else
+                class="no-data-message"
+              >
+                {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Сотрудников нет' }}
+              </p>
+            </SkeletonTransition>
+          </div>
+        </div>
+      </div>
+            
+      <div class="employeesview__right-side">
+        <div class="employeesview__help">
+          <template v-if="currentFilter === 'organization'">
+            <p class="help__text">
+              Здесь находятся сотрудники, привязанные к вашей <strong class="blue">организации</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
+            </p>
+            <p class="help__text">
+              Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+            </p>
+          </template>
+          <template v-else-if="currentFilter === 'company'">
+            <p class="help__text">
+              Здесь находятся сотрудники, привязанные к вашей <strong class="blue">компании</strong>. Вы можете использовать этих сотрудников при подаче заявок на пропуск.
+            </p>
+            <p class="help__text">
+              Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+            </p>
+          </template>
+          <template v-else-if="currentFilter === 'user'">
+            <p class="help__text">
+              Здесь находятся <strong class="blue">ваши сотрудники</strong>, добавленные лично. Вы можете использовать их при подаче заявок на пропуск.
+            </p>
+            <p class="help__text">
+              Новые сотрудники попадают в этот список <strong class="blue">автоматически</strong>, при подаче заявки.
+            </p>
+          </template>
+          <template v-else-if="currentFilter === 'all_system'">
+            <p class="help__text">
+              Здесь отображаются <strong class="blue">все сотрудники</strong>, которые есть в системе. В этой вкладке доступен только просмотр, добавление, редактирование и удаление сотрудников недоступно.
+            </p>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <EmployeeEditModal
+      :visible="showModal"
+      :editing-employee="editingEmployee"
+      :citizenships="availableCitizenships"
+      :ownership-info="ownershipInfo"
+      @saved="onEmployeeSaved"
+      @close="closeModal"
+    />
+  </section>
 </template>
 
 <script>
@@ -352,6 +405,13 @@ export default {
                 this.$forceUpdate();
             }, 50);
         }
+    },
+    async mounted() {
+        await Promise.all([
+            this.fetchOwnershipInfo(),
+            this.fetchCitizenships()
+        ]);
+        await this.fetchEmployees();
     },
     methods: {
         async fetchEmployees() {
@@ -474,13 +534,6 @@ export default {
             return text.substring(0, maxLength) + '...';
         },
 
-    },
-    async mounted() {
-        await Promise.all([
-            this.fetchOwnershipInfo(),
-            this.fetchCitizenships()
-        ]);
-        await this.fetchEmployees();
     }
 }
 </script>

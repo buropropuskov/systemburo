@@ -1,9 +1,18 @@
 <template>
-  <transition name="skeleton-fade" mode="out-in">
-    <div v-if="showSkeleton" key="skeleton">
+  <transition
+    name="skeleton-fade"
+    mode="out-in"
+  >
+    <div
+      v-if="showSkeleton"
+      key="skeleton"
+    >
       <slot name="skeleton" />
     </div>
-    <div v-else key="content">
+    <div
+      v-else
+      key="content"
+    >
       <slot />
     </div>
   </transition>

@@ -1,43 +1,58 @@
 <template>
-    <div class="application-attachments">
-        
-        <div v-if="attachments.length === 0" class="no-attachments">
-            Вложения отсутствуют
-        </div>
-        
-        <div v-else class="attachments-list">
-            <!-- Группируем вложения по unique_attachment_id -->
-            <div 
-                v-for="(group, groupIndex) in groupedAttachments" 
-                :key="groupIndex"
-                class="attachment-group"
-            >
-                <!-- Заголовок группы (title из unique_attachments) -->
-                <div class="group-header" v-if="group.title">
-                    <h5 class="group-title">{{ group.title }}</h5>
-                </div>
-                
-                <!-- Вложения в этой группе -->
-                <div class="group-items">
-                    <div
-                        v-for="attachment in group.items"
-                        :key="attachment.id"
-                        class="attachment-item"
-                        :class="{ selected: selectedAttachment?.id === attachment.id }"
-                        @click="selectAttachment(attachment)"
-                    >
-                       
-                        <div class="attachment-name" :title="attachment.attachment_display_name">
-                            {{ attachment.attachment_display_name || truncateText(attachment.attachment_name, 25) }}
-                        </div>
-                        <div v-if="attachment.entry_date_from || attachment.entry_date_to" class="attachment-dates">
-                            {{ formatAttachmentDates(attachment) }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <div class="application-attachments">
+    <div
+      v-if="attachments.length === 0"
+      class="no-attachments"
+    >
+      Вложения отсутствуют
     </div>
+        
+    <div
+      v-else
+      class="attachments-list"
+    >
+      <!-- Группируем вложения по unique_attachment_id -->
+      <div 
+        v-for="(group, groupIndex) in groupedAttachments" 
+        :key="groupIndex"
+        class="attachment-group"
+      >
+        <!-- Заголовок группы (title из unique_attachments) -->
+        <div
+          v-if="group.title"
+          class="group-header"
+        >
+          <h5 class="group-title">
+            {{ group.title }}
+          </h5>
+        </div>
+                
+        <!-- Вложения в этой группе -->
+        <div class="group-items">
+          <div
+            v-for="attachment in group.items"
+            :key="attachment.id"
+            class="attachment-item"
+            :class="{ selected: selectedAttachment?.id === attachment.id }"
+            @click="selectAttachment(attachment)"
+          >
+            <div
+              class="attachment-name"
+              :title="attachment.attachment_display_name"
+            >
+              {{ attachment.attachment_display_name || truncateText(attachment.attachment_name, 25) }}
+            </div>
+            <div
+              v-if="attachment.entry_date_from || attachment.entry_date_to"
+              class="attachment-dates"
+            >
+              {{ formatAttachmentDates(attachment) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -86,6 +101,17 @@ export default {
 
             // Преобразуем объект в массив
             return Object.values(groups);
+        }
+    },
+    watch: {
+        attachments: {
+            immediate: true,
+            handler(newAttachments) {
+                if (newAttachments.length > 0 && !this.selectedAttachment) {
+                    this.selectedAttachment = newAttachments[0];
+                    this.$emit('attachment-selected', this.selectedAttachment);
+                }
+            }
         }
     },
     methods: {
@@ -155,17 +181,6 @@ export default {
         selectAttachment(attachment) {
             this.selectedAttachment = attachment;
             this.$emit('attachment-selected', attachment);
-        }
-    },
-    watch: {
-        attachments: {
-            immediate: true,
-            handler(newAttachments) {
-                if (newAttachments.length > 0 && !this.selectedAttachment) {
-                    this.selectedAttachment = newAttachments[0];
-                    this.$emit('attachment-selected', this.selectedAttachment);
-                }
-            }
         }
     }
 }

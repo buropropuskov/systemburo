@@ -1,13 +1,18 @@
 <template>
   <div class="companies-management dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Управление компаниями</h3>
+      <h3 class="management-title">
+        Управление компаниями
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск компаний...'"
           v-model="searchQuery"
+          :title="'Поиск компаний...'"
         />
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Добавить
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -19,8 +24,13 @@
       <div class="table-section">
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -28,10 +38,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('name')">
-              <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -39,10 +54,15 @@
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col users-col" @click="sortBy('user_count')">
-              <p :class="{ 'active-sort': sortField === 'user_count' }">Пользователи</p>
+            <div
+              class="header-col users-col"
+              @click="sortBy('user_count')"
+            >
+              <p :class="{ 'active-sort': sortField === 'user_count' }">
+                Пользователи
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -50,7 +70,7 @@
                   'sorted': sortField === 'user_count',
                   'desc': sortField === 'user_count' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
 
@@ -66,7 +86,10 @@
                 <span class="cell-content id-value">{{ comp.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="comp.name">
+                <span
+                  class="truncate-text"
+                  :title="comp.name"
+                >
                   {{ comp.name }}
                 </span>
               </div>
@@ -85,15 +108,26 @@
       </div>
 
       <!-- Средняя часть - детали компании -->
-      <div v-if="selectedCompany" class="details-section">
+      <div
+        v-if="selectedCompany"
+        class="details-section"
+      >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">{{ selectedCompany.name }}</h3>
+              <h3 class="details-title">
+                {{ selectedCompany.name }}
+              </h3>
             </div>
             <div class="details-header-actions">
-              <button @click="confirmDeleteCompany(selectedCompany)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeleteCompany(selectedCompany)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -106,10 +140,10 @@
                   <label class="detail-label">Наименование:</label>
                   <input 
                     v-model="selectedCompany.name" 
-                    @change="updateCompany(selectedCompany)"
                     class="form-input-sm"
                     placeholder="Введите название компании"
                     autocomplete="off"
+                    @change="updateCompany(selectedCompany)"
                   >
                 </div>
               </div>
@@ -138,31 +172,54 @@
       </div>
       
       <!-- Правая часть - ответственные лица -->
-      <div class="responsible-section" :class="{'with-details': selectedCompany}">
-        <div v-if="selectedCompany" class="responsible-content">
+      <div
+        class="responsible-section"
+        :class="{'with-details': selectedCompany}"
+      >
+        <div
+          v-if="selectedCompany"
+          class="responsible-content"
+        >
           <ResponsibleUsersSection
             :entity="selectedCompany"
             :entity-type="'company'"
             @users-updated="handleUsersUpdated"
           />
         </div>
-        <div v-else class="no-selection-message">
+        <div
+          v-else
+          class="no-selection-message"
+        >
           <p>Выберите компанию для просмотра</p>
         </div>
       </div>
     </div>
 
-    <div v-if="filteredCompanies.length === 0" class="no-results">
-      <div class="no-results-icon">🏭</div>
+    <div
+      v-if="filteredCompanies.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        🏭
+      </div>
       <p>Компании не найдены</p>
     </div>
 
     <!-- Модальное окно добавления -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
+    <div
+      v-if="showAddModal"
+      class="modal-overlay"
+      @click.self="showAddModal = false"
+    >
       <div class="modal-content">
         <div class="modal-header">
           <h3>Добавить компанию</h3>
-          <button @click="showAddModal = false" class="modal-close">×</button>
+          <button
+            class="modal-close"
+            @click="showAddModal = false"
+          >
+            ×
+          </button>
         </div>
         <div class="modal-body">
           <input
@@ -173,14 +230,24 @@
           >
         </div>
         <div class="modal-footer">
-          <button @click="showAddModal = false" class="modal-cancel">Отмена</button>
-          <button @click="addCompany" class="modal-confirm">Добавить</button>
+          <button
+            class="modal-cancel"
+            @click="showAddModal = false"
+          >
+            Отмена
+          </button>
+          <button
+            class="modal-confirm"
+            @click="addCompany"
+          >
+            Добавить
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Модальное окно подтверждения удаления -->
-     <ConfirmationModal
+    <ConfirmationModal
       :show="showDeleteModal"
       title="Подтверждение удаления"
       :message="deleteMessage"
@@ -273,6 +340,18 @@ export default {
     deleteMessage() {
       return `Вы точно хотите удалить компанию "${this.companyToDelete?.name}"?`;
     }
+  },
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          this.$refs.nameInput?.focus();
+        });
+      }
+    }
+  },
+  mounted() {
+    this.refreshData();
   },
   methods: {
     async refreshData() {
@@ -444,18 +523,6 @@ export default {
       setTimeout(() => {
         notification.remove();
       }, 3000);
-    }
-  },
-  mounted() {
-    this.refreshData();
-  },
-  watch: {
-    showAddModal(newVal) {
-      if (newVal) {
-        this.$nextTick(() => {
-          this.$refs.nameInput?.focus();
-        });
-      }
     }
   }
 };

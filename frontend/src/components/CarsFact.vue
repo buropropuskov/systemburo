@@ -2,7 +2,9 @@
   <div class="cars-fact-card">
     <div class="card-header">
       <div class="card-header__title">
-        <h3 class="card-title">Автомобили <span class="highlight-text">по факту</span></h3>
+        <h3 class="card-title">
+          Автомобили <span class="highlight-text">по факту</span>
+        </h3>
       </div>
       <div class="card-header__settings">
         <RefreshButton @refresh="fetchCars" />
@@ -16,8 +18,13 @@
           <div class="header-col checkbox-col">
             <!-- Пустой заголовок для чекбокса -->
           </div>
-          <div class="header-col organization-col" @click="sortBy('organization')">
-            <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
+          <div
+            class="header-col organization-col"
+            @click="sortBy('organization')"
+          >
+            <p :class="{ 'active-sort': sortField === 'organization' }">
+              Организация
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -25,10 +32,15 @@
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
-          <div class="header-col place-col" @click="sortBy('unload_place')">
-            <p :class="{ 'active-sort': sortField === 'unload_place' }">Место разгрузки</p>
+          <div
+            class="header-col place-col"
+            @click="sortBy('unload_place')"
+          >
+            <p :class="{ 'active-sort': sortField === 'unload_place' }">
+              Место разгрузки
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -36,10 +48,15 @@
                 'sorted': sortField === 'unload_place',
                 'desc': sortField === 'unload_place' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
-          <div class="header-col date-col" @click="sortBy('entry_date_to')">
-            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
+          <div
+            class="header-col date-col"
+            @click="sortBy('entry_date_to')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
+              Действует до
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -47,10 +64,15 @@
                 'sorted': sortField === 'entry_date_to',
                 'desc': sortField === 'entry_date_to' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
-          <div class="header-col time-col" @click="sortBy('entry_time')">
-            <p :class="{ 'active-sort': sortField === 'entry_time' }">Время</p>
+          <div
+            class="header-col time-col"
+            @click="sortBy('entry_time')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_time' }">
+              Время
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -58,10 +80,15 @@
                 'sorted': sortField === 'entry_time',
                 'desc': sortField === 'entry_time' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
-          <div class="header-col status-col" @click="sortBy('status')">
-            <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
+          <div
+            class="header-col status-col"
+            @click="sortBy('status')"
+          >
+            <p :class="{ 'active-sort': sortField === 'status' }">
+              Статус
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -69,7 +96,7 @@
                 'sorted': sortField === 'status',
                 'desc': sortField === 'status' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
           <div class="header-col actions-col">
             <!-- Пустой заголовок для действий -->
@@ -79,8 +106,14 @@
       
       <!-- Тело таблицы -->
       <div class="cars-container">
-        <div v-if="filteredCars.length > 0" class="cars-body">
-          <transition-group name="fade-list" tag="div">
+        <div
+          v-if="filteredCars.length > 0"
+          class="cars-body"
+        >
+          <transition-group
+            name="fade-list"
+            tag="div"
+          >
             <div 
               v-for="(car, index) in sortedCars" 
               :key="car.id" 
@@ -90,10 +123,10 @@
               <div class="car-row">
                 <div class="car-col checkbox-col">
                   <input 
-                    type="checkbox" 
-                    v-model="car.checked"
+                    v-model="car.checked" 
+                    type="checkbox"
                     class="checkbox-input"
-                  />
+                  >
                 </div>
                 <div class="car-col organization-col">
                   {{ car.organization }}
@@ -114,21 +147,24 @@
                 </div>
                 <div class="car-col actions-col">
                   <button 
-                    @click="deleteCar(car)" 
-                    class="delete-btn"
+                    class="delete-btn" 
+                    @click="deleteCar(car)"
                   >
                     <img 
                       src="@/assets/icons/trashcan.png" 
                       alt="Удалить" 
                       class="delete-icon"
-                    />
+                    >
                   </button>
                 </div>
               </div>
             </div>
           </transition-group>
         </div>
-        <p v-else class="no-data-message">
+        <p
+          v-else
+          class="no-data-message"
+        >
           {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок на машины по факту нет' }}
         </p>
       </div>
@@ -144,7 +180,6 @@ export default {
   components: {
     RefreshButton
   },
-  emits: ['refresh-cars'],
   props: {
     searchQuery: {
       type: String,
@@ -171,6 +206,7 @@ export default {
       default: null
     }
   },
+  emits: ['refresh-cars'],
   data() {
     return {
       sortField: null,
@@ -279,6 +315,17 @@ export default {
         (this.dateRangeStart && this.dateRangeEnd)
       );
     }
+  },
+  mounted() {
+    this.fetchUnloadingPlaces().then(() => {
+      this.fetchCars();
+    });
+    
+    setTimeout(() => {
+      document.querySelectorAll('.car-item').forEach(item => {
+        item.classList.add('animate-in');
+      });
+    }, 100);
   },
   methods: {
     async fetchUnloadingPlaces() {
@@ -451,17 +498,6 @@ export default {
       
       return hours * 60 + minutes;
     }
-  },
-  mounted() {
-    this.fetchUnloadingPlaces().then(() => {
-      this.fetchCars();
-    });
-    
-    setTimeout(() => {
-      document.querySelectorAll('.car-item').forEach(item => {
-        item.classList.add('animate-in');
-      });
-    }, 100);
   }
 };
 </script>

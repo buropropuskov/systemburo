@@ -1,281 +1,336 @@
 <template>
-    <section class="center">
-        <header class="center__header">
-            <div class="header-top">
-                <h2 class="center__title">Центр заявок</h2>
-                <div class="unread-badge" data-testid="center-badge-unread" v-if="unreadCount > 0" :class="{ 'shake-animation': shouldShake }">
-                    Новые: {{ unreadCount }}
-                </div>
-            </div>
-        </header>
+  <section class="center">
+    <header class="center__header">
+      <div class="header-top">
+        <h2 class="center__title">
+          Центр заявок
+        </h2>
+        <div
+          v-if="unreadCount > 0"
+          class="unread-badge"
+          data-testid="center-badge-unread"
+          :class="{ 'shake-animation': shouldShake }"
+        >
+          Новые: {{ unreadCount }}
+        </div>
+      </div>
+    </header>
         
-        <div class="center__filters">
-            <div class="center__tabs">
-                <FilterTabs
-                    :tabs="archiveTabs"
-                    v-model="archiveMode"
-                />
-            </div>
-            <div class="filters__main">
-                <div class="filters-row">
-                    <div class="field search">
-                        <input
-                            placeholder="Поиск заявок..."
-                            type="text"
-                            class="field__input search"
-                            data-testid="center-input-search"
-                            v-model="searchQuery"
-                            @input="applyFilters"
-                        />
-                        <img src="@/assets/icons/search.png" class="center__icon" />
-                    </div>
-                    
-                    <OrganizationFilter
-                        ref="organizationFilter"
-                        v-model="selectedOrganizationId"
-                        :organizations="organizations"
-                        @change="handleOrganizationChange"
-                    />
-
-                    <!-- Новый DateFilter -->
-                    <DateFilter
-                        ref="dateFilter"
-                        :mode="'range'"
-                        :selected-date="selectedDate"
-                        :date-range-start="dateRangeStart"
-                        :date-range-end="dateRangeEnd"
-                        @update:selectedDate="updateSelectedDate"
-                        @update:dateRangeStart="updateDateRangeStart"
-                        @update:dateRangeEnd="updateDateRangeEnd"
-                        @apply="applyDateFilters"
-                        @clear="clearDateRange"
-                    />
-
-                    <button 
-                        class="reset-sort-btn"
-                        @click="resetSort"
-                        :disabled="!sortField"
-                    >
-                        Сбросить сортировку
-                    </button>
-
-                    <button
-                        class="today-filter-btn"
-                        :class="{ 'today-filter-btn--active': activeToday }"
-                        data-testid="center-button-today"
-                        @click="toggleActiveToday"
-                    >
-                        Заявки на сегодня
-                    </button>
-
-                    <button
-                        class="reset-filters-btn"
-                        data-testid="center-button-reset-filters"
-                        @click="resetFilters"
-                        :disabled="!hasActiveFilters"
-                    >
-                        Сбросить фильтры
-                    </button>
-                </div>
-
-                <div class="filters-row filters-row--secondary">
-                    <div class="filter-section">
-                        <div class="filter-section__header">
-                            <span class="filter-label">Подтверждение</span>
-                        </div>
-                        <div class="status-buttons">
-                            <button
-                                v-for="confirmation in confirmations"
-                                :key="confirmation.value"
-                                class="status-btn"
-                                :class="{ 'status-btn--active': selectedConfirmations.includes(confirmation.value) }"
-                                :data-testid="`center-button-confirmation-${confirmation.value}`"
-                                @click="toggleConfirmation(confirmation.value)"
-                            >
-                                {{ confirmation.label }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="filter-section">
-                        <div class="filter-section__header">
-                            <span class="filter-label">Статус заявки</span>
-                        </div>
-                        <div class="status-buttons">
-                            <button
-                                v-for="status in applicationStatuses"
-                                :key="status.value"
-                                class="status-btn"
-                                :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
-                                :data-testid="`center-button-status-${status.value}`"
-                                @click="toggleApplicationStatus(status.value)"
-                            >
-                                {{ status.label }}
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="filter-section filter-section--refresh">
-                        <RefreshButton @refresh="fetchApplications" />
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="applications-table" :class="{ 'with-details': selectedApplication }">
-            <div class="table-header">
-                <div class="header-row">
-                    <div class="header-col confirmation-col" @click="sortBy('confirmation')">
-                        <p :class="{ 'active-sort': sortField === 'confirmation' }">Подтверждение</p>
-                        <img 
-                            src="@/assets/icons/sort.png" 
-                            class="sort-icon" 
-                            :class="{ 
-                                'sorted': sortField === 'confirmation',
-                                'desc': sortField === 'confirmation' && sortDirection === 'desc'
-                            }" 
-                        />
-                    </div>
-                    <div class="header-col number-col" @click="sortBy('number')">
-                        <p :class="{ 'active-sort': sortField === 'number' }">Номер заявки</p>
-                        <img 
-                            src="@/assets/icons/sort.png" 
-                            class="sort-icon" 
-                            :class="{ 
-                                'sorted': sortField === 'number',
-                                'desc': sortField === 'number' && sortDirection === 'desc'
-                            }" 
-                        />
-                    </div>
-                    <div class="header-col date-col" @click="sortBy('date')">
-                        <p :class="{ 'active-sort': sortField === 'date' }">Дата и время</p>
-                        <img 
-                            src="@/assets/icons/sort.png" 
-                            class="sort-icon" 
-                            :class="{ 
-                                'sorted': sortField === 'date',
-                                'desc': sortField === 'date' && sortDirection === 'desc'
-                            }" 
-                        />
-                    </div>
-                    <div class="header-col organization-col" @click="sortBy('organization')">
-                        <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
-                        <img 
-                            src="@/assets/icons/sort.png" 
-                            class="sort-icon" 
-                            :class="{ 
-                                'sorted': sortField === 'organization',
-                                'desc': sortField === 'organization' && sortDirection === 'desc'
-                            }" 
-                        />
-                    </div>
-                    <div class="header-col sender-col" @click="sortBy('sender')">
-                        <p :class="{ 'active-sort': sortField === 'sender' }">Отправитель</p>
-                        <img 
-                            src="@/assets/icons/sort.png" 
-                            class="sort-icon" 
-                            :class="{ 
-                                'sorted': sortField === 'sender',
-                                'desc': sortField === 'sender' && sortDirection === 'desc'
-                            }" 
-                        />
-                    </div>
-                    <div class="header-col status-col" @click="sortBy('status')">
-                        <p :class="{ 'active-sort': sortField === 'status' }">Статус заявки</p>
-                        <img 
-                            src="@/assets/icons/sort.png" 
-                            class="sort-icon" 
-                            :class="{ 
-                                'sorted': sortField === 'status',
-                                'desc': sortField === 'status' && sortDirection === 'desc'
-                            }" 
-                        />
-                    </div>
-                    <div class="header-col actions-col"></div>
-                </div>
-            </div>
-            
-            <div class="table-body">
-                <SkeletonTransition :loading="loading">
-                    <template #skeleton>
-                        <SkeletonTable :rows="10" :columns="6" />
-                    </template>
-                <div v-if="filteredApplications.length > 0" class="applications-list">
-                    <div
-                        v-for="(application, index) in sortedApplications"
-                        :key="application.id"
-                        class="application-item"
-                        :class="{
-                            'unread': application.status === 'Непрочитано',
-                            'initial-load': isInitialLoad,
-                            'filtered': !isInitialLoad
-                        }"
-                        :data-testid="`center-row-${application.id}`"
-                        @click="openApplication(application)"
-                        :style="isInitialLoad ? { 'animation-delay': `${index * 0.05}s` } : {}"
-                    >
-                        <div class="application-row">
-                            <div class="application-col confirmation-col">
-                                <span 
-                                    class="confirmation-badge"
-                                    :class="getConfirmationClass(application.confirmation)"
-                                >
-                                    {{ application.confirmation }}
-                                </span>
-                            </div>
-                            <div class="application-col number-col">
-                                <span class="application-number">{{ application.application_number }}</span>
-                            </div>
-                            <div class="application-col date-col">
-                                {{ formatDateTime(application.sending_datetime) }}
-                            </div>
-                            <div class="application-col organization-col">
-                                {{ getOrganizationName(application) }}
-                            </div>
-                            <div class="application-col sender-col" :title="getFullNameTooltip(application.sender_name)">
-                                {{ getSenderName(application.sender_name) }}
-                            </div>
-                            <div class="application-col status-col">
-                                <span 
-                                    class="status-badge"
-                                    :class="getStatusClass(application.status)"
-                                >
-                                    {{ application.status }}
-                                </span>
-                            </div>
-                            <div class="application-col actions-col">
-                                <button 
-                                    @click.stop="downloadApplication(application)" 
-                                    class="download-btn"
-                                    title="Скачать"
-                                >
-                                    Скачать
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <p v-else class="no-data-message">
-                    {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
-                </p>
-                </SkeletonTransition>
-            </div>
-        </div>
-
-        <!-- Исправлено: используем selectedApplication вместо showDetail -->
-        <ApplicationDetail
-            v-if="selectedApplication"
-            :application="selectedApplication"
-            :current-user-id="currentUserId"
-            :current-user-name="currentUserName"
-            :mode="'center'"
-            @close="closeDetail"
-            @confirmation-updated="handleConfirmationUpdate"
-            @application-updated="handleApplicationUpdate"
-            @duplicate="handleDuplicate"
-            @application-changed="handleApplicationChanged"
+    <div class="center__filters">
+      <div class="center__tabs">
+        <FilterTabs
+          v-model="archiveMode"
+          :tabs="archiveTabs"
         />
-    </section>
+      </div>
+      <div class="filters__main">
+        <div class="filters-row">
+          <div class="field search">
+            <input
+              v-model="searchQuery"
+              placeholder="Поиск заявок..."
+              type="text"
+              class="field__input search"
+              data-testid="center-input-search"
+              @input="applyFilters"
+            >
+            <img
+              src="@/assets/icons/search.png"
+              class="center__icon"
+            >
+          </div>
+                    
+          <OrganizationFilter
+            ref="organizationFilter"
+            v-model="selectedOrganizationId"
+            :organizations="organizations"
+            @change="handleOrganizationChange"
+          />
+
+          <!-- Новый DateFilter -->
+          <DateFilter
+            ref="dateFilter"
+            :mode="'range'"
+            :selected-date="selectedDate"
+            :date-range-start="dateRangeStart"
+            :date-range-end="dateRangeEnd"
+            @update:selected-date="updateSelectedDate"
+            @update:date-range-start="updateDateRangeStart"
+            @update:date-range-end="updateDateRangeEnd"
+            @apply="applyDateFilters"
+            @clear="clearDateRange"
+          />
+
+          <button 
+            class="reset-sort-btn"
+            :disabled="!sortField"
+            @click="resetSort"
+          >
+            Сбросить сортировку
+          </button>
+
+          <button
+            class="today-filter-btn"
+            :class="{ 'today-filter-btn--active': activeToday }"
+            data-testid="center-button-today"
+            @click="toggleActiveToday"
+          >
+            Заявки на сегодня
+          </button>
+
+          <button
+            class="reset-filters-btn"
+            data-testid="center-button-reset-filters"
+            :disabled="!hasActiveFilters"
+            @click="resetFilters"
+          >
+            Сбросить фильтры
+          </button>
+        </div>
+
+        <div class="filters-row filters-row--secondary">
+          <div class="filter-section">
+            <div class="filter-section__header">
+              <span class="filter-label">Подтверждение</span>
+            </div>
+            <div class="status-buttons">
+              <button
+                v-for="confirmation in confirmations"
+                :key="confirmation.value"
+                class="status-btn"
+                :class="{ 'status-btn--active': selectedConfirmations.includes(confirmation.value) }"
+                :data-testid="`center-button-confirmation-${confirmation.value}`"
+                @click="toggleConfirmation(confirmation.value)"
+              >
+                {{ confirmation.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="filter-section__header">
+              <span class="filter-label">Статус заявки</span>
+            </div>
+            <div class="status-buttons">
+              <button
+                v-for="status in applicationStatuses"
+                :key="status.value"
+                class="status-btn"
+                :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
+                :data-testid="`center-button-status-${status.value}`"
+                @click="toggleApplicationStatus(status.value)"
+              >
+                {{ status.label }}
+              </button>
+            </div>
+          </div>
+                    
+          <div class="filter-section filter-section--refresh">
+            <RefreshButton @refresh="fetchApplications" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="applications-table"
+      :class="{ 'with-details': selectedApplication }"
+    >
+      <div class="table-header">
+        <div class="header-row">
+          <div
+            class="header-col confirmation-col"
+            @click="sortBy('confirmation')"
+          >
+            <p :class="{ 'active-sort': sortField === 'confirmation' }">
+              Подтверждение
+            </p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'confirmation',
+                'desc': sortField === 'confirmation' && sortDirection === 'desc'
+              }" 
+            >
+          </div>
+          <div
+            class="header-col number-col"
+            @click="sortBy('number')"
+          >
+            <p :class="{ 'active-sort': sortField === 'number' }">
+              Номер заявки
+            </p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'number',
+                'desc': sortField === 'number' && sortDirection === 'desc'
+              }" 
+            >
+          </div>
+          <div
+            class="header-col date-col"
+            @click="sortBy('date')"
+          >
+            <p :class="{ 'active-sort': sortField === 'date' }">
+              Дата и время
+            </p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'date',
+                'desc': sortField === 'date' && sortDirection === 'desc'
+              }" 
+            >
+          </div>
+          <div
+            class="header-col organization-col"
+            @click="sortBy('organization')"
+          >
+            <p :class="{ 'active-sort': sortField === 'organization' }">
+              Организация
+            </p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'organization',
+                'desc': sortField === 'organization' && sortDirection === 'desc'
+              }" 
+            >
+          </div>
+          <div
+            class="header-col sender-col"
+            @click="sortBy('sender')"
+          >
+            <p :class="{ 'active-sort': sortField === 'sender' }">
+              Отправитель
+            </p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'sender',
+                'desc': sortField === 'sender' && sortDirection === 'desc'
+              }" 
+            >
+          </div>
+          <div
+            class="header-col status-col"
+            @click="sortBy('status')"
+          >
+            <p :class="{ 'active-sort': sortField === 'status' }">
+              Статус заявки
+            </p>
+            <img 
+              src="@/assets/icons/sort.png" 
+              class="sort-icon" 
+              :class="{ 
+                'sorted': sortField === 'status',
+                'desc': sortField === 'status' && sortDirection === 'desc'
+              }" 
+            >
+          </div>
+          <div class="header-col actions-col" />
+        </div>
+      </div>
+            
+      <div class="table-body">
+        <SkeletonTransition :loading="loading">
+          <template #skeleton>
+            <SkeletonTable
+              :rows="10"
+              :columns="6"
+            />
+          </template>
+          <div
+            v-if="filteredApplications.length > 0"
+            class="applications-list"
+          >
+            <div
+              v-for="(application, index) in sortedApplications"
+              :key="application.id"
+              class="application-item"
+              :class="{
+                'unread': application.status === 'Непрочитано',
+                'initial-load': isInitialLoad,
+                'filtered': !isInitialLoad
+              }"
+              :data-testid="`center-row-${application.id}`"
+              :style="isInitialLoad ? { 'animation-delay': `${index * 0.05}s` } : {}"
+              @click="openApplication(application)"
+            >
+              <div class="application-row">
+                <div class="application-col confirmation-col">
+                  <span 
+                    class="confirmation-badge"
+                    :class="getConfirmationClass(application.confirmation)"
+                  >
+                    {{ application.confirmation }}
+                  </span>
+                </div>
+                <div class="application-col number-col">
+                  <span class="application-number">{{ application.application_number }}</span>
+                </div>
+                <div class="application-col date-col">
+                  {{ formatDateTime(application.sending_datetime) }}
+                </div>
+                <div class="application-col organization-col">
+                  {{ getOrganizationName(application) }}
+                </div>
+                <div
+                  class="application-col sender-col"
+                  :title="getFullNameTooltip(application.sender_name)"
+                >
+                  {{ getSenderName(application.sender_name) }}
+                </div>
+                <div class="application-col status-col">
+                  <span 
+                    class="status-badge"
+                    :class="getStatusClass(application.status)"
+                  >
+                    {{ application.status }}
+                  </span>
+                </div>
+                <div class="application-col actions-col">
+                  <button 
+                    class="download-btn" 
+                    title="Скачать"
+                    @click.stop="downloadApplication(application)"
+                  >
+                    Скачать
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p
+            v-else
+            class="no-data-message"
+          >
+            {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
+          </p>
+        </SkeletonTransition>
+      </div>
+    </div>
+
+    <!-- Исправлено: используем selectedApplication вместо showDetail -->
+    <ApplicationDetail
+      v-if="selectedApplication"
+      :application="selectedApplication"
+      :current-user-id="currentUserId"
+      :current-user-name="currentUserName"
+      :mode="'center'"
+      @close="closeDetail"
+      @confirmation-updated="handleConfirmationUpdate"
+      @application-updated="handleApplicationUpdate"
+      @duplicate="handleDuplicate"
+      @application-changed="handleApplicationChanged"
+    />
+  </section>
 </template>
 
 <script>
@@ -491,6 +546,46 @@ export default {
 
         unreadCount() {
             return this.applications.filter(app => app.status === 'Непрочитано').length;
+        }
+    },
+    watch: {
+        archiveMode() {
+            this.fetchApplications();
+        },
+        '$route.query.archive'(val) {
+            this.archiveMode = val === 'true' ? 'archive' : 'active';
+        },
+    },
+    mounted() {
+        this.startShakeAnimation();
+
+        if (this.$route.query.archive === 'true') {
+            this.archiveMode = 'archive';
+        }
+
+        this.fetchOrganizations();
+        this.fetchApplications();
+        this.getCurrentUser();
+
+        // Динамическое обновление списка заявок - статусы/confirmations
+        // могут меняться из других сессий (согласование, взятие в работу, завершение).
+        // Polling 30s достаточен для UX без overkill.
+        this.applicationsPollInterval = setInterval(() => {
+            if (!this.isInitialLoad) {
+                this.fetchApplications();
+            }
+        }, 30000);
+
+        setTimeout(() => {
+            this.isInitialLoad = false;
+        }, 1000);
+    },
+    beforeUnmount() {
+        if (this.shakeInterval) {
+            clearInterval(this.shakeInterval);
+        }
+        if (this.applicationsPollInterval) {
+            clearInterval(this.applicationsPollInterval);
         }
     },
     methods: {
@@ -889,46 +984,6 @@ export default {
                     }, 600);
                 }
             }, 60000);
-        }
-    },
-    watch: {
-        archiveMode() {
-            this.fetchApplications();
-        },
-        '$route.query.archive'(val) {
-            this.archiveMode = val === 'true' ? 'archive' : 'active';
-        },
-    },
-    mounted() {
-        this.startShakeAnimation();
-
-        if (this.$route.query.archive === 'true') {
-            this.archiveMode = 'archive';
-        }
-
-        this.fetchOrganizations();
-        this.fetchApplications();
-        this.getCurrentUser();
-
-        // Динамическое обновление списка заявок - статусы/confirmations
-        // могут меняться из других сессий (согласование, взятие в работу, завершение).
-        // Polling 30s достаточен для UX без overkill.
-        this.applicationsPollInterval = setInterval(() => {
-            if (!this.isInitialLoad) {
-                this.fetchApplications();
-            }
-        }, 30000);
-
-        setTimeout(() => {
-            this.isInitialLoad = false;
-        }, 1000);
-    },
-    beforeUnmount() {
-        if (this.shakeInterval) {
-            clearInterval(this.shakeInterval);
-        }
-        if (this.applicationsPollInterval) {
-            clearInterval(this.applicationsPollInterval);
         }
     }
 }

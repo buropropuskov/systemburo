@@ -5,8 +5,14 @@
     role="status"
     :aria-label="label"
   >
-    <span class="loader-spinner__circle" aria-hidden="true"></span>
-    <span v-if="label" class="loader-spinner__label">{{ label }}</span>
+    <span
+      class="loader-spinner__circle"
+      aria-hidden="true"
+    />
+    <span
+      v-if="label"
+      class="loader-spinner__label"
+    >{{ label }}</span>
   </div>
 </template>
 

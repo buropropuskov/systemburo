@@ -1,13 +1,18 @@
 <template>
   <div class="user-management dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Учётные записи пользователей</h3>
+      <h3 class="management-title">
+        Учётные записи пользователей
+      </h3>
       <div class="search-container">
         <SearchComponent
-          :title="'Поиск пользователей...'"
           v-model="userSearch"
+          :title="'Поиск пользователей...'"
         />
-        <button @click="openCreateModal" class="create-btn">
+        <button
+          class="create-btn"
+          @click="openCreateModal"
+        >
           Создать
         </button>
         <RefreshButton @refresh="refreshAllData" />
@@ -16,12 +21,20 @@
 
     <div class="users-container">
       <!-- Левая часть - таблица пользователей -->
-      <div class="users-list" :class="{'with-details': selectedUser}">
+      <div
+        class="users-list"
+        :class="{'with-details': selectedUser}"
+      >
         <!-- Заголовок таблицы -->
         <div class="users-header">
           <div class="header-row">
-            <div class="header-col login-col" @click="sortBy('username')">
-              <p :class="{ 'active-sort': sortField === 'username' }">Логин</p>
+            <div
+              class="header-col login-col"
+              @click="sortBy('username')"
+            >
+              <p :class="{ 'active-sort': sortField === 'username' }">
+                Логин
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -29,10 +42,15 @@
                   'sorted': sortField === 'username',
                   'desc': sortField === 'username' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('full_name')">
-              <p :class="{ 'active-sort': sortField === 'full_name' }">Фамилия И.О.</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('full_name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'full_name' }">
+                Фамилия И.О.
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -40,10 +58,15 @@
                   'sorted': sortField === 'full_name',
                   'desc': sortField === 'full_name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col org-col" @click="sortBy('organization')">
-              <p :class="{ 'active-sort': sortField === 'organization' }">Организация / Отдел</p>
+            <div
+              class="header-col org-col"
+              @click="sortBy('organization')"
+            >
+              <p :class="{ 'active-sort': sortField === 'organization' }">
+                Организация / Отдел
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -51,10 +74,15 @@
                   'sorted': sortField === 'organization',
                   'desc': sortField === 'organization' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col company-col" @click="sortBy('company')">
-              <p :class="{ 'active-sort': sortField === 'company' }">Компания</p>
+            <div
+              class="header-col company-col"
+              @click="sortBy('company')"
+            >
+              <p :class="{ 'active-sort': sortField === 'company' }">
+                Компания
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -62,10 +90,15 @@
                   'sorted': sortField === 'company',
                   'desc': sortField === 'company' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col type-col" @click="sortBy('user_type')">
-              <p :class="{ 'active-sort': sortField === 'user_type' }">Тип</p>
+            <div
+              class="header-col type-col"
+              @click="sortBy('user_type')"
+            >
+              <p :class="{ 'active-sort': sortField === 'user_type' }">
+                Тип
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -73,7 +106,7 @@
                   'sorted': sortField === 'user_type',
                   'desc': sortField === 'user_type' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
         </div>
@@ -95,12 +128,18 @@
                 {{ formatUserName(user) }}
               </div>
               <div class="user-col org-col">
-                <span class="truncate-text" :title="user.organization || '-'">
+                <span
+                  class="truncate-text"
+                  :title="user.organization || '-'"
+                >
                   {{ user.organization || '-' }}
                 </span>
               </div>
               <div class="user-col company-col">
-                <span class="truncate-text" :title="user.company || '-'">
+                <span
+                  class="truncate-text"
+                  :title="user.company || '-'"
+                >
                   {{ user.company || '-' }}
                 </span>
               </div>
@@ -113,20 +152,39 @@
       </div>
       
       <!-- Правая часть - детали выбранного пользователя -->
-      <div v-if="selectedUser" class="user-details-panel">
+      <div
+        v-if="selectedUser"
+        class="user-details-panel"
+      >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">Редактирование</h3>
-              <p class="details-subtitle">учётной записи <strong>{{ selectedUser.username }}</strong></p>
+              <h3 class="details-title">
+                Редактирование
+              </h3>
+              <p class="details-subtitle">
+                учётной записи <strong>{{ selectedUser.username }}</strong>
+              </p>
             </div>
             <div class="details-header-actions">
-              <button @click="openPermissions(selectedUser)" class="access-rights-btn">
-                <img src="@/assets/icons/access.png" class="access-icon" />
+              <button
+                class="access-rights-btn"
+                @click="openPermissions(selectedUser)"
+              >
+                <img
+                  src="@/assets/icons/access.png"
+                  class="access-icon"
+                >
                 Права доступа
               </button>
-              <button @click="confirmDeleteUser(selectedUser)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeleteUser(selectedUser)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -139,13 +197,13 @@
                   <label class="detail-label">Фамилия:</label>
                   <input 
                     v-model="selectedUser.last_name" 
-                    @change="updateUserInfo(selectedUser)"
                     class="form-input-sm"
                     placeholder="Введите фамилию"
                     autocomplete="new-password"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @change="updateUserInfo(selectedUser)"
                   >
                 </div>
                 
@@ -153,19 +211,22 @@
                   <label class="detail-label">Отчество:</label>
                   <input 
                     v-model="selectedUser.middle_name" 
-                    @change="updateUserInfo(selectedUser)"
                     class="form-input-sm"
                     placeholder="Введите отчество"
                     autocomplete="new-password"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @change="updateUserInfo(selectedUser)"
                   >
                 </div>
                 
                 <div class="detail-group">
                   <label class="detail-label">Организация:</label>
-                  <div class="custom-select" @click="toggleOrgDropdown">
+                  <div
+                    class="custom-select"
+                    @click="toggleOrgDropdown"
+                  >
                     <div class="select-trigger">
                       <span>{{ getOrganizationName(selectedUser.organization_id) || 'Не выбрано' }}</span>
                       <img 
@@ -174,10 +235,13 @@
                         :class="{ 'open': orgDropdownOpen }"
                         width="12"
                         height="12"
-                      />
+                      >
                     </div>
                     <transition name="dropdown">
-                      <div v-if="orgDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="orgDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div 
                           v-for="org in organizations" 
                           :key="org.id"
@@ -196,13 +260,13 @@
                   <label class="detail-label">Должность:</label>
                   <input 
                     v-model="selectedUser.position" 
-                    @change="updateUserInfo(selectedUser)"
                     class="form-input-sm"
                     placeholder="Введите должность"
                     autocomplete="new-password"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @change="updateUserInfo(selectedUser)"
                   >
                 </div>
               </div>
@@ -213,13 +277,13 @@
                   <label class="detail-label">Имя:</label>
                   <input 
                     v-model="selectedUser.first_name" 
-                    @change="updateUserInfo(selectedUser)"
                     class="form-input-sm"
                     placeholder="Введите имя"
                     autocomplete="new-password"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @change="updateUserInfo(selectedUser)"
                   >
                 </div>
                 
@@ -227,7 +291,6 @@
                   <label class="detail-label">Телефон:</label>
                   <input 
                     v-model="selectedUser.phone" 
-                    @change="updateUserInfo(selectedUser)"
                     class="form-input-sm"
                     placeholder="Введите телефон"
                     type="tel"
@@ -235,12 +298,16 @@
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @change="updateUserInfo(selectedUser)"
                   >
                 </div>
                 
                 <div class="detail-group">
                   <label class="detail-label">Компания:</label>
-                  <div class="custom-select" @click="toggleCompanyDropdown">
+                  <div
+                    class="custom-select"
+                    @click="toggleCompanyDropdown"
+                  >
                     <div class="select-trigger">
                       <span>{{ getCompanyName(selectedUser.company_id) || 'Не выбрано' }}</span>
                       <img 
@@ -249,10 +316,13 @@
                         :class="{ 'open': companyDropdownOpen }"
                         width="12"
                         height="12"
-                      />
+                      >
                     </div>
                     <transition name="dropdown">
-                      <div v-if="companyDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="companyDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div 
                           v-for="comp in companies" 
                           :key="comp.id"
@@ -271,7 +341,6 @@
                   <label class="detail-label">Email:</label>
                   <input 
                     v-model="selectedUser.email" 
-                    @change="updateUserInfo(selectedUser)"
                     class="form-input-sm"
                     placeholder="Введите email"
                     type="email"
@@ -279,6 +348,7 @@
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @change="updateUserInfo(selectedUser)"
                   >
                 </div>
               </div>
@@ -288,7 +358,10 @@
             <div class="full-width-groups">
               <div class="detail-group">
                 <label class="detail-label">Тип пользователя:</label>
-                <div class="custom-select full-width" @click="toggleTypeDropdown">
+                <div
+                  class="custom-select full-width"
+                  @click="toggleTypeDropdown"
+                >
                   <div class="select-trigger">
                     <span>{{ getUserTypeName(selectedUser.type_id) || 'Не выбрано' }}</span>
                     <img 
@@ -297,10 +370,13 @@
                       :class="{ 'open': typeDropdownOpen }"
                       width="12"
                       height="12"
-                    />
+                    >
                   </div>
                   <transition name="dropdown">
-                    <div v-if="typeDropdownOpen" class="select-dropdown">
+                    <div
+                      v-if="typeDropdownOpen"
+                      class="select-dropdown"
+                    >
                       <div 
                         v-for="type in userTypes" 
                         :key="type.id"
@@ -319,37 +395,46 @@
                 <label class="detail-label">Новый пароль:</label>
                 <div class="password-input-container">
                   <input 
-                    :type="showNewPass ? 'text' : 'password'" 
                     v-model="selectedUser.newPassword" 
-                    @keyup="checkInputLanguage($event)"
-                    @keyup.enter="changeUserPassword(selectedUser)"
+                    :type="showNewPass ? 'text' : 'password'" 
                     class="password-input-sm"
                     placeholder="Новый пароль"
                     autocomplete="new-password"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
+                    @keyup="checkInputLanguage($event)"
+                    @keyup.enter="changeUserPassword(selectedUser)"
                   >
                   <div class="password-actions">
                     <button 
-                      @click="generatePassword(selectedUser)" 
-                      class="generate-password-btn"
+                      class="generate-password-btn" 
                       type="button"
+                      @click="generatePassword(selectedUser)"
                     >
-                      <img src="@/assets/icons/random.png" class="generate-icon" />
+                      <img
+                        src="@/assets/icons/random.png"
+                        class="generate-icon"
+                      >
                       Генерировать
                     </button>
                     <button 
-                      @click="changeUserPassword(selectedUser)" 
-                      :disabled="!selectedUser.newPassword"
+                      :disabled="!selectedUser.newPassword" 
                       class="save-password-btn"
+                      @click="changeUserPassword(selectedUser)"
                     >
-                      <img src="@/assets/icons/save.png" class="save-icon" />
+                      <img
+                        src="@/assets/icons/save.png"
+                        class="save-icon"
+                      >
                     </button>
                   </div>
                 </div>
                 <div class="input-hints">
-                  <span class="language-hint" :class="{ 'warning': isCapsLockOn }">
+                  <span
+                    class="language-hint"
+                    :class="{ 'warning': isCapsLockOn }"
+                  >
                     {{ currentLanguage }} {{ isCapsLockOn ? '| CAPS LOCK' : '' }}
                   </span>
                 </div>
@@ -359,59 +444,92 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите пользователя для просмотра</p>
       </div>
     </div>
 
-    <div v-if="filteredUsers.length === 0" class="no-users">
+    <div
+      v-if="filteredUsers.length === 0"
+      class="no-users"
+    >
       <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
     </div>
 
     <!-- Модальное окно создания пользователя - на уровне body через Teleport -->
     <Teleport to="body">
       <transition name="modal-fade">
-        <div v-if="showCreateModal" class="modal-overlay" @click.self="closeCreateModal">
+        <div
+          v-if="showCreateModal"
+          class="modal-overlay"
+          @click.self="closeCreateModal"
+        >
           <div class="modal-content">
             <div class="modal-header">
-              <h3 class="modal-title">Создание пользователя</h3>
-              <button @click="closeCreateModal" class="modal-close">
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                  <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+              <h3 class="modal-title">
+                Создание пользователя
+              </h3>
+              <button
+                class="modal-close"
+                @click="closeCreateModal"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
                 </svg>
               </button>
             </div>
             
             <div class="modal-body">
-              <div v-if="!hasOrgOrCompany" class="form-hint form-hint--warning">
+              <div
+                v-if="!hasOrgOrCompany"
+                class="form-hint form-hint--warning"
+              >
                 Укажите организацию или компанию - хотя бы одно из двух обязательно.
               </div>
               <div class="form-wrap">
                 <div class="input-group half">
                   <label class="input-label">Логин <span class="required">*</span></label>
                   <input
+                    ref="usernameInput"
                     v-model="newUser.username"
                     placeholder="Введите логин"
                     class="modal-input"
-                    ref="usernameInput"
                     @input="saveDraft"
                   >
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Пароль <span class="required">*</span></label>
                   <input
-                    type="password"
                     v-model="newUser.password"
+                    type="password"
                     placeholder="Введите пароль"
                     class="modal-input"
                     @keyup="checkNewUserInputLanguage"
                     @input="saveDraft"
                   >
-                  <div class="input-hint">Минимум 6 символов</div>
+                  <div class="input-hint">
+                    Минимум 6 символов
+                  </div>
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Организация <span class="required">*</span></label>
-                  <div class="custom-select" @click="toggleNewUserOrgDropdown">
+                  <div
+                    class="custom-select"
+                    @click="toggleNewUserOrgDropdown"
+                  >
                     <div class="select-trigger">
                       <span>{{ getOrganizationName(newUser.organization_id) || 'Не выбрано' }}</span>
                       <img
@@ -420,10 +538,13 @@
                         :class="{ 'open': newUserOrgDropdownOpen }"
                         width="12"
                         height="12"
-                      />
+                      >
                     </div>
                     <transition name="dropdown">
-                      <div v-if="newUserOrgDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="newUserOrgDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div
                           class="select-option"
                           :class="{ 'selected': newUser.organization_id === null }"
@@ -446,7 +567,10 @@
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Компания <span class="required">*</span></label>
-                  <div class="custom-select" @click="toggleNewUserCompanyDropdown">
+                  <div
+                    class="custom-select"
+                    @click="toggleNewUserCompanyDropdown"
+                  >
                     <div class="select-trigger">
                       <span>{{ getCompanyName(newUser.company_id) || 'Не выбрано' }}</span>
                       <img
@@ -455,10 +579,13 @@
                         :class="{ 'open': newUserCompanyDropdownOpen }"
                         width="12"
                         height="12"
-                      />
+                      >
                     </div>
                     <transition name="dropdown">
-                      <div v-if="newUserCompanyDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="newUserCompanyDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div
                           class="select-option"
                           :class="{ 'selected': newUser.company_id === null }"
@@ -481,7 +608,10 @@
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Тип пользователя <span class="required">*</span></label>
-                  <div class="custom-select" @click="toggleNewUserTypeDropdown">
+                  <div
+                    class="custom-select"
+                    @click="toggleNewUserTypeDropdown"
+                  >
                     <div class="select-trigger">
                       <span>{{ getUserTypeName(newUser.type_id) || 'Выберите тип' }}</span>
                       <img
@@ -490,10 +620,13 @@
                         :class="{ 'open': newUserTypeDropdownOpen }"
                         width="12"
                         height="12"
-                      />
+                      >
                     </div>
                     <transition name="dropdown">
-                      <div v-if="newUserTypeDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="newUserTypeDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div
                           v-for="type in userTypes"
                           :key="type.id"
@@ -567,12 +700,17 @@
             </div>
             
             <div class="modal-footer">
-              <button @click="closeCreateModal" class="modal-btn modal-btn--cancel">Отмена</button>
+              <button
+                class="modal-btn modal-btn--cancel"
+                @click="closeCreateModal"
+              >
+                Отмена
+              </button>
               <button 
-                @click="createUser" 
-                class="modal-btn modal-btn--confirm"
+                class="modal-btn modal-btn--confirm" 
                 :disabled="!canCreateUser"
                 :class="{'modal-btn--disabled': !canCreateUser}"
+                @click="createUser"
               >
                 Создать
               </button>
@@ -585,15 +723,32 @@
     <!-- Модальное окно прав доступа -->
     <Teleport to="body">
       <transition name="modal-fade">
-        <div v-if="showPermissionsModal" class="modal-overlay" @click.self="showPermissionsModal = false">
+        <div
+          v-if="showPermissionsModal"
+          class="modal-overlay"
+          @click.self="showPermissionsModal = false"
+        >
           <div class="modal-content">
             <div class="modal-header">
               <h3 class="modal-title">
                 Права: {{ selectedUserForPermissions ? selectedUserForPermissions.username : '' }}
               </h3>
-              <button @click="showPermissionsModal = false" class="modal-close">
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                  <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+              <button
+                class="modal-close"
+                @click="showPermissionsModal = false"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
                 </svg>
               </button>
             </div>
@@ -607,12 +762,17 @@
             </div>
 
             <div class="modal-footer">
-              <button @click="showPermissionsModal = false" class="modal-btn modal-btn--cancel">Отмена</button>
               <button
-                @click="savePermissions"
+                class="modal-btn modal-btn--cancel"
+                @click="showPermissionsModal = false"
+              >
+                Отмена
+              </button>
+              <button
                 :disabled="savingPermissions"
                 class="modal-btn modal-btn--confirm"
                 :class="{'modal-btn--disabled': savingPermissions}"
+                @click="savePermissions"
               >
                 {{ savingPermissions ? 'Сохранение...' : 'Сохранить' }}
               </button>
@@ -685,22 +845,6 @@ export default {
       selectedUserForPermissions: null,
       savingPermissions: false
     };
-  },
-  async created() {
-    await Promise.all([
-      this.fetchOrganizations(), 
-      this.fetchCompanies(),
-      this.fetchUserTypes()
-    ]);
-    
-    // Слушаем события обновления организаций и компаний
-    window.addEventListener('organization-updated', this.fetchOrganizations);
-    window.addEventListener('company-updated', this.fetchCompanies);
-  },
-  beforeUnmount() {
-    window.removeEventListener('organization-updated', this.fetchOrganizations);
-    window.removeEventListener('company-updated', this.fetchCompanies);
-    document.removeEventListener('click', this.handleClickOutside);
   },
   computed: {
     filteredUsers() {
@@ -781,6 +925,22 @@ export default {
     hasOrgOrCompany() {
       return Boolean(this.newUser.organization_id || this.newUser.company_id);
     }
+  },
+  async created() {
+    await Promise.all([
+      this.fetchOrganizations(), 
+      this.fetchCompanies(),
+      this.fetchUserTypes()
+    ]);
+    
+    // Слушаем события обновления организаций и компаний
+    window.addEventListener('organization-updated', this.fetchOrganizations);
+    window.addEventListener('company-updated', this.fetchCompanies);
+  },
+  beforeUnmount() {
+    window.removeEventListener('organization-updated', this.fetchOrganizations);
+    window.removeEventListener('company-updated', this.fetchCompanies);
+    document.removeEventListener('click', this.handleClickOutside);
   },
   mounted() {
     this.fetchAllUsers();

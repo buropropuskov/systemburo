@@ -2,15 +2,25 @@
   <div class="schedule-tab">
     <!-- Заголовок и кнопка добавления -->
     <div class="schedule-header">
-      <h4 class="schedule-title">Рабочее время</h4>
-      <button @click="openAddModal" class="add-btn" :disabled="isLoading">
+      <h4 class="schedule-title">
+        Рабочее время
+      </h4>
+      <button
+        class="add-btn"
+        :disabled="isLoading"
+        @click="openAddModal"
+      >
         + Добавить окно
       </button>
     </div>
 
     <!-- Список дней -->
     <div class="days-list">
-      <div v-for="day in 7" :key="day" class="day-group">
+      <div
+        v-for="day in 7"
+        :key="day"
+        class="day-group"
+      >
         <!-- Заголовок дня с переключателем -->
         <div class="day-header">
           <span class="day-name">{{ getFullDayName(day - 1) }}</span>
@@ -20,10 +30,10 @@
               <input
                 type="checkbox"
                 :checked="hasRoundTheClock(day - 1)"
-                @change="toggleRoundTheClock(day - 1, $event)"
                 :disabled="isLoading"
-              />
-              <span class="switch-slider"></span>
+                @change="toggleRoundTheClock(day - 1, $event)"
+              >
+              <span class="switch-slider" />
             </label>
           </div>
         </div>
@@ -31,12 +41,18 @@
         <!-- Контент дня -->
         <div class="day-content">
           <!-- Если есть активное круглосуточное окно - показываем заглушку -->
-          <div v-if="hasActiveRoundTheClock(day - 1)" class="round-badge">
+          <div
+            v-if="hasActiveRoundTheClock(day - 1)"
+            class="round-badge"
+          >
             Круглосуточно (24/7)
           </div>
 
           <!-- Иначе показываем все активные окна для этого дня -->
-          <div v-else class="slots-wrapper">
+          <div
+            v-else
+            class="slots-wrapper"
+          >
             <div
               v-for="slot in getActiveSlotsForDay(day - 1)"
               :key="slot.id"
@@ -44,20 +60,40 @@
             >
               <span class="slot-time">
                 {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
-                <span v-if="slot.is_next_day" class="next-mark">(след. день)</span>
+                <span
+                  v-if="slot.is_next_day"
+                  class="next-mark"
+                >(след. день)</span>
               </span>
               <div class="slot-actions">
-                <button @click="editSlot(slot)" class="icon-btn" title="Редактировать">
-                  <img src="@/assets/icons/edit.png" class="icon" />
+                <button
+                  class="icon-btn"
+                  title="Редактировать"
+                  @click="editSlot(slot)"
+                >
+                  <img
+                    src="@/assets/icons/edit.png"
+                    class="icon"
+                  >
                 </button>
-                <button @click="deleteSlot(slot)" class="icon-btn" title="Удалить">
-                  <img src="@/assets/icons/trashcan.png" class="icon" />
+                <button
+                  class="icon-btn"
+                  title="Удалить"
+                  @click="deleteSlot(slot)"
+                >
+                  <img
+                    src="@/assets/icons/trashcan.png"
+                    class="icon"
+                  >
                 </button>
               </div>
             </div>
 
             <!-- Пусто -->
-            <div v-if="getActiveSlotsForDay(day - 1).length === 0" class="empty-text">
+            <div
+              v-if="getActiveSlotsForDay(day - 1).length === 0"
+              class="empty-text"
+            >
               Нет временных окон
             </div>
           </div>
@@ -67,15 +103,31 @@
 
     <!-- Модальное окно -->
     <transition name="modal-fade">
-      <div v-if="modalOpen" class="modal-overlay" @click.self="closeModal">
+      <div
+        v-if="modalOpen"
+        class="modal-overlay"
+        @click.self="closeModal"
+      >
         <div class="modal-content">
           <div class="modal-header">
             <h3 class="modal-title">
               {{ editingSlotId ? 'Редактировать временнОе окно' : 'Добавить временнОе окно' }}
             </h3>
-            <button @click="closeModal" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+            <button
+              class="modal-close"
+              @click="closeModal"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </button>
           </div>
@@ -84,7 +136,11 @@
             <!-- Выбор дня с кастомным селектом -->
             <div class="field">
               <label class="field-label">День недели *</label>
-              <div class="custom-select" @click="toggleDayDropdown" ref="selectRef">
+              <div
+                ref="selectRef"
+                class="custom-select"
+                @click="toggleDayDropdown"
+              >
                 <div class="select-trigger">
                   <span>{{ getFullDayName(modalDay) }}</span>
                   <img
@@ -93,10 +149,13 @@
                     :class="{ open: dayDropdownOpen }"
                     width="9"
                     height="9"
-                  />
+                  >
                 </div>
                 <transition name="dropdown">
-                  <div v-if="dayDropdownOpen" class="select-dropdown">
+                  <div
+                    v-if="dayDropdownOpen"
+                    class="select-dropdown"
+                  >
                     <div
                       v-for="(dayName, idx) in fullDayNames"
                       :key="idx"
@@ -115,31 +174,52 @@
             <div class="time-fields">
               <div class="field time-field">
                 <label class="field-label">Открытие *</label>
-                <input type="time" v-model="modalOpenTime" class="modal-input" @change="validateTimes" />
+                <input
+                  v-model="modalOpenTime"
+                  type="time"
+                  class="modal-input"
+                  @change="validateTimes"
+                >
               </div>
               <div class="field time-field">
                 <label class="field-label">Закрытие *</label>
-                <input type="time" v-model="modalCloseTime" class="modal-input" @change="validateTimes" />
+                <input
+                  v-model="modalCloseTime"
+                  type="time"
+                  class="modal-input"
+                  @change="validateTimes"
+                >
               </div>
             </div>
 
             <!-- Сообщение об ошибке пересечения -->
-            <div v-if="timeConflictError" class="error-hint">
+            <div
+              v-if="timeConflictError"
+              class="error-hint"
+            >
               ⚠️ {{ timeConflictError }}
             </div>
 
             <!-- Подсказка о следующем дне -->
-            <div v-if="modalNextDay && !timeConflictError" class="next-day-hint">
+            <div
+              v-if="modalNextDay && !timeConflictError"
+              class="next-day-hint"
+            >
               ⏰ Закрытие на следующий день
             </div>
           </div>
 
           <div class="modal-footer">
-            <button @click="closeModal" class="modal-btn cancel">Отмена</button>
             <button
-              @click="saveSlot"
+              class="modal-btn cancel"
+              @click="closeModal"
+            >
+              Отмена
+            </button>
+            <button
               class="modal-btn confirm"
               :disabled="!modalOpenTime || !modalCloseTime || isLoading || !!timeConflictError"
+              @click="saveSlot"
             >
               {{ editingSlotId ? 'Сохранить' : 'Добавить' }}
             </button>

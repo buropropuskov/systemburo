@@ -1,12 +1,21 @@
 <template>
-  <div class="account-dashboard" data-testid="cabinet-page">
+  <div
+    class="account-dashboard"
+    data-testid="cabinet-page"
+  >
     <!-- Первая строка: заголовок и заявки -->
     <div class="first-row">
       <SkeletonTransition :loading="loading">
         <template #skeleton>
           <div style="display: flex; gap: 20px; width: 100%;">
-            <SkeletonBlock height="200px" style="flex: 1;" />
-            <SkeletonBlock height="200px" style="flex: 1;" />
+            <SkeletonBlock
+              height="200px"
+              style="flex: 1;"
+            />
+            <SkeletonBlock
+              height="200px"
+              style="flex: 1;"
+            />
           </div>
         </template>
 
@@ -49,45 +58,82 @@
     </div>
 
     <!-- Вторая строка: управление пользователями (если доступно) -->
-    <div class="dashboard-row" id="users" v-if="isBuroPropuskov">
+    <div
+      v-if="isBuroPropuskov"
+      id="users"
+      class="dashboard-row"
+    >
       <UserControl 
-        :allUsers="allUsers"
+        :all-users="allUsers"
+        class="dashboard-card dashboard-card-animated"
         @fetch-users="fetchAllUsers"
         @user-updated="handleUserUpdated"
-        class="dashboard-card dashboard-card-animated"
       />
     </div>
 
     <!-- Третья строка: управление организациями (если доступно) -->
-    <div class="dashboard-row" id="organizations" v-if="isBuroPropuskov">
-      <OrganizationsManagement class="dashboard-card dashboard-card-animated"/>
+    <div
+      v-if="isBuroPropuskov"
+      id="organizations"
+      class="dashboard-row"
+    >
+      <OrganizationsManagement class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" id="companies" v-if="isBuroPropuskov">
-      <CompaniesManagement class="dashboard-card dashboard-card-animated"/>
+    <div
+      v-if="isBuroPropuskov"
+      id="companies"
+      class="dashboard-row"
+    >
+      <CompaniesManagement class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" id="unload_place" v-if="isBuroPropuskov">
-      <UnloadPlacesContainer class="dashboard-card dashboard-card-animated"/>
+    <div
+      v-if="isBuroPropuskov"
+      id="unload_place"
+      class="dashboard-row"
+    >
+      <UnloadPlacesContainer class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" id="number" v-if="isBuroPropuskov">
-      <NumberFormat class="dashboard-card dashboard-card-animated"/>
+    <div
+      v-if="isBuroPropuskov"
+      id="number"
+      class="dashboard-row"
+    >
+      <NumberFormat class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" v-if="isBuroPropuskov">
+    <div
+      v-if="isBuroPropuskov"
+      class="dashboard-row"
+    >
       <CitizenshipManagement class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" id="tables" v-if="isBuroPropuskov">
+    <div
+      v-if="isBuroPropuskov"
+      id="tables"
+      class="dashboard-row"
+    >
       <TableConstructor class="dashboard-card dashboard-card-animated" />
     </div>
-     <div class="dashboard-row" id="user_types" v-if="isBuroPropuskov">
+    <div
+      v-if="isBuroPropuskov"
+      id="user_types"
+      class="dashboard-row"
+    >
       <UserTypes class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" id="attachments" v-if="isBuroPropuskov">
+    <div
+      v-if="isBuroPropuskov"
+      id="attachments"
+      class="dashboard-row"
+    >
       <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
     </div>
-    <div class="dashboard-row" id="approvers" v-if="isBuroPropuskov">
+    <div
+      v-if="isBuroPropuskov"
+      id="approvers"
+      class="dashboard-row"
+    >
       <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
     </div>
-
-    
   </div>
 </template>
 
@@ -154,6 +200,12 @@ export default {
   computed: {
     isBuroPropuskov() {
       return this.type_id === 6 || this.user_type === 'buropropuskov';
+    }
+  },
+  mounted() {
+    this.fetchUserData();
+    if (this.isBuroPropuskov) {
+      this.fetchAllUsers();
     }
   },
   methods: {
@@ -233,12 +285,6 @@ export default {
           ...updatedUser
         };
       }
-    }
-  },
-  mounted() {
-    this.fetchUserData();
-    if (this.isBuroPropuskov) {
-      this.fetchAllUsers();
     }
   }
 };

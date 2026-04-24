@@ -1,209 +1,349 @@
 <template>
-    <div class="date-range-section">
-        <div class="date__input">
-            <label class="input__label">Дата действия <span class="required">*</span></label>
-            <div class="date-container">
-                <div class="date" v-if="!isOneDay">
-                    <p class="date__text">с</p>
-                    <div class="datepicker-wrapper">
-                        <input
-                            ref="startDateInput"
-                            class="input__date"
-                            placeholder="дд.мм.гггг"
-                            :value="startDate"
-                            @input="onStartDateInput"
-                            @focus="openDatepicker('start')"
-                            @blur="handleDateBlur('start')"
-                            @keydown="preventNonNumeric"
-                            @keydown.tab="onTabFromStart"
-                            @paste="preventNonNumericPaste"
-                            :class="{ 'input--error': errors.startDate }"
-                            maxlength="10"
-                        />
-                        <transition name="calendar">
-                            <div v-if="showStartDatepicker" class="datepicker" @click.stop>
-                                <div class="datepicker__header">
-                                    <button @click="prevMonth" class="datepicker__nav" tabindex="-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                            <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                    <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                    <button @click="nextMonth" class="datepicker__nav" tabindex="-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                            <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <div class="datepicker__weekdays">
-                                    <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                                </div>
-                                <div class="datepicker__days">
-                                    <div
-                                        v-for="day in calendarDays"
-                                        :key="day.date"
-                                        class="datepicker__day"
-                                        :class="getDayClass(day, startDate)"
-                                        @click="selectStartDate(day)"
-                                    >
-                                        {{ day.day }}
-                                    </div>
-                                </div>
-                            </div>
-                        </transition>
-                    </div>
-                    <p class="date__text">по</p>
-                    <div class="datepicker-wrapper">
-                        <input
-                            ref="endDateInput"
-                            class="input__date"
-                            placeholder="дд.мм.гггг"
-                            :value="endDate"
-                            @input="onEndDateInput"
-                            @focus="openDatepicker('end')"
-                            @blur="handleDateBlur('end')"
-                            @keydown="preventNonNumeric"
-                            @paste="preventNonNumericPaste"
-                            :class="{ 'input--error': errors.endDate }"
-                            maxlength="10"
-                        />
-                        <transition name="calendar">
-                            <div v-if="showEndDatepicker" class="datepicker" @click.stop>
-                                <div class="datepicker__header">
-                                    <button @click="prevMonth" class="datepicker__nav" tabindex="-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                            <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                    <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                    <button @click="nextMonth" class="datepicker__nav" tabindex="-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                            <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <div class="datepicker__weekdays">
-                                    <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                                </div>
-                                <div class="datepicker__days">
-                                    <div
-                                        v-for="day in calendarDays"
-                                        :key="day.date"
-                                        class="datepicker__day"
-                                        :class="getDayClass(day, endDate)"
-                                        @click="selectEndDate(day)"
-                                    >
-                                        {{ day.day }}
-                                    </div>
-                                </div>
-                            </div>
-                        </transition>
-                    </div>
+  <div class="date-range-section">
+    <div class="date__input">
+      <label class="input__label">Дата действия <span class="required">*</span></label>
+      <div class="date-container">
+        <div
+          v-if="!isOneDay"
+          class="date"
+        >
+          <p class="date__text">
+            с
+          </p>
+          <div class="datepicker-wrapper">
+            <input
+              ref="startDateInput"
+              class="input__date"
+              placeholder="дд.мм.гггг"
+              :value="startDate"
+              :class="{ 'input--error': errors.startDate }"
+              maxlength="10"
+              @input="onStartDateInput"
+              @focus="openDatepicker('start')"
+              @blur="handleDateBlur('start')"
+              @keydown="preventNonNumeric"
+              @keydown.tab="onTabFromStart"
+              @paste="preventNonNumericPaste"
+            >
+            <transition name="calendar">
+              <div
+                v-if="showStartDatepicker"
+                class="datepicker"
+                @click.stop
+              >
+                <div class="datepicker__header">
+                  <button
+                    class="datepicker__nav"
+                    tabindex="-1"
+                    @click="prevMonth"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M15 18L9 12L15 6"
+                        stroke="#4F5BDF"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                  <button
+                    class="datepicker__nav"
+                    tabindex="-1"
+                    @click="nextMonth"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M9 18L15 12L9 6"
+                        stroke="#4F5BDF"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
                 </div>
-                <div v-else class="single-date">
-                    <div class="datepicker-wrapper">
-                        <input
-                            ref="singleDateInput"
-                            class="input__date"
-                            placeholder="дд.мм.гггг"
-                            :value="singleDate"
-                            @input="onSingleDateInput"
-                            @focus="openDatepicker('single')"
-                            @blur="handleDateBlur('single')"
-                            @keydown="preventNonNumeric"
-                            @paste="preventNonNumericPaste"
-                            :class="{ 'input--error': errors.singleDate }"
-                            maxlength="10"
-                        />
-                        <transition name="calendar">
-                            <div v-if="showSingleDatepicker" class="datepicker" @click.stop>
-                                <div class="datepicker__header">
-                                    <button @click="prevMonth" class="datepicker__nav" tabindex="-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                            <path d="M15 18L9 12L15 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                    <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                                    <button @click="nextMonth" class="datepicker__nav" tabindex="-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                                            <path d="M9 18L15 12L9 6" stroke="#4F5BDF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <div class="datepicker__weekdays">
-                                    <div v-for="day in weekdays" :key="day" class="datepicker__weekday">{{ day }}</div>
-                                </div>
-                                <div class="datepicker__days">
-                                    <div
-                                        v-for="day in calendarDays"
-                                        :key="day.date"
-                                        class="datepicker__day"
-                                        :class="getDayClass(day, singleDate)"
-                                        @click="selectSingleDate(day)"
-                                    >
-                                        {{ day.day }}
-                                    </div>
-                                </div>
-                            </div>
-                        </transition>
-                    </div>
+                <div class="datepicker__weekdays">
+                  <div
+                    v-for="day in weekdays"
+                    :key="day"
+                    class="datepicker__weekday"
+                  >
+                    {{ day }}
+                  </div>
                 </div>
-                <div v-if="errors.startDate || errors.endDate || errors.singleDate" class="error-message date-error">
-                    {{ errors.startDate || errors.endDate || errors.singleDate }}
+                <div class="datepicker__days">
+                  <div
+                    v-for="day in calendarDays"
+                    :key="day.date"
+                    class="datepicker__day"
+                    :class="getDayClass(day, startDate)"
+                    @click="selectStartDate(day)"
+                  >
+                    {{ day.day }}
+                  </div>
                 </div>
-            </div>
-            <div class="one-day">
-                <input
-                    type="checkbox"
-                    class="one-day__checkbox"
-                    :checked="isOneDay"
-                    @change="onCheckboxChange"
-                />
-                <p>однодневная заявка</p>
-            </div>
+              </div>
+            </transition>
+          </div>
+          <p class="date__text">
+            по
+          </p>
+          <div class="datepicker-wrapper">
+            <input
+              ref="endDateInput"
+              class="input__date"
+              placeholder="дд.мм.гггг"
+              :value="endDate"
+              :class="{ 'input--error': errors.endDate }"
+              maxlength="10"
+              @input="onEndDateInput"
+              @focus="openDatepicker('end')"
+              @blur="handleDateBlur('end')"
+              @keydown="preventNonNumeric"
+              @paste="preventNonNumericPaste"
+            >
+            <transition name="calendar">
+              <div
+                v-if="showEndDatepicker"
+                class="datepicker"
+                @click.stop
+              >
+                <div class="datepicker__header">
+                  <button
+                    class="datepicker__nav"
+                    tabindex="-1"
+                    @click="prevMonth"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M15 18L9 12L15 6"
+                        stroke="#4F5BDF"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                  <button
+                    class="datepicker__nav"
+                    tabindex="-1"
+                    @click="nextMonth"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M9 18L15 12L9 6"
+                        stroke="#4F5BDF"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div class="datepicker__weekdays">
+                  <div
+                    v-for="day in weekdays"
+                    :key="day"
+                    class="datepicker__weekday"
+                  >
+                    {{ day }}
+                  </div>
+                </div>
+                <div class="datepicker__days">
+                  <div
+                    v-for="day in calendarDays"
+                    :key="day.date"
+                    class="datepicker__day"
+                    :class="getDayClass(day, endDate)"
+                    @click="selectEndDate(day)"
+                  >
+                    {{ day.day }}
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
-        <div class="date__input time-section">
-            <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
-            <div class="time-wrapper">
-                <div class="time-input-group">
-                    <p class="date__text">с</p>
-                    <input
-                        ref="startTimeInput"
-                        class="input__time"
-                        placeholder="чч:мм"
-                        :value="startTime"
-                        @input="onStartTimeInput"
-                        @blur="formatTimeField('start')"
-                        @keydown="preventNonNumeric"
-                        @paste="preventNonNumericPaste"
-                        :class="{ 'input--error': errors.startTime }"
-                        inputmode="numeric"
-                        maxlength="5"
-                    />
+        <div
+          v-else
+          class="single-date"
+        >
+          <div class="datepicker-wrapper">
+            <input
+              ref="singleDateInput"
+              class="input__date"
+              placeholder="дд.мм.гггг"
+              :value="singleDate"
+              :class="{ 'input--error': errors.singleDate }"
+              maxlength="10"
+              @input="onSingleDateInput"
+              @focus="openDatepicker('single')"
+              @blur="handleDateBlur('single')"
+              @keydown="preventNonNumeric"
+              @paste="preventNonNumericPaste"
+            >
+            <transition name="calendar">
+              <div
+                v-if="showSingleDatepicker"
+                class="datepicker"
+                @click.stop
+              >
+                <div class="datepicker__header">
+                  <button
+                    class="datepicker__nav"
+                    tabindex="-1"
+                    @click="prevMonth"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M15 18L9 12L15 6"
+                        stroke="#4F5BDF"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                  <button
+                    class="datepicker__nav"
+                    tabindex="-1"
+                    @click="nextMonth"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M9 18L15 12L9 6"
+                        stroke="#4F5BDF"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
                 </div>
-                <div class="time-input-group">
-                    <p class="date__text">по</p>
-                    <input
-                        ref="endTimeInput"
-                        class="input__time"
-                        placeholder="чч:мм"
-                        :value="endTime"
-                        @input="onEndTimeInput"
-                        @blur="formatTimeField('end')"
-                        @keydown="preventNonNumeric"
-                        @paste="preventNonNumericPaste"
-                        :class="{ 'input--error': errors.endTime }"
-                        inputmode="numeric"
-                        maxlength="5"
-                    />
+                <div class="datepicker__weekdays">
+                  <div
+                    v-for="day in weekdays"
+                    :key="day"
+                    class="datepicker__weekday"
+                  >
+                    {{ day }}
+                  </div>
                 </div>
-            </div>
-            <p class="time-message"></p>
-            <div v-if="errors.startTime || errors.endTime" class="error-message time-error">
-                {{ errors.startTime || errors.endTime }}
-            </div>
+                <div class="datepicker__days">
+                  <div
+                    v-for="day in calendarDays"
+                    :key="day.date"
+                    class="datepicker__day"
+                    :class="getDayClass(day, singleDate)"
+                    @click="selectSingleDate(day)"
+                  >
+                    {{ day.day }}
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
+        <div
+          v-if="errors.startDate || errors.endDate || errors.singleDate"
+          class="error-message date-error"
+        >
+          {{ errors.startDate || errors.endDate || errors.singleDate }}
+        </div>
+      </div>
+      <div class="one-day">
+        <input
+          type="checkbox"
+          class="one-day__checkbox"
+          :checked="isOneDay"
+          @change="onCheckboxChange"
+        >
+        <p>однодневная заявка</p>
+      </div>
     </div>
+    <div class="date__input time-section">
+      <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+      <div class="time-wrapper">
+        <div class="time-input-group">
+          <p class="date__text">
+            с
+          </p>
+          <input
+            ref="startTimeInput"
+            class="input__time"
+            placeholder="чч:мм"
+            :value="startTime"
+            :class="{ 'input--error': errors.startTime }"
+            inputmode="numeric"
+            maxlength="5"
+            @input="onStartTimeInput"
+            @blur="formatTimeField('start')"
+            @keydown="preventNonNumeric"
+            @paste="preventNonNumericPaste"
+          >
+        </div>
+        <div class="time-input-group">
+          <p class="date__text">
+            по
+          </p>
+          <input
+            ref="endTimeInput"
+            class="input__time"
+            placeholder="чч:мм"
+            :value="endTime"
+            :class="{ 'input--error': errors.endTime }"
+            inputmode="numeric"
+            maxlength="5"
+            @input="onEndTimeInput"
+            @blur="formatTimeField('end')"
+            @keydown="preventNonNumeric"
+            @paste="preventNonNumericPaste"
+          >
+        </div>
+      </div>
+      <p class="time-message" />
+      <div
+        v-if="errors.startTime || errors.endTime"
+        class="error-message time-error"
+      >
+        {{ errors.startTime || errors.endTime }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -300,6 +440,42 @@ export default {
 
             return days;
         }
+    },
+    watch: {
+        startDate(newVal) {
+            if (this.internalToggle) return;
+            if (newVal && this.endDate && newVal === this.endDate && !this.isOneDay) {
+                this.toggleOneDay(true);
+            }
+        },
+        endDate(newVal) {
+            if (this.internalToggle) return;
+            if (newVal && this.startDate && newVal === this.startDate && !this.isOneDay) {
+                this.toggleOneDay(true);
+            }
+        },
+        singleDate() {
+            if (this.internalToggle) return;
+            this.$emit('validate-field', 'singleDate');
+            this.validateTimeCrossing();
+        },
+        startTime() {
+            if (this.internalToggle) return;
+            this.validateTimeCrossing();
+        },
+        endTime() {
+            if (this.internalToggle) return;
+            this.validateTimeCrossing();
+        }
+    },
+    mounted() {
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.datepicker-wrapper')) {
+                this.closeDatepicker();
+            }
+        });
+        this.validateDateRange();
+        this.validateTimeCrossing();
     },
     methods: {
         onTabFromStart(e) {
@@ -731,42 +907,6 @@ export default {
 
         nextMonth() {
             this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
-        }
-    },
-    mounted() {
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.datepicker-wrapper')) {
-                this.closeDatepicker();
-            }
-        });
-        this.validateDateRange();
-        this.validateTimeCrossing();
-    },
-    watch: {
-        startDate(newVal) {
-            if (this.internalToggle) return;
-            if (newVal && this.endDate && newVal === this.endDate && !this.isOneDay) {
-                this.toggleOneDay(true);
-            }
-        },
-        endDate(newVal) {
-            if (this.internalToggle) return;
-            if (newVal && this.startDate && newVal === this.startDate && !this.isOneDay) {
-                this.toggleOneDay(true);
-            }
-        },
-        singleDate() {
-            if (this.internalToggle) return;
-            this.$emit('validate-field', 'singleDate');
-            this.validateTimeCrossing();
-        },
-        startTime() {
-            if (this.internalToggle) return;
-            this.validateTimeCrossing();
-        },
-        endTime() {
-            if (this.internalToggle) return;
-            this.validateTimeCrossing();
         }
     }
 }

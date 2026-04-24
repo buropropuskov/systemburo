@@ -4,18 +4,18 @@
       <div class="toolbar-group">
         <!-- УБРАН КНОПКА "B" -->
         <button 
-          @click="formatText('italic')" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Курсив"
+          @click="formatText('italic')"
         >
           <em>I</em>
         </button>
         <button 
-          @click="formatText('underline')" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Подчеркивание"
+          @click="formatText('underline')"
         >
           <u>U</u>
         </button>
@@ -23,26 +23,26 @@
 
       <div class="toolbar-group lists-group">
         <button 
-          @click="insertList('ul')" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Маркированный список"
+          @click="insertList('ul')"
         >
           • L
         </button>
         <button 
-          @click="insertList('ol')" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Нумерованный список"
+          @click="insertList('ol')"
         >
           1. L
         </button>
         <button 
-          @click="insertListItem()" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Добавить элемент списка"
+          @click="insertListItem()"
         >
           Li
         </button>
@@ -50,34 +50,45 @@
 
       <div class="toolbar-group">
         <button 
-          @click="insertHeading('h1')" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Заголовок h1"
+          @click="insertHeading('h1')"
         >
           h1
         </button>
         <button 
-          @click="insertHeading('h2')" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Заголовок h2"
+          @click="insertHeading('h2')"
         >
           h2
         </button>
       </div>
 
       <div class="toolbar-group">
-        <div class="custom-select" @mouseenter="showTooltip = true" @mouseleave="showTooltip = false">
+        <div
+          class="custom-select"
+          @mouseenter="showTooltip = true"
+          @mouseleave="showTooltip = false"
+        >
           <div 
             class="select-header" 
-            @click="toggleFontSizeDropdown" 
-            :data-tooltip="fontSizeDropdownOpen ? '' : 'Размер шрифта'"
+            :data-tooltip="fontSizeDropdownOpen ? '' : 'Размер шрифта'" 
+            @click="toggleFontSizeDropdown"
           >
             <span class="select-value">{{ selectedFontSize }}</span>
-            <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: fontSizeDropdownOpen }" />
+            <img
+              src="@/assets/icons/arrow.png"
+              class="select-arrow"
+              :class="{ rotated: fontSizeDropdownOpen }"
+            >
           </div>
-          <div v-if="fontSizeDropdownOpen" class="select-dropdown">
+          <div
+            v-if="fontSizeDropdownOpen"
+            class="select-dropdown"
+          >
             <div 
               v-for="size in fontSizes" 
               :key="size"
@@ -92,16 +103,27 @@
       </div>
 
       <div class="toolbar-group">
-        <div class="custom-select fixed-width-select" @mouseenter="showTooltip = true" @mouseleave="showTooltip = false">
+        <div
+          class="custom-select fixed-width-select"
+          @mouseenter="showTooltip = true"
+          @mouseleave="showTooltip = false"
+        >
           <div 
             class="select-header" 
-            @click="toggleFontWeightDropdown" 
-            :data-tooltip="fontWeightDropdownOpen ? '' : 'Жирность шрифта'"
+            :data-tooltip="fontWeightDropdownOpen ? '' : 'Жирность шрифта'" 
+            @click="toggleFontWeightDropdown"
           >
             <span class="select-value">{{ selectedFontWeight.label }}</span>
-            <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: fontWeightDropdownOpen }" />
+            <img
+              src="@/assets/icons/arrow.png"
+              class="select-arrow"
+              :class="{ rotated: fontWeightDropdownOpen }"
+            >
           </div>
-          <div v-if="fontWeightDropdownOpen" class="select-dropdown">
+          <div
+            v-if="fontWeightDropdownOpen"
+            class="select-dropdown"
+          >
             <div 
               v-for="weight in fontWeights" 
               :key="weight.value"
@@ -118,34 +140,34 @@
 
       <div class="toolbar-group">
         <button 
-          @click="insertColor('black-text')" 
           type="button" 
-          class="toolbar-btn color-btn black-text"
+          class="toolbar-btn color-btn black-text" 
           data-tooltip="Черный"
+          @click="insertColor('black-text')"
         >
           A
         </button>
         <button 
-          @click="insertColor('red-text')" 
           type="button" 
-          class="toolbar-btn color-btn red-text"
+          class="toolbar-btn color-btn red-text" 
           data-tooltip="Красный"
+          @click="insertColor('red-text')"
         >
           A
         </button>
         <button 
-          @click="insertColor('green-text')" 
           type="button" 
-          class="toolbar-btn color-btn green-text"
+          class="toolbar-btn color-btn green-text" 
           data-tooltip="Зеленый"
+          @click="insertColor('green-text')"
         >
           A
         </button>
         <button 
-          @click="insertColor('blue-text')" 
           type="button" 
-          class="toolbar-btn color-btn blue-text"
+          class="toolbar-btn color-btn blue-text" 
           data-tooltip="Синий"
+          @click="insertColor('blue-text')"
         >
           A
         </button>
@@ -153,10 +175,10 @@
 
       <div class="toolbar-group">
         <button 
-          @click="insertBreak()" 
           type="button" 
-          class="toolbar-btn"
+          class="toolbar-btn" 
           data-tooltip="Отступ"
+          @click="insertBreak()"
         >
           ↵
         </button>
@@ -164,11 +186,11 @@
 
       <div class="toolbar-group">
         <button 
-          @click="undo()" 
           type="button" 
-          class="toolbar-btn undo-btn"
+          class="toolbar-btn undo-btn" 
           data-tooltip="Назад (Ctrl+Z)"
           :disabled="historyIndex === 0"
+          @click="undo()"
         >
           ↶
         </button>
@@ -177,24 +199,37 @@
 
     <div class="textarea-container">
       <textarea 
+        ref="textarea"
         :value="modelValue"
-        @input="handleInput"
-        @keydown.ctrl.z.prevent="handleCtrlZ"
         :placeholder="placeholder"
         :rows="rows"
         class="constructor-textarea"
-        ref="textarea"
-      ></textarea>
-      <div class="resize-handle" @mousedown="startResize"></div>
+        @input="handleInput"
+        @keydown.ctrl.z.prevent="handleCtrlZ"
+      />
+      <div
+        class="resize-handle"
+        @mousedown="startResize"
+      />
     </div>
 
-    <div class="editor-preview" v-if="modelValue">
+    <div
+      v-if="modelValue"
+      class="editor-preview"
+    >
       <div class="preview-header">
         <h5>Предпросмотр:</h5>
       </div>
       <div class="preview-content-container">
-        <div class="preview-content" ref="previewContent" v-html="sanitizedContent"></div>
-        <div class="resize-handle preview-resize" @mousedown="startPreviewResize"></div>
+        <div
+          ref="previewContent"
+          class="preview-content"
+          v-html="sanitizedContent"
+        />
+        <div
+          class="resize-handle preview-resize"
+          @mousedown="startPreviewResize"
+        />
       </div>
     </div>
   </div>
@@ -250,6 +285,38 @@ export default {
     sanitizedContent() {
       return sanitizeHtml(this.modelValue);
     }
+  },
+  watch: {
+    modelValue(newValue) {
+      // Обновляем историю при изменении modelValue извне
+      if (this.history[this.historyIndex] !== newValue) {
+        this.history = [newValue];
+        this.historyIndex = 0;
+      }
+    }
+  },
+  mounted() {
+    // Инициализируем историю с текущим значением
+    this.history = [this.modelValue];
+    this.historyIndex = 0;
+    
+    // Устанавливаем начальную высоту для preview
+    this.$nextTick(() => {
+      if (this.$refs.previewContent) {
+        this.$refs.previewContent.style.height = this.previewMinHeight + 'px';
+        this.$refs.previewContent.style.minHeight = this.previewMinHeight + 'px';
+        this.$refs.previewContent.style.maxHeight = this.previewMaxHeight + 'px';
+      }
+    });
+    
+    // Закрываем dropdown при клике вне его
+    document.addEventListener('click', (e) => {
+      if (!this.$el.contains(e.target)) {
+        this.fontSizeDropdownOpen = false;
+        this.fontWeightDropdownOpen = false;
+        this.showTooltip = true;
+      }
+    });
   },
   methods: {
     handleInput(event) {
@@ -587,38 +654,6 @@ export default {
         // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
-    }
-  },
-  mounted() {
-    // Инициализируем историю с текущим значением
-    this.history = [this.modelValue];
-    this.historyIndex = 0;
-    
-    // Устанавливаем начальную высоту для preview
-    this.$nextTick(() => {
-      if (this.$refs.previewContent) {
-        this.$refs.previewContent.style.height = this.previewMinHeight + 'px';
-        this.$refs.previewContent.style.minHeight = this.previewMinHeight + 'px';
-        this.$refs.previewContent.style.maxHeight = this.previewMaxHeight + 'px';
-      }
-    });
-    
-    // Закрываем dropdown при клике вне его
-    document.addEventListener('click', (e) => {
-      if (!this.$el.contains(e.target)) {
-        this.fontSizeDropdownOpen = false;
-        this.fontWeightDropdownOpen = false;
-        this.showTooltip = true;
-      }
-    });
-  },
-  watch: {
-    modelValue(newValue) {
-      // Обновляем историю при изменении modelValue извне
-      if (this.history[this.historyIndex] !== newValue) {
-        this.history = [newValue];
-        this.historyIndex = 0;
-      }
     }
   }
 };

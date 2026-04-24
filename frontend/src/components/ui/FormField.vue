@@ -1,14 +1,27 @@
 <template>
-  <div class="form-field" :class="{ 'form-field--error': error }">
-    <label v-if="label" class="form-field__label">
+  <div
+    class="form-field"
+    :class="{ 'form-field--error': error }"
+  >
+    <label
+      v-if="label"
+      class="form-field__label"
+    >
       {{ label }}
-      <span v-if="required" class="form-field__required">*</span>
+      <span
+        v-if="required"
+        class="form-field__required"
+      >*</span>
     </label>
     <div class="form-field__control">
-      <slot></slot>
+      <slot />
     </div>
     <transition name="error-fade">
-      <div v-if="error" class="form-field__error" role="alert">
+      <div
+        v-if="error"
+        class="form-field__error"
+        role="alert"
+      >
         {{ error }}
       </div>
     </transition>

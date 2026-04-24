@@ -1,10 +1,17 @@
 <template>
   <transition name="panel-slide">
-    <div v-if="show" class="notifications" @click.stop>
+    <div
+      v-if="show"
+      class="notifications"
+      @click.stop
+    >
       <header class="notifications__header">
         <h3 class="notifications__title">
           Уведомления
-          <span v-if="unreadCount > 0" class="notifications__unread-count">({{ unreadCount }})</span>
+          <span
+            v-if="unreadCount > 0"
+            class="notifications__unread-count"
+          >({{ unreadCount }})</span>
         </h3>
         <button
           v-if="notifications.length > 0"
@@ -15,15 +22,27 @@
         </button>
       </header>
 
-      <div v-if="loading && notifications.length === 0" class="notifications__loading">
-        <div class="notifications__spinner"></div>
+      <div
+        v-if="loading && notifications.length === 0"
+        class="notifications__loading"
+      >
+        <div class="notifications__spinner" />
       </div>
 
-      <div v-else-if="notifications.length === 0" class="notifications__empty">
-        <p class="notifications__empty-text">Нет уведомлений</p>
+      <div
+        v-else-if="notifications.length === 0"
+        class="notifications__empty"
+      >
+        <p class="notifications__empty-text">
+          Нет уведомлений
+        </p>
       </div>
 
-      <ul v-else class="notifications__list" role="list">
+      <ul
+        v-else
+        class="notifications__list"
+        role="list"
+      >
         <li
           v-for="item in notifications"
           :key="item.id"
@@ -34,15 +53,25 @@
         >
           <div class="notification-item__content">
             <div class="notification-item__top">
-              <p v-if="item.title" class="notification-item__title">{{ item.title }}</p>
+              <p
+                v-if="item.title"
+                class="notification-item__title"
+              >
+                {{ item.title }}
+              </p>
               <time class="notification-item__time">{{ timeAgo(item.created_at) }}</time>
             </div>
-            <p v-if="item.message" class="notification-item__message">{{ item.message }}</p>
+            <p
+              v-if="item.message"
+              class="notification-item__message"
+            >
+              {{ item.message }}
+            </p>
           </div>
           <button
             class="notification-item__delete"
-            @click.stop="deleteNotification(item.id)"
             aria-label="Удалить уведомление"
+            @click.stop="deleteNotification(item.id)"
           >
             &times;
           </button>

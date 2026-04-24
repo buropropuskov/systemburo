@@ -1,7 +1,9 @@
 <template>
   <div class="requests-view dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Мониторинг запросов</h3>
+      <h3 class="management-title">
+        Мониторинг запросов
+      </h3>
       <div class="header-controls">
         <div class="stats-summary">
           <span class="stat-item">
@@ -18,7 +20,10 @@
           </span>
           <span class="stat-item">
             <span class="stat-label">Ошибки:</span>
-            <span class="stat-value" :class="{ 'stat-error': stats.error_rate > 5 }">
+            <span
+              class="stat-value"
+              :class="{ 'stat-error': stats.error_rate > 5 }"
+            >
               {{ (stats.error_rate || 0).toFixed(1) }}%
             </span>
           </span>
@@ -26,7 +31,10 @@
             <span class="stat-label">RPM:</span>
             <span class="stat-value">{{ (stats.requests_per_minute || 0).toFixed(1) }}</span>
           </span>
-          <span class="stat-item realtime-stat" v-if="realtime.last_minute_count != null">
+          <span
+            v-if="realtime.last_minute_count != null"
+            class="stat-item realtime-stat"
+          >
             <span class="stat-label">Сейчас:</span>
             <span class="stat-value live-value">
               {{ realtime.last_second_count || 0 }}/с
@@ -39,12 +47,24 @@
 
     <div class="chart-section">
       <div class="chart-header">
-        <h4 class="chart-title">Запросы {{ selectedPeriod.title }}</h4>
+        <h4 class="chart-title">
+          Запросы {{ selectedPeriod.title }}
+        </h4>
         <div class="chart-header-actions">
           <span class="chart-interval">интервал: {{ selectedPeriod.intervalHuman }}</span>
           <div class="chart-period-dropdown">
-            <select v-model="chartPeriod" @change="onChartPeriodChange" class="chart-period-select">
-              <option v-for="p in chartPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
+            <select
+              v-model="chartPeriod"
+              class="chart-period-select"
+              @change="onChartPeriodChange"
+            >
+              <option
+                v-for="p in chartPeriods"
+                :key="p.key"
+                :value="p.key"
+              >
+                {{ p.label }}
+              </option>
             </select>
           </div>
         </div>
@@ -53,60 +73,117 @@
         :data="timelineData"
         :height="180"
         color="#4F5BDF"
-        :intervalLabel="selectedPeriod.xAxisLabel"
+        :interval-label="selectedPeriod.xAxisLabel"
       />
     </div>
 
     <div class="filters-bar">
       <SearchComponent
-        :title="'Поиск по логам...'"
         v-model="searchQuery"
+        :title="'Поиск по логам...'"
         @keyup.enter="refreshLogs"
       />
       <div class="filter-controls">
-        <select v-model="filterMethod" @change="refreshLogs" class="filter-select">
-          <option value="">Все методы</option>
-          <option value="GET">GET</option>
-          <option value="POST">POST</option>
-          <option value="PUT">PUT</option>
-          <option value="DELETE">DELETE</option>
-          <option value="PATCH">PATCH</option>
+        <select
+          v-model="filterMethod"
+          class="filter-select"
+          @change="refreshLogs"
+        >
+          <option value="">
+            Все методы
+          </option>
+          <option value="GET">
+            GET
+          </option>
+          <option value="POST">
+            POST
+          </option>
+          <option value="PUT">
+            PUT
+          </option>
+          <option value="DELETE">
+            DELETE
+          </option>
+          <option value="PATCH">
+            PATCH
+          </option>
         </select>
-        <select v-model="filterStatus" @change="refreshLogs" class="filter-select">
-          <option value="">Все статусы</option>
-          <option value="200">200 OK</option>
-          <option value="400">400 Bad Request</option>
-          <option value="401">401 Unauthorized</option>
-          <option value="403">403 Forbidden</option>
-          <option value="404">404 Not Found</option>
-          <option value="500">500 Server Error</option>
+        <select
+          v-model="filterStatus"
+          class="filter-select"
+          @change="refreshLogs"
+        >
+          <option value="">
+            Все статусы
+          </option>
+          <option value="200">
+            200 OK
+          </option>
+          <option value="400">
+            400 Bad Request
+          </option>
+          <option value="401">
+            401 Unauthorized
+          </option>
+          <option value="403">
+            403 Forbidden
+          </option>
+          <option value="404">
+            404 Not Found
+          </option>
+          <option value="500">
+            500 Server Error
+          </option>
         </select>
-        <select v-model="filterUser" @change="refreshLogs" class="filter-select">
-          <option value="">Все пользователи</option>
-          <option v-for="u in users" :key="u.id" :value="u.id">
+        <select
+          v-model="filterUser"
+          class="filter-select"
+          @change="refreshLogs"
+        >
+          <option value="">
+            Все пользователи
+          </option>
+          <option
+            v-for="u in users"
+            :key="u.id"
+            :value="u.id"
+          >
             {{ u.username }}
           </option>
         </select>
         <input
-          type="date"
           v-model="filterStartDate"
-          @change="refreshLogs"
-          class="date-input"
-        />
-        <input
           type="date"
-          v-model="filterEndDate"
-          @change="refreshLogs"
           class="date-input"
-        />
+          @change="refreshLogs"
+        >
+        <input
+          v-model="filterEndDate"
+          type="date"
+          class="date-input"
+          @change="refreshLogs"
+        >
       </div>
-      <button @click="refreshLogs" class="refresh-button">
-        <img src="@/assets/icons/refresh.png" class="refresh-icon" />
+      <button
+        class="refresh-button"
+        @click="refreshLogs"
+      >
+        <img
+          src="@/assets/icons/refresh.png"
+          class="refresh-icon"
+        >
       </button>
-      <button @click="clearFilters" class="clear-filters-btn">
+      <button
+        class="clear-filters-btn"
+        @click="clearFilters"
+      >
         Сбросить
       </button>
-      <button @click="exportLogs" class="export-btn" :disabled="isExporting">
+      <button
+        class="export-btn"
+        :disabled="isExporting"
+        @click="exportLogs"
+      >
         {{ isExporting ? 'Экспорт...' : 'Экспорт' }}
       </button>
     </div>
@@ -115,8 +192,13 @@
       <div class="logs-table-section">
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col time-col" @click="sortBy('created_at')">
-              <p :class="{ 'active-sort': sortField === 'created_at' }">Время</p>
+            <div
+              class="header-col time-col"
+              @click="sortBy('created_at')"
+            >
+              <p :class="{ 'active-sort': sortField === 'created_at' }">
+                Время
+              </p>
               <img
                 src="@/assets/icons/sort.png"
                 class="sort-icon"
@@ -124,10 +206,15 @@
                   'sorted': sortField === 'created_at',
                   'desc': sortField === 'created_at' && sortDirection === 'desc'
                 }"
-              />
+              >
             </div>
-            <div class="header-col method-col" @click="sortBy('method')">
-              <p :class="{ 'active-sort': sortField === 'method' }">Метод</p>
+            <div
+              class="header-col method-col"
+              @click="sortBy('method')"
+            >
+              <p :class="{ 'active-sort': sortField === 'method' }">
+                Метод
+              </p>
               <img
                 src="@/assets/icons/sort.png"
                 class="sort-icon"
@@ -135,10 +222,15 @@
                   'sorted': sortField === 'method',
                   'desc': sortField === 'method' && sortDirection === 'desc'
                 }"
-              />
+              >
             </div>
-            <div class="header-col path-col" @click="sortBy('url')">
-              <p :class="{ 'active-sort': sortField === 'url' }">URL</p>
+            <div
+              class="header-col path-col"
+              @click="sortBy('url')"
+            >
+              <p :class="{ 'active-sort': sortField === 'url' }">
+                URL
+              </p>
               <img
                 src="@/assets/icons/sort.png"
                 class="sort-icon"
@@ -146,10 +238,15 @@
                   'sorted': sortField === 'url',
                   'desc': sortField === 'url' && sortDirection === 'desc'
                 }"
-              />
+              >
             </div>
-            <div class="header-col status-col" @click="sortBy('response_status')">
-              <p :class="{ 'active-sort': sortField === 'response_status' }">Статус</p>
+            <div
+              class="header-col status-col"
+              @click="sortBy('response_status')"
+            >
+              <p :class="{ 'active-sort': sortField === 'response_status' }">
+                Статус
+              </p>
               <img
                 src="@/assets/icons/sort.png"
                 class="sort-icon"
@@ -157,10 +254,15 @@
                   'sorted': sortField === 'response_status',
                   'desc': sortField === 'response_status' && sortDirection === 'desc'
                 }"
-              />
+              >
             </div>
-            <div class="header-col user-col" @click="sortBy('username')">
-              <p :class="{ 'active-sort': sortField === 'username' }">Пользователь</p>
+            <div
+              class="header-col user-col"
+              @click="sortBy('username')"
+            >
+              <p :class="{ 'active-sort': sortField === 'username' }">
+                Пользователь
+              </p>
               <img
                 src="@/assets/icons/sort.png"
                 class="sort-icon"
@@ -168,10 +270,15 @@
                   'sorted': sortField === 'username',
                   'desc': sortField === 'username' && sortDirection === 'desc'
                 }"
-              />
+              >
             </div>
-            <div class="header-col duration-col" @click="sortBy('duration_ms')">
-              <p :class="{ 'active-sort': sortField === 'duration_ms' }">Время</p>
+            <div
+              class="header-col duration-col"
+              @click="sortBy('duration_ms')"
+            >
+              <p :class="{ 'active-sort': sortField === 'duration_ms' }">
+                Время
+              </p>
               <img
                 src="@/assets/icons/sort.png"
                 class="sort-icon"
@@ -179,11 +286,14 @@
                   'sorted': sortField === 'duration_ms',
                   'desc': sortField === 'duration_ms' && sortDirection === 'desc'
                 }"
-              />
+              >
             </div>
           </div>
 
-          <div class="table-body" ref="logsBody">
+          <div
+            ref="logsBody"
+            class="table-body"
+          >
             <div
               v-for="log in logs"
               :key="log.id"
@@ -196,29 +306,44 @@
               @click="selectLog(log)"
             >
               <div class="table-col time-col">
-                <span class="cell-content" :title="formatFullDate(log.created_at)">
+                <span
+                  class="cell-content"
+                  :title="formatFullDate(log.created_at)"
+                >
                   {{ formatTime(log.created_at) }}
                 </span>
               </div>
               <div class="table-col method-col">
-                <span class="method-badge" :class="getMethodClass(log.method)">
+                <span
+                  class="method-badge"
+                  :class="getMethodClass(log.method)"
+                >
                   {{ log.method }}
                 </span>
               </div>
               <div class="table-col path-col">
-                <span class="truncate-text" :title="log.url">
+                <span
+                  class="truncate-text"
+                  :title="log.url"
+                >
                   {{ truncatePath(log.url) }}
                 </span>
               </div>
               <div class="table-col status-col">
-                <span class="status-badge" :class="getStatusClass(log.response_status)">
+                <span
+                  class="status-badge"
+                  :class="getStatusClass(log.response_status)"
+                >
                   {{ log.response_status || 'N/A' }}
                 </span>
               </div>
               <div class="table-col user-col">
                 <span class="cell-content">
                   {{ log.username || 'Аноним' }}
-                  <span v-if="log.user_id" class="user-id">(ID: {{ log.user_id }})</span>
+                  <span
+                    v-if="log.user_id"
+                    class="user-id"
+                  >(ID: {{ log.user_id }})</span>
                 </span>
               </div>
               <div class="table-col duration-col">
@@ -232,9 +357,9 @@
           <div class="table-footer">
             <div class="pagination-controls">
               <button
-                @click="prevPage"
                 :disabled="pagination.page <= 1"
                 class="pagination-btn"
+                @click="prevPage"
               >
                 &larr;
               </button>
@@ -242,16 +367,26 @@
                 Страница {{ pagination.page }} из {{ totalPages }}
               </span>
               <button
-                @click="nextPage"
                 :disabled="pagination.page >= totalPages"
                 class="pagination-btn"
+                @click="nextPage"
               >
                 &rarr;
               </button>
-              <select v-model="perPage" @change="changePageSize" class="page-size-select">
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
+              <select
+                v-model="perPage"
+                class="page-size-select"
+                @change="changePageSize"
+              >
+                <option value="20">
+                  20
+                </option>
+                <option value="50">
+                  50
+                </option>
+                <option value="100">
+                  100
+                </option>
               </select>
             </div>
             <span class="items-count">
@@ -261,11 +396,22 @@
         </div>
       </div>
 
-      <div class="log-details-section" :class="{'with-details': selectedLog}">
-        <div v-if="selectedLog" class="log-details-content">
+      <div
+        class="log-details-section"
+        :class="{'with-details': selectedLog}"
+      >
+        <div
+          v-if="selectedLog"
+          class="log-details-content"
+        >
           <div class="details-header">
-            <h3 class="details-title">Детали запроса</h3>
-            <button @click="selectedLog = null" class="close-details-btn">
+            <h3 class="details-title">
+              Детали запроса
+            </h3>
+            <button
+              class="close-details-btn"
+              @click="selectedLog = null"
+            >
               &times;
             </button>
           </div>
@@ -284,7 +430,10 @@
 
               <div class="detail-group">
                 <label class="detail-label">Метод:</label>
-                <span class="detail-value method-value" :class="getMethodClass(selectedLog.method)">
+                <span
+                  class="detail-value method-value"
+                  :class="getMethodClass(selectedLog.method)"
+                >
                   {{ selectedLog.method }}
                 </span>
               </div>
@@ -298,7 +447,10 @@
 
               <div class="detail-group">
                 <label class="detail-label">Статус ответа:</label>
-                <span class="detail-value status-value" :class="getStatusClass(selectedLog.response_status)">
+                <span
+                  class="detail-value status-value"
+                  :class="getStatusClass(selectedLog.response_status)"
+                >
                   {{ selectedLog.response_status || 'N/A' }}
                 </span>
               </div>
@@ -312,35 +464,56 @@
                 <label class="detail-label">Пользователь:</label>
                 <span class="detail-value">
                   {{ selectedLog.username || 'Аноним' }}
-                  <span v-if="selectedLog.user_id" class="user-id">(ID: {{ selectedLog.user_id }})</span>
+                  <span
+                    v-if="selectedLog.user_id"
+                    class="user-id"
+                  >(ID: {{ selectedLog.user_id }})</span>
                 </span>
               </div>
 
-              <div class="detail-group" v-if="selectedLog.headers">
+              <div
+                v-if="selectedLog.headers"
+                class="detail-group"
+              >
                 <label class="detail-label">Заголовки:</label>
                 <pre class="detail-value code-block">{{ formatJson(selectedLog.headers) }}</pre>
               </div>
 
-              <div class="detail-group" v-if="selectedLog.request_body">
+              <div
+                v-if="selectedLog.request_body"
+                class="detail-group"
+              >
                 <label class="detail-label">Тело запроса:</label>
                 <pre class="detail-value code-block request-body">{{ formatJson(selectedLog.request_body) }}</pre>
               </div>
 
-              <div class="detail-group" v-if="selectedLog.response_body">
+              <div
+                v-if="selectedLog.response_body"
+                class="detail-group"
+              >
                 <label class="detail-label">Тело ответа:</label>
                 <pre class="detail-value code-block response-body">{{ formatJson(selectedLog.response_body) }}</pre>
               </div>
             </div>
           </div>
         </div>
-        <div v-else class="no-selection-message">
+        <div
+          v-else
+          class="no-selection-message"
+        >
           <p>Выберите запрос для просмотра деталей</p>
         </div>
       </div>
     </div>
 
-    <div v-if="isLoading" class="loading-overlay">
-      <LoaderSpinner size="large" :label="''" />
+    <div
+      v-if="isLoading"
+      class="loading-overlay"
+    >
+      <LoaderSpinner
+        size="large"
+        :label="''"
+      />
     </div>
   </div>
 </template>
@@ -414,6 +587,19 @@ export default {
     selectedPeriod() {
       return this.chartPeriods.find(p => p.key === this.chartPeriod) || this.chartPeriods[4];
     }
+  },
+  async mounted() {
+    await Promise.all([
+      this.fetchLogs(),
+      this.fetchStats(),
+      this.fetchTimeline(),
+      this.fetchUsers(),
+      this.fetchRealtime()
+    ]);
+    this.startPolling();
+  },
+  beforeUnmount() {
+    this.stopPolling();
   },
   methods: {
     buildFilterParams() {
@@ -709,19 +895,6 @@ export default {
         notification.remove();
       }, 3000);
     }
-  },
-  async mounted() {
-    await Promise.all([
-      this.fetchLogs(),
-      this.fetchStats(),
-      this.fetchTimeline(),
-      this.fetchUsers(),
-      this.fetchRealtime()
-    ]);
-    this.startPolling();
-  },
-  beforeUnmount() {
-    this.stopPolling();
   }
 };
 </script>

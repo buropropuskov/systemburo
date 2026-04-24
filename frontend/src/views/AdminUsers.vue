@@ -1,7 +1,9 @@
 <template>
   <section class="admin-users">
     <header class="admin-users__header">
-      <h2 class="admin-users__title">Управление пользователями</h2>
+      <h2 class="admin-users__title">
+        Управление пользователями
+      </h2>
       <span class="admin-users__count">{{ filteredUsers.length }} из {{ users.length }}</span>
     </header>
 
@@ -15,17 +17,28 @@
             class="admin-users__search-input"
             placeholder="Поиск по логину, ФИО, организации..."
             aria-label="Поиск пользователей"
-          />
+          >
         </div>
 
         <div class="admin-users__table-wrap">
-          <table class="admin-users__table" aria-label="Список пользователей">
+          <table
+            class="admin-users__table"
+            aria-label="Список пользователей"
+          >
             <thead>
               <tr>
-                <th class="admin-users__th">Логин</th>
-                <th class="admin-users__th">ФИО</th>
-                <th class="admin-users__th">Организация</th>
-                <th class="admin-users__th admin-users__th--type">Тип</th>
+                <th class="admin-users__th">
+                  Логин
+                </th>
+                <th class="admin-users__th">
+                  ФИО
+                </th>
+                <th class="admin-users__th">
+                  Организация
+                </th>
+                <th class="admin-users__th admin-users__th--type">
+                  Тип
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -38,17 +51,29 @@
                 @click="selectUser(user)"
                 @keydown.enter="selectUser(user)"
               >
-                <td class="admin-users__td">{{ user.username }}</td>
-                <td class="admin-users__td">{{ formatUserName(user) }}</td>
-                <td class="admin-users__td">{{ user.organization || '—' }}</td>
+                <td class="admin-users__td">
+                  {{ user.username }}
+                </td>
+                <td class="admin-users__td">
+                  {{ formatUserName(user) }}
+                </td>
+                <td class="admin-users__td">
+                  {{ user.organization || '—' }}
+                </td>
                 <td class="admin-users__td admin-users__td--type">
-                  <StatusBadge :status="user.user_type || 'Неизвестно'" variant="badge" />
+                  <StatusBadge
+                    :status="user.user_type || 'Неизвестно'"
+                    variant="badge"
+                  />
                 </td>
               </tr>
             </tbody>
           </table>
 
-          <div v-if="filteredUsers.length === 0 && !loading" class="admin-users__empty">
+          <div
+            v-if="filteredUsers.length === 0 && !loading"
+            class="admin-users__empty"
+          >
             <p class="admin-users__empty-text">
               {{ searchQuery ? 'Пользователи не найдены' : 'Нет пользователей' }}
             </p>
@@ -56,23 +81,36 @@
 
           <SkeletonTransition :loading="loading">
             <template #skeleton>
-              <SkeletonTable :rows="8" :columns="4" />
+              <SkeletonTable
+                :rows="8"
+                :columns="4"
+              />
             </template>
-            <span></span>
+            <span />
           </SkeletonTransition>
         </div>
       </div>
 
       <!-- Правая панель: детали -->
       <div class="admin-users__detail-panel">
-        <div v-if="!selectedUser" class="admin-users__no-selection">
-          <p class="admin-users__no-selection-text">Выберите пользователя из списка</p>
+        <div
+          v-if="!selectedUser"
+          class="admin-users__no-selection"
+        >
+          <p class="admin-users__no-selection-text">
+            Выберите пользователя из списка
+          </p>
         </div>
 
         <template v-else>
           <div class="admin-users__detail-header">
-            <h3 class="admin-users__detail-title">{{ selectedUser.username }}</h3>
-            <StatusBadge :status="getUserTypeName(editForm.type_id) || 'Неизвестно'" variant="badge" />
+            <h3 class="admin-users__detail-title">
+              {{ selectedUser.username }}
+            </h3>
+            <StatusBadge
+              :status="getUserTypeName(editForm.type_id) || 'Неизвестно'"
+              variant="badge"
+            />
           </div>
 
           <div class="admin-users__tabs">
@@ -93,38 +131,65 @@
           </div>
 
           <!-- Таб "Основные" -->
-          <div v-if="activeTab === 'info'" class="admin-users__tab-content">
+          <div
+            v-if="activeTab === 'info'"
+            class="admin-users__tab-content"
+          >
             <div class="admin-users__form">
               <div class="admin-users__form-row admin-users__form-row--three">
                 <div class="admin-users__field">
                   <label class="admin-users__label">Фамилия</label>
-                  <input v-model="editForm.last_name" type="text" class="admin-users__input" />
+                  <input
+                    v-model="editForm.last_name"
+                    type="text"
+                    class="admin-users__input"
+                  >
                 </div>
                 <div class="admin-users__field">
                   <label class="admin-users__label">Имя</label>
-                  <input v-model="editForm.first_name" type="text" class="admin-users__input" />
+                  <input
+                    v-model="editForm.first_name"
+                    type="text"
+                    class="admin-users__input"
+                  >
                 </div>
                 <div class="admin-users__field">
                   <label class="admin-users__label">Отчество</label>
-                  <input v-model="editForm.middle_name" type="text" class="admin-users__input" />
+                  <input
+                    v-model="editForm.middle_name"
+                    type="text"
+                    class="admin-users__input"
+                  >
                 </div>
               </div>
 
               <div class="admin-users__form-row">
                 <div class="admin-users__field">
                   <label class="admin-users__label">Должность</label>
-                  <input v-model="editForm.position" type="text" class="admin-users__input" />
+                  <input
+                    v-model="editForm.position"
+                    type="text"
+                    class="admin-users__input"
+                  >
                 </div>
               </div>
 
               <div class="admin-users__form-row admin-users__form-row--two">
                 <div class="admin-users__field">
                   <label class="admin-users__label">Email</label>
-                  <input v-model="editForm.email" type="email" class="admin-users__input" />
+                  <input
+                    v-model="editForm.email"
+                    type="email"
+                    class="admin-users__input"
+                  >
                 </div>
                 <div class="admin-users__field">
                   <label class="admin-users__label">Телефон</label>
-                  <input v-model="editForm.phone" type="tel" class="admin-users__input" />
+                  <input
+                    v-model="editForm.phone"
+                    type="tel"
+                    class="admin-users__input"
+                  >
                 </div>
               </div>
 
@@ -188,49 +253,86 @@
           </div>
 
           <!-- Таб "Разрешения" -->
-          <div v-if="activeTab === 'permissions'" class="admin-users__tab-content">
+          <div
+            v-if="activeTab === 'permissions'"
+            class="admin-users__tab-content"
+          >
             <SkeletonTransition :loading="loadingPermissions">
               <template #skeleton>
                 <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
-                  <SkeletonLine width="40%" height="14px" />
-                  <SkeletonLine width="100%" height="12px" />
-                  <SkeletonLine width="100%" height="12px" />
-                  <SkeletonLine width="100%" height="12px" />
-                  <SkeletonLine width="35%" height="14px" />
-                  <SkeletonLine width="100%" height="12px" />
-                  <SkeletonLine width="100%" height="12px" />
+                  <SkeletonLine
+                    width="40%"
+                    height="14px"
+                  />
+                  <SkeletonLine
+                    width="100%"
+                    height="12px"
+                  />
+                  <SkeletonLine
+                    width="100%"
+                    height="12px"
+                  />
+                  <SkeletonLine
+                    width="100%"
+                    height="12px"
+                  />
+                  <SkeletonLine
+                    width="35%"
+                    height="14px"
+                  />
+                  <SkeletonLine
+                    width="100%"
+                    height="12px"
+                  />
+                  <SkeletonLine
+                    width="100%"
+                    height="12px"
+                  />
                 </div>
               </template>
 
-            <div v-if="permissionTree.length === 0" class="admin-users__empty">
-              <p class="admin-users__empty-text">Нет доступных разрешений</p>
-            </div>
-
-            <div v-else class="admin-users__permissions">
               <div
-                v-for="category in permissionTree"
-                :key="category.category"
-                class="admin-users__perm-group"
+                v-if="permissionTree.length === 0"
+                class="admin-users__empty"
               >
-                <h4 class="admin-users__perm-category">{{ category.category }}</h4>
-                <div class="admin-users__perm-list">
-                  <label
-                    v-for="perm in category.permissions"
-                    :key="perm.key"
-                    class="admin-users__perm-item"
-                  >
-                    <input
-                      type="checkbox"
-                      class="admin-users__checkbox"
-                      :checked="userPermissions[perm.key] === true"
-                      @change="onPermissionChange(perm.key, $event.target.checked)"
-                    />
-                    <span class="admin-users__perm-label">{{ perm.label }}</span>
-                    <span v-if="perm.description" class="admin-users__perm-desc">{{ perm.description }}</span>
-                  </label>
+                <p class="admin-users__empty-text">
+                  Нет доступных разрешений
+                </p>
+              </div>
+
+              <div
+                v-else
+                class="admin-users__permissions"
+              >
+                <div
+                  v-for="category in permissionTree"
+                  :key="category.category"
+                  class="admin-users__perm-group"
+                >
+                  <h4 class="admin-users__perm-category">
+                    {{ category.category }}
+                  </h4>
+                  <div class="admin-users__perm-list">
+                    <label
+                      v-for="perm in category.permissions"
+                      :key="perm.key"
+                      class="admin-users__perm-item"
+                    >
+                      <input
+                        type="checkbox"
+                        class="admin-users__checkbox"
+                        :checked="userPermissions[perm.key] === true"
+                        @change="onPermissionChange(perm.key, $event.target.checked)"
+                      >
+                      <span class="admin-users__perm-label">{{ perm.label }}</span>
+                      <span
+                        v-if="perm.description"
+                        class="admin-users__perm-desc"
+                      >{{ perm.description }}</span>
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
             </SkeletonTransition>
 
             <div class="admin-users__actions">
@@ -265,7 +367,7 @@
           class="admin-users__input"
           placeholder="Введите новый пароль"
           @keydown.enter="resetPassword"
-        />
+        >
         <button
           class="admin-users__btn admin-users__btn--icon"
           type="button"
@@ -284,7 +386,10 @@
       </button>
 
       <template #actions>
-        <button class="admin-users__btn admin-users__btn--outline" @click="closePasswordModal">
+        <button
+          class="admin-users__btn admin-users__btn--outline"
+          @click="closePasswordModal"
+        >
           Отмена
         </button>
         <button
@@ -311,7 +416,10 @@
       </p>
 
       <template #actions>
-        <button class="admin-users__btn admin-users__btn--outline" @click="showDeleteModal = false">
+        <button
+          class="admin-users__btn admin-users__btn--outline"
+          @click="showDeleteModal = false"
+        >
           Отмена
         </button>
         <button

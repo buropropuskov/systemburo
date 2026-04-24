@@ -1,242 +1,317 @@
 <template>
-    <div class="data__completion">
-        <div class="completion__header">
-            <h3>Добавление Т/С</h3>
-            <button class="completion__button" @click="openExistingCarsModal">
-                Добавить существующую(-ие)
-            </button>
-        </div>
-
-        <!-- Отображение количества выбранных существующих машин -->
-        <div v-if="selectedExistingCars.length > 0" class="existing-cars-info">
-            <div class="existing-cars-header">
-                <span class="existing-cars-count">Машин добавлено: {{ selectedExistingCars.length }}</span>
-                <div class="existing-cars-actions">
-                    <button class="view-cars-btn" @click="openExistingCarsModal">Просмотреть</button>
-                    <button class="add-existing-btn" @click="addExistingCars" :disabled="!canAddExistingCars">
-                        Добавить
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Форма для добавления новой машины -->
-        <div v-else>
-            <div class="completion__format">
-                <div class="format__header">
-                    <label class="format__label">Формат номеров</label>
-                    <div class="format-actions">
-                        <button class="cancel-edit-btn" @click="cancelEdit" v-if="editingVehicle">
-                            Отменить
-                        </button>
-                        <button 
-                            class="add-button" 
-                            @click="addVehicle"
-                            :disabled="!canAddVehicle"
-                            @mouseenter="showTooltip = true"
-                            @mouseleave="showTooltip = false"
-                        >
-                            {{ editingVehicle ? 'Применить' : 'Добавить' }}
-                        </button>
-                        <!-- Подсказка для кнопки -->
-                        <div v-if="showTooltip && !canAddVehicle" class="tooltip">
-                            <div class="tooltip-content">
-                                {{ getTooltipMessage }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="format__dropdown">
-                    <button 
-                        class="dropdown__button" 
-                        @click="toggleFormatDropdown"
-                        :disabled="editingVehicle && editingVehicle.isExisting"
-                    >
-                        <div class="button__content">
-                            <span class="button__text">{{ selectedFormatText }}</span>
-                            <img src="@/assets/icons/arrow.png" class="button__arrow" :class="{ 'button__arrow--open': isFormatDropdownOpen }" />
-                        </div>
-                    </button>
-                    <transition name="dropdown">
-                        <div v-if="isFormatDropdownOpen" class="dropdown__menu">
-                            <div 
-                                v-for="format in availableFormats" 
-                                :key="format.format.id"
-                                class="dropdown__item" 
-                                @click="selectFormat(format)"
-                            >
-                                <span class="item__text">{{ format.format.name }}</span>
-                            </div>
-                        </div>
-                    </transition>
-                </div>
-            </div>
-            <div class="completion__fields">
-                <div class="completion__number">
-                    <div class="completion__number-header">
-                        <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                        <div class="number-fact">
-                            <input 
-                                class="fact-checkbox" 
-                                type="checkbox" 
-                                v-model="isNumberByFact"
-                                @change="handleNumberByFactChange"
-                                :disabled="editingVehicle && editingVehicle.isExisting"
-                            />
-                            <p class="fact-text">по факту</p>
-                        </div>
-                    </div>
-                    <!-- Поле "по факту" -->
-                    <div class="number__field number__field--fact" v-if="isNumberByFact">
-                        <input 
-                            class="number__input number__input--fact" 
-                            value="По факту"
-                            readonly
-                        />
-                    </div>
-                    
-                    <!-- Динамический формат из базы данных -->
-                    <div class="number__field" v-else-if="selectedFormat">
-                        <input 
-                            v-for="(cell, index) in selectedFormat.cells" 
-                            :key="index"
-                            class="number__input" 
-                            :placeholder="getPlaceholder(cell)"
-                            v-model="numberParts[index]"
-                            @input="validatePart(index, $event, cell)"
-                            @blur="formatPart(index, cell)"
-                            :maxlength="cell.max_length"
-                            :style="{ width: getInputWidth(cell) }"
-                            :disabled="editingVehicle && editingVehicle.isExisting"
-                        />
-                    </div>
-                    <div v-else class="no-format-message">
-                        Выберите формат номера
-                    </div>
-
-                    <!-- Блок предупреждения об активной заявке для номера -->
-                    
-                </div>
-                
-                <div class="completion__mark">
-                    <div class="completion__mark-header">
-                        <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                        <div class="mark-fact">
-                            <input 
-                                class="fact-checkbox" 
-                                type="checkbox" 
-                                v-model="isMarkByFact"
-                                @change="handleMarkByFactChange"
-                            />
-                            <p class="fact-text">по факту</p>
-                        </div>
-                    </div>
-                    <div class="mark__field mark__field--fact" v-if="isMarkByFact">
-                        <input 
-                            class="mark__input mark__input--fact" 
-                            value="По факту"
-                            readonly
-                        />
-                    </div>
-                    <div class="mark__field" v-else>
-                        <div class="mark__dropdown">
-                            <button class="mark__dropdown-button" @click="toggleMarkDropdown">
-                                <div class="mark__button-content">
-                                    <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                                    <img src="@/assets/icons/arrow.png" class="mark__button-arrow" :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }" />
-                                </div>
-                            </button>
-                            <transition name="dropdown">
-                                <div v-if="isMarkDropdownOpen" class="mark__dropdown-menu">
-                                    <div class="mark__search">
-                                        <input 
-                                            class="mark__search-input" 
-                                            placeholder="Поиск марки..."
-                                            v-model="markSearch"
-                                            @input="filterMarks"
-                                        />
-                                    </div>
-                                    <div class="mark__dropdown-list">
-                                        <div 
-                                            v-for="mark in filteredMarks" 
-                                            :key="mark"
-                                            class="mark__dropdown-item"
-                                            @click="selectMark(mark)"
-                                        >
-                                            <span class="mark__item-text">{{ mark }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </transition>
-                        </div>
-                    </div>
-                </div>
-                
-            </div>
-            <div v-if="activeCarInfo && !isNumberByFact" class="active-warning">
-                     
-                        <div class="warning-text">
-                            <p class="warning-title">На это авто уже есть активная заявка!</p>
-                            <p class="warning-details">
-                                Действует до: {{ formatDate(activeCarInfo.entry_date_to) }} {{ formatTime(activeCarInfo.entry_time_to) }}<br>
-                                Заявка {{ activeCarInfo.application_number }}<br>
-                                Организация: {{ activeCarInfo.organization_name || 'Не указана' }}<br>
-                                Компания: {{ activeCarInfo.company_name || 'Не указана' }}
-                            </p>
-                        </div>
-                    </div>
-        </div>
-
-        <!-- Места разгрузки -->
-        <div class="completion__unloading">
-            <label class="input__label">Места разгрузки (выбор) <span class="required">*</span></label>
-            <div class="unloading__grid" v-if="!loadingUnloadingPlaces && allUnloadingPlaces.length > 0">
-                <div 
-                    v-for="place in allUnloadingPlaces" 
-                    :key="place.id"
-                    class="unloading__item"
-                    :class="{ 
-                        'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
-                        'unloading__item--attached': attachedPlacesIds.includes(place.id),
-                        'unloading__item--inactive': place.status !== 'active'
-                    }"
-                    @click="toggleUnloadingPlace(place)"
-                    @mouseenter="showInactiveTooltip(place, $event)"
-                    @mouseleave="hideInactiveTooltip"
-                >
-                    {{ place.name }}
-                </div>
-            </div>
-            <div v-else-if="loadingUnloadingPlaces" class="loading-message">
-                Загрузка мест разгрузки...
-            </div>
-            <div v-else class="no-places-message">
-                Нет доступных мест разгрузки
-            </div>
-            <div v-if="errors.unloadingPlaces" class="error-message">{{ errors.unloadingPlaces }}</div>
-        </div>
-
-        <!-- Tooltip для неактивных мест -->
-        <div v-if="inactiveTooltip.visible" 
-             class="inactive-tooltip"
-             :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
-        >
-            <div class="inactive-tooltip-content">
-                {{ inactiveTooltip.text }}
-            </div>
-        </div>
-
-        <!-- Модальное окно выбора существующих машин -->
-        <ExistingCarsModal
-            :visible="showExistingCarsModal"
-            :already-added-vehicles="existingVehicles"
-            :user-organization-id="userOrganizationId"
-            :user-company-id="userCompanyId"
-            :initial-selected-cars="selectedExistingCars"
-            @cars-selected="onExistingCarsSelected"
-            @close="closeExistingCarsModal"
-        />
+  <div class="data__completion">
+    <div class="completion__header">
+      <h3>Добавление Т/С</h3>
+      <button
+        class="completion__button"
+        @click="openExistingCarsModal"
+      >
+        Добавить существующую(-ие)
+      </button>
     </div>
+
+    <!-- Отображение количества выбранных существующих машин -->
+    <div
+      v-if="selectedExistingCars.length > 0"
+      class="existing-cars-info"
+    >
+      <div class="existing-cars-header">
+        <span class="existing-cars-count">Машин добавлено: {{ selectedExistingCars.length }}</span>
+        <div class="existing-cars-actions">
+          <button
+            class="view-cars-btn"
+            @click="openExistingCarsModal"
+          >
+            Просмотреть
+          </button>
+          <button
+            class="add-existing-btn"
+            :disabled="!canAddExistingCars"
+            @click="addExistingCars"
+          >
+            Добавить
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Форма для добавления новой машины -->
+    <div v-else>
+      <div class="completion__format">
+        <div class="format__header">
+          <label class="format__label">Формат номеров</label>
+          <div class="format-actions">
+            <button
+              v-if="editingVehicle"
+              class="cancel-edit-btn"
+              @click="cancelEdit"
+            >
+              Отменить
+            </button>
+            <button 
+              class="add-button" 
+              :disabled="!canAddVehicle"
+              @click="addVehicle"
+              @mouseenter="showTooltip = true"
+              @mouseleave="showTooltip = false"
+            >
+              {{ editingVehicle ? 'Применить' : 'Добавить' }}
+            </button>
+            <!-- Подсказка для кнопки -->
+            <div
+              v-if="showTooltip && !canAddVehicle"
+              class="tooltip"
+            >
+              <div class="tooltip-content">
+                {{ getTooltipMessage }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="format__dropdown">
+          <button 
+            class="dropdown__button" 
+            :disabled="editingVehicle && editingVehicle.isExisting"
+            @click="toggleFormatDropdown"
+          >
+            <div class="button__content">
+              <span class="button__text">{{ selectedFormatText }}</span>
+              <img
+                src="@/assets/icons/arrow.png"
+                class="button__arrow"
+                :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+              >
+            </div>
+          </button>
+          <transition name="dropdown">
+            <div
+              v-if="isFormatDropdownOpen"
+              class="dropdown__menu"
+            >
+              <div 
+                v-for="format in availableFormats" 
+                :key="format.format.id"
+                class="dropdown__item" 
+                @click="selectFormat(format)"
+              >
+                <span class="item__text">{{ format.format.name }}</span>
+              </div>
+            </div>
+          </transition>
+        </div>
+      </div>
+      <div class="completion__fields">
+        <div class="completion__number">
+          <div class="completion__number-header">
+            <label class="input__label">Номер Т/C <span class="required">*</span></label>
+            <div class="number-fact">
+              <input 
+                v-model="isNumberByFact" 
+                class="fact-checkbox" 
+                type="checkbox"
+                :disabled="editingVehicle && editingVehicle.isExisting"
+                @change="handleNumberByFactChange"
+              >
+              <p class="fact-text">
+                по факту
+              </p>
+            </div>
+          </div>
+          <!-- Поле "по факту" -->
+          <div
+            v-if="isNumberByFact"
+            class="number__field number__field--fact"
+          >
+            <input 
+              class="number__input number__input--fact" 
+              value="По факту"
+              readonly
+            >
+          </div>
+                    
+          <!-- Динамический формат из базы данных -->
+          <div
+            v-else-if="selectedFormat"
+            class="number__field"
+          >
+            <input 
+              v-for="(cell, index) in selectedFormat.cells" 
+              :key="index"
+              v-model="numberParts[index]" 
+              class="number__input"
+              :placeholder="getPlaceholder(cell)"
+              :maxlength="cell.max_length"
+              :style="{ width: getInputWidth(cell) }"
+              :disabled="editingVehicle && editingVehicle.isExisting"
+              @input="validatePart(index, $event, cell)"
+              @blur="formatPart(index, cell)"
+            >
+          </div>
+          <div
+            v-else
+            class="no-format-message"
+          >
+            Выберите формат номера
+          </div>
+
+          <!-- Блок предупреждения об активной заявке для номера -->
+        </div>
+                
+        <div class="completion__mark">
+          <div class="completion__mark-header">
+            <label class="input__label">Марка Т/С <span class="required">*</span></label>
+            <div class="mark-fact">
+              <input 
+                v-model="isMarkByFact" 
+                class="fact-checkbox" 
+                type="checkbox"
+                @change="handleMarkByFactChange"
+              >
+              <p class="fact-text">
+                по факту
+              </p>
+            </div>
+          </div>
+          <div
+            v-if="isMarkByFact"
+            class="mark__field mark__field--fact"
+          >
+            <input 
+              class="mark__input mark__input--fact" 
+              value="По факту"
+              readonly
+            >
+          </div>
+          <div
+            v-else
+            class="mark__field"
+          >
+            <div class="mark__dropdown">
+              <button
+                class="mark__dropdown-button"
+                @click="toggleMarkDropdown"
+              >
+                <div class="mark__button-content">
+                  <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                  <img
+                    src="@/assets/icons/arrow.png"
+                    class="mark__button-arrow"
+                    :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                  >
+                </div>
+              </button>
+              <transition name="dropdown">
+                <div
+                  v-if="isMarkDropdownOpen"
+                  class="mark__dropdown-menu"
+                >
+                  <div class="mark__search">
+                    <input 
+                      v-model="markSearch" 
+                      class="mark__search-input"
+                      placeholder="Поиск марки..."
+                      @input="filterMarks"
+                    >
+                  </div>
+                  <div class="mark__dropdown-list">
+                    <div 
+                      v-for="mark in filteredMarks" 
+                      :key="mark"
+                      class="mark__dropdown-item"
+                      @click="selectMark(mark)"
+                    >
+                      <span class="mark__item-text">{{ mark }}</span>
+                    </div>
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        v-if="activeCarInfo && !isNumberByFact"
+        class="active-warning"
+      >
+        <div class="warning-text">
+          <p class="warning-title">
+            На это авто уже есть активная заявка!
+          </p>
+          <p class="warning-details">
+            Действует до: {{ formatDate(activeCarInfo.entry_date_to) }} {{ formatTime(activeCarInfo.entry_time_to) }}<br>
+            Заявка {{ activeCarInfo.application_number }}<br>
+            Организация: {{ activeCarInfo.organization_name || 'Не указана' }}<br>
+            Компания: {{ activeCarInfo.company_name || 'Не указана' }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Места разгрузки -->
+    <div class="completion__unloading">
+      <label class="input__label">Места разгрузки (выбор) <span class="required">*</span></label>
+      <div
+        v-if="!loadingUnloadingPlaces && allUnloadingPlaces.length > 0"
+        class="unloading__grid"
+      >
+        <div 
+          v-for="place in allUnloadingPlaces" 
+          :key="place.id"
+          class="unloading__item"
+          :class="{ 
+            'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
+            'unloading__item--attached': attachedPlacesIds.includes(place.id),
+            'unloading__item--inactive': place.status !== 'active'
+          }"
+          @click="toggleUnloadingPlace(place)"
+          @mouseenter="showInactiveTooltip(place, $event)"
+          @mouseleave="hideInactiveTooltip"
+        >
+          {{ place.name }}
+        </div>
+      </div>
+      <div
+        v-else-if="loadingUnloadingPlaces"
+        class="loading-message"
+      >
+        Загрузка мест разгрузки...
+      </div>
+      <div
+        v-else
+        class="no-places-message"
+      >
+        Нет доступных мест разгрузки
+      </div>
+      <div
+        v-if="errors.unloadingPlaces"
+        class="error-message"
+      >
+        {{ errors.unloadingPlaces }}
+      </div>
+    </div>
+
+    <!-- Tooltip для неактивных мест -->
+    <div
+      v-if="inactiveTooltip.visible" 
+      class="inactive-tooltip"
+      :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
+    >
+      <div class="inactive-tooltip-content">
+        {{ inactiveTooltip.text }}
+      </div>
+    </div>
+
+    <!-- Модальное окно выбора существующих машин -->
+    <ExistingCarsModal
+      :visible="showExistingCarsModal"
+      :already-added-vehicles="existingVehicles"
+      :user-organization-id="userOrganizationId"
+      :user-company-id="userCompanyId"
+      :initial-selected-cars="selectedExistingCars"
+      @cars-selected="onExistingCarsSelected"
+      @close="closeExistingCarsModal"
+    />
+  </div>
 </template>
 
 <script>
@@ -366,6 +441,38 @@ export default {
             
             return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected;
         },
+    },
+    watch: {
+        // Следим за изменениями частей номера для проверки активности
+        numberParts: {
+            deep: true,
+            handler() {
+                this.checkVehicleActive();
+            }
+        }
+    },
+    async mounted() {
+        await Promise.all([
+            this.loadLicensePlateFormats(),
+            this.loadUnloadingPlaces()
+        ]);
+        
+        this.filteredMarks = this.marks;
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.format__dropdown')) {
+                this.isFormatDropdownOpen = false;
+            }
+            
+            if (!e.target.closest('.mark__dropdown')) {
+                this.isMarkDropdownOpen = false;
+            }
+        });
+    },
+    beforeUnmount() {
+        if (this.checkingTimeout) {
+            clearTimeout(this.checkingTimeout);
+        }
     },
     methods: {
         // Новый метод для проверки активной заявки
@@ -797,38 +904,6 @@ export default {
 
             // Проверяем активность после смены формата
             this.checkVehicleActive();
-        }
-    },
-    watch: {
-        // Следим за изменениями частей номера для проверки активности
-        numberParts: {
-            deep: true,
-            handler() {
-                this.checkVehicleActive();
-            }
-        }
-    },
-    async mounted() {
-        await Promise.all([
-            this.loadLicensePlateFormats(),
-            this.loadUnloadingPlaces()
-        ]);
-        
-        this.filteredMarks = this.marks;
-
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.format__dropdown')) {
-                this.isFormatDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.mark__dropdown')) {
-                this.isMarkDropdownOpen = false;
-            }
-        });
-    },
-    beforeUnmount() {
-        if (this.checkingTimeout) {
-            clearTimeout(this.checkingTimeout);
         }
     }
 }

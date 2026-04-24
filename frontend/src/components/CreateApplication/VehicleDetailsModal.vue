@@ -1,203 +1,310 @@
 <template>
-    <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @mousedown="onOverlayMousedown" @mouseup="onOverlayMouseup">
-            <div class="modal-wrapper">
-                <!-- Основное модальное окно с деталями ТС -->
-                <div
-                    class="modal-content compact-modal main-modal"
-                    :class="{ 'shifted': isMainShifted }"
-                    @mousedown.stop
-                >
-                    <div class="modal-header">
-                        <h3 class="modal-title">{{ modalTitle }}</h3>
-                        <div class="header-actions" v-if="showCarFeatures">
-                            <button class="history-btn" @click="openCarHistory">
-                                <span>Полная история</span>
-                            </button>
-                            <button v-if="source !== 'application'" class="application-btn" @click="openApplication">
-                                <span>Открыть заявку</span>
-                            </button>
-                        </div>
-                        <button @click="close" class="modal-close">
-                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <div class="modal-body">
-                        <!-- Блок предупреждения об активной заявке -->
-                        <div v-if="activeInfo" class="active-warning-section">
-                            <div class="warning-content">
-                                <div class="warning-text">
-                                    <p class="warning-title">На это авто уже есть активная заявка!</p>
-                                    <p class="warning-details">
-                                        Действует до: {{ formatDate(activeInfo.entry_date_to) }} {{ formatTime(activeInfo.entry_time_to) }}<br>
-                                        Заявка №{{ activeInfo.application_number }}<br>
-                                        Организация: {{ activeInfo.organization_name || 'Не указана' }}<br>
-                                        Компания: {{ activeInfo.company_name || 'Не указана' }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="vehicle-details" v-if="vehicle">
-                            <!-- Секция Основная информация -->
-                            <div class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Основная информация</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="details-grid two-columns">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Номер Т/С:</span>
-                                            <span class="detail-value">{{ vehicle.plateNumber || 'Не указано' }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Марка:</span>
-                                            <span class="detail-value">{{ vehicle.mark || 'Не указано' }}</span>
-                                        </div>
-                                        <div v-if="getFormatName(vehicle.formatId)" class="detail-item full-width">
-                                            <span class="detail-label">Формат номера:</span>
-                                            <span class="detail-value">{{ getFormatName(vehicle.formatId) }}</span>
-                                        </div>
-                                        <div v-if="vehicle.organization" class="detail-item">
-                                            <span class="detail-label">Организация:</span>
-                                            <span class="detail-value">{{ vehicle.organization }}</span>
-                                        </div>
-                                        <div v-if="vehicle.company" class="detail-item">
-                                            <span class="detail-label">Компания:</span>
-                                            <span class="detail-value">{{ vehicle.company }}</span>
-                                        </div>
-                                        <div v-if="vehicle.entry_date_to" class="detail-item">
-                                            <span class="detail-label">Действует до:</span>
-                                            <span class="detail-value">{{ formatDate(vehicle.entry_date_to) }}</span>
-                                        </div>
-                                        <div v-if="vehicle.entry_time_from || vehicle.entry_time_to" class="detail-item">
-                                            <span class="detail-label">Время пребывания:</span>
-                                            <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Секция Места разгрузки -->
-                            <div class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Места разгрузки</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="places-list">
-                                        <div 
-                                            v-for="placeId in vehicle.unloadPlaces" 
-                                            :key="placeId"
-                                            class="place-item"
-                                            :class="{ 'active': showPlaceModal && selectedUnloadPlace && selectedUnloadPlace.id === placeId }"
-                                            @click="showUnloadPlaceDetails(placeId)"
-                                        >
-                                            {{ getPlaceName(placeId) }}
-                                        </div>
-                                        <div v-if="!vehicle.unloadPlaces || vehicle.unloadPlaces.length === 0" class="no-places">
-                                            Места разгрузки не указаны
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Секция Статус (только для автомобилей) -->
-                            <div v-if="showCarFeatures" class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Статус</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="status-badge" :class="getStatusClass">
-                                        {{ getStatusText }}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Секция История въездов и выездов (только entry/exit) -->
-                            <div v-if="showCarFeatures" class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">История въездов и выездов</h4>
-                                    <button class="export-btn" @click="exportHistory" :disabled="entryExitHistory.length === 0 || isExporting">
-                                        <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
-                                        <span v-if="!isExporting">Экспорт</span>
-                                        <div v-else class="export-loader"></div>
-                                    </button>
-                                </div>
-                                <div class="section-body">
-                                    <div v-if="loadingHistory" class="loading-container">
-                                        <LoaderSpinner label="Загрузка истории…" />
-                                    </div>
-                                    
-                                    <div v-else-if="entryExitHistory.length === 0" class="no-history">
-                                        История въездов и выездов отсутствует
-                                    </div>
-                                    
-                                    <div v-else class="history-timeline">
-                                        <div 
-                                            v-for="(item, index) in entryExitHistory" 
-                                            :key="item.id" 
-                                            class="history-item"
-                                        >
-                                            <div class="timeline-dot" :class="getActionClass(item)"></div>
-                                            <div class="timeline-line" v-if="index < entryExitHistory.length - 1"></div>
-                                            
-                                            <div class="history-content">
-                                                <div class="history-header">
-                                                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                                                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                                                </div>
-                                                
-                                                <div class="action-text">{{ getActionText(item) }}</div>
-                                                
-                                                <div class="action-comment">
-                                                    {{ getActionComment(item) }}
-                                                </div>
-                                                <div v-if="item.table_name" class="place-name">
-                                                    {{ item.table_name }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Дополнительное модальное окно с деталями места разгрузки -->
-                <transition 
-                    name="place-slide"
-                    @after-leave="onPlaceLeave"
-                >
-                    <div v-if="showPlaceModal" class="place-modal-container">
-                        <UnloadPlaceModal
-                            :place="selectedUnloadPlace"
-                            :all-unloading-places="allUnloadingPlaces"
-                            @close="closeUnloadPlaceDetails"
-                        />
-                    </div>
-                </transition>
+  <transition name="modal-fade">
+    <div
+      v-if="show"
+      class="modal-overlay"
+      @mousedown="onOverlayMousedown"
+      @mouseup="onOverlayMouseup"
+    >
+      <div class="modal-wrapper">
+        <!-- Основное модальное окно с деталями ТС -->
+        <div
+          class="modal-content compact-modal main-modal"
+          :class="{ 'shifted': isMainShifted }"
+          @mousedown.stop
+        >
+          <div class="modal-header">
+            <h3 class="modal-title">
+              {{ modalTitle }}
+            </h3>
+            <div
+              v-if="showCarFeatures"
+              class="header-actions"
+            >
+              <button
+                class="history-btn"
+                @click="openCarHistory"
+              >
+                <span>Полная история</span>
+              </button>
+              <button
+                v-if="source !== 'application'"
+                class="application-btn"
+                @click="openApplication"
+              >
+                <span>Открыть заявку</span>
+              </button>
             </div>
-        </div>
-    </transition>
+            <button
+              class="modal-close"
+              @click="close"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+                    
+          <div class="modal-body">
+            <!-- Блок предупреждения об активной заявке -->
+            <div
+              v-if="activeInfo"
+              class="active-warning-section"
+            >
+              <div class="warning-content">
+                <div class="warning-text">
+                  <p class="warning-title">
+                    На это авто уже есть активная заявка!
+                  </p>
+                  <p class="warning-details">
+                    Действует до: {{ formatDate(activeInfo.entry_date_to) }} {{ formatTime(activeInfo.entry_time_to) }}<br>
+                    Заявка №{{ activeInfo.application_number }}<br>
+                    Организация: {{ activeInfo.organization_name || 'Не указана' }}<br>
+                    Компания: {{ activeInfo.company_name || 'Не указана' }}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-    <!-- Модальное окно полной истории автомобиля -->
-    <CarHistoryModal
-        v-if="showCarHistoryModal"
-        :car-id="vehicle?.id"
-        :car-number="vehicle?.plateNumber || vehicle?.car_number || 'по факту'"
-        :car-brand="vehicle?.mark || vehicle?.car_brand || ''"
-        :organization-id="vehicle?.organizationId"
-        :organization-name="vehicle?.organization"
-        :company-id="vehicle?.companyId"
-        :company-name="vehicle?.company"
-        :current-user-id="currentUserId"
-        :current-user-name="currentUserName"
-        @close="showCarHistoryModal = false"
-    />
+            <div
+              v-if="vehicle"
+              class="vehicle-details"
+            >
+              <!-- Секция Основная информация -->
+              <div class="details-section">
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Основная информация
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div class="details-grid two-columns">
+                    <div class="detail-item">
+                      <span class="detail-label">Номер Т/С:</span>
+                      <span class="detail-value">{{ vehicle.plateNumber || 'Не указано' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Марка:</span>
+                      <span class="detail-value">{{ vehicle.mark || 'Не указано' }}</span>
+                    </div>
+                    <div
+                      v-if="getFormatName(vehicle.formatId)"
+                      class="detail-item full-width"
+                    >
+                      <span class="detail-label">Формат номера:</span>
+                      <span class="detail-value">{{ getFormatName(vehicle.formatId) }}</span>
+                    </div>
+                    <div
+                      v-if="vehicle.organization"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Организация:</span>
+                      <span class="detail-value">{{ vehicle.organization }}</span>
+                    </div>
+                    <div
+                      v-if="vehicle.company"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Компания:</span>
+                      <span class="detail-value">{{ vehicle.company }}</span>
+                    </div>
+                    <div
+                      v-if="vehicle.entry_date_to"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Действует до:</span>
+                      <span class="detail-value">{{ formatDate(vehicle.entry_date_to) }}</span>
+                    </div>
+                    <div
+                      v-if="vehicle.entry_time_from || vehicle.entry_time_to"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Время пребывания:</span>
+                      <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Секция Места разгрузки -->
+              <div class="details-section">
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Места разгрузки
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div class="places-list">
+                    <div 
+                      v-for="placeId in vehicle.unloadPlaces" 
+                      :key="placeId"
+                      class="place-item"
+                      :class="{ 'active': showPlaceModal && selectedUnloadPlace && selectedUnloadPlace.id === placeId }"
+                      @click="showUnloadPlaceDetails(placeId)"
+                    >
+                      {{ getPlaceName(placeId) }}
+                    </div>
+                    <div
+                      v-if="!vehicle.unloadPlaces || vehicle.unloadPlaces.length === 0"
+                      class="no-places"
+                    >
+                      Места разгрузки не указаны
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Секция Статус (только для автомобилей) -->
+              <div
+                v-if="showCarFeatures"
+                class="details-section"
+              >
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Статус
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div
+                    class="status-badge"
+                    :class="getStatusClass"
+                  >
+                    {{ getStatusText }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Секция История въездов и выездов (только entry/exit) -->
+              <div
+                v-if="showCarFeatures"
+                class="details-section"
+              >
+                <div class="section-header">
+                  <h4 class="section-title">
+                    История въездов и выездов
+                  </h4>
+                  <button
+                    class="export-btn"
+                    :disabled="entryExitHistory.length === 0 || isExporting"
+                    @click="exportHistory"
+                  >
+                    <img
+                      v-if="!isExporting"
+                      src="@/assets/icons/export.png"
+                      class="export-icon"
+                    >
+                    <span v-if="!isExporting">Экспорт</span>
+                    <div
+                      v-else
+                      class="export-loader"
+                    />
+                  </button>
+                </div>
+                <div class="section-body">
+                  <div
+                    v-if="loadingHistory"
+                    class="loading-container"
+                  >
+                    <LoaderSpinner label="Загрузка истории…" />
+                  </div>
+                                    
+                  <div
+                    v-else-if="entryExitHistory.length === 0"
+                    class="no-history"
+                  >
+                    История въездов и выездов отсутствует
+                  </div>
+                                    
+                  <div
+                    v-else
+                    class="history-timeline"
+                  >
+                    <div 
+                      v-for="(item, index) in entryExitHistory" 
+                      :key="item.id" 
+                      class="history-item"
+                    >
+                      <div
+                        class="timeline-dot"
+                        :class="getActionClass(item)"
+                      />
+                      <div
+                        v-if="index < entryExitHistory.length - 1"
+                        class="timeline-line"
+                      />
+                                            
+                      <div class="history-content">
+                        <div class="history-header">
+                          <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                          <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                        </div>
+                                                
+                        <div class="action-text">
+                          {{ getActionText(item) }}
+                        </div>
+                                                
+                        <div class="action-comment">
+                          {{ getActionComment(item) }}
+                        </div>
+                        <div
+                          v-if="item.table_name"
+                          class="place-name"
+                        >
+                          {{ item.table_name }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Дополнительное модальное окно с деталями места разгрузки -->
+        <transition 
+          name="place-slide"
+          @after-leave="onPlaceLeave"
+        >
+          <div
+            v-if="showPlaceModal"
+            class="place-modal-container"
+          >
+            <UnloadPlaceModal
+              :place="selectedUnloadPlace"
+              :all-unloading-places="allUnloadingPlaces"
+              @close="closeUnloadPlaceDetails"
+            />
+          </div>
+        </transition>
+      </div>
+    </div>
+  </transition>
+
+  <!-- Модальное окно полной истории автомобиля -->
+  <CarHistoryModal
+    v-if="showCarHistoryModal"
+    :car-id="vehicle?.id"
+    :car-number="vehicle?.plateNumber || vehicle?.car_number || 'по факту'"
+    :car-brand="vehicle?.mark || vehicle?.car_brand || ''"
+    :organization-id="vehicle?.organizationId"
+    :organization-name="vehicle?.organization"
+    :company-id="vehicle?.companyId"
+    :company-name="vehicle?.company"
+    :current-user-id="currentUserId"
+    :current-user-name="currentUserName"
+    @close="showCarHistoryModal = false"
+  />
 </template>
 
 <script>
@@ -214,10 +321,6 @@ export default {
         UnloadPlaceModal,
         CarHistoryModal,
         LoaderSpinner
-    },
-    setup(_, { emit }) {
-        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-        return { onOverlayMousedown, onOverlayMouseup };
     },
     props: {
         show: {
@@ -258,6 +361,10 @@ export default {
         }
     },
     emits: ['close', 'open-application'],
+    setup(_, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+        return { onOverlayMousedown, onOverlayMouseup };
+    },
     data() {
         return {
             selectedUnloadPlace: null,
@@ -292,6 +399,41 @@ export default {
         // Только события въезда/выезда
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+        }
+    },
+    watch: {
+        show: {
+            immediate: true,
+            handler(newVal) {
+                if (newVal) {
+                    this.loadCarStatus();
+                    if (this.showCarFeatures && this.vehicle?.id) {
+                        this.loadCarHistory();
+                    }
+                } else {
+                    this.closeUnloadPlaceDetails();
+                    if (this.shiftTimer) {
+                        clearTimeout(this.shiftTimer);
+                        this.shiftTimer = null;
+                    }
+                    this.isMainShifted = false;
+                    this.selectedUnloadPlace = null;
+                }
+            }
+        },
+        vehicle: {
+            deep: true,
+            handler(newVal) {
+                if (newVal && this.show && this.showCarFeatures) {
+                    this.loadCarStatus();
+                    this.loadCarHistory();
+                }
+            }
+        }
+    },
+    beforeUnmount() {
+        if (this.shiftTimer) {
+            clearTimeout(this.shiftTimer);
         }
     },
     methods: {
@@ -639,41 +781,6 @@ export default {
             if (applicationId) {
                 this.$emit('open-application', applicationId);
             }
-        }
-    },
-    watch: {
-        show: {
-            immediate: true,
-            handler(newVal) {
-                if (newVal) {
-                    this.loadCarStatus();
-                    if (this.showCarFeatures && this.vehicle?.id) {
-                        this.loadCarHistory();
-                    }
-                } else {
-                    this.closeUnloadPlaceDetails();
-                    if (this.shiftTimer) {
-                        clearTimeout(this.shiftTimer);
-                        this.shiftTimer = null;
-                    }
-                    this.isMainShifted = false;
-                    this.selectedUnloadPlace = null;
-                }
-            }
-        },
-        vehicle: {
-            deep: true,
-            handler(newVal) {
-                if (newVal && this.show && this.showCarFeatures) {
-                    this.loadCarStatus();
-                    this.loadCarHistory();
-                }
-            }
-        }
-    },
-    beforeUnmount() {
-        if (this.shiftTimer) {
-            clearTimeout(this.shiftTimer);
         }
     }
 }

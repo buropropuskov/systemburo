@@ -1,7 +1,15 @@
 <template>
   <div class="grid-selector">
-    <div v-if="loading" class="grid-selector__loading">Загрузка...</div>
-    <div v-else class="grid-selector__grid">
+    <div
+      v-if="loading"
+      class="grid-selector__loading"
+    >
+      Загрузка...
+    </div>
+    <div
+      v-else
+      class="grid-selector__grid"
+    >
       <div
         v-for="item in items"
         :key="item[itemKey]"
@@ -18,7 +26,12 @@
         {{ item[itemLabel] }}
       </div>
     </div>
-    <div v-if="errorMessage" class="grid-selector__error">{{ errorMessage }}</div>
+    <div
+      v-if="errorMessage"
+      class="grid-selector__error"
+    >
+      {{ errorMessage }}
+    </div>
 
     <div
       v-if="tooltip.visible"

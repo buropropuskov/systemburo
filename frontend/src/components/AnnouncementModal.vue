@@ -1,27 +1,45 @@
 <template>
   <teleport to="body">
     <transition name="modal-fade">
-      <div v-if="show" class="modal-overlay" @click.self="close">
+      <div
+        v-if="show"
+        class="modal-overlay"
+        @click.self="close"
+      >
         <div class="modal-content announcement-modal">
-        
           <div class="modal-body">
             <!-- Заголовок перед описанием -->
             
             
             <div class="modal-info">
               <time class="modal-date">{{ formatDate(announcement?.created_at) }}</time>
-              <span class="modal-type" :class="{ important: announcement?.is_important }">
+              <span
+                class="modal-type"
+                :class="{ important: announcement?.is_important }"
+              >
                 {{ announcement?.is_important ? 'Важное объявление' : 'Объявление' }}
               </span>
             </div>
-            <h3 class="modal-title">{{ announcement?.title }}</h3>
-            <p class="modal-description">{{ announcement?.description }}</p>
-            <div v-if="announcement?.full_text" class="modal-full-text">
+            <h3 class="modal-title">
+              {{ announcement?.title }}
+            </h3>
+            <p class="modal-description">
+              {{ announcement?.description }}
+            </p>
+            <div
+              v-if="announcement?.full_text"
+              class="modal-full-text"
+            >
               {{ announcement.full_text }}
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn close-modal-btn" @click="close">Закрыть</button>
+            <button
+              class="btn close-modal-btn"
+              @click="close"
+            >
+              Закрыть
+            </button>
           </div>
         </div>
       </div>

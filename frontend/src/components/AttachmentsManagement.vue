@@ -1,21 +1,26 @@
 <template>
   <div class="attachments-management-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Вложения заявок (бланки)</h3>
+      <h3 class="management-title">
+        Вложения заявок (бланки)
+      </h3>
       <div class="header-controls">
         <button 
-          @click="toggleArchiveView" 
-          class="archive-header-button"
+          class="archive-header-button" 
           :class="{ active: showArchive }"
+          @click="toggleArchiveView"
         >
           {{ showArchive ? 'Активные' : 'Архив' }}
         </button>
         <SearchComponent
-          :title="'Поиск вложений...'"
           v-model="searchQuery"
+          :title="'Поиск вложений...'"
         />
         
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Создать вложение
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -24,11 +29,19 @@
 
     <div class="content-container">
       <!-- Левая часть - список вложений -->
-      <div class="table-section" :class="{'with-details': selectedAttachment}">
+      <div
+        class="table-section"
+        :class="{'with-details': selectedAttachment}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -36,10 +49,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('display_name')">
-              <p :class="{ 'active-sort': sortField === 'display_name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('display_name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'display_name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -47,10 +65,15 @@
                   'sorted': sortField === 'display_name',
                   'desc': sortField === 'display_name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col type-col" @click="sortBy('attachment_type')">
-              <p :class="{ 'active-sort': sortField === 'attachment_type' }">Тип</p>
+            <div
+              class="header-col type-col"
+              @click="sortBy('attachment_type')"
+            >
+              <p :class="{ 'active-sort': sortField === 'attachment_type' }">
+                Тип
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -58,7 +81,7 @@
                   'sorted': sortField === 'attachment_type',
                   'desc': sortField === 'attachment_type' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
 
@@ -77,13 +100,22 @@
                 <span class="cell-content id-value">{{ attachment.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="attachment.display_name">
+                <span
+                  class="truncate-text"
+                  :title="attachment.display_name"
+                >
                   {{ attachment.display_name }}
-                  <span v-if="!attachment.is_active" class="inactive-badge">(архив)</span>
+                  <span
+                    v-if="!attachment.is_active"
+                    class="inactive-badge"
+                  >(архив)</span>
                 </span>
               </div>
               <div class="table-col type-col">
-                <span class="type-badge" :class="attachment.attachment_type">
+                <span
+                  class="type-badge"
+                  :class="attachment.attachment_type"
+                >
                   {{ getAttachmentTypeLabel(attachment.attachment_type) }}
                 </span>
               </div>
@@ -99,16 +131,27 @@
       </div>
 
       <!-- Правая часть - детали вложения -->
-      <div v-if="selectedAttachment" class="details-section">
+      <div
+        v-if="selectedAttachment"
+        class="details-section"
+      >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
               <div class="attachment-info-title">
-                <h3 class="details-title">{{ selectedAttachment.display_name }}</h3>
-                <span class="attachment-type-badge" :class="selectedAttachment.attachment_type">
+                <h3 class="details-title">
+                  {{ selectedAttachment.display_name }}
+                </h3>
+                <span
+                  class="attachment-type-badge"
+                  :class="selectedAttachment.attachment_type"
+                >
                   {{ getAttachmentTypeLabel(selectedAttachment.attachment_type) }}
                 </span>
-                <span v-if="!selectedAttachment.is_active" class="archive-badge">В архиве</span>
+                <span
+                  v-if="!selectedAttachment.is_active"
+                  class="archive-badge"
+                >В архиве</span>
               </div>
               <div class="attachment-info-row">
                 <span class="system-name">{{ selectedAttachment.name }}</span>
@@ -117,17 +160,20 @@
             <div class="details-header-actions">
               <button 
                 v-if="!selectedAttachment.is_active"
-                @click="restoreAttachment(selectedAttachment)"
                 class="action-btn restore-btn"
+                @click="restoreAttachment(selectedAttachment)"
               >
                 Восстановить
               </button>
               <button 
                 v-else
-                @click="confirmDeleteAttachment(selectedAttachment)"
                 class="delete-icon-btn"
+                @click="confirmDeleteAttachment(selectedAttachment)"
               >
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -139,22 +185,22 @@
                   <label class="detail-label">Наименование вложения:</label>
                   <input 
                     v-model="selectedAttachment.display_name" 
-                    @change="updateAttachmentDisplayName"
                     class="form-input-sm"
                     :disabled="!selectedAttachment.is_active"
                     placeholder="Название вложения"
                     autocomplete="off"
+                    @change="updateAttachmentDisplayName"
                   >
                 </div>
                 <div class="form-group compact">
                   <label class="detail-label">Системное имя:</label>
                   <input 
                     v-model="selectedAttachment.name" 
-                    @change="updateAttachmentName"
                     class="form-input-sm"
                     :disabled="!selectedAttachment.is_active"
                     placeholder="avtozayavka"
                     autocomplete="off"
+                    @change="updateAttachmentName"
                   >
                   <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
                 </div>
@@ -165,11 +211,11 @@
                   <label class="detail-label">Заголовок:</label>
                   <input 
                     v-model="selectedAttachment.title" 
-                    @change="updateAttachmentTitle"
                     class="form-input-sm"
                     :disabled="!selectedAttachment.is_active"
                     placeholder="АВТОЗАЯВКИ"
                     autocomplete="off"
+                    @change="updateAttachmentTitle"
                   >
                   <span class="form-hint">Отображается в заголовке категории (всегда в верхнем регистре)</span>
                 </div>
@@ -179,8 +225,8 @@
                   <div class="custom-select">
                     <div 
                       class="select-header" 
-                      @click="selectedAttachment.is_active && toggleAttachmentTypeDropdown()"
                       :class="{ 'disabled': !selectedAttachment.is_active }"
+                      @click="selectedAttachment.is_active && toggleAttachmentTypeDropdown()"
                     >
                       <span class="select-value">{{ getAttachmentTypeLabel(selectedAttachment.attachment_type) }}</span>
                       <img 
@@ -188,10 +234,13 @@
                         src="@/assets/icons/arrow.png" 
                         class="select-arrow" 
                         :class="{ rotated: attachmentTypeDropdownOpen }" 
-                      />
+                      >
                     </div>
                     <transition name="dropdown-fade">
-                      <div v-if="attachmentTypeDropdownOpen" class="select-dropdown">
+                      <div
+                        v-if="attachmentTypeDropdownOpen"
+                        class="select-dropdown"
+                      >
                         <div 
                           class="select-option"
                           :class="{ active: selectedAttachment.attachment_type === 'cars' }"
@@ -222,17 +271,30 @@
               <div class="instruction-section">
                 <div class="section-header-with-actions">
                   <label class="detail-label">Инструкция к вложению:</label>
-                  <div class="editor-actions" v-if="instructionHasChanges && selectedAttachment.is_active">
-                    <button @click="cancelInstructionEdit" class="compact-btn cancel-btn">Отмена</button>
-                    <button @click="saveInstruction" class="compact-btn save-btn">Сохранить</button>
+                  <div
+                    v-if="instructionHasChanges && selectedAttachment.is_active"
+                    class="editor-actions"
+                  >
+                    <button
+                      class="compact-btn cancel-btn"
+                      @click="cancelInstructionEdit"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      class="compact-btn save-btn"
+                      @click="saveInstruction"
+                    >
+                      Сохранить
+                    </button>
                   </div>
                 </div>
                 <TextConstructor
+                  ref="instructionConstructor"
                   v-model="selectedAttachment.instruction"
                   :disabled="!selectedAttachment.is_active"
                   placeholder="Введите инструкцию для вложения..."
                   rows="8"
-                  ref="instructionConstructor"
                 />
               </div>
             </div>
@@ -240,22 +302,39 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>{{ showArchive ? 'Выберите архивное вложение' : 'Выберите вложение для просмотра и редактирования' }}</p>
       </div>
     </div>
 
-    <div v-if="filteredAttachments.length === 0" class="no-results">
-      <div class="no-results-icon">{{ showArchive ? '🗄️' : '📄' }}</div>
+    <div
+      v-if="filteredAttachments.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        {{ showArchive ? '🗄️' : '📄' }}
+      </div>
       <p>{{ showArchive ? 'Архив пуст' : 'Вложения не найдены' }}</p>
     </div>
 
     <!-- Модальное окно создания вложения -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
+    <div
+      v-if="showAddModal"
+      class="modal-overlay"
+      @click.self="closeAddModal"
+    >
       <div class="modal-content horizontal-modal">
         <div class="modal-header">
           <h3>Создать новое вложение</h3>
-          <button @click="closeAddModal" class="modal-close">×</button>
+          <button
+            class="modal-close"
+            @click="closeAddModal"
+          >
+            ×
+          </button>
         </div>
         
         <div class="modal-body-horizontal">
@@ -266,14 +345,20 @@
                 <label class="form-label-compact">Наименование вложения *</label>
                 <input
                   v-model="newAttachment.display_name"
-                  @input="checkExistingAttachments"
                   placeholder="Автозаявка"
                   class="input-compact"
                   :class="{ 'has-duplicate': duplicateCheck.display_name }"
+                  @input="checkExistingAttachments"
                 >
-                <div v-if="duplicateCheck.display_name" class="duplicate-alert">
+                <div
+                  v-if="duplicateCheck.display_name"
+                  class="duplicate-alert"
+                >
                   <p>Найдено похожее вложение:</p>
-                  <div class="duplicate-item" @click="restoreDuplicate(duplicateCheck.display_name)">
+                  <div
+                    class="duplicate-item"
+                    @click="restoreDuplicate(duplicateCheck.display_name)"
+                  >
                     <span>{{ duplicateCheck.display_name.display_name }}</span>
                     <span class="duplicate-status">(в архиве)</span>
                   </div>
@@ -283,12 +368,22 @@
               <div class="form-group-compact">
                 <label class="form-label-compact">Тип вложения *</label>
                 <div class="custom-select">
-                  <div class="select-header" @click="toggleNewAttachmentTypeDropdown">
+                  <div
+                    class="select-header"
+                    @click="toggleNewAttachmentTypeDropdown"
+                  >
                     <span class="select-value">{{ getAttachmentTypeLabel(newAttachment.attachment_type) }}</span>
-                    <img src="@/assets/icons/arrow.png" class="select-arrow" :class="{ rotated: newAttachmentTypeDropdownOpen }" />
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="select-arrow"
+                      :class="{ rotated: newAttachmentTypeDropdownOpen }"
+                    >
                   </div>
                   <transition name="dropdown-fade">
-                    <div v-if="newAttachmentTypeDropdownOpen" class="select-dropdown">
+                    <div
+                      v-if="newAttachmentTypeDropdownOpen"
+                      class="select-dropdown"
+                    >
                       <div 
                         class="select-option"
                         :class="{ active: newAttachment.attachment_type === 'cars' }"
@@ -319,17 +414,26 @@
                 <label class="form-label-compact">Системное имя *</label>
                 <input
                   v-model="newAttachment.name"
-                  @input="validateSystemName"
-                  @blur="checkExistingAttachments"
                   placeholder="avtozayavka"
                   class="input-compact"
                   :class="{ 'has-duplicate': duplicateCheck.name, 'has-error': nameError }"
+                  @input="validateSystemName"
+                  @blur="checkExistingAttachments"
                 >
                 <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-                <span v-if="nameError" class="form-error">{{ nameError }}</span>
-                <div v-if="duplicateCheck.name" class="duplicate-alert">
+                <span
+                  v-if="nameError"
+                  class="form-error"
+                >{{ nameError }}</span>
+                <div
+                  v-if="duplicateCheck.name"
+                  class="duplicate-alert"
+                >
                   <p>Найдено вложение с таким системным именем:</p>
-                  <div class="duplicate-item" @click="restoreDuplicate(duplicateCheck.name)">
+                  <div
+                    class="duplicate-item"
+                    @click="restoreDuplicate(duplicateCheck.name)"
+                  >
                     <span>{{ duplicateCheck.name.display_name }}</span>
                     <span class="duplicate-status">(в архиве)</span>
                   </div>
@@ -340,15 +444,21 @@
                 <label class="form-label-compact">Заголовок *</label>
                 <input
                   v-model="newAttachment.title"
-                  @input="checkExistingAttachments"
                   placeholder="АВТОЗАЯВКИ"
                   class="input-compact"
                   :class="{ 'has-duplicate': duplicateCheck.title }"
+                  @input="checkExistingAttachments"
                 >
                 <span class="form-hint">Отображается в заголовке категории</span>
-                <div v-if="duplicateCheck.title" class="duplicate-alert">
+                <div
+                  v-if="duplicateCheck.title"
+                  class="duplicate-alert"
+                >
                   <p>Найдено вложение с таким заголовком:</p>
-                  <div class="duplicate-item" @click="restoreDuplicate(duplicateCheck.title)">
+                  <div
+                    class="duplicate-item"
+                    @click="restoreDuplicate(duplicateCheck.title)"
+                  >
                     <span>{{ duplicateCheck.title.display_name }}</span>
                     <span class="duplicate-status">(в архиве)</span>
                   </div>
@@ -360,7 +470,9 @@
           <!-- Правая часть - инструкция -->
           <div class="modal-cells-section">
             <div class="cells-header-compact">
-              <h4 class="cells-title-compact">Инструкция к вложению</h4>
+              <h4 class="cells-title-compact">
+                Инструкция к вложению
+              </h4>
             </div>
             
             <div class="cells-scroll-container">
@@ -377,10 +489,14 @@
                 </div>
 
                 <div class="setting-item">
-                  <h5 class="fields-preview-title">Предварительный просмотр:</h5>
+                  <h5 class="fields-preview-title">
+                    Предварительный просмотр:
+                  </h5>
                   <div class="preview-card">
                     <div class="preview-header">
-                      <div class="preview-title">{{ newAttachment.title || 'ЗАГОЛОВОК' }}</div>
+                      <div class="preview-title">
+                        {{ newAttachment.title || 'ЗАГОЛОВОК' }}
+                      </div>
                     </div>
                     <div class="preview-attachment">
                       <span class="preview-attachment-name">
@@ -398,14 +514,28 @@
         </div>
         
         <div class="modal-footer">
-          <button @click="closeAddModal" class="modal-cancel">Отмена</button>
-          <button @click="createAttachment" class="modal-confirm">Создать</button>
+          <button
+            class="modal-cancel"
+            @click="closeAddModal"
+          >
+            Отмена
+          </button>
+          <button
+            class="modal-confirm"
+            @click="createAttachment"
+          >
+            Создать
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Уведомления -->
-    <div v-if="notification.show" class="notification" :class="notification.type">
+    <div
+      v-if="notification.show"
+      class="notification"
+      :class="notification.type"
+    >
       <span class="notification-message">{{ notification.message }}</span>
     </div>
   </div>
@@ -521,6 +651,15 @@ export default {
     allInactiveAttachments() {
       return this.attachments.filter(attachment => !attachment.is_active);
     }
+  },
+  mounted() {
+    this.refreshData();
+    document.addEventListener('click', (e) => {
+      if (!this.$el.contains(e.target)) {
+        this.attachmentTypeDropdownOpen = false;
+        this.newAttachmentTypeDropdownOpen = false;
+      }
+    });
   },
   methods: {
     validateSystemName() {
@@ -904,15 +1043,6 @@ export default {
     hideNotification() {
       this.notification.show = false;
     }
-  },
-  mounted() {
-    this.refreshData();
-    document.addEventListener('click', (e) => {
-      if (!this.$el.contains(e.target)) {
-        this.attachmentTypeDropdownOpen = false;
-        this.newAttachmentTypeDropdownOpen = false;
-      }
-    });
   },
 };
 </script>

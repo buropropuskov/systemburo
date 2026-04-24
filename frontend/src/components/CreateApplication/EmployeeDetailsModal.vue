@@ -1,246 +1,339 @@
 <template>
-    <transition name="modal-fade">
-        <div v-if="show" class="modal-overlay" @click.self="close">
-            <div class="modal-wrapper">
-                <!-- Основное модальное окно с деталями сотрудника -->
-                <div 
-                    class="modal-content compact-modal main-modal"
-                    :class="{ 'shifted': isMainShifted }"
-                >
-                    <div class="modal-header">
-                        <h3 class="modal-title">{{ modalTitle }}</h3>
-                        <div class="header-actions">
-                            <button class="history-btn" @click="openFullHistory">
-                                <span>Полная история</span>
-                            </button>
-                            <button 
-                                v-if="source !== 'application' && employee?.applicationId" 
-                                class="application-btn" 
-                                @click="openApplication"
-                            >
-                                <span>Открыть заявку</span>
-                            </button>
-                        </div>
-                        <button @click="close" class="modal-close">
-                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <div class="modal-body">
-                        <div class="employee-details" v-if="employee">
-                            <!-- Основная информация -->
-                            <div class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Основная информация</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="details-grid two-columns">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Фамилия:</span>
-                                            <span class="detail-value">{{ employee.last_name || 'Не указано' }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Имя:</span>
-                                            <span class="detail-value">{{ employee.first_name || 'Не указано' }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Отчество:</span>
-                                            <span class="detail-value">{{ employee.middle_name || '-' }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Должность:</span>
-                                            <span class="detail-value">{{ employee.position || 'Не указана' }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Гражданство:</span>
-                                            <span class="detail-value">{{ employee.citizenshipName || 'Не указано' }}</span>
-                                        </div>
-                                        <div class="detail-item" v-if="employee.organization">
-                                            <span class="detail-label">Организация:</span>
-                                            <span class="detail-value">{{ employee.organization }}</span>
-                                        </div>
-                                        <div class="detail-item" v-if="employee.company">
-                                            <span class="detail-label">Компания:</span>
-                                            <span class="detail-value">{{ employee.company }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Действует до:</span>
-                                            <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Время прохода:</span>
-                                            <span class="detail-value">{{ employee.pass_time || '-' }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Документы (чувствительные данные) -->
-                            <div class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Документы</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="details-grid two-columns">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Серия и номер паспорта:</span>
-                                            <div class="sensitive-data">
-                                                <span 
-                                                    class="data-text"
-                                                    :class="{ 'hidden-data': !showFullPassport }"
-                                                >
-                                                    {{ employee.passport_series_number || 'Не указан' }}
-                                                </span>
-                                                <button 
-                                                    v-if="employee.passport_series_number"
-                                                    @click="togglePassport"
-                                                    class="show-more-btn"
-                                                >
-                                                    {{ showFullPassport ? 'Скрыть' : 'Показать' }}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div v-if="employee.patent_number" class="detail-item">
-                                            <span class="detail-label">Номер патента:</span>
-                                            <div class="sensitive-data">
-                                                <span 
-                                                    class="data-text"
-                                                    :class="{ 'hidden-data': !showFullPatent }"
-                                                >
-                                                    {{ employee.patent_number }}
-                                                </span>
-                                                <button 
-                                                    @click="togglePatent"
-                                                    class="show-more-btn"
-                                                >
-                                                    {{ showFullPatent ? 'Скрыть' : 'Показать' }}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div v-if="employee.other_permission" class="detail-item full-width">
-                                            <span class="detail-label">Иное разрешение:</span>
-                                            <span class="detail-value">{{ employee.other_permission }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Места прохода (таблицы) -->
-                            <div class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Места прохода</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="places-list">
-                                        <div 
-                                            v-for="tableId in employee.target_tables" 
-                                            :key="tableId"
-                                            class="place-item"
-                                            :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === tableId }"
-                                            @click="showTableDetails(tableId)"
-                                        >
-                                            {{ getTableName(tableId) }}
-                                        </div>
-                                        <div v-if="!employee.target_tables || employee.target_tables.length === 0" class="no-places">
-                                            Места прохода не указаны
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Статус территории (скрыт только для employeeslist) -->
-                            <div v-if="showStatusSection" class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">Статус</h4>
-                                </div>
-                                <div class="section-body">
-                                    <div class="status-badge" :class="getStatusClass">
-                                        {{ getStatusText }}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- История проходов (скрыта только для employeeslist) -->
-                            <div v-if="showHistorySection" class="details-section">
-                                <div class="section-header">
-                                    <h4 class="section-title">История проходов</h4>
-                                    <button class="export-btn" @click="exportHistory" :disabled="entryExitHistory.length === 0 || isExporting">
-                                        <img v-if="!isExporting" src="@/assets/icons/export.png" class="export-icon" />
-                                        <span v-if="!isExporting">Экспорт</span>
-                                        <div v-else class="export-loader"></div>
-                                    </button>
-                                </div>
-                                <div class="section-body">
-                                    <div v-if="loadingHistory" class="loading-container">
-                                        <div class="loader"></div>
-                                        <span>Загрузка истории...</span>
-                                    </div>
-                                    
-                                    <div v-else-if="entryExitHistory.length === 0" class="no-history">
-                                        История проходов отсутствует
-                                    </div>
-                                    
-                                    <div v-else class="history-timeline">
-                                        <div 
-                                            v-for="(item, index) in entryExitHistory" 
-                                            :key="item.id" 
-                                            class="history-item"
-                                        >
-                                            <div class="timeline-dot" :class="getActionClass(item)"></div>
-                                            <div class="timeline-line" v-if="index < entryExitHistory.length - 1"></div>
-                                            
-                                            <div class="history-content">
-                                                <div class="history-header">
-                                                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                                                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                                                </div>
-                                                
-                                                <div class="action-text">{{ getActionText(item) }}</div>
-                                                
-                                                <div class="action-comment">
-                                                    {{ item.comment || getActionComment(item) }}
-                                                </div>
-                                                <div v-if="item.table_name" class="place-name">
-                                                    {{ item.table_name }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Дополнительное модальное окно с деталями места прохода -->
-                <transition 
-                    name="place-slide"
-                    @after-leave="onPlaceLeave"
-                >
-                    <div v-if="showPlaceModal" class="place-modal-container">
-                        <TableInfoModal
-                            :table="selectedTable"
-                            :all-tables="allTables"
-                            @close="closeTableDetails"
-                        />
-                    </div>
-                </transition>
+  <transition name="modal-fade">
+    <div
+      v-if="show"
+      class="modal-overlay"
+      @click.self="close"
+    >
+      <div class="modal-wrapper">
+        <!-- Основное модальное окно с деталями сотрудника -->
+        <div 
+          class="modal-content compact-modal main-modal"
+          :class="{ 'shifted': isMainShifted }"
+        >
+          <div class="modal-header">
+            <h3 class="modal-title">
+              {{ modalTitle }}
+            </h3>
+            <div class="header-actions">
+              <button
+                class="history-btn"
+                @click="openFullHistory"
+              >
+                <span>Полная история</span>
+              </button>
+              <button 
+                v-if="source !== 'application' && employee?.applicationId" 
+                class="application-btn" 
+                @click="openApplication"
+              >
+                <span>Открыть заявку</span>
+              </button>
             </div>
-        </div>
-    </transition>
+            <button
+              class="modal-close"
+              @click="close"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+                    
+          <div class="modal-body">
+            <div
+              v-if="employee"
+              class="employee-details"
+            >
+              <!-- Основная информация -->
+              <div class="details-section">
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Основная информация
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div class="details-grid two-columns">
+                    <div class="detail-item">
+                      <span class="detail-label">Фамилия:</span>
+                      <span class="detail-value">{{ employee.last_name || 'Не указано' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Имя:</span>
+                      <span class="detail-value">{{ employee.first_name || 'Не указано' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Отчество:</span>
+                      <span class="detail-value">{{ employee.middle_name || '-' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Должность:</span>
+                      <span class="detail-value">{{ employee.position || 'Не указана' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Гражданство:</span>
+                      <span class="detail-value">{{ employee.citizenshipName || 'Не указано' }}</span>
+                    </div>
+                    <div
+                      v-if="employee.organization"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Организация:</span>
+                      <span class="detail-value">{{ employee.organization }}</span>
+                    </div>
+                    <div
+                      v-if="employee.company"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Компания:</span>
+                      <span class="detail-value">{{ employee.company }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Действует до:</span>
+                      <span class="detail-value">{{ formatDate(employee.entry_date_to) || '-' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Время прохода:</span>
+                      <span class="detail-value">{{ employee.pass_time || '-' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-    <!-- Модальное окно полной истории сотрудника -->
-    <EmployeeHistoryModal
-        v-if="showFullHistoryModal"
-        :last-name="employee?.last_name"
-        :first-name="employee?.first_name"
-        :middle-name="employee?.middle_name"
-        :current-user-id="currentUserId"
-        :current-user-name="currentUserName"
-        @close="showFullHistoryModal = false"
-    />
+              <!-- Документы (чувствительные данные) -->
+              <div class="details-section">
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Документы
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div class="details-grid two-columns">
+                    <div class="detail-item">
+                      <span class="detail-label">Серия и номер паспорта:</span>
+                      <div class="sensitive-data">
+                        <span 
+                          class="data-text"
+                          :class="{ 'hidden-data': !showFullPassport }"
+                        >
+                          {{ employee.passport_series_number || 'Не указан' }}
+                        </span>
+                        <button 
+                          v-if="employee.passport_series_number"
+                          class="show-more-btn"
+                          @click="togglePassport"
+                        >
+                          {{ showFullPassport ? 'Скрыть' : 'Показать' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      v-if="employee.patent_number"
+                      class="detail-item"
+                    >
+                      <span class="detail-label">Номер патента:</span>
+                      <div class="sensitive-data">
+                        <span 
+                          class="data-text"
+                          :class="{ 'hidden-data': !showFullPatent }"
+                        >
+                          {{ employee.patent_number }}
+                        </span>
+                        <button 
+                          class="show-more-btn"
+                          @click="togglePatent"
+                        >
+                          {{ showFullPatent ? 'Скрыть' : 'Показать' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      v-if="employee.other_permission"
+                      class="detail-item full-width"
+                    >
+                      <span class="detail-label">Иное разрешение:</span>
+                      <span class="detail-value">{{ employee.other_permission }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Места прохода (таблицы) -->
+              <div class="details-section">
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Места прохода
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div class="places-list">
+                    <div 
+                      v-for="tableId in employee.target_tables" 
+                      :key="tableId"
+                      class="place-item"
+                      :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === tableId }"
+                      @click="showTableDetails(tableId)"
+                    >
+                      {{ getTableName(tableId) }}
+                    </div>
+                    <div
+                      v-if="!employee.target_tables || employee.target_tables.length === 0"
+                      class="no-places"
+                    >
+                      Места прохода не указаны
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Статус территории (скрыт только для employeeslist) -->
+              <div
+                v-if="showStatusSection"
+                class="details-section"
+              >
+                <div class="section-header">
+                  <h4 class="section-title">
+                    Статус
+                  </h4>
+                </div>
+                <div class="section-body">
+                  <div
+                    class="status-badge"
+                    :class="getStatusClass"
+                  >
+                    {{ getStatusText }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- История проходов (скрыта только для employeeslist) -->
+              <div
+                v-if="showHistorySection"
+                class="details-section"
+              >
+                <div class="section-header">
+                  <h4 class="section-title">
+                    История проходов
+                  </h4>
+                  <button
+                    class="export-btn"
+                    :disabled="entryExitHistory.length === 0 || isExporting"
+                    @click="exportHistory"
+                  >
+                    <img
+                      v-if="!isExporting"
+                      src="@/assets/icons/export.png"
+                      class="export-icon"
+                    >
+                    <span v-if="!isExporting">Экспорт</span>
+                    <div
+                      v-else
+                      class="export-loader"
+                    />
+                  </button>
+                </div>
+                <div class="section-body">
+                  <div
+                    v-if="loadingHistory"
+                    class="loading-container"
+                  >
+                    <div class="loader" />
+                    <span>Загрузка истории...</span>
+                  </div>
+                                    
+                  <div
+                    v-else-if="entryExitHistory.length === 0"
+                    class="no-history"
+                  >
+                    История проходов отсутствует
+                  </div>
+                                    
+                  <div
+                    v-else
+                    class="history-timeline"
+                  >
+                    <div 
+                      v-for="(item, index) in entryExitHistory" 
+                      :key="item.id" 
+                      class="history-item"
+                    >
+                      <div
+                        class="timeline-dot"
+                        :class="getActionClass(item)"
+                      />
+                      <div
+                        v-if="index < entryExitHistory.length - 1"
+                        class="timeline-line"
+                      />
+                                            
+                      <div class="history-content">
+                        <div class="history-header">
+                          <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                          <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                        </div>
+                                                
+                        <div class="action-text">
+                          {{ getActionText(item) }}
+                        </div>
+                                                
+                        <div class="action-comment">
+                          {{ item.comment || getActionComment(item) }}
+                        </div>
+                        <div
+                          v-if="item.table_name"
+                          class="place-name"
+                        >
+                          {{ item.table_name }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Дополнительное модальное окно с деталями места прохода -->
+        <transition 
+          name="place-slide"
+          @after-leave="onPlaceLeave"
+        >
+          <div
+            v-if="showPlaceModal"
+            class="place-modal-container"
+          >
+            <TableInfoModal
+              :table="selectedTable"
+              :all-tables="allTables"
+              @close="closeTableDetails"
+            />
+          </div>
+        </transition>
+      </div>
+    </div>
+  </transition>
+
+  <!-- Модальное окно полной истории сотрудника -->
+  <EmployeeHistoryModal
+    v-if="showFullHistoryModal"
+    :last-name="employee?.last_name"
+    :first-name="employee?.first_name"
+    :middle-name="employee?.middle_name"
+    :current-user-id="currentUserId"
+    :current-user-name="currentUserName"
+    @close="showFullHistoryModal = false"
+  />
 </template>
 
 <script>
@@ -326,6 +419,29 @@ export default {
         },
         showHistorySection() {
             return this.source !== 'employeeslist';
+        }
+    },
+    watch: {
+        show: {
+        immediate: true,
+        handler(val) {
+            if (val) {
+                this.loadHistory();
+                this.loadEmployeeStatus(); // для EmployeeDetailsModal
+                // для VehicleDetailsModal: this.loadCarStatus(); this.loadCarHistory();
+            } else {
+                this.close(); // вместо this.closeTableDetails()
+            }
+        }
+    },
+        employee: {
+            deep: true,
+            handler(newVal) {
+                if (newVal && this.show) {
+                    this.loadHistory();
+                    this.loadEmployeeStatus();
+                }
+            }
         }
     },
     methods: {
@@ -573,29 +689,6 @@ export default {
         openApplication() {
             if (this.employee?.applicationId) {
                 this.$emit('open-application', this.employee.applicationId);
-            }
-        }
-    },
-    watch: {
-        show: {
-        immediate: true,
-        handler(val) {
-            if (val) {
-                this.loadHistory();
-                this.loadEmployeeStatus(); // для EmployeeDetailsModal
-                // для VehicleDetailsModal: this.loadCarStatus(); this.loadCarHistory();
-            } else {
-                this.close(); // вместо this.closeTableDetails()
-            }
-        }
-    },
-        employee: {
-            deep: true,
-            handler(newVal) {
-                if (newVal && this.show) {
-                    this.loadHistory();
-                    this.loadEmployeeStatus();
-                }
             }
         }
     }

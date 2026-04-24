@@ -1,64 +1,95 @@
 <template>
-    <div class="confirmation-section">
-        <div class="confirmation-header">
-            <h4>Согласование заявки</h4>
-            <div v-if="updatingConfirmation" class="confirmation-loading">
-                <LoaderSpinner size="small" :label="''" />
-            </div>
-        </div>
-        
-        <div class="confirmation-info">
-            <!-- Статус заявки -->
-            <div class="info-row">
-                <span class="info-label">Статус:</span>
-                <span class="confirmation-badge" :class="getConfirmationClass(application.confirmation)">
-                    {{ application.confirmation }}
-                </span>
-            </div>
-        </div>
-
-        <!-- Ответственные пользователи -->
-        <div v-if="sortedResponsibleUsers.length > 0" class="responsible-users-section">
-            <h5>Ответственные за согласование ({{ sortedResponsibleUsers.length }}):</h5>
-            <div class="users-list">
-                <div v-for="user in sortedResponsibleUsers" :key="user.id" class="user-item">
-                    <!-- ФИО -->
-                    <div class="user-name-block">
-                        {{ getUserDisplayName(user) }}
-                    </div>
-                    
-                    <!-- Должность -->
-                    <div v-if="user.position" class="user-position-block">
-                        {{ user.position }}
-                    </div>
-                    
-                    <!-- Ряд с бейджем и статусом -->
-                    <div class="user-badge-status-row">
-                        <div class="required-badge-container" v-if="user.required_approval">
-                            <span class="badge required-badge">Обязательно</span>
-                            <div class="required-tooltip">
-                                Согласование этого пользователя является обязательным. Без него принять заявку в работу будет невозможно.
-                            </div>
-                        </div>
-                        <span class="status-badge" :class="getStatusClass(user.approval_status)">
-                            {{ getStatusText(user.approval_status) }}
-                        </span>
-                    </div>
-                    
-                    <!-- Комментарий пользователя (только если есть) -->
-                    <div v-if="user.approval_comment" class="user-comment-block">
-                        <span class="comment-label">Комментарий:</span>
-                        <span class="comment-text">{{ user.approval_comment }}</span>
-                    </div>
-                    
-                    <!-- Время -->
-                    <div v-if="user.approval_datetime" class="user-time-block">
-                        Время: {{ formatDateTime(user.approval_datetime) }}
-                    </div>
-                </div>
-            </div>
-        </div>
+  <div class="confirmation-section">
+    <div class="confirmation-header">
+      <h4>Согласование заявки</h4>
+      <div
+        v-if="updatingConfirmation"
+        class="confirmation-loading"
+      >
+        <LoaderSpinner
+          size="small"
+          :label="''"
+        />
+      </div>
     </div>
+        
+    <div class="confirmation-info">
+      <!-- Статус заявки -->
+      <div class="info-row">
+        <span class="info-label">Статус:</span>
+        <span
+          class="confirmation-badge"
+          :class="getConfirmationClass(application.confirmation)"
+        >
+          {{ application.confirmation }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Ответственные пользователи -->
+    <div
+      v-if="sortedResponsibleUsers.length > 0"
+      class="responsible-users-section"
+    >
+      <h5>Ответственные за согласование ({{ sortedResponsibleUsers.length }}):</h5>
+      <div class="users-list">
+        <div
+          v-for="user in sortedResponsibleUsers"
+          :key="user.id"
+          class="user-item"
+        >
+          <!-- ФИО -->
+          <div class="user-name-block">
+            {{ getUserDisplayName(user) }}
+          </div>
+                    
+          <!-- Должность -->
+          <div
+            v-if="user.position"
+            class="user-position-block"
+          >
+            {{ user.position }}
+          </div>
+                    
+          <!-- Ряд с бейджем и статусом -->
+          <div class="user-badge-status-row">
+            <div
+              v-if="user.required_approval"
+              class="required-badge-container"
+            >
+              <span class="badge required-badge">Обязательно</span>
+              <div class="required-tooltip">
+                Согласование этого пользователя является обязательным. Без него принять заявку в работу будет невозможно.
+              </div>
+            </div>
+            <span
+              class="status-badge"
+              :class="getStatusClass(user.approval_status)"
+            >
+              {{ getStatusText(user.approval_status) }}
+            </span>
+          </div>
+                    
+          <!-- Комментарий пользователя (только если есть) -->
+          <div
+            v-if="user.approval_comment"
+            class="user-comment-block"
+          >
+            <span class="comment-label">Комментарий:</span>
+            <span class="comment-text">{{ user.approval_comment }}</span>
+          </div>
+                    
+          <!-- Время -->
+          <div
+            v-if="user.approval_datetime"
+            class="user-time-block"
+          >
+            Время: {{ formatDateTime(user.approval_datetime) }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>

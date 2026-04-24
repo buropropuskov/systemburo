@@ -1,6 +1,12 @@
 <template>
-  <span class="status-badge" :class="[variantClass, colorClass]">
-    <span v-if="variant === 'dot'" class="status-badge__dot"></span>
+  <span
+    class="status-badge"
+    :class="[variantClass, colorClass]"
+  >
+    <span
+      v-if="variant === 'dot'"
+      class="status-badge__dot"
+    />
     {{ status }}
   </span>
 </template>

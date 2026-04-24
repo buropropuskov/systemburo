@@ -1,118 +1,136 @@
 <template>
-    <div class="data__list">
-        <div class="header-with-badge">
-            <h4>Список транспортных средств</h4>
-            <span class="vehicles-badge">{{ vehicles.length }}</span>
-        </div>
-        <div class="vehicles-table">
-            <div class="table-header">
-                <div class="header-col number-col" @click="$emit('sort', 'number')">
-                    <p :class="{ 'active-sort': sortField === 'number' }">№</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'number' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col plate-col" @click="$emit('sort', 'plate')">
-                    <p :class="{ 'active-sort': sortField === 'plate' }">Номер</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'plate' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col mark-col" @click="$emit('sort', 'mark')">
-                    <p :class="{ 'active-sort': sortField === 'mark' }">Марка</p>
-                    <img 
-                        src="@/assets/icons/sort.png" 
-                        class="sort-icon" 
-                        :class="{ 
-                            'desc': sortField === 'mark' && sortDirection === 'desc'
-                        }" 
-                    />
-                </div>
-                <div class="header-col actions-col">
-                    Действия
-                </div>
-            </div>
-            <div class="table-body">
-                <div 
-                    v-for="(vehicle, index) in vehicles" 
-                    :key="vehicle.id"
-                    class="table-row"
-                    :class="{ 'has-active': vehicle.activeInfo }"
-                >
-                    <div class="table-col number-col">{{ index + 1 }}</div>
-                    <div class="table-col plate-col">
-                        <div class="cell-with-icon">
-                            {{ vehicle.plateNumber || 'Не указано' }}
-                            
-                        </div>
-                    </div>
-                    <div class="table-col mark-col">
-                        <div class="cell-with-icon">
-                            {{ vehicle.mark || 'Не указано' }}
-                            
-                        </div>
-                    </div>
-                    <div class="table-col actions-col">
-                        <button 
-                            class="details-btn"
-                            @click="showVehicleDetails(vehicle)"
-                            title="Детали"
-                        >
-                            <img 
-                                src="@/assets/icons/info.png" 
-                                alt="Детали" 
-                                class="details-icon"
-                            />
-                        </button>
-                        <button 
-                            class="edit-btn"
-                            @click="$emit('edit-vehicle', vehicle)"
-                            title="Редактировать"
-                        >
-                            <img 
-                                src="@/assets/icons/edit.png" 
-                                alt="Редактировать" 
-                                class="edit-icon"
-                            />
-                        </button>
-                        <button 
-                            class="delete-btn"
-                            @click="$emit('delete-vehicle', vehicle.id)"
-                            title="Удалить"
-                        >
-                            <img 
-                                src="@/assets/icons/trashcan.png" 
-                                alt="Удалить" 
-                                class="delete-icon"
-                            />
-                        </button>
-                    </div>
-                </div>
-                <div v-if="vehicles.length === 0" class="no-vehicles">
-                    Нет добавленных транспортных средств
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно деталей транспортного средства -->
-        <VehicleDetailsModal
-            :show="showDetailsModal"
-            :vehicle="selectedVehicle"
-            :all-unloading-places="allUnloadingPlaces"
-            :license-plate-formats="licensePlateFormats"
-            :show-car-features="false"
-            :active-info="selectedVehicle?.activeInfo"
-            @close="closeDetailsModal"
-        />
+  <div class="data__list">
+    <div class="header-with-badge">
+      <h4>Список транспортных средств</h4>
+      <span class="vehicles-badge">{{ vehicles.length }}</span>
     </div>
+    <div class="vehicles-table">
+      <div class="table-header">
+        <div
+          class="header-col number-col"
+          @click="$emit('sort', 'number')"
+        >
+          <p :class="{ 'active-sort': sortField === 'number' }">
+            №
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'number' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col plate-col"
+          @click="$emit('sort', 'plate')"
+        >
+          <p :class="{ 'active-sort': sortField === 'plate' }">
+            Номер
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'plate' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div
+          class="header-col mark-col"
+          @click="$emit('sort', 'mark')"
+        >
+          <p :class="{ 'active-sort': sortField === 'mark' }">
+            Марка
+          </p>
+          <img 
+            src="@/assets/icons/sort.png" 
+            class="sort-icon" 
+            :class="{ 
+              'desc': sortField === 'mark' && sortDirection === 'desc'
+            }" 
+          >
+        </div>
+        <div class="header-col actions-col">
+          Действия
+        </div>
+      </div>
+      <div class="table-body">
+        <div 
+          v-for="(vehicle, index) in vehicles" 
+          :key="vehicle.id"
+          class="table-row"
+          :class="{ 'has-active': vehicle.activeInfo }"
+        >
+          <div class="table-col number-col">
+            {{ index + 1 }}
+          </div>
+          <div class="table-col plate-col">
+            <div class="cell-with-icon">
+              {{ vehicle.plateNumber || 'Не указано' }}
+            </div>
+          </div>
+          <div class="table-col mark-col">
+            <div class="cell-with-icon">
+              {{ vehicle.mark || 'Не указано' }}
+            </div>
+          </div>
+          <div class="table-col actions-col">
+            <button 
+              class="details-btn"
+              title="Детали"
+              @click="showVehicleDetails(vehicle)"
+            >
+              <img 
+                src="@/assets/icons/info.png" 
+                alt="Детали" 
+                class="details-icon"
+              >
+            </button>
+            <button 
+              class="edit-btn"
+              title="Редактировать"
+              @click="$emit('edit-vehicle', vehicle)"
+            >
+              <img 
+                src="@/assets/icons/edit.png" 
+                alt="Редактировать" 
+                class="edit-icon"
+              >
+            </button>
+            <button 
+              class="delete-btn"
+              title="Удалить"
+              @click="$emit('delete-vehicle', vehicle.id)"
+            >
+              <img 
+                src="@/assets/icons/trashcan.png" 
+                alt="Удалить" 
+                class="delete-icon"
+              >
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="vehicles.length === 0"
+          class="no-vehicles"
+        >
+          Нет добавленных транспортных средств
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно деталей транспортного средства -->
+    <VehicleDetailsModal
+      :show="showDetailsModal"
+      :vehicle="selectedVehicle"
+      :all-unloading-places="allUnloadingPlaces"
+      :license-plate-formats="licensePlateFormats"
+      :show-car-features="false"
+      :active-info="selectedVehicle?.activeInfo"
+      @close="closeDetailsModal"
+    />
+  </div>
 </template>
 
 <script>

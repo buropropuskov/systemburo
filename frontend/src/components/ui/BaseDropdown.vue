@@ -1,5 +1,8 @@
 <template>
-  <div class="base-dropdown" ref="dropdown">
+  <div
+    ref="dropdown"
+    class="base-dropdown"
+  >
     <button
       type="button"
       class="base-dropdown__button"
@@ -7,8 +10,15 @@
       :disabled="disabled"
       @click="toggle"
     >
-      <span class="base-dropdown__text" :class="{ 'base-dropdown__text--placeholder': !selectedOption }">
-        <slot name="selected" v-if="selectedOption" :option="selectedOption">
+      <span
+        class="base-dropdown__text"
+        :class="{ 'base-dropdown__text--placeholder': !selectedOption }"
+      >
+        <slot
+          v-if="selectedOption"
+          name="selected"
+          :option="selectedOption"
+        >
           {{ selectedOption[labelKey] }}
         </slot>
         <template v-else>{{ placeholder }}</template>
@@ -20,13 +30,25 @@
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
-        <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path
+          d="M1 1L5 5L9 1"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
       </svg>
     </button>
 
     <transition name="dropdown">
-      <div v-if="isOpen" class="base-dropdown__menu">
-        <div v-if="searchable" class="base-dropdown__search">
+      <div
+        v-if="isOpen"
+        class="base-dropdown__menu"
+      >
+        <div
+          v-if="searchable"
+          class="base-dropdown__search"
+        >
           <input
             ref="searchInput"
             v-model="searchQuery"
@@ -34,7 +56,7 @@
             class="base-dropdown__search-input"
             placeholder="Поиск..."
             @click.stop
-          />
+          >
         </div>
         <div class="base-dropdown__options">
           <div
@@ -44,11 +66,17 @@
             :class="{ 'base-dropdown__item--selected': isSelected(option) }"
             @click="select(option)"
           >
-            <slot name="option" :option="option">
+            <slot
+              name="option"
+              :option="option"
+            >
               <span class="base-dropdown__item-text">{{ option[labelKey] }}</span>
             </slot>
           </div>
-          <div v-if="filteredOptions.length === 0" class="base-dropdown__empty">
+          <div
+            v-if="filteredOptions.length === 0"
+            class="base-dropdown__empty"
+          >
             Ничего не найдено
           </div>
         </div>
@@ -109,6 +137,12 @@ export default {
       );
     },
   },
+  mounted() {
+    document.addEventListener('click', this.handleClickOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
+  },
   methods: {
     toggle() {
       if (this.disabled) return;
@@ -136,12 +170,6 @@ export default {
         this.searchQuery = '';
       }
     },
-  },
-  mounted() {
-    document.addEventListener('click', this.handleClickOutside);
-  },
-  beforeUnmount() {
-    document.removeEventListener('click', this.handleClickOutside);
   },
 };
 </script>

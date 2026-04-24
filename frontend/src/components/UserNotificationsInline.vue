@@ -1,9 +1,17 @@
 <template>
-  <div class="notifications" data-testid="cabinet-notifications">
+  <div
+    class="notifications"
+    data-testid="cabinet-notifications"
+  >
     <div class="notifications__header">
       <div class="notifications__header-left">
-        <h3 class="notifications__title">Уведомления</h3>
-        <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
+        <h3 class="notifications__title">
+          Уведомления
+        </h3>
+        <span
+          v-if="unreadCount > 0"
+          class="notification-badge"
+        >{{ unreadCount }}</span>
         <div class="filters">
           <button
             type="button"
@@ -36,14 +44,26 @@
       </button>
     </div>
 
-    <div class="notifications__list" :class="{ 'empty-list': filteredNotifications.length === 0 && !loading }">
-      <div v-if="loading && filteredNotifications.length === 0" class="notifications__loading">
+    <div
+      class="notifications__list"
+      :class="{ 'empty-list': filteredNotifications.length === 0 && !loading }"
+    >
+      <div
+        v-if="loading && filteredNotifications.length === 0"
+        class="notifications__loading"
+      >
         <LoaderSpinner />
       </div>
-      <div v-else-if="filteredNotifications.length === 0" class="notifications__empty">
+      <div
+        v-else-if="filteredNotifications.length === 0"
+        class="notifications__empty"
+      >
         <p>Уведомлений нет</p>
       </div>
-      <div v-else class="notifications__items">
+      <div
+        v-else
+        class="notifications__items"
+      >
         <div
           v-for="notif in filteredNotifications"
           :key="notif.id"
@@ -52,15 +72,27 @@
         >
           <div class="notification-dot-wrapper">
             <transition name="dot-fade">
-              <div v-if="!notif.is_read" class="notification-dot"></div>
+              <div
+                v-if="!notif.is_read"
+                class="notification-dot"
+              />
             </transition>
           </div>
-          <div class="notification-content" @click="markRead(notif)">
+          <div
+            class="notification-content"
+            @click="markRead(notif)"
+          >
             <div class="notification-header">
-              <div class="notification-title">{{ notif.title }}</div>
-              <div class="notification-date">{{ formatDate(notif.created_at) }}</div>
+              <div class="notification-title">
+                {{ notif.title }}
+              </div>
+              <div class="notification-date">
+                {{ formatDate(notif.created_at) }}
+              </div>
             </div>
-            <div class="notification-message">{{ notif.message }}</div>
+            <div class="notification-message">
+              {{ notif.message }}
+            </div>
           </div>
           <button
             type="button"
@@ -68,8 +100,19 @@
             :aria-label="`Удалить уведомление ${notif.title || ''}`"
             @click.stop="deleteNotification(notif.id)"
           >
-            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M13 1L1 13M1 1L13 13" stroke="#a2a2a2" stroke-width="2" stroke-linecap="round"/>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 14 14"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M13 1L1 13M1 1L13 13"
+                stroke="#a2a2a2"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
         </div>

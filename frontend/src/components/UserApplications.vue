@@ -2,7 +2,9 @@
   <div class="applications-card">
     <div class="card-header">
       <div class="card-header__title">
-        <h3 class="card-title">Список заявок</h3>
+        <h3 class="card-title">
+          Список заявок
+        </h3>
         
         <!-- Кнопки фильтров в шапке -->
         <div class="filter-tabs">
@@ -26,8 +28,8 @@
       
       <div class="card-header__settings">
         <SearchComponent
-          :title="'Поиск заявок..'"
           v-model="searchQuery"
+          :title="'Поиск заявок..'"
         />
         <RefreshButton @refresh="fetchUserApplications" />
       </div>
@@ -40,8 +42,13 @@
           <!-- Заголовок таблицы -->
           <div class="applications-header">
             <div class="header-row">
-              <div class="header-col id-col" @click="sortBy('application_number')">
-                <p :class="{ 'active-sort': sortField === 'application_number' }">Номер заявки</p>
+              <div
+                class="header-col id-col"
+                @click="sortBy('application_number')"
+              >
+                <p :class="{ 'active-sort': sortField === 'application_number' }">
+                  Номер заявки
+                </p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
@@ -49,10 +56,15 @@
                     'sorted': sortField === 'application_number',
                     'desc': sortField === 'application_number' && sortDirection === 'desc'
                   }" 
-                />
+                >
               </div>
-              <div class="header-col date-col" @click="sortBy('sending_datetime')">
-                <p :class="{ 'active-sort': sortField === 'sending_datetime' }">Дата и время</p>
+              <div
+                class="header-col date-col"
+                @click="sortBy('sending_datetime')"
+              >
+                <p :class="{ 'active-sort': sortField === 'sending_datetime' }">
+                  Дата и время
+                </p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
@@ -60,10 +72,15 @@
                     'sorted': sortField === 'sending_datetime',
                     'desc': sortField === 'sending_datetime' && sortDirection === 'desc'
                   }" 
-                />
+                >
               </div>
-              <div class="header-col sender-col" @click="sortBy('sender_name')">
-                <p :class="{ 'active-sort': sortField === 'sender_name' }">Отправитель</p>
+              <div
+                class="header-col sender-col"
+                @click="sortBy('sender_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'sender_name' }">
+                  Отправитель
+                </p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
@@ -71,10 +88,15 @@
                     'sorted': sortField === 'sender_name',
                     'desc': sortField === 'sender_name' && sortDirection === 'desc'
                   }" 
-                />
+                >
               </div>
-              <div class="header-col confirmation-col" @click="sortBy('confirmation')">
-                <p :class="{ 'active-sort': sortField === 'confirmation' }">Подтверждение</p>
+              <div
+                class="header-col confirmation-col"
+                @click="sortBy('confirmation')"
+              >
+                <p :class="{ 'active-sort': sortField === 'confirmation' }">
+                  Подтверждение
+                </p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
@@ -82,10 +104,15 @@
                     'sorted': sortField === 'confirmation',
                     'desc': sortField === 'confirmation' && sortDirection === 'desc'
                   }" 
-                />
+                >
               </div>
-              <div class="header-col status-col" @click="sortBy('status')">
-                <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
+              <div
+                class="header-col status-col"
+                @click="sortBy('status')"
+              >
+                <p :class="{ 'active-sort': sortField === 'status' }">
+                  Статус
+                </p>
                 <img 
                   src="@/assets/icons/sort.png" 
                   class="sort-icon" 
@@ -93,20 +120,30 @@
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
                   }" 
-                />
+                >
               </div>
             </div>
           </div>
           
           <!-- Тело таблицы -->
           <div class="applications-body">
-            <div v-if="isLoading" class="loading-message">
+            <div
+              v-if="isLoading"
+              class="loading-message"
+            >
               <LoaderSpinner label="Загрузка заявок…" />
             </div>
             
             <template v-else>
-              <div v-if="filteredApplications.length > 0" class="applications-list-content">
-                <transition-group name="fade-list" tag="div" class="applications-transition-group">
+              <div
+                v-if="filteredApplications.length > 0"
+                class="applications-list-content"
+              >
+                <transition-group
+                  name="fade-list"
+                  tag="div"
+                  class="applications-transition-group"
+                >
                   <div 
                     v-for="(application) in sortedApplications" 
                     :key="application.id" 
@@ -144,9 +181,15 @@
                 </transition-group>
               </div>
               
-              <div v-else class="no-data-message">
+              <div
+                v-else
+                class="no-data-message"
+              >
                 <p>{{ searchQuery ? 'Заявки не найдены' : 'Заявок нет' }}</p>
-                <p class="hint" v-if="!searchQuery">
+                <p
+                  v-if="!searchQuery"
+                  class="hint"
+                >
                   {{ getNoDataHint() }}
                 </p>
               </div>
@@ -289,6 +332,48 @@ export default {
         return 0;
       });
     }
+  },
+  watch: {
+    searchQuery() {
+      this.fetchUserApplications();
+    },
+    userId() {
+      this.fetchUserApplications();
+    }
+  },
+  mounted() {
+    this.fetchUserApplications();
+    this.getCurrentUser();
+    
+    // Добавляем стили для анимации уведомлений
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideDown {
+        from {
+          transform: translate(-50%, -100%);
+          opacity: 0;
+        }
+        to {
+          transform: translate(-50%, 0);
+          opacity: 1;
+        }
+      }
+      @keyframes slideUp {
+        from {
+          transform: translate(-50%, 0);
+          opacity: 1;
+        }
+        to {
+          transform: translate(-50%, -100%);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  },
+  beforeUnmount() {
+    // Восстанавливаем скролл при размонтировании компонента
+    document.body.style.overflow = '';
   },
   methods: {
     async fetchUserApplications() {
@@ -502,48 +587,6 @@ export default {
           notification.parentNode.removeChild(notification);
         }
       }, 3000);
-    }
-  },
-  mounted() {
-    this.fetchUserApplications();
-    this.getCurrentUser();
-    
-    // Добавляем стили для анимации уведомлений
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideDown {
-        from {
-          transform: translate(-50%, -100%);
-          opacity: 0;
-        }
-        to {
-          transform: translate(-50%, 0);
-          opacity: 1;
-        }
-      }
-      @keyframes slideUp {
-        from {
-          transform: translate(-50%, 0);
-          opacity: 1;
-        }
-        to {
-          transform: translate(-50%, -100%);
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  },
-  beforeUnmount() {
-    // Восстанавливаем скролл при размонтировании компонента
-    document.body.style.overflow = '';
-  },
-  watch: {
-    searchQuery() {
-      this.fetchUserApplications();
-    },
-    userId() {
-      this.fetchUserApplications();
     }
   }
 };

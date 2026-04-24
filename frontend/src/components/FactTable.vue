@@ -1,8 +1,13 @@
 <template>
-  <div class="fact-table-card" data-testid="fact-table">
+  <div
+    class="fact-table-card"
+    data-testid="fact-table"
+  >
     <div class="card-header">
       <div class="card-header__title">
-        <h3 class="card-title">{{ tableType === 'cars' ? 'Автомобили' : 'Люди' }} <span class="highlight-text">по факту</span></h3>
+        <h3 class="card-title">
+          {{ tableType === 'cars' ? 'Автомобили' : 'Люди' }} <span class="highlight-text">по факту</span>
+        </h3>
       </div>
       <div class="card-header__settings">
         <RefreshButton @refresh="fetchData" />
@@ -14,11 +19,26 @@
       <div class="fact-header">
         <div class="header-row">
           <!-- Въезд - отдельная колонка (только для машин) -->
-          <div class="col entry-col" v-if="tableType === 'cars'">Въезд</div>
+          <div
+            v-if="tableType === 'cars'"
+            class="col entry-col"
+          >
+            Въезд
+          </div>
           <!-- Выезд - отдельная колонка (только для машин) -->
-          <div class="col exit-col" v-if="tableType === 'cars'">Выезд</div>
-          <div class="col organization-col" @click="sortBy('organization')">
-            <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
+          <div
+            v-if="tableType === 'cars'"
+            class="col exit-col"
+          >
+            Выезд
+          </div>
+          <div
+            class="col organization-col"
+            @click="sortBy('organization')"
+          >
+            <p :class="{ 'active-sort': sortField === 'organization' }">
+              Организация
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -26,10 +46,16 @@
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
-          <div class="col brand-col" v-if="tableType === 'cars'" @click="sortBy('car_brand')">
-            <p :class="{ 'active-sort': sortField === 'car_brand' }">Марка</p>
+          <div
+            v-if="tableType === 'cars'"
+            class="col brand-col"
+            @click="sortBy('car_brand')"
+          >
+            <p :class="{ 'active-sort': sortField === 'car_brand' }">
+              Марка
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -37,10 +63,14 @@
                 'sorted': sortField === 'car_brand',
                 'desc': sortField === 'car_brand' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
           <!-- Компания скрыта -->
-          <div class="col company-col" v-if="tableType === 'cars'" style="display: none;"></div>
+          <div
+            v-if="tableType === 'cars'"
+            class="col company-col"
+            style="display: none;"
+          />
           <!-- Место разгрузки – закомментировано по требованию
           <div class="col place-col" @click="sortBy('unload_place')" v-if="tableType === 'cars'">
             <p :class="{ 'active-sort': sortField === 'unload_place' }">Место разгрузки</p>
@@ -54,8 +84,13 @@
             />
           </div>
           -->
-          <div class="col date-col" @click="sortBy('entry_date_to')">
-            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
+          <div
+            class="col date-col"
+            @click="sortBy('entry_date_to')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
+              Действует до
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -63,10 +98,15 @@
                 'sorted': sortField === 'entry_date_to',
                 'desc': sortField === 'entry_date_to' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
-          <div class="col time-col" @click="sortBy('entry_time')">
-            <p :class="{ 'active-sort': sortField === 'entry_time' }">{{ tableType === 'cars' ? 'Время' : 'Время прохода' }}</p>
+          <div
+            class="col time-col"
+            @click="sortBy('entry_time')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_time' }">
+              {{ tableType === 'cars' ? 'Время' : 'Время прохода' }}
+            </p>
             <img 
               src="@/assets/icons/sort.png" 
               class="sort-icon" 
@@ -74,7 +114,7 @@
                 'sorted': sortField === 'entry_time',
                 'desc': sortField === 'entry_time' && sortDirection === 'desc'
               }" 
-            />
+            >
           </div>
           <!--<div class="col status-col" @click="sortBy('status')">
             <p :class="{ 'active-sort': sortField === 'status' }">Статус</p>
@@ -95,8 +135,14 @@
       
       <!-- Тело таблицы -->
       <div class="fact-container">
-        <div v-if="filteredData.length > 0" class="fact-body">
-          <transition-group name="fade-list" tag="div">
+        <div
+          v-if="filteredData.length > 0"
+          class="fact-body"
+        >
+          <transition-group
+            name="fade-list"
+            tag="div"
+          >
             <div 
               v-for="(item, index) in sortedData" 
               :key="item.id" 
@@ -106,7 +152,11 @@
             >
               <div class="fact-row">
                 <!-- Въезд - кнопка (только для машин) -->
-                <div v-if="tableType === 'cars'" class="col entry-col" @click.stop>
+                <div
+                  v-if="tableType === 'cars'"
+                  class="col entry-col"
+                  @click.stop
+                >
                   <button 
                     class="action-btn entry-btn" 
                     :class="{ 'active': item.entry_checked }"
@@ -117,7 +167,11 @@
                   </button>
                 </div>
                 <!-- Выезд - кнопка (только для машин) -->
-                <div v-if="tableType === 'cars'" class="col exit-col" @click.stop>
+                <div
+                  v-if="tableType === 'cars'"
+                  class="col exit-col"
+                  @click.stop
+                >
                   <button 
                     class="action-btn exit-btn" 
                     :class="{ 'active': item.exit_checked }"
@@ -130,11 +184,18 @@
                 <div class="col organization-col">
                   {{ item.organization_name }}
                 </div>
-                <div v-if="tableType === 'cars'" class="col brand-col">
+                <div
+                  v-if="tableType === 'cars'"
+                  class="col brand-col"
+                >
                   {{ item.car_brand || '-' }}
                 </div>
                 <!-- Компания скрыта -->
-                <div v-if="tableType === 'cars'" class="col company-col" style="display: none;"></div>
+                <div
+                  v-if="tableType === 'cars'"
+                  class="col company-col"
+                  style="display: none;"
+                />
                 <!-- Место разгрузки – закомментировано по требованию
                 <div v-if="tableType === 'cars'" class="col place-col">
                   {{ formatUnloadPlaces(item) }}
@@ -154,23 +215,29 @@
                     {{ item.status }}
                   </span>
                 </div>-->
-                <div class="col actions-col" @click.stop>
+                <div
+                  class="col actions-col"
+                  @click.stop
+                >
                   <button 
-                    @click="deleteItem(item)" 
-                    class="delete-btn"
+                    class="delete-btn" 
+                    @click="deleteItem(item)"
                   >
                     <img 
                       src="@/assets/icons/trashcan.png" 
                       alt="Удалить" 
                       class="delete-icon"
-                    />
+                    >
                   </button>
                 </div>
               </div>
             </div>
           </transition-group>
         </div>
-        <p v-else class="no-data-message">
+        <p
+          v-else
+          class="no-data-message"
+        >
           {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : `Заявок ${tableType === 'cars' ? 'на машины' : 'на людей'} по факту нет` }}
         </p>
       </div>
@@ -317,6 +384,21 @@ export default {
         (this.dateRangeStart && this.dateRangeEnd)
       );
     }
+  },
+  watch: {
+    tableType: {
+      handler() {
+        this.stopPolling();
+        this.startPolling();
+      },
+      immediate: true
+    }
+  },
+  mounted() {
+    this.startPolling();
+  },
+  beforeUnmount() {
+    this.stopPolling();
   },
   methods: {
     async _loadData() {
@@ -625,21 +707,6 @@ export default {
         this.pollingInterval = null;
       }
     }
-  },
-  mounted() {
-    this.startPolling();
-  },
-  watch: {
-    tableType: {
-      handler() {
-        this.stopPolling();
-        this.startPolling();
-      },
-      immediate: true
-    }
-  },
-  beforeUnmount() {
-    this.stopPolling();
   }
 };
 </script>

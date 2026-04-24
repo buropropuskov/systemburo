@@ -1,91 +1,97 @@
 <template>
-    <div class="selector">
-        <div class="categories-container">
-            <div
-                v-for="category in uniqueCategories"
-                :key="category"
-                class="category"
-            >
-                <div class="category-header">
-                    <div class="category-title">{{ category }}</div>
-                    <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
-                </div>
-
-                <transition-group name="attachment" tag="div" class="attachments-list">
-                    <div
-                        v-for="attachment in getCategoryAttachments(category)"
-                        :key="getAttachmentKey(attachment)"
-                        class="attachment"
-                        :class="{ selected: isSelected(attachment) }"
-                        @click="selectAttachment(attachment)"
-                        @mouseenter="handleMouseEnter(attachment, $event)"
-                        @mouseleave="handleMouseLeave"
-                    >
-                        <input
-                            type="checkbox"
-                            :value="getAttachmentKey(attachment)"
-                            v-model="selectedAttachments"
-                            @click.stop
-                            class="attachment-checkbox"
-                        >
-                        <span class="attachment-name">{{ attachment.display_name }}</span>
-
-                        <button
-                            v-if="hoveredAttachment === getAttachmentKey(attachment)"
-                            class="delete-btn"
-                            @click.stop="confirmDelete(attachment)"
-                        >
-                            ×
-                        </button>
-                    </div>
-                </transition-group>
-
-                <button
-                    class="add-btn"
-                    :disabled="getCategoryAttachments(category).length >= 10"
-                    @click="addAttachment(category)"
-                >
-                    Добавить
-                </button>
-            </div>
+  <div class="selector">
+    <div class="categories-container">
+      <div
+        v-for="category in uniqueCategories"
+        :key="category"
+        class="category"
+      >
+        <div class="category-header">
+          <div class="category-title">
+            {{ category }}
+          </div>
+          <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
         </div>
 
-        <div class="actions">
-            <button
-                class="action-btn delete-selected"
-                :disabled="selectedAttachments.length === 0"
-                @click="confirmDeleteMultiple"
-            >
-                Удалить выбранные
-            </button>
-            <button
-                class="action-btn delete-all"
-                :disabled="attachments.length === 0"
-                @click="confirmDeleteAll"
-            >
-                Удалить все
-            </button>
-        </div>
-
-        <ConfirmationModal
-            :show="showDeleteModal"
-            title="Подтверждение удаления"
-            :message="deleteMessage"
-            confirm-text="Удалить"
-            cancel-text="Отмена"
-            :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
-            @confirm="deleteAttachments"
-            @cancel="cancelDelete"
-        />
-
-        <div
-            v-if="showTooltip"
-            class="tooltip"
-            :style="tooltipStyle"
+        <transition-group
+          name="attachment"
+          tag="div"
+          class="attachments-list"
         >
-            {{ tooltipText }}
-        </div>
+          <div
+            v-for="attachment in getCategoryAttachments(category)"
+            :key="getAttachmentKey(attachment)"
+            class="attachment"
+            :class="{ selected: isSelected(attachment) }"
+            @click="selectAttachment(attachment)"
+            @mouseenter="handleMouseEnter(attachment, $event)"
+            @mouseleave="handleMouseLeave"
+          >
+            <input
+              v-model="selectedAttachments"
+              type="checkbox"
+              :value="getAttachmentKey(attachment)"
+              class="attachment-checkbox"
+              @click.stop
+            >
+            <span class="attachment-name">{{ attachment.display_name }}</span>
+
+            <button
+              v-if="hoveredAttachment === getAttachmentKey(attachment)"
+              class="delete-btn"
+              @click.stop="confirmDelete(attachment)"
+            >
+              ×
+            </button>
+          </div>
+        </transition-group>
+
+        <button
+          class="add-btn"
+          :disabled="getCategoryAttachments(category).length >= 10"
+          @click="addAttachment(category)"
+        >
+          Добавить
+        </button>
+      </div>
     </div>
+
+    <div class="actions">
+      <button
+        class="action-btn delete-selected"
+        :disabled="selectedAttachments.length === 0"
+        @click="confirmDeleteMultiple"
+      >
+        Удалить выбранные
+      </button>
+      <button
+        class="action-btn delete-all"
+        :disabled="attachments.length === 0"
+        @click="confirmDeleteAll"
+      >
+        Удалить все
+      </button>
+    </div>
+
+    <ConfirmationModal
+      :show="showDeleteModal"
+      title="Подтверждение удаления"
+      :message="deleteMessage"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+      @confirm="deleteAttachments"
+      @cancel="cancelDelete"
+    />
+
+    <div
+      v-if="showTooltip"
+      class="tooltip"
+      :style="tooltipStyle"
+    >
+      {{ tooltipText }}
+    </div>
+  </div>
 </template>
 
 <script>
@@ -162,6 +168,9 @@ export default {
             deep: true,
             immediate: true
         }
+    },
+    mounted() {
+        this.fetchTemplates();
     },
     methods: {
         getAttachmentKey(attachment) {
@@ -339,9 +348,6 @@ export default {
             this.selectedAttachments = [];
             this.selectedAttachment = null;
         }
-    },
-    mounted() {
-        this.fetchTemplates();
     }
 }
 </script>

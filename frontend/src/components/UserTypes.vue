@@ -1,13 +1,18 @@
 <template>
   <div class="user-types-container dashboard-card">
     <div class="management-header">
-      <h3 class="management-title">Типы пользователей</h3>
+      <h3 class="management-title">
+        Типы пользователей
+      </h3>
       <div class="header-controls">
         <SearchComponent
-          :title="'Поиск типов...'"
           v-model="searchQuery"
+          :title="'Поиск типов...'"
         />
-        <button @click="showAddModal = true" class="add-header-button">
+        <button
+          class="add-header-button"
+          @click="showAddModal = true"
+        >
           Создать тип
         </button>
         <RefreshButton @refresh="refreshData" />
@@ -16,11 +21,19 @@
 
     <div class="content-container">
       <!-- Левая часть - список типов -->
-      <div class="types-section" :class="{'with-details': selectedType}">
+      <div
+        class="types-section"
+        :class="{'with-details': selectedType}"
+      >
         <div class="table-container">
           <div class="table-header">
-            <div class="header-col id-col" @click="sortBy('id')">
-              <p :class="{ 'active-sort': sortField === 'id' }">ID</p>
+            <div
+              class="header-col id-col"
+              @click="sortBy('id')"
+            >
+              <p :class="{ 'active-sort': sortField === 'id' }">
+                ID
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -28,10 +41,15 @@
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col name-col" @click="sortBy('name')">
-              <p :class="{ 'active-sort': sortField === 'name' }">Наименование</p>
+            <div
+              class="header-col name-col"
+              @click="sortBy('name')"
+            >
+              <p :class="{ 'active-sort': sortField === 'name' }">
+                Наименование
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -39,10 +57,15 @@
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
-            <div class="header-col users-col" @click="sortBy('users_count')">
-              <p :class="{ 'active-sort': sortField === 'users_count' }">Пользователи</p>
+            <div
+              class="header-col users-col"
+              @click="sortBy('users_count')"
+            >
+              <p :class="{ 'active-sort': sortField === 'users_count' }">
+                Пользователи
+              </p>
               <img 
                 src="@/assets/icons/sort.png" 
                 class="sort-icon" 
@@ -50,7 +73,7 @@
                   'sorted': sortField === 'users_count',
                   'desc': sortField === 'users_count' && sortDirection === 'desc'
                 }" 
-              />
+              >
             </div>
           </div>
 
@@ -66,7 +89,10 @@
                 <span class="cell-content id-value">{{ type.id }}</span>
               </div>
               <div class="table-col name-col">
-                <span class="truncate-text" :title="type.name">
+                <span
+                  class="truncate-text"
+                  :title="type.name"
+                >
                   {{ type.name }}
                 </span>
               </div>
@@ -83,19 +109,30 @@
       </div>
 
       <!-- Правая часть - детали типа -->
-      <div v-if="selectedType" class="details-section">
+      <div
+        v-if="selectedType"
+        class="details-section"
+      >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">{{ selectedType.name }}</h3>
+              <h3 class="details-title">
+                {{ selectedType.name }}
+              </h3>
               <div class="type-info-row">
                 <span class="system-name">{{ selectedType.code }}</span>
                 <span class="users-count-badge">Пользователей: {{ selectedType.users_count }}</span>
               </div>
             </div>
             <div class="details-header-actions">
-              <button @click="confirmDeleteType(selectedType)" class="delete-icon-btn">
-                <img src="@/assets/icons/delete.png" class="delete-icon" />
+              <button
+                class="delete-icon-btn"
+                @click="confirmDeleteType(selectedType)"
+              >
+                <img
+                  src="@/assets/icons/delete.png"
+                  class="delete-icon"
+                >
               </button>
             </div>
           </div>
@@ -107,10 +144,10 @@
                   <label class="detail-label">Наименование типа:</label>
                   <input 
                     v-model="selectedType.name" 
-                    @change="updateTypeName"
                     class="form-input-sm"
                     placeholder="Название типа"
                     autocomplete="off"
+                    @change="updateTypeName"
                   >
                 </div>
                 <div class="form-group compact">
@@ -128,25 +165,52 @@
         </div>
       </div>
       
-      <div v-else class="no-selection-message">
+      <div
+        v-else
+        class="no-selection-message"
+      >
         <p>Выберите тип пользователя для просмотра и редактирования</p>
       </div>
     </div>
 
-    <div v-if="filteredTypes.length === 0" class="no-results">
-      <div class="no-results-icon">👥</div>
+    <div
+      v-if="filteredTypes.length === 0"
+      class="no-results"
+    >
+      <div class="no-results-icon">
+        👥
+      </div>
       <p>Типы пользователей не найдены</p>
     </div>
 
     <!-- Модальное окно создания типа -->
     <transition name="modal-fade">
-      <div v-if="showAddModal" class="modal-overlay" @click.self="closeModal">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="closeModal"
+      >
         <div class="modal-content">
           <div class="modal-header">
-            <h3 class="modal-title">Создать новый тип пользователя</h3>
-            <button @click="closeModal" class="modal-close">
-              <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                <path d="M13 1L1 13M1 1L13 13" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+            <h3 class="modal-title">
+              Создать новый тип пользователя
+            </h3>
+            <button
+              class="modal-close"
+              @click="closeModal"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </button>
           </div>
@@ -155,36 +219,48 @@
             <div class="input-group">
               <label class="input-label">Наименование типа *</label>
               <input
+                ref="nameInput"
                 v-model="newType.name"
                 placeholder="Менеджер"
                 class="modal-input"
                 @keyup.enter="createType"
-                ref="nameInput"
               >
-              <div class="input-hint">Обязательное поле</div>
+              <div class="input-hint">
+                Обязательное поле
+              </div>
             </div>
             
             <div class="input-group">
               <label class="input-label">Системное имя *</label>
               <input
                 v-model="newType.code"
-                @input="validateSystemName"
                 placeholder="manager"
                 class="modal-input"
+                @input="validateSystemName"
                 @keyup.enter="createType"
               >
-              <div class="input-hint">Латинские буквы, цифры и подчеркивания</div>
-              <span v-if="nameError" class="form-error">{{ nameError }}</span>
+              <div class="input-hint">
+                Латинские буквы, цифры и подчеркивания
+              </div>
+              <span
+                v-if="nameError"
+                class="form-error"
+              >{{ nameError }}</span>
             </div>
           </div>
           
           <div class="modal-footer">
-            <button @click="closeModal" class="modal-btn modal-btn--cancel">Отмена</button>
+            <button
+              class="modal-btn modal-btn--cancel"
+              @click="closeModal"
+            >
+              Отмена
+            </button>
             <button 
-              @click="createType" 
-              class="modal-btn modal-btn--confirm"
+              class="modal-btn modal-btn--confirm" 
               :disabled="!isFormValid"
               :class="{'modal-btn--disabled': !isFormValid}"
+              @click="createType"
             >
               Создать
             </button>
@@ -206,7 +282,11 @@
     />
 
     <!-- Уведомления -->
-    <div v-if="notification.show" class="notification" :class="notification.type">
+    <div
+      v-if="notification.show"
+      class="notification"
+      :class="notification.type"
+    >
       <span class="notification-message">{{ notification.message }}</span>
     </div>
   </div>
@@ -302,6 +382,18 @@ export default {
              !this.nameError &&
              !this.isLoading;
     }
+  },
+  watch: {
+    showAddModal(newVal) {
+      if (newVal) {
+        this.$nextTick(() => {
+          this.$refs.nameInput?.focus();
+        });
+      }
+    }
+  },
+  mounted() {
+    this.refreshData();
   },
   methods: {
     validateSystemName() {
@@ -461,18 +553,6 @@ export default {
     
     hideNotification() {
       this.notification.show = false;
-    }
-  },
-  mounted() {
-    this.refreshData();
-  },
-  watch: {
-    showAddModal(newVal) {
-      if (newVal) {
-        this.$nextTick(() => {
-          this.$refs.nameInput?.focus();
-        });
-      }
     }
   }
 };
