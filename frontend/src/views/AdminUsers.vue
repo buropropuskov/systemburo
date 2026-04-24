@@ -1194,28 +1194,10 @@ export default {
   .admin-users__list-panel {
     max-height: 300px;
   }
-}
-
-@media (max-width: 768px) {
-  .admin-users__form-row--three,
-  .admin-users__form-row--two {
-    flex-direction: column;
-  }
-
-  .admin-users__actions {
-    flex-direction: column;
-  }
-
-  .admin-users__btn {
-    width: 100%;
-    text-align: center;
-  }
 
   /*
-   * Table-layout fixed + .admin-users__th--type{width: 120px} делал суммарную
-   * ширину table > wrapper - overflow visible смещал данные слева. Делаем
-   * synced horizontal scroll: scroll на .table-wrap, table растягивается до
-   * естественной ширины контента, ничего не обрезается.
+   * Synced horizontal scroll - table-layout: fixed + width: 120px на type-col
+   * давали суммарную ширину больше wrapper, last col обрезалась справа.
    */
   .admin-users__table-wrap {
     overflow-x: auto;
@@ -1234,6 +1216,22 @@ export default {
 
   .admin-users__th--type {
     width: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-users__form-row--three,
+  .admin-users__form-row--two {
+    flex-direction: column;
+  }
+
+  .admin-users__actions {
+    flex-direction: column;
+  }
+
+  .admin-users__btn {
+    width: 100%;
+    text-align: center;
   }
 }
 </style>
