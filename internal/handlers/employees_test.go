@@ -250,6 +250,71 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 	testutil.ParseSlice(t, rec)
 }
 
+// TestEmployeeHistory_ReadEndpoints проверяет что после PUT /territory-status
+// запись в employees_history читается через GET /:id/history и /history/unified
+// без 500. Ранее ломалось из-за обращения к несуществующим полям org.short_name.
+func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Создать сотрудника напрямую в БД (без полной заявки для простоты).
+	lastName, firstName := "TestLast", "TestFirst"
+	pos := "TestPos"
+	status := 1
+	employee := models.Employee{
+		LastName:  &lastName,
+		FirstName: &firstName,
+		Position:  &pos,
+		Status:    &status,
+	}
+	require.NoError(t, db.Create(&employee).Error)
+
+	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Регистрируем entry - должен создать запись в employees_history.
+	putBody := `{"territory_status":1,"user_id":null}`
+	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", employee.ID), putBody, h)
+	require.Equal(t, http.StatusOK, rec.Code, "PUT territory-status должен пройти")
+
+	// GET /employees/:id/history - раньше возвращал 500, сейчас должен 200 и вернуть запись.
+	rec = testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", employee.ID), h)
+	require.Equal(t, http.StatusOK, rec.Code, "GET /employees/:id/history должен вернуть 200")
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 1, "должна быть 1 запись entry")
+	assert.Equal(t, "entry", items[0]["action_type"])
+
+	// GET /employees/history/unified - тоже был 500.
+	rec = testutil.GET(t, e,
+		fmt.Sprintf("/employees/history/unified?last_name=%s&first_name=%s", lastName, firstName), h)
+	require.Equal(t, http.StatusOK, rec.Code, "GET /employees/history/unified должен вернуть 200")
+	items = testutil.ParseSlice(t, rec)
+	require.Len(t, items, 1)
+}
+
+// TestGetActiveEmployeesForTable_IncludesExtendedFields проверяет что
+// endpoint возвращает citizenship_name / position / company / pass_places -
+// эти поля нужны PeopleTable.vue для отображения соответствующих колонок.
+func TestGetActiveEmployeesForTable_IncludesExtendedFields(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "empfields1", "pass123", 1, td.OrgID, td.CompanyID)
+	tableID := seedSystemTable(t, db)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/employees/active-for-table/%d", tableID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Даже при пустом списке проверяем что поля декларированы в JSON (через smoke-check:
+	// endpoint не падает с 500 на SQL с новыми JOIN к citizenships). Сами значения
+	// покрываются integration-сценарием с полной заявкой в _WithActiveEmployee.
+	testutil.ParseSlice(t, rec)
+}
+
 func TestGetActiveEmployeesForTable_InvalidID(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

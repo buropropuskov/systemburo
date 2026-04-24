@@ -106,8 +106,8 @@ const baseSelectSQL = `
 		e.last_name AS employee_last_name,
 		e.first_name AS employee_first_name,
 		e.middle_name AS employee_middle_name,
-		COALESCE(org.short_name, '') AS organization,
-		COALESCE(comp.short_name, '') AS company
+		COALESCE(org.name, '') AS organization,
+		COALESCE(comp.name, '') AS company
 	FROM employees_history eh
 	LEFT JOIN users u ON eh.user_id = u.id
 	LEFT JOIN system_tables st ON eh.table_id = st.id

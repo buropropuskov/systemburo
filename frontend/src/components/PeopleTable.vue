@@ -86,6 +86,32 @@
             >
           </div>
           <div
+            class="col position-col"
+            @click="sortBy('position')"
+          >
+            <p :class="{ 'active-sort': sortField === 'position' }">
+              Должность
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'position', 'desc': sortField === 'position' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
+            class="col citizenship-col"
+            @click="sortBy('citizenship')"
+          >
+            <p :class="{ 'active-sort': sortField === 'citizenship' }">
+              Гражданство
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'citizenship', 'desc': sortField === 'citizenship' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
             class="col organization-col"
             @click="sortBy('organization')"
           >
@@ -96,6 +122,19 @@
               src="@/assets/icons/sort.png"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
+            class="col pass-places-col"
+            @click="sortBy('pass_places')"
+          >
+            <p :class="{ 'active-sort': sortField === 'pass_places' }">
+              Места прохода
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'pass_places', 'desc': sortField === 'pass_places' && sortDirection === 'desc' }"
             >
           </div>
           <div
@@ -201,8 +240,17 @@
                 <div class="col middle-name-col">
                   {{ item.middle_name || '-' }}
                 </div>
+                <div class="col position-col">
+                  {{ item.position || '-' }}
+                </div>
+                <div class="col citizenship-col">
+                  {{ item.citizenshipName || '-' }}
+                </div>
                 <div class="col organization-col">
                   {{ item.organization_name }}
+                </div>
+                <div class="col pass-places-col">
+                  {{ item.pass_places || '-' }}
                 </div>
                 <div class="col date-col">
                   {{ formatDate(item.entry_date_to) }}
@@ -382,8 +430,14 @@ export default {
             case 'middle_name':
             case 'organization':
             case 'status':
+            case 'position':
+            case 'pass_places':
               valueA = (a[this.sortField] || '').toString().toLowerCase();
               valueB = (b[this.sortField] || '').toString().toLowerCase();
+              break;
+            case 'citizenship':
+              valueA = (a.citizenshipName || '').toString().toLowerCase();
+              valueB = (b.citizenshipName || '').toString().toLowerCase();
               break;
             case 'entry_date_to':
               valueA = a.entry_date_to ? new Date(a.entry_date_to) : new Date(0);
@@ -518,6 +572,7 @@ export default {
             organization_name: orgName || 'Не указана',
             entry_date_to: emp.entry_date_to || '',
             pass_time: emp.pass_time || '',
+          pass_places: emp.pass_places || '',
             status: 'Активен',
             applicationId: emp.application_id,
             target_tables: emp.target_tables || [],
@@ -844,14 +899,17 @@ export default {
   white-space: nowrap;
 }
 
-.entry-col { width: 6.5%; }
-.exit-col { width: 8%; }
-.last-name-col { width: 12%; }
-.first-name-col { width: 12%; }
-.middle-name-col { width: 12%; }
-.organization-col { width: 18%; }
-.date-col { width: 11.5%; }
-.time-col { width: 10%; }
+.entry-col { width: 6%; }
+.exit-col { width: 6%; }
+.last-name-col { width: 9%; }
+.first-name-col { width: 8%; }
+.middle-name-col { width: 8%; }
+.position-col { width: 9%; }
+.citizenship-col { width: 8%; }
+.organization-col { width: 11%; }
+.pass-places-col { width: 10%; }
+.date-col { width: 8%; }
+.time-col { width: 8%; }
 .status-col { width: 7%; }
 .actions-col { width: 2%; }
 
