@@ -938,6 +938,28 @@ export default {
         margin-bottom: 4px;
     }
 
+    /* filter-tabs не помещаются в 1 строку - горизонтальный scroll */
+    .filters-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .filter-tabs {
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .filter-tab {
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
     .card-header {
         flex-direction: column;
         align-items: flex-start;

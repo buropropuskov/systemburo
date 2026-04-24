@@ -56,8 +56,9 @@ export default {
 <style scoped>
 .scroll-top-btn {
   position: fixed;
-  bottom: 30px;
-  right: 30px;
+  /* env() учитывает home-indicator на iPhone - кнопка не перекрывается */
+  bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+  right: calc(30px + env(safe-area-inset-right, 0px));
   width: 44px;
   height: 44px;
   display: flex;
@@ -96,8 +97,8 @@ export default {
 
 @media (max-width: 480px) {
   .scroll-top-btn {
-    bottom: 20px;
-    right: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    right: calc(20px + env(safe-area-inset-right, 0px));
     width: 40px;
     height: 40px;
   }

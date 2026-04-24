@@ -1603,4 +1603,59 @@ export default {
     scrollbar-width: thin;
     scrollbar-color: #D9E2FF transparent;
 }
+
+@media (max-width: 768px) {
+    .center {
+        padding: 12px;
+    }
+
+    .filters-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filters-row--secondary {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .filter-section--refresh {
+        margin-left: 0;
+        margin-top: 0;
+        width: 100%;
+    }
+
+    .field {
+        width: 100%;
+    }
+
+    .field__input {
+        width: 100%;
+    }
+
+    .status-buttons {
+        width: 100%;
+    }
+
+    /* Таблица с фиксированными % колонками не помещается - горизонтальный scroll */
+    .table-body,
+    .header-row {
+        min-width: 640px;
+    }
+
+    .applications-list {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 480px) {
+    .center {
+        padding: 10px;
+    }
+
+    .center__tabs {
+        gap: 6px;
+    }
+}
 </style>
