@@ -1216,5 +1216,30 @@ export default {
     width: 100%;
     text-align: center;
   }
+
+  /*
+   * Table-layout fixed + .admin-users__th--type{width: 120px} делал суммарную
+   * ширину table > wrapper - overflow visible смещал данные слева. Делаем
+   * synced horizontal scroll: scroll на .table-wrap, table растягивается до
+   * естественной ширины контента, ничего не обрезается.
+   */
+  .admin-users__table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+
+  .admin-users__table {
+    table-layout: auto;
+    min-width: 600px;
+  }
+
+  .admin-users__th,
+  .admin-users__row td {
+    white-space: nowrap;
+  }
+
+  .admin-users__th--type {
+    width: auto;
+  }
 }
 </style>
