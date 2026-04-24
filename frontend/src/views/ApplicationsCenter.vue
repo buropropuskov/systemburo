@@ -1713,35 +1713,17 @@ export default {
 
     /*
      * Таблица с фиксированными % колонками не помещается на мобильный экран.
-     * overflow-x: scroll + БЕЗ -webkit-overflow-scrolling: touch - momentum
-     * scrolling на iOS скрывает scrollbar после свайпа. Без него scrollbar
-     * остаётся видимым всегда, а трек подсказывает юзеру что листать можно.
+     * Native scrollbar скрываем - вместо него рендерим собственный
+     * .table-scroll-indicator под таблицей (всегда visible, не пропадает после
+     * touch-скролла на iOS/Android).
      */
     .applications-table {
         overflow-x: scroll;
-        scrollbar-width: auto;
-        scrollbar-color: #4F5BDF #ededf5;
+        scrollbar-width: none;
     }
 
     .applications-table::-webkit-scrollbar {
-        height: 10px;
-        -webkit-appearance: none;
-        display: block;
-    }
-
-    .applications-table::-webkit-scrollbar-track {
-        background: #ededf5;
-        border-radius: 5px;
-    }
-
-    .applications-table::-webkit-scrollbar-thumb {
-        background: #4F5BDF;
-        border-radius: 5px;
-        border: 2px solid #ededf5;
-    }
-
-    .applications-table::-webkit-scrollbar-thumb:hover {
-        background: #3d49c7;
+        display: none;
     }
 
     .table-header,
