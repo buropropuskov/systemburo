@@ -133,10 +133,8 @@
     </div>
 
     <div
-      ref="tableScrollEl"
       class="applications-table"
       :class="{ 'with-details': selectedApplication }"
-      @scroll="updateScrollIndicator"
     >
       <div class="table-header">
         <div class="header-row">
@@ -319,23 +317,6 @@
       </div>
     </div>
 
-    <!--
-      Кастомный scroll-indicator под таблицей для мобильного.
-      Native scrollbar скрывается после touch-скролла на iOS/Android - этот
-      всегда видим и реагирует на scroll через updateScrollIndicator().
-      На desktop скрыт через CSS media-query.
-    -->
-    <div
-      v-if="scrollbarVisible"
-      class="table-scroll-indicator"
-      aria-hidden="true"
-    >
-      <div
-        class="table-scroll-indicator__thumb"
-        :style="{ width: scrollThumbWidth + '%', transform: `translateX(${scrollThumbLeft}%)` }"
-      />
-    </div>
-
     <!-- Исправлено: используем selectedApplication вместо showDetail -->
     <ApplicationDetail
       v-if="selectedApplication"
@@ -425,12 +406,7 @@ export default {
             // Детали заявки
             selectedApplication: null,
             currentUserId: null,
-            currentUserName: '',
-
-            // Scroll indicator (только на mobile)
-            scrollbarVisible: false,
-            scrollThumbWidth: 100,
-            scrollThumbLeft: 0,
+            currentUserName: ''
         };
     },
     computed: {
@@ -604,11 +580,6 @@ export default {
         setTimeout(() => {
             this.isInitialLoad = false;
         }, 1000);
-
-        // Scroll indicator: инициализация и ресайз
-        this._scrollResizeHandler = this.updateScrollIndicator.bind(this);
-        window.addEventListener('resize', this._scrollResizeHandler);
-        this.$nextTick(() => this.updateScrollIndicator());
     },
     beforeUnmount() {
         if (this.shakeInterval) {
@@ -617,31 +588,8 @@ export default {
         if (this.applicationsPollInterval) {
             clearInterval(this.applicationsPollInterval);
         }
-        if (this._scrollResizeHandler) {
-            window.removeEventListener('resize', this._scrollResizeHandler);
-        }
     },
     methods: {
-        // Обновление кастомного scroll-indicator'a. Вызывается на scroll таблицы и
-        // resize окна. Показываем только когда таблица реально overflow'ит
-        // (scrollWidth > clientWidth) - на desktop таблица fit'ится, индикатор не нужен.
-        updateScrollIndicator() {
-            const el = this.$refs.tableScrollEl;
-            if (!el) {
-                this.scrollbarVisible = false;
-                return;
-            }
-            const overflow = el.scrollWidth - el.clientWidth;
-            if (overflow <= 0) {
-                this.scrollbarVisible = false;
-                return;
-            }
-            this.scrollbarVisible = true;
-            this.scrollThumbWidth = Math.max(15, (el.clientWidth / el.scrollWidth) * 100);
-            const maxTranslate = 100 - this.scrollThumbWidth;
-            this.scrollThumbLeft = (el.scrollLeft / overflow) * maxTranslate;
-        },
-
         // Организация
         getOrganizationName(application) {
             if (application.organization_name && application.organization_name.trim()) {
@@ -1656,28 +1604,6 @@ export default {
     scrollbar-color: #D9E2FF transparent;
 }
 
-/*
- * Кастомный scroll-indicator под таблицей. Отображается только когда
- * видимость включается из JS (scrollbarVisible). Native scrollbar на
- * touch-устройствах скрывается после инерции - этот остаётся всегда.
- */
-.table-scroll-indicator {
-    display: none;
-    height: 6px;
-    margin: 8px 16px 0;
-    background: #ededf5;
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.table-scroll-indicator__thumb {
-    height: 100%;
-    background: #4F5BDF;
-    border-radius: 3px;
-    transition: transform 0.08s linear;
-    will-change: transform;
-}
-
 @media (max-width: 768px) {
     .center {
         padding: 12px;
@@ -1730,21 +1656,37 @@ export default {
         overflow-y: hidden;
         max-height: none;
         height: auto;
-        scrollbar-width: none;
-        /* transition: all 0.3s в базе анимировал scrollLeft - programmatic и
-         * touch-scroll клэмпились на середине. Отключаем на мобильном. */
+        /* transition: all 0.3s и глобальный scroll-behavior: smooth анимировали
+         * scrollLeft - scroll останавливался посередине. Отключаем оба. */
         transition: none;
+        scroll-behavior: auto;
+        /* Native scrollbar виден в начальном состоянии (Firefox thin + Chrome 10px),
+         * на touch-устройствах он скроется после инерции - это native-поведение. */
+        scrollbar-width: auto;
+        scrollbar-color: #4F5BDF #ededf5;
     }
 
     .applications-table::-webkit-scrollbar {
-        display: none;
+        height: 10px;
+        -webkit-appearance: none;
+    }
+
+    .applications-table::-webkit-scrollbar-track {
+        background: #ededf5;
+        border-radius: 5px;
+    }
+
+    .applications-table::-webkit-scrollbar-thumb {
+        background: #4F5BDF;
+        border-radius: 5px;
     }
 
     .table-header,
     .table-body,
     .header-row,
     .application-item {
-        min-width: 780px;
+        /* actions-col скрыт на мобильном, суммарная ширина: 110+100+110+120+110+110 = 660 */
+        min-width: 660px;
     }
 
     /* Padding 0 16px делал scrollWidth больше реальной ширины content - scroll
@@ -1759,8 +1701,9 @@ export default {
         padding-left: 16px;
     }
 
-    .header-col:last-child,
-    .application-col:last-child {
+    /* actions-col скрыта, последний visible - status-col */
+    .header-col.status-col,
+    .application-col.status-col {
         padding-right: 16px;
     }
 
@@ -1781,7 +1724,13 @@ export default {
     .organization-col { min-width: 120px; }
     .sender-col { min-width: 110px; }
     .status-col { min-width: 110px; }
-    .actions-col { min-width: 100px; }
+
+    /* На мобильном actions-col (download button в каждой строке) скрываем -
+     * download доступен через детали заявки при клике на строку. */
+    .header-col.actions-col,
+    .application-col.actions-col {
+        display: none;
+    }
 
     /* Заголовки header-col в одну строку - без wrap, визуально выровнены */
     .header-col p {
