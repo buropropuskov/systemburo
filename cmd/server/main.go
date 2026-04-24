@@ -156,9 +156,10 @@ func main() {
 	settingsService := services.NewSettingsService(db, cfg)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
+	maintenanceService := services.NewMaintenanceService(db)
 
 	// Handlers
-	authHandler := handlers.NewAuthHandler(authService, cfg.CookieSecure, cfg.JWTRefreshTTL)
+	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
@@ -183,6 +184,7 @@ func main() {
 	consentHandler := handlers.NewConsentHandler(consentService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
+	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -195,9 +197,10 @@ func main() {
 	// Защита от онлайн brute-force до попадания в Argon2id (который замедляет
 	// только офлайн-атаки). Дополняется per-user lockout в authService.Login.
 	loginLimiter := mw.LoginRateLimit(5, 15*time.Minute)
+	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, []byte(cfg.JWTSecret), loginLimiter)
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, maintenanceBlock, []byte(cfg.JWTSecret), loginLimiter)
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
 	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

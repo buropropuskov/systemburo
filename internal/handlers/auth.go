@@ -14,6 +14,7 @@ const refreshCookieName = "refresh_token"
 
 type AuthHandler struct {
 	service       services.AuthService
+	maintenance   services.MaintenanceService
 	cookieSecure  bool
 	refreshMaxAge int
 }
@@ -22,9 +23,12 @@ type AuthHandler struct {
 // cookieSecure должен быть true в prod/staging (HTTPS), false только для
 // локальной разработки на http://localhost.
 // refreshTTL задаёт MaxAge для refresh cookie в секундах.
-func NewAuthHandler(service services.AuthService, cookieSecure bool, refreshTTL time.Duration) *AuthHandler {
+// maintenance используется для 503-bypass не-админам на /login при
+// включённом режиме техработ.
+func NewAuthHandler(service services.AuthService, maintenance services.MaintenanceService, cookieSecure bool, refreshTTL time.Duration) *AuthHandler {
 	return &AuthHandler{
 		service:       service,
+		maintenance:   maintenance,
 		cookieSecure:  cookieSecure,
 		refreshMaxAge: int(refreshTTL.Seconds()),
 	}
@@ -74,6 +78,18 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	resp, err := h.service.Login(c.Request().Context(), req, requestMeta(c))
 	if err != nil {
 		return err
+	}
+	// Maintenance-bypass: super-admin (type_id=6) всегда проходит, иначе -
+	// отзываем только что выданный refresh и возвращаем 503. Проверку
+	// делаем после пароля чтобы не выдавать 503 как oracle для подбора
+	// учёток (одинаковая задержка на верный и неверный пароль).
+	if h.maintenance != nil && resp.TypeID != 6 {
+		if st := h.maintenance.GetStatusCached(c.Request().Context()); st != nil && st.Enabled {
+			_ = h.service.Logout(c.Request().Context(), req.Username,
+				models.LogoutRequest{RefreshToken: resp.RefreshToken}, requestMeta(c))
+			return echo.NewHTTPError(http.StatusServiceUnavailable,
+				"Сервис временно недоступен: технические работы")
+		}
 	}
 	// refresh_token уходит в HttpOnly cookie, в JSON его не отдаём.
 	h.setRefreshCookie(c, resp.RefreshToken)

@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { useMaintenanceStore } from '@/stores/maintenance'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
@@ -108,6 +109,20 @@ function shouldHandleAsServerError(path, status) {
 async function baseRequest(path, options = {}) {
   const authStore = useAuthStore()
   let response = await doFetch(path, options, authStore.token)
+
+  // 503 Service Unavailable = maintenance. Только что узнали об этом на лету -
+  // обновляем стор (чтобы guard начал редиректить сразу) и шлём юзера на
+  // /maintenance. Не путаем с 500 - у maintenance отдельная страница и нет
+  // bug-report'а.
+  if (response.status === 503 && router.currentRoute.value.path !== '/maintenance') {
+    try {
+      await useMaintenanceStore().fetchStatus()
+    } catch {
+      // не критично
+    }
+    router.push('/maintenance')
+    return response
+  }
 
   // 5xx -> сохраняем безопасный контекст и редиректим на /500.
   // Ответ не читаем: тело может содержать детали ошибки, которые нам

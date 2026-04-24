@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useMaintenanceStore } from '@/stores/maintenance';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -113,6 +114,18 @@ const routes = [
     name: 'Error500',
     component: () => import('./views/Error500.vue'),
     meta: { requiresAuth: false }
+  },
+  {
+    path: '/maintenance',
+    name: 'Maintenance',
+    component: () => import('./views/Maintenance.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/admin/system-control',
+    name: 'SystemControl',
+    component: () => import('./views/admin/SystemControl.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
   }
 ];
 
@@ -127,8 +140,21 @@ const router = createRouter({
 // состояние без async гонок.
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
+  const maintenanceStore = useMaintenanceStore();
   const isAuthenticated = authStore.isAuthenticated;
   const isBuroPropuskov = authStore.isAdmin;
+
+  // Maintenance: если режим включён и юзер не супер-админ - на /maintenance.
+  // Сам /maintenance + /500 доступны всегда чтобы не зациклить.
+  if (
+    maintenanceStore.enabled
+    && !isBuroPropuskov
+    && to.name !== 'Maintenance'
+    && to.name !== 'Error500'
+  ) {
+    next({ name: 'Maintenance' });
+    return;
+  }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/');
