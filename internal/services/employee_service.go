@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -17,6 +19,10 @@ type EmployeeService interface {
 	CreateEmployee(ctx context.Context, req CreateEmployeeRequest) (*CreateEmployeeResponse, error)
 	// GetActiveEmployeesForTable возвращает активных сотрудников для конкретной таблицы.
 	GetActiveEmployeesForTable(ctx context.Context, tableID int) ([]TableEmployeeResponse, error)
+	// UpdateEmployeeTerritoryStatus обновляет статус нахождения сотрудника на территории (въезд/выезд).
+	// Аналогично UpdateCarTerritoryStatus: пишет в employees_history запись
+	// с action_type=entry/exit, обновляет territory_status + territory_entry_time.
+	UpdateEmployeeTerritoryStatus(ctx context.Context, employeeID int, req UpdateTerritoryStatusRequest) error
 }
 
 // --- DTO запросов ---
@@ -178,4 +184,68 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		})
 	}
 	return employees, nil
+}
+
+// UpdateEmployeeTerritoryStatus обновляет территориальный статус сотрудника
+// (въезд=1 / выезд=2) и пишет в employees_history запись с action_type. Полный
+// аналог UpdateCarTerritoryStatus из car_status_service.go.
+func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, employeeID int, req UpdateTerritoryStatusRequest) error {
+	now := time.Now().UTC()
+	actionType := "unknown"
+	if req.TerritoryStatus == 1 {
+		actionType = "entry"
+	} else if req.TerritoryStatus == 2 {
+		actionType = "exit"
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var employee models.Employee
+		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status").
+			First(&employee, employeeID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+
+		updates := map[string]interface{}{
+			"territory_status": req.TerritoryStatus,
+			"updated_at":       now,
+		}
+		if req.TerritoryStatus == 1 {
+			updates["territory_entry_time"] = now
+		}
+		if err := tx.Model(&models.Employee{}).Where("id = ?", employeeID).Updates(updates).Error; err != nil {
+			slog.Error("не удалось обновить территориальный статус сотрудника", "employee_id", employeeID, "status", req.TerritoryStatus, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating employee territory status")
+		}
+
+		fullName := ""
+		if employee.LastName != nil {
+			fullName += *employee.LastName
+		}
+		if employee.FirstName != nil {
+			fullName += " " + *employee.FirstName
+		}
+		var comment string
+		if req.TerritoryStatus == 1 {
+			comment = fmt.Sprintf("Сотрудник %s прошёл на территорию", fullName)
+		} else if req.TerritoryStatus == 2 {
+			comment = fmt.Sprintf("Сотрудник %s вышел с территории", fullName)
+		}
+
+		history := models.EmployeeHistory{
+			EmployeeID: employeeID,
+			UserID:     req.UserID,
+			ActionType: actionType,
+			Comment:    &comment,
+			CreatedAt:  now,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
+		}
+		slog.Info("территориальный статус сотрудника обновлён", "employee_id", employeeID, "action_type", actionType, "status", req.TerritoryStatus)
+		return nil
+	})
 }

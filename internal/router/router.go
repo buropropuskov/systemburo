@@ -148,6 +148,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	empGroup := protected.Group("/employees")
 	empGroup.POST("", employees.CreateEmployee)
 	empGroup.GET("/active-for-table/:table_id", employees.GetActiveEmployeesForTable)
+	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus)
 	empGroup.GET("/:id/history", employeesHistory.GetByEmployee)
 	empGroup.GET("/history/unified", employeesHistory.GetUnified)
 	empGroup.GET("/history/all", employeesHistory.GetAll)
