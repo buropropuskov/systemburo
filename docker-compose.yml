@@ -38,12 +38,17 @@ services:
       context: ./frontend
       target: dev
     env_file: .env
+    environment:
+      # Vite dev-proxy цель: в docker backend доступен по имени сервиса.
+      # При локальном npm run dev без docker сработает фолбэк http://localhost:8090.
+      VITE_API_TARGET: http://go-backend:${BIND_PORT:-8090}
     ports:
       - "8081:8081"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
       - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.js:/app/vite.config.js
     depends_on:
       - go-backend
     restart: unless-stopped
