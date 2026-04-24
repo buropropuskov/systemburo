@@ -1753,7 +1753,27 @@ export default {
                 if (response.ok) {
                     const result = await response.json();
                     this.createdApplicationNumber = result.application_number;
-                    this.createdAttachmentsData = applicationData.attachments || [];
+                    this.createdAttachmentsData = this.attachments.map(att => {
+                        const dateData = this.attachmentDatesByAttachment[this.attachmentKey(att)] || this.getDefaultDateData();
+                        let period = '';
+                        let time = '';
+
+                        if (dateData.isOneDay) {
+                            period = dateData.singleDate || '';
+                        } else if (dateData.startDate || dateData.endDate) {
+                            period = `${dateData.startDate || ''} - ${dateData.endDate || ''}`.trim();
+                        }
+
+                        if (dateData.startTime && dateData.endTime) {
+                            time = `${dateData.startTime} - ${dateData.endTime}`;
+                        }
+
+                        return {
+                            display_name: att.display_name || att.name,
+                            period,
+                            time
+                        };
+                    });
                     this.showSuccessModal = true;
                 } else {
                     const errorText = await response.text();

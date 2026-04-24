@@ -71,19 +71,40 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 // GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
 func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error) {
 	type carRow struct {
-		ID            int
-		CarNumber     string  `gorm:"column:car_number"`
-		CarBrand      string  `gorm:"column:car_brand"`
-		UnloadPlace   *string `gorm:"column:unload_place"`
-		EntryDateFrom *string `gorm:"column:entry_date_from"`
-		EntryTimeFrom *string `gorm:"column:entry_time_from"`
-		EntryDateTo   *string `gorm:"column:entry_date_to"`
-		EntryTimeTo   *string `gorm:"column:entry_time_to"`
+		ID             int
+		CarNumber      string  `gorm:"column:car_number"`
+		CarBrand       string  `gorm:"column:car_brand"`
+		UnloadPlace    *string `gorm:"column:unload_place"`
+		EntryDateFrom  *string `gorm:"column:entry_date_from"`
+		EntryTimeFrom  *string `gorm:"column:entry_time_from"`
+		EntryDateTo    *string `gorm:"column:entry_date_to"`
+		EntryTimeTo    *string `gorm:"column:entry_time_to"`
+		Organization   *string `gorm:"column:organization"`
+		OrganizationID *int    `gorm:"column:organization_id"`
+		Company        *string `gorm:"column:company"`
+		CompanyID      *int    `gorm:"column:company_id"`
 	}
 	cars := make([]carRow, 0)
 	if err := s.db.WithContext(ctx).Raw(`
-		SELECT id, car_number, car_brand, unload_place, entry_date_from, entry_time_from, entry_date_to, entry_time_to
-		FROM cars WHERE attachment_id = ?
+		SELECT
+			c.id,
+			c.car_number,
+			c.car_brand,
+			c.unload_place,
+			c.entry_date_from,
+			c.entry_time_from,
+			c.entry_date_to,
+			c.entry_time_to,
+			o.name AS organization,
+			o.id   AS organization_id,
+			comp.name AS company,
+			comp.id   AS company_id
+		FROM cars c
+		JOIN attachments a ON c.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		LEFT JOIN organizations o ON app.organization_id = o.id
+		LEFT JOIN companies comp ON app.company_id = comp.id
+		WHERE c.attachment_id = ?
 	`, attachmentID).Scan(&cars).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
@@ -100,15 +121,19 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		`, car.ID).Scan(&places)
 
 		result = append(result, CarWithPlaces{
-			ID:            car.ID,
-			CarNumber:     car.CarNumber,
-			CarBrand:      car.CarBrand,
-			UnloadPlace:   car.UnloadPlace,
-			EntryDateFrom: car.EntryDateFrom,
-			EntryTimeFrom: car.EntryTimeFrom,
-			EntryDateTo:   car.EntryDateTo,
-			EntryTimeTo:   car.EntryTimeTo,
-			UnloadPlaces:  places,
+			ID:             car.ID,
+			CarNumber:      car.CarNumber,
+			CarBrand:       car.CarBrand,
+			UnloadPlace:    car.UnloadPlace,
+			EntryDateFrom:  car.EntryDateFrom,
+			EntryTimeFrom:  car.EntryTimeFrom,
+			EntryDateTo:    car.EntryDateTo,
+			EntryTimeTo:    car.EntryTimeTo,
+			Organization:   car.Organization,
+			OrganizationID: car.OrganizationID,
+			Company:        car.Company,
+			CompanyID:      car.CompanyID,
+			UnloadPlaces:   places,
 		})
 	}
 
@@ -124,14 +149,43 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		MiddleName           *string `gorm:"column:middle_name"`
 		Position             *string `gorm:"column:position"`
 		CitizenshipID        *int    `gorm:"column:citizenship_id"`
+		CitizenshipName      *string `gorm:"column:citizenship_name"`
 		PassportSeriesNumber *string `gorm:"column:passport_series_number"`
 		PatentNumber         *string `gorm:"column:patent_number"`
 		OtherPermission      *string `gorm:"column:other_permission"`
+		EntryDateTo          *string `gorm:"column:entry_date_to"`
+		PassTime             *string `gorm:"column:pass_time"`
+		Organization         *string `gorm:"column:organization"`
+		OrganizationID       *int    `gorm:"column:organization_id"`
+		Company              *string `gorm:"column:company"`
+		CompanyID            *int    `gorm:"column:company_id"`
 	}
 	employees := make([]empRow, 0)
 	if err := s.db.WithContext(ctx).Raw(`
-		SELECT id, last_name, first_name, middle_name, position, citizenship_id, passport_series_number, patent_number, other_permission
-		FROM employees WHERE attachment_id = ?
+		SELECT
+			e.id,
+			e.last_name,
+			e.first_name,
+			e.middle_name,
+			e.position,
+			e.citizenship_id,
+			ci.name AS citizenship_name,
+			e.passport_series_number,
+			e.patent_number,
+			e.other_permission,
+			a.entry_date_to,
+			CONCAT(a.entry_time_from, ' - ', a.entry_time_to) AS pass_time,
+			o.name AS organization,
+			o.id   AS organization_id,
+			comp.name AS company,
+			comp.id   AS company_id
+		FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		LEFT JOIN citizenships ci ON e.citizenship_id = ci.id
+		LEFT JOIN applications app ON a.application_id = app.id
+		LEFT JOIN organizations o ON app.organization_id = o.id
+		LEFT JOIN companies comp ON app.company_id = comp.id
+		WHERE e.attachment_id = ?
 	`, attachmentID).Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
@@ -158,9 +212,16 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 			MiddleName:           emp.MiddleName,
 			Position:             emp.Position,
 			CitizenshipID:        emp.CitizenshipID,
+			CitizenshipName:      emp.CitizenshipName,
 			PassportSeriesNumber: emp.PassportSeriesNumber,
 			PatentNumber:         emp.PatentNumber,
 			OtherPermission:      emp.OtherPermission,
+			EntryDateTo:          emp.EntryDateTo,
+			PassTime:             emp.PassTime,
+			Organization:         emp.Organization,
+			OrganizationID:       emp.OrganizationID,
+			Company:              emp.Company,
+			CompanyID:            emp.CompanyID,
 			TargetTables:         tables,
 		})
 	}
