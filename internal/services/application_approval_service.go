@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -173,6 +174,49 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	for _, resp := range addedResponsibleUsers {
 		if err := s.permissionService.GrantPermission(ctx, resp.UserID, "tab.applications.view", "allow"); err != nil {
 			slog.Warn("не удалось выдать разрешение tab.applications.view", "user_id", resp.UserID, "error", err)
+		}
+	}
+
+	// Уведомления для ответственных и просматривающих о поступлении заявки на
+	// согласование. Ошибки только логируем - не должны откатывать пересылку.
+	if s.notificationService != nil {
+		var appNumber string
+		s.db.WithContext(ctx).Raw("SELECT application_number FROM applications WHERE id = ?", applicationID).Scan(&appNumber)
+		appNumberStr := appNumber
+		if appNumberStr == "" {
+			appNumberStr = fmt.Sprintf("№ %d", applicationID)
+		}
+
+		for _, resp := range addedResponsibleUsers {
+			data := map[string]any{
+				"application_id":     applicationID,
+				"application_number": appNumberStr,
+				"forwarded_by":       currentUserName,
+			}
+			payload, _ := json.Marshal(data)
+			payloadStr := string(payload)
+			if err := s.notificationService.CreateForUser(ctx, resp.UserID, "application_approval_required",
+				"Заявка на согласование",
+				fmt.Sprintf("Вам передана заявка %s на согласование.", appNumberStr),
+				&payloadStr); err != nil {
+				slog.Warn("не удалось создать уведомление о согласовании", "user_id", resp.UserID, "error", err)
+			}
+		}
+
+		for _, viewerID := range addedViewers {
+			data := map[string]any{
+				"application_id":     applicationID,
+				"application_number": appNumberStr,
+				"forwarded_by":       currentUserName,
+			}
+			payload, _ := json.Marshal(data)
+			payloadStr := string(payload)
+			if err := s.notificationService.CreateForUser(ctx, viewerID, "application_forwarded",
+				"Заявка передана для просмотра",
+				fmt.Sprintf("Вам передана заявка %s для просмотра.", appNumberStr),
+				&payloadStr); err != nil {
+				slog.Warn("не удалось создать уведомление просмотра", "user_id", viewerID, "error", err)
+			}
 		}
 	}
 
