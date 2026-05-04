@@ -40,17 +40,12 @@
 
               <div class="form-group">
                 <label class="form-label">Пароль:</label>
-                <input 
-                  v-model="newUser.password" 
-                  type="password" 
+                <PasswordInput
+                  v-model="newUser.password"
                   placeholder="Введите пароль"
-                  class="form-input"
                   required
-                  autocomplete="new-password"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                >
+                  input-class="form-input"
+                />
               </div>
 
               <div class="form-group form-group--full">
@@ -250,7 +245,9 @@ import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
+import PasswordInput from '@/components/ui/PasswordInput.vue';
 export default {
+  components: { PasswordInput },
   props: {
     userTypes: {
       type: Array,

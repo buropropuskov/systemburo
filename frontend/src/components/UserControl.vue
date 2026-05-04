@@ -507,14 +507,12 @@
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Пароль <span class="required">*</span></label>
-                  <input
+                  <PasswordInput
                     v-model="newUser.password"
-                    type="password"
                     placeholder="Введите пароль"
-                    class="modal-input"
-                    @keyup="checkNewUserInputLanguage"
+                    input-class="modal-input"
                     @input="saveDraft"
-                  >
+                  />
                   <div class="input-hint">
                     Минимум 6 символов
                   </div>
@@ -790,13 +788,15 @@ import { formatShortName } from '@/utils/formatName'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PermissionTree from './PermissionTree.vue';
+import PasswordInput from './ui/PasswordInput.vue';
 import { getUserPermissions, updateUserPermissions, getPermissionTree } from '@/api/permissions';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
-    PermissionTree
+    PermissionTree,
+    PasswordInput
   },
   props: {
     allUsers: {
