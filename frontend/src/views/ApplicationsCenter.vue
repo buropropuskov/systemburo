@@ -126,7 +126,10 @@
           </div>
                     
           <div class="filter-section filter-section--refresh">
-            <RefreshButton @refresh="fetchApplications" />
+            <RefreshButton
+              :loading="refreshing"
+              @refresh="fetchApplications"
+            />
           </div>
         </div>
       </div>
@@ -273,7 +276,14 @@
                   </span>
                 </div>
                 <div class="application-col number-col">
-                  <span class="application-number">{{ application.application_number }}</span>
+                  <span
+                    class="application-number application-number--copyable"
+                    data-tooltip="Копировать"
+                    role="button"
+                    tabindex="0"
+                    @click.stop="copyApplicationNumber(application.application_number)"
+                    @keydown.enter.prevent="copyApplicationNumber(application.application_number)"
+                  >{{ application.application_number }}</span>
                 </div>
                 <div class="application-col date-col">
                   {{ formatDateTime(application.sending_datetime) }}
@@ -346,6 +356,7 @@ import DateFilter from '../components/DateFilter.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import { useToast } from '@/composables/useToast';
 
 export default {
     name: 'ApplicationsCenter',
@@ -402,6 +413,7 @@ export default {
             activeToday: false,
 
             loading: true,
+            refreshing: false,
 
             // Данные заявок
             applications: [],
@@ -593,6 +605,28 @@ export default {
         }
     },
     methods: {
+        async copyApplicationNumber(number) {
+            if (!number) return;
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(String(number));
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = String(number);
+                    textarea.setAttribute('readonly', '');
+                    textarea.style.position = 'absolute';
+                    textarea.style.left = '-9999px';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                }
+                useToast().success(`Номер ${number} скопирован`);
+            } catch {
+                useToast().error('Не удалось скопировать номер');
+            }
+        },
+
         // Организация
         getOrganizationName(application) {
             if (application.organization_name && application.organization_name.trim()) {
@@ -787,6 +821,7 @@ export default {
         
         // API методы
         async fetchApplications() {
+            this.refreshing = true;
             try {
                 const authStore = useAuthStore();
                 if (!authStore.token) {
@@ -845,6 +880,7 @@ export default {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
                 this.loading = false;
+                this.refreshing = false;
             }
         },
 
@@ -1506,6 +1542,47 @@ export default {
 
 .application-number {
     color: #a2a2a2;
+}
+
+.application-number--copyable {
+    position: relative;
+    cursor: pointer;
+    transition: color 0.15s;
+    user-select: none;
+    border-radius: 4px;
+    outline: none;
+}
+
+.application-number--copyable:hover,
+.application-number--copyable:focus-visible {
+    color: #333;
+}
+
+.application-number--copyable:focus-visible {
+    box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.3);
+}
+
+.application-number--copyable::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.application-number--copyable:hover::after {
+    opacity: 1;
 }
 
 .status-badge {

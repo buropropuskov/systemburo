@@ -34,7 +34,14 @@
 
           <div class="application-number">
             <span class="label">Номер заявки:</span>
-            <strong class="number">{{ applicationNumber }}</strong>
+            <strong
+              class="number number--copyable"
+              data-tooltip="Копировать"
+              role="button"
+              tabindex="0"
+              @click="copyNumber"
+              @keydown.enter.prevent="copyNumber"
+            >{{ applicationNumber }}</strong>
           </div>
 
           <div class="info-message">
@@ -175,6 +182,8 @@
 </template>
 
 <script>
+import { useToast } from '@/composables/useToast';
+
 export default {
     name: 'ApplicationSuccessModal',
     props: {
@@ -197,6 +206,27 @@ export default {
     methods: {
         handleClose() {
             this.$emit('close')
+        },
+        async copyNumber() {
+            const number = this.applicationNumber;
+            if (!number) return;
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(String(number));
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = String(number);
+                    ta.style.position = 'absolute';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                }
+                useToast().success(`Номер ${number} скопирован`);
+            } catch {
+                useToast().error('Не удалось скопировать номер');
+            }
         }
     }
 }
@@ -238,7 +268,7 @@ export default {
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
-    max-height: 80vh;
+    max-height: 91vh;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
@@ -309,6 +339,47 @@ export default {
     font-weight: 700;
     color: #4F5BDF;
     letter-spacing: 0.5px;
+}
+
+.application-number .number--copyable {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 4px;
+    outline: none;
+    padding: 2px 6px;
+    transition: background-color 0.15s;
+}
+
+.application-number .number--copyable:hover {
+    background-color: rgba(79, 91, 223, 0.1);
+}
+
+.application-number .number--copyable:focus-visible {
+    box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.4);
+}
+
+.application-number .number--copyable::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.application-number .number--copyable:hover::after {
+    opacity: 1;
 }
 
 .info-message {
