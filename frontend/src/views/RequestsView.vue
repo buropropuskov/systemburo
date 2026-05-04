@@ -1045,66 +1045,80 @@ export default {
   flex-wrap: wrap;
 }
 
-.filter-select {
-  padding: 6px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  font-size: 0.85em;
+.filter-select,
+.date-input {
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 13px;
+  font-family: inherit;
   background: #fff;
-  min-width: 120px;
+  color: #1a1a1a;
+  min-width: 130px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .date-input {
-  padding: 6px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  font-size: 0.85em;
-  width: 140px;
+  width: 150px;
+  min-width: auto;
+}
+
+.filter-select:hover,
+.date-input:hover {
+  border-color: #c5c9d6;
+}
+
+.filter-select:focus,
+.date-input:focus {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
 }
 
 .refresh-button {
   background: none;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
+  border-radius: 10px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .refresh-button:hover {
-  background-color: #f0f0f0;
+  background-color: #eef0ff;
+  border-color: #4F5BDF;
 }
 
 .refresh-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+}
+
+.clear-filters-btn,
+.export-btn {
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .clear-filters-btn {
-  padding: 6px 12px;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.85em;
-  cursor: pointer;
-  transition: background-color 0.2s;
+  background: #fff;
+  color: #4F5BDF;
+  border-color: #4F5BDF;
 }
 
 .clear-filters-btn:hover {
-  background: #4b5563;
+  background: #eef0ff;
 }
 
 .export-btn {
-  padding: 6px 12px;
   background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.85em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
+  color: #fff;
 }
 
 .export-btn:hover {
@@ -1112,7 +1126,7 @@ export default {
 }
 
 .export-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
