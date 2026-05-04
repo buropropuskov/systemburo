@@ -190,12 +190,16 @@
                 v-if="filteredEmployees.length > 0"
                 class="employees-body"
               >
-                <div 
-                  v-for="(employee) in sortedEmployees" 
-                  :key="employee.id" 
+                <div
+                  v-for="(employee) in sortedEmployees"
+                  :key="employee.id"
                   class="employee-item"
                 >
-                  <div class="employee-row">
+                  <div
+                    class="employee-row"
+                    title="Открыть детали сотрудника"
+                    @click="openEmployeeDetails(employee)"
+                  >
                     <div class="employee-col number-col">
                       {{ employee.id }}
                     </div>
@@ -219,7 +223,7 @@
                         v-if="canEditEmployee(employee)"
                         class="edit-btn"
                         title="Редактировать"
-                        @click="editEmployee(employee)"
+                        @click.stop="editEmployee(employee)"
                       >
                         <img
                           src="@/assets/icons/edit.png"
@@ -231,7 +235,7 @@
                         v-if="canEditEmployee(employee)"
                         class="delete-btn"
                         title="Удалить"
-                        @click="deleteEmployee(employee)"
+                        @click.stop="deleteEmployee(employee)"
                       >
                         <img
                           src="@/assets/icons/trashcan.png"
@@ -304,6 +308,17 @@
       @saved="onEmployeeSaved"
       @close="closeModal"
     />
+
+    <EmployeeDetailsModal
+      v-if="detailsEmployee"
+      :show="showDetailsModal"
+      :employee="detailsEmployee"
+      :all-tables="[]"
+      :current-user-id="ownershipInfo?.user_id || null"
+      :current-user-name="''"
+      source="employeesview"
+      @close="closeDetailsModal"
+    />
   </section>
 </template>
 
@@ -315,6 +330,7 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
+import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 
 export default {
     components: {
@@ -323,7 +339,8 @@ export default {
         SkeletonTransition,
         SkeletonTable,
         StatusBadge,
-        EmployeeEditModal
+        EmployeeEditModal,
+        EmployeeDetailsModal
     },
     data() {
         return {
@@ -337,7 +354,9 @@ export default {
             ownershipInfo: null,
             showModal: false,
             availableCitizenships: [],
-            editingEmployee: null
+            editingEmployee: null,
+            showDetailsModal: false,
+            detailsEmployee: null
         };
     },
     computed: {
@@ -528,6 +547,30 @@ export default {
         switchFilter(filterType) {
             this.currentFilter = filterType;
             this.fetchEmployees();
+        },
+
+        openEmployeeDetails(employee) {
+            // EmployeeDetailsModal читает snake_case (last_name, position, ...)
+            // и поддерживает source=employeesview - заголовок \"Информация о сотруднике\"
+            this.detailsEmployee = {
+                id: employee.id,
+                last_name: employee.last_name,
+                first_name: employee.first_name,
+                middle_name: employee.middle_name,
+                position: employee.position,
+                citizenshipName: employee.citizenship_name,
+                passport_series_number: employee.passport_series_number,
+                patent_number: employee.patent_number,
+                other_permission: employee.other_permission,
+                organization: employee.organization_name,
+                company: employee.company_name,
+                target_tables: []
+            };
+            this.showDetailsModal = true;
+        },
+        closeDetailsModal() {
+            this.showDetailsModal = false;
+            this.detailsEmployee = null;
         },
 
         showAddEmployeeModal() {
