@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -33,12 +35,16 @@ type UserService interface {
 }
 
 type userService struct {
-	db *gorm.DB
+	db                  *gorm.DB
+	notificationService NotificationService
 }
 
 // NewUserService создаёт новый экземпляр сервиса управления пользователями.
-func NewUserService(db *gorm.DB) UserService {
-	return &userService{db: db}
+// notificationService может быть nil — в этом случае уведомления просто
+// не будут создаваться (legacy совместимость в местах, где notification
+// не подключён). Триггерные методы проверяют nil перед использованием.
+func NewUserService(db *gorm.DB, notificationService NotificationService) UserService {
+	return &userService{db: db, notificationService: notificationService}
 }
 
 // checkAdmin проверяет, что вызывающий пользователь является администратором
@@ -180,9 +186,70 @@ func (s *userService) UpdatePassword(ctx context.Context, callerTypeID int, user
 			Model(&models.RefreshToken{}).
 			Where("user_id = ? AND is_revoked = false", user.ID).
 			Update("is_revoked", true)
+
+		// Уведомление о смене пароля. Сейчас UpdatePassword вызывается только
+		// admin'ом (manager/buropropuskov) — даже если username совпадает с
+		// callerTypeID, это всё равно admin-action. Считаем "сам себе сменил"
+		// если в БД у юзера тот же type_id, что и у вызывающего, и юзер админ.
+		s.notifyPasswordChanged(ctx, &user, callerTypeID)
 	}
 
 	return nil
+}
+
+// notifyPasswordChanged создаёт уведомление о смене пароля. Вызывается
+// после успешного апдейта; ошибки только логируются (уведомления не
+// должны блокировать основной flow).
+func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.User, callerTypeID int) {
+	if s.notificationService == nil {
+		return
+	}
+
+	// Определяем, сам ли пользователь сменил пароль или это сделал админ.
+	// Под "сам собой" понимаем: callerTypeID == target.TypeID и сам юзер - админ.
+	// Уточнить вызывающего через user_id мы не можем (в API передаётся
+	// только callerTypeID), поэтому ограничиваемся типом.
+	selfChange := false
+	if callerTypeID == target.TypeID {
+		var code string
+		err := s.db.WithContext(ctx).
+			Table("user_types").
+			Select("code").
+			Where("id = ?", target.TypeID).
+			Row().
+			Scan(&code)
+		if err == nil && (code == "manager" || code == "buropropuskov") {
+			selfChange = true
+		}
+	}
+
+	message := "Администратор изменил ваш пароль."
+	if selfChange {
+		message = "Ваш пароль был успешно изменён."
+	}
+
+	dataPayload := map[string]any{
+		"changed_at": time.Now().UTC().Format(time.RFC3339),
+		// changed_by_user_id мы не знаем точно (передаётся только typeID),
+		// поэтому пишем тип вызывающего — это всё, что у нас есть.
+		"changed_by_type_id": callerTypeID,
+	}
+	dataBytes, err := json.Marshal(dataPayload)
+	if err != nil {
+		slog.Error("не удалось сериализовать payload уведомления", "error", err)
+		return
+	}
+	dataStr := string(dataBytes)
+
+	if err := s.notificationService.CreateForUser(
+		ctx, target.ID,
+		"password_changed",
+		"Пароль изменён",
+		message,
+		&dataStr,
+	); err != nil {
+		slog.Error("не удалось создать уведомление о смене пароля", "user_id", target.ID, "error", err)
+	}
 }
 
 // UpdateInfo обновляет персональные данные пользователя.

@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"systemburo/internal/crypto"
@@ -12,6 +14,46 @@ import (
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
+
+// equalStrPtr возвращает true если оба указателя nil или ссылаются на равные строки.
+func equalStrPtr(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// equalIntPtr возвращает true если оба указателя nil или ссылаются на равные int.
+func equalIntPtr(a, b *int) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// copyStrPtr возвращает копию указателя на строку (не разделяет память).
+func copyStrPtr(p *string) *string {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
+// intPtrToStrPtr форматирует *int как *string для записи в old_value/new_value.
+func intPtrToStrPtr(p *int) *string {
+	if p == nil {
+		return nil
+	}
+	s := strconv.Itoa(*p)
+	return &s
+}
 
 // EmployeeOwnerInfo -- информация о владельце для фильтрации сотрудников.
 type EmployeeOwnerInfo struct {
@@ -76,6 +118,22 @@ type UniqueEmployeeResponse struct {
 	CreatedAt            *time.Time `json:"created_at"`
 }
 
+// UniqueEmployeeHistoryItem -- запись истории мастер-сотрудника с username вызывающего.
+type UniqueEmployeeHistoryItem struct {
+	ID               int       `json:"id"`
+	UniqueEmployeeID int       `json:"unique_employee_id"`
+	UserID           *int      `json:"user_id"`
+	Username         *string   `json:"username"`
+	UserLastName     *string   `json:"user_last_name"`
+	UserFirstName    *string   `json:"user_first_name"`
+	ActionType       string    `json:"action_type"`
+	FieldName        *string   `json:"field_name"`
+	OldValue         *string   `json:"old_value"`
+	NewValue         *string   `json:"new_value"`
+	Comment          *string   `json:"comment"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
 // UniqueEmployeeService -- интерфейс бизнес-логики уникальных сотрудников.
 type UniqueEmployeeService interface {
 	GetOwnerInfo(ctx context.Context, username string) (*EmployeeOwnerInfo, error)
@@ -83,6 +141,7 @@ type UniqueEmployeeService interface {
 	Create(ctx context.Context, username string, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Delete(ctx context.Context, username string, id int) error
+	GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error)
 }
 
 type uniqueEmployeeService struct {
@@ -309,10 +368,10 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		return nil, err
 	}
 
-	// Проверяем существование и права
+	// Полная запись «до апдейта» нужна для аудита изменений (data_changed).
+	// Проверка прав делается по тем же полям, поэтому отдельный SELECT не нужен.
 	var existing models.UniqueEmployee
-	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id").
-		First(&existing, id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&existing, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, echo.NewHTTPError(http.StatusNotFound, "Employee not found")
 		}
@@ -407,7 +466,79 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated employee")
 	}
 
+	// Аудит изменений: пишем по одной записи в unique_employees_history
+	// на каждое изменённое поле. Ошибка аудита не должна откатывать апдейт,
+	// поэтому только логируем — апдейт уже зафиксирован.
+	if err := s.recordEmployeeChanges(ctx, &existing, &updated, ownerInfo.UserID); err != nil {
+		slog.Error("не удалось записать аудит изменений сотрудника", "id", id, "error", err)
+	}
+
 	return employeeToResponse(&updated), nil
+}
+
+// recordEmployeeChanges сравнивает старое и новое состояние UniqueEmployee
+// и пишет по одной записи data_changed на каждое изменённое поле.
+// Поля HMAC и служебные поля игнорируются — они вычисляются автоматически.
+func (s *uniqueEmployeeService) recordEmployeeChanges(ctx context.Context, before, after *models.UniqueEmployee, userID int) error {
+	changes := diffUniqueEmployee(before, after)
+	if len(changes) == 0 {
+		return nil
+	}
+
+	uid := userID
+	records := make([]models.UniqueEmployeeHistory, 0, len(changes))
+	for _, c := range changes {
+		field := c.Field
+		oldVal := c.Old
+		newVal := c.New
+		records = append(records, models.UniqueEmployeeHistory{
+			UniqueEmployeeID: after.ID,
+			UserID:           &uid,
+			ActionType:       "data_changed",
+			FieldName:        &field,
+			OldValue:         oldVal,
+			NewValue:         newVal,
+		})
+	}
+	if err := s.db.WithContext(ctx).Create(&records).Error; err != nil {
+		return fmt.Errorf("create unique_employee history: %w", err)
+	}
+	return nil
+}
+
+// fieldChange описывает одно изменение поля для аудита.
+type fieldChange struct {
+	Field string
+	Old   *string
+	New   *string
+}
+
+// diffUniqueEmployee сравнивает значимые поля UniqueEmployee.
+// Возвращает только реально изменившиеся поля.
+func diffUniqueEmployee(before, after *models.UniqueEmployee) []fieldChange {
+	changes := make([]fieldChange, 0)
+	addStr := func(field string, oldP, newP *string) {
+		if !equalStrPtr(oldP, newP) {
+			changes = append(changes, fieldChange{Field: field, Old: copyStrPtr(oldP), New: copyStrPtr(newP)})
+		}
+	}
+	addInt := func(field string, oldP, newP *int) {
+		if !equalIntPtr(oldP, newP) {
+			changes = append(changes, fieldChange{Field: field, Old: intPtrToStrPtr(oldP), New: intPtrToStrPtr(newP)})
+		}
+	}
+	addStr("last_name", before.LastName, after.LastName)
+	addStr("first_name", before.FirstName, after.FirstName)
+	addStr("middle_name", before.MiddleName, after.MiddleName)
+	addInt("citizenship_id", before.CitizenshipID, after.CitizenshipID)
+	addStr("position", before.Position, after.Position)
+	addStr("passport_series_number", before.PassportSeriesNumber, after.PassportSeriesNumber)
+	addStr("patent_number", before.PatentNumber, after.PatentNumber)
+	addStr("other_permission", before.OtherPermission, after.OtherPermission)
+	addInt("organization_id", before.OrganizationID, after.OrganizationID)
+	addInt("company_id", before.CompanyID, after.CompanyID)
+	addInt("user_id", before.UserID, after.UserID)
+	return changes
 }
 
 // Delete удаляет уникального сотрудника с проверкой прав.
@@ -441,6 +572,44 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 
 	slog.Info("уникальный сотрудник удалён", "id", id)
 	return nil
+}
+
+// GetHistory возвращает историю изменений мастер-записи сотрудника.
+// Доступ: у пользователя должны быть права редактирования (canEditEmployee) -
+// иначе он не имеет права видеть аудит.
+func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error) {
+	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	var existing models.UniqueEmployee
+	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id").
+		First(&existing, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee")
+	}
+	if !s.canEditEmployee(&existing, ownerInfo) {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to view this employee history")
+	}
+
+	items := make([]UniqueEmployeeHistoryItem, 0)
+	err = s.db.WithContext(ctx).
+		Table("unique_employees_history h").
+		Select(`h.id, h.unique_employee_id, h.user_id, u.username, u.last_name as user_last_name,
+			u.first_name as user_first_name, h.action_type, h.field_name, h.old_value,
+			h.new_value, h.comment, h.created_at`).
+		Joins("LEFT JOIN users u ON h.user_id = u.id").
+		Where("h.unique_employee_id = ?", id).
+		Order("h.created_at DESC, h.id DESC").
+		Scan(&items).Error
+	if err != nil {
+		slog.Error("failed to load unique_employee history", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
+	}
+	return items, nil
 }
 
 // canEditEmployee проверяет права пользователя на редактирование сотрудника.

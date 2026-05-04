@@ -85,14 +85,21 @@ func (s *applicationService) GetReads(ctx context.Context, applicationID int) ([
 }
 
 // GetUnreadCount возвращает количество непрочитанных активных заявок для пользователя.
+// Учитывается доступ пользователя: если юзер не approver, считаются только заявки,
+// где он responsible_user или viewer (тот же фильтр, что в листинге).
 func (s *applicationService) GetUnreadCount(ctx context.Context, username string) (*models.UnreadCountResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
 
+	isApprover, err := s.isApprover(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	var count int64
-	// Непрочитанные = нет записи в application_reads для пользователя + не архивные
+	// Непрочитанные = нет записи в application_reads для пользователя + не архивные.
 	archiveExclude := `
 		NOT (
 			a.status IN (?, ?) AND EXISTS(
@@ -102,12 +109,16 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 			)
 		)
 	`
-	err = s.db.WithContext(ctx).
+	query := s.db.WithContext(ctx).
 		Table("applications a").
 		Where("NOT EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)", user.ID).
-		Where(archiveExclude, models.StatusCompleted, models.StatusRejected).
-		Count(&count).Error
-	if err != nil {
+		Where(archiveExclude, models.StatusCompleted, models.StatusRejected)
+
+	// Permission filter: совпадает с GetApplications (см. application_service.go).
+	// Если юзер не approver, видит только заявки, где он responsible или viewer.
+	query = applyApplicationAccessFilter(query, user.ID, isApprover)
+
+	if err := query.Count(&count).Error; err != nil {
 		slog.Error("Ошибка подсчёта непрочитанных", "error", err, "user_id", user.ID)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}

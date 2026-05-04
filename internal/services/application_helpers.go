@@ -181,6 +181,24 @@ func (s *applicationService) activateApplicationItems(tx *gorm.DB, applicationID
 
 // --- Основные методы ---
 
+// applyApplicationAccessFilter ограничивает выборку заявок только теми,
+// к которым у пользователя есть доступ. Approver-ы видят все заявки;
+// остальные — только те, где они автор (sender_user_id), responsible или viewer.
+//
+// Helper переиспользуется в листинге заявок (GetApplications,
+// buildApplicationsBaseQuery) и в счётчике непрочитанных (GetUnreadCount),
+// чтобы фильтр доступа был в одном месте.
+func applyApplicationAccessFilter(query *gorm.DB, userID int, isApprover bool) *gorm.DB {
+	if isApprover {
+		return query
+	}
+	return query.Where(`
+		a.sender_user_id = ?
+		OR EXISTS(SELECT 1 FROM application_responsible_users aru WHERE aru.application_id = a.id AND aru.user_id = ?)
+		OR EXISTS(SELECT 1 FROM application_viewers av WHERE av.application_id = a.id AND av.user_id = ?)
+	`, userID, userID, userID)
+}
+
 func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool) *gorm.DB {
 	if filter.SearchQuery != nil && *filter.SearchQuery != "" {
 		pattern := "%" + *filter.SearchQuery + "%"

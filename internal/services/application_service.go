@@ -488,12 +488,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
 		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
 
-	if !isApprover {
-		query = query.Where(`
-			EXISTS(SELECT 1 FROM application_responsible_users aru WHERE aru.application_id = a.id AND aru.user_id = ?)
-			OR EXISTS(SELECT 1 FROM application_viewers av WHERE av.application_id = a.id AND av.user_id = ?)
-		`, user.ID, user.ID)
-	}
+	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
 	query = applyApplicationFilters(query, filter, false)
 	query = query.Order("a.sending_datetime DESC")
@@ -515,12 +510,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
 		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
 
-	if !isApprover {
-		query = query.Where(`
-			EXISTS(SELECT 1 FROM application_responsible_users aru WHERE aru.application_id = a.id AND aru.user_id = ?)
-			OR EXISTS(SELECT 1 FROM application_viewers av WHERE av.application_id = a.id AND av.user_id = ?)
-		`, userID, userID)
-	}
+	query = applyApplicationAccessFilter(query, userID, isApprover)
 
 	return applyApplicationFilters(query, filter, false)
 }
