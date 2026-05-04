@@ -189,8 +189,11 @@ func CleanDB(t *testing.T, db *gorm.DB) {
 func initTestDB() *gorm.DB {
 	dsn := getTestDSN()
 	ensureTestDatabase(dsn)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(database.EnsureUTCTimezone(dsn)), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	})
 	if err != nil {
 		log.Fatalf("failed to connect to test database: %v", err)

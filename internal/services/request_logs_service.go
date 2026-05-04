@@ -142,8 +142,8 @@ func (s *requestLogsService) GetStats(ctx context.Context, typeID int) (*models.
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch stats")
 	}
 
-	// Today
-	todayStart := time.Now().Truncate(24 * time.Hour)
+	// Today (по UTC -- created_at в БД хранится в UTC).
+	todayStart := time.Now().UTC().Truncate(24 * time.Hour)
 	s.db.WithContext(ctx).Table("request_logs").Where("created_at >= ?", todayStart).Count(&stats.Today)
 
 	// Avg duration
@@ -162,7 +162,7 @@ func (s *requestLogsService) GetStats(ctx context.Context, typeID int) (*models.
 	}
 
 	// Requests per minute (за последний час)
-	hourAgo := time.Now().Add(-1 * time.Hour)
+	hourAgo := time.Now().UTC().Add(-1 * time.Hour)
 	var lastHourCount int64
 	s.db.WithContext(ctx).Table("request_logs").
 		Where("created_at >= ?", hourAgo).
@@ -178,7 +178,7 @@ func (s *requestLogsService) GetRealtime(ctx context.Context, typeID int) (*mode
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	var stats models.RealtimeStats
 
 	s.db.WithContext(ctx).Table("request_logs").

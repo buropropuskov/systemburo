@@ -200,21 +200,11 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]Emplo
 		if r.TerritoryStatus != nil {
 			ts = *r.TerritoryStatus
 		}
-		var entryTimeStr *string
-		if r.TerritoryEntryTime != nil {
-			s := r.TerritoryEntryTime.Add(3 * time.Hour).Format("2006-01-02T15:04:05+03:00")
-			entryTimeStr = &s
-		}
-		var lastExitStr *string
-		if r.LastExitTime != nil {
-			s := r.LastExitTime.Add(3 * time.Hour).Format("2006-01-02T15:04:05+03:00")
-			lastExitStr = &s
-		}
 		items = append(items, EmployeeCurrentStatus{
 			EmployeeID:      r.ID,
 			TerritoryStatus: ts,
-			EntryTime:       entryTimeStr,
-			LastExitTime:    lastExitStr,
+			EntryTime:       FormatUTCPtr(r.TerritoryEntryTime),
+			LastExitTime:    FormatUTCPtr(r.LastExitTime),
 		})
 	}
 	return items, nil
@@ -240,7 +230,6 @@ func mapEmployeeHistoryRows(rows []employeeHistoryRow) []EmployeeHistoryItem {
 		if strings.TrimSpace(userName) == "" {
 			userName = "Система"
 		}
-		mskTime := r.CreatedAt.Add(3 * time.Hour)
 		items = append(items, EmployeeHistoryItem{
 			ID:                 r.ID,
 			EmployeeID:         r.EmployeeID,
@@ -254,7 +243,7 @@ func mapEmployeeHistoryRows(rows []employeeHistoryRow) []EmployeeHistoryItem {
 			NewValue:           r.NewValue,
 			Comment:            r.Comment,
 			Metadata:           r.Metadata,
-			CreatedAt:          mskTime.Format("2006-01-02T15:04:05+03:00"),
+			CreatedAt:          FormatUTC(r.CreatedAt),
 			EmployeeLastName:   r.EmployeeLastName,
 			EmployeeFirstName:  r.EmployeeFirstName,
 			EmployeeMiddleName: r.EmployeeMiddleName,

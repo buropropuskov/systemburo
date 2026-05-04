@@ -113,7 +113,7 @@ func (s *systemTableService) UpdateTimeSlot(ctx context.Context, tableID, slotID
 			"close_time":  slot.CloseTime,
 			"is_next_day": slot.IsNextDay,
 			"is_active":   slot.IsActive,
-			"updated_at":  time.Now(),
+			"updated_at":  time.Now().UTC(),
 		})
 	if result.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating time slot")

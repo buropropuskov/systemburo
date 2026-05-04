@@ -99,7 +99,7 @@ func (s *maintenanceService) GetStatusCached(ctx context.Context) *MaintenanceSt
 	}
 	s.mu.Lock()
 	s.cache = st
-	s.cachedAt = time.Now()
+	s.cachedAt = time.Now().UTC()
 	s.mu.Unlock()
 	return st
 }

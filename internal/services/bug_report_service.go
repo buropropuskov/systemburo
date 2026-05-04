@@ -46,7 +46,7 @@ func NewBugReportService(db *gorm.DB, tg TelegramService) BugReportService {
 
 func (s *bugReportService) Submit(ctx context.Context, userID int, username string, req models.BugReportRequest, userAgent string) (*models.BugReport, error) {
 	// Rate limit: считаем последние N запросов за окно.
-	since := time.Now().Add(-s.win)
+	since := time.Now().UTC().Add(-s.win)
 	var count int64
 	if err := s.db.WithContext(ctx).
 		Model(&models.BugReport{}).
@@ -66,7 +66,7 @@ func (s *bugReportService) Submit(ctx context.Context, userID int, username stri
 		HTTPStatus: req.HTTPStatus,
 		Message:    req.Message,
 		UserAgent:  userAgent,
-		CreatedAt:  time.Now(),
+		CreatedAt:  time.Now().UTC(),
 	}
 
 	// INSERT .. ON CONFLICT DO NOTHING эквивалент: Create с ошибкой по uniq index.

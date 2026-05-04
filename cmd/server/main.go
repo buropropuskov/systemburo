@@ -77,8 +77,15 @@ func main() {
 	if cfg.LogLevel == "debug" {
 		gormLogLevel = logger.Info
 	}
-	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
+	// Все autoCreateTime/autoUpdateTime поля заполняются в UTC, чтобы избежать
+	// расхождений между локальной зоной хост-системы и timestamptz-столбцами
+	// в Postgres. Issue #184.
+	dsnWithTZ := database.EnsureUTCTimezone(cfg.DatabaseURL)
+	db, err := gorm.Open(postgres.Open(dsnWithTZ), &gorm.Config{
 		Logger: logger.Default.LogMode(gormLogLevel),
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	})
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)

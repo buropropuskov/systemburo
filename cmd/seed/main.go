@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 
+	"systemburo/internal/database"
+
 	"golang.org/x/crypto/argon2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -29,7 +31,7 @@ func main() {
 		dsn = "postgres://postgres:postgres@localhost:5432/auto_registry?sslmode=disable"
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(database.EnsureUTCTimezone(dsn)), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("DB connection failed: %v", err)
 	}
