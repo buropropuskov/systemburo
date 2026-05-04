@@ -146,7 +146,7 @@
                     class="form-input-sm"
                     placeholder="Введите название организации"
                     autocomplete="off"
-                    @change="updateOrganization(selectedOrganization)"
+                    @change="saveOrganization(selectedOrganization)"
                   >
                 </div>
               </div>
@@ -284,14 +284,15 @@
       confirm-text="Удалить"
       cancel-text="Отмена"
       :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
-      @confirm="deleteOrganization"
+      @confirm="removeOrganization"
       @cancel="cancelDelete"
     />
   </div>
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { mapState, mapActions } from 'pinia';
+import { useOrganizationsStore } from '@/stores/organizations';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
@@ -312,22 +313,24 @@ export default {
     return {
       searchQuery: '',
       newOrganizationName: '',
-      organizationsWithUsers: [],
       showAddModal: false,
       showDeleteModal: false,
       selectedOrganization: null,
       organizationToDelete: null,
       sortField: null,
-      sortDirection: 'asc',
-      isLoading: false
+      sortDirection: 'asc'
     };
   },
   computed: {
+    ...mapState(useOrganizationsStore, {
+      organizationsWithUsers: 'itemsWithUsers',
+      isLoading: 'isLoading',
+    }),
     filteredOrganizations() {
       if (!this.searchQuery) return this.organizationsWithUsers;
       const query = this.searchQuery.toLowerCase();
-      return this.organizationsWithUsers.filter(org => 
-        org.name.toLowerCase().includes(query) || 
+      return this.organizationsWithUsers.filter(org =>
+        org.name.toLowerCase().includes(query) ||
         org.id.toString().includes(query)
       );
     },
@@ -384,97 +387,51 @@ export default {
     this.refreshData();
   },
   methods: {
+    ...mapActions(useOrganizationsStore, ['refresh', 'createOrganization', 'updateOrganization', 'deleteOrganization', 'fetchOrganizationsWithUsers']),
+
     async refreshData() {
-      this.isLoading = true;
-      try {
-        await this.fetchOrganizationsWithUsers();
-      } finally {
-        this.isLoading = false;
-      }
+      await this.refresh();
     },
-    async fetchOrganizationsWithUsers() {
-      try {
-        const response = await apiRequest("/organizations/with-users-extended", {
-        });
-        if (response.ok) {
-          const data = await response.json();
-          this.organizationsWithUsers = data.map(org => ({
-            ...org,
-            originalName: org.name
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching organizations:", error);
-        this.showNotification("Ошибка при загрузке организаций", "error");
-      }
-    },
-    
+
     async addOrganization() {
       if (!this.newOrganizationName.trim()) {
         this.showNotification("Введите название организации", "warning");
         return;
       }
-      
+
       if (this.isLoading) return;
-      
-      this.isLoading = true;
-      
-      try {
-        const response = await apiRequest("/organizations", {
-          method: "POST",
-          body: JSON.stringify({
-            name: this.newOrganizationName.trim(),
-          }),
-        });
-        
-        if (response.ok) {
-          const newOrg = await response.json();
-          this.newOrganizationName = '';
-          this.showAddModal = false;
-          await this.refreshData();
-          
-          // Автоматически выбираем новую организацию
-          const createdOrg = this.organizationsWithUsers.find(org => org.id === newOrg.id);
-          if (createdOrg) {
-            this.selectedOrganization = { ...createdOrg };
-          }
-          
-          this.showNotification("Организация успешно создана", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при создании организации", "error");
+
+      const result = await this.createOrganization({
+        name: this.newOrganizationName.trim(),
+      });
+
+      if (result.ok) {
+        this.newOrganizationName = '';
+        this.showAddModal = false;
+        // Автоматически выбираем новую организацию
+        const createdOrg = this.organizationsWithUsers.find(org => org.id === result.data.id);
+        if (createdOrg) {
+          this.selectedOrganization = { ...createdOrg };
         }
-      } catch (error) {
-        console.error("Error adding organization:", error);
-        this.showNotification("Ошибка сети", "error");
-      } finally {
-        this.isLoading = false;
+        this.showNotification("Организация успешно создана", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при создании организации", "error");
       }
     },
 
-    async updateOrganization(org) {
+    async saveOrganization(org) {
       if (org.name === org.originalName) return;
-      
-      try {
-        const response = await apiRequest(`/organizations/${org.id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            name: org.name,
-          }),
-        });
-        
-        if (response.ok) {
-          org.originalName = org.name;
-          this.showNotification("Организация успешно обновлена", "success");
-        } else {
-          const error = await response.json();
-          org.name = org.originalName;
-          this.showNotification(error.message || "Ошибка при обновлении организации", "error");
-        }
-      } catch (error) {
-        console.error("Error updating organization:", error);
+
+      const result = await this.updateOrganization(org.id, { name: org.name });
+
+      if (result.ok) {
+        // originalName обновится из refresh() в store; локальный selectedOrganization
+        // останется с новым именем - оно совпадает с свежим из store
+        this.showNotification("Организация успешно обновлена", "success");
+      } else {
+        // Откатываем имя в локальной копии
         org.name = org.originalName;
-        this.showNotification("Ошибка сети", "error");
+        this.showNotification(result.message || "Ошибка при обновлении организации", "error");
       }
     },
 
@@ -483,37 +440,28 @@ export default {
         this.showNotification("Нельзя удалить организацию с пользователями", "warning");
         return;
       }
-      
+
       this.organizationToDelete = org;
       this.showDeleteModal = true;
     },
-    
+
     cancelDelete() {
       this.showDeleteModal = false;
       this.organizationToDelete = null;
     },
 
-    async deleteOrganization() {
+    async removeOrganization() {
       if (!this.organizationToDelete) return;
-      
-      try {
-        const response = await apiRequest(`/organizations/${this.organizationToDelete.id}`, {
-          method: "DELETE",
-        });
-        
-        if (response.ok) {
-          this.selectedOrganization = null;
-          this.showDeleteModal = false;
-          this.organizationToDelete = null;
-          await this.refreshData();
-          this.showNotification("Организация успешно удалена", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении организации", "error");
-        }
-      } catch (error) {
-        console.error("Error deleting organization:", error);
-        this.showNotification("Ошибка сети", "error");
+
+      const result = await this.deleteOrganization(this.organizationToDelete.id);
+
+      if (result.ok) {
+        this.selectedOrganization = null;
+        this.showDeleteModal = false;
+        this.organizationToDelete = null;
+        this.showNotification("Организация успешно удалена", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при удалении организации", "error");
       }
     },
 

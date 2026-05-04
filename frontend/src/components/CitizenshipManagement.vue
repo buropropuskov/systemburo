@@ -161,17 +161,17 @@
                   class="form-input-sm"
                   placeholder="Название гражданства"
                   autocomplete="off"
-                  @change="updateCitizenship(selectedCitizenship)"
+                  @change="saveCitizenship(selectedCitizenship)"
                 >
               </div>
 
               <div class="checkbox-section">
                 <label class="checkbox-label">
-                  <input 
-                    v-model="selectedCitizenship.is_active" 
+                  <input
+                    v-model="selectedCitizenship.is_active"
                     type="checkbox"
                     class="checkbox"
-                    @change="updateCitizenship(selectedCitizenship)"
+                    @change="saveCitizenship(selectedCitizenship)"
                   >
                   <span class="checkbox-text">Активное гражданство</span>
                 </label>
@@ -197,11 +197,11 @@
 
               <div class="checkbox-section">
                 <label class="checkbox-label">
-                  <input 
-                    v-model="selectedCitizenship.patent_required" 
+                  <input
+                    v-model="selectedCitizenship.patent_required"
                     type="checkbox"
                     class="checkbox"
-                    @change="updateCitizenship(selectedCitizenship)"
+                    @change="saveCitizenship(selectedCitizenship)"
                   >
                   <span class="checkbox-text">Требуется патент</span>
                 </label>
@@ -303,7 +303,8 @@
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { mapState, mapActions } from 'pinia';
+import { useCitizenshipsStore } from '@/stores/citizenships';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 
@@ -320,15 +321,17 @@ export default {
         is_default: false,
         patent_required: false
       },
-      citizenships: [],
       showAddModal: false,
       selectedCitizenship: null,
       sortField: null,
-      sortDirection: 'asc',
-      isLoading: false
+      sortDirection: 'asc'
     };
   },
   computed: {
+    ...mapState(useCitizenshipsStore, {
+      citizenships: 'items',
+      isLoading: 'isLoading',
+    }),
     filteredCitizenships() {
       if (!this.searchQuery) return this.citizenships;
       const query = this.searchQuery.toLowerCase();
@@ -378,157 +381,110 @@ export default {
     this.refreshData();
   },
   methods: {
+    ...mapActions(useCitizenshipsStore, {
+      refreshStore: 'refresh',
+      createCitizenship: 'createCitizenship',
+      updateCitizenshipAction: 'updateCitizenship',
+      deleteCitizenshipAction: 'deleteCitizenship',
+    }),
+
     async refreshData() {
-      this.isLoading = true;
-      try {
-        await this.fetchCitizenships();
-      } finally {
-        this.isLoading = false;
-      }
+      await this.refreshStore();
     },
-    async fetchCitizenships() {
-      try {
-        const response = await apiRequest("/citizenships", {
-        });
-        if (response.ok) {
-          const data = await response.json();
-          this.citizenships = data;
-        }
-      } catch (error) {
-        console.error("Error fetching citizenships:", error);
-        this.showNotification("Ошибка при загрузке гражданств", "error");
-      }
-    },
+
     async addCitizenship() {
       if (!this.newCitizenship.name.trim()) {
         this.showNotification("Введите название гражданства", "warning");
         return;
       }
-      
-      try {
-        const response = await apiRequest("/citizenships", {
-          method: "POST",
-          body: JSON.stringify(this.newCitizenship),
-        });
-        
-        if (response.ok) {
-          this.newCitizenship = {
-            name: '',
-            is_default: false,
-            patent_required: false
-          };
-          this.showAddModal = false;
-          await this.refreshData();
-          this.showNotification("Гражданство успешно добавлено", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при добавлении гражданства", "error");
-        }
-      } catch (error) {
-        console.error("Error adding citizenship:", error);
-        this.showNotification("Ошибка сети", "error");
+
+      const result = await this.createCitizenship(this.newCitizenship);
+
+      if (result.ok) {
+        this.newCitizenship = {
+          name: '',
+          is_default: false,
+          patent_required: false
+        };
+        this.showAddModal = false;
+        this.showNotification("Гражданство успешно добавлено", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при добавлении гражданства", "error");
       }
     },
-    async updateCitizenship(citizenship) {
-      try {
-        const citizenshipData = {
-          name: citizenship.name,
-          is_active: citizenship.is_active,
-          is_default: citizenship.is_default,
-          patent_required: citizenship.patent_required
-        };
-        const response = await apiRequest(`/citizenships/${citizenship.id}`, {
-          method: "PUT",
-          body: JSON.stringify(citizenshipData),
-        });
-        
-        if (response.ok) {
-          // Обновляем данные в таблице
-          await this.refreshData();
-          // Обновляем выбранное гражданство актуальными данными
-          const updatedCitizenship = this.citizenships.find(c => c.id === citizenship.id);
-          if (updatedCitizenship) {
-            this.selectedCitizenship = JSON.parse(JSON.stringify(updatedCitizenship));
-          }
-          this.showNotification("Гражданство успешно обновлено", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при обновлении гражданства", "error");
-          await this.refreshData(); // Перезагружаем данные чтобы откатить изменения
+
+    /**
+     * Сохраняет изменения гражданства через store. Назван saveCitizenship чтобы
+     * не конфликтовать с action'ом updateCitizenship из store.
+     */
+    async saveCitizenship(citizenship) {
+      const payload = {
+        name: citizenship.name,
+        is_active: citizenship.is_active,
+        is_default: citizenship.is_default,
+        patent_required: citizenship.patent_required,
+      };
+
+      const result = await this.updateCitizenshipAction(citizenship.id, payload);
+
+      if (result.ok) {
+        const fresh = this.citizenships.find(c => c.id === citizenship.id);
+        if (fresh) {
+          this.selectedCitizenship = JSON.parse(JSON.stringify(fresh));
         }
-      } catch (error) {
-        console.error("Error updating citizenship:", error);
-        this.showNotification("Ошибка сети", "error");
+        this.showNotification("Гражданство успешно обновлено", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при обновлении гражданства", "error");
         await this.refreshData();
       }
     },
+
     async handleDefaultCitizenshipChange() {
-      // Сохраняем текущее состояние чекбокса
       const isDefault = this.selectedCitizenship.is_default;
-      
+
       try {
-        // Если чекбокс выбран - устанавливаем гражданство по умолчанию
         if (isDefault) {
           await this.setDefaultCitizenship(this.selectedCitizenship);
         } else {
-          // Если чекбокс снят - обновляем гражданство без установки по умолчанию
-          await this.updateCitizenship(this.selectedCitizenship);
+          await this.saveCitizenship(this.selectedCitizenship);
         }
       } catch (error) {
-        // В случае ошибки откатываем состояние чекбокса
         this.selectedCitizenship.is_default = !isDefault;
         console.error("Error handling default citizenship change:", error);
       }
     },
+
     async setDefaultCitizenship(citizenship) {
-      try {
-        const citizenshipData = {
-          name: citizenship.name,
-          is_active: citizenship.is_active,
-          is_default: true,
-          patent_required: citizenship.patent_required
-        };
-        const response = await apiRequest(`/citizenships/${citizenship.id}`, {
-          method: "PUT",
-          body: JSON.stringify(citizenshipData),
-        });
-        
-        if (response.ok) {
-          await this.refreshData();
-          // Обновляем выбранное гражданство
-          const updatedCitizenship = this.citizenships.find(c => c.id === citizenship.id);
-          if (updatedCitizenship) {
-            this.selectedCitizenship = JSON.parse(JSON.stringify(updatedCitizenship));
-          }
-          this.showNotification("Гражданство по умолчанию успешно установлено", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при установке гражданства по умолчанию", "error");
+      const payload = {
+        name: citizenship.name,
+        is_active: citizenship.is_active,
+        is_default: true,
+        patent_required: citizenship.patent_required,
+      };
+
+      const result = await this.updateCitizenshipAction(citizenship.id, payload);
+
+      if (result.ok) {
+        const fresh = this.citizenships.find(c => c.id === citizenship.id);
+        if (fresh) {
+          this.selectedCitizenship = JSON.parse(JSON.stringify(fresh));
         }
-      } catch (error) {
-        console.error("Error setting default citizenship:", error);
-        this.showNotification("Ошибка сети", "error");
+        this.showNotification("Гражданство по умолчанию успешно установлено", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при установке гражданства по умолчанию", "error");
       }
     },
+
     async confirmDeleteCitizenship(citizenship) {
       if (!confirm(`Вы уверены, что хотите удалить гражданство "${citizenship.name}"?`)) return;
-      
-      try {
-        const response = await apiRequest(`/citizenships/${citizenship.id}`, {
-          method: "DELETE",
-        });
-        
-        if (response.ok) {
-          this.selectedCitizenship = null;
-          await this.refreshData();
-          this.showNotification("Гражданство успешно удалено", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении гражданства", "error");
-        }
-      } catch (error) {
-        console.error("Error deleting citizenship:", error);
-        this.showNotification("Ошибка сети", "error");
+
+      const result = await this.deleteCitizenshipAction(citizenship.id);
+
+      if (result.ok) {
+        this.selectedCitizenship = null;
+        this.showNotification("Гражданство успешно удалено", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при удалении гражданства", "error");
       }
     },
     selectCitizenship(citizenship) {
