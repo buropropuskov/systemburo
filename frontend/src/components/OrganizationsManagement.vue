@@ -209,72 +209,74 @@
     </div>
 
     <!-- Модальное окно добавления -->
-    <transition name="modal-fade">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="closeModal"
-      >
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3 class="modal-title">
-              Добавить организацию
-            </h3>
-            <button
-              class="modal-close"
-              @click="closeModal"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
-                fill="none"
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          @click.self="closeModal"
+        >
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                Добавить организацию
+              </h3>
+              <button
+                class="modal-close"
+                @click="closeModal"
               >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
-          </div>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
           
-          <div class="modal-body">
-            <div class="input-group">
-              <label class="input-label">Название организации</label>
-              <input
-                ref="nameInput"
-                v-model="newOrganizationName"
-                placeholder="Введите название организации"
-                class="modal-input"
-                @keyup.enter="addOrganization"
-              >
-              <div class="input-hint">
-                Обязательное поле
+            <div class="modal-body">
+              <div class="input-group">
+                <label class="input-label">Название организации</label>
+                <input
+                  ref="nameInput"
+                  v-model="newOrganizationName"
+                  placeholder="Введите название организации"
+                  class="modal-input"
+                  @keyup.enter="addOrganization"
+                >
+                <div class="input-hint">
+                  Обязательное поле
+                </div>
               </div>
             </div>
-          </div>
           
-          <div class="modal-footer">
-            <button
-              class="modal-btn modal-btn--cancel"
-              @click="closeModal"
-            >
-              Отмена
-            </button>
-            <button 
-              class="modal-btn modal-btn--confirm" 
-              :disabled="!newOrganizationName.trim()"
-              :class="{'modal-btn--disabled': !newOrganizationName.trim()}"
-              @click="addOrganization"
-            >
-              Создать
-            </button>
+            <div class="modal-footer">
+              <button
+                class="modal-btn modal-btn--cancel"
+                @click="closeModal"
+              >
+                Отмена
+              </button>
+              <button 
+                class="modal-btn modal-btn--confirm" 
+                :disabled="!newOrganizationName.trim()"
+                :class="{'modal-btn--disabled': !newOrganizationName.trim()}"
+                @click="addOrganization"
+              >
+                Создать
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- Модальное окно подтверждения удаления -->
     <ConfirmationModal
@@ -976,12 +978,13 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -991,8 +994,8 @@ export default {
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(0.1px);
   }
 }
 

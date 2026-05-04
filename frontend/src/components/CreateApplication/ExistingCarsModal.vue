@@ -1,179 +1,187 @@
 <template>
-  <div
-    v-if="visible"
-    class="modal-overlay"
-    @click="$emit('close')"
-  >
+  <Teleport to="body">
     <div
-      class="modal-content"
-      @click.stop
+      v-if="visible"
+      class="modal-overlay"
+      @click="$emit('close')"
     >
-      <!-- Заголовок модалки -->
-      <div class="modal-header">
-        <h3>Выбор существующих автомобилей</h3>
-        <div class="header-right">
-          <SearchComponent
-            v-model="searchQuery"
-            title="Поиск автомобилей..."
-            @update:model-value="handleSearch"
-          />
-        </div>
-        <button
-          class="modal-close"
-          @click="$emit('close')"
-        >
-          ×
-        </button>
-      </div>
-
-      <!-- Фильтры -->
-      <div class="filter-section">
-        <div class="filter-tabs">
-          <button
-            class="filter-tab"
-            :class="{ 'filter-tab--active': currentFilter === 'all' }"
-            @click="switchFilter('all')"
-          >
-            Все машины
-          </button>
-          <button
-            v-if="userOrganizationId"
-            class="filter-tab"
-            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-            @click="switchFilter('organization')"
-          >
-            Организация
-          </button>
-          <button
-            v-if="userCompanyId"
-            class="filter-tab"
-            :class="{ 'filter-tab--active': currentFilter === 'company' }"
-            @click="switchFilter('company')"
-          >
-            Компания
-          </button>
-          <button
-            class="filter-tab"
-            :class="{ 'filter-tab--active': currentFilter === 'user' }"
-            @click="switchFilter('user')"
-          >
-            Мои
-          </button>
-        </div>
-        <div
-          v-if="tempSelectedCars.length > 0"
-          class="selected-counter"
-        >
-          Выбрано: <span class="selected-count">{{ tempSelectedCars.length }}</span>
-        </div>
-      </div>
-
-      <!-- Список машин -->
-      <div class="cars-table-container">
-        <div class="cars-table">
-          <!-- Заголовки таблицы -->
-          <div class="table-header">
-            <div class="header-cell select-cell" />
-            <div class="header-cell number-cell">
-              №
-            </div>
-            <div class="header-cell plate-cell">
-              Номер
-            </div>
-            <div class="header-cell mark-cell">
-              Марка
-            </div>
-            <div class="header-cell status-cell">
-              Статус
-            </div>
+      <div
+        class="modal-content"
+        @click.stop
+      >
+        <!-- Заголовок модалки -->
+        <div class="modal-header">
+          <h3>Выбор существующих автомобилей</h3>
+          <div class="header-right">
+            <SearchComponent
+              v-model="searchQuery"
+              title="Поиск автомобилей..."
+              @update:model-value="handleSearch"
+            />
           </div>
+          <button
+            class="modal-close"
+            @click="$emit('close')"
+          >
+            ×
+          </button>
+        </div>
 
-          <!-- Тело таблицы -->
-          <div class="table-body">
-            <div
-              v-for="car in displayedCars"
-              :key="car.id"
-              class="table-row"
-              :class="{
-                'table-row--disabled': isCarDisabled(car),
-                'table-row--selected': isCarSelected(car)
-              }"
-              @click="handleRowClick(car)"
+        <!-- Фильтры -->
+        <div class="filter-section">
+          <div class="filter-tabs">
+            <button
+              class="filter-tab"
+              :class="{ 'filter-tab--active': currentFilter === 'all' }"
+              @click="switchFilter('all')"
             >
+              Все машины
+            </button>
+            <button
+              v-if="userOrganizationId"
+              class="filter-tab"
+              :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+              @click="switchFilter('organization')"
+            >
+              Организация
+            </button>
+            <button
+              v-if="userCompanyId"
+              class="filter-tab"
+              :class="{ 'filter-tab--active': currentFilter === 'company' }"
+              @click="switchFilter('company')"
+            >
+              Компания
+            </button>
+            <button
+              class="filter-tab"
+              :class="{ 'filter-tab--active': currentFilter === 'user' }"
+              @click="switchFilter('user')"
+            >
+              Мои
+            </button>
+          </div>
+          <div
+            v-if="tempSelectedCars.length > 0"
+            class="selected-counter"
+          >
+            Выбрано: <span class="selected-count">{{ tempSelectedCars.length }}</span>
+          </div>
+        </div>
+
+        <!-- Список машин -->
+        <div class="cars-table-container">
+          <div class="cars-table">
+            <!-- Заголовки таблицы -->
+            <div class="table-header">
+              <div class="header-cell select-cell" />
+              <div class="header-cell number-cell">
+                №
+              </div>
+              <div class="header-cell plate-cell">
+                Номер
+              </div>
+              <div class="header-cell mark-cell">
+                Марка
+              </div>
+              <div class="header-cell status-cell">
+                Статус
+              </div>
+            </div>
+
+            <!-- Тело таблицы -->
+            <div class="table-body">
               <div
-                class="table-cell select-cell"
-                @click.stop
+                v-for="car in displayedCars"
+                :key="car.id"
+                class="table-row"
+                :class="{
+                  'table-row--disabled': isCarDisabled(car),
+                  'table-row--selected': isCarSelected(car)
+                }"
+                @click="handleRowClick(car)"
               >
-                <input
-                  type="checkbox"
-                  :checked="isCarSelected(car)"
-                  :disabled="isCarDisabled(car)"
-                  @change="toggleCarSelection(car)"
+                <div
+                  class="table-cell select-cell"
+                  @click.stop
                 >
+                  <input
+                    type="checkbox"
+                    :checked="isCarSelected(car)"
+                    :disabled="isCarDisabled(car)"
+                    @change="toggleCarSelection(car)"
+                  >
+                </div>
+                <div class="table-cell number-cell">
+                  {{ car.id }}
+                </div>
+                <div class="table-cell plate-cell">
+                  {{ car.number }}
+                </div>
+                <div class="table-cell mark-cell">
+                  {{ car.mark }}
+                </div>
+                <div class="table-cell status-cell">
+                  <span
+                    class="status-badge"
+                    :class="{
+                      'status-active': car.status,
+                      'status-inactive': !car.status
+                    }"
+                  >
+                    {{ car.status ? 'Активна' : 'Неактивна' }}
+                  </span>
+                </div>
               </div>
-              <div class="table-cell number-cell">
-                {{ car.id }}
-              </div>
-              <div class="table-cell plate-cell">
-                {{ car.number }}
-              </div>
-              <div class="table-cell mark-cell">
-                {{ car.mark }}
-              </div>
-              <div class="table-cell status-cell">
-                <StatusBadge :status="car.status ? 'Активна' : 'Неактивна'" />
-              </div>
-            </div>
 
-            <!-- Состояния загрузки/пусто -->
-            <div
-              v-if="loadingCars"
-              class="loading-state"
-            >
-              <LoaderSpinner label="Загрузка машин…" />
-            </div>
-            <div
-              v-else-if="displayedCars.length === 0"
-              class="empty-state"
-            >
-              {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
+              <!-- Состояния загрузки/пусто -->
+              <div
+                v-if="loadingCars"
+                class="loading-state"
+              >
+                <LoaderSpinner label="Загрузка машин…" />
+              </div>
+              <div
+                v-else-if="displayedCars.length === 0"
+                class="empty-state"
+              >
+                {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Кнопки действий -->
-      <div class="modal-actions">
-        <button
-          class="btn btn-secondary"
-          @click="$emit('close')"
-        >
-          Отмена
-        </button>
-        <button
-          class="btn btn-primary"
-          :disabled="tempSelectedCars.length === 0"
-          @click="confirmSelection"
-        >
-          {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
-        </button>
+        <!-- Кнопки действий -->
+        <div class="modal-actions">
+          <button
+            class="btn btn-secondary"
+            @click="$emit('close')"
+          >
+            Отмена
+          </button>
+          <button
+            class="btn btn-primary"
+            :disabled="tempSelectedCars.length === 0"
+            @click="confirmSelection"
+          >
+            {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
-import StatusBadge from '@/components/ui/StatusBadge.vue'
 
 export default {
     name: 'ExistingCarsModal',
     components: {
         SearchComponent,
-        LoaderSpinner,
-        StatusBadge
+        LoaderSpinner
     },
     props: {
         visible: {
@@ -356,6 +364,8 @@ export default {
     justify-content: center;
     z-index: 1000;
     padding: 20px;
+    backdrop-filter: blur(0.1px);
+    -webkit-backdrop-filter: blur(0.1px);
 }
 
 .modal-content {
@@ -603,7 +613,29 @@ export default {
     opacity: 0.6;
 }
 
-.table-row--disabled :deep(.status-badge) {
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-block;
+    min-width: 70px;
+    text-align: center;
+}
+
+.status-active {
+    background-color: #f0f9ff;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.status-inactive {
+    background-color: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.table-row--disabled .status-badge {
     opacity: 0.7;
 }
 

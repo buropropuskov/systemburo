@@ -1,391 +1,393 @@
 <template>
-  <div
-    class="modal-overlay"
-    @mousedown="onOverlayMousedown"
-    @mouseup="onOverlayMouseup"
-  >
-    <div class="modal-wrapper">
-      <!-- Основное модальное окно с деталями автомобиля -->
-      <div
-        class="car-details-modal main-modal"
-        :class="{ 'shifted': isMainShifted }"
-        @mousedown.stop
-      >
-        <div class="modal-header">
-          <h3>Детали автомобиля</h3>
-          <div class="header-actions">
-            <button
-              class="history-btn"
-              @click="openCarHistory"
-            >
-              <span>История автомобиля</span>
-            </button>
-            <button
-              class="application-btn"
-              @click="openApplication"
-            >
-              <span>Открыть заявку</span>
-            </button>
-            <button
-              class="close-btn"
-              @click="close"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div class="modal-content">
-          <div class="car-info-section">
-            <h4>Информация об автомобиле</h4>
-            <div class="info-grid two-columns">
-              <div class="info-item">
-                <span class="info-label">Номер машины:</span>
-                <span class="info-value">{{ car.car_number || 'Не указан' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Марка:</span>
-                <span class="info-value">{{ car.car_brand || 'Не указана' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Организация:</span>
-                <span class="info-value">{{ car.organization_name || car.organization || 'Не указана' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Компания:</span>
-                <span class="info-value">{{ car.company || 'Не указана' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Действует до:</span>
-                <span class="info-value">{{ formatDate(car.entry_date_to) }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Время пребывания:</span>
-                <span class="info-value">{{ formatTimeRange(car.entry_time_from, car.entry_time_to) }}</span>
-              </div>
-            </div>
-            
-            <div class="places-section">
-              <h5>Места разгрузки</h5>
-              <div class="places-list">
-                <div 
-                  v-for="placeId in car.unload_place_ids" 
-                  :key="placeId"
-                  class="place-item"
-                  @click="showUnloadPlaceDetails(placeId)"
-                >
-                  {{ getPlaceName(placeId) }}
-                </div>
-                <div
-                  v-if="!car.unload_place_ids || car.unload_place_ids.length === 0"
-                  class="no-places"
-                >
-                  Места разгрузки не указаны
-                </div>
-              </div>
-            </div>
-
-            <div class="status-section">
-              <h5>Статус</h5>
-              <div
-                class="status-badge"
-                :class="getStatusClass"
-              >
-                {{ getStatusText }}
-              </div>
-            </div>
-          </div>
-
-          <div class="history-section">
-            <div class="section-header">
-              <h4>История въездов и выездов</h4>
-              <button
-                class="export-btn"
-                :disabled="history.length === 0 || isExporting"
-                @click="exportHistory"
-              >
-                <img
-                  v-if="!isExporting"
-                  src="@/assets/icons/export.png"
-                  class="export-icon"
-                >
-                <span v-if="!isExporting">Экспорт</span>
-                <div
-                  v-else
-                  class="export-loader"
-                />
-              </button>
-            </div>
-            
-            <div
-              v-if="loadingHistory"
-              class="loading-container"
-            >
-              <LoaderSpinner label="Загрузка истории…" />
-            </div>
-            
-            <div
-              v-else-if="history.length === 0"
-              class="no-history"
-            >
-              История отсутствует
-            </div>
-            
-            <div
-              v-else
-              class="history-timeline"
-            >
-              <div 
-                v-for="(item, index) in history" 
-                :key="item.id" 
-                class="history-item"
-              >
-                <div
-                  class="timeline-dot"
-                  :class="getActionClass(item.action_type)"
-                />
-                <div
-                  v-if="index < history.length - 1"
-                  class="timeline-line"
-                />
-                
-                <div class="history-content">
-                  <div class="history-header">
-                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                  </div>
-                  
-                  <div class="action-text">
-                    {{ getActionText(item) }}
-                  </div>
-                  
-                  <div
-                    v-if="item.comment"
-                    class="action-comment"
-                  >
-                    {{ item.comment }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Дополнительное модальное окно с деталями места разгрузки -->
-      <transition 
-        name="place-slide"
-        @after-leave="onPlaceLeave"
-      >
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      @mousedown="onOverlayMousedown"
+      @mouseup="onOverlayMouseup"
+    >
+      <div class="modal-wrapper">
+        <!-- Основное модальное окно с деталями автомобиля -->
         <div
-          v-if="showPlaceModal"
-          class="modal-content place-modal"
+          class="car-details-modal main-modal"
+          :class="{ 'shifted': isMainShifted }"
+          @mousedown.stop
         >
           <div class="modal-header">
-            <div class="header-with-status">
-              <h3 class="modal-title">
-                Информация о месте разгрузки
-              </h3>
-              <span
-                class="status-badge"
-                :class="getPlaceStatusClass(selectedPlace)"
+            <h3>Детали автомобиля</h3>
+            <div class="header-actions">
+              <button
+                class="history-btn"
+                @click="openCarHistory"
               >
-                {{ getPlaceStatusText(selectedPlace) }}
-              </span>
-              <div
-                v-if="selectedPlace && selectedPlace.status === 'active'"
-                class="time-info"
+                <span>История автомобиля</span>
+              </button>
+              <button
+                class="application-btn"
+                @click="openApplication"
               >
-                {{ getTimeInfoText() }}
-              </div>
+                <span>Открыть заявку</span>
+              </button>
+              <button
+                class="close-btn"
+                @click="close"
+              >
+                ×
+              </button>
             </div>
-            <button
-              class="modal-close"
-              @click="closeUnloadPlaceDetails"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
-                fill="none"
-              >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
           </div>
 
-          <div class="modal-body">
-            <div
-              v-if="selectedPlace"
-              class="place-details"
-            >
-              <div class="details-section">
-                <div class="section-header">
-                  <h4 class="section-title">
-                    Основная информация
-                  </h4>
+          <div class="modal-content">
+            <div class="car-info-section">
+              <h4>Информация об автомобиле</h4>
+              <div class="info-grid two-columns">
+                <div class="info-item">
+                  <span class="info-label">Номер машины:</span>
+                  <span class="info-value">{{ car.car_number || 'Не указан' }}</span>
                 </div>
-                <div class="section-body">
-                  <div class="info-grid">
-                    <div class="info-row">
-                      <span class="info-label">Наименование:</span>
-                      <span class="info-value">{{ selectedPlace.name }}</span>
-                    </div>
+                <div class="info-item">
+                  <span class="info-label">Марка:</span>
+                  <span class="info-value">{{ car.car_brand || 'Не указана' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Организация:</span>
+                  <span class="info-value">{{ car.organization_name || car.organization || 'Не указана' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Компания:</span>
+                  <span class="info-value">{{ car.company || 'Не указана' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Действует до:</span>
+                  <span class="info-value">{{ formatDate(car.entry_date_to) }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Время пребывания:</span>
+                  <span class="info-value">{{ formatTimeRange(car.entry_time_from, car.entry_time_to) }}</span>
+                </div>
+              </div>
+            
+              <div class="places-section">
+                <h5>Места разгрузки</h5>
+                <div class="places-list">
+                  <div 
+                    v-for="placeId in car.unload_place_ids" 
+                    :key="placeId"
+                    class="place-item"
+                    @click="showUnloadPlaceDetails(placeId)"
+                  >
+                    {{ getPlaceName(placeId) }}
                   </div>
                   <div
-                    v-if="selectedPlace.status !== 'active' && selectedPlace.status_comment"
-                    class="comment-text"
+                    v-if="!car.unload_place_ids || car.unload_place_ids.length === 0"
+                    class="no-places"
                   >
-                    {{ selectedPlace.status_comment }}
+                    Места разгрузки не указаны
                   </div>
                 </div>
               </div>
 
-              <div class="details-section">
-                <div class="section-header">
-                  <h4 class="section-title">
-                    Режим работы
-                  </h4>
+              <div class="status-section">
+                <h5>Статус</h5>
+                <div
+                  class="status-badge"
+                  :class="getStatusClass"
+                >
+                  {{ getStatusText }}
                 </div>
-                <div class="section-body">
-                  <div
-                    v-if="hasTimeSlots(selectedPlace)"
-                    class="schedule-grid"
+              </div>
+            </div>
+
+            <div class="history-section">
+              <div class="section-header">
+                <h4>История въездов и выездов</h4>
+                <button
+                  class="export-btn"
+                  :disabled="history.length === 0 || isExporting"
+                  @click="exportHistory"
+                >
+                  <img
+                    v-if="!isExporting"
+                    src="@/assets/icons/export.png"
+                    class="export-icon"
                   >
-                    <div 
-                      v-for="day in daysWithSlots(selectedPlace)" 
-                      :key="day" 
-                      class="schedule-day-card"
-                      :class="{ 'current-day': isCurrentDay(day) }"
+                  <span v-if="!isExporting">Экспорт</span>
+                  <div
+                    v-else
+                    class="export-loader"
+                  />
+                </button>
+              </div>
+            
+              <div
+                v-if="loadingHistory"
+                class="loading-container"
+              >
+                <LoaderSpinner label="Загрузка истории…" />
+              </div>
+            
+              <div
+                v-else-if="history.length === 0"
+                class="no-history"
+              >
+                История отсутствует
+              </div>
+            
+              <div
+                v-else
+                class="history-timeline"
+              >
+                <div 
+                  v-for="(item, index) in history" 
+                  :key="item.id" 
+                  class="history-item"
+                >
+                  <div
+                    class="timeline-dot"
+                    :class="getActionClass(item.action_type)"
+                  />
+                  <div
+                    v-if="index < history.length - 1"
+                    class="timeline-line"
+                  />
+                
+                  <div class="history-content">
+                    <div class="history-header">
+                      <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                      <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                    </div>
+                  
+                    <div class="action-text">
+                      {{ getActionText(item) }}
+                    </div>
+                  
+                    <div
+                      v-if="item.comment"
+                      class="action-comment"
                     >
-                      <div class="day-name">
-                        {{ getFullDayName(day) }}
+                      {{ item.comment }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Дополнительное модальное окно с деталями места разгрузки -->
+        <transition 
+          name="place-slide"
+          @after-leave="onPlaceLeave"
+        >
+          <div
+            v-if="showPlaceModal"
+            class="modal-content place-modal"
+          >
+            <div class="modal-header">
+              <div class="header-with-status">
+                <h3 class="modal-title">
+                  Информация о месте разгрузки
+                </h3>
+                <span
+                  class="status-badge"
+                  :class="getPlaceStatusClass(selectedPlace)"
+                >
+                  {{ getPlaceStatusText(selectedPlace) }}
+                </span>
+                <div
+                  v-if="selectedPlace && selectedPlace.status === 'active'"
+                  class="time-info"
+                >
+                  {{ getTimeInfoText() }}
+                </div>
+              </div>
+              <button
+                class="modal-close"
+                @click="closeUnloadPlaceDetails"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <div
+                v-if="selectedPlace"
+                class="place-details"
+              >
+                <div class="details-section">
+                  <div class="section-header">
+                    <h4 class="section-title">
+                      Основная информация
+                    </h4>
+                  </div>
+                  <div class="section-body">
+                    <div class="info-grid">
+                      <div class="info-row">
+                        <span class="info-label">Наименование:</span>
+                        <span class="info-value">{{ selectedPlace.name }}</span>
                       </div>
-                      <div class="day-slots">
-                        <div 
-                          v-for="slot in getSlotsForDay(selectedPlace.time_slots, day)" 
-                          :key="slot.id" 
-                          class="slot-badge"
-                          :class="{ 'active-slot': isCurrentDay(day) && isActiveSlot(slot) }"
-                        >
-                          <span
-                            v-if="isRoundTheClockSlot(slot)"
-                            class="round-clock-text"
-                          >круглосуточно</span>
-                          <template v-else>
-                            <span class="slot-time">
-                              {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
-                            </span>
-                            <div class="slot-badges">
-                              <span
-                                v-if="slot.is_next_day"
-                                class="next-day-badge"
-                              >+1</span>
-                              <span
-                                v-if="!slot.is_active"
-                                class="inactive-badge"
-                              >неакт</span>
-                            </div>
-                          </template>
+                    </div>
+                    <div
+                      v-if="selectedPlace.status !== 'active' && selectedPlace.status_comment"
+                      class="comment-text"
+                    >
+                      {{ selectedPlace.status_comment }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="details-section">
+                  <div class="section-header">
+                    <h4 class="section-title">
+                      Режим работы
+                    </h4>
+                  </div>
+                  <div class="section-body">
+                    <div
+                      v-if="hasTimeSlots(selectedPlace)"
+                      class="schedule-grid"
+                    >
+                      <div 
+                        v-for="day in daysWithSlots(selectedPlace)" 
+                        :key="day" 
+                        class="schedule-day-card"
+                        :class="{ 'current-day': isCurrentDay(day) }"
+                      >
+                        <div class="day-name">
+                          {{ getFullDayName(day) }}
+                        </div>
+                        <div class="day-slots">
+                          <div 
+                            v-for="slot in getSlotsForDay(selectedPlace.time_slots, day)" 
+                            :key="slot.id" 
+                            class="slot-badge"
+                            :class="{ 'active-slot': isCurrentDay(day) && isActiveSlot(slot) }"
+                          >
+                            <span
+                              v-if="isRoundTheClockSlot(slot)"
+                              class="round-clock-text"
+                            >круглосуточно</span>
+                            <template v-else>
+                              <span class="slot-time">
+                                {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
+                              </span>
+                              <div class="slot-badges">
+                                <span
+                                  v-if="slot.is_next_day"
+                                  class="next-day-badge"
+                                >+1</span>
+                                <span
+                                  v-if="!slot.is_active"
+                                  class="inactive-badge"
+                                >неакт</span>
+                              </div>
+                            </template>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div
-                    v-else
-                    class="no-schedule"
-                  >
-                    Режим работы не указан
-                  </div>
-                </div>
-              </div>
-
-              <div class="details-section">
-                <div class="section-header location-header">
-                  <h4 class="section-title">
-                    Местоположение
-                  </h4>
-                  <a 
-                    v-if="selectedPlace.map_link" 
-                    :href="selectedPlace.map_link" 
-                    target="_blank" 
-                    class="map-link-btn"
-                  >
-                    Как добраться?
-                  </a>
-                </div>
-                <div class="section-body photo-body">
-                  <div
-                    v-if="selectedPlace.photos && selectedPlace.photos.length > 0"
-                    class="photo-container"
-                  >
-                    <div 
-                      ref="photoWrapper" 
-                      class="photo-wrapper"
-                      @mousedown="startDrag"
-                      @mousemove="onDrag"
-                      @mouseup="stopDrag"
-                      @mouseleave="stopDrag"
-                      @wheel="onZoom"
+                    <div
+                      v-else
+                      class="no-schedule"
                     >
-                      <img 
-                        :src="getMainPhotoUrl(selectedPlace.photos)" 
-                        alt="Место разгрузки"
-                        class="place-photo"
-                        :style="photoStyle"
-                        draggable="false"
-                        @load="updateImageDimensions"
-                      >
-                    </div>
-                    <div class="photo-controls">
-                      <button
-                        class="photo-control-btn"
-                        @click="zoomIn"
-                      >
-                        +
-                      </button>
-                      <button
-                        class="photo-control-btn"
-                        @click="zoomOut"
-                      >
-                        −
-                      </button>
-                      <button
-                        class="photo-control-btn"
-                        @click="resetPhoto"
-                      >
-                        ↺
-                      </button>
+                      Режим работы не указан
                     </div>
                   </div>
-                  <div
-                    v-else
-                    class="no-photo-placeholder"
-                  >
-                    Нет фотографии
+                </div>
+
+                <div class="details-section">
+                  <div class="section-header location-header">
+                    <h4 class="section-title">
+                      Местоположение
+                    </h4>
+                    <a 
+                      v-if="selectedPlace.map_link" 
+                      :href="selectedPlace.map_link" 
+                      target="_blank" 
+                      class="map-link-btn"
+                    >
+                      Как добраться?
+                    </a>
+                  </div>
+                  <div class="section-body photo-body">
+                    <div
+                      v-if="selectedPlace.photos && selectedPlace.photos.length > 0"
+                      class="photo-container"
+                    >
+                      <div 
+                        ref="photoWrapper" 
+                        class="photo-wrapper"
+                        @mousedown="startDrag"
+                        @mousemove="onDrag"
+                        @mouseup="stopDrag"
+                        @mouseleave="stopDrag"
+                        @wheel="onZoom"
+                      >
+                        <img 
+                          :src="getMainPhotoUrl(selectedPlace.photos)" 
+                          alt="Место разгрузки"
+                          class="place-photo"
+                          :style="photoStyle"
+                          draggable="false"
+                          @load="updateImageDimensions"
+                        >
+                      </div>
+                      <div class="photo-controls">
+                        <button
+                          class="photo-control-btn"
+                          @click="zoomIn"
+                        >
+                          +
+                        </button>
+                        <button
+                          class="photo-control-btn"
+                          @click="zoomOut"
+                        >
+                          −
+                        </button>
+                        <button
+                          class="photo-control-btn"
+                          @click="resetPhoto"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      v-else
+                      class="no-photo-placeholder"
+                    >
+                      Нет фотографии
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </transition>
-    </div>
+        </transition>
+      </div>
 
-    <CarHistoryModal
-      v-if="showCarHistory"
-      :car-id="car.id"
-      :car-number="car.car_number || 'по факту'"
-      :current-user-id="currentUserId"
-      :current-user-name="currentUserName"
-      @close="showCarHistory = false"
-    />
-  </div>
+      <CarHistoryModal
+        v-if="showCarHistory"
+        :car-id="car.id"
+        :car-number="car.car_number || 'по факту'"
+        :current-user-id="currentUserId"
+        :current-user-name="currentUserName"
+        @close="showCarHistory = false"
+      />
+    </div>
+  </Teleport>
 </template>
 
 <script>
@@ -1052,6 +1054,8 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 11000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: fadeIn 0.2s ease-out;
 }
 

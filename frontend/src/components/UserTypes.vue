@@ -184,90 +184,92 @@
     </div>
 
     <!-- Модальное окно создания типа -->
-    <transition name="modal-fade">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="closeModal"
-      >
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3 class="modal-title">
-              Создать новый тип пользователя
-            </h3>
-            <button
-              class="modal-close"
-              @click="closeModal"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
-                fill="none"
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          @click.self="closeModal"
+        >
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                Создать новый тип пользователя
+              </h3>
+              <button
+                class="modal-close"
+                @click="closeModal"
               >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-          
-          <div class="modal-body">
-            <div class="input-group">
-              <label class="input-label">Наименование типа *</label>
-              <input
-                ref="nameInput"
-                v-model="newType.name"
-                placeholder="Менеджер"
-                class="modal-input"
-                @keyup.enter="createType"
-              >
-              <div class="input-hint">
-                Обязательное поле
-              </div>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
             </div>
+          
+            <div class="modal-body">
+              <div class="input-group">
+                <label class="input-label">Наименование типа *</label>
+                <input
+                  ref="nameInput"
+                  v-model="newType.name"
+                  placeholder="Менеджер"
+                  class="modal-input"
+                  @keyup.enter="createType"
+                >
+                <div class="input-hint">
+                  Обязательное поле
+                </div>
+              </div>
             
-            <div class="input-group">
-              <label class="input-label">Системное имя *</label>
-              <input
-                v-model="newType.code"
-                placeholder="manager"
-                class="modal-input"
-                @input="validateSystemName"
-                @keyup.enter="createType"
-              >
-              <div class="input-hint">
-                Латинские буквы, цифры и подчеркивания
+              <div class="input-group">
+                <label class="input-label">Системное имя *</label>
+                <input
+                  v-model="newType.code"
+                  placeholder="manager"
+                  class="modal-input"
+                  @input="validateSystemName"
+                  @keyup.enter="createType"
+                >
+                <div class="input-hint">
+                  Латинские буквы, цифры и подчеркивания
+                </div>
+                <span
+                  v-if="nameError"
+                  class="form-error"
+                >{{ nameError }}</span>
               </div>
-              <span
-                v-if="nameError"
-                class="form-error"
-              >{{ nameError }}</span>
             </div>
-          </div>
           
-          <div class="modal-footer">
-            <button
-              class="modal-btn modal-btn--cancel"
-              @click="closeModal"
-            >
-              Отмена
-            </button>
-            <button 
-              class="modal-btn modal-btn--confirm" 
-              :disabled="!isFormValid"
-              :class="{'modal-btn--disabled': !isFormValid}"
-              @click="createType"
-            >
-              Создать
-            </button>
+            <div class="modal-footer">
+              <button
+                class="modal-btn modal-btn--cancel"
+                @click="closeModal"
+              >
+                Отмена
+              </button>
+              <button 
+                class="modal-btn modal-btn--confirm" 
+                :disabled="!isFormValid"
+                :class="{'modal-btn--disabled': !isFormValid}"
+                @click="createType"
+              >
+                Создать
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- Модальное окно подтверждения удаления -->
     <ConfirmationModal
@@ -949,12 +951,13 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -964,8 +967,8 @@ export default {
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(0.1px);
   }
 }
 

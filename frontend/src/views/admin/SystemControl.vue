@@ -392,12 +392,14 @@ export default {
 .sc__modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 17, 41, 0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
   padding: 20px;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 .sc__modal {
   background: #fff;

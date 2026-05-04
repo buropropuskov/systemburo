@@ -349,121 +349,125 @@
     </div>
 
     <!-- Модальное окно добавления места -->
-    <transition name="modal-fade">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="closeModal"
-      >
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3 class="modal-title">
-              Добавить место разгрузки
-            </h3>
-            <button
-              class="modal-close"
-              @click="closeModal"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
-                fill="none"
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          @click.self="closeModal"
+        >
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                Добавить место разгрузки
+              </h3>
+              <button
+                class="modal-close"
+                @click="closeModal"
               >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-          
-          <div class="modal-body">
-            <div class="input-group">
-              <label class="input-label">Наименование *</label>
-              <input
-                ref="nameInput"
-                v-model="newPlaceName"
-                placeholder="Введите название места"
-                class="modal-input"
-                @keyup.enter="addPlace"
-              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
             </div>
+          
+            <div class="modal-body">
+              <div class="input-group">
+                <label class="input-label">Наименование *</label>
+                <input
+                  ref="nameInput"
+                  v-model="newPlaceName"
+                  placeholder="Введите название места"
+                  class="modal-input"
+                  @keyup.enter="addPlace"
+                >
+              </div>
             
-            <div class="input-group">
-              <label class="input-label">Описание</label>
-              <textarea
-                v-model="newPlaceDescription"
-                placeholder="Введите описание (необязательно)"
-                class="modal-textarea"
-                rows="3"
-              />
+              <div class="input-group">
+                <label class="input-label">Описание</label>
+                <textarea
+                  v-model="newPlaceDescription"
+                  placeholder="Введите описание (необязательно)"
+                  class="modal-textarea"
+                  rows="3"
+                />
+              </div>
             </div>
-          </div>
           
-          <div class="modal-footer">
-            <button
-              class="modal-btn modal-btn--cancel"
-              @click="closeModal"
-            >
-              Отмена
-            </button>
-            <button 
-              class="modal-btn modal-btn--confirm" 
-              :disabled="!newPlaceName.trim()"
-              :class="{'modal-btn--disabled': !newPlaceName.trim()}"
-              @click="addPlace"
-            >
-              Добавить
-            </button>
+            <div class="modal-footer">
+              <button
+                class="modal-btn modal-btn--cancel"
+                @click="closeModal"
+              >
+                Отмена
+              </button>
+              <button 
+                class="modal-btn modal-btn--confirm" 
+                :disabled="!newPlaceName.trim()"
+                :class="{'modal-btn--disabled': !newPlaceName.trim()}"
+                @click="addPlace"
+              >
+                Добавить
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- Модальное окно просмотра фото -->
-    <transition name="modal-fade">
-      <div
-        v-if="showPhotoModal"
-        class="modal-overlay"
-        @click.self="showPhotoModal = false"
-      >
-        <div class="modal-content photo-view-modal">
-          <div class="modal-header">
-            <h3 class="modal-title">
-              {{ viewingPhoto?.file_name }}
-            </h3>
-            <button
-              class="modal-close"
-              @click="showPhotoModal = false"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
-                fill="none"
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showPhotoModal"
+          class="modal-overlay"
+          @click.self="showPhotoModal = false"
+        >
+          <div class="modal-content photo-view-modal">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                {{ viewingPhoto?.file_name }}
+              </h3>
+              <button
+                class="modal-close"
+                @click="showPhotoModal = false"
               >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body photo-view-body">
-            <img
-              :src="viewingPhoto?.photo_url"
-              class="full-photo"
-              alt="Full size"
-            >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body photo-view-body">
+              <img
+                :src="viewingPhoto?.photo_url"
+                class="full-photo"
+                alt="Full size"
+              >
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
 
     <!-- Уведомления -->
     <div
@@ -1548,12 +1552,13 @@ async uploadPhotos(event) {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -1563,8 +1568,8 @@ async uploadPhotos(event) {
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(0.1px);
   }
 }
 

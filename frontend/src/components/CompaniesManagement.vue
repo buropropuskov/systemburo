@@ -209,45 +209,47 @@
     </div>
 
     <!-- Модальное окно добавления -->
-    <div
-      v-if="showAddModal"
-      class="modal-overlay"
-      @click.self="showAddModal = false"
-    >
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Добавить компанию</h3>
-          <button
-            class="modal-close"
-            @click="showAddModal = false"
-          >
-            ×
-          </button>
-        </div>
-        <div class="modal-body">
-          <input
-            v-model="newCompanyName"
-            placeholder="Введите название компании"
-            class="modal-input"
-            @keyup.enter="addCompany"
-          >
-        </div>
-        <div class="modal-footer">
-          <button
-            class="modal-cancel"
-            @click="showAddModal = false"
-          >
-            Отмена
-          </button>
-          <button
-            class="modal-confirm"
-            @click="addCompany"
-          >
-            Добавить
-          </button>
+    <Teleport to="body">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="showAddModal = false"
+      >
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Добавить компанию</h3>
+            <button
+              class="modal-close"
+              @click="showAddModal = false"
+            >
+              ×
+            </button>
+          </div>
+          <div class="modal-body">
+            <input
+              v-model="newCompanyName"
+              placeholder="Введите название компании"
+              class="modal-input"
+              @keyup.enter="addCompany"
+            >
+          </div>
+          <div class="modal-footer">
+            <button
+              class="modal-cancel"
+              @click="showAddModal = false"
+            >
+              Отмена
+            </button>
+            <button
+              class="modal-confirm"
+              @click="addCompany"
+            >
+              Добавить
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Модальное окно подтверждения удаления -->
     <ConfirmationModal
@@ -901,11 +903,13 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .modal-content {

@@ -1,167 +1,169 @@
 <!-- ForwardModal.vue -->
 <template>
-  <div
-    class="modal-overlay"
-    @click.self="close"
-  >
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Переслать заявку</h3>
-        <button
-          class="modal-close"
-          @click="close"
-        >
-          ×
-        </button>
-      </div>
-      <div class="modal-content">
-        <div class="user-search-section">
-          <input
-            ref="searchInput"
-            v-model="searchQuery"
-            class="forward-search-input"
-            placeholder="Поиск пользователей..."
-            type="text"
-            @input="searchUsers"
-            @focus="onSearchFocus"
-            @blur="onSearchBlur"
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      @click.self="close"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Переслать заявку</h3>
+          <button
+            class="modal-close"
+            @click="close"
           >
-          <div
-            v-if="showDropdown && filteredUsers.length > 0"
-            class="forward-user-dropdown"
-          >
-            <div class="forward-user-dropdown-content">
-              <div 
-                v-for="user in filteredUsers" 
-                :key="user.username"
-                class="forward-user-item"
-                @mousedown.prevent="addUser(user)"
-              >
-                <div class="forward-user-info">
-                  <div class="forward-user-main">
-                    <span class="forward-user-name">{{ getUserDisplayName(user) }}</span>
-                    <span class="forward-user-username">@{{ user.username }}</span>
-                  </div>
-                  <div class="forward-user-details">
-                    <span
-                      v-if="user.position"
-                      class="forward-user-position"
-                    >{{ user.position }}</span>
-                    <span
-                      v-if="user.organization"
-                      class="forward-user-organization"
-                    >{{ user.organization }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            v-else-if="showDropdown && filteredUsers.length === 0"
-            class="forward-user-dropdown no-results"
-          >
-            <div class="forward-user-dropdown-content">
-              <div class="no-results-message">
-                Пользователи не найдены
-              </div>
-            </div>
-          </div>
+            ×
+          </button>
         </div>
-                
-        <div
-          v-if="selectedUsers.length > 0"
-          class="selected-forward-users"
-        >
-          <h4>Выбранные пользователи ({{ selectedUsers.length }})</h4>
-          <div class="forward-users-list-container">
-            <div class="forward-users-list">
-              <div 
-                v-for="user in selectedUsers" 
-                :key="user.username"
-                class="forward-selected-user"
-              >
-                <div class="forward-selected-user-info">
-                  <div class="forward-selected-user-main">
-                    <span class="forward-selected-user-name">{{ getUserDisplayName(user) }}</span>
-                    <span class="forward-selected-user-username">@{{ user.username }}</span>
-                  </div>
-                  <div class="forward-selected-user-details">
-                    <span
-                      v-if="user.position"
-                      class="forward-selected-user-position"
-                    >{{ user.position }}</span>
-                    <span
-                      v-if="user.organization"
-                      class="forward-selected-user-organization"
-                    >{{ user.organization }}</span>
-                  </div>
-                                    
-                  <!-- Настройки доступа -->
-                  <div class="forward-selected-user-settings">
-                    <!-- Тумблер "Требуется согласование" -->
-                    <label class="setting-toggle">
-                      <input 
-                        v-model="user.requires_approval" 
-                        type="checkbox"
-                        class="setting-checkbox"
-                        @change="onApprovalToggle(user)"
-                      >
-                      <span class="toggle-slider" />
-                      <span class="toggle-text">Требуется согласование</span>
-                    </label>
-
-                    <!-- Тумблер "Согласование обязательно" (активен только если requires_approval = true) -->
-                    <label
-                      class="setting-toggle"
-                      :class="{ 'toggle-disabled': !user.requires_approval }"
-                    >
-                      <input 
-                        v-model="user.required_approval" 
-                        type="checkbox"
-                        :disabled="!user.requires_approval"
-                        class="setting-checkbox"
-                      >
-                      <span class="toggle-slider" />
-                      <span class="toggle-text">Согласование обязательно</span>
-                    </label>
-                  </div>
-                </div>
-                <button 
-                  class="remove-forward-user-btn"
-                  title="Удалить"
-                  @click="removeUser(user)"
+        <div class="modal-content">
+          <div class="user-search-section">
+            <input
+              ref="searchInput"
+              v-model="searchQuery"
+              class="forward-search-input"
+              placeholder="Поиск пользователей..."
+              type="text"
+              @input="searchUsers"
+              @focus="onSearchFocus"
+              @blur="onSearchBlur"
+            >
+            <div
+              v-if="showDropdown && filteredUsers.length > 0"
+              class="forward-user-dropdown"
+            >
+              <div class="forward-user-dropdown-content">
+                <div 
+                  v-for="user in filteredUsers" 
+                  :key="user.username"
+                  class="forward-user-item"
+                  @mousedown.prevent="addUser(user)"
                 >
-                  ×
-                </button>
+                  <div class="forward-user-info">
+                    <div class="forward-user-main">
+                      <span class="forward-user-name">{{ getUserDisplayName(user) }}</span>
+                      <span class="forward-user-username">@{{ user.username }}</span>
+                    </div>
+                    <div class="forward-user-details">
+                      <span
+                        v-if="user.position"
+                        class="forward-user-position"
+                      >{{ user.position }}</span>
+                      <span
+                        v-if="user.organization"
+                        class="forward-user-organization"
+                      >{{ user.organization }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else-if="showDropdown && filteredUsers.length === 0"
+              class="forward-user-dropdown no-results"
+            >
+              <div class="forward-user-dropdown-content">
+                <div class="no-results-message">
+                  Пользователи не найдены
+                </div>
               </div>
             </div>
           </div>
-        </div>
                 
-        <div
-          v-else
-          class="no-forward-users"
-        >
-          <p>Выберите пользователей для пересылки заявки</p>
+          <div
+            v-if="selectedUsers.length > 0"
+            class="selected-forward-users"
+          >
+            <h4>Выбранные пользователи ({{ selectedUsers.length }})</h4>
+            <div class="forward-users-list-container">
+              <div class="forward-users-list">
+                <div 
+                  v-for="user in selectedUsers" 
+                  :key="user.username"
+                  class="forward-selected-user"
+                >
+                  <div class="forward-selected-user-info">
+                    <div class="forward-selected-user-main">
+                      <span class="forward-selected-user-name">{{ getUserDisplayName(user) }}</span>
+                      <span class="forward-selected-user-username">@{{ user.username }}</span>
+                    </div>
+                    <div class="forward-selected-user-details">
+                      <span
+                        v-if="user.position"
+                        class="forward-selected-user-position"
+                      >{{ user.position }}</span>
+                      <span
+                        v-if="user.organization"
+                        class="forward-selected-user-organization"
+                      >{{ user.organization }}</span>
+                    </div>
+                                    
+                    <!-- Настройки доступа -->
+                    <div class="forward-selected-user-settings">
+                      <!-- Тумблер "Требуется согласование" -->
+                      <label class="setting-toggle">
+                        <input 
+                          v-model="user.requires_approval" 
+                          type="checkbox"
+                          class="setting-checkbox"
+                          @change="onApprovalToggle(user)"
+                        >
+                        <span class="toggle-slider" />
+                        <span class="toggle-text">Требуется согласование</span>
+                      </label>
+
+                      <!-- Тумблер "Согласование обязательно" (активен только если requires_approval = true) -->
+                      <label
+                        class="setting-toggle"
+                        :class="{ 'toggle-disabled': !user.requires_approval }"
+                      >
+                        <input 
+                          v-model="user.required_approval" 
+                          type="checkbox"
+                          :disabled="!user.requires_approval"
+                          class="setting-checkbox"
+                        >
+                        <span class="toggle-slider" />
+                        <span class="toggle-text">Согласование обязательно</span>
+                      </label>
+                    </div>
+                  </div>
+                  <button 
+                    class="remove-forward-user-btn"
+                    title="Удалить"
+                    @click="removeUser(user)"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+                
+          <div
+            v-else
+            class="no-forward-users"
+          >
+            <p>Выберите пользователей для пересылки заявки</p>
+          </div>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button 
-          class="modal-cancel-btn"
-          @click="close"
-        >
-          Отмена
-        </button>
-        <button 
-          class="modal-send-btn"
-          :disabled="selectedUsers.length === 0 || isSending"
-          @click="send"
-        >
-          {{ isSending ? 'Отправка...' : 'Отправить' }}
-        </button>
+        <div class="modal-footer">
+          <button 
+            class="modal-cancel-btn"
+            @click="close"
+          >
+            Отмена
+          </button>
+          <button 
+            class="modal-send-btn"
+            :disabled="selectedUsers.length === 0 || isSending"
+            @click="send"
+          >
+            {{ isSending ? 'Отправка...' : 'Отправить' }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -363,11 +365,13 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 20000;
+    backdrop-filter: blur(0.1px);
+    -webkit-backdrop-filter: blur(0.1px);
     animation: fadeIn 0.3s ease-out;
 }
 

@@ -321,214 +321,216 @@
     </div>
 
     <!-- Модальное окно создания вложения -->
-    <div
-      v-if="showAddModal"
-      class="modal-overlay"
-      @click.self="closeAddModal"
-    >
-      <div class="modal-content horizontal-modal">
-        <div class="modal-header">
-          <h3>Создать новое вложение</h3>
-          <button
-            class="modal-close"
-            @click="closeAddModal"
-          >
-            ×
-          </button>
-        </div>
+    <Teleport to="body">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="closeAddModal"
+      >
+        <div class="modal-content horizontal-modal">
+          <div class="modal-header">
+            <h3>Создать новое вложение</h3>
+            <button
+              class="modal-close"
+              @click="closeAddModal"
+            >
+              ×
+            </button>
+          </div>
         
-        <div class="modal-body-horizontal">
-          <!-- Левая часть - основная информация -->
-          <div class="modal-main-info">
-            <div class="main-fields">
-              <div class="form-group-compact">
-                <label class="form-label-compact">Наименование вложения *</label>
-                <input
-                  v-model="newAttachment.display_name"
-                  placeholder="Автозаявка"
-                  class="input-compact"
-                  :class="{ 'has-duplicate': duplicateCheck.display_name }"
-                  @input="checkExistingAttachments"
-                >
-                <div
-                  v-if="duplicateCheck.display_name"
-                  class="duplicate-alert"
-                >
-                  <p>Найдено похожее вложение:</p>
-                  <div
-                    class="duplicate-item"
-                    @click="restoreDuplicate(duplicateCheck.display_name)"
+          <div class="modal-body-horizontal">
+            <!-- Левая часть - основная информация -->
+            <div class="modal-main-info">
+              <div class="main-fields">
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Наименование вложения *</label>
+                  <input
+                    v-model="newAttachment.display_name"
+                    placeholder="Автозаявка"
+                    class="input-compact"
+                    :class="{ 'has-duplicate': duplicateCheck.display_name }"
+                    @input="checkExistingAttachments"
                   >
-                    <span>{{ duplicateCheck.display_name.display_name }}</span>
-                    <span class="duplicate-status">(в архиве)</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-group-compact">
-                <label class="form-label-compact">Тип вложения *</label>
-                <div class="custom-select">
                   <div
-                    class="select-header"
-                    @click="toggleNewAttachmentTypeDropdown"
+                    v-if="duplicateCheck.display_name"
+                    class="duplicate-alert"
                   >
-                    <span class="select-value">{{ getAttachmentTypeLabel(newAttachment.attachment_type) }}</span>
-                    <img
-                      src="@/assets/icons/arrow.png"
-                      class="select-arrow"
-                      :class="{ rotated: newAttachmentTypeDropdownOpen }"
-                    >
-                  </div>
-                  <transition name="dropdown-fade">
+                    <p>Найдено похожее вложение:</p>
                     <div
-                      v-if="newAttachmentTypeDropdownOpen"
-                      class="select-dropdown"
+                      class="duplicate-item"
+                      @click="restoreDuplicate(duplicateCheck.display_name)"
                     >
-                      <div 
-                        class="select-option"
-                        :class="{ active: newAttachment.attachment_type === 'cars' }"
-                        @click="selectNewAttachmentType('cars')"
-                      >
-                        Машины
-                      </div>
-                      <div 
-                        class="select-option"
-                        :class="{ active: newAttachment.attachment_type === 'people' }"
-                        @click="selectNewAttachmentType('people')"
-                      >
-                        Люди
-                      </div>
-                      <div 
-                        class="select-option"
-                        :class="{ active: newAttachment.attachment_type === 'items' }"
-                        @click="selectNewAttachmentType('items')"
-                      >
-                        ТМЦ
-                      </div>
+                      <span>{{ duplicateCheck.display_name.display_name }}</span>
+                      <span class="duplicate-status">(в архиве)</span>
                     </div>
-                  </transition>
+                  </div>
                 </div>
-              </div>
+
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Тип вложения *</label>
+                  <div class="custom-select">
+                    <div
+                      class="select-header"
+                      @click="toggleNewAttachmentTypeDropdown"
+                    >
+                      <span class="select-value">{{ getAttachmentTypeLabel(newAttachment.attachment_type) }}</span>
+                      <img
+                        src="@/assets/icons/arrow.png"
+                        class="select-arrow"
+                        :class="{ rotated: newAttachmentTypeDropdownOpen }"
+                      >
+                    </div>
+                    <transition name="dropdown-fade">
+                      <div
+                        v-if="newAttachmentTypeDropdownOpen"
+                        class="select-dropdown"
+                      >
+                        <div 
+                          class="select-option"
+                          :class="{ active: newAttachment.attachment_type === 'cars' }"
+                          @click="selectNewAttachmentType('cars')"
+                        >
+                          Машины
+                        </div>
+                        <div 
+                          class="select-option"
+                          :class="{ active: newAttachment.attachment_type === 'people' }"
+                          @click="selectNewAttachmentType('people')"
+                        >
+                          Люди
+                        </div>
+                        <div 
+                          class="select-option"
+                          :class="{ active: newAttachment.attachment_type === 'items' }"
+                          @click="selectNewAttachmentType('items')"
+                        >
+                          ТМЦ
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
               
-              <div class="form-group-compact">
-                <label class="form-label-compact">Системное имя *</label>
-                <input
-                  v-model="newAttachment.name"
-                  placeholder="avtozayavka"
-                  class="input-compact"
-                  :class="{ 'has-duplicate': duplicateCheck.name, 'has-error': nameError }"
-                  @input="validateSystemName"
-                  @blur="checkExistingAttachments"
-                >
-                <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-                <span
-                  v-if="nameError"
-                  class="form-error"
-                >{{ nameError }}</span>
-                <div
-                  v-if="duplicateCheck.name"
-                  class="duplicate-alert"
-                >
-                  <p>Найдено вложение с таким системным именем:</p>
-                  <div
-                    class="duplicate-item"
-                    @click="restoreDuplicate(duplicateCheck.name)"
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Системное имя *</label>
+                  <input
+                    v-model="newAttachment.name"
+                    placeholder="avtozayavka"
+                    class="input-compact"
+                    :class="{ 'has-duplicate': duplicateCheck.name, 'has-error': nameError }"
+                    @input="validateSystemName"
+                    @blur="checkExistingAttachments"
                   >
-                    <span>{{ duplicateCheck.name.display_name }}</span>
-                    <span class="duplicate-status">(в архиве)</span>
+                  <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
+                  <span
+                    v-if="nameError"
+                    class="form-error"
+                  >{{ nameError }}</span>
+                  <div
+                    v-if="duplicateCheck.name"
+                    class="duplicate-alert"
+                  >
+                    <p>Найдено вложение с таким системным именем:</p>
+                    <div
+                      class="duplicate-item"
+                      @click="restoreDuplicate(duplicateCheck.name)"
+                    >
+                      <span>{{ duplicateCheck.name.display_name }}</span>
+                      <span class="duplicate-status">(в архиве)</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="form-group-compact">
-                <label class="form-label-compact">Заголовок *</label>
-                <input
-                  v-model="newAttachment.title"
-                  placeholder="АВТОЗАЯВКИ"
-                  class="input-compact"
-                  :class="{ 'has-duplicate': duplicateCheck.title }"
-                  @input="checkExistingAttachments"
-                >
-                <span class="form-hint">Отображается в заголовке категории</span>
-                <div
-                  v-if="duplicateCheck.title"
-                  class="duplicate-alert"
-                >
-                  <p>Найдено вложение с таким заголовком:</p>
-                  <div
-                    class="duplicate-item"
-                    @click="restoreDuplicate(duplicateCheck.title)"
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Заголовок *</label>
+                  <input
+                    v-model="newAttachment.title"
+                    placeholder="АВТОЗАЯВКИ"
+                    class="input-compact"
+                    :class="{ 'has-duplicate': duplicateCheck.title }"
+                    @input="checkExistingAttachments"
                   >
-                    <span>{{ duplicateCheck.title.display_name }}</span>
-                    <span class="duplicate-status">(в архиве)</span>
+                  <span class="form-hint">Отображается в заголовке категории</span>
+                  <div
+                    v-if="duplicateCheck.title"
+                    class="duplicate-alert"
+                  >
+                    <p>Найдено вложение с таким заголовком:</p>
+                    <div
+                      class="duplicate-item"
+                      @click="restoreDuplicate(duplicateCheck.title)"
+                    >
+                      <span>{{ duplicateCheck.title.display_name }}</span>
+                      <span class="duplicate-status">(в архиве)</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Правая часть - инструкция -->
-          <div class="modal-cells-section">
-            <div class="cells-header-compact">
-              <h4 class="cells-title-compact">
-                Инструкция к вложению
-              </h4>
-            </div>
+            <!-- Правая часть - инструкция -->
+            <div class="modal-cells-section">
+              <div class="cells-header-compact">
+                <h4 class="cells-title-compact">
+                  Инструкция к вложению
+                </h4>
+              </div>
             
-            <div class="cells-scroll-container">
-              <div class="settings-grid">
-                <div class="setting-item">
-                  <TextConstructor
-                    v-model="newAttachment.instruction"
-                    placeholder="Введите инструкцию для вложения..."
-                    rows="12"
-                  />
-                  <span class="setting-hint">
-                    Инструкция будет отображаться при выборе данного вложения
-                  </span>
-                </div>
+              <div class="cells-scroll-container">
+                <div class="settings-grid">
+                  <div class="setting-item">
+                    <TextConstructor
+                      v-model="newAttachment.instruction"
+                      placeholder="Введите инструкцию для вложения..."
+                      rows="12"
+                    />
+                    <span class="setting-hint">
+                      Инструкция будет отображаться при выборе данного вложения
+                    </span>
+                  </div>
 
-                <div class="setting-item">
-                  <h5 class="fields-preview-title">
-                    Предварительный просмотр:
-                  </h5>
-                  <div class="preview-card">
-                    <div class="preview-header">
-                      <div class="preview-title">
-                        {{ newAttachment.title || 'ЗАГОЛОВОК' }}
+                  <div class="setting-item">
+                    <h5 class="fields-preview-title">
+                      Предварительный просмотр:
+                    </h5>
+                    <div class="preview-card">
+                      <div class="preview-header">
+                        <div class="preview-title">
+                          {{ newAttachment.title || 'ЗАГОЛОВОК' }}
+                        </div>
                       </div>
+                      <div class="preview-attachment">
+                        <span class="preview-attachment-name">
+                          {{ newAttachment.display_name || 'Название вложения' }}
+                        </span>
+                      </div>
+                      <button class="preview-add-btn">
+                        Добавить
+                      </button>
                     </div>
-                    <div class="preview-attachment">
-                      <span class="preview-attachment-name">
-                        {{ newAttachment.display_name || 'Название вложения' }}
-                      </span>
-                    </div>
-                    <button class="preview-add-btn">
-                      Добавить
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         
-        <div class="modal-footer">
-          <button
-            class="modal-cancel"
-            @click="closeAddModal"
-          >
-            Отмена
-          </button>
-          <button
-            class="modal-confirm"
-            @click="createAttachment"
-          >
-            Создать
-          </button>
+          <div class="modal-footer">
+            <button
+              class="modal-cancel"
+              @click="closeAddModal"
+            >
+              Отмена
+            </button>
+            <button
+              class="modal-confirm"
+              @click="createAttachment"
+            >
+              Создать
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Уведомления -->
     <div
@@ -1730,19 +1732,19 @@ export default {
 
 /* Модальные окна */
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 1000;
   padding: 20px;
-  border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .horizontal-modal {

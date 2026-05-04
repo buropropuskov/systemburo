@@ -1,94 +1,96 @@
 <template>
-  <div
-    class="modal-overlay"
-    @click="$emit('close')"
-  >
+  <Teleport to="body">
     <div
-      class="modal-content"
-      @click.stop
+      class="modal-overlay"
+      @click="$emit('close')"
     >
-      <div class="modal-header">
-        <div class="modal-header__top">
-          <h3>Привязка новых сотрудников</h3>
+      <div
+        class="modal-content"
+        @click.stop
+      >
+        <div class="modal-header">
+          <div class="modal-header__top">
+            <h3>Привязка новых сотрудников</h3>
+          </div>
+          <button
+            class="modal-close"
+            @click="$emit('close')"
+          >
+            ×
+          </button>
         </div>
-        <button
-          class="modal-close"
-          @click="$emit('close')"
-        >
-          ×
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="binding-info">
-          <p class="binding-description">
-            Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
-            Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
-          </p>
-                    
-          <div class="employees-list-section">
-            <p class="section-title">
-              Новые сотрудники ({{ newEmployeesToBind.length }}):
+        <div class="modal-body">
+          <div class="binding-info">
+            <p class="binding-description">
+              Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
+              Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
             </p>
-            <div class="employees-list">
-              <div 
-                v-for="employee in newEmployeesToBind" 
-                :key="employee.passportSeriesNumber"
-                class="employee-item"
-              >
-                <div class="employee-info">
-                  <span class="employee-name">{{ formatFullName(employee) }}</span>
-                  <span class="employee-position">{{ employee.position }}</span>
+                    
+            <div class="employees-list-section">
+              <p class="section-title">
+                Новые сотрудники ({{ newEmployeesToBind.length }}):
+              </p>
+              <div class="employees-list">
+                <div 
+                  v-for="employee in newEmployeesToBind" 
+                  :key="employee.passportSeriesNumber"
+                  class="employee-item"
+                >
+                  <div class="employee-info">
+                    <span class="employee-name">{{ formatFullName(employee) }}</span>
+                    <span class="employee-position">{{ employee.position }}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="binding-options-section">
-            <p class="section-title">
-              Привязать всех сотрудников к:
-            </p>
-            <div class="binding-options">
-              <label
-                v-if="hasOrganization"
-                class="binding-option"
-              >
-                <input 
-                  v-model="bindToOrganization" 
-                  type="checkbox"
+            <div class="binding-options-section">
+              <p class="section-title">
+                Привязать всех сотрудников к:
+              </p>
+              <div class="binding-options">
+                <label
+                  v-if="hasOrganization"
+                  class="binding-option"
                 >
-                <span class="option-text">Организации "{{ organization }}"</span>
-              </label>
-              <label
-                v-if="hasCompany"
-                class="binding-option"
-              >
-                <input 
-                  v-model="bindToCompany" 
-                  type="checkbox"
+                  <input 
+                    v-model="bindToOrganization" 
+                    type="checkbox"
+                  >
+                  <span class="option-text">Организации "{{ organization }}"</span>
+                </label>
+                <label
+                  v-if="hasCompany"
+                  class="binding-option"
                 >
-                <span class="option-text">Компании "{{ company }}"</span>
-              </label>
+                  <input 
+                    v-model="bindToCompany" 
+                    type="checkbox"
+                  >
+                  <span class="option-text">Компании "{{ company }}"</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="warning-section">
+              <p class="warning-text">
+                <strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
+              </p>
             </div>
           </div>
-
-          <div class="warning-section">
-            <p class="warning-text">
-              <strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
-            </p>
-          </div>
-        </div>
                 
-        <div class="modal-actions">
-          <button
-            class="confirm-btn"
-            @click="handleConfirm"
-          >
-            {{ buttonText }}
-          </button>
+          <div class="modal-actions">
+            <button
+              class="confirm-btn"
+              @click="handleConfirm"
+            >
+              {{ buttonText }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -150,6 +152,8 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    backdrop-filter: blur(0.1px);
+    -webkit-backdrop-filter: blur(0.1px);
 }
 
 .modal-content {

@@ -1979,12 +1979,13 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -1994,8 +1995,8 @@ export default {
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(0.1px);
   }
 }
 
