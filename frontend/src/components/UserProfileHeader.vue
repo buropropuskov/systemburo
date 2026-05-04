@@ -444,15 +444,17 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 12px;
-  border-radius: 16px;
+  padding: 5px 12px;
+  border-radius: 999px;
   font-size: 0.85em;
   font-weight: 500;
   white-space: nowrap;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
   min-width: 0;
   cursor: pointer;
+  border: 1px solid transparent;
+  background: #f1f3f5;
+  color: #475569;
 }
 
 .badge-content {
@@ -477,23 +479,23 @@ export default {
 }
 
 .position-badge {
-  background: linear-gradient(135deg, #f0f4ff 0%, #d9e2ff 100%);
-  color: #3a4a6e;
-  border: 1px solid #d0d9f0;
+  background: #eef0ff;
+  color: #3a45c0;
+  border-color: #d9deff;
   cursor: default;
   gap: 6px;
 }
 
 .email-badge {
-  background: linear-gradient(135deg, #f0fff4 0%, #d9ffe2 100%);
-  color: #3a6e4a;
-  border: 1px solid #d0f0d9;
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
 }
 
 .phone-badge {
-  background: linear-gradient(135deg, #fff4f0 0%, #ffe2d9 100%);
-  color: #6e4a3a;
-  border: 1px solid #f0d9d0;
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
 }
 
 .detail-badge .icon {
@@ -506,14 +508,13 @@ export default {
 /* Бейдж с типом пользователя */
 .user-type-badge {
   display: inline-block;
-  padding: 6px 12px;
-  background: #4F5BDF;
+  padding: 5px 12px;
+  background: var(--color-primary, #4F5BDF);
   color: white;
-  border-radius: 16px;
+  border-radius: 999px;
   font-size: 0.85em;
   font-weight: 500;
   white-space: nowrap;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   opacity: 0;
   animation: fadeIn 0.4s ease-out 0.5s forwards;
 }

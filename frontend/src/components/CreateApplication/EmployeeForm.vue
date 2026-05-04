@@ -352,6 +352,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { getCurrentInstance } from 'vue'
@@ -386,6 +387,7 @@ export default {
     emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
     setup() {
         const instance = getCurrentInstance()
+        const toast = useToast()
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
             const vm = instance.proxy
@@ -410,7 +412,7 @@ export default {
             ]
         })
 
-        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip }
+        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast }
     },
     data() {
         return {
@@ -628,6 +630,9 @@ export default {
                 
                 const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
                 this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
+                if (this.selectedPassageTables.length > 0) {
+                    this.toast.success('Места прохода выбраны автоматически для вашей организации');
+                }
             }
         }
 
@@ -664,6 +669,9 @@ export default {
                 
                 const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
                 this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
+                if (this.selectedPassageTables.length > 0) {
+                    this.toast.success('Места прохода выбраны автоматически для вашей компании');
+                }
             }
         }
 

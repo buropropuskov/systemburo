@@ -265,6 +265,78 @@
     </div>
 
     <div
+      v-if="imageBlocks.length > 1"
+      class="image-blocks"
+    >
+      <div class="image-blocks__header">
+        <span class="image-blocks__title">Расположение изображений</span>
+        <span class="image-blocks__hint">перетащите карточку или используйте стрелки</span>
+      </div>
+      <div class="image-blocks__list">
+        <div
+          v-for="(block, index) in imageBlocks"
+          :key="block.id"
+          class="image-block"
+          :class="{
+            'image-block--dragging': draggingIndex === index,
+            'image-block--target': dragOverIndex === index && draggingIndex !== index
+          }"
+          draggable="true"
+          @dragstart="onBlockDragStart(index, $event)"
+          @dragover.prevent="onBlockDragOver(index)"
+          @dragleave="onBlockDragLeave"
+          @drop.prevent="onBlockDrop(index)"
+          @dragend="onBlockDragEnd"
+        >
+          <span class="image-block__handle" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="4" cy="3" r="1.4" fill="currentColor" />
+              <circle cx="4" cy="7" r="1.4" fill="currentColor" />
+              <circle cx="4" cy="11" r="1.4" fill="currentColor" />
+              <circle cx="10" cy="3" r="1.4" fill="currentColor" />
+              <circle cx="10" cy="7" r="1.4" fill="currentColor" />
+              <circle cx="10" cy="11" r="1.4" fill="currentColor" />
+            </svg>
+          </span>
+          <img
+            :src="block.src"
+            class="image-block__preview"
+            :alt="`Изображение ${index + 1}`"
+          />
+          <span class="image-block__index">#{{ index + 1 }}</span>
+          <div class="image-block__actions">
+            <button
+              type="button"
+              class="image-block__btn"
+              :disabled="index === 0"
+              title="Переместить выше"
+              @click="moveImageBlock(index, index - 1)"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              class="image-block__btn"
+              :disabled="index === imageBlocks.length - 1"
+              title="Переместить ниже"
+              @click="moveImageBlock(index, index + 1)"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              class="image-block__btn image-block__btn--danger"
+              title="Удалить"
+              @click="removeImageBlock(index)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
       v-if="modelValue"
       class="editor-preview"
     >
@@ -371,12 +443,27 @@ export default {
       imageError: '',
       imageErrorTimer: null,
       previewModalOpen: false,
-      onDocClick: null
+      onDocClick: null,
+      draggingIndex: null,
+      dragOverIndex: null,
+      imageMatchRegex: /<img\b[^>]*>/gi
     };
   },
   computed: {
     sanitizedContent() {
       return sanitizeHtml(this.modelValue);
+    },
+    imageBlocks() {
+      const html = this.modelValue || '';
+      const matches = html.match(this.imageMatchRegex) || [];
+      return matches.map((tag, idx) => {
+        const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+        return {
+          id: `img-${idx}-${(srcMatch ? srcMatch[1] : '').slice(0, 20)}`,
+          tag,
+          src: srcMatch ? srcMatch[1] : ''
+        };
+      });
     }
   },
   watch: {
@@ -421,6 +508,77 @@ export default {
     }
   },
   methods: {
+    /**
+     * Извлекает все <img> теги из modelValue, заменяя их плейсхолдерами,
+     * чтобы потом восстановить в произвольном порядке.
+     * @returns {{ skeleton: string, imgs: string[] }}
+     */
+    extractImageSkeleton() {
+      const imgs = [];
+      const skeleton = (this.modelValue || '').replace(this.imageMatchRegex, (match) => {
+        imgs.push(match);
+        return ` IMG_${imgs.length - 1} `;
+      });
+      return { skeleton, imgs };
+    },
+
+    /**
+     * Восстанавливает HTML по skeleton'у с переупорядоченными изображениями.
+     * @param {string} skeleton
+     * @param {string[]} imgs
+     */
+    rebuildHtmlFromSkeleton(skeleton, imgs) {
+      return skeleton.replace(/ IMG_(\d+) /g, (_, i) => imgs[Number(i)] || '');
+    },
+
+    moveImageBlock(from, to) {
+      if (to < 0 || to >= this.imageBlocks.length) return;
+      const { skeleton, imgs } = this.extractImageSkeleton();
+      const [moved] = imgs.splice(from, 1);
+      imgs.splice(to, 0, moved);
+      const next = this.rebuildHtmlFromSkeleton(skeleton, imgs);
+      this.addToHistory(next);
+      this.$emit('update:modelValue', next);
+    },
+
+    removeImageBlock(index) {
+      const { skeleton, imgs } = this.extractImageSkeleton();
+      imgs.splice(index, 1);
+      const next = this.rebuildHtmlFromSkeleton(skeleton, imgs);
+      this.addToHistory(next);
+      this.$emit('update:modelValue', next);
+    },
+
+    onBlockDragStart(index, event) {
+      this.draggingIndex = index;
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+      }
+    },
+
+    onBlockDragOver(index) {
+      this.dragOverIndex = index;
+    },
+
+    onBlockDragLeave() {
+      this.dragOverIndex = null;
+    },
+
+    onBlockDrop(targetIndex) {
+      if (this.draggingIndex === null || this.draggingIndex === targetIndex) {
+        this.dragOverIndex = null;
+        return;
+      }
+      this.moveImageBlock(this.draggingIndex, targetIndex);
+      this.draggingIndex = null;
+      this.dragOverIndex = null;
+    },
+
+    onBlockDragEnd() {
+      this.draggingIndex = null;
+      this.dragOverIndex = null;
+    },
+
     handleInput(event) {
       this.addToHistory(event.target.value);
       this.$emit('update:modelValue', event.target.value);
@@ -1402,5 +1560,123 @@ export default {
     font-size: 11px;
     padding: 4px 6px;
   }
+}
+
+.image-blocks {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.image-blocks__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.image-blocks__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.image-blocks__hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.image-blocks__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.image-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  cursor: grab;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.image-block:hover {
+  border-color: var(--color-primary);
+}
+
+.image-block--dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.image-block--target {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.image-block__handle {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  display: flex;
+}
+
+.image-block__preview {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.image-block__index {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 24px;
+}
+
+.image-block__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.image-block__btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.image-block__btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.image-block__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.image-block__btn--danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
 }
 </style>

@@ -89,16 +89,12 @@
             {{ employee.middleName || 'Не указано' }}
           </div>
           <div class="table-col actions-col">
-            <button 
+            <button
               class="details-btn"
               title="Детали"
               @click="showEmployeeDetails(employee)"
             >
-              <img 
-                src="@/assets/icons/info.png" 
-                alt="Детали" 
-                class="details-icon"
-              >
+              <DetailsIcon class="details-icon" />
             </button>
             <button 
               class="edit-btn"
@@ -145,10 +141,11 @@
 
 <script>
 import EmployeeDetailsModal from './EmployeeDetailsModal.vue';
+import DetailsIcon from '@/components/ui/DetailsIcon.vue';
 
 export default {
     name: 'EmployeesList',
-    components: { EmployeeDetailsModal },
+    components: { EmployeeDetailsModal, DetailsIcon },
     props: {
         employees: {
             type: Array,
@@ -371,11 +368,16 @@ export default {
     width: 14px;
     height: 14px;
     opacity: 0.6;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.details-btn .details-icon {
+    color: #1976d2;
 }
 
 .details-btn:hover .details-icon {
-    opacity: 0.9;
+    opacity: 1;
+    color: var(--color-primary, #4F5BDF);
 }
 
 .edit-btn:hover .edit-icon {
