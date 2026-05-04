@@ -97,7 +97,7 @@ func submitCompleteApplication(t *testing.T, e *echo.Echo, token string, orgName
 			"attachment_display_name": "Cars Template",
 			"unique_attachment_id": %d,
 			"entry_date_from": "2026-04-01",
-			"entry_date_to": "2026-04-30",
+			"entry_date_to": "2099-12-31",
 			"entry_time_from": "08:00",
 			"entry_time_to": "18:00",
 			"data": {
@@ -918,7 +918,7 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 				"attachment_display_name": "People Template",
 				"unique_attachment_id": %d,
 				"entry_date_from": "2026-04-01",
-				"entry_date_to": "2026-04-30",
+				"entry_date_to": "2099-12-31",
 				"data": {
 					"employees": [{
 						"last_name": "Ivanov",
@@ -937,7 +937,7 @@ func TestSubmitCompleteApplication_WithEmployeesAndItems(t *testing.T) {
 				"attachment_display_name": "Items Template",
 				"unique_attachment_id": %d,
 				"entry_date_from": "2026-04-01",
-				"entry_date_to": "2026-04-30",
+				"entry_date_to": "2099-12-31",
 				"data": {
 					"items": [{
 						"name": "Cement bags",
