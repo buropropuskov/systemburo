@@ -44,7 +44,6 @@
                   v-model="newUser.password"
                   placeholder="Введите пароль"
                   required
-                  input-class="form-input"
                 />
               </div>
 
