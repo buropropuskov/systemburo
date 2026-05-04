@@ -141,11 +141,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			status = *row.Status
 		}
 
-		var territoryEntryTimeStr *string
-		if row.TerritoryEntryTime != nil {
-			s := row.TerritoryEntryTime.Add(3 * time.Hour).Format("2006-01-02T15:04:05+03:00")
-			territoryEntryTimeStr = &s
-		}
+		territoryEntryTimeStr := FormatUTCPtr(row.TerritoryEntryTime)
 
 		places := placesByCarID[row.ID]
 		if places == nil {

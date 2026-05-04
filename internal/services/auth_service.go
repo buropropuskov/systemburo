@@ -186,7 +186,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	// Учётка заблокирована - не разрешаем попытки (даже с правильным паролем),
 	// пока не истечёт lock-период. Это важно: иначе валидная попытка сбросила бы
 	// счётчик и атакующий мог бы "разморозить" учётку угадав пароль в моменте.
-	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
 		remaining := int(time.Until(*user.LockedUntil).Seconds())
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
 			fmt.Sprintf("locked for %ds", remaining))
@@ -202,7 +202,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 
 	// Успешный вход - сбрасываем счётчик неудачных попыток и lock.
 	// Также апдейтим last_login_at для аудита активности.
-	now := time.Now()
+	now := time.Now().UTC()
 	updates := map[string]interface{}{"last_login_at": now}
 	if user.FailedLoginCount > 0 || user.LockedUntil != nil {
 		updates["failed_login_count"] = 0
@@ -228,7 +228,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		UserID:    user.ID,
 		FamilyID:  familyID,
 		TokenHash: hashRefreshToken(refreshJWT),
-		ExpiresAt: time.Now().Add(s.refreshTTL),
+		ExpiresAt: time.Now().UTC().Add(s.refreshTTL),
 		IPAddress: metaIPPtr(meta),
 		UserAgent: metaUAPtr(meta),
 	}
@@ -310,7 +310,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		UserID:    user.ID,
 		FamilyID:  storedToken.FamilyID,
 		TokenHash: hashRefreshToken(newRefresh),
-		ExpiresAt: time.Now().Add(s.refreshTTL),
+		ExpiresAt: time.Now().UTC().Add(s.refreshTTL),
 		IPAddress: metaIPPtr(meta),
 		UserAgent: metaUAPtr(meta),
 	}
@@ -435,7 +435,7 @@ func (s *authService) registerFailedLogin(ctx context.Context, user *models.User
 		"failed_login_count": user.FailedLoginCount,
 	}
 	if user.FailedLoginCount >= maxFailedLoginsBeforeLock {
-		lockUntil := time.Now().Add(accountLockDuration)
+		lockUntil := time.Now().UTC().Add(accountLockDuration)
 		updates["locked_until"] = lockUntil
 		// Отдельное event - удобно алёртить "аккаунт только что залочили".
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventAccountLocked, false, nil,

@@ -209,7 +209,7 @@ func (s *unloadPlaceService) Create(ctx context.Context, req CreateUnloadPlaceRe
 		Status:        status,
 		StatusComment: req.StatusComment,
 		IsActive:      true,
-		UpdatedAt:     time.Now(),
+		UpdatedAt:     time.Now().UTC(),
 	}
 
 	if err := s.db.WithContext(ctx).Create(&place).Error; err != nil {
@@ -231,7 +231,7 @@ func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloa
 	}
 
 	updates := map[string]interface{}{
-		"updated_at": time.Now(),
+		"updated_at": time.Now().UTC(),
 	}
 	if req.Name != nil {
 		updates["name"] = *req.Name

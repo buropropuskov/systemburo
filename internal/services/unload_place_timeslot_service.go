@@ -57,7 +57,7 @@ func (s *unloadPlaceService) AddTimeSlot(ctx context.Context, placeID int, req C
 		CloseTime:     req.CloseTime,
 		IsNextDay:     isNextDay,
 		IsActive:      isActive,
-		UpdatedAt:     time.Now(),
+		UpdatedAt:     time.Now().UTC(),
 	}
 
 	if err := s.db.WithContext(ctx).Create(&slot).Error; err != nil {
@@ -124,7 +124,7 @@ func (s *unloadPlaceService) UpdateTimeSlot(ctx context.Context, placeID, slotID
 			"close_time":  closeTime,
 			"is_next_day": isNextDay,
 			"is_active":   isActive,
-			"updated_at":  time.Now(),
+			"updated_at":  time.Now().UTC(),
 		})
 	if result.Error != nil {
 		slog.Error("не удалось обновить временной слот", "slot_id", slotID, "place_id", placeID, "error", result.Error)

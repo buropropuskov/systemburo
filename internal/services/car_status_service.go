@@ -48,21 +48,11 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStat
 		if r.TerritoryStatus != nil {
 			ts = *r.TerritoryStatus
 		}
-		var entryTimeStr *string
-		if r.TerritoryEntryTime != nil {
-			s := r.TerritoryEntryTime.Add(3 * time.Hour).Format("2006-01-02T15:04:05+03:00")
-			entryTimeStr = &s
-		}
-		var lastExitStr *string
-		if r.LastExitTime != nil {
-			s := r.LastExitTime.Add(3 * time.Hour).Format("2006-01-02T15:04:05+03:00")
-			lastExitStr = &s
-		}
 		items = append(items, CarCurrentStatus{
 			CarID:           r.ID,
 			TerritoryStatus: ts,
-			EntryTime:       entryTimeStr,
-			LastExitTime:    lastExitStr,
+			EntryTime:       FormatUTCPtr(r.TerritoryEntryTime),
+			LastExitTime:    FormatUTCPtr(r.LastExitTime),
 		})
 	}
 	return items, nil

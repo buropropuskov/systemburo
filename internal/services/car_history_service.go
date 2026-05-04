@@ -149,7 +149,6 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 		if strings.TrimSpace(userName) == "" {
 			userName = "Система"
 		}
-		mskTime := r.CreatedAt.Add(3 * time.Hour)
 		items = append(items, AllCarsHistoryItem{
 			ID:           r.ID,
 			CarID:        r.CarID,
@@ -157,7 +156,7 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 			UserName:     userName,
 			ActionType:   r.ActionType,
 			Comment:      r.Comment,
-			CreatedAt:    mskTime.Format("2006-01-02T15:04:05+03:00"),
+			CreatedAt:    FormatUTC(r.CreatedAt),
 			CarNumber:    r.CarNumber,
 			CarBrand:     r.CarBrand,
 			Organization: r.Organization,
@@ -256,8 +255,6 @@ func (s *carService) mapHistoryRows(rows []carHistoryRow, includeCarInfo bool) [
 			userName = "Система"
 		}
 
-		mskTime := r.CreatedAt.Add(3 * time.Hour)
-
 		var metadata *json.RawMessage
 		if r.Metadata != nil {
 			raw := json.RawMessage(*r.Metadata)
@@ -277,7 +274,7 @@ func (s *carService) mapHistoryRows(rows []carHistoryRow, includeCarInfo bool) [
 			OldValue:   r.OldValue,
 			NewValue:   r.NewValue,
 			Comment:    r.Comment,
-			CreatedAt:  mskTime.Format("2006-01-02T15:04:05+03:00"),
+			CreatedAt:  FormatUTC(r.CreatedAt),
 			Metadata:   metadata,
 		}
 		if includeCarInfo {

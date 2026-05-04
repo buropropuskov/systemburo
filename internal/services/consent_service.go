@@ -35,7 +35,7 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 		Granted:     true,
 		IPAddress:   ip,
 		UserAgent:   ua,
-		GrantedAt:   time.Now(),
+		GrantedAt:   time.Now().UTC(),
 	}
 	if err := s.db.WithContext(ctx).Create(&consent).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent")
@@ -45,7 +45,7 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 
 // Revoke отзывает активное согласие на обработку персональных данных.
 func (s *consentService) Revoke(ctx context.Context, userID int, consentType string) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).
 		Model(&models.PDConsent{}).
 		Where("user_id = ? AND consent_type = ? AND revoked_at IS NULL", userID, consentType).

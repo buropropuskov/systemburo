@@ -348,7 +348,7 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 
 	updates := map[string]interface{}{
-		"updated_at": time.Now(),
+		"updated_at": time.Now().UTC(),
 	}
 	if req.DisplayName != nil {
 		updates["display_name"] = *req.DisplayName
