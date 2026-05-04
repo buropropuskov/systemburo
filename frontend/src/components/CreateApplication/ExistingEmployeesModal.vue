@@ -114,15 +114,7 @@
                 {{ employee.citizenship_name || 'Не указано' }}
               </div>
               <div class="table-cell status-cell">
-                <span
-                  class="status-badge"
-                  :class="{
-                    'status-active': employee.status,
-                    'status-inactive': !employee.status
-                  }"
-                >
-                  {{ employee.status ? 'Активен' : 'Неактивен' }}
-                </span>
+                <StatusBadge :status="employee.status ? 'Активен' : 'Неактивен'" />
               </div>
             </div>
 
@@ -165,12 +157,14 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import StatusBadge from '@/components/ui/StatusBadge.vue'
 
 export default {
     name: 'ExistingEmployeesModal',
     components: {
         SearchComponent,
-        LoaderSpinner
+        LoaderSpinner,
+        StatusBadge
     },
     props: {
         visible: {
@@ -574,29 +568,7 @@ export default {
     opacity: 0.6;
 }
 
-.status-badge {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-block;
-    min-width: 70px;
-    text-align: center;
-}
-
-.status-active {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-
-.status-inactive {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-.table-row--disabled .status-badge {
+.table-row--disabled :deep(.status-badge) {
     opacity: 0.7;
 }
 
