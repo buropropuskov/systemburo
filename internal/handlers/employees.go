@@ -84,3 +84,78 @@ func (h *EmployeeHandler) GetActiveEmployeesForTable(c echo.Context) error {
 	}
 	return RespondSuccess(c, employees)
 }
+
+// DeactivateEmployee обрабатывает PUT /employees/:id/deactivate.
+// @Summary Деактивация сотрудника
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "ID сотрудника"
+// @Param body body services.DeactivateEmployeeRequest true "Данные деактивации"
+// @Success 200 {object} map[string]interface{}
+// @Router /employees/{id}/deactivate [put]
+func (h *EmployeeHandler) DeactivateEmployee(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
+	}
+	var req services.DeactivateEmployeeRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.DeactivateEmployee(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Employee deactivated successfully")
+}
+
+// ActivateEmployee обрабатывает PUT /employees/:id/activate.
+// @Summary Активация сотрудника (ввод в работу)
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "ID сотрудника"
+// @Param body body services.ActivateEmployeeRequest true "Данные активации"
+// @Success 200 {object} map[string]interface{}
+// @Router /employees/{id}/activate [put]
+func (h *EmployeeHandler) ActivateEmployee(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
+	}
+	var req services.ActivateEmployeeRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.ActivateEmployee(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Employee activated successfully")
+}
+
+// RestoreEmployee обрабатывает PUT /employees/:id/restore.
+// @Summary Восстановление удалённого сотрудника
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "ID сотрудника"
+// @Param body body services.RestoreEmployeeRequest true "Данные восстановления"
+// @Success 200 {object} map[string]interface{}
+// @Router /employees/{id}/restore [put]
+func (h *EmployeeHandler) RestoreEmployee(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid employee ID")
+	}
+	var req services.RestoreEmployeeRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.RestoreEmployee(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Employee restored successfully")
+}

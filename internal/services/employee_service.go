@@ -23,6 +23,28 @@ type EmployeeService interface {
 	// Аналогично UpdateCarTerritoryStatus: пишет в employees_history запись
 	// с action_type=entry/exit, обновляет territory_status + territory_entry_time.
 	UpdateEmployeeTerritoryStatus(ctx context.Context, employeeID int, req UpdateTerritoryStatusRequest) error
+	// DeactivateEmployee деактивирует сотрудника (мягкое удаление) и пишет в историю.
+	DeactivateEmployee(ctx context.Context, employeeID int, req DeactivateEmployeeRequest) error
+	// ActivateEmployee вводит сотрудника в работу и пишет в историю.
+	ActivateEmployee(ctx context.Context, employeeID int, req ActivateEmployeeRequest) error
+	// RestoreEmployee восстанавливает удалённого сотрудника и пишет в историю.
+	RestoreEmployee(ctx context.Context, employeeID int, req RestoreEmployeeRequest) error
+}
+
+// DeactivateEmployeeRequest -- тело запроса деактивации сотрудника.
+type DeactivateEmployeeRequest struct {
+	Status int  `json:"status"`
+	UserID *int `json:"user_id"`
+}
+
+// ActivateEmployeeRequest -- тело запроса активации сотрудника.
+type ActivateEmployeeRequest struct {
+	UserID *int `json:"user_id"`
+}
+
+// RestoreEmployeeRequest -- тело запроса восстановления сотрудника.
+type RestoreEmployeeRequest struct {
+	UserID *int `json:"user_id"`
 }
 
 // --- DTO запросов ---
@@ -273,6 +295,133 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
 		}
 		slog.Info("территориальный статус сотрудника обновлён", "employee_id", employeeID, "action_type", actionType, "status", req.TerritoryStatus)
+		return nil
+	})
+}
+
+// DeactivateEmployee деактивирует сотрудника и записывает удаление в историю.
+// Аналог DeactivateCar: меняет status на req.Status, ставит date_deleted=now,
+// пишет в employees_history запись с action_type=delete.
+func (s *employeeService) DeactivateEmployee(ctx context.Context, employeeID int, req DeactivateEmployeeRequest) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var employee models.Employee
+		if err := tx.Select("id", "last_name", "first_name", "middle_name").
+			First(&employee, employeeID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+
+		now := time.Now().UTC()
+		if err := tx.Model(&models.Employee{}).Where("id = ?", employeeID).Updates(map[string]interface{}{
+			"status":       req.Status,
+			"date_deleted": now,
+			"updated_at":   now,
+		}).Error; err != nil {
+			slog.Error("не удалось деактивировать сотрудника", "employee_id", employeeID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error deactivating employee")
+		}
+
+		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		comment := fmt.Sprintf("Сотрудник %s удалён пользователем", fullName)
+		actionType := "delete"
+		history := models.EmployeeHistory{
+			EmployeeID: employeeID,
+			UserID:     req.UserID,
+			ActionType: actionType,
+			Comment:    &comment,
+			CreatedAt:  now,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
+		}
+		slog.Info("сотрудник деактивирован", "employee_id", employeeID)
+		return nil
+	})
+}
+
+// ActivateEmployee вводит сотрудника в работу и записывает активацию в историю.
+// Аналог ActivateCar: ставит status=1, очищает date_deleted, пишет history с action_type=activate.
+func (s *employeeService) ActivateEmployee(ctx context.Context, employeeID int, req ActivateEmployeeRequest) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var employee models.Employee
+		if err := tx.Select("id", "last_name", "first_name", "middle_name").
+			First(&employee, employeeID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+
+		now := time.Now().UTC()
+		if err := tx.Model(&models.Employee{}).Where("id = ?", employeeID).Updates(map[string]interface{}{
+			"status":       1,
+			"date_deleted": nil,
+			"updated_at":   now,
+		}).Error; err != nil {
+			slog.Error("не удалось активировать сотрудника", "employee_id", employeeID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error activating employee")
+		}
+
+		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		comment := fmt.Sprintf("Сотрудник %s введён в работу", fullName)
+		actionType := "activate"
+		history := models.EmployeeHistory{
+			EmployeeID: employeeID,
+			UserID:     req.UserID,
+			ActionType: actionType,
+			Comment:    &comment,
+			CreatedAt:  now,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
+		}
+		slog.Info("сотрудник активирован", "employee_id", employeeID)
+		return nil
+	})
+}
+
+// RestoreEmployee восстанавливает удалённого сотрудника и записывает восстановление в историю.
+// Аналог RestoreCar: ставит status=1, очищает date_deleted, пишет history с action_type=restore.
+func (s *employeeService) RestoreEmployee(ctx context.Context, employeeID int, req RestoreEmployeeRequest) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var employee models.Employee
+		if err := tx.Select("id", "last_name", "first_name", "middle_name").
+			First(&employee, employeeID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return echo.NewHTTPError(http.StatusNotFound, "Employee not found")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+		}
+
+		now := time.Now().UTC()
+		if err := tx.Model(&models.Employee{}).Where("id = ?", employeeID).Updates(map[string]interface{}{
+			"status":       1,
+			"date_deleted": nil,
+			"updated_at":   now,
+		}).Error; err != nil {
+			slog.Error("не удалось восстановить сотрудника", "employee_id", employeeID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring employee")
+		}
+
+		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		comment := fmt.Sprintf("Сотрудник %s восстановлен", fullName)
+		actionType := "restore"
+		history := models.EmployeeHistory{
+			EmployeeID: employeeID,
+			UserID:     req.UserID,
+			ActionType: actionType,
+			Comment:    &comment,
+			CreatedAt:  now,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
+		}
+		slog.Info("сотрудник восстановлен", "employee_id", employeeID)
 		return nil
 	})
 }
