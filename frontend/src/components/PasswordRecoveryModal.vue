@@ -2,9 +2,22 @@
   <BaseModal
     :show="show"
     :closable="false"
-    width="560px"
+    width="440px"
     @close="$emit('close')"
   >
+    <div class="recovery-notification-wrapper">
+      <transition name="recovery-notification">
+        <div
+          v-if="showNotification"
+          :key="notificationText"
+          class="recovery-notification"
+          data-testid="recovery-notification"
+        >
+          {{ notificationText }}
+        </div>
+      </transition>
+    </div>
+
     <template #header>
       <h2 class="recovery-title">
         Восстановление доступа
@@ -42,22 +55,6 @@
         >
         <span class="recovery-contact__text">+7 (910) 083 00-55</span>
       </button>
-    </div>
-
-    <div class="recovery-notifications">
-      <transition
-        name="recovery-notification"
-        mode="out-in"
-      >
-        <div
-          v-if="showNotification"
-          :key="notificationText"
-          class="recovery-notification"
-          data-testid="recovery-notification"
-        >
-          {{ notificationText }}
-        </div>
-      </transition>
     </div>
 
     <template #actions>
@@ -165,19 +162,16 @@ export default {
 
 .recovery-title {
   margin: 0;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 800;
   color: #333;
-  padding: 10px 24px;
   text-align: center;
-  border: 2px solid var(--color-border);
-  border-radius: 40px;
   width: 100%;
 }
 
 .recovery-text {
-  margin: 0 0 24px;
-  font-size: 15px;
+  margin: 0 0 20px;
+  font-size: 14px;
   line-height: 1.5;
   color: #000;
   text-align: center;
@@ -224,42 +218,44 @@ export default {
   text-underline-position: under;
 }
 
-.recovery-notifications {
+.recovery-notification-wrapper {
   position: relative;
-  display: flex;
-  justify-content: center;
-  min-height: 28px;
-  margin-top: 8px;
+  height: 0;
 }
 
 .recovery-notification {
-  padding: 4px 16px;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
   border-radius: 40px;
-  background-color: #fff;
+  background: var(--color-primary, #4F5BDF);
   font-size: 13px;
-  color: #000;
-  font-weight: 500;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
-  min-width: 160px;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(79, 91, 223, 0.35);
+  min-width: 200px;
   text-align: center;
   white-space: nowrap;
+  z-index: 10;
 }
 
 .recovery-notification-enter-active,
 .recovery-notification-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .recovery-notification-enter-from,
 .recovery-notification-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translate(-50%, 8px);
 }
 
 .recovery-notification-enter-to,
 .recovery-notification-leave-from {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }
 
 .recovery-button {
