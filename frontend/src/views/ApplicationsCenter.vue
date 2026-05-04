@@ -5,6 +5,12 @@
         <h2 class="center__title">
           Центр заявок
         </h2>
+        <div class="center__tabs">
+          <FilterTabs
+            v-model="archiveMode"
+            :tabs="archiveTabs"
+          />
+        </div>
         <div
           v-if="unreadCount > 0"
           class="unread-badge"
@@ -15,14 +21,8 @@
         </div>
       </div>
     </header>
-        
+
     <div class="center__filters">
-      <div class="center__tabs">
-        <FilterTabs
-          v-model="archiveMode"
-          :tabs="archiveTabs"
-        />
-      </div>
       <div class="filters__main">
         <div class="filters-row">
           <div class="field search">
@@ -124,13 +124,6 @@
               </button>
             </div>
           </div>
-                    
-          <div class="filter-section filter-section--refresh">
-            <RefreshButton
-              :loading="refreshing"
-              @refresh="fetchApplications"
-            />
-          </div>
         </div>
       </div>
     </div>
@@ -139,6 +132,12 @@
       class="applications-table"
       :class="{ 'with-details': selectedApplication }"
     >
+      <div class="table-toolbar">
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="fetchApplications"
+        />
+      </div>
       <div class="table-header">
         <div class="header-row">
           <div
@@ -1069,9 +1068,6 @@ export default {
 
 .center__tabs {
     display: flex;
-    margin-bottom: 14px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #ededf5;
 }
 
 .filters-row {
@@ -1091,9 +1087,12 @@ export default {
     gap: 8px;
 }
 
-.filter-section--refresh {
-    margin-left: auto;
-    margin-top: auto;
+.table-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+    background: #fafafa;
 }
 
 .filter-section__header {
@@ -1708,10 +1707,8 @@ export default {
         gap: 12px;
     }
 
-    .filter-section--refresh {
-        margin-left: 0;
-        margin-top: 0;
-        width: 100%;
+    .table-toolbar {
+        padding: 6px 8px;
     }
 
     .field {
