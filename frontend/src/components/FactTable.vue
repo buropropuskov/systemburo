@@ -10,7 +10,10 @@
         </h3>
       </div>
       <div class="card-header__settings">
-        <RefreshButton @refresh="fetchData" />
+        <RefreshButton
+          :loading="loading"
+          @refresh="$emit('refresh-data')"
+        />
       </div>
     </div>
     
@@ -280,7 +283,8 @@ export default {
     dateRangeEnd: { type: Date, default: null },
     selectedDate: { type: Date, default: null },
     currentUserId: { type: Number, default: null },
-    currentUserName: { type: String, default: '' }
+    currentUserName: { type: String, default: '' },
+    loading: { type: Boolean, default: false }
   },
   emits: ['refresh-data', 'open-application'],
   data() {

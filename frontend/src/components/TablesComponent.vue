@@ -146,6 +146,7 @@
           :selected-date="selectedDate"
           :current-user-id="currentUserId"
           :current-user-name="currentUserName"
+          :loading="isRefreshing"
           @refresh-data="refreshData"
           @open-application="handleOpenApplication"
         />
