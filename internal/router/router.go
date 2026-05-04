@@ -283,6 +283,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	ag.GET("/all", news.GetAllAnnouncements)
 	ag.POST("", news.CreateAnnouncement)
 	ag.POST("/set-active", news.SetActiveAnnouncement)
+	ag.POST("/:id/hide", news.HideAnnouncement)
 	ag.PUT("/:id", news.UpdateAnnouncement)
 	ag.DELETE("/:id", news.DeleteAnnouncement)
 

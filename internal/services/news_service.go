@@ -25,6 +25,7 @@ type NewsService interface {
 	GetAllAnnouncements(ctx context.Context, typeID int) ([]models.AnnouncementWithUser, error)
 	CreateAnnouncement(ctx context.Context, typeID int, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error)
 	SetActiveAnnouncement(ctx context.Context, typeID int, userID int, req models.SetActiveAnnouncementRequest) error
+	HideAnnouncement(ctx context.Context, typeID int, id int) error
 	UpdateAnnouncement(ctx context.Context, typeID int, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error)
 	DeleteAnnouncement(ctx context.Context, typeID int, id int) error
 }
@@ -319,6 +320,30 @@ func (s *newsService) SetActiveAnnouncement(ctx context.Context, typeID int, use
 
 		return nil
 	})
+}
+
+// HideAnnouncement снимает is_active с конкретного объявления (admin only).
+// Не активирует другое - текущим активным остаётся то, что было до, либо
+// никакого (если скрываемое было активным).
+func (s *newsService) HideAnnouncement(ctx context.Context, typeID int, id int) error {
+	if err := s.checkAdmin(ctx, typeID); err != nil {
+		return err
+	}
+
+	res := s.db.WithContext(ctx).Model(&models.Announcement{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"is_active":    false,
+			"activated_at": nil,
+			"activated_by": nil,
+		})
+	if res.Error != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error hiding announcement")
+	}
+	if res.RowsAffected == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Announcement not found")
+	}
+	return nil
 }
 
 func (s *newsService) UpdateAnnouncement(ctx context.Context, typeID int, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error) {

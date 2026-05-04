@@ -343,9 +343,20 @@ h3 {
 }
 
 .broadcast--important {
-  color: #B91C1C;
-  background: #FECACA;
-  border-color: #FECACA;
+  color: #fff;
+  background: linear-gradient(135deg, #FF6B6B 0%, #DC2626 50%, #B91C1C 100%);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+  animation: broadcast-glow 2.4s ease-in-out infinite;
+}
+
+.broadcast--important:hover {
+  filter: brightness(1.05);
+}
+
+@keyframes broadcast-glow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25); }
+  50% { box-shadow: 0 2px 14px rgba(220, 38, 38, 0.55); }
 }
 
 .time {
