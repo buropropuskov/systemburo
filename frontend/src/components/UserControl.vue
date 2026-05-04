@@ -510,7 +510,6 @@
                   <PasswordInput
                     v-model="newUser.password"
                     placeholder="Введите пароль"
-                    input-class="modal-input"
                     @input="saveDraft"
                   />
                   <div class="input-hint">

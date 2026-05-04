@@ -11,7 +11,6 @@
       autocapitalize="off"
       spellcheck="false"
       class="password-input__field"
-      :class="inputClass"
       @input="onInput"
     >
     <button
@@ -75,8 +74,7 @@ defineProps({
   placeholder: { type: String, default: '' },
   required: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
-  autocomplete: { type: String, default: 'new-password' },
-  inputClass: { type: [String, Array, Object], default: '' }
+  autocomplete: { type: String, default: 'new-password' }
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -93,9 +91,35 @@ function onInput(event) {
   width: 100%;
 }
 
+/* Стиль input повторяет .modal-input / .form-input - чтобы поле выглядело
+   так же, как остальные поля формы. Внутренние стили родителя сюда не
+   достают (scoped CSS), поэтому стиль повторяется здесь явно. */
 .password-input__field {
   width: 100%;
-  padding-right: 36px;
+  padding: 10px 38px 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: inherit;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.password-input__field:focus {
+  border-color: var(--color-primary, #4F5BDF);
+  outline: none;
+}
+
+.password-input__field:disabled {
+  background: #f7f7f9;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.password-input__field::placeholder {
+  color: #9aa0a6;
 }
 
 .password-input__toggle {
