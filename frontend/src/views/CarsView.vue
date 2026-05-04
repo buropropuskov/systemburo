@@ -226,15 +226,7 @@
                       {{ car.format_name || 'Не указан' }}
                     </div>
                     <div class="car-col status-col">
-                      <span 
-                        class="status-badge"
-                        :class="{
-                          'status-active': car.status,
-                          'status-inactive': !car.status
-                        }"
-                      >
-                        {{ car.status ? 'Активна' : 'Неактивна' }}
-                      </span>
+                      <StatusBadge :status="car.status ? 'Активна' : 'Неактивна'" />
                     </div>
                     <div class="car-col actions-col">
                       <button 
@@ -536,6 +528,7 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 export default {
@@ -544,6 +537,7 @@ export default {
         RefreshButton,
         SkeletonTransition,
         SkeletonTable,
+        StatusBadge,
         ConfirmationModal
     },
     data() {
@@ -1516,27 +1510,6 @@ export default {
     scrollbar-color: #D9E2FF transparent;
     scroll-behavior: smooth;
     overscroll-behavior: contain;
-}
-
-/* Стили для бейджей статуса */
-.status-badge {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-    display: inline-block;
-}
-
-.status-active {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd
-}
-
-.status-inactive {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
 }
 
 /* Кнопки действий */
