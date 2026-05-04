@@ -444,6 +444,7 @@ import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
+import { formatShortName } from '@/utils/formatName';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import SkeletonLine from '@/components/ui/SkeletonLine.vue';
 
@@ -712,15 +713,8 @@ export default {
     },
 
     formatUserName(user) {
-      if (!user.last_name && !user.first_name && !user.middle_name) return '—';
-      let result = user.last_name || '';
-      if (user.first_name) {
-        result += ` ${user.first_name.charAt(0).toUpperCase()}.`;
-        if (user.middle_name) {
-          result += `${user.middle_name.charAt(0).toUpperCase()}.`;
-        }
-      }
-      return result || '—';
+      const formatted = formatShortName(user);
+      return formatted || '—';
     },
 
     getUserTypeName(id) {
