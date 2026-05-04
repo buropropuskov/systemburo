@@ -109,14 +109,17 @@ export default {
     show(val) {
       if (val) {
         this.fetchNotifications()
-        this.startPolling()
-      } else {
-        this.stopPolling()
       }
     },
     unreadCount(count) {
       this.$emit('update:unread-count', count)
     },
+  },
+  mounted() {
+    // Загружаем уведомления и стартуем polling сразу - чтобы счётчик
+    // непрочитанных в шапке был актуален без открытия dropdown.
+    this.fetchNotifications()
+    this.startPolling()
   },
   beforeUnmount() {
     this.stopPolling()
