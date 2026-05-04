@@ -97,7 +97,10 @@
             >
               Добавить
             </button>
-            <RefreshButton @refresh="fetchCars" />
+            <RefreshButton
+              :loading="loading"
+              @refresh="fetchCars"
+            />
           </div>
         </div>
                 
@@ -728,6 +731,7 @@ export default {
     },
     methods: {
         async fetchCars() {
+            this.loading = true;
             try {
                 const response = await apiRequest(`/unique-cars?filter_type=${this.currentFilter}`, {
                     method: "GET"});

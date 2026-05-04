@@ -99,19 +99,6 @@
             >
           </div>
           <div
-            class="col citizenship-col"
-            @click="sortBy('citizenship')"
-          >
-            <p :class="{ 'active-sort': sortField === 'citizenship' }">
-              Гражданство
-            </p>
-            <img
-              src="@/assets/icons/sort.png"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'citizenship', 'desc': sortField === 'citizenship' && sortDirection === 'desc' }"
-            >
-          </div>
-          <div
             class="col organization-col"
             @click="sortBy('organization')"
           >
@@ -122,19 +109,6 @@
               src="@/assets/icons/sort.png"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
-            >
-          </div>
-          <div
-            class="col pass-places-col"
-            @click="sortBy('pass_places')"
-          >
-            <p :class="{ 'active-sort': sortField === 'pass_places' }">
-              Места прохода
-            </p>
-            <img
-              src="@/assets/icons/sort.png"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'pass_places', 'desc': sortField === 'pass_places' && sortDirection === 'desc' }"
             >
           </div>
           <div
@@ -243,14 +217,8 @@
                 <div class="col position-col">
                   {{ item.position || '-' }}
                 </div>
-                <div class="col citizenship-col">
-                  {{ item.citizenshipName || '-' }}
-                </div>
                 <div class="col organization-col">
                   {{ item.organization_name }}
-                </div>
-                <div class="col pass-places-col">
-                  {{ item.pass_places || '-' }}
                 </div>
                 <div class="col date-col">
                   {{ formatDate(item.entry_date_to) }}

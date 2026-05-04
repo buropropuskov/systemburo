@@ -4,18 +4,24 @@
       <h1 class="tables__title">
         Таблица <span class="table-name">{{ tableDisplayName }}</span>
       </h1>
-      <button
-        class="tables__instruction"
-        @click="showInstruction = true"
-      >
-        <img
-          src="@/assets/icons/instruction.png"
-          class="tables__icon"
+      <div class="tables__header-actions">
+        <RefreshButton
+          :loading="isRefreshing"
+          @refresh="refreshData"
+        />
+        <button
+          class="tables__instruction"
+          @click="showInstruction = true"
         >
-        <p class="instruction__text">
-          Инструкция
-        </p>
-      </button>
+          <img
+            src="@/assets/icons/instruction.png"
+            class="tables__icon"
+          >
+          <p class="instruction__text">
+            Инструкция
+          </p>
+        </button>
+      </div>
     </div>
         
     <!-- Модальное окно с инструкцией -->
@@ -109,10 +115,6 @@
           class="options__icon"
           @click="clearFilters"
         >
-        <img
-          src="@/assets/icons/recent-changes.png"
-          class="options__icon"
-        >
         <button class="options__export">
           <img
             src="@/assets/icons/export.png"
@@ -122,7 +124,6 @@
             Экспорт
           </p>
         </button>
-        <RefreshButton @refresh="refreshData" />
       </div>
     </div>
 
@@ -132,8 +133,8 @@
         v-if="showFactTable"
         class="fact-section"
       >
-        <FactTable 
-          v-if="currentUserId" 
+        <FactTable
+          v-if="currentUserId"
           :table-type="tableType"
           :search-query="searchQuery"
           :selected-organization="selectedOrganizationName"
@@ -144,6 +145,7 @@
           :current-user-id="currentUserId"
           :current-user-name="currentUserName"
           @refresh-data="refreshData"
+          @open-application="handleOpenApplication"
         />
         <!-- Подсказка на синем фоне -->
         <div
@@ -230,12 +232,13 @@ export default {
     data() {
         return {
             tableData: null,
+            isRefreshing: false,
             searchQuery: '',
             selectedOrganizationId: null,
             selectedOrganizationName: '',
             selectedUnloadingPlaceId: null,
             selectedUnloadingPlaceName: '',
-            
+
             organizations: [],
             
             showInstruction: false,
@@ -335,9 +338,14 @@ export default {
             }
         },
 
-        refreshData() {
-            this.fetchTableData();
-            this.$emit('refresh-data');
+        async refreshData() {
+            this.isRefreshing = true;
+            try {
+                await this.fetchTableData();
+                this.$emit('refresh-data');
+            } finally {
+                this.isRefreshing = false;
+            }
         },
         
         sanitizeHtml(content) {
@@ -496,6 +504,14 @@ export default {
     display: flex;
     gap: 10px;
     padding-bottom: 15px;
+    align-items: center;
+}
+
+.tables__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
 }
 
 .tables__instruction {

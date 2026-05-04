@@ -96,7 +96,10 @@
             >
               Добавить
             </button>
-            <RefreshButton @refresh="fetchEmployees" />
+            <RefreshButton
+              :loading="loading"
+              @refresh="fetchEmployees"
+            />
           </div>
         </div>
                 
@@ -415,6 +418,7 @@ export default {
     },
     methods: {
         async fetchEmployees() {
+            this.loading = true;
             try {
                 const response = await apiRequest(`/unique-employees?filter_type=${this.currentFilter}`, {
                     method: "GET"});

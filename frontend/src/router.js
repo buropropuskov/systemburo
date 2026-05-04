@@ -31,17 +31,15 @@ const routes = [
     path: '/submit-form',
     redirect: '/new-application'
   },
-  { 
-    path: '/table', 
-    name: 'TablesComponent', 
-    component: TablesComponent,
-    meta: { requiresAuth: true, requiresBuro: true } 
+  {
+    path: '/table',
+    redirect: '/personal-cabinet'
   },
-  { 
-    path: '/table/:tableName', 
-    name: 'DynamicTable', 
+  {
+    path: '/table/:tableName',
+    name: 'DynamicTable',
     component: TablesComponent,
-    meta: { requiresAuth: true, requiresBuro: true } 
+    meta: { requiresAuth: true, requiresBuro: true }
   },
   { 
     path: '/personal-cabinet', 
