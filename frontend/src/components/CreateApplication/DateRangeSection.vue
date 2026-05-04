@@ -2,6 +2,36 @@
   <div class="date-range-section">
     <div class="date__input">
       <label class="input__label">Дата действия <span class="required">*</span></label>
+      <div class="quick-dates">
+        <button
+          type="button"
+          class="quick-dates__btn"
+          @click="setQuickDate('today')"
+        >
+          Сегодня
+        </button>
+        <button
+          type="button"
+          class="quick-dates__btn"
+          @click="setQuickDate('tomorrow')"
+        >
+          Завтра
+        </button>
+        <button
+          type="button"
+          class="quick-dates__btn"
+          @click="setQuickDate('after-tomorrow')"
+        >
+          Послезавтра
+        </button>
+        <button
+          type="button"
+          class="quick-dates__btn"
+          @click="setQuickDate('month')"
+        >
+          На месяц
+        </button>
+      </div>
       <div class="date-container">
         <div
           v-if="!isOneDay"
@@ -457,16 +487,10 @@ export default {
         singleDate() {
             if (this.internalToggle) return;
             this.$emit('validate-field', 'singleDate');
-            this.validateTimeCrossing();
-        },
-        startTime() {
-            if (this.internalToggle) return;
-            this.validateTimeCrossing();
-        },
-        endTime() {
-            if (this.internalToggle) return;
-            this.validateTimeCrossing();
         }
+        // Намеренно не реагируем на startTime/endTime во время ввода:
+        // авто-перенос на следующий день делается ТОЛЬКО onBlur (см. formatTimeField).
+        // Иначе при наборе "1" в endTime система пыталась сразу переносить дату.
     },
     mounted() {
         document.addEventListener('click', (e) => {
@@ -478,6 +502,37 @@ export default {
         this.validateTimeCrossing();
     },
     methods: {
+        setQuickDate(kind) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            this.internalToggle = true;
+            try {
+                if (kind === 'today' || kind === 'tomorrow' || kind === 'after-tomorrow') {
+                    const offset = kind === 'today' ? 0 : kind === 'tomorrow' ? 1 : 2;
+                    const target = new Date(today);
+                    target.setDate(today.getDate() + offset);
+                    this.$emit('update:start-date', '');
+                    this.$emit('update:end-date', '');
+                    this.$emit('update:single-date', this.formatDate(target));
+                    this.$emit('update:is-one-day', true);
+                } else if (kind === 'month') {
+                    const end = new Date(today);
+                    end.setDate(today.getDate() + 30);
+                    this.$emit('update:single-date', '');
+                    this.$emit('update:is-one-day', false);
+                    this.$emit('update:start-date', this.formatDate(today));
+                    this.$emit('update:end-date', this.formatDate(end));
+                }
+            } finally {
+                this.$nextTick(() => {
+                    this.internalToggle = false;
+                    this.$emit('validate-field', 'isOneDay');
+                    this.$emit('validate-date-range');
+                    this.$emit('validate-time-range');
+                });
+            }
+        },
+
         onTabFromStart(e) {
             if (!e.shiftKey && this.$refs.endDateInput) {
                 e.preventDefault();
@@ -932,6 +987,37 @@ export default {
     flex-direction: column;
     gap: 5px;
     width: 250px;
+}
+
+.quick-dates {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.quick-dates__btn {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 50px;
+    border: 1px solid #e6e6e6;
+    background: #FFF;
+    font-family: inherit;
+    font-size: 11px;
+    color: #4F5BDF;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    white-space: nowrap;
+}
+
+.quick-dates__btn:hover {
+    background-color: #f2f2f2;
+    border-color: #d6d6d6;
+}
+
+.quick-dates__btn:active {
+    background-color: #e8ebff;
 }
 
 .date {
