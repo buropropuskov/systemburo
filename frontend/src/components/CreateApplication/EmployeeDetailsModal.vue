@@ -18,14 +18,15 @@
               </h3>
               <div class="header-actions">
                 <button
+                  v-if="showHistoryButton"
                   class="history-btn"
                   @click="openFullHistory"
                 >
                   <span>Полная история</span>
                 </button>
-                <button 
-                  v-if="source !== 'application' && employee?.applicationId" 
-                  class="application-btn" 
+                <button
+                  v-if="source !== 'application' && employee?.applicationId"
+                  class="application-btn"
                   @click="openApplication"
                 >
                   <span>Открыть заявку</span>
@@ -85,19 +86,13 @@
                         <span class="detail-label">Гражданство:</span>
                         <span class="detail-value">{{ employee.citizenshipName || 'Не указано' }}</span>
                       </div>
-                      <div
-                        v-if="employee.organization"
-                        class="detail-item"
-                      >
+                      <div class="detail-item">
                         <span class="detail-label">Организация:</span>
-                        <span class="detail-value">{{ employee.organization }}</span>
+                        <span class="detail-value">{{ employee.organization || '-' }}</span>
                       </div>
-                      <div
-                        v-if="employee.company"
-                        class="detail-item"
-                      >
+                      <div class="detail-item">
                         <span class="detail-label">Компания:</span>
-                        <span class="detail-value">{{ employee.company }}</span>
+                        <span class="detail-value">{{ employee.company || '-' }}</span>
                       </div>
                       <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
@@ -394,12 +389,15 @@ export default {
     },
     computed: {
         modalTitle() {
-            if (this.source === 'application') {
+            if (this.source === 'application' || this.source === 'employeeslist') {
                 return 'Информация о сотруднике';
-            } else if (this.source === 'employeeslist' || this.source === 'peopletable') {
+            } else if (this.source === 'peopletable') {
                 return 'Информация';
             }
             return 'Детальная информация о сотруднике';
+        },
+        showHistoryButton() {
+            return this.source !== 'employeeslist';
         },
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
