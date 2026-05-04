@@ -448,12 +448,12 @@ h3 {
   top: 20px;
   right: 20px;
   z-index: 999;
-  animation: slide-down 0.3s ease;
+  animation: slide-down 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes slide-down {
   from {
-    transform: translateY(-20px);
+    transform: translateY(-12px);
     opacity: 0;
   }
   to {
