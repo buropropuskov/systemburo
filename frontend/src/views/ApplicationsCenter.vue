@@ -283,9 +283,12 @@
                 </div>
                 <div
                   class="application-col sender-col"
-                  :title="getFullNameTooltip(application.sender_name)"
                 >
-                  {{ getSenderName(application.sender_name) }}
+                  <span
+                    v-if="application.sender_name"
+                    class="sender-tooltip-anchor"
+                    :data-tooltip="application.sender_full_name || application.sender_name"
+                  >{{ application.sender_name }}</span>
                 </div>
                 <div class="application-col status-col">
                   <span 
@@ -605,17 +608,6 @@ export default {
             this.selectedOrganizationId = id;
             this.selectedOrganizationName = name;
             this.applyFilters();
-        },
-        
-        // Отправитель
-        getSenderName(fullName) {
-            if (!fullName) return '';
-            return fullName;
-        },
-        
-        getFullNameTooltip(fullName) {
-            if (!fullName) return '';
-            return fullName.replace(/\./g, '').trim();
         },
         
         // Поиск
@@ -1331,28 +1323,48 @@ export default {
 
 .sender-col {
     width: 15%;
-    position: relative;
 }
 
-.sender-col:hover::after {
-    content: attr(title);
+.sender-tooltip-anchor {
+    position: relative;
+    cursor: default;
+}
+
+.sender-tooltip-anchor::after {
+    content: attr(data-tooltip);
     position: absolute;
-    bottom: 100%;
+    top: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
     background: #333;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
     font-size: 12px;
     white-space: nowrap;
     z-index: 1000;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.sender-col:hover::after {
+.sender-tooltip-anchor::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-bottom-color: #333;
+    z-index: 1001;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.sender-tooltip-anchor:hover::after,
+.sender-tooltip-anchor:hover::before {
     opacity: 1;
 }
 
