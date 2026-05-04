@@ -223,6 +223,30 @@ func (h *NewsHandler) SetActiveAnnouncement(c echo.Context) error {
 	return RespondMessage(c, "Активное объявление обновлено")
 }
 
+// HideAnnouncement godoc
+// @Summary      Скрытие объявления
+// @Description  Снимает is_active с конкретного объявления; не трогает остальные.
+// @Tags         announcements
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID объявления"
+// @Success      200 {string} string "Объявление скрыто"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /announcements/{id}/hide [post]
+func (h *NewsHandler) HideAnnouncement(c echo.Context) error {
+	typeID := GetTypeID(c)
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+	if err := h.service.HideAnnouncement(c.Request().Context(), typeID, id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Объявление скрыто")
+}
+
 // UpdateAnnouncement godoc
 // @Summary      Обновление объявления
 // @Tags         announcements

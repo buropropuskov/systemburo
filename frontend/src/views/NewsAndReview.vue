@@ -317,14 +317,14 @@
                         class="action-btn activate-btn"
                         @click="setActiveAnnouncement(item.id)"
                       >
-                        Активировать
+                        Показать
                       </button>
                       <button
                         v-if="item.is_active"
                         class="action-btn deactivate-btn"
                         @click="deactivateAnnouncement(item.id)"
                       >
-                        Деактивировать
+                        Скрыть
                       </button>
                       <button
                         class="action-btn delete-btn"
@@ -751,17 +751,16 @@ export default {
       } catch (error) { console.error('Ошибка активации объявления:', error) }
     },
     async deactivateAnnouncement(id) {
-      if (!confirm('Деактивировать объявление?')) return
+      if (!confirm('Скрыть объявление?')) return
       try {
-        const response = await apiRequest(`/announcements/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ is_active: false })
+        const response = await apiRequest(`/announcements/${id}/hide`, {
+          method: 'POST'
         })
         if (response.ok) {
           await this.fetchAllAnnouncements()
           await this.fetchActiveAnnouncement()
-        } else alert('Ошибка деактивации объявления')
-      } catch (error) { console.error('Ошибка деактивации объявления:', error) }
+        } else alert('Ошибка скрытия объявления')
+      } catch (error) { console.error('Ошибка скрытия объявления:', error) }
     },
     async deleteAnnouncement(id) {
       if (!confirm('Удалить объявление?')) return
