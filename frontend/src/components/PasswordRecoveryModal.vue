@@ -224,21 +224,21 @@ export default {
 }
 
 .recovery-notification {
-  position: absolute;
-  bottom: calc(100% + 8px);
+  position: fixed;
+  top: 18vh;
   left: 50%;
   transform: translateX(-50%);
-  padding: 10px 22px;
+  padding: 12px 26px;
   border-radius: 40px;
   background: var(--color-primary, #4F5BDF);
-  font-size: 13px;
+  font-size: 14px;
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 8px 24px rgba(79, 91, 223, 0.35);
-  min-width: 200px;
+  box-shadow: 0 12px 32px rgba(79, 91, 223, 0.4);
+  min-width: 220px;
   text-align: center;
   white-space: nowrap;
-  z-index: 10;
+  z-index: 1100;
 }
 
 .recovery-notification-enter-active,
@@ -249,7 +249,7 @@ export default {
 .recovery-notification-enter-from,
 .recovery-notification-leave-to {
   opacity: 0;
-  transform: translate(-50%, 8px);
+  transform: translate(-50%, -12px);
 }
 
 .recovery-notification-enter-to,
