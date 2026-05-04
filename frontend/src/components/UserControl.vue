@@ -15,7 +15,10 @@
         >
           Создать
         </button>
-        <RefreshButton @refresh="refreshAllData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshAllData"
+        />
       </div>
     </div>
 
@@ -811,6 +814,7 @@ export default {
   data() {
     return {
       userSearch: '',
+      refreshing: false,
       selectedUser: null,
       showNewPass: false,
       currentLanguage: '',
@@ -970,11 +974,18 @@ export default {
       }
     },
 
-    refreshAllData() {
-      this.fetchOrganizations();
-      this.fetchCompanies();
-      this.fetchUserTypes();
-      this.fetchAllUsers();
+    async refreshAllData() {
+      this.refreshing = true;
+      try {
+        await Promise.all([
+          this.fetchOrganizations(),
+          this.fetchCompanies(),
+          this.fetchUserTypes(),
+          this.fetchAllUsers()
+        ]);
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     handleClickOutside(event) {

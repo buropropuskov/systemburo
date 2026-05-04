@@ -15,7 +15,10 @@
         >
           Создать таблицу
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -508,6 +511,7 @@ export default {
   data() {
     return {
       searchQuery: '',
+      refreshing: false,
       tables: [],
       showAddModal: false,
       selectedTable: null,
@@ -599,7 +603,12 @@ export default {
     },
 
     async refreshData() {
-      await this.fetchTables();
+      this.refreshing = true;
+      try {
+        await this.fetchTables();
+      } finally {
+        this.refreshing = false;
+      }
     },
     
     async fetchTables() {

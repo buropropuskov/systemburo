@@ -15,7 +15,10 @@
         >
           Добавить
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -609,6 +612,7 @@ export default {
   data() {
     return {
       searchQuery: '',
+      refreshing: false,
       newFormat: {
         name: '',
         country_code: '',
@@ -683,7 +687,12 @@ export default {
   },
   methods: {
     async refreshData() {
-      await this.fetchFormats();
+      this.refreshing = true;
+      try {
+        await this.fetchFormats();
+      } finally {
+        this.refreshing = false;
+      }
     },
     async fetchFormats() {
       try {
