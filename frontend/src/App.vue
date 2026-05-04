@@ -34,6 +34,7 @@
       </router-view>
       <ScrollTopButton v-if="showChrome" />
     </div>
+    <ToastContainer />
   </div>
 </template>
 
@@ -44,13 +45,15 @@ import { usePermissionsStore } from '@/stores/permissions'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
+import ToastContainer from './components/ToastContainer.vue';
 
 export default {
   name: "App",
   components: {
     NavMenu,
     TheHeader,
-    ScrollTopButton
+    ScrollTopButton,
+    ToastContainer
   },
   computed: {
     isAuthenticated() {
