@@ -177,29 +177,29 @@
           Обратитесь к нам, чтобы получить учётную запись, восстановить доступ или решить другие проблемы:
         </p>
         <div class="info__contacts">
-          <div
-            class="contact"
-            @click="copyEmail"
-          >
+          <div class="contact">
             <img
               src="@/assets/icons/email-blue.png"
               class="contact__icon"
               alt=""
             >
-            <p class="contact__text">
+            <p
+              class="contact__text contact__text--clickable"
+              @click="copyEmail"
+            >
               buropropuskov@dreamisland.ru
             </p>
           </div>
-          <div
-            class="contact"
-            @click="copyPhone"
-          >
+          <div class="contact">
             <img
               src="@/assets/icons/phone-blue.png"
               class="contact__icon"
               alt=""
             >
-            <p class="contact__text">
+            <p
+              class="contact__text contact__text--clickable"
+              @click="copyPhone"
+            >
               +7 (910) 083 00-55
             </p>
           </div>
@@ -734,12 +734,6 @@ export default {
         gap: 10px;
         align-items: center;
         padding-bottom: 10px;
-        cursor: pointer;
-        transition: opacity 0.2s ease;
-    }
-
-    .contact:hover {
-        opacity: 0.8;
     }
 
     .contact__icon {
@@ -751,6 +745,18 @@ export default {
         font-size: 16px;
         color: var(--color-primary);
         font-weight: 500;
+        margin: 0;
+    }
+
+    .contact__text--clickable {
+        cursor: pointer;
+        transition: opacity 0.2s ease;
+    }
+
+    .contact__text--clickable:hover {
+        opacity: 0.7;
+        text-decoration: underline;
+        text-underline-position: under;
     }
 
     .contact__text:hover {
