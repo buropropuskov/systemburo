@@ -244,17 +244,12 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { mapState, mapActions } from 'pinia';
+import { useOrganizationsStore } from '@/stores/organizations';
+import { useCompaniesStore } from '@/stores/companies';
 import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 export default {
   props: {
-    organizations: {
-      type: Array,
-      required: true
-    },
-    companies: {
-      type: Array,
-      required: true
-    },
     userTypes: {
       type: Array,
       required: true
@@ -279,6 +274,8 @@ export default {
     };
   },
   computed: {
+    ...mapState(useOrganizationsStore, { organizations: 'items' }),
+    ...mapState(useCompaniesStore, { companies: 'items' }),
     isFormValid() {
       return (
         this.newUser.username &&
@@ -289,7 +286,19 @@ export default {
       );
     }
   },
+  async created() {
+    // Если списки в стор'ах ещё не загружены - подтягиваем. Если уже есть -
+    // pinia вернёт текущий state мгновенно, лишних запросов не будет.
+    const orgs = useOrganizationsStore();
+    const comps = useCompaniesStore();
+    const promises = [];
+    if (orgs.items.length === 0) promises.push(this.fetchOrganizations());
+    if (comps.items.length === 0) promises.push(this.fetchCompanies());
+    if (promises.length) await Promise.all(promises);
+  },
   methods: {
+    ...mapActions(useOrganizationsStore, ['fetchOrganizations']),
+    ...mapActions(useCompaniesStore, ['fetchCompanies']),
     formatRussianPhone,
     async createNewUser() {
       try {

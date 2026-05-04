@@ -782,6 +782,9 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { ref } from 'vue';
+import { mapState, mapActions } from 'pinia';
+import { useOrganizationsStore } from '@/stores/organizations';
+import { useCompaniesStore } from '@/stores/companies';
 import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 import { formatShortName } from '@/utils/formatName'
 import SearchComponent from './SearchComponent.vue';
@@ -813,8 +816,6 @@ export default {
       showNewPass: false,
       currentLanguage: '',
       isCapsLockOn: false,
-      organizations: [],
-      companies: [],
       userTypes: [],
       sortField: null,
       sortDirection: 'desc',
@@ -845,6 +846,8 @@ export default {
     };
   },
   computed: {
+    ...mapState(useOrganizationsStore, { organizations: 'items' }),
+    ...mapState(useCompaniesStore, { companies: 'items' }),
     filteredUsers() {
       const searchTerm = this.userSearch.toLowerCase();
       return this.allUsers
@@ -925,19 +928,16 @@ export default {
     }
   },
   async created() {
+    // Подтягиваем актуальные справочники из stores. Дальнейшая синхронизация
+    // (после CRUD в OrganizationsManagement/CompaniesManagement) идёт через
+    // pinia reactivity - listener'ы на window.event больше не нужны.
     await Promise.all([
-      this.fetchOrganizations(), 
+      this.fetchOrganizations(),
       this.fetchCompanies(),
       this.fetchUserTypes()
     ]);
-    
-    // Слушаем события обновления организаций и компаний
-    window.addEventListener('organization-updated', this.fetchOrganizations);
-    window.addEventListener('company-updated', this.fetchCompanies);
   },
   beforeUnmount() {
-    window.removeEventListener('organization-updated', this.fetchOrganizations);
-    window.removeEventListener('company-updated', this.fetchCompanies);
     document.removeEventListener('click', this.handleClickOutside);
   },
   mounted() {
@@ -951,6 +951,15 @@ export default {
   },
  
   methods: {
+    ...mapActions(useOrganizationsStore, {
+      fetchOrganizations: 'fetchOrganizations',
+      refreshOrganizations: 'refresh',
+    }),
+    ...mapActions(useCompaniesStore, {
+      fetchCompanies: 'fetchCompanies',
+      refreshCompanies: 'refresh',
+    }),
+
     // onPhoneInput применяет российскую маску к введённому телефону и записывает
     // результат обратно в reactive model. Используется для newUser/selectedUser
     // чтобы явно триггерить saveDraft (где он нужен) отдельно.
@@ -1115,9 +1124,10 @@ export default {
       this.clearDraft();
       this.resetNewUser();
       this.$emit('fetch-users');
-      // Обновляем организации и компании после создания пользователя
-      this.fetchOrganizations();
-      this.fetchCompanies();
+      // Обновляем оба представления (items + itemsWithUsers) - чтобы синхронно
+      // отрисовался user_count в OrganizationsManagement/CompaniesManagement.
+      this.refreshOrganizations();
+      this.refreshCompanies();
     },
     
     resetNewUser() {
@@ -1216,9 +1226,9 @@ export default {
             alert("Пользователь успешно удален");
             this.selectedUser = null;
             this.$emit('fetch-users');
-            // Обновляем организации и компании после удаления пользователя
-            this.fetchOrganizations();
-            this.fetchCompanies();
+            // user_count меняется - подтягиваем оба представления.
+            this.refreshOrganizations();
+            this.refreshCompanies();
           } else {
             const errorData = await response.json();
             alert(errorData.message || "Ошибка при удалении пользователя");
@@ -1250,30 +1260,6 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching user types:", error);
-      }
-    },
-    
-    async fetchOrganizations() {
-      try {
-        const response = await apiRequest("/organizations", {
-        });
-        if (response.ok) {
-          this.organizations = await response.json();
-        }
-      } catch (error) {
-        console.error("Error fetching organizations:", error);
-      }
-    },
-    
-    async fetchCompanies() {
-      try {
-        const response = await apiRequest("/companies", {
-        });
-        if (response.ok) {
-          this.companies = await response.json();
-        }
-      } catch (error) {
-        console.error("Error fetching companies:", error);
       }
     },
     

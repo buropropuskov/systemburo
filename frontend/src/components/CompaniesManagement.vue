@@ -146,7 +146,7 @@
                     class="form-input-sm"
                     placeholder="Введите название компании"
                     autocomplete="off"
-                    @change="updateCompany(selectedCompany)"
+                    @change="saveCompany(selectedCompany)"
                   >
                 </div>
               </div>
@@ -257,14 +257,15 @@
       confirm-text="Удалить"
       cancel-text="Отмена"
       :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
-      @confirm="deleteCompany"
+      @confirm="removeCompany"
       @cancel="cancelDelete"
     />
   </div>
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { mapState, mapActions } from 'pinia';
+import { useCompaniesStore } from '@/stores/companies';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
@@ -285,17 +286,19 @@ export default {
     return {
       searchQuery: '',
       newCompanyName: '',
-      companiesWithUsers: [],
       showAddModal: false,
       showDeleteModal: false,
       selectedCompany: null,
       companyToDelete: null,
       sortField: null,
-      sortDirection: 'asc',
-      isLoading: false
+      sortDirection: 'asc'
     };
   },
   computed: {
+    ...mapState(useCompaniesStore, {
+      companiesWithUsers: 'itemsWithUsers',
+      isLoading: 'isLoading',
+    }),
     filteredCompanies() {
       if (!this.searchQuery) return this.companiesWithUsers;
       const query = this.searchQuery.toLowerCase();
@@ -357,135 +360,81 @@ export default {
     this.refreshData();
   },
   methods: {
+    ...mapActions(useCompaniesStore, ['refresh', 'createCompany', 'updateCompany', 'deleteCompany', 'fetchCompaniesWithUsers']),
+
     async refreshData() {
-      this.isLoading = true;
-      try {
-        await this.fetchCompaniesWithUsers();
-      } finally {
-        this.isLoading = false;
-      }
+      await this.refresh();
     },
-    async fetchCompaniesWithUsers() {
-      try {
-        const response = await apiRequest("/companies/with-users-extended", {
-        });
-        if (response.ok) {
-          const data = await response.json();
-          this.companiesWithUsers = data.map(comp => ({
-            ...comp,
-            originalName: comp.name
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching companies:", error);
-        this.showNotification("Ошибка при загрузке компаний", "error");
-      }
-    },
+
     async addCompany() {
       if (!this.newCompanyName.trim()) {
         this.showNotification("Введите название компании", "warning");
         return;
       }
-      
+
       if (this.isLoading) return;
-      
-      this.isLoading = true;
-      
-      try {
-        const response = await apiRequest("/companies", {
-          method: "POST",
-          body: JSON.stringify({
-            name: this.newCompanyName.trim(),
-          }),
-        });
-        
-        if (response.ok) {
-          const newComp = await response.json();
-          this.newCompanyName = '';
-          this.showAddModal = false;
-          await this.refreshData();
-          
-          // Автоматически выбираем новую компанию
-          const createdComp = this.companiesWithUsers.find(comp => comp.id === newComp.id);
-          if (createdComp) {
-            this.selectedCompany = { ...createdComp };
-          }
-          
-          this.showNotification("Компания успешно создана", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при создании компании", "error");
+
+      const result = await this.createCompany({
+        name: this.newCompanyName.trim(),
+      });
+
+      if (result.ok) {
+        this.newCompanyName = '';
+        this.showAddModal = false;
+        // Автоматически выбираем новую компанию
+        const createdComp = this.companiesWithUsers.find(comp => comp.id === result.data.id);
+        if (createdComp) {
+          this.selectedCompany = { ...createdComp };
         }
-      } catch (error) {
-        console.error("Error adding company:", error);
-        this.showNotification("Ошибка сети", "error");
-      } finally {
-        this.isLoading = false;
+        this.showNotification("Компания успешно создана", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при создании компании", "error");
       }
     },
-    async updateCompany(comp) {
+
+    async saveCompany(comp) {
       if (comp.name === comp.originalName) return;
-      
-      try {
-        const response = await apiRequest(`/companies/${comp.id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            name: comp.name,
-          }),
-        });
-        
-        if (response.ok) {
-          comp.originalName = comp.name;
-          this.showNotification("Компания успешно обновлена", "success");
-        } else {
-          const error = await response.json();
-          comp.name = comp.originalName;
-          this.showNotification(error.message || "Ошибка при обновлении компании", "error");
-        }
-      } catch (error) {
-        console.error("Error updating company:", error);
+
+      const result = await this.updateCompany(comp.id, { name: comp.name });
+
+      if (result.ok) {
+        this.showNotification("Компания успешно обновлена", "success");
+      } else {
         comp.name = comp.originalName;
-        this.showNotification("Ошибка сети", "error");
+        this.showNotification(result.message || "Ошибка при обновлении компании", "error");
       }
     },
+
     confirmDeleteCompany(comp) {
       if (comp.user_count > 0) {
         this.showNotification("Нельзя удалить компанию с пользователями", "warning");
         return;
       }
-      
+
       this.companyToDelete = comp;
       this.showDeleteModal = true;
     },
-    
+
     cancelDelete() {
       this.showDeleteModal = false;
       this.companyToDelete = null;
     },
 
-    async deleteCompany() {
+    async removeCompany() {
       if (!this.companyToDelete) return;
-      
-      try {
-        const response = await apiRequest(`/companies/${this.companyToDelete.id}`, {
-          method: "DELETE",
-        });
-        
-        if (response.ok) {
-          this.selectedCompany = null;
-          this.showDeleteModal = false;
-          this.companyToDelete = null;
-          await this.refreshData();
-          this.showNotification("Компания успешно удалена", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении компании", "error");
-        }
-      } catch (error) {
-        console.error("Error deleting company:", error);
-        this.showNotification("Ошибка сети", "error");
+
+      const result = await this.deleteCompany(this.companyToDelete.id);
+
+      if (result.ok) {
+        this.selectedCompany = null;
+        this.showDeleteModal = false;
+        this.companyToDelete = null;
+        this.showNotification("Компания успешно удалена", "success");
+      } else {
+        this.showNotification(result.message || "Ошибка при удалении компании", "error");
       }
     },
+
     selectCompany(comp) {
       this.selectedCompany = { ...comp };
     },
