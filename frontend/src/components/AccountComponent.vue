@@ -102,6 +102,7 @@
     </div>
     <div
       v-if="isBuroPropuskov"
+      id="citizenships"
       class="dashboard-row"
     >
       <CitizenshipManagement class="dashboard-card dashboard-card-animated" />

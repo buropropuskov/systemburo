@@ -1,5 +1,8 @@
 <template>
-  <div class="account__settings">
+  <div
+    class="account__settings"
+    :class="{ 'is-sticky': isSticky }"
+  >
     <div class="settings__container">
       <img
         src="@/assets/icons/settings.png"
@@ -10,81 +13,89 @@
       </h2>
     </div>
     <ul class="settings__navigation">
-      <li class="navigation__link">
+      <li
+        v-for="item in items"
+        :key="item.id"
+        class="navigation__link"
+      >
         <a
-          href="#users"
+          :href="`#${item.id}`"
           class="link"
-        >Пользователи</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#organizations"
-          class="link"
-        >Организации</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#companies"
-          class="link"
-        >Компании</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#"
-          class="link disabled"
-        >Доступ</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#tables"
-          class="link"
-        >Таблицы</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#number"
-          class="link"
-        >Авто-номера</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#unload_place"
-          class="link"
-        >Разгрузка</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#"
-          class="link disabled"
-        >Уведомления</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#attachments"
-          class="link"
-        >Бланки</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#"
-          class="link disabled"
-        >Карта</a>
-      </li>
-      <li class="navigation__link">
-        <a
-          href="#user_types"
-          class="link"
-        >Типы аккаунта</a>
+          :class="{ active: activeId === item.id }"
+          @click="onNavClick(item.id, $event)"
+        >{{ item.label }}</a>
       </li>
     </ul>
   </div>
 </template>
 
 <script>
+const SECTIONS = [
+  { id: 'users', label: 'Пользователи' },
+  { id: 'organizations', label: 'Организации' },
+  { id: 'companies', label: 'Компании' },
+  { id: 'unload_place', label: 'Разгрузка' },
+  { id: 'number', label: 'Авто-номера' },
+  { id: 'citizenships', label: 'Гражданства' },
+  { id: 'tables', label: 'Таблицы' },
+  { id: 'user_types', label: 'Типы аккаунта' },
+  { id: 'attachments', label: 'Бланки' },
+  { id: 'approvers', label: 'Принимающие' }
+];
+
 export default {
   name: 'AccountSettings',
   data() {
-    return {};
+    return {
+      items: SECTIONS,
+      activeId: '',
+      isSticky: false,
+      observer: null,
+      stickySentinel: null
+    };
+  },
+  mounted() {
+    this.setupSectionObserver();
+    this.setupStickyObserver();
+  },
+  beforeUnmount() {
+    if (this.observer) this.observer.disconnect();
+    if (this.stickyObs) this.stickyObs.disconnect();
+    if (this.stickySentinel?.parentNode) this.stickySentinel.parentNode.removeChild(this.stickySentinel);
+  },
+  methods: {
+    setupSectionObserver() {
+      const targets = this.items
+        .map(i => document.getElementById(i.id))
+        .filter(Boolean);
+      if (!targets.length || typeof IntersectionObserver === 'undefined') return;
+
+      this.observer = new IntersectionObserver(entries => {
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) this.activeId = visible.target.id;
+      }, { rootMargin: '-30% 0px -50% 0px', threshold: 0 });
+
+      targets.forEach(t => this.observer.observe(t));
+    },
+    setupStickyObserver() {
+      if (typeof IntersectionObserver === 'undefined') return;
+      this.stickySentinel = document.createElement('div');
+      this.stickySentinel.style.height = '1px';
+      this.$el.parentNode?.insertBefore(this.stickySentinel, this.$el);
+      this.stickyObs = new IntersectionObserver(([entry]) => {
+        this.isSticky = !entry.isIntersecting;
+      });
+      this.stickyObs.observe(this.stickySentinel);
+    },
+    onNavClick(id, event) {
+      const target = document.getElementById(id);
+      if (!target) return;
+      event.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      this.activeId = id;
+    }
   }
 };
 </script>
@@ -94,8 +105,16 @@ export default {
   display: flex;
   width: 100%;
   gap: 0;
-  position: relative;
-  background: transparent;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  transition: box-shadow 0.2s ease, padding 0.2s ease;
+}
+
+.account__settings.is-sticky {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 6px 0;
 }
 
 .settings__container {
@@ -122,46 +141,46 @@ export default {
 
 .settings__navigation {
   width: 100%;
-  height: 30px;
+  height: auto;
   border-top: 2px solid #4F5BDF;
   margin-top: auto;
   display: flex;
   list-style: none;
+  flex-wrap: wrap;
   justify-content: space-between;
-  padding: 5px 10px;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px 14px;
 }
 
 .link {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #939CFF;
-  transition: .2s;
+  transition: color 0.2s ease, background 0.2s ease;
   text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
-.link:hover:not(.disabled) {
+.link:hover {
   color: #4F5BDF;
+  background: rgba(79, 91, 223, 0.08);
 }
 
-.disabled {
-  color: #e6e6e6;
-  cursor: not-allowed;
+.link.active {
+  color: #fff;
+  background: #4F5BDF;
 }
 
 @keyframes settings_rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* Адаптивность */
 @media (max-width: 1200px) {
-  .settings__container {
-    min-width: 300px;
-  }
+  .settings__container { min-width: 300px; }
 }
 
 @media (max-width: 768px) {
@@ -169,26 +188,19 @@ export default {
     flex-direction: column;
     gap: 10px;
   }
-  
   .settings__container {
     min-width: auto;
     width: 100%;
   }
-  
   .settings__navigation {
-    flex-wrap: wrap;
-    height: auto;
-    gap: 10px;
+    border-top: none;
+    padding: 6px 4px;
+    gap: 6px;
   }
 }
 
 @media (max-width: 480px) {
-  .settings__title {
-    font-size: 16px;
-  }
-  
-  .link {
-    font-size: 11px;
-  }
+  .settings__title { font-size: 16px; }
+  .link { font-size: 11px; padding: 3px 8px; }
 }
 </style>
