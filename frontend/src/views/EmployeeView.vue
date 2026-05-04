@@ -215,28 +215,37 @@
                       <StatusBadge :status="employee.status ? 'Активен' : 'Неактивен'" />
                     </div>
                     <div class="employee-col actions-col">
-                      <button 
-                        class="edit-btn" 
+                      <button
+                        v-if="canEditEmployee(employee)"
+                        class="edit-btn"
                         title="Редактировать"
                         @click="editEmployee(employee)"
                       >
-                        <img 
-                          src="@/assets/icons/edit.png" 
-                          alt="Редактировать" 
+                        <img
+                          src="@/assets/icons/edit.png"
+                          alt="Редактировать"
                           class="edit-icon"
                         >
                       </button>
-                      <button 
-                        class="delete-btn" 
+                      <button
+                        v-if="canEditEmployee(employee)"
+                        class="delete-btn"
                         title="Удалить"
                         @click="deleteEmployee(employee)"
                       >
-                        <img 
-                          src="@/assets/icons/trashcan.png" 
-                          alt="Удалить" 
+                        <img
+                          src="@/assets/icons/trashcan.png"
+                          alt="Удалить"
                           class="delete-icon"
                         >
                       </button>
+                      <span
+                        v-if="!canEditEmployee(employee)"
+                        class="read-only-text"
+                        :title="canEditTooltip(employee)"
+                      >
+                        Только просмотр
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -411,6 +420,25 @@ export default {
         await this.fetchEmployees();
     },
     methods: {
+        /**
+         * Можно ли редактировать/удалять сотрудника. Совпадает с backend
+         * canEditEmployee (unique_employee_service.go).
+         */
+        canEditEmployee(emp) {
+            if (this.currentFilter === 'all_system') return false;
+            if (!this.ownershipInfo) return false;
+            if (emp.user_id != null && emp.user_id === this.ownershipInfo.user_id) return true;
+            if (emp.organization_id != null && this.ownershipInfo.organization_id != null
+                && emp.organization_id === this.ownershipInfo.organization_id) return true;
+            if (emp.company_id != null && this.ownershipInfo.company_id != null
+                && emp.company_id === this.ownershipInfo.company_id) return true;
+            return false;
+        },
+        canEditTooltip(emp) {
+            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
+            if (this.canEditEmployee(emp)) return '';
+            return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
+        },
         async fetchEmployees() {
             this.loading = true;
             try {

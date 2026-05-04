@@ -229,33 +229,34 @@
                       <StatusBadge :status="car.status ? 'Активна' : 'Неактивна'" />
                     </div>
                     <div class="car-col actions-col">
-                      <button 
-                        v-if="currentFilter !== 'all_system'"
-                        class="edit-btn" 
+                      <button
+                        v-if="canEditCar(car)"
+                        class="edit-btn"
                         title="Редактировать"
                         @click="editCar(car)"
                       >
-                        <img 
-                          src="@/assets/icons/edit.png" 
-                          alt="Редактировать" 
+                        <img
+                          src="@/assets/icons/edit.png"
+                          alt="Редактировать"
                           class="edit-icon"
                         >
                       </button>
                       <button
-                        v-if="currentFilter !== 'all_system'"
+                        v-if="canEditCar(car)"
                         class="delete-btn"
                         title="Удалить"
                         @click="openDeleteCarConfirmation(car)"
                       >
-                        <img 
-                          src="@/assets/icons/trashcan.png" 
-                          alt="Удалить" 
+                        <img
+                          src="@/assets/icons/trashcan.png"
+                          alt="Удалить"
                           class="delete-icon"
                         >
                       </button>
                       <span
-                        v-if="currentFilter === 'all_system'"
+                        v-if="!canEditCar(car)"
                         class="read-only-text"
+                        :title="canEditTooltip(car)"
                       >
                         Только просмотр
                       </span>
@@ -726,6 +727,28 @@ export default {
         });
     },
     methods: {
+        /**
+         * Можно ли текущему пользователю редактировать/удалять машину.
+         * Логика совпадает с backend canEditCar (unique_car_service.go):
+         * автор, или организация совпадает, или компания совпадает.
+         * filter=all_system - read-only по согласованию (PR #198).
+         */
+        canEditCar(car) {
+            if (this.currentFilter === 'all_system') return false;
+            if (!this.ownershipInfo) return false;
+            if (car.user_id != null && car.user_id === this.ownershipInfo.user_id) return true;
+            if (car.organization_id != null && this.ownershipInfo.organization_id != null
+                && car.organization_id === this.ownershipInfo.organization_id) return true;
+            if (car.company_id != null && this.ownershipInfo.company_id != null
+                && car.company_id === this.ownershipInfo.company_id) return true;
+            return false;
+        },
+        canEditTooltip(car) {
+            if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
+            if (this.canEditCar(car)) return '';
+            return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
+        },
+
         async fetchCars() {
             this.loading = true;
             try {
