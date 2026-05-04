@@ -210,12 +210,20 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]Emplo
 	return items, nil
 }
 
+// GetByTable возвращает историю сотрудников, относящихся к конкретной таблице.
+// Включает не только entry/exit с прямым eh.table_id, но и все события (create,
+// update, delete, data_changed) сотрудников, привязанных к этой таблице через
+// employee_target_tables - чтобы общая история таблицы показывала полный контекст,
+// а не только проходы.
 func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int) ([]EmployeeHistoryItem, error) {
 	rows := make([]employeeHistoryRow, 0)
 	err := s.db.WithContext(ctx).Raw(baseSelectSQL+`
 		WHERE eh.table_id = ?
+		   OR eh.employee_id IN (
+		     SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
+		   )
 		ORDER BY eh.created_at DESC
-	`, tableID).Scan(&rows).Error
+	`, tableID, tableID).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee history by table")
 	}
