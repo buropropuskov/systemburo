@@ -16,7 +16,10 @@
         >
           Добавить принимающего
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -316,6 +319,7 @@ export default {
   data() {
     return {
       searchQuery: '',
+      refreshing: false,
       approvers: [],
       allUsers: [],
       selectedApprover: null,
@@ -471,10 +475,15 @@ export default {
     },
 
     async refreshData() {
-      await Promise.all([
-        this.fetchApprovers(),
-        this.fetchAllUsers()
-      ]);
+      this.refreshing = true;
+      try {
+        await Promise.all([
+          this.fetchApprovers(),
+          this.fetchAllUsers()
+        ]);
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     async fetchApprovers() {

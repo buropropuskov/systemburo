@@ -23,7 +23,10 @@
         >
           Создать вложение
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -559,6 +562,7 @@ export default {
   data() {
     return {
       searchQuery: '',
+      refreshing: false,
       newAttachment: {
         name: '',
         display_name: '',
@@ -733,7 +737,12 @@ export default {
     },
     
     async refreshData() {
-      await this.fetchAllAttachments();
+      this.refreshing = true;
+      try {
+        await this.fetchAllAttachments();
+      } finally {
+        this.refreshing = false;
+      }
     },
     
     async fetchAllAttachments() {

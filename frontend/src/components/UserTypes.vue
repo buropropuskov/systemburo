@@ -15,7 +15,10 @@
         >
           Создать тип
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -309,6 +312,7 @@ export default {
   data() {
     return {
       searchQuery: '',
+      refreshing: false,
       newType: {
         name: '',
         code: ''
@@ -407,7 +411,12 @@ export default {
       }
     },
     async refreshData() {
-      await this.fetchTypes();
+      this.refreshing = true;
+      try {
+        await this.fetchTypes();
+      } finally {
+        this.refreshing = false;
+      }
     },
     async fetchTypes() {
       try {
