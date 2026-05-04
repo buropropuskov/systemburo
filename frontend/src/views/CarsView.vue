@@ -207,12 +207,16 @@
                 v-if="filteredCars.length > 0"
                 class="cars-body"
               >
-                <div 
-                  v-for="(car) in sortedCars" 
-                  :key="car.id" 
+                <div
+                  v-for="(car) in sortedCars"
+                  :key="car.id"
                   class="car-item"
                 >
-                  <div class="car-row">
+                  <div
+                    class="car-row"
+                    title="Открыть детали машины"
+                    @click="openCarDetails(car)"
+                  >
                     <div class="car-col number-col">
                       {{ car.id }}
                     </div>
@@ -233,7 +237,7 @@
                         v-if="canEditCar(car)"
                         class="edit-btn"
                         title="Редактировать"
-                        @click="editCar(car)"
+                        @click.stop="editCar(car)"
                       >
                         <img
                           src="@/assets/icons/edit.png"
@@ -245,7 +249,7 @@
                         v-if="canEditCar(car)"
                         class="delete-btn"
                         title="Удалить"
-                        @click="openDeleteCarConfirmation(car)"
+                        @click.stop="openDeleteCarConfirmation(car)"
                       >
                         <img
                           src="@/assets/icons/trashcan.png"
@@ -522,6 +526,13 @@
       @confirm="confirmDeleteCar"
       @cancel="cancelDeleteCar"
     />
+
+    <CarDetailsViewModal
+      v-if="detailsCar"
+      :show="showDetailsViewModal"
+      :car="detailsCar"
+      @close="closeCarDetails"
+    />
   </section>
 </template>
 
@@ -533,6 +544,7 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import CarDetailsViewModal from '@/components/CarDetailsViewModal.vue';
 
 export default {
     components: {
@@ -541,7 +553,8 @@ export default {
         SkeletonTransition,
         SkeletonTable,
         StatusBadge,
-        ConfirmationModal
+        ConfirmationModal,
+        CarDetailsViewModal
     },
     data() {
         return {
@@ -557,6 +570,8 @@ export default {
             showDeleteCarModal: false,
             carToDelete: null,
             availableFormats: [],
+            showDetailsViewModal: false,
+            detailsCar: null,
 
             
             // Формат номера
@@ -727,6 +742,14 @@ export default {
         });
     },
     methods: {
+        openCarDetails(car) {
+            this.detailsCar = car;
+            this.showDetailsViewModal = true;
+        },
+        closeCarDetails() {
+            this.showDetailsViewModal = false;
+            this.detailsCar = null;
+        },
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.
          * Логика совпадает с backend canEditCar (unique_car_service.go):
