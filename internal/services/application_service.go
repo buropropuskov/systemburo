@@ -478,22 +478,10 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
 			c.name as company_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) as sender_full_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || LEFT(u.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(u.middle_name, 1) || '.' ELSE '' END
-			) as sender_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || ru.first_name ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || ru.middle_name ELSE '' END
-			) as responsible_full_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || LEFT(ru.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
-			) as responsible_name
+			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
+			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -562,22 +550,10 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
 			c.name as company_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) as sender_full_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || LEFT(u.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(u.middle_name, 1) || '.' ELSE '' END
-			) as sender_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || ru.first_name ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || ru.middle_name ELSE '' END
-			) as responsible_full_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || LEFT(ru.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
-			) as responsible_name
+			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
+			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
 		Order("a.sending_datetime DESC").
 		Offset(offset).
@@ -603,22 +579,10 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
 			c.name as company_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) as sender_full_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || LEFT(u.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(u.middle_name, 1) || '.' ELSE '' END
-			) as sender_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || ru.first_name ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || ru.middle_name ELSE '' END
-			) as responsible_full_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || LEFT(ru.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
-			) as responsible_name
+			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
+			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -671,22 +635,10 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
 			c.name as company_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) as sender_full_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || LEFT(u.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(u.middle_name, 1) || '.' ELSE '' END
-			) as sender_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || ru.first_name ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || ru.middle_name ELSE '' END
-			) as responsible_full_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || LEFT(ru.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND ru.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
-			) as responsible_name
+			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
+			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -788,16 +740,10 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
 			c.name as company_name,
-			CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, ''), ' ', COALESCE(u.middle_name, '')) as sender_full_name,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || LEFT(u.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(u.middle_name, 1) || '.' ELSE '' END
-			) as sender_name,
-			CONCAT(COALESCE(ru.last_name, ''), ' ', COALESCE(ru.first_name, ''), ' ', COALESCE(ru.middle_name, '')) as responsible_full_name,
-			CONCAT(COALESCE(ru.last_name, ''),
-				CASE WHEN ru.first_name IS NOT NULL AND ru.first_name != '' THEN ' ' || LEFT(ru.first_name, 1) || '.' ELSE '' END,
-				CASE WHEN ru.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || LEFT(ru.middle_name, 1) || '.' ELSE '' END
-			) as responsible_name
+			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
+			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").

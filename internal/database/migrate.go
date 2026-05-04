@@ -107,7 +107,51 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(AllModels()...); err != nil {
 		return err
 	}
+	if err := installSQLFunctions(db); err != nil {
+		return err
+	}
 	slog.Info("AutoMigrate completed")
+	return nil
+}
+
+// installSQLFunctions создаёт пользовательские SQL-функции, переиспользуемые
+// в запросах сервисов. CREATE OR REPLACE безопасен при каждом старте.
+func installSQLFunctions(db *gorm.DB) error {
+	const formatShortName = `
+CREATE OR REPLACE FUNCTION format_short_name(p_last TEXT, p_first TEXT, p_middle TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    IF COALESCE(p_last, '') = '' THEN
+        RETURN TRIM(BOTH ' ' FROM
+            COALESCE(p_first, '') ||
+            CASE WHEN COALESCE(p_middle, '') <> '' THEN ' ' || p_middle ELSE '' END
+        );
+    END IF;
+    RETURN p_last ||
+        CASE WHEN COALESCE(p_first, '') <> '' THEN ' ' || LEFT(p_first, 1) || '.' ELSE '' END ||
+        CASE WHEN COALESCE(p_middle, '') <> '' THEN LEFT(p_middle, 1) || '.' ELSE '' END;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+`
+	const formatFullName = `
+CREATE OR REPLACE FUNCTION format_full_name(p_last TEXT, p_first TEXT, p_middle TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN TRIM(BOTH ' ' FROM
+        COALESCE(p_last, '') ||
+        CASE WHEN COALESCE(p_first, '') <> '' THEN ' ' || p_first ELSE '' END ||
+        CASE WHEN COALESCE(p_middle, '') <> '' THEN ' ' || p_middle ELSE '' END
+    );
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+`
+	if err := db.Exec(formatShortName).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(formatFullName).Error; err != nil {
+		return err
+	}
+	slog.Info("SQL functions installed: format_short_name, format_full_name")
 	return nil
 }
 
