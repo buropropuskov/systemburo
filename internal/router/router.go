@@ -191,6 +191,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	ucg.PUT("/by-number", uc.UpdateByNumber)
 	ucg.DELETE("/:id", uc.Delete)
 	ucg.GET("/ownership-info", uc.GetOwnershipInfo)
+	ucg.GET("/:id/history", uc.GetHistory)
 
 	// Реестр сотрудников (unique_employees)
 	ueg := protected.Group("/unique-employees")
@@ -199,6 +200,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	ueg.PUT("/:id", ue.Update)
 	ueg.DELETE("/:id", ue.Delete)
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
+	ueg.GET("/:id/history", ue.GetHistory)
 
 	// Обратная связь
 	fbg := protected.Group("/feedback")

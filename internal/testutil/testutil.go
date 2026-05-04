@@ -38,11 +38,13 @@ var tables = []string{
 	"system_settings",
 	"pd_audit_logs", "pd_consents",
 	"user_permissions", "permissions",
+	"bug_reports",
 	"request_log", "request_logs", "notifications", "news", "announcements",
 	"feedback", "application_items", "items",
 	"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",
 	"car_unload_places", "cars_history", "cars",
 	"attachments",
+	"unique_employees_history", "unique_cars_history",
 	"unique_employees", "unique_cars", "unique_attachments",
 	"application_reads", "application_viewers", "application_approvers", "application_responsible_users",
 	"application_status_history", "application_history", "applications",
@@ -90,7 +92,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	citizenshipService := services.NewCitizenshipService(db)
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
-	userService := services.NewUserService(db)
+	notificationServiceEarly := services.NewNotificationService(db)
+	userService := services.NewUserService(db, notificationServiceEarly)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
@@ -100,7 +103,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
 	newsService := services.NewNewsService(db)
-	notificationService := services.NewNotificationService(db)
+	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService)

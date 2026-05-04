@@ -181,6 +181,32 @@ func (h *UniqueCarHandler) Delete(c echo.Context) error {
 	return RespondMessage(c, "Car deleted successfully")
 }
 
+// GetHistory godoc
+// @Summary      История изменений мастер-машины
+// @Description  Возвращает аудит изменений мастер-записи машины (data_changed)
+// @Tags         unique-cars
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID машины"
+// @Success      200 {array} services.UniqueCarHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Нет прав"
+// @Failure      404 {object} models.HTTPError "Не найдена"
+// @Router       /unique-cars/{id}/history [get]
+func (h *UniqueCarHandler) GetHistory(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+
+	items, err := h.service.GetHistory(c.Request().Context(), username, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
 // GetOwnershipInfo godoc
 // @Summary      Информация о владельце для машин
 // @Description  Возвращает данные о привязке пользователя к организации/компании

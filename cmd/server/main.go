@@ -144,7 +144,8 @@ func main() {
 	citizenshipService := services.NewCitizenshipService(db)
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
-	userService := services.NewUserService(db)
+	notificationServiceEarly := services.NewNotificationService(db)
+	userService := services.NewUserService(db, notificationServiceEarly)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
@@ -154,7 +155,7 @@ func main() {
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
 	newsService := services.NewNewsService(db)
-	notificationService := services.NewNotificationService(db)
+	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService)

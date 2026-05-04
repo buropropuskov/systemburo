@@ -126,6 +126,27 @@ func (e *UniqueEmployee) AfterFind(tx *gorm.DB) error {
 	return nil
 }
 
+// UniqueEmployeeHistory хранит аудит изменений мастер-записи сотрудника
+// (unique_employees). Используется отдельная таблица, потому что
+// employees_history.employee_id ссылается на employees (заявочная сущность),
+// а здесь нужна ссылка на unique_employees (мастер).
+type UniqueEmployeeHistory struct {
+	ID               int            `json:"id"`
+	UniqueEmployeeID int            `gorm:"index" json:"unique_employee_id"`
+	UniqueEmployee   UniqueEmployee `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	UserID           *int           `gorm:"index" json:"user_id"`
+	User             *User          `json:"-"`
+	ActionType       string         `gorm:"size:50" json:"action_type"`
+	FieldName        *string        `gorm:"size:100" json:"field_name"`
+	OldValue         *string        `gorm:"type:text" json:"old_value"`
+	NewValue         *string        `gorm:"type:text" json:"new_value"`
+	Comment          *string        `gorm:"type:text" json:"comment"`
+	Metadata         *string        `gorm:"type:jsonb" json:"metadata"`
+	CreatedAt        time.Time      `json:"created_at"`
+}
+
+func (UniqueEmployeeHistory) TableName() string { return "unique_employees_history" }
+
 type ApplicationEmployee struct {
 	ID                   int        `json:"id"`
 	AttachmentID         int        `gorm:"index" json:"attachment_id"`

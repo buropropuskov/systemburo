@@ -56,6 +56,26 @@ type UniqueCar struct {
 	CreatedAt      time.Time     `json:"created_at"`
 }
 
+// UniqueCarHistory хранит аудит изменений мастер-записи автомобиля (unique_cars).
+// Используется отдельная таблица: cars_history.car_id ссылается на cars
+// (заявочная сущность), а здесь нужна ссылка на unique_cars (мастер).
+type UniqueCarHistory struct {
+	ID          int       `json:"id"`
+	UniqueCarID int       `gorm:"index" json:"unique_car_id"`
+	UniqueCar   UniqueCar `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	UserID      *int      `gorm:"index" json:"user_id"`
+	User        *User     `json:"-"`
+	ActionType  string    `gorm:"size:50" json:"action_type"`
+	FieldName   *string   `gorm:"size:100" json:"field_name"`
+	OldValue    *string   `gorm:"type:text" json:"old_value"`
+	NewValue    *string   `gorm:"type:text" json:"new_value"`
+	Comment     *string   `gorm:"type:text" json:"comment"`
+	Metadata    *string   `gorm:"type:jsonb" json:"metadata"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (UniqueCarHistory) TableName() string { return "unique_cars_history" }
+
 type CarUnloadPlace struct {
 	ID            int     `json:"id"`
 	CarID         int     `gorm:"index" json:"car_id"`

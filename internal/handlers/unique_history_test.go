@@ -1,0 +1,374 @@
+package handlers_test
+
+import (
+	"context"
+	"net/http"
+	"testing"
+
+	"systemburo/internal/models"
+	"systemburo/internal/services"
+	"systemburo/internal/testutil"
+
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestUniqueEmployeeService_Update_RecordsChanges проверяет, что при апдейте
+// мастер-записи сотрудника пишутся записи data_changed на каждое изменённое
+// поле (и только на них).
+func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	owner := models.User{
+		Username:       "owner_emp_change",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+	}
+	require.NoError(t, db.Create(&owner).Error)
+
+	lastNameOld := "Иванов"
+	firstNameOld := "Иван"
+	middleNameOld := "Иванович"
+	posOld := "Грузчик"
+	otherOld := "разрешение-1"
+	emp := models.UniqueEmployee{
+		LastName:        &lastNameOld,
+		FirstName:       &firstNameOld,
+		MiddleName:      &middleNameOld,
+		Position:        &posOld,
+		OtherPermission: &otherOld,
+		OrganizationID:  &td.OrgID,
+		CompanyID:       &td.CompanyID,
+		UserID:          &owner.ID,
+	}
+	require.NoError(t, db.Create(&emp).Error)
+
+	svc := services.NewUniqueEmployeeService(db)
+
+	// Меняем фамилию и должность, остальное оставляем.
+	newLast := "Петров"
+	newPos := "Старший грузчик"
+	req := services.NewUniqueEmployeeRequest{
+		LastName:        &newLast,
+		FirstName:       &firstNameOld,
+		MiddleName:      &middleNameOld,
+		Position:        &newPos,
+		OtherPermission: &otherOld,
+		OrganizationID:  &td.OrgID,
+		CompanyID:       &td.CompanyID,
+		UserID:          &owner.ID,
+	}
+	resp, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "Петров", *resp.LastName)
+
+	// Должно быть ровно две записи — last_name и position.
+	var history []models.UniqueEmployeeHistory
+	require.NoError(t, db.Where("unique_employee_id = ?", emp.ID).Order("id").Find(&history).Error)
+	require.Len(t, history, 2)
+
+	byField := make(map[string]models.UniqueEmployeeHistory, len(history))
+	for _, h := range history {
+		require.NotNil(t, h.FieldName)
+		byField[*h.FieldName] = h
+	}
+
+	if h, ok := byField["last_name"]; assert.True(t, ok, "ожидалась запись last_name") {
+		assert.Equal(t, "data_changed", h.ActionType)
+		assert.Equal(t, "Иванов", deref(h.OldValue))
+		assert.Equal(t, "Петров", deref(h.NewValue))
+		require.NotNil(t, h.UserID)
+		assert.Equal(t, owner.ID, *h.UserID)
+	}
+	if h, ok := byField["position"]; assert.True(t, ok, "ожидалась запись position") {
+		assert.Equal(t, "data_changed", h.ActionType)
+		assert.Equal(t, "Грузчик", deref(h.OldValue))
+		assert.Equal(t, "Старший грузчик", deref(h.NewValue))
+	}
+}
+
+// TestUniqueEmployeeService_Update_NoChange проверяет, что при апдейте без
+// изменений (новые значения == старым) запись истории не создаётся.
+func TestUniqueEmployeeService_Update_NoChange(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	owner := models.User{
+		Username:       "owner_emp_nochange",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+	}
+	require.NoError(t, db.Create(&owner).Error)
+
+	last := "Сидоров"
+	first := "Пётр"
+	middle := "Алексеевич"
+	emp := models.UniqueEmployee{
+		LastName:       &last,
+		FirstName:      &first,
+		MiddleName:     &middle,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		UserID:         &owner.ID,
+	}
+	require.NoError(t, db.Create(&emp).Error)
+
+	svc := services.NewUniqueEmployeeService(db)
+
+	req := services.NewUniqueEmployeeRequest{
+		LastName:       &last,
+		FirstName:      &first,
+		MiddleName:     &middle,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		UserID:         &owner.ID,
+	}
+	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
+	require.NoError(t, err)
+
+	var count int64
+	require.NoError(t, db.Model(&models.UniqueEmployeeHistory{}).
+		Where("unique_employee_id = ?", emp.ID).
+		Count(&count).Error)
+	assert.Equal(t, int64(0), count, "не должно создаваться записей истории при no-op апдейте")
+}
+
+// TestUniqueCarService_UpdateByNumber_RecordsChanges проверяет аудит для
+// машины при изменении format_id и user_id через UpdateByNumber.
+func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	owner := models.User{
+		Username:       "owner_car_change",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+	}
+	require.NoError(t, db.Create(&owner).Error)
+
+	number := "А123БВ77"
+	mark := "Лада"
+	formatOld := 1
+	car := models.UniqueCar{
+		Number:         &number,
+		Mark:           &mark,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		FormatID:       &formatOld,
+		UserID:         &owner.ID,
+	}
+	require.NoError(t, db.Create(&car).Error)
+
+	svc := services.NewUniqueCarService(db)
+
+	formatNew := 2
+	req := services.UpdateCarByNumberRequest{
+		Number: number,
+		Mark:   mark,
+		UpdateData: services.NewUniqueCarRequest{
+			Number:         number,
+			Mark:           mark,
+			OrganizationID: &td.OrgID,
+			CompanyID:      &td.CompanyID,
+			FormatID:       &formatNew,
+			UserID:         &owner.ID,
+		},
+	}
+	resp, err := svc.UpdateByNumber(context.Background(), owner.Username, req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	var history []models.UniqueCarHistory
+	require.NoError(t, db.Where("unique_car_id = ?", car.ID).Order("id").Find(&history).Error)
+	require.Len(t, history, 1, "ожидается ровно одна запись (format_id)")
+	assert.Equal(t, "data_changed", history[0].ActionType)
+	require.NotNil(t, history[0].FieldName)
+	assert.Equal(t, "format_id", *history[0].FieldName)
+	assert.Equal(t, "1", deref(history[0].OldValue))
+	assert.Equal(t, "2", deref(history[0].NewValue))
+}
+
+// TestUniqueEmployeeService_GetHistory_ReturnsRecords проверяет, что GetHistory
+// возвращает записи аудита по data_changed после Update и фильтрует по правам.
+func TestUniqueEmployeeService_GetHistory_ReturnsRecords(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	owner := models.User{
+		Username:       "owner_emp_history",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+	}
+	require.NoError(t, db.Create(&owner).Error)
+
+	last := "Иванов"
+	first := "Иван"
+	pos := "Грузчик"
+	emp := models.UniqueEmployee{
+		LastName:       &last,
+		FirstName:      &first,
+		Position:       &pos,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		UserID:         &owner.ID,
+	}
+	require.NoError(t, db.Create(&emp).Error)
+
+	svc := services.NewUniqueEmployeeService(db)
+
+	newLast := "Петров"
+	req := services.NewUniqueEmployeeRequest{
+		LastName:       &newLast,
+		FirstName:      &first,
+		Position:       &pos,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		UserID:         &owner.ID,
+	}
+	_, err := svc.Update(context.Background(), owner.Username, emp.ID, req)
+	require.NoError(t, err)
+
+	items, err := svc.GetHistory(context.Background(), owner.Username, emp.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "data_changed", items[0].ActionType)
+	require.NotNil(t, items[0].FieldName)
+	assert.Equal(t, "last_name", *items[0].FieldName)
+	assert.Equal(t, "Иванов", deref(items[0].OldValue))
+	assert.Equal(t, "Петров", deref(items[0].NewValue))
+	require.NotNil(t, items[0].Username)
+	assert.Equal(t, owner.Username, *items[0].Username)
+}
+
+// TestUniqueEmployeeService_GetHistory_Forbidden проверяет, что юзер без прав
+// на редактирование сотрудника получает 403 при запросе истории.
+func TestUniqueEmployeeService_GetHistory_Forbidden(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	otherOrgID := td.OrgID + 1000
+	otherOrg := models.Organization{ID: otherOrgID, Name: "other-org"}
+	require.NoError(t, db.Create(&otherOrg).Error)
+
+	otherCompID := td.CompanyID + 1000
+	otherComp := models.Company{ID: otherCompID, Name: "other-comp"}
+	require.NoError(t, db.Create(&otherComp).Error)
+
+	owner := models.User{
+		Username:       "owner_emp_forbid",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+	}
+	require.NoError(t, db.Create(&owner).Error)
+
+	stranger := models.User{
+		Username:       "stranger_emp_forbid",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &otherOrgID,
+		CompanyID:      &otherCompID,
+	}
+	require.NoError(t, db.Create(&stranger).Error)
+
+	last := "Сидоров"
+	emp := models.UniqueEmployee{
+		LastName:       &last,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		UserID:         &owner.ID,
+	}
+	require.NoError(t, db.Create(&emp).Error)
+
+	svc := services.NewUniqueEmployeeService(db)
+	_, err := svc.GetHistory(context.Background(), stranger.Username, emp.ID)
+	require.Error(t, err)
+	httpErr, ok := err.(*echo.HTTPError)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusForbidden, httpErr.Code)
+}
+
+// TestUniqueCarService_GetHistory_ReturnsRecords проверяет аналогичный сценарий
+// для машин: создание записи через UpdateByNumber и чтение через GetHistory.
+func TestUniqueCarService_GetHistory_ReturnsRecords(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	owner := models.User{
+		Username:       "owner_car_history",
+		Password:       "x",
+		TypeID:         6,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+	}
+	require.NoError(t, db.Create(&owner).Error)
+
+	number := "А999ВВ77"
+	mark := "Лада"
+	formatOld := 1
+	car := models.UniqueCar{
+		Number:         &number,
+		Mark:           &mark,
+		OrganizationID: &td.OrgID,
+		CompanyID:      &td.CompanyID,
+		FormatID:       &formatOld,
+		UserID:         &owner.ID,
+	}
+	require.NoError(t, db.Create(&car).Error)
+
+	svc := services.NewUniqueCarService(db)
+	formatNew := 2
+	_, err := svc.UpdateByNumber(context.Background(), owner.Username, services.UpdateCarByNumberRequest{
+		Number: number,
+		Mark:   mark,
+		UpdateData: services.NewUniqueCarRequest{
+			Number:         number,
+			Mark:           mark,
+			OrganizationID: &td.OrgID,
+			CompanyID:      &td.CompanyID,
+			FormatID:       &formatNew,
+			UserID:         &owner.ID,
+		},
+	})
+	require.NoError(t, err)
+
+	items, err := svc.GetHistory(context.Background(), owner.Username, car.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "data_changed", items[0].ActionType)
+	require.NotNil(t, items[0].FieldName)
+	assert.Equal(t, "format_id", *items[0].FieldName)
+	require.NotNil(t, items[0].Username)
+	assert.Equal(t, owner.Username, *items[0].Username)
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}

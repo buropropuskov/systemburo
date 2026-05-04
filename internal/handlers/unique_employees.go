@@ -128,6 +128,32 @@ func (h *UniqueEmployeeHandler) Delete(c echo.Context) error {
 	return RespondMessage(c, "Employee deleted successfully")
 }
 
+// GetHistory godoc
+// @Summary      История изменений мастер-сотрудника
+// @Description  Возвращает аудит изменений мастер-записи сотрудника (data_changed)
+// @Tags         unique-employees
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID сотрудника"
+// @Success      200 {array} services.UniqueEmployeeHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError "Нет прав"
+// @Failure      404 {object} models.HTTPError "Не найден"
+// @Router       /unique-employees/{id}/history [get]
+func (h *UniqueEmployeeHandler) GetHistory(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+
+	items, err := h.service.GetHistory(c.Request().Context(), username, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
 // GetOwnershipInfo godoc
 // @Summary      Информация о владельце для сотрудников
 // @Description  Возвращает данные о привязке пользователя к организации/компании

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -11,6 +12,29 @@ import (
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
+
+// diffUniqueCar сравнивает значимые поля UniqueCar до и после апдейта.
+// Возвращает только реально изменившиеся поля.
+func diffUniqueCar(before, after *models.UniqueCar) []fieldChange {
+	changes := make([]fieldChange, 0)
+	addStr := func(field string, oldP, newP *string) {
+		if !equalStrPtr(oldP, newP) {
+			changes = append(changes, fieldChange{Field: field, Old: copyStrPtr(oldP), New: copyStrPtr(newP)})
+		}
+	}
+	addInt := func(field string, oldP, newP *int) {
+		if !equalIntPtr(oldP, newP) {
+			changes = append(changes, fieldChange{Field: field, Old: intPtrToStrPtr(oldP), New: intPtrToStrPtr(newP)})
+		}
+	}
+	addStr("number", before.Number, after.Number)
+	addStr("mark", before.Mark, after.Mark)
+	addInt("organization_id", before.OrganizationID, after.OrganizationID)
+	addInt("company_id", before.CompanyID, after.CompanyID)
+	addInt("format_id", before.FormatID, after.FormatID)
+	addInt("user_id", before.UserID, after.UserID)
+	return changes
+}
 
 // CarOwnerInfo -- информация о владельце для фильтрации машин.
 type CarOwnerInfo struct {
@@ -76,6 +100,22 @@ type BatchCreateCarsResponse struct {
 	ErrorCount   int                 `json:"error_count"`
 }
 
+// UniqueCarHistoryItem -- запись истории мастер-машины с username вызывающего.
+type UniqueCarHistoryItem struct {
+	ID            int       `json:"id"`
+	UniqueCarID   int       `json:"unique_car_id"`
+	UserID        *int      `json:"user_id"`
+	Username      *string   `json:"username"`
+	UserLastName  *string   `json:"user_last_name"`
+	UserFirstName *string   `json:"user_first_name"`
+	ActionType    string    `json:"action_type"`
+	FieldName     *string   `json:"field_name"`
+	OldValue      *string   `json:"old_value"`
+	NewValue      *string   `json:"new_value"`
+	Comment       *string   `json:"comment"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 // UniqueCarService -- интерфейс бизнес-логики уникальных машин.
 type UniqueCarService interface {
 	GetOwnerInfo(ctx context.Context, username string) (*CarOwnerInfo, error)
@@ -85,6 +125,7 @@ type UniqueCarService interface {
 	Update(ctx context.Context, username string, id int, req NewUniqueCarRequest) (*UniqueCarResponse, error)
 	UpdateByNumber(ctx context.Context, username string, req UpdateCarByNumberRequest) (*UniqueCarResponse, error)
 	Delete(ctx context.Context, username string, id int) error
+	GetHistory(ctx context.Context, username string, id int) ([]UniqueCarHistoryItem, error)
 }
 
 type uniqueCarService struct {
@@ -383,10 +424,9 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 		return nil, err
 	}
 
-	// Проверяем существование и права
+	// Полная запись «до апдейта» — нужна для проверки прав и аудита изменений.
 	var existing models.UniqueCar
-	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id").
-		First(&existing, id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&existing, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, echo.NewHTTPError(http.StatusNotFound, "Car not found")
 		}
@@ -459,6 +499,10 @@ func (s *uniqueCarService) Update(ctx context.Context, username string, id int, 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated car")
 	}
 
+	if err := s.recordCarChanges(ctx, &existing, &updated, ownerInfo.UserID); err != nil {
+		slog.Error("не удалось записать аудит изменений автомобиля", "id", id, "error", err)
+	}
+
 	return carToResponse(&updated), nil
 }
 
@@ -506,6 +550,10 @@ func (s *uniqueCarService) UpdateByNumber(ctx context.Context, username string, 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated car")
 	}
 
+	if err := s.recordCarChanges(ctx, &existing, &updated, ownerInfo.UserID); err != nil {
+		slog.Error("не удалось записать аудит изменений автомобиля", "id", existing.ID, "error", err)
+	}
+
 	return carToResponse(&updated), nil
 }
 
@@ -540,6 +588,71 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 
 	slog.Info("уникальный автомобиль удалён", "id", id)
 	return nil
+}
+
+// recordCarChanges сравнивает старое и новое состояние UniqueCar
+// и пишет по одной записи data_changed на каждое изменённое поле.
+func (s *uniqueCarService) recordCarChanges(ctx context.Context, before, after *models.UniqueCar, userID int) error {
+	changes := diffUniqueCar(before, after)
+	if len(changes) == 0 {
+		return nil
+	}
+
+	uid := userID
+	records := make([]models.UniqueCarHistory, 0, len(changes))
+	for _, c := range changes {
+		field := c.Field
+		records = append(records, models.UniqueCarHistory{
+			UniqueCarID: after.ID,
+			UserID:      &uid,
+			ActionType:  "data_changed",
+			FieldName:   &field,
+			OldValue:    c.Old,
+			NewValue:    c.New,
+		})
+	}
+	if err := s.db.WithContext(ctx).Create(&records).Error; err != nil {
+		return fmt.Errorf("create unique_car history: %w", err)
+	}
+	return nil
+}
+
+// GetHistory возвращает историю изменений мастер-записи машины.
+// Доступ: у пользователя должны быть права редактирования (canEditCar) -
+// иначе он не имеет права видеть аудит.
+func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id int) ([]UniqueCarHistoryItem, error) {
+	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	var existing models.UniqueCar
+	if err := s.db.WithContext(ctx).Select("user_id, organization_id, company_id").
+		First(&existing, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Car not found")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching car")
+	}
+	if !s.canEditCar(&existing, ownerInfo) {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to view this car history")
+	}
+
+	items := make([]UniqueCarHistoryItem, 0)
+	err = s.db.WithContext(ctx).
+		Table("unique_cars_history h").
+		Select(`h.id, h.unique_car_id, h.user_id, u.username, u.last_name as user_last_name,
+			u.first_name as user_first_name, h.action_type, h.field_name, h.old_value,
+			h.new_value, h.comment, h.created_at`).
+		Joins("LEFT JOIN users u ON h.user_id = u.id").
+		Where("h.unique_car_id = ?", id).
+		Order("h.created_at DESC, h.id DESC").
+		Scan(&items).Error
+	if err != nil {
+		slog.Error("failed to load unique_car history", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
+	}
+	return items, nil
 }
 
 // canEditCar проверяет права пользователя на редактирование машины.
