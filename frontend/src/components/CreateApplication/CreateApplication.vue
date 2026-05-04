@@ -277,7 +277,7 @@
       :show="showSuccessModal"
       :application-number="createdApplicationNumber"
       :attachments-data="createdAttachmentsData"
-      @close="showSuccessModal = false; clearAllAttachments()"
+      @close="onSuccessClose"
     />
   </div>
 </template>
@@ -1583,6 +1583,11 @@ export default {
             this.showBindingModal = false;
             this.newVehiclesToBind = [];
             this.newEmployeesToBind = [];
+        },
+
+        onSuccessClose() {
+            this.showSuccessModal = false;
+            this.resetForm();
         },
 
         clearAllAttachments() {
