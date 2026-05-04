@@ -287,6 +287,16 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	var cars []carDeactivate
 	tx.Raw("SELECT id, car_number, car_brand FROM cars WHERE attachment_id IN ?", attachmentIDs).Scan(&cars)
 
+	// Получаем сотрудников для истории
+	type employeeDeactivate struct {
+		ID         int
+		LastName   *string
+		FirstName  *string
+		MiddleName *string
+	}
+	var employees []employeeDeactivate
+	tx.Raw("SELECT id, last_name, first_name, middle_name FROM employees WHERE attachment_id IN ?", attachmentIDs).Scan(&employees)
+
 	tx.Exec("UPDATE attachments SET status = 0 WHERE id IN ?", attachmentIDs)
 	tx.Exec("UPDATE cars SET status = 0 WHERE attachment_id IN ?", attachmentIDs)
 	tx.Exec("UPDATE employees SET status = 0 WHERE attachment_id IN ?", attachmentIDs)
@@ -296,6 +306,14 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 			INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
 			VALUES (?, NULL, 'deactivate', ?, NOW())
 		`, car.ID, fmt.Sprintf("Срок действия заявки на автомобиль %s %s истёк", car.CarNumber, car.CarBrand))
+	}
+
+	for _, emp := range employees {
+		fullName := formatFullName(emp.LastName, emp.FirstName, emp.MiddleName)
+		tx.Exec(`
+			INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
+			VALUES (?, NULL, 'deactivate', ?, NOW())
+		`, emp.ID, fmt.Sprintf("Срок действия заявки на сотрудника %s истёк", fullName))
 	}
 
 	// Завершаем заявки, у которых все вложения неактивны
