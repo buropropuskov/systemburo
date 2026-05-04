@@ -57,84 +57,82 @@
       <AccountSettings v-if="isBuroPropuskov" />
     </div>
 
-    <!-- Вторая строка: управление пользователями (если доступно) -->
-    <div
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="users"
-      class="dashboard-row"
+      title="Учётные записи пользователей"
+      anchor-id="users"
     >
-      <UserControl 
+      <UserControl
         :all-users="allUsers"
         class="dashboard-card dashboard-card-animated"
         @fetch-users="fetchAllUsers"
         @user-updated="handleUserUpdated"
       />
-    </div>
+    </CollapsibleSection>
 
-    <!-- Третья строка: управление организациями (если доступно) -->
-    <div
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="organizations"
-      class="dashboard-row"
+      title="Управление организациями"
+      anchor-id="organizations"
     >
       <OrganizationsManagement class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="companies"
-      class="dashboard-row"
+      title="Управление компаниями"
+      anchor-id="companies"
     >
       <CompaniesManagement class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="unload_place"
-      class="dashboard-row"
+      title="Управление местами разгрузки"
+      anchor-id="unload_place"
     >
       <UnloadPlacesContainer class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="number"
-      class="dashboard-row"
+      title="Форматы номеров"
+      anchor-id="number"
     >
       <NumberFormat class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="citizenships"
-      class="dashboard-row"
+      title="Гражданства"
+      anchor-id="citizenships"
     >
       <CitizenshipManagement class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="tables"
-      class="dashboard-row"
+      title="Таблицы системы"
+      anchor-id="tables"
     >
       <TableConstructor class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="user_types"
-      class="dashboard-row"
+      title="Типы пользователей"
+      anchor-id="user_types"
     >
       <UserTypes class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="attachments"
-      class="dashboard-row"
+      title="Вложения заявок (бланки)"
+      anchor-id="attachments"
     >
       <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
-    </div>
-    <div
+    </CollapsibleSection>
+    <CollapsibleSection
       v-if="isBuroPropuskov"
-      id="approvers"
-      class="dashboard-row"
+      title="Принимающие заявки"
+      anchor-id="approvers"
     >
       <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
-    </div>
+    </CollapsibleSection>
   </div>
 </template>
 
@@ -155,6 +153,7 @@ import AccountSettings from './AccountSettings.vue';
 import CitizenshipManagement from './CitizenshipManagement.vue';
 import AttachmentsManagement from './AttachmentsManagement.vue';
 import ApplicationApprovers from './ApplicationApprovers.vue';
+import CollapsibleSection from './ui/CollapsibleSection.vue';
 import { SkeletonTransition, SkeletonBlock } from '@/components/ui';
 
 export default {
@@ -173,6 +172,7 @@ export default {
     CitizenshipManagement,
     AttachmentsManagement,
     ApplicationApprovers,
+    CollapsibleSection,
     SkeletonTransition,
     SkeletonBlock,
   },
