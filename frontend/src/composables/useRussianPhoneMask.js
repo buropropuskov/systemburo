@@ -15,10 +15,11 @@
 export function formatRussianPhone(raw) {
   if (raw == null) return ''
   let digits = String(raw).replace(/\D/g, '')
+  if (!digits) return ''
   // Ведущая 8 или 7 - заменяем на 7 (префикс страны один и тот же).
-  if (digits.length && (digits[0] === '8' || digits[0] === '7')) {
+  if (digits[0] === '8' || digits[0] === '7') {
     digits = '7' + digits.slice(1)
-  } else if (digits.length) {
+  } else {
     // Если юзер начал с другой цифры (например, 9), считаем что забыл код страны.
     digits = '7' + digits
   }

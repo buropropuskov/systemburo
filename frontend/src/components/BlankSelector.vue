@@ -501,7 +501,7 @@ export default {
 }
 
 .attachment {
-    width: 139px;
+    max-width: 130px;
     min-height: 25px;
     border: 1px solid #e6e6e6;
     border-radius: 10px;

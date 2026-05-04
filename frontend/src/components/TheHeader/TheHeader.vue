@@ -26,7 +26,7 @@
         />
       </template>
       <template v-else>
-        <h3>Добрый день, {{ displayName }}!</h3>
+        <h3>{{ greeting }}</h3>
         <p class="header__subtitle">
           Мы рады, что вы здесь!
         </p>
@@ -62,9 +62,9 @@
         @click="showNotifications = !showNotifications"
       >
         <img
-          src="@/assets/icons/messages.png"
+          src="@/assets/icons/notifications.png"
           class="notifications__icon"
-          alt="Сообщения"
+          alt="Уведомления"
         >
         <span
           v-if="unreadCount > 0"
@@ -130,13 +130,25 @@ export default {
       showAnnouncement: false,
       activeAnnouncement: null,
       showNotifications: false,
-      unreadCount: 0
+      unreadCount: 0,
+      currentHour: new Date().getHours(),
     };
   },
   computed: {
     displayName() {
       return this.userFirstName || this.userLastName || '';
-    }
+    },
+    greetingPrefix() {
+      const h = this.currentHour;
+      if (h >= 6 && h < 12) return 'Доброе утро';
+      if (h >= 12 && h < 18) return 'Добрый день';
+      if (h >= 18 && h < 23) return 'Добрый вечер';
+      return 'Доброй ночи';
+    },
+    greeting() {
+      const name = this.displayName;
+      return name ? `${this.greetingPrefix}, ${name}!` : `${this.greetingPrefix}!`;
+    },
   },
   watch: {
     '$route'() {
@@ -221,6 +233,10 @@ export default {
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const seconds = String(now.getSeconds()).padStart(2, '0');
       this.currentDateTime = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+      const h = now.getHours();
+      if (h !== this.currentHour) {
+        this.currentHour = h;
+      }
     },
     startDateTimeTimer() {
       this.updateDateTime();
@@ -352,12 +368,11 @@ h3 {
 }
 
 .user__notifications {
-  width: fit-content;
+  width: 35px;
   height: 35px;
-  border-radius: 50px;
-  padding: 0 15px;
+  border-radius: 50%;
+  padding: 0;
   display: flex;
-  gap:20px;
   align-items: center;
   justify-content: center;
   border: 1px solid #e6e6e6;
@@ -517,8 +532,7 @@ h3 {
   }
 
   .user__notifications {
-    padding: 0 8px;
-    gap: 8px;
+    padding: 0;
   }
 
   .appl-btn {
