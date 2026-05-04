@@ -3,12 +3,35 @@
     class="realtime-chart"
     :style="{ height: height + 'px' }"
   >
-    <canvas ref="canvas" />
+    <canvas
+      ref="canvas"
+      @mousemove="onMouseMove"
+      @mouseleave="onMouseLeave"
+    />
     <div
       v-if="!data.length"
       class="chart-empty"
     >
       <span>Нет данных для отображения</span>
+    </div>
+    <div
+      v-if="hoverPoint"
+      class="chart-tooltip"
+      :style="{
+        left: hoverPoint.tooltipX + 'px',
+        top: hoverPoint.tooltipY + 'px',
+      }"
+    >
+      <div class="chart-tooltip__time">
+        {{ hoverPoint.timeLabel }}
+      </div>
+      <div class="chart-tooltip__count">
+        <span
+          class="chart-tooltip__dot"
+          :style="{ background: color }"
+        />
+        {{ hoverPoint.count }} {{ pluralize(hoverPoint.count) }}
+      </div>
     </div>
   </div>
 </template>
@@ -34,9 +57,18 @@ export default {
       default: 'мин'
     }
   },
+  data() {
+    return {
+      hoverIndex: null,
+      hoverPoint: null,
+      geometry: null,
+    }
+  },
   watch: {
     data: {
       handler() {
+        this.hoverIndex = null;
+        this.hoverPoint = null;
         this.draw();
       },
       deep: true
@@ -53,9 +85,20 @@ export default {
     }
   },
   methods: {
+    pluralize(n) {
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return 'запрос';
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'запроса';
+      return 'запросов';
+    },
+
     draw() {
       const canvas = this.$refs.canvas;
-      if (!canvas || !this.data.length) return;
+      if (!canvas || !this.data.length) {
+        this.geometry = null;
+        return;
+      }
 
       const parent = canvas.parentElement;
       const dpr = window.devicePixelRatio || 1;
@@ -95,9 +138,21 @@ export default {
         ctx.fillText(val, padding.left - 8, y + 4);
       }
 
-      if (this.data.length < 2) return;
+      if (this.data.length < 2) {
+        this.geometry = null;
+        return;
+      }
 
       const step = chartW / (this.data.length - 1);
+
+      const points = this.data.map((d, i) => ({
+        x: padding.left + i * step,
+        y: padding.top + chartH - ((d.count || 0) / maxVal) * chartH,
+        count: d.count || 0,
+        timestamp: d.timestamp,
+      }));
+
+      this.geometry = { padding, chartW, chartH, w, h, step, points };
 
       const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
       gradient.addColorStop(0, this.color + '30');
@@ -105,36 +160,30 @@ export default {
 
       ctx.beginPath();
       ctx.moveTo(padding.left, h - padding.bottom);
-
-      for (let i = 0; i < this.data.length; i++) {
-        const x = padding.left + i * step;
-        const y = padding.top + chartH - (counts[i] / maxVal) * chartH;
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
         if (i === 0) {
-          ctx.lineTo(x, y);
+          ctx.lineTo(p.x, p.y);
         } else {
-          const prevX = padding.left + (i - 1) * step;
-          const prevY = padding.top + chartH - (counts[i - 1] / maxVal) * chartH;
-          const cpx = (prevX + x) / 2;
-          ctx.bezierCurveTo(cpx, prevY, cpx, y, x, y);
+          const prev = points[i - 1];
+          const cpx = (prev.x + p.x) / 2;
+          ctx.bezierCurveTo(cpx, prev.y, cpx, p.y, p.x, p.y);
         }
       }
-
-      ctx.lineTo(padding.left + (this.data.length - 1) * step, h - padding.bottom);
+      ctx.lineTo(points[points.length - 1].x, h - padding.bottom);
       ctx.closePath();
       ctx.fillStyle = gradient;
       ctx.fill();
 
       ctx.beginPath();
-      for (let i = 0; i < this.data.length; i++) {
-        const x = padding.left + i * step;
-        const y = padding.top + chartH - (counts[i] / maxVal) * chartH;
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
         if (i === 0) {
-          ctx.moveTo(x, y);
+          ctx.moveTo(p.x, p.y);
         } else {
-          const prevX = padding.left + (i - 1) * step;
-          const prevY = padding.top + chartH - (counts[i - 1] / maxVal) * chartH;
-          const cpx = (prevX + x) / 2;
-          ctx.bezierCurveTo(cpx, prevY, cpx, y, x, y);
+          const prev = points[i - 1];
+          const cpx = (prev.x + p.x) / 2;
+          ctx.bezierCurveTo(cpx, prev.y, cpx, p.y, p.x, p.y);
         }
       }
       ctx.strokeStyle = this.color;
@@ -147,10 +196,28 @@ export default {
 
       const labelStep = Math.max(1, Math.floor(this.data.length / 6));
       for (let i = 0; i < this.data.length; i += labelStep) {
-        const x = padding.left + i * step;
-        const ts = this.data[i].timestamp;
-        const label = this.formatLabel(ts);
-        ctx.fillText(label, x, h - padding.bottom + 16);
+        const p = points[i];
+        ctx.fillText(this.formatLabel(p.timestamp), p.x, h - padding.bottom + 16);
+      }
+
+      if (this.hoverIndex !== null && points[this.hoverIndex]) {
+        const p = points[this.hoverIndex];
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(79, 91, 223, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(p.x, padding.top);
+        ctx.lineTo(p.x, h - padding.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
     },
 
@@ -160,7 +227,50 @@ export default {
         hour: '2-digit',
         minute: '2-digit'
       });
-    }
+    },
+
+    formatTooltipTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).replace(',', '');
+    },
+
+    onMouseMove(e) {
+      if (!this.geometry || !this.geometry.points.length) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const { points } = this.geometry;
+
+      let nearest = 0;
+      let minDist = Infinity;
+      for (let i = 0; i < points.length; i++) {
+        const d = Math.abs(points[i].x - mouseX);
+        if (d < minDist) { minDist = d; nearest = i; }
+      }
+
+      if (this.hoverIndex !== nearest) {
+        this.hoverIndex = nearest;
+        const p = points[nearest];
+        this.hoverPoint = {
+          tooltipX: p.x,
+          tooltipY: p.y - 12,
+          count: p.count,
+          timeLabel: this.formatTooltipTime(p.timestamp),
+        };
+        this.draw();
+      }
+    },
+
+    onMouseLeave() {
+      if (this.hoverIndex === null) return;
+      this.hoverIndex = null;
+      this.hoverPoint = null;
+      this.draw();
+    },
   }
 };
 </script>
@@ -175,6 +285,7 @@ export default {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: crosshair;
 }
 
 .chart-empty {
@@ -185,5 +296,41 @@ export default {
   justify-content: center;
   color: #a2a2a2;
   font-size: 13px;
+}
+
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: #1a1a1a;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+}
+
+.chart-tooltip__time {
+  font-weight: 500;
+  color: #d0d0d0;
+  margin-bottom: 2px;
+  font-size: 11px;
+}
+
+.chart-tooltip__count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.chart-tooltip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
 }
 </style>
