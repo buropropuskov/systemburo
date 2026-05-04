@@ -553,10 +553,17 @@
     </Teleport>
 
     <!-- Модальное окно просмотра объявления - используем AnnouncementModal -->
-    <AnnouncementModal 
+    <AnnouncementModal
       :show="showViewAnnouncementModal"
       :announcement="viewingAnnouncement"
       @close="closeViewAnnouncementModal"
+    />
+
+    <UserGuideModal
+      v-if="showGuide"
+      :title="guideTitle"
+      :sections="guideSections"
+      @close="closeGuide"
     />
   </section>
 </template>
@@ -566,13 +573,18 @@ import { apiRequest } from '@/api/client'
 import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import UserGuideModal from '../components/news/UserGuideModal.vue'
+import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
+import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
   name: 'LatestNews',
   components: {
     RefreshButton,
     AnnouncementModal,
-    LoaderSpinner
+    LoaderSpinner,
+    UserGuideModal
   },
   data() {
     return {
@@ -582,6 +594,7 @@ export default {
       showNewsModal: false,
       showAnnouncementModal: false,
       showViewAnnouncementModal: false,
+      showGuide: false,
       activeTab: 'news',
       selectedNews: null,
       viewingAnnouncement: null,
@@ -593,6 +606,17 @@ export default {
       allNewsItems: [],
       activeAnnouncement: null,
       allAnnouncements: []
+    }
+  },
+  computed: {
+    isAdminUser() {
+      return useAuthStore().isAdmin;
+    },
+    guideSections() {
+      return this.isAdminUser ? ADMIN_GUIDE_SECTIONS : USER_GUIDE_SECTIONS;
+    },
+    guideTitle() {
+      return this.isAdminUser ? 'Руководство администратора' : 'Руководство пользователя';
     }
   },
   mounted() {
@@ -793,7 +817,8 @@ export default {
     editAnnouncement(item) { this.editingAnnouncement = item; this.announcementForm = { title: item.title, description: item.description, fullText: item.full_text || '', isImportant: item.is_important }; this.showAnnouncementModal = true },
     closeAnnouncementModal() { this.showAnnouncementModal = false; this.editingAnnouncement = null },
     submitAnnouncement() { if (!this.announcementForm.title || !this.announcementForm.description) { alert('Заполните заголовок и описание'); return } this.editingAnnouncement ? this.updateAnnouncement() : this.createAnnouncement() },
-    openGuide() { console.log('Открыть инструкцию') }
+    openGuide() { this.showGuide = true; },
+    closeGuide() { this.showGuide = false; }
   }
 }
 </script>
