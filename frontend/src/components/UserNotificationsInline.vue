@@ -340,6 +340,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  max-height: 200px;
 }
 
 .notifications__list.empty-list {
@@ -359,6 +360,7 @@ export default {
 .notifications__items {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 .notification-item {
@@ -384,6 +386,10 @@ export default {
   justify-content: center;
   padding-top: 6px;
   flex-shrink: 0;
+}
+
+.notification-item:not(.unread) .notification-dot-wrapper {
+  display: none;
 }
 
 .notification-dot {

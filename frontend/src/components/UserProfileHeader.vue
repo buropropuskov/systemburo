@@ -480,6 +480,8 @@ export default {
   background: linear-gradient(135deg, #f0f4ff 0%, #d9e2ff 100%);
   color: #3a4a6e;
   border: 1px solid #d0d9f0;
+  cursor: default;
+  gap: 6px;
 }
 
 .email-badge {
