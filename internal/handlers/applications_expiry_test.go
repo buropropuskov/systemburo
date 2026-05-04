@@ -137,7 +137,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 							"attachment_display_name": "Cars A",
 							"unique_attachment_id": %d,
 							"entry_date_from": "2026-04-01",
-							"entry_date_to": "2026-12-31",
+							"entry_date_to": "2099-12-31",
 							"entry_time_from": "08:00",
 							"entry_time_to": "18:00",
 							"data": {"vehicles": [{"car_number": "B001BB777", "car_brand": "Honda"}]}
@@ -148,7 +148,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 							"attachment_display_name": "Cars B",
 							"unique_attachment_id": %d,
 							"entry_date_from": "2026-04-01",
-							"entry_date_to": "2026-12-31",
+							"entry_date_to": "2099-12-31",
 							"entry_time_from": "08:00",
 							"entry_time_to": "18:00",
 							"data": {"vehicles": [{"car_number": "C001CC777", "car_brand": "Mazda"}]}
@@ -223,7 +223,7 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				require.NotEmpty(t, attachments)
 				attID := int(attachments[0]["id"].(float64))
 
-				// entry_date_to is 2026-04-30, which is in the future — nothing should change.
+				// entry_date_to is 2099-12-31, which is in the future — nothing should change.
 				err := appSvc.CheckExpiredAttachments(context.Background())
 				require.NoError(t, err)
 

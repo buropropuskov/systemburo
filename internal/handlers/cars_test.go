@@ -36,7 +36,7 @@ func seedCarViaCompleteApp(t *testing.T, e *echo.Echo, db *gorm.DB, token string
 			"attachment_display_name": "Car Template",
 			"unique_attachment_id": %d,
 			"entry_date_from": "2026-04-01",
-			"entry_date_to": "2026-04-30",
+			"entry_date_to": "2099-12-31",
 			"entry_time_from": "08:00",
 			"entry_time_to": "18:00",
 			"data": {
@@ -563,7 +563,7 @@ func TestCarWithUnloadPlaces(t *testing.T) {
 			"attachment_display_name": "Car Template",
 			"unique_attachment_id": %d,
 			"entry_date_from": "2026-04-01",
-			"entry_date_to": "2026-04-30",
+			"entry_date_to": "2099-12-31",
 			"entry_time_from": "08:00",
 			"entry_time_to": "18:00",
 			"data": {
