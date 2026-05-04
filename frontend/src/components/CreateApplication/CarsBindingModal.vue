@@ -1,126 +1,128 @@
 <template>
-  <div
-    class="modal-overlay"
-    @click="$emit('close')"
-  >
+  <Teleport to="body">
     <div
-      class="modal-content"
-      @click.stop
+      class="modal-overlay"
+      @click="$emit('close')"
     >
-      <div class="modal-header">
-        <div class="modal-header__top">
-          <h3>Привязка новых автомобилей</h3>
+      <div
+        class="modal-content"
+        @click.stop
+      >
+        <div class="modal-header">
+          <div class="modal-header__top">
+            <h3>Привязка новых автомобилей</h3>
+          </div>
+          <button
+            class="modal-close"
+            @click="$emit('close')"
+          >
+            ×
+          </button>
         </div>
-        <button
-          class="modal-close"
-          @click="$emit('close')"
-        >
-          ×
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="binding-info">
-          <p class="binding-description">
-            Все добавленные автомобили ниже <strong>автоматически привязываются</strong> к вашему аккаунту.
-            Вы можете выбрать и привязать автомобили к организации и/или компании для использования <strong>другими сотрудниками</strong>:
-          </p>
-                    
-          <div class="cars-list-section">
-            <p class="section-title">
-              Список новых автомобилей:
+        <div class="modal-body">
+          <div class="binding-info">
+            <p class="binding-description">
+              Все добавленные автомобили ниже <strong>автоматически привязываются</strong> к вашему аккаунту.
+              Вы можете выбрать и привязать автомобили к организации и/или компании для использования <strong>другими сотрудниками</strong>:
             </p>
-            <div class="cars-list">
-              <div 
-                v-for="car in newCarsToBind" 
-                :key="car.plateNumber"
-                class="car-item"
-                :class="{ 'car-item--shared': car.bindToEntity }"
-                @click="$emit('toggle-car-binding', car)"
-              >
-                <div class="car-selector">
-                  <div class="selector-checkbox">
-                    <div
-                      class="checkbox"
-                      :class="{ 'checkbox--checked': car.bindToEntity }"
-                    />
+                    
+            <div class="cars-list-section">
+              <p class="section-title">
+                Список новых автомобилей:
+              </p>
+              <div class="cars-list">
+                <div 
+                  v-for="car in newCarsToBind" 
+                  :key="car.plateNumber"
+                  class="car-item"
+                  :class="{ 'car-item--shared': car.bindToEntity }"
+                  @click="$emit('toggle-car-binding', car)"
+                >
+                  <div class="car-selector">
+                    <div class="selector-checkbox">
+                      <div
+                        class="checkbox"
+                        :class="{ 'checkbox--checked': car.bindToEntity }"
+                      />
+                    </div>
+                    <div class="car-info">
+                      <span class="car-number">{{ car.plateNumber }}</span>
+                      <span class="car-mark">{{ car.mark }}</span>
+                    </div>
                   </div>
-                  <div class="car-info">
-                    <span class="car-number">{{ car.plateNumber }}</span>
-                    <span class="car-mark">{{ car.mark }}</span>
+                  <div class="car-binding-status">
+                    <span
+                      v-if="car.bindToEntity"
+                      class="status-shared"
+                    >
+                      Будет доступна
+                    </span>
+                    <span
+                      v-else
+                      class="status-private"
+                    >
+                      Привязка только к вам
+                    </span>
                   </div>
-                </div>
-                <div class="car-binding-status">
-                  <span
-                    v-if="car.bindToEntity"
-                    class="status-shared"
-                  >
-                    Будет доступна
-                  </span>
-                  <span
-                    v-else
-                    class="status-private"
-                  >
-                    Привязка только к вам
-                  </span>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="binding-options-section">
-            <p class="section-title">
-              Привязать выбранные автомобили к:
-            </p>
-            <div class="binding-options">
-              <label
-                v-if="hasOrganization"
-                class="binding-option"
-              >
-                <input 
-                  v-model="bindToOrganization" 
-                  type="checkbox"
-                  :disabled="bindToCompany"
+            <div class="binding-options-section">
+              <p class="section-title">
+                Привязать выбранные автомобили к:
+              </p>
+              <div class="binding-options">
+                <label
+                  v-if="hasOrganization"
+                  class="binding-option"
                 >
-                <span class="option-text">К организации "{{ organization }}"</span>
-              </label>
-              <label
-                v-if="hasCompany"
-                class="binding-option"
-              >
-                <input 
-                  v-model="bindToCompany" 
-                  type="checkbox"
-                  :disabled="bindToOrganization"
+                  <input 
+                    v-model="bindToOrganization" 
+                    type="checkbox"
+                    :disabled="bindToCompany"
+                  >
+                  <span class="option-text">К организации "{{ organization }}"</span>
+                </label>
+                <label
+                  v-if="hasCompany"
+                  class="binding-option"
                 >
-                <span class="option-text">К компании "{{ company }}"</span>
-              </label>
+                  <input 
+                    v-model="bindToCompany" 
+                    type="checkbox"
+                    :disabled="bindToOrganization"
+                  >
+                  <span class="option-text">К компании "{{ company }}"</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="warning-section">
+              <p class="warning-text">
+                <strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
+              </p>
             </div>
           </div>
-
-          <div class="warning-section">
-            <p class="warning-text">
-              <strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании.
-            </p>
-          </div>
-        </div>
                 
-        <div class="modal-actions">
-          <button
-            class="cancel-btn"
-            @click="$emit('skip-binding')"
-          >
-            Пропустить
-          </button>
-          <button
-            class="confirm-btn"
-            @click="$emit('confirm-binding')"
-          >
-            Привязать и отправить
-          </button>
+          <div class="modal-actions">
+            <button
+              class="cancel-btn"
+              @click="$emit('skip-binding')"
+            >
+              Пропустить
+            </button>
+            <button
+              class="confirm-btn"
+              @click="$emit('confirm-binding')"
+            >
+              Привязать и отправить
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -169,6 +171,8 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    backdrop-filter: blur(0.1px);
+    -webkit-backdrop-filter: blur(0.1px);
 }
 
 .modal-content {

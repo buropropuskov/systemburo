@@ -93,6 +93,8 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 10000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .modal-fade-enter-active,

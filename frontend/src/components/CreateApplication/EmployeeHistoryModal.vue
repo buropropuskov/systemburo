@@ -1,250 +1,252 @@
 <template>
-  <div
-    class="modal-overlay"
-    @click.self="close"
-  >
-    <div class="employee-history-modal">
-      <div class="modal-header">
-        <h3>История сотрудника {{ fullName }}</h3>
-        <div class="header-actions">
-          <button
-            class="export-btn"
-            :disabled="filteredHistory.length === 0 || isExporting"
-            @click="exportToExcel"
-          >
-            <img
-              v-if="!isExporting"
-              src="@/assets/icons/export.png"
-              class="export-icon"
-            >
-            <span v-if="!isExporting">Экспорт</span>
-            <div
-              v-else
-              class="export-loader"
-            />
-          </button>
-          <button
-            class="close-btn"
-            @click="close"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      <div class="history-filters">
-        <div class="filter-row">
-          <div class="search-filter">
-            <span class="filter-label">Поиск:</span>
-            <input 
-              v-model="searchQuery" 
-              type="text" 
-              class="search-input" 
-              placeholder="Поиск по пользователю, действию..."
-              @input="applyFilters"
-            >
-          </div>
-          <div class="user-filter">
-            <span class="filter-label">Пользователь:</span>
-            <div
-              class="custom-select"
-              @click="toggleUserDropdown"
-            >
-              <div class="select-trigger">
-                <span class="selected-value">{{ selectedUserName }}</span>
-                <img 
-                  src="@/assets/icons/arrow.png" 
-                  class="select-arrow" 
-                  :class="{ 'arrow-open': userDropdownOpen }"
-                >
-              </div>
-              <transition name="fade">
-                <div
-                  v-if="userDropdownOpen"
-                  class="select-dropdown"
-                >
-                  <div 
-                    class="select-option"
-                    :class="{ 'selected': selectedUserId === null }"
-                    @click="selectUser(null)"
-                  >
-                    Все пользователи
-                  </div>
-                  <div 
-                    v-for="user in uniqueUsers" 
-                    :key="user.id"
-                    class="select-option"
-                    :class="{ 'selected': selectedUserId === user.id }"
-                    @click="selectUser(user.id)"
-                  >
-                    {{ user.name }}
-                  </div>
-                </div>
-              </transition>
-            </div>
-          </div>
-          
-          <div class="place-filter">
-            <span class="filter-label">Место прохода:</span>
-            <div
-              class="custom-select"
-              @click="togglePlaceDropdown"
-            >
-              <div class="select-trigger">
-                <span class="selected-value">{{ selectedPlaceName }}</span>
-                <img 
-                  src="@/assets/icons/arrow.png" 
-                  class="select-arrow" 
-                  :class="{ 'arrow-open': placeDropdownOpen }"
-                >
-              </div>
-              <transition name="fade">
-                <div
-                  v-if="placeDropdownOpen"
-                  class="select-dropdown"
-                >
-                  <div 
-                    class="select-option"
-                    :class="{ 'selected': selectedPlaceId === null }"
-                    @click="selectPlace(null)"
-                  >
-                    Все места
-                  </div>
-                  <div 
-                    v-for="place in uniquePlaces" 
-                    :key="place.id"
-                    class="select-option"
-                    :class="{ 'selected': selectedPlaceId === place.id }"
-                    @click="selectPlace(place.id)"
-                  >
-                    {{ place.name }}
-                  </div>
-                </div>
-              </transition>
-            </div>
-          </div>
-          
-          <div class="date-filter">
-            <span class="filter-label">Период:</span>
-            <input 
-              v-model="dateFrom" 
-              type="date" 
-              class="date-input"
-              @change="applyFilters"
-            >
-            <span class="date-separator">—</span>
-            <input 
-              v-model="dateTo" 
-              type="date" 
-              class="date-input"
-              @change="applyFilters"
-            >
-          </div>
-          
-          <div class="sort-filter">
-            <span class="filter-label">Сортировка:</span>
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      @click.self="close"
+    >
+      <div class="employee-history-modal">
+        <div class="modal-header">
+          <h3>История сотрудника {{ fullName }}</h3>
+          <div class="header-actions">
             <button
-              class="sort-btn"
-              @click="toggleSortOrder"
+              class="export-btn"
+              :disabled="filteredHistory.length === 0 || isExporting"
+              @click="exportToExcel"
             >
               <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sort-asc': sortOrder === 'asc' }"
+                v-if="!isExporting"
+                src="@/assets/icons/export.png"
+                class="export-icon"
               >
-              <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+              <span v-if="!isExporting">Экспорт</span>
+              <div
+                v-else
+                class="export-loader"
+              />
+            </button>
+            <button
+              class="close-btn"
+              @click="close"
+            >
+              ×
             </button>
           </div>
         </div>
-      </div>
 
-      <div
-        ref="scrollContainer"
-        class="modal-content"
-      >
-        <div
-          v-if="loading"
-          class="history-loading"
-        >
-          <div class="loader" />
+        <div class="history-filters">
+          <div class="filter-row">
+            <div class="search-filter">
+              <span class="filter-label">Поиск:</span>
+              <input 
+                v-model="searchQuery" 
+                type="text" 
+                class="search-input" 
+                placeholder="Поиск по пользователю, действию..."
+                @input="applyFilters"
+              >
+            </div>
+            <div class="user-filter">
+              <span class="filter-label">Пользователь:</span>
+              <div
+                class="custom-select"
+                @click="toggleUserDropdown"
+              >
+                <div class="select-trigger">
+                  <span class="selected-value">{{ selectedUserName }}</span>
+                  <img 
+                    src="@/assets/icons/arrow.png" 
+                    class="select-arrow" 
+                    :class="{ 'arrow-open': userDropdownOpen }"
+                  >
+                </div>
+                <transition name="fade">
+                  <div
+                    v-if="userDropdownOpen"
+                    class="select-dropdown"
+                  >
+                    <div 
+                      class="select-option"
+                      :class="{ 'selected': selectedUserId === null }"
+                      @click="selectUser(null)"
+                    >
+                      Все пользователи
+                    </div>
+                    <div 
+                      v-for="user in uniqueUsers" 
+                      :key="user.id"
+                      class="select-option"
+                      :class="{ 'selected': selectedUserId === user.id }"
+                      @click="selectUser(user.id)"
+                    >
+                      {{ user.name }}
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+          
+            <div class="place-filter">
+              <span class="filter-label">Место прохода:</span>
+              <div
+                class="custom-select"
+                @click="togglePlaceDropdown"
+              >
+                <div class="select-trigger">
+                  <span class="selected-value">{{ selectedPlaceName }}</span>
+                  <img 
+                    src="@/assets/icons/arrow.png" 
+                    class="select-arrow" 
+                    :class="{ 'arrow-open': placeDropdownOpen }"
+                  >
+                </div>
+                <transition name="fade">
+                  <div
+                    v-if="placeDropdownOpen"
+                    class="select-dropdown"
+                  >
+                    <div 
+                      class="select-option"
+                      :class="{ 'selected': selectedPlaceId === null }"
+                      @click="selectPlace(null)"
+                    >
+                      Все места
+                    </div>
+                    <div 
+                      v-for="place in uniquePlaces" 
+                      :key="place.id"
+                      class="select-option"
+                      :class="{ 'selected': selectedPlaceId === place.id }"
+                      @click="selectPlace(place.id)"
+                    >
+                      {{ place.name }}
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+          
+            <div class="date-filter">
+              <span class="filter-label">Период:</span>
+              <input 
+                v-model="dateFrom" 
+                type="date" 
+                class="date-input"
+                @change="applyFilters"
+              >
+              <span class="date-separator">—</span>
+              <input 
+                v-model="dateTo" 
+                type="date" 
+                class="date-input"
+                @change="applyFilters"
+              >
+            </div>
+          
+            <div class="sort-filter">
+              <span class="filter-label">Сортировка:</span>
+              <button
+                class="sort-btn"
+                @click="toggleSortOrder"
+              >
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{ 'sort-asc': sortOrder === 'asc' }"
+                >
+                <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+              </button>
+            </div>
+          </div>
         </div>
-        
+
         <div
-          v-else-if="filteredHistory.length === 0"
-          class="history-empty"
+          ref="scrollContainer"
+          class="modal-content"
         >
-          История пуста
-        </div>
-        
-        <div
-          v-else
-          class="history-timeline"
-        >
-          <div 
-            v-for="(item, index) in filteredHistory" 
-            :key="item.id" 
-            class="history-item"
+          <div
+            v-if="loading"
+            class="history-loading"
           >
-            <div
-              class="timeline-dot"
-              :class="getActionClass(item.action_type)"
-            />
-            <div
-              v-if="index < filteredHistory.length - 1"
-              class="timeline-line"
-            />
+            <div class="loader" />
+          </div>
+        
+          <div
+            v-else-if="filteredHistory.length === 0"
+            class="history-empty"
+          >
+            История пуста
+          </div>
+        
+          <div
+            v-else
+            class="history-timeline"
+          >
+            <div 
+              v-for="(item, index) in filteredHistory" 
+              :key="item.id" 
+              class="history-item"
+            >
+              <div
+                class="timeline-dot"
+                :class="getActionClass(item.action_type)"
+              />
+              <div
+                v-if="index < filteredHistory.length - 1"
+                class="timeline-line"
+              />
             
-            <div class="history-content">
-              <div class="history-header">
-                <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-              </div>
+              <div class="history-content">
+                <div class="history-header">
+                  <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                  <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                </div>
               
-              <div class="action-text">
-                {{ getActionText(item) }}
-              </div>
+                <div class="action-text">
+                  {{ getActionText(item) }}
+                </div>
               
-              <div
-                v-if="item.action_type === 'entry' || item.action_type === 'exit'"
-                class="action-comment"
-              >
-                {{ getActionComment(item) }}
-              </div>
+                <div
+                  v-if="item.action_type === 'entry' || item.action_type === 'exit'"
+                  class="action-comment"
+                >
+                  {{ getActionComment(item) }}
+                </div>
               
-              <div
-                v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'"
-                class="action-comment"
-              >
-                {{ item.comment }}
-              </div>
+                <div
+                  v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'"
+                  class="action-comment"
+                >
+                  {{ item.comment }}
+                </div>
               
-              <div
-                v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
-                class="value-change"
-              >
-                <span class="old-value">{{ item.old_value }}</span>
-                <span class="arrow">→</span>
-                <span class="new-value">{{ item.new_value }}</span>
-              </div>
+                <div
+                  v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
+                  class="value-change"
+                >
+                  <span class="old-value">{{ item.old_value }}</span>
+                  <span class="arrow">→</span>
+                  <span class="new-value">{{ item.new_value }}</span>
+                </div>
               
-              <div
-                v-if="item.field_name"
-                class="field-name"
-              >
-                Поле: {{ item.field_name }}
-              </div>
-              <div
-                v-if="item.table_name"
-                class="place-name"
-              >
-                {{ item.table_name }}
+                <div
+                  v-if="item.field_name"
+                  class="field-name"
+                >
+                  Поле: {{ item.field_name }}
+                </div>
+                <div
+                  v-if="item.table_name"
+                  class="place-name"
+                >
+                  {{ item.table_name }}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -737,6 +739,8 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 12000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: fadeIn 0.2s ease-out;
 }
 

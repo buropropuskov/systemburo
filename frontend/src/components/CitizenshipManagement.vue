@@ -233,72 +233,74 @@
     </div>
 
     <!-- Модальное окно добавления гражданства -->
-    <div
-      v-if="showAddModal"
-      class="modal-overlay"
-      @click.self="showAddModal = false"
-    >
-      <div class="modal-content small-modal">
-        <div class="modal-header">
-          <h3>Добавить гражданство</h3>
-          <button
-            class="modal-close"
-            @click="showAddModal = false"
-          >
-            ×
-          </button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Название гражданства</label>
-            <input
-              v-model="newCitizenship.name"
-              placeholder="Российская Федерация"
-              class="form-input"
-              @keyup.enter="addCitizenship"
+    <Teleport to="body">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="showAddModal = false"
+      >
+        <div class="modal-content small-modal">
+          <div class="modal-header">
+            <h3>Добавить гражданство</h3>
+            <button
+              class="modal-close"
+              @click="showAddModal = false"
             >
+              ×
+            </button>
           </div>
-          
-          <div class="checkbox-group">
-            <label class="checkbox-label">
-              <input 
-                v-model="newCitizenship.is_default" 
-                type="checkbox"
-                class="checkbox"
-              >
-              <span class="checkbox-text">Гражданство по умолчанию</span>
-            </label>
-          </div>
-
-          <div class="checkbox-group">
-            <label class="checkbox-label">
-              <input 
-                v-model="newCitizenship.patent_required" 
-                type="checkbox"
-                class="checkbox"
-              >
-              <span class="checkbox-text">Требуется патент</span>
-            </label>
-          </div>
-        </div>
         
-        <div class="modal-footer">
-          <button
-            class="modal-cancel"
-            @click="showAddModal = false"
-          >
-            Отмена
-          </button>
-          <button
-            class="modal-confirm"
-            @click="addCitizenship"
-          >
-            Добавить
-          </button>
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Название гражданства</label>
+              <input
+                v-model="newCitizenship.name"
+                placeholder="Российская Федерация"
+                class="form-input"
+                @keyup.enter="addCitizenship"
+              >
+            </div>
+          
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input 
+                  v-model="newCitizenship.is_default" 
+                  type="checkbox"
+                  class="checkbox"
+                >
+                <span class="checkbox-text">Гражданство по умолчанию</span>
+              </label>
+            </div>
+
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input 
+                  v-model="newCitizenship.patent_required" 
+                  type="checkbox"
+                  class="checkbox"
+                >
+                <span class="checkbox-text">Требуется патент</span>
+              </label>
+            </div>
+          </div>
+        
+          <div class="modal-footer">
+            <button
+              class="modal-cancel"
+              @click="showAddModal = false"
+            >
+              Отмена
+            </button>
+            <button
+              class="modal-confirm"
+              @click="addCitizenship"
+            >
+              Добавить
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -951,12 +953,14 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .small-modal {

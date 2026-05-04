@@ -216,379 +216,383 @@
     </div>
 
     <!-- Модальное окно добавления формата -->
-    <div
-      v-if="showAddModal"
-      class="modal-overlay"
-      @click.self="showAddModal = false"
-    >
-      <div class="modal-content horizontal-modal">
-        <div class="modal-header">
-          <h3>Добавить формат номеров</h3>
-          <button
-            class="modal-close"
-            @click="showAddModal = false"
-          >
-            ×
-          </button>
-        </div>
-        
-        <div class="modal-body-horizontal">
-          <!-- Левая часть - основная информация -->
-          <div class="modal-main-info">
-            <div class="main-fields">
-              <div class="form-group-compact">
-                <label class="form-label-compact">Название формата</label>
-                <input
-                  v-model="newFormat.name"
-                  placeholder="Российские номера"
-                  class="input-compact"
-                >
-              </div>
-              
-              <div class="form-group-compact">
-                <label class="form-label-compact">Код страны</label>
-                <input
-                  v-model="newFormat.country_code"
-                  placeholder="RU"
-                  class="input-compact"
-                >
-              </div>
-
-              <div class="default-checkbox-modal">
-                <label class="default-checkbox-label-modal">
-                  <input 
-                    v-model="newFormat.is_default" 
-                    type="checkbox"
-                    class="default-checkbox"
-                  >
-                  <span class="default-checkbox-text-modal">Формат по умолчанию</span>
-                </label>
-                <span class="default-checkbox-hint-modal">
-                  Этот формат будет выбран по умолчанию при создании нового Т/С
-                </span>
-              </div>
-            </div>
+    <Teleport to="body">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="showAddModal = false"
+      >
+        <div class="modal-content horizontal-modal">
+          <div class="modal-header">
+            <h3>Добавить формат номеров</h3>
+            <button
+              class="modal-close"
+              @click="showAddModal = false"
+            >
+              ×
+            </button>
           </div>
+        
+          <div class="modal-body-horizontal">
+            <!-- Левая часть - основная информация -->
+            <div class="modal-main-info">
+              <div class="main-fields">
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Название формата</label>
+                  <input
+                    v-model="newFormat.name"
+                    placeholder="Российские номера"
+                    class="input-compact"
+                  >
+                </div>
+              
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Код страны</label>
+                  <input
+                    v-model="newFormat.country_code"
+                    placeholder="RU"
+                    class="input-compact"
+                  >
+                </div>
 
-          <!-- Правая часть - клетки -->
-          <div class="modal-cells-section">
-            <div class="cells-header-compact">
-              <h4 class="cells-title-compact">
-                Клетки формата
-              </h4>
-              <button
-                class="add-cell-btn-header"
-                @click="addCell"
-              >
-                + Добавить клетку
-              </button>
-            </div>
-            
-            <div class="cells-scroll-container">
-              <div class="cells-grid-compact">
-                <div 
-                  v-for="(cell, index) in newFormat.cells" 
-                  :key="index"
-                  class="cell-card-compact"
-                >
-                  <div class="cell-header-mini">
-                    <span class="cell-number-mini">Клетка №{{ index + 1 }}</span>
-                    <button 
-                      v-if="newFormat.cells.length > 1"
-                      class="remove-cell-btn-mini"
-                      title="Удалить клетку"
-                      @click="removeCell(index)"
+                <div class="default-checkbox-modal">
+                  <label class="default-checkbox-label-modal">
+                    <input 
+                      v-model="newFormat.is_default" 
+                      type="checkbox"
+                      class="default-checkbox"
                     >
-                      ×
-                    </button>
-                  </div>
-                  
-                  <div class="cell-config-mini">
-                    <div class="config-group-mini">
-                      <label>Тип</label>
-                      <select
-                        v-model="cell.cell_type"
-                        class="select-mini"
+                    <span class="default-checkbox-text-modal">Формат по умолчанию</span>
+                  </label>
+                  <span class="default-checkbox-hint-modal">
+                    Этот формат будет выбран по умолчанию при создании нового Т/С
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Правая часть - клетки -->
+            <div class="modal-cells-section">
+              <div class="cells-header-compact">
+                <h4 class="cells-title-compact">
+                  Клетки формата
+                </h4>
+                <button
+                  class="add-cell-btn-header"
+                  @click="addCell"
+                >
+                  + Добавить клетку
+                </button>
+              </div>
+            
+              <div class="cells-scroll-container">
+                <div class="cells-grid-compact">
+                  <div 
+                    v-for="(cell, index) in newFormat.cells" 
+                    :key="index"
+                    class="cell-card-compact"
+                  >
+                    <div class="cell-header-mini">
+                      <span class="cell-number-mini">Клетка №{{ index + 1 }}</span>
+                      <button 
+                        v-if="newFormat.cells.length > 1"
+                        class="remove-cell-btn-mini"
+                        title="Удалить клетку"
+                        @click="removeCell(index)"
                       >
-                        <option value="letters">
-                          Буквы
-                        </option>
-                        <option value="numbers">
-                          Цифры
-                        </option>
-                        <option value="mixed">
-                          Смешанный
-                        </option>
-                      </select>
+                        ×
+                      </button>
                     </div>
-                    
-                    <div class="config-group-mini">
-                      <label>Длина</label>
-                      <div class="length-controls-mini">
-                        <input 
-                          v-model.number="cell.min_length" 
-                          type="number" 
-                          min="1" 
-                          max="10"
-                          class="input-micro"
-                          placeholder="мин"
+                  
+                    <div class="cell-config-mini">
+                      <div class="config-group-mini">
+                        <label>Тип</label>
+                        <select
+                          v-model="cell.cell_type"
+                          class="select-mini"
                         >
-                        <span class="length-dash">-</span>
+                          <option value="letters">
+                            Буквы
+                          </option>
+                          <option value="numbers">
+                            Цифры
+                          </option>
+                          <option value="mixed">
+                            Смешанный
+                          </option>
+                        </select>
+                      </div>
+                    
+                      <div class="config-group-mini">
+                        <label>Длина</label>
+                        <div class="length-controls-mini">
+                          <input 
+                            v-model.number="cell.min_length" 
+                            type="number" 
+                            min="1" 
+                            max="10"
+                            class="input-micro"
+                            placeholder="мин"
+                          >
+                          <span class="length-dash">-</span>
+                          <input 
+                            v-model.number="cell.max_length" 
+                            type="number" 
+                            min="1" 
+                            max="10"
+                            class="input-micro"
+                            placeholder="макс"
+                          >
+                        </div>
+                      </div>
+
+                      <div
+                        v-if="cell.cell_type !== 'numbers'"
+                        class="config-group-mini"
+                      >
+                        <label>Алфавит</label>
+                        <select
+                          v-model="cell.alphabet_type"
+                          class="select-mini"
+                        >
+                          <option value="cyrillic">
+                            Кириллица
+                          </option>
+                          <option value="latin">
+                            Латиница
+                          </option>
+                          <option value="both">
+                            Оба
+                          </option>
+                        </select>
+                      </div>
+                    
+                      <div
+                        v-if="cell.cell_type === 'numbers'"
+                        class="config-group-mini"
+                      >
+                        <label>Дополнение</label>
+                        <select
+                          v-model="cell.padding_side"
+                          class="select-mini"
+                        >
+                          <option value="left">
+                            Слева
+                          </option>
+                          <option value="right">
+                            Справа
+                          </option>
+                        </select>
+                      </div>
+
+                      <div
+                        v-if="cell.cell_type !== 'numbers'"
+                        class="config-group-full-mini"
+                      >
+                        <label>Разрешенные буквы</label>
                         <input 
-                          v-model.number="cell.max_length" 
-                          type="number" 
-                          min="1" 
-                          max="10"
-                          class="input-micro"
-                          placeholder="макс"
+                          v-model="cell.allowed_letters"
+                          placeholder="АВЕКМНОРСТУХ"
+                          class="input-compact"
                         >
                       </div>
                     </div>
-
-                    <div
-                      v-if="cell.cell_type !== 'numbers'"
-                      class="config-group-mini"
-                    >
-                      <label>Алфавит</label>
-                      <select
-                        v-model="cell.alphabet_type"
-                        class="select-mini"
-                      >
-                        <option value="cyrillic">
-                          Кириллица
-                        </option>
-                        <option value="latin">
-                          Латиница
-                        </option>
-                        <option value="both">
-                          Оба
-                        </option>
-                      </select>
-                    </div>
-                    
-                    <div
-                      v-if="cell.cell_type === 'numbers'"
-                      class="config-group-mini"
-                    >
-                      <label>Дополнение</label>
-                      <select
-                        v-model="cell.padding_side"
-                        class="select-mini"
-                      >
-                        <option value="left">
-                          Слева
-                        </option>
-                        <option value="right">
-                          Справа
-                        </option>
-                      </select>
-                    </div>
-
-                    <div
-                      v-if="cell.cell_type !== 'numbers'"
-                      class="config-group-full-mini"
-                    >
-                      <label>Разрешенные буквы</label>
-                      <input 
-                        v-model="cell.allowed_letters"
-                        placeholder="АВЕКМНОРСТУХ"
-                        class="input-compact"
-                      >
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         
-        <div class="modal-footer">
-          <button
-            class="modal-cancel"
-            @click="showAddModal = false"
-          >
-            Отмена
-          </button>
-          <button
-            class="modal-confirm"
-            @click="addFormat"
-          >
-            Добавить
-          </button>
+          <div class="modal-footer">
+            <button
+              class="modal-cancel"
+              @click="showAddModal = false"
+            >
+              Отмена
+            </button>
+            <button
+              class="modal-confirm"
+              @click="addFormat"
+            >
+              Добавить
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Модальное окно редактирования клетки -->
-    <div
-      v-if="showCellEditModal"
-      class="modal-overlay"
-      @click.self="showCellEditModal = false"
-    >
-      <div class="modal-content horizontal-modal cell-edit-modal">
-        <div class="modal-header">
-          <h3>Редактировать клетку {{ editingCellIndex + 1 }}</h3>
-          <button
-            class="modal-close"
-            @click="showCellEditModal = false"
-          >
-            ×
-          </button>
-        </div>
-        
-        <div class="modal-body-horizontal">
-          <!-- Левая часть - основные настройки -->
-          <div class="modal-main-info">
-            <div class="main-fields">
-              <div class="form-group-compact">
-                <label class="form-label-compact">Тип клетки</label>
-                <select
-                  v-model="editingCell.cell_type"
-                  class="select-mini"
-                >
-                  <option value="letters">
-                    Буквы
-                  </option>
-                  <option value="numbers">
-                    Цифры
-                  </option>
-                  <option value="mixed">
-                    Смешанный
-                  </option>
-                </select>
-              </div>
-              
-              <div class="form-row-horizontal">
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Мин. длина</label>
-                  <input 
-                    v-model.number="editingCell.min_length" 
-                    type="number" 
-                    min="1" 
-                    max="10"
-                    class="input-compact"
-                  >
-                </div>
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Макс. длина</label>
-                  <input 
-                    v-model.number="editingCell.max_length" 
-                    type="number" 
-                    min="1" 
-                    max="10"
-                    class="input-compact"
-                  >
-                </div>
-              </div>
-
-              <div
-                v-if="editingCell.cell_type !== 'numbers'"
-                class="form-group-compact"
-              >
-                <label class="form-label-compact">Алфавит</label>
-                <select
-                  v-model="editingCell.alphabet_type"
-                  class="select-mini"
-                >
-                  <option value="cyrillic">
-                    Кириллица
-                  </option>
-                  <option value="latin">
-                    Латиница
-                  </option>
-                  <option value="both">
-                    Оба
-                  </option>
-                </select>
-              </div>
-              
-              <div
-                v-if="editingCell.cell_type === 'numbers'"
-                class="form-group-compact"
-              >
-                <label class="form-label-compact">Дополнение нулями</label>
-                <select
-                  v-model="editingCell.padding_side"
-                  class="select-mini"
-                >
-                  <option value="left">
-                    Слева
-                  </option>
-                  <option value="right">
-                    Справа
-                  </option>
-                </select>
-              </div>
-            </div>
+    <Teleport to="body">
+      <div
+        v-if="showCellEditModal"
+        class="modal-overlay"
+        @click.self="showCellEditModal = false"
+      >
+        <div class="modal-content horizontal-modal cell-edit-modal">
+          <div class="modal-header">
+            <h3>Редактировать клетку {{ editingCellIndex + 1 }}</h3>
+            <button
+              class="modal-close"
+              @click="showCellEditModal = false"
+            >
+              ×
+            </button>
           </div>
+        
+          <div class="modal-body-horizontal">
+            <!-- Левая часть - основные настройки -->
+            <div class="modal-main-info">
+              <div class="main-fields">
+                <div class="form-group-compact">
+                  <label class="form-label-compact">Тип клетки</label>
+                  <select
+                    v-model="editingCell.cell_type"
+                    class="select-mini"
+                  >
+                    <option value="letters">
+                      Буквы
+                    </option>
+                    <option value="numbers">
+                      Цифры
+                    </option>
+                    <option value="mixed">
+                      Смешанный
+                    </option>
+                  </select>
+                </div>
+              
+                <div class="form-row-horizontal">
+                  <div class="form-group-compact">
+                    <label class="form-label-compact">Мин. длина</label>
+                    <input 
+                      v-model.number="editingCell.min_length" 
+                      type="number" 
+                      min="1" 
+                      max="10"
+                      class="input-compact"
+                    >
+                  </div>
+                  <div class="form-group-compact">
+                    <label class="form-label-compact">Макс. длина</label>
+                    <input 
+                      v-model.number="editingCell.max_length" 
+                      type="number" 
+                      min="1" 
+                      max="10"
+                      class="input-compact"
+                    >
+                  </div>
+                </div>
 
-          <!-- Правая часть - дополнительные настройки -->
-          <div class="modal-cells-section">
-            <div class="cells-header-compact">
-              <h4 class="cells-title-compact">
-                Дополнительные настройки
-              </h4>
-            </div>
-            
-            <div class="cells-scroll-container">
-              <div class="cell-edit-details">
                 <div
                   v-if="editingCell.cell_type !== 'numbers'"
                   class="form-group-compact"
                 >
-                  <label class="form-label-compact">Разрешенные буквы</label>
-                  <input 
-                    v-model="editingCell.allowed_letters"
-                    placeholder="АВЕКМНОРСТУХ"
-                    class="input-compact"
+                  <label class="form-label-compact">Алфавит</label>
+                  <select
+                    v-model="editingCell.alphabet_type"
+                    class="select-mini"
                   >
-                  <span class="form-hint">
-                    Оставьте пустым для использования всех букв выбранного алфавита
-                  </span>
+                    <option value="cyrillic">
+                      Кириллица
+                    </option>
+                    <option value="latin">
+                      Латиница
+                    </option>
+                    <option value="both">
+                      Оба
+                    </option>
+                  </select>
                 </div>
+              
+                <div
+                  v-if="editingCell.cell_type === 'numbers'"
+                  class="form-group-compact"
+                >
+                  <label class="form-label-compact">Дополнение нулями</label>
+                  <select
+                    v-model="editingCell.padding_side"
+                    class="select-mini"
+                  >
+                    <option value="left">
+                      Слева
+                    </option>
+                    <option value="right">
+                      Справа
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Правая часть - дополнительные настройки -->
+            <div class="modal-cells-section">
+              <div class="cells-header-compact">
+                <h4 class="cells-title-compact">
+                  Дополнительные настройки
+                </h4>
+              </div>
+            
+              <div class="cells-scroll-container">
+                <div class="cell-edit-details">
+                  <div
+                    v-if="editingCell.cell_type !== 'numbers'"
+                    class="form-group-compact"
+                  >
+                    <label class="form-label-compact">Разрешенные буквы</label>
+                    <input 
+                      v-model="editingCell.allowed_letters"
+                      placeholder="АВЕКМНОРСТУХ"
+                      class="input-compact"
+                    >
+                    <span class="form-hint">
+                      Оставьте пустым для использования всех букв выбранного алфавита
+                    </span>
+                  </div>
                 
-                <div class="cell-preview-section">
-                  <h5 class="preview-title">
-                    Предпросмотр клетки
-                  </h5>
-                  <div class="preview-content">
-                    <div class="preview-example">
-                      {{ getCellPreview(editingCell) }}
-                    </div>
-                    <div class="preview-info">
-                      <span class="preview-length">
-                        Длина: {{ editingCell.min_length }}-{{ editingCell.max_length }} символов
-                      </span>
-                      <span
-                        v-if="editingCell.allowed_letters"
-                        class="preview-letters"
-                      >
-                        Разрешённые символы: {{ editingCell.allowed_letters }}
-                      </span>
+                  <div class="cell-preview-section">
+                    <h5 class="preview-title">
+                      Предпросмотр клетки
+                    </h5>
+                    <div class="preview-content">
+                      <div class="preview-example">
+                        {{ getCellPreview(editingCell) }}
+                      </div>
+                      <div class="preview-info">
+                        <span class="preview-length">
+                          Длина: {{ editingCell.min_length }}-{{ editingCell.max_length }} символов
+                        </span>
+                        <span
+                          v-if="editingCell.allowed_letters"
+                          class="preview-letters"
+                        >
+                          Разрешённые символы: {{ editingCell.allowed_letters }}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         
-        <div class="modal-footer">
-          <button
-            class="modal-cancel"
-            @click="showCellEditModal = false"
-          >
-            Отмена
-          </button>
-          <button
-            class="modal-confirm"
-            @click="saveCellEdit"
-          >
-            Сохранить
-          </button>
+          <div class="modal-footer">
+            <button
+              class="modal-cancel"
+              @click="showCellEditModal = false"
+            >
+              Отмена
+            </button>
+            <button
+              class="modal-confirm"
+              @click="saveCellEdit"
+            >
+              Сохранить
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1487,12 +1491,14 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .horizontal-modal {

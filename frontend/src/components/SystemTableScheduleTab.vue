@@ -95,127 +95,129 @@
     </div>
 
     <!-- Модальное окно добавления/редактирования -->
-    <transition name="modal-fade">
-      <div
-        v-if="modalOpen"
-        class="modal-overlay"
-        @click.self="closeModal"
-      >
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3 class="modal-title">
-              {{ editingSlotId ? 'Редактировать временнОе окно' : 'Добавить временнОе окно' }}
-            </h3>
-            <button
-              class="modal-close"
-              @click="closeModal"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="modalOpen"
+          class="modal-overlay"
+          @click.self="closeModal"
+        >
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                {{ editingSlotId ? 'Редактировать временнОе окно' : 'Добавить временнОе окно' }}
+              </h3>
+              <button
+                class="modal-close"
+                @click="closeModal"
               >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
-          </div>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
 
-          <div class="modal-body">
-            <div class="field">
-              <label class="field-label">День недели *</label>
-              <div
-                ref="selectRef"
-                class="custom-select"
-                @click="toggleDayDropdown"
-              >
-                <div class="select-trigger">
-                  <span>{{ getFullDayName(modalDay) }}</span>
-                  <img
-                    src="@/assets/icons/arrow.png"
-                    class="select-arrow"
-                    :class="{ open: dayDropdownOpen }"
-                    width="9"
-                    height="9"
+            <div class="modal-body">
+              <div class="field">
+                <label class="field-label">День недели *</label>
+                <div
+                  ref="selectRef"
+                  class="custom-select"
+                  @click="toggleDayDropdown"
+                >
+                  <div class="select-trigger">
+                    <span>{{ getFullDayName(modalDay) }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="select-arrow"
+                      :class="{ open: dayDropdownOpen }"
+                      width="9"
+                      height="9"
+                    >
+                  </div>
+                  <transition name="dropdown">
+                    <div
+                      v-if="dayDropdownOpen"
+                      class="select-dropdown"
+                    >
+                      <div
+                        v-for="(dayName, idx) in fullDayNames"
+                        :key="idx"
+                        class="select-option"
+                        :class="{ selected: modalDay === idx }"
+                        @click="selectDay(idx)"
+                      >
+                        {{ dayName }}
+                      </div>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+
+              <div class="time-fields">
+                <div class="field time-field">
+                  <label class="field-label">Открытие *</label>
+                  <input
+                    v-model="modalOpenTime"
+                    type="time"
+                    class="modal-input"
+                    @change="validateTimes"
                   >
                 </div>
-                <transition name="dropdown">
-                  <div
-                    v-if="dayDropdownOpen"
-                    class="select-dropdown"
+                <div class="field time-field">
+                  <label class="field-label">Закрытие *</label>
+                  <input
+                    v-model="modalCloseTime"
+                    type="time"
+                    class="modal-input"
+                    @change="validateTimes"
                   >
-                    <div
-                      v-for="(dayName, idx) in fullDayNames"
-                      :key="idx"
-                      class="select-option"
-                      :class="{ selected: modalDay === idx }"
-                      @click="selectDay(idx)"
-                    >
-                      {{ dayName }}
-                    </div>
-                  </div>
-                </transition>
+                </div>
+              </div>
+
+              <div
+                v-if="timeConflictError"
+                class="error-hint"
+              >
+                ⚠️ {{ timeConflictError }}
+              </div>
+
+              <div
+                v-if="modalNextDay && !timeConflictError"
+                class="next-day-hint"
+              >
+                ⏰ Закрытие на следующий день
               </div>
             </div>
 
-            <div class="time-fields">
-              <div class="field time-field">
-                <label class="field-label">Открытие *</label>
-                <input
-                  v-model="modalOpenTime"
-                  type="time"
-                  class="modal-input"
-                  @change="validateTimes"
-                >
-              </div>
-              <div class="field time-field">
-                <label class="field-label">Закрытие *</label>
-                <input
-                  v-model="modalCloseTime"
-                  type="time"
-                  class="modal-input"
-                  @change="validateTimes"
-                >
-              </div>
+            <div class="modal-footer">
+              <button
+                class="modal-btn cancel"
+                @click="closeModal"
+              >
+                Отмена
+              </button>
+              <button
+                class="modal-btn confirm"
+                :disabled="!modalOpenTime || !modalCloseTime || isLoading || !!timeConflictError"
+                @click="saveSlot"
+              >
+                {{ editingSlotId ? 'Сохранить' : 'Добавить' }}
+              </button>
             </div>
-
-            <div
-              v-if="timeConflictError"
-              class="error-hint"
-            >
-              ⚠️ {{ timeConflictError }}
-            </div>
-
-            <div
-              v-if="modalNextDay && !timeConflictError"
-              class="next-day-hint"
-            >
-              ⏰ Закрытие на следующий день
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button
-              class="modal-btn cancel"
-              @click="closeModal"
-            >
-              Отмена
-            </button>
-            <button
-              class="modal-btn confirm"
-              :disabled="!modalOpenTime || !modalCloseTime || isLoading || !!timeConflictError"
-              @click="saveSlot"
-            >
-              {{ editingSlotId ? 'Сохранить' : 'Добавить' }}
-            </button>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -770,8 +772,9 @@ input:checked + .switch-slider:before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.3);
-  backdrop-filter: blur(1px);
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -780,7 +783,7 @@ input:checked + .switch-slider:before {
 }
 @keyframes overlayAppear {
   from { background: rgba(0,0,0,0); backdrop-filter: blur(0); }
-  to { background: rgba(0,0,0,0.3); backdrop-filter: blur(1px); }
+  to { background: rgba(0,0,0,0.5); backdrop-filter: blur(0.1px); }
 }
 
 .modal-content {

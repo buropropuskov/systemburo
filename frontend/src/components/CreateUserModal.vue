@@ -1,245 +1,247 @@
 <template>
-  <div
-    class="modal-overlay"
-    @click.self="$emit('close')"
-  >
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">
-          Создать новую учётную запись
-        </h3>
-        <button
-          class="modal-close-btn"
-          @click="$emit('close')"
-        >
-          &times;
-        </button>
-      </div>
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      @click.self="$emit('close')"
+    >
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3 class="modal-title">
+            Создать новую учётную запись
+          </h3>
+          <button
+            class="modal-close-btn"
+            @click="$emit('close')"
+          >
+            &times;
+          </button>
+        </div>
       
-      <div class="modal-body">
-        <div class="form-section">
-          <h4 class="section-title">
-            Основные данные
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label">Логин:</label>
-              <input 
-                v-model="newUser.username" 
-                type="text" 
-                placeholder="Введите логин"
-                class="form-input"
-                required
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Пароль:</label>
-              <input 
-                v-model="newUser.password" 
-                type="password" 
-                placeholder="Введите пароль"
-                class="form-input"
-                required
-                autocomplete="new-password"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group form-group--full">
-              <label class="form-label">Тип пользователя:</label>
-              <select
-                v-model="newUser.type_id"
-                required
-                class="form-select"
-              >
-                <option
-                  :value="null"
-                  disabled
+        <div class="modal-body">
+          <div class="form-section">
+            <h4 class="section-title">
+              Основные данные
+            </h4>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Логин:</label>
+                <input 
+                  v-model="newUser.username" 
+                  type="text" 
+                  placeholder="Введите логин"
+                  class="form-input"
+                  required
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                 >
-                  Выберите тип
-                </option>
-                <option
-                  v-for="type in userTypes"
-                  :key="type.id"
-                  :value="type.id"
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Пароль:</label>
+                <input 
+                  v-model="newUser.password" 
+                  type="password" 
+                  placeholder="Введите пароль"
+                  class="form-input"
+                  required
+                  autocomplete="new-password"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
                 >
-                  {{ type.name }}
-                </option>
-              </select>
+              </div>
+
+              <div class="form-group form-group--full">
+                <label class="form-label">Тип пользователя:</label>
+                <select
+                  v-model="newUser.type_id"
+                  required
+                  class="form-select"
+                >
+                  <option
+                    :value="null"
+                    disabled
+                  >
+                    Выберите тип
+                  </option>
+                  <option
+                    v-for="type in userTypes"
+                    :key="type.id"
+                    :value="type.id"
+                  >
+                    {{ type.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4 class="section-title">
+              Персональные данные
+            </h4>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Фамилия:</label>
+                <input 
+                  v-model="newUser.last_name" 
+                  type="text" 
+                  placeholder="Введите фамилию"
+                  class="form-input"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Имя:</label>
+                <input 
+                  v-model="newUser.first_name" 
+                  type="text" 
+                  placeholder="Введите имя"
+                  class="form-input"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Отчество:</label>
+                <input 
+                  v-model="newUser.middle_name" 
+                  type="text" 
+                  placeholder="Введите отчество"
+                  class="form-input"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Должность:</label>
+                <input 
+                  v-model="newUser.position" 
+                  type="text" 
+                  placeholder="Введите должность"
+                  class="form-input"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Email:</label>
+                <input 
+                  v-model="newUser.email" 
+                  type="email" 
+                  placeholder="Введите email"
+                  class="form-input"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Телефон:</label>
+                <input
+                  :value="newUser.phone"
+                  type="tel"
+                  placeholder="+7 (___) ___ __-__"
+                  class="form-input"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  @input="newUser.phone = formatRussianPhone($event.target.value)"
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4 class="section-title">
+              Организационные данные
+            </h4>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Компания:</label>
+                <select 
+                  v-model="newUser.company_id" 
+                  required 
+                  class="form-select"
+                >
+                  <option
+                    :value="null"
+                    disabled
+                  >
+                    Выберите компанию
+                  </option>
+                  <option
+                    v-for="comp in companies"
+                    :key="comp.id"
+                    :value="comp.id"
+                  >
+                    {{ comp.name }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Организация:</label>
+                <select 
+                  v-model="newUser.organization_id" 
+                  required 
+                  class="form-select"
+                >
+                  <option
+                    :value="null"
+                    disabled
+                  >
+                    Выберите организацию
+                  </option>
+                  <option
+                    v-for="org in organizations"
+                    :key="org.id"
+                    :value="org.id"
+                  >
+                    {{ org.name }}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="form-section">
-          <h4 class="section-title">
-            Персональные данные
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label">Фамилия:</label>
-              <input 
-                v-model="newUser.last_name" 
-                type="text" 
-                placeholder="Введите фамилию"
-                class="form-input"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Имя:</label>
-              <input 
-                v-model="newUser.first_name" 
-                type="text" 
-                placeholder="Введите имя"
-                class="form-input"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Отчество:</label>
-              <input 
-                v-model="newUser.middle_name" 
-                type="text" 
-                placeholder="Введите отчество"
-                class="form-input"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Должность:</label>
-              <input 
-                v-model="newUser.position" 
-                type="text" 
-                placeholder="Введите должность"
-                class="form-input"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Email:</label>
-              <input 
-                v-model="newUser.email" 
-                type="email" 
-                placeholder="Введите email"
-                class="form-input"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-              >
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Телефон:</label>
-              <input
-                :value="newUser.phone"
-                type="tel"
-                placeholder="+7 (___) ___ __-__"
-                class="form-input"
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="false"
-                @input="newUser.phone = formatRussianPhone($event.target.value)"
-              >
-            </div>
-          </div>
+        <div class="modal-footer">
+          <button
+            class="modal-cancel-btn"
+            @click="$emit('close')"
+          >
+            Отмена
+          </button>
+          <button 
+            :disabled="!isFormValid" 
+            class="modal-confirm-btn"
+            @click="createNewUser"
+          >
+            Создать
+          </button>
         </div>
-
-        <div class="form-section">
-          <h4 class="section-title">
-            Организационные данные
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label">Компания:</label>
-              <select 
-                v-model="newUser.company_id" 
-                required 
-                class="form-select"
-              >
-                <option
-                  :value="null"
-                  disabled
-                >
-                  Выберите компанию
-                </option>
-                <option
-                  v-for="comp in companies"
-                  :key="comp.id"
-                  :value="comp.id"
-                >
-                  {{ comp.name }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Организация:</label>
-              <select 
-                v-model="newUser.organization_id" 
-                required 
-                class="form-select"
-              >
-                <option
-                  :value="null"
-                  disabled
-                >
-                  Выберите организацию
-                </option>
-                <option
-                  v-for="org in organizations"
-                  :key="org.id"
-                  :value="org.id"
-                >
-                  {{ org.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button
-          class="modal-cancel-btn"
-          @click="$emit('close')"
-        >
-          Отмена
-        </button>
-        <button 
-          :disabled="!isFormValid" 
-          class="modal-confirm-btn"
-          @click="createNewUser"
-        >
-          Создать
-        </button>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -367,7 +369,8 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .modal-container {

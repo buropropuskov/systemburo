@@ -25,41 +25,43 @@
     </div>
         
     <!-- Модальное окно с инструкцией -->
-    <div
-      v-if="showInstruction"
-      class="modal-overlay"
-      @click.self="showInstruction = false"
-    >
-      <div class="instruction-modal-large">
-        <div class="modal-header">
-          <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
-          <button
-            class="modal-close"
-            @click="showInstruction = false"
-          >
-            ×
-          </button>
-        </div>
-        <div class="instruction-content">
-          <div
-            v-if="tableInstruction"
-            class="text-constructor-content"
-            v-html="sanitizedInstruction"
-          />
-          <div
-            v-else
-            class="no-instruction"
-          >
-            <div class="no-instruction-icon">
-              📝
+    <Teleport to="body">
+      <div
+        v-if="showInstruction"
+        class="modal-overlay"
+        @click.self="showInstruction = false"
+      >
+        <div class="instruction-modal-large">
+          <div class="modal-header">
+            <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
+            <button
+              class="modal-close"
+              @click="showInstruction = false"
+            >
+              ×
+            </button>
+          </div>
+          <div class="instruction-content">
+            <div
+              v-if="tableInstruction"
+              class="text-constructor-content"
+              v-html="sanitizedInstruction"
+            />
+            <div
+              v-else
+              class="no-instruction"
+            >
+              <div class="no-instruction-icon">
+                📝
+              </div>
+              <h4>Инструкция не добавлена</h4>
+              <p>Для этой таблицы пока не создана и не написана инструкция.</p>
+              <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
             </div>
-            <h4>Инструкция не добавлена</h4>
-            <p>Для этой таблицы пока не создана и не написана инструкция.</p>
-            <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <div class="tables__filters">
       <div class="filters__fields">
@@ -789,12 +791,14 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 20px;
+    backdrop-filter: blur(0.1px);
+    -webkit-backdrop-filter: blur(0.1px);
 }
 
 .instruction-modal-large {

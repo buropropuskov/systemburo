@@ -1,50 +1,52 @@
 <template>
-  <div
-    class="modal-overlay"
-    @click.self="handleOverlayClick"
-  >
-    <div class="session-expired-modal">
-      <div class="modal-header">
-        <h2 class="modal-title">
-          Ваш сеанс скоро закончится
-        </h2>
-      </div>
-      
-      <div class="modal-body">
-        <div class="time-remaining">
-          {{ formattedTime }}
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      @click.self="handleOverlayClick"
+    >
+      <div class="session-expired-modal">
+        <div class="modal-header">
+          <h2 class="modal-title">
+            Ваш сеанс скоро закончится
+          </h2>
         </div>
-        
-        <div class="countdown">
-          <div class="countdown-bar">
-            <div
-              class="countdown-progress"
-              :style="progressStyle"
-            />
+      
+        <div class="modal-body">
+          <div class="time-remaining">
+            {{ formattedTime }}
           </div>
-        </div>
         
-        <p class="modal-message">
-          Для продолжения работы необходимо продлить сеанс
-        </p>
-      </div>
+          <div class="countdown">
+            <div class="countdown-bar">
+              <div
+                class="countdown-progress"
+                :style="progressStyle"
+              />
+            </div>
+          </div>
+        
+          <p class="modal-message">
+            Для продолжения работы необходимо продлить сеанс
+          </p>
+        </div>
       
-      <div class="modal-footer">
-        <button
-          class="btn btn-secondary"
-          @click="logout"
-        >
-          Выйти
-        </button>
-        <button
-          class="btn btn-primary"
-          @click="extendSession"
-        >
-          Продлить сеанс
-        </button>
+        <div class="modal-footer">
+          <button
+            class="btn btn-secondary"
+            @click="logout"
+          >
+            Выйти
+          </button>
+          <button
+            class="btn btn-primary"
+            @click="extendSession"
+          >
+            Продлить сеанс
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -109,7 +111,8 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 10000;
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
 }
 
 .session-expired-modal {

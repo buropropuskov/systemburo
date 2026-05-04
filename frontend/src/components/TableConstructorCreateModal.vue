@@ -1,180 +1,182 @@
 <template>
-  <div
-    class="modal-overlay"
-    @click.self="handleClose"
-  >
-    <div class="modal-content horizontal-modal">
-      <div class="modal-header">
-        <h3>Создать новую таблицу</h3>
-        <button
-          class="modal-close"
-          @click="handleClose"
-        >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 14 14"
-            fill="none"
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      @click.self="handleClose"
+    >
+      <div class="modal-content horizontal-modal">
+        <div class="modal-header">
+          <h3>Создать новую таблицу</h3>
+          <button
+            class="modal-close"
+            @click="handleClose"
           >
-            <path
-              d="M13 1L1 13M1 1L13 13"
-              stroke="#666"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
-      </div>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 14 14"
+              fill="none"
+            >
+              <path
+                d="M13 1L1 13M1 1L13 13"
+                stroke="#666"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
 
-      <div class="modal-body-horizontal">
-        <!-- Левая часть - основная информация -->
-        <div class="modal-main-info">
-          <div class="main-fields">
-            <div class="form-group-compact">
-              <label class="form-label-compact">Наименование таблицы *</label>
-              <input
-                v-model="newTable.display_name"
-                placeholder="ПОСТ №27"
-                class="input-compact"
-              >
-            </div>
-
-            <div class="form-group-compact">
-              <label class="form-label-compact">Системное имя *</label>
-              <input
-                v-model="newTable.name"
-                placeholder="post_27"
-                class="input-compact"
-                @input="validateSystemName"
-              >
-              <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-              <span
-                v-if="nameError"
-                class="form-error"
-              >{{ nameError }}</span>
-            </div>
-
-            <div class="form-group-compact">
-              <label class="form-label-compact">Тип таблицы *</label>
-              <div class="custom-select">
-                <div
-                  class="select-header"
-                  @click="toggleTypeDropdown"
+        <div class="modal-body-horizontal">
+          <!-- Левая часть - основная информация -->
+          <div class="modal-main-info">
+            <div class="main-fields">
+              <div class="form-group-compact">
+                <label class="form-label-compact">Наименование таблицы *</label>
+                <input
+                  v-model="newTable.display_name"
+                  placeholder="ПОСТ №27"
+                  class="input-compact"
                 >
-                  <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
-                  <img
-                    src="@/assets/icons/arrow.png"
-                    class="select-arrow"
-                    :class="{ rotated: typeDropdownOpen }"
-                  >
-                </div>
-                <transition name="dropdown-fade">
+              </div>
+
+              <div class="form-group-compact">
+                <label class="form-label-compact">Системное имя *</label>
+                <input
+                  v-model="newTable.name"
+                  placeholder="post_27"
+                  class="input-compact"
+                  @input="validateSystemName"
+                >
+                <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
+                <span
+                  v-if="nameError"
+                  class="form-error"
+                >{{ nameError }}</span>
+              </div>
+
+              <div class="form-group-compact">
+                <label class="form-label-compact">Тип таблицы *</label>
+                <div class="custom-select">
                   <div
-                    v-if="typeDropdownOpen"
-                    class="select-dropdown"
+                    class="select-header"
+                    @click="toggleTypeDropdown"
                   >
-                    <div
-                      class="select-option"
-                      :class="{ active: newTable.table_type === 'cars' }"
-                      @click="selectType('cars')"
+                    <span class="select-value">{{ getTableTypeLabel(newTable.table_type) }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="select-arrow"
+                      :class="{ rotated: typeDropdownOpen }"
                     >
-                      Машины
+                  </div>
+                  <transition name="dropdown-fade">
+                    <div
+                      v-if="typeDropdownOpen"
+                      class="select-dropdown"
+                    >
+                      <div
+                        class="select-option"
+                        :class="{ active: newTable.table_type === 'cars' }"
+                        @click="selectType('cars')"
+                      >
+                        Машины
+                      </div>
+                      <div
+                        class="select-option"
+                        :class="{ active: newTable.table_type === 'people' }"
+                        @click="selectType('people')"
+                      >
+                        Люди
+                      </div>
                     </div>
-                    <div
-                      class="select-option"
-                      :class="{ active: newTable.table_type === 'people' }"
-                      @click="selectType('people')"
+                  </transition>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Правая часть - настройки -->
+          <div class="modal-cells-section">
+            <div class="cells-header-compact">
+              <h4 class="cells-title-compact">
+                Настройки отображения
+              </h4>
+            </div>
+
+            <div class="cells-scroll-container">
+              <div class="settings-grid">
+                <div class="setting-item">
+                  <label class="setting-label">
+                    <input
+                      v-model="newTable.show_fact_table"
+                      type="checkbox"
+                      class="setting-checkbox"
                     >
-                      Люди
+                    <span class="setting-text">Отображать таблицу "по факту"</span>
+                  </label>
+                  <span class="setting-hint">
+                    Будет показана дополнительная таблица с данными "по факту"
+                  </span>
+                </div>
+
+                <div
+                  v-if="newTable.show_fact_table"
+                  class="setting-item"
+                >
+                  <label class="form-label-compact">Подсказка для таблицы "по факту"</label>
+                  <TextConstructor
+                    v-model="newTable.fact_table_hint"
+                    :placeholder="getDefaultHint(newTable.table_type)"
+                    rows="3"
+                  />
+                </div>
+
+                <div class="setting-item">
+                  <label class="form-label-compact">Инструкция к таблице</label>
+                  <TextConstructor
+                    v-model="newTable.instruction"
+                    placeholder="Введите инструкцию для таблицы..."
+                    rows="4"
+                  />
+                </div>
+
+                <div class="setting-item">
+                  <h5 class="fields-preview-title">
+                    Поля таблицы:
+                  </h5>
+                  <div class="fields-preview">
+                    <div
+                      v-for="field in getTableFields(newTable.table_type)"
+                      :key="field.name"
+                      class="preview-field"
+                    >
+                      <span class="preview-field-name">{{ field.displayName }}</span>
+                      <span class="preview-field-type">{{ field.type }}</span>
                     </div>
                   </div>
-                </transition>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Правая часть - настройки -->
-        <div class="modal-cells-section">
-          <div class="cells-header-compact">
-            <h4 class="cells-title-compact">
-              Настройки отображения
-            </h4>
-          </div>
-
-          <div class="cells-scroll-container">
-            <div class="settings-grid">
-              <div class="setting-item">
-                <label class="setting-label">
-                  <input
-                    v-model="newTable.show_fact_table"
-                    type="checkbox"
-                    class="setting-checkbox"
-                  >
-                  <span class="setting-text">Отображать таблицу "по факту"</span>
-                </label>
-                <span class="setting-hint">
-                  Будет показана дополнительная таблица с данными "по факту"
-                </span>
-              </div>
-
-              <div
-                v-if="newTable.show_fact_table"
-                class="setting-item"
-              >
-                <label class="form-label-compact">Подсказка для таблицы "по факту"</label>
-                <TextConstructor
-                  v-model="newTable.fact_table_hint"
-                  :placeholder="getDefaultHint(newTable.table_type)"
-                  rows="3"
-                />
-              </div>
-
-              <div class="setting-item">
-                <label class="form-label-compact">Инструкция к таблице</label>
-                <TextConstructor
-                  v-model="newTable.instruction"
-                  placeholder="Введите инструкцию для таблицы..."
-                  rows="4"
-                />
-              </div>
-
-              <div class="setting-item">
-                <h5 class="fields-preview-title">
-                  Поля таблицы:
-                </h5>
-                <div class="fields-preview">
-                  <div
-                    v-for="field in getTableFields(newTable.table_type)"
-                    :key="field.name"
-                    class="preview-field"
-                  >
-                    <span class="preview-field-name">{{ field.displayName }}</span>
-                    <span class="preview-field-type">{{ field.type }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="modal-footer">
+          <button
+            class="modal-btn modal-btn--cancel"
+            @click="handleClose"
+          >
+            Отмена
+          </button>
+          <button
+            class="modal-btn modal-btn--confirm"
+            @click="createTable"
+          >
+            Создать
+          </button>
         </div>
-      </div>
-
-      <div class="modal-footer">
-        <button
-          class="modal-btn modal-btn--cancel"
-          @click="handleClose"
-        >
-          Отмена
-        </button>
-        <button
-          class="modal-btn modal-btn--confirm"
-          @click="createTable"
-        >
-          Создать
-        </button>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script>
@@ -352,12 +354,13 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -367,8 +370,8 @@ export default {
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(0.1px);
   }
 }
 

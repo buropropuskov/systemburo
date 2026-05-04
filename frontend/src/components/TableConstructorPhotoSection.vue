@@ -67,46 +67,48 @@
     </div>
 
     <!-- Модальное окно просмотра фото -->
-    <transition name="modal-fade">
-      <div
-        v-if="showPhotoModal"
-        class="modal-overlay"
-        @click.self="showPhotoModal = false"
-      >
-        <div class="modal-content photo-view-modal">
-          <div class="modal-header">
-            <h3 class="modal-title">
-              {{ viewingPhoto?.file_name }}
-            </h3>
-            <button
-              class="modal-close"
-              @click="showPhotoModal = false"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 14 14"
-                fill="none"
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showPhotoModal"
+          class="modal-overlay"
+          @click.self="showPhotoModal = false"
+        >
+          <div class="modal-content photo-view-modal">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                {{ viewingPhoto?.file_name }}
+              </h3>
+              <button
+                class="modal-close"
+                @click="showPhotoModal = false"
               >
-                <path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body photo-view-body">
-            <img
-              :src="viewingPhoto?.photo_url"
-              class="full-photo"
-              alt="Full size"
-            >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body photo-view-body">
+              <img
+                :src="viewingPhoto?.photo_url"
+                class="full-photo"
+                alt="Full size"
+              >
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -366,12 +368,13 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(1px);
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
@@ -381,8 +384,8 @@ export default {
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(1px);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(0.1px);
   }
 }
 

@@ -170,124 +170,126 @@
     </div>
 
     <!-- Модальное окно добавления принимающего -->
-    <div
-      v-if="showAddModal"
-      class="modal-overlay"
-      @click.self="closeAddModal"
-    >
-      <div class="modal modal-compact">
-        <div class="modal-header">
-          <h3>Добавить принимающего</h3>
-          <button
-            class="modal-close"
-            @click="closeAddModal"
-          >
-            ×
-          </button>
-        </div>
+    <Teleport to="body">
+      <div
+        v-if="showAddModal"
+        class="modal-overlay"
+        @click.self="closeAddModal"
+      >
+        <div class="modal modal-compact">
+          <div class="modal-header">
+            <h3>Добавить принимающего</h3>
+            <button
+              class="modal-close"
+              @click="closeAddModal"
+            >
+              ×
+            </button>
+          </div>
         
-        <div class="modal-content">
-          <div class="user-search-section">
-            <input
-              ref="searchInput"
-              v-model="userSearchQuery"
-              class="search-input"
-              placeholder="Поиск пользователей..."
-              type="text"
-              autocomplete="off"
-              @input="searchUsers"
-              @focus="showUserDropdown = true"
-              @blur="onSearchBlur"
-            >
-            <div
-              v-if="showUserDropdown && filteredAvailableUsers.length > 0"
-              class="user-dropdown"
-            >
-              <div class="user-dropdown-content">
-                <div 
-                  v-for="user in filteredAvailableUsers" 
-                  :key="user.id"
-                  class="user-item"
-                  @mousedown.prevent="addUser(user)"
-                >
-                  <div class="user-info">
-                    <div class="user-name">
-                      {{ getFullName(user) }}
+          <div class="modal-content">
+            <div class="user-search-section">
+              <input
+                ref="searchInput"
+                v-model="userSearchQuery"
+                class="search-input"
+                placeholder="Поиск пользователей..."
+                type="text"
+                autocomplete="off"
+                @input="searchUsers"
+                @focus="showUserDropdown = true"
+                @blur="onSearchBlur"
+              >
+              <div
+                v-if="showUserDropdown && filteredAvailableUsers.length > 0"
+                class="user-dropdown"
+              >
+                <div class="user-dropdown-content">
+                  <div 
+                    v-for="user in filteredAvailableUsers" 
+                    :key="user.id"
+                    class="user-item"
+                    @mousedown.prevent="addUser(user)"
+                  >
+                    <div class="user-info">
+                      <div class="user-name">
+                        {{ getFullName(user) }}
+                      </div>
+                      <div class="user-details">
+                        <span class="user-username">@{{ user.username }}</span>
+                        <span
+                          v-if="user.position"
+                          class="user-position"
+                        >{{ user.position }}</span>
+                      </div>
                     </div>
-                    <div class="user-details">
-                      <span class="user-username">@{{ user.username }}</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                v-else-if="showUserDropdown && filteredAvailableUsers.length === 0"
+                class="user-dropdown no-results-dropdown"
+              >
+                <div class="user-dropdown-content">
+                  <div class="no-results-message">
+                    Нет доступных пользователей
+                  </div>
+                </div>
+              </div>
+            </div>
+          
+            <div class="selected-users">
+              <div class="selected-users-header">
+                <span>Выбрано пользователей:</span>
+                <span class="selected-count">{{ selectedUsers.length }}</span>
+              </div>
+            
+              <div class="users-list-container">
+                <div class="users-list">
+                  <div 
+                    v-for="user in selectedUsers" 
+                    :key="user.id"
+                    class="selected-user"
+                  >
+                    <div class="selected-user-info">
+                      <span class="selected-user-name">{{ getFullName(user) }}</span>
+                      <span class="selected-user-username">@{{ user.username }}</span>
                       <span
                         v-if="user.position"
-                        class="user-position"
+                        class="selected-user-position"
                       >{{ user.position }}</span>
                     </div>
+                    <button 
+                      class="remove-user-btn"
+                      title="Удалить из списка"
+                      @click="removeUser(user)"
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-            <div
-              v-else-if="showUserDropdown && filteredAvailableUsers.length === 0"
-              class="user-dropdown no-results-dropdown"
-            >
-              <div class="user-dropdown-content">
-                <div class="no-results-message">
-                  Нет доступных пользователей
-                </div>
-              </div>
-            </div>
           </div>
-          
-          <div class="selected-users">
-            <div class="selected-users-header">
-              <span>Выбрано пользователей:</span>
-              <span class="selected-count">{{ selectedUsers.length }}</span>
-            </div>
-            
-            <div class="users-list-container">
-              <div class="users-list">
-                <div 
-                  v-for="user in selectedUsers" 
-                  :key="user.id"
-                  class="selected-user"
-                >
-                  <div class="selected-user-info">
-                    <span class="selected-user-name">{{ getFullName(user) }}</span>
-                    <span class="selected-user-username">@{{ user.username }}</span>
-                    <span
-                      v-if="user.position"
-                      class="selected-user-position"
-                    >{{ user.position }}</span>
-                  </div>
-                  <button 
-                    class="remove-user-btn"
-                    title="Удалить из списка"
-                    @click="removeUser(user)"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
         
-        <div class="modal-footer">
-          <button
-            class="modal-cancel-btn"
-            @click="closeAddModal"
-          >
-            Отмена
-          </button>
-          <button 
-            class="modal-add-btn"
-            :disabled="selectedUsers.length === 0 || loading"
-            @click="addApprovers"
-          >
-            {{ loading ? 'Добавление...' : `Добавить (${selectedUsers.length})` }}
-          </button>
+          <div class="modal-footer">
+            <button
+              class="modal-cancel-btn"
+              @click="closeAddModal"
+            >
+              Отмена
+            </button>
+            <button 
+              class="modal-add-btn"
+              :disabled="selectedUsers.length === 0 || loading"
+              @click="addApprovers"
+            >
+              {{ loading ? 'Добавление...' : `Добавить (${selectedUsers.length})` }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Уведомления -->
     <div
@@ -879,6 +881,8 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 20000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: fadeIn 0.2s ease-out;
 }
 

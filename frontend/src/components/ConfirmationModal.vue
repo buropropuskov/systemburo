@@ -1,36 +1,38 @@
 <template>
-  <transition name="modal-fade">
-    <div
-      v-if="show"
-      class="modal-overlay"
-      @click.self="handleCancel"
-    >
-      <div class="modal">
-        <div class="modal-header">
-          {{ title }}
-        </div>
-        <div class="modal-content">
-          {{ message }}
-        </div>
-        <div class="modal-actions">
-          <button 
-            class="cancel-btn" 
-            :style="cancelButtonStyle"
-            @click="handleCancel"
-          >
-            {{ cancelText }}
-          </button>
-          <button 
-            class="confirm-btn" 
-            :style="confirmButtonStyle"
-            @click="handleConfirm"
-          >
-            {{ confirmText }}
-          </button>
+  <Teleport to="body">
+    <transition name="modal-fade">
+      <div
+        v-if="show"
+        class="modal-overlay"
+        @click.self="handleCancel"
+      >
+        <div class="modal">
+          <div class="modal-header">
+            {{ title }}
+          </div>
+          <div class="modal-content">
+            {{ message }}
+          </div>
+          <div class="modal-actions">
+            <button 
+              class="cancel-btn" 
+              :style="cancelButtonStyle"
+              @click="handleCancel"
+            >
+              {{ cancelText }}
+            </button>
+            <button 
+              class="confirm-btn" 
+              :style="confirmButtonStyle"
+              @click="handleConfirm"
+            >
+              {{ confirmText }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </transition>
+    </transition>
+  </Teleport>
 </template>
 
 <script>
@@ -91,6 +93,8 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.3s ease-out;
 }
 
