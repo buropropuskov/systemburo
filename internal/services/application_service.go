@@ -163,7 +163,7 @@ type AttachmentData struct {
 	EntryDateTo           *string               `json:"entry_date_to"`
 	EntryTimeFrom         *string               `json:"entry_time_from"`
 	EntryTimeTo           *string               `json:"entry_time_to"`
-	Data                  AttachmentContentData  `json:"data"`
+	Data                  AttachmentContentData `json:"data"`
 }
 
 // AttachmentContentData содержимое вложения: машины, сотрудники или ТМЦ.
@@ -175,10 +175,10 @@ type AttachmentContentData struct {
 
 // VehicleInput данные автомобиля при создании.
 type VehicleInput struct {
-	CarNumber    string `json:"car_number"`
-	CarBrand     string `json:"car_brand"`
+	CarNumber    string  `json:"car_number"`
+	CarBrand     string  `json:"car_brand"`
 	UnloadPlace  *string `json:"unload_place"`
-	UnloadPlaces []int  `json:"unload_places"`
+	UnloadPlaces []int   `json:"unload_places"`
 }
 
 // EmployeeInput данные сотрудника при создании.
@@ -373,18 +373,18 @@ type ViewerWithUser struct {
 
 // AttachmentInfo информация о вложении заявки.
 type AttachmentInfo struct {
-	ID                           int        `json:"id"`
-	AttachmentType               string     `json:"attachment_type"`
-	AttachmentName               string     `json:"attachment_name"`
-	AttachmentDisplayName        string     `json:"attachment_display_name"`
-	EntryDateFrom                *string    `json:"entry_date_from"`
-	EntryDateTo                  *string    `json:"entry_date_to"`
-	EntryTimeFrom                *string    `json:"entry_time_from"`
-	EntryTimeTo                  *string    `json:"entry_time_to"`
-	CreatedAt                    *time.Time `json:"created_at"`
-	UniqueAttachmentID           *int       `json:"unique_attachment_id"`
-	UniqueAttachmentTitle        *string    `json:"unique_attachment_title"`
-	UniqueAttachmentDisplayName  *string    `json:"unique_attachment_display_name"`
+	ID                          int        `json:"id"`
+	AttachmentType              string     `json:"attachment_type"`
+	AttachmentName              string     `json:"attachment_name"`
+	AttachmentDisplayName       string     `json:"attachment_display_name"`
+	EntryDateFrom               *string    `json:"entry_date_from"`
+	EntryDateTo                 *string    `json:"entry_date_to"`
+	EntryTimeFrom               *string    `json:"entry_time_from"`
+	EntryTimeTo                 *string    `json:"entry_time_to"`
+	CreatedAt                   *time.Time `json:"created_at"`
+	UniqueAttachmentID          *int       `json:"unique_attachment_id"`
+	UniqueAttachmentTitle       *string    `json:"unique_attachment_title"`
+	UniqueAttachmentDisplayName *string    `json:"unique_attachment_display_name"`
 }
 
 // CarWithPlaces автомобиль с привязанными местами разгрузки.
@@ -601,7 +601,6 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 	return rows, nil
 }
 
-
 // GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
 func (s *applicationService) GetApplicationByID(ctx context.Context, username string, applicationID int) (map[string]interface{}, error) {
 	user, err := s.getUserByUsername(ctx, username)
@@ -804,7 +803,6 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 
 	return response, nil
 }
-
 
 // CreateApplication создаёт новую заявку с назначением ответственных.
 func (s *applicationService) CreateApplication(ctx context.Context, username string, req ApplicationCreateRequest) (*ApplicationCreateResponse, error) {
@@ -1146,6 +1144,17 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					}
 					empID := employee.ID
 
+					empHistoryTime := baseTime.Add(time.Millisecond)
+					empMiddle := ""
+					if e.MiddleName != nil {
+						empMiddle = *e.MiddleName
+					}
+					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{lastName, firstName, empMiddle}, " ")))
+					tx.Exec(`
+						INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
+						VALUES (?, ?, 'create', ?, ?)
+					`, empID, user.ID, empComment, empHistoryTime)
+
 					for _, tableID := range e.TargetTables {
 						tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID)
 					}
@@ -1273,4 +1282,3 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 		RowsAffected: result.RowsAffected,
 	}, nil
 }
-
