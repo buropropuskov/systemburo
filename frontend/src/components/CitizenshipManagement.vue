@@ -15,7 +15,10 @@
         >
           Добавить
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="isLoading"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -321,7 +324,8 @@ export default {
       showAddModal: false,
       selectedCitizenship: null,
       sortField: null,
-      sortDirection: 'asc'
+      sortDirection: 'asc',
+      isLoading: false
     };
   },
   computed: {
@@ -375,7 +379,12 @@ export default {
   },
   methods: {
     async refreshData() {
-      await this.fetchCitizenships();
+      this.isLoading = true;
+      try {
+        await this.fetchCitizenships();
+      } finally {
+        this.isLoading = false;
+      }
     },
     async fetchCitizenships() {
       try {

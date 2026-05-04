@@ -15,7 +15,10 @@
         >
           Добавить
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="isLoading"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -355,7 +358,12 @@ export default {
   },
   methods: {
     async refreshData() {
-      await this.fetchCompaniesWithUsers();
+      this.isLoading = true;
+      try {
+        await this.fetchCompaniesWithUsers();
+      } finally {
+        this.isLoading = false;
+      }
     },
     async fetchCompaniesWithUsers() {
       try {

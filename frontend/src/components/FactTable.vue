@@ -255,6 +255,7 @@
       :show-car-features="true"
       :source="'facttable'"
       @close="closeDetailsModal"
+      @open-application="$emit('open-application', $event)"
     />
   </div>
 </template>
@@ -281,6 +282,7 @@ export default {
     currentUserId: { type: Number, default: null },
     currentUserName: { type: String, default: '' }
   },
+  emits: ['refresh-data', 'open-application'],
   data() {
     return {
       sortField: null,

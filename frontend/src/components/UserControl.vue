@@ -783,6 +783,7 @@
 import { apiRequest } from '@/api/client'
 import { ref } from 'vue';
 import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
+import { formatShortName } from '@/utils/formatName'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PermissionTree from './PermissionTree.vue';
@@ -980,16 +981,8 @@ export default {
     },
     
     formatUserName(user) {
-      if (!user.last_name && !user.first_name && !user.middle_name) return '-';
-      
-      let result = user.last_name || '';
-      if (user.first_name) {
-        result += ` ${user.first_name.charAt(0).toUpperCase()}.`;
-        if (user.middle_name) {
-          result += `${user.middle_name.charAt(0).toUpperCase()}.`;
-        }
-      }
-      return result || '-';
+      const formatted = formatShortName(user);
+      return formatted || '-';
     },
     
     getOrganizationName(id) {
