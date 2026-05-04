@@ -1,20 +1,24 @@
 <template>
-  <div class="text-constructor">
+  <div
+    class="text-constructor"
+    :class="{ 'is-disabled': disabled }"
+  >
     <div class="editor-toolbar">
       <div class="toolbar-group">
-        <!-- УБРАН КНОПКА "B" -->
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Курсив"
+          :disabled="disabled"
           @click="formatText('italic')"
         >
           <em>I</em>
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Подчеркивание"
+          :disabled="disabled"
           @click="formatText('underline')"
         >
           <u>U</u>
@@ -22,26 +26,29 @@
       </div>
 
       <div class="toolbar-group lists-group">
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Маркированный список"
+          :disabled="disabled"
           @click="insertList('ul')"
         >
           • L
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Нумерованный список"
+          :disabled="disabled"
           @click="insertList('ol')"
         >
           1. L
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Добавить элемент списка"
+          :disabled="disabled"
           @click="insertListItem()"
         >
           Li
@@ -49,18 +56,20 @@
       </div>
 
       <div class="toolbar-group">
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Заголовок h1"
+          :disabled="disabled"
           @click="insertHeading('h1')"
         >
           h1
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn" 
+        <button
+          type="button"
+          class="toolbar-btn"
           data-tooltip="Заголовок h2"
+          :disabled="disabled"
           @click="insertHeading('h2')"
         >
           h2
@@ -73,9 +82,9 @@
           @mouseenter="showTooltip = true"
           @mouseleave="showTooltip = false"
         >
-          <div 
-            class="select-header" 
-            :data-tooltip="fontSizeDropdownOpen ? '' : 'Размер шрифта'" 
+          <div
+            class="select-header"
+            :data-tooltip="fontSizeDropdownOpen ? '' : 'Размер шрифта'"
             @click="toggleFontSizeDropdown"
           >
             <span class="select-value">{{ selectedFontSize }}</span>
@@ -89,8 +98,8 @@
             v-if="fontSizeDropdownOpen"
             class="select-dropdown"
           >
-            <div 
-              v-for="size in fontSizes" 
+            <div
+              v-for="size in fontSizes"
               :key="size"
               class="select-option"
               :class="{ active: selectedFontSize === size }"
@@ -108,9 +117,9 @@
           @mouseenter="showTooltip = true"
           @mouseleave="showTooltip = false"
         >
-          <div 
-            class="select-header" 
-            :data-tooltip="fontWeightDropdownOpen ? '' : 'Жирность шрифта'" 
+          <div
+            class="select-header"
+            :data-tooltip="fontWeightDropdownOpen ? '' : 'Жирность шрифта'"
             @click="toggleFontWeightDropdown"
           >
             <span class="select-value">{{ selectedFontWeight.label }}</span>
@@ -124,8 +133,8 @@
             v-if="fontWeightDropdownOpen"
             class="select-dropdown"
           >
-            <div 
-              v-for="weight in fontWeights" 
+            <div
+              v-for="weight in fontWeights"
               :key="weight.value"
               class="select-option"
               :class="{ active: selectedFontWeight.value === weight.value }"
@@ -139,34 +148,38 @@
       </div>
 
       <div class="toolbar-group">
-        <button 
-          type="button" 
-          class="toolbar-btn color-btn black-text" 
+        <button
+          type="button"
+          class="toolbar-btn color-btn black-text"
           data-tooltip="Черный"
+          :disabled="disabled"
           @click="insertColor('black-text')"
         >
           A
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn color-btn red-text" 
+        <button
+          type="button"
+          class="toolbar-btn color-btn red-text"
           data-tooltip="Красный"
+          :disabled="disabled"
           @click="insertColor('red-text')"
         >
           A
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn color-btn green-text" 
+        <button
+          type="button"
+          class="toolbar-btn color-btn green-text"
           data-tooltip="Зеленый"
+          :disabled="disabled"
           @click="insertColor('green-text')"
         >
           A
         </button>
-        <button 
-          type="button" 
-          class="toolbar-btn color-btn blue-text" 
+        <button
+          type="button"
+          class="toolbar-btn color-btn blue-text"
           data-tooltip="Синий"
+          :disabled="disabled"
           @click="insertColor('blue-text')"
         >
           A
@@ -174,10 +187,30 @@
       </div>
 
       <div class="toolbar-group">
-        <button 
-          type="button" 
-          class="toolbar-btn" 
-          data-tooltip="Отступ"
+        <button
+          type="button"
+          class="toolbar-btn image-btn"
+          data-tooltip="Вставить изображение"
+          :disabled="disabled"
+          @click="triggerImagePicker"
+        >
+          <span aria-hidden="true">IMG</span>
+        </button>
+        <input
+          ref="imageInput"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+          class="image-input"
+          @change="handleImageSelected"
+        >
+      </div>
+
+      <div class="toolbar-group">
+        <button
+          type="button"
+          class="toolbar-btn"
+          data-tooltip="Перенос строки"
+          :disabled="disabled"
           @click="insertBreak()"
         >
           ↵
@@ -185,24 +218,34 @@
       </div>
 
       <div class="toolbar-group">
-        <button 
-          type="button" 
-          class="toolbar-btn undo-btn" 
+        <button
+          type="button"
+          class="toolbar-btn undo-btn"
           data-tooltip="Назад (Ctrl+Z)"
-          :disabled="historyIndex === 0"
+          :disabled="disabled || historyIndex === 0"
           @click="undo()"
         >
           ↶
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn preview-btn"
+          data-tooltip="Открыть предпросмотр"
+          :disabled="!modelValue"
+          @click="openPreviewModal"
+        >
+          ⎚
         </button>
       </div>
     </div>
 
     <div class="textarea-container">
-      <textarea 
+      <textarea
         ref="textarea"
         :value="modelValue"
         :placeholder="placeholder"
         :rows="rows"
+        :disabled="disabled"
         class="constructor-textarea"
         @input="handleInput"
         @keydown.ctrl.z.prevent="handleCtrlZ"
@@ -214,11 +257,26 @@
     </div>
 
     <div
+      v-if="imageError"
+      class="constructor-error"
+      role="alert"
+    >
+      {{ imageError }}
+    </div>
+
+    <div
       v-if="modelValue"
       class="editor-preview"
     >
       <div class="preview-header">
-        <h5>Предпросмотр:</h5>
+        <h5>Предпросмотр</h5>
+        <button
+          type="button"
+          class="preview-expand-btn"
+          @click="openPreviewModal"
+        >
+          Открыть в окне
+        </button>
       </div>
       <div class="preview-content-container">
         <div
@@ -232,14 +290,37 @@
         />
       </div>
     </div>
+
+    <BaseModal
+      :show="previewModalOpen"
+      title="Предпросмотр контента"
+      width="780px"
+      @close="previewModalOpen = false"
+    >
+      <div
+        class="preview-modal-content"
+        v-html="sanitizedContent"
+      />
+    </BaseModal>
   </div>
 </template>
 
 <script>
 import { sanitizeHtml } from '@/utils/sanitize';
+import BaseModal from '@/components/ui/BaseModal.vue';
+
+const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml'
+];
 
 export default {
   name: 'TextConstructor',
+  components: { BaseModal },
   props: {
     modelValue: {
       type: String,
@@ -252,6 +333,14 @@ export default {
     rows: {
       type: Number,
       default: 4
+    },
+    disabled: {
+      type: Boolean,
+      default: false
+    },
+    maxImageBytes: {
+      type: Number,
+      default: DEFAULT_MAX_IMAGE_BYTES
     }
   },
   emits: ['update:modelValue'],
@@ -278,7 +367,11 @@ export default {
       startY: 0,
       previewStartHeight: 0,
       previewMinHeight: 150,
-      previewMaxHeight: 350
+      previewMaxHeight: 350,
+      imageError: '',
+      imageErrorTimer: null,
+      previewModalOpen: false,
+      onDocClick: null
     };
   },
   computed: {
@@ -288,7 +381,6 @@ export default {
   },
   watch: {
     modelValue(newValue) {
-      // Обновляем историю при изменении modelValue извне
       if (this.history[this.historyIndex] !== newValue) {
         this.history = [newValue];
         this.historyIndex = 0;
@@ -296,11 +388,9 @@ export default {
     }
   },
   mounted() {
-    // Инициализируем историю с текущим значением
     this.history = [this.modelValue];
     this.historyIndex = 0;
-    
-    // Устанавливаем начальную высоту для preview
+
     this.$nextTick(() => {
       if (this.$refs.previewContent) {
         this.$refs.previewContent.style.height = this.previewMinHeight + 'px';
@@ -308,15 +398,27 @@ export default {
         this.$refs.previewContent.style.maxHeight = this.previewMaxHeight + 'px';
       }
     });
-    
-    // Закрываем dropdown при клике вне его
-    document.addEventListener('click', (e) => {
+
+    this.onDocClick = (e) => {
       if (!this.$el.contains(e.target)) {
         this.fontSizeDropdownOpen = false;
         this.fontWeightDropdownOpen = false;
         this.showTooltip = true;
       }
-    });
+    };
+    document.addEventListener('click', this.onDocClick);
+  },
+  beforeUnmount() {
+    if (this.onDocClick) {
+      document.removeEventListener('click', this.onDocClick);
+    }
+    document.removeEventListener('mousemove', this.handleResize);
+    document.removeEventListener('mouseup', this.stopResize);
+    document.removeEventListener('mousemove', this.handlePreviewResize);
+    document.removeEventListener('mouseup', this.stopPreviewResize);
+    if (this.imageErrorTimer) {
+      clearTimeout(this.imageErrorTimer);
+    }
   },
   methods: {
     handleInput(event) {
@@ -329,9 +431,7 @@ export default {
     },
 
     addToHistory(value) {
-      // Удаляем все элементы после текущего индекса
       this.history = this.history.slice(0, this.historyIndex + 1);
-      // Добавляем новое значение
       this.history.push(value);
       this.historyIndex++;
     },
@@ -341,14 +441,13 @@ export default {
         this.historyIndex--;
         const previousValue = this.history[this.historyIndex];
         this.$emit('update:modelValue', previousValue);
-        
+
         this.$nextTick(() => {
+          if (!this.$refs.textarea) return;
           this.$refs.textarea.value = previousValue;
-          // Сохраняем позицию курсора
           const textarea = this.$refs.textarea;
           const currentScrollPos = textarea.scrollTop;
           textarea.focus();
-          // Восстанавливаем позицию скролла
           textarea.scrollTop = currentScrollPos;
         });
       }
@@ -358,7 +457,7 @@ export default {
       this.isResizing = true;
       this.startY = e.clientY;
       this.startHeight = this.$refs.textarea.offsetHeight;
-      
+
       document.addEventListener('mousemove', this.handleResize);
       document.addEventListener('mouseup', this.stopResize);
       e.preventDefault();
@@ -366,10 +465,10 @@ export default {
 
     handleResize(e) {
       if (!this.isResizing) return;
-      
+
       const deltaY = e.clientY - this.startY;
       const newHeight = Math.max(150, Math.min(350, this.startHeight + deltaY));
-      
+
       this.$refs.textarea.style.height = newHeight + 'px';
     },
 
@@ -383,7 +482,7 @@ export default {
       this.isPreviewResizing = true;
       this.startY = e.clientY;
       this.previewStartHeight = this.$refs.previewContent.offsetHeight;
-      
+
       document.addEventListener('mousemove', this.handlePreviewResize);
       document.addEventListener('mouseup', this.stopPreviewResize);
       e.preventDefault();
@@ -391,10 +490,10 @@ export default {
 
     handlePreviewResize(e) {
       if (!this.isPreviewResizing) return;
-      
+
       const deltaY = e.clientY - this.startY;
       const newHeight = Math.max(this.previewMinHeight, Math.min(this.previewMaxHeight, this.previewStartHeight + deltaY));
-      
+
       this.$refs.previewContent.style.height = newHeight + 'px';
     },
 
@@ -404,14 +503,35 @@ export default {
       document.removeEventListener('mouseup', this.stopPreviewResize);
     },
 
+    insertAtCursor(text, opts = {}) {
+      const textarea = this.$refs.textarea;
+      if (!textarea) return;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const currentScrollPos = textarea.scrollTop;
+      const newValue = textarea.value.substring(0, start) + text + textarea.value.substring(end);
+      this.addToHistory(newValue);
+      this.$emit('update:modelValue', newValue);
+
+      this.$nextTick(() => {
+        textarea.focus();
+        const cursor = opts.selectStart != null
+          ? opts.selectStart
+          : start + text.length;
+        textarea.setSelectionRange(cursor, cursor);
+        textarea.scrollTop = currentScrollPos;
+      });
+    },
+
     formatText(type) {
+      if (this.disabled) return;
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = textarea.value.substring(start, end);
-      
+
       if (!selectedText) return;
-      
+
       let formattedText = '';
       switch (type) {
         case 'italic':
@@ -421,81 +541,74 @@ export default {
           formattedText = `<u>${selectedText}</u>`;
           break;
       }
-      
+
+      const currentScrollPos = textarea.scrollTop;
       const newValue = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
       this.addToHistory(newValue);
       this.$emit('update:modelValue', newValue);
-      
+
       this.$nextTick(() => {
-        const currentScrollPos = textarea.scrollTop;
         textarea.focus();
         textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
-        // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
     },
-    
+
     insertList(type) {
+      if (this.disabled) return;
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = textarea.value.substring(start, end);
-      
-      // Сохраняем позицию скролла
+
       const currentScrollPos = textarea.scrollTop;
-      
+
       let list;
       if (selectedText) {
-        // Если есть выделенный текст, создаем список с этим текстом как элементом
         const items = selectedText.split('\n').filter(item => item.trim());
         const listItems = items.map(item => `  <li>${item.trim()}</li>`).join('\n');
-        list = type === 'ul' 
-          ? `<ul>\n${listItems}\n</ul>` 
+        list = type === 'ul'
+          ? `<ul>\n${listItems}\n</ul>`
           : `<ol>\n${listItems}\n</ol>`;
       } else {
-        // Если нет выделенного текста, создаем пустой список
-        list = type === 'ul' 
-          ? `<ul>\n  <li>Элемент списка</li>\n</ul>` 
+        list = type === 'ul'
+          ? `<ul>\n  <li>Элемент списка</li>\n</ul>`
           : `<ol>\n  <li>Элемент списка</li>\n</ol>`;
       }
-      
+
       const newValue = textarea.value.substring(0, start) + list + textarea.value.substring(end);
       this.addToHistory(newValue);
       this.$emit('update:modelValue', newValue);
-      
+
       this.$nextTick(() => {
         textarea.focus();
-        // Устанавливаем курсор внутри элемента списка
         const newPosition = start + list.indexOf('<li>') + 4;
         textarea.setSelectionRange(newPosition, newPosition);
-        // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
     },
-    
+
     insertListItem() {
+      if (this.disabled) return;
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const value = textarea.value;
-      
-      // Сохраняем позицию скролла
+
       const currentScrollPos = textarea.scrollTop;
-      
-      // Находим позицию текущей строки
+
       const textBeforeCursor = value.substring(0, start);
       const lastNewLine = textBeforeCursor.lastIndexOf('\n');
       const currentLineStart = lastNewLine + 1;
       const currentLine = textBeforeCursor.substring(currentLineStart);
-      
+
       let listItem;
       if (currentLine.trim().startsWith('<li>') && currentLine.includes('</li>')) {
-        // Если курсор внутри существующего элемента списка, добавляем новый после него
         const lineEnd = textBeforeCursor.indexOf('</li>', currentLineStart) + 5;
         listItem = '\n  <li>Новый элемент списка</li>';
         const newValue = value.substring(0, lineEnd) + listItem + value.substring(lineEnd);
         this.addToHistory(newValue);
         this.$emit('update:modelValue', newValue);
-        
+
         this.$nextTick(() => {
           textarea.focus();
           const newPosition = lineEnd + listItem.length;
@@ -503,12 +616,11 @@ export default {
           textarea.scrollTop = currentScrollPos;
         });
       } else {
-        // Просто добавляем элемент списка
         listItem = '<li>Новый элемент списка</li>';
         const newValue = value.substring(0, start) + listItem + value.substring(start);
         this.addToHistory(newValue);
         this.$emit('update:modelValue', newValue);
-        
+
         this.$nextTick(() => {
           textarea.focus();
           const newPosition = start + listItem.length;
@@ -517,141 +629,196 @@ export default {
         });
       }
     },
-    
+
     insertHeading(level) {
+      if (this.disabled) return;
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = textarea.value.substring(start, end) || 'Заголовок';
-      
-      // Сохраняем позицию скролла
+
       const currentScrollPos = textarea.scrollTop;
-      
+
       const heading = `<${level} class="heading-${level}">${selectedText}</${level}>`;
       const newValue = textarea.value.substring(0, start) + heading + textarea.value.substring(end);
       this.addToHistory(newValue);
       this.$emit('update:modelValue', newValue);
-      
+
       this.$nextTick(() => {
         textarea.focus();
-        // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
     },
-    
+
     insertColor(colorClass) {
+      if (this.disabled) return;
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = textarea.value.substring(start, end);
-      
+
       if (!selectedText) return;
-      
-      // Сохраняем позицию скролла
+
       const currentScrollPos = textarea.scrollTop;
-      
+
       const coloredText = `<span class="${colorClass}">${selectedText}</span>`;
       const newValue = textarea.value.substring(0, start) + coloredText + textarea.value.substring(end);
       this.addToHistory(newValue);
       this.$emit('update:modelValue', newValue);
-      
+
       this.$nextTick(() => {
         textarea.focus();
-        // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
     },
-    
+
     insertBreak() {
-      const textarea = this.$refs.textarea;
-      const start = textarea.selectionStart;
-      
-      // Сохраняем позицию скролла
-      const currentScrollPos = textarea.scrollTop;
-      
-      const newValue = textarea.value.substring(0, start) + '<br>' + textarea.value.substring(start);
-      this.addToHistory(newValue);
-      this.$emit('update:modelValue', newValue);
-      
-      this.$nextTick(() => {
-        textarea.focus();
-        // Восстанавливаем позицию скролла
-        textarea.scrollTop = currentScrollPos;
+      if (this.disabled) return;
+      this.insertAtCursor('<br>');
+    },
+
+    triggerImagePicker() {
+      if (this.disabled) return;
+      this.clearImageError();
+      if (this.$refs.imageInput) {
+        this.$refs.imageInput.value = '';
+        this.$refs.imageInput.click();
+      }
+    },
+
+    /**
+     * Обрабатывает выбор файла, валидирует тип и размер,
+     * читает в data:URL и вставляет тег <img> в textarea.
+     */
+    async handleImageSelected(event) {
+      const file = event.target?.files?.[0];
+      if (!file) return;
+
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        this.setImageError('Неподдерживаемый формат. Разрешены: PNG, JPEG, GIF, WEBP, SVG.');
+        return;
+      }
+      if (file.size > this.maxImageBytes) {
+        const maxMb = Math.round(this.maxImageBytes / (1024 * 1024));
+        this.setImageError(`Файл слишком большой. Максимальный размер: ${maxMb} МБ.`);
+        return;
+      }
+
+      try {
+        const dataUrl = await this.readFileAsDataUrl(file);
+        const safeAlt = (file.name || 'image')
+          .replace(/[<>"'&]/g, '')
+          .slice(0, 100);
+        const imgTag = `<img src="${dataUrl}" alt="${safeAlt}" class="constructor-image">`;
+        this.insertAtCursor(imgTag);
+      } catch (err) {
+        this.setImageError('Не удалось прочитать файл. Попробуйте ещё раз.');
+        console.error('TextConstructor image read error:', err);
+      } finally {
+        if (this.$refs.imageInput) {
+          this.$refs.imageInput.value = '';
+        }
+      }
+    },
+
+    readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error || new Error('FileReader error'));
+        reader.readAsDataURL(file);
       });
     },
-    
+
+    setImageError(msg) {
+      this.imageError = msg;
+      if (this.imageErrorTimer) clearTimeout(this.imageErrorTimer);
+      this.imageErrorTimer = setTimeout(() => {
+        this.imageError = '';
+      }, 4500);
+    },
+
+    clearImageError() {
+      this.imageError = '';
+      if (this.imageErrorTimer) {
+        clearTimeout(this.imageErrorTimer);
+        this.imageErrorTimer = null;
+      }
+    },
+
+    openPreviewModal() {
+      if (!this.modelValue) return;
+      this.previewModalOpen = true;
+    },
+
     toggleFontSizeDropdown() {
+      if (this.disabled) return;
       this.fontSizeDropdownOpen = !this.fontSizeDropdownOpen;
       this.fontWeightDropdownOpen = false;
-      // При открытии дропдауна убираем подсказку
       this.showTooltip = !this.fontSizeDropdownOpen;
     },
-    
+
     selectFontSize(size) {
       this.selectedFontSize = size;
       this.fontSizeDropdownOpen = false;
       this.showTooltip = true;
       this.applyFontSize();
     },
-    
+
     applyFontSize() {
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = textarea.value.substring(start, end);
-      
+
       if (!selectedText) return;
-      
-      // Сохраняем позицию скролла
+
       const currentScrollPos = textarea.scrollTop;
-      
+
       const fontSizeClass = `font-size-${this.selectedFontSize.replace('px', '')}`;
       const sizedText = `<span class="${fontSizeClass}">${selectedText}</span>`;
       const newValue = textarea.value.substring(0, start) + sizedText + textarea.value.substring(end);
       this.addToHistory(newValue);
       this.$emit('update:modelValue', newValue);
-      
+
       this.$nextTick(() => {
         textarea.focus();
-        // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
     },
-    
+
     toggleFontWeightDropdown() {
+      if (this.disabled) return;
       this.fontWeightDropdownOpen = !this.fontWeightDropdownOpen;
       this.fontSizeDropdownOpen = false;
-      // При открытии дропдауна убираем подсказку
       this.showTooltip = !this.fontWeightDropdownOpen;
     },
-    
+
     selectFontWeight(weight) {
       this.selectedFontWeight = weight;
       this.fontWeightDropdownOpen = false;
       this.showTooltip = true;
       this.applyFontWeight();
     },
-    
+
     applyFontWeight() {
       const textarea = this.$refs.textarea;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = textarea.value.substring(start, end);
-      
+
       if (!selectedText) return;
-      
-      // Сохраняем позицию скролла
+
       const currentScrollPos = textarea.scrollTop;
-      
+
       const weightClass = `font-weight-${this.selectedFontWeight.value}`;
       const weightedText = `<span class="${weightClass}">${selectedText}</span>`;
       const newValue = textarea.value.substring(0, start) + weightedText + textarea.value.substring(end);
       this.addToHistory(newValue);
       this.$emit('update:modelValue', newValue);
-      
+
       this.$nextTick(() => {
         textarea.focus();
-        // Восстанавливаем позицию скролла
         textarea.scrollTop = currentScrollPos;
       });
     }
@@ -662,8 +829,20 @@ export default {
 <style scoped>
 .text-constructor {
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: 12px;
   margin-bottom: 10px;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.text-constructor:focus-within {
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
+}
+
+.text-constructor.is-disabled {
+  opacity: 0.65;
+  background: #f7f7f9;
 }
 
 .editor-toolbar {
@@ -673,6 +852,8 @@ export default {
   border-bottom: 1px solid #e6e6e6;
   align-items: center;
   flex-wrap: nowrap;
+  background: #fafafa;
+  border-radius: 12px 12px 0 0;
 }
 
 .toolbar-group {
@@ -680,7 +861,7 @@ export default {
   gap: 4px;
   align-items: center;
   padding-right: 8px;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid #e6e6e6;
 }
 
 .toolbar-group:last-child {
@@ -688,7 +869,6 @@ export default {
   padding-right: 0;
 }
 
-/* Фиксированная ширина для группы списков */
 .toolbar-group.lists-group {
   width: 130px;
   justify-content: space-between;
@@ -698,10 +878,12 @@ export default {
   padding: 4px 6px;
   border: 1px solid #ddd;
   background: white;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 12px;
-  transition: all 0.2s ease;
+  font-family: inherit;
+  color: #1a1a1a;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
   min-width: 32px;
   height: 28px;
   display: flex;
@@ -711,45 +893,82 @@ export default {
 }
 
 .toolbar-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  border-color: #ccc;
+  background: #eef0ff;
+  border-color: #4F5BDF;
+  color: #4F5BDF;
+}
+
+.toolbar-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.toolbar-btn:focus-visible {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.25);
 }
 
 .toolbar-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
+.image-btn {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.image-input {
+  display: none;
+}
+
 .undo-btn {
-  padding: 4px 6px;
   background: #f8f9fa;
   border-color: #e9ecef;
 }
 
 .undo-btn:hover:not(:disabled) {
-  background: #e9ecef;
-  border-color: #dee2e6;
+  background: #eef0ff;
+  border-color: #4F5BDF;
 }
 
-/* Общие стили для подсказок всех кнопок и селектов */
+.preview-btn {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+}
+
+.preview-btn:hover:not(:disabled) {
+  background: #eef0ff;
+  border-color: #4F5BDF;
+  color: #4F5BDF;
+}
+
+/* Tooltip pattern, общий для кнопок и селектов */
 .toolbar-btn:hover:not(:disabled)::after,
 .custom-select:hover .select-header::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: -30px;
+  bottom: -32px;
   left: 50%;
   transform: translateX(-50%);
-  background: #000;
+  background: #1a1a1a;
   color: white;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 11px;
   white-space: nowrap;
   z-index: 1000;
   font-weight: normal;
+  font-family: inherit;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltipFadeIn 0.15s ease forwards;
 }
 
-/* Специфичные стили для подсказок селектов */
+@keyframes tooltipFadeIn {
+  to { opacity: 1; }
+}
+
 .custom-select {
   position: relative;
   width: fit-content;
@@ -763,14 +982,12 @@ export default {
   content: attr(data-tooltip);
 }
 
-/* Убираем подсказку когда дропдаун открыт */
 .custom-select:hover .select-header[data-tooltip=""]::after {
   content: none;
 }
 
-/* Фиксированная ширина для селектора жирности */
 .custom-select.fixed-width-select {
-  width: 75px;
+  width: 78px;
 }
 
 .color-btn {
@@ -782,31 +999,26 @@ export default {
 .green-text { color: #079D1D !important; }
 .blue-text { color: #4F5BDF !important; }
 
-/* Стили для кастомного select */
-.custom-select {
-  position: relative;
-  width: fit-content;
-}
-
 .select-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 8px;
   background: white;
   cursor: pointer;
   font-size: 12px;
+  font-family: inherit;
   height: 28px;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
   position: relative;
   width: 100%;
 }
 
 .select-header:hover {
-  border-color: #ccc;
-  background: #f8f9fa;
+  border-color: #4F5BDF;
+  background: #f8f9ff;
 }
 
 .select-value {
@@ -831,25 +1043,27 @@ export default {
   left: 0;
   right: 0;
   background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   z-index: 1000;
-  margin-top: 2px;
+  margin-top: 4px;
   max-height: 200px;
   overflow-y: auto;
+  padding: 4px;
 }
 
 .select-option {
-  padding: 6px 8px;
+  padding: 6px 10px;
   font-size: 12px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.15s ease;
   color: #000;
+  border-radius: 6px;
 }
 
 .select-option:hover {
-  background: #f0f0f0;
+  background: #eef0ff;
 }
 
 .select-option.active {
@@ -864,24 +1078,35 @@ export default {
 
 .constructor-textarea {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   border: none;
-  font-family: 'Courier New', monospace;
+  font-family: inherit;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.5;
   border-radius: 0;
   min-height: 150px;
   max-height: 350px;
   resize: none;
   display: block;
   overflow-y: auto;
+  background: transparent;
+  color: #1a1a1a;
 }
 
 .constructor-textarea:focus {
   outline: none;
 }
 
-/* Скрываем скроллбар */
+.constructor-textarea:disabled {
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.constructor-textarea::placeholder {
+  color: #9aa0a6;
+  font-style: italic;
+}
+
 .constructor-textarea::-webkit-scrollbar {
   display: none;
 }
@@ -900,6 +1125,7 @@ export default {
   background: transparent;
   cursor: ns-resize;
   z-index: 10;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 
 .resize-handle:hover {
@@ -912,10 +1138,20 @@ export default {
   opacity: 0.5;
 }
 
+.constructor-error {
+  margin: 10px 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff1f1;
+  border: 1px solid #f5c2c2;
+  color: #b3261e;
+  font-size: 12px;
+}
+
 .editor-preview {
   border-top: 1px solid #e6e6e6;
   background: #fafafa;
-  border-radius: 0 0 15px 15px;
+  border-radius: 0 0 12px 12px;
 }
 
 .preview-header {
@@ -929,6 +1165,24 @@ export default {
   margin: 0;
   color: #000;
   font-size: 0.9em;
+  font-weight: 600;
+}
+
+.preview-expand-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #4F5BDF;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.preview-expand-btn:hover {
+  background: #eef0ff;
+  border-color: #4F5BDF;
 }
 
 .preview-content-container {
@@ -939,7 +1193,7 @@ export default {
 .preview-content {
   background: white;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 10px;
   border: 1px solid #e6e6e6;
   overflow-y: auto;
   min-height: 150px;
@@ -968,7 +1222,31 @@ export default {
   opacity: 0.5;
 }
 
-/* Классы для размеров шрифта */
+.preview-modal-content {
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Изображения внутри редактора и preview */
+.preview-content :deep(img),
+.preview-modal-content :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin: 6px 0;
+  display: inline-block;
+}
+
+.preview-content :deep(.constructor-image),
+.preview-modal-content :deep(.constructor-image) {
+  border: 1px solid #e6e6e6;
+}
+
+/* Размеры и жирность шрифта */
 .font-size-10 { font-size: 10px !important; }
 .font-size-12 { font-size: 12px !important; }
 .font-size-14 { font-size: 14px !important; }
@@ -976,23 +1254,15 @@ export default {
 .font-size-18 { font-size: 18px !important; }
 .font-size-20 { font-size: 20px !important; }
 
-/* Классы для жирности шрифта */
 .font-weight-300 { font-weight: 300 !important; }
 .font-weight-400 { font-weight: 400 !important; }
 .font-weight-500 { font-weight: 500 !important; }
 .font-weight-600 { font-weight: 600 !important; }
 .font-weight-900 { font-weight: 900 !important; }
 
-/* Классы для цветов текста */
-.black-text { color: #000 !important; }
-.red-text { color: #FF0000 !important; }
-.green-text { color: #079D1D !important; }
-.blue-text { color: #4F5BDF !important; }
-
-/* Стили для заголовков с разными шрифтами */
 .heading-h1,
-.heading-h1 :deep(*) { 
-  font-size: 24px !important; 
+.heading-h1 :deep(*) {
+  font-size: 24px !important;
   font-weight: 700 !important;
   color: #000 !important;
   margin: 16px 0 8px 0 !important;
@@ -1000,42 +1270,59 @@ export default {
 }
 
 .heading-h2,
-.heading-h2 :deep(*) { 
-  font-size: 20px !important; 
+.heading-h2 :deep(*) {
+  font-size: 20px !important;
   font-weight: 600 !important;
   color: #000 !important;
   margin: 14px 0 6px 0 !important;
   line-height: 1.3 !important;
 }
 
-/* Ограничение размеров шрифта в preview */
-.preview-content :deep(*) {
-  font-size: 14px !important;
+.preview-content :deep(*),
+.preview-modal-content :deep(*) {
+  font-size: 14px;
   max-font-size: 20px !important;
   min-font-size: 10px !important;
 }
 
-.preview-content :deep(.font-size-10) { font-size: 10px !important; }
-.preview-content :deep(.font-size-12) { font-size: 12px !important; }
-.preview-content :deep(.font-size-14) { font-size: 14px !important; }
-.preview-content :deep(.font-size-16) { font-size: 16px !important; }
-.preview-content :deep(.font-size-18) { font-size: 18px !important; }
-.preview-content :deep(.font-size-20) { font-size: 20px !important; }
+.preview-content :deep(.font-size-10),
+.preview-modal-content :deep(.font-size-10) { font-size: 10px !important; }
+.preview-content :deep(.font-size-12),
+.preview-modal-content :deep(.font-size-12) { font-size: 12px !important; }
+.preview-content :deep(.font-size-14),
+.preview-modal-content :deep(.font-size-14) { font-size: 14px !important; }
+.preview-content :deep(.font-size-16),
+.preview-modal-content :deep(.font-size-16) { font-size: 16px !important; }
+.preview-content :deep(.font-size-18),
+.preview-modal-content :deep(.font-size-18) { font-size: 18px !important; }
+.preview-content :deep(.font-size-20),
+.preview-modal-content :deep(.font-size-20) { font-size: 20px !important; }
 
-.preview-content :deep(.font-weight-300) { font-weight: 300 !important; }
-.preview-content :deep(.font-weight-400) { font-weight: 400 !important; }
-.preview-content :deep(.font-weight-500) { font-weight: 500 !important; }
-.preview-content :deep(.font-weight-600) { font-weight: 600 !important; }
-.preview-content :deep(.font-weight-900) { font-weight: 900 !important; }
+.preview-content :deep(.font-weight-300),
+.preview-modal-content :deep(.font-weight-300) { font-weight: 300 !important; }
+.preview-content :deep(.font-weight-400),
+.preview-modal-content :deep(.font-weight-400) { font-weight: 400 !important; }
+.preview-content :deep(.font-weight-500),
+.preview-modal-content :deep(.font-weight-500) { font-weight: 500 !important; }
+.preview-content :deep(.font-weight-600),
+.preview-modal-content :deep(.font-weight-600) { font-weight: 600 !important; }
+.preview-content :deep(.font-weight-900),
+.preview-modal-content :deep(.font-weight-900) { font-weight: 900 !important; }
 
-.preview-content :deep(.black-text) { color: #000 !important; }
-.preview-content :deep(.red-text) { color: #FF0000 !important; }
-.preview-content :deep(.green-text) { color: #079D1D !important; }
-.preview-content :deep(.blue-text) { color: #4F5BDF !important; }
+.preview-content :deep(.black-text),
+.preview-modal-content :deep(.black-text) { color: #000 !important; }
+.preview-content :deep(.red-text),
+.preview-modal-content :deep(.red-text) { color: #FF0000 !important; }
+.preview-content :deep(.green-text),
+.preview-modal-content :deep(.green-text) { color: #079D1D !important; }
+.preview-content :deep(.blue-text),
+.preview-modal-content :deep(.blue-text) { color: #4F5BDF !important; }
 
 .preview-content :deep(.heading-h1),
-.preview-content :deep(.heading-h1 *) { 
-  font-size: 24px !important; 
+.preview-content :deep(.heading-h1 *),
+.preview-modal-content :deep(.heading-h1),
+.preview-modal-content :deep(.heading-h1 *) {
+  font-size: 24px !important;
   font-weight: 700 !important;
   color: #000 !important;
   margin: 10px 0 8px 0 !important;
@@ -1043,35 +1330,39 @@ export default {
 }
 
 .preview-content :deep(.heading-h2),
-.preview-content :deep(.heading-h2 *) { 
-  font-size: 20px !important; 
+.preview-content :deep(.heading-h2 *),
+.preview-modal-content :deep(.heading-h2),
+.preview-modal-content :deep(.heading-h2 *) {
+  font-size: 20px !important;
   font-weight: 600 !important;
   color: #000 !important;
   margin: 8px 0 6px 0 !important;
   line-height: 1.3 !important;
 }
 
-/* Специальные стили для strong внутри заголовков */
 .heading-h1 strong,
 .heading-h2 strong,
 .preview-content :deep(.heading-h1 strong),
-.preview-content :deep(.heading-h2 strong) {
+.preview-content :deep(.heading-h2 strong),
+.preview-modal-content :deep(.heading-h1 strong),
+.preview-modal-content :deep(.heading-h2 strong) {
   font-size: inherit !important;
   font-weight: inherit !important;
   color: inherit !important;
 }
 
-/* Отступы для списков в preview */
 .preview-content :deep(ul),
-.preview-content :deep(ol) {
+.preview-content :deep(ol),
+.preview-modal-content :deep(ul),
+.preview-modal-content :deep(ol) {
   padding-left: 24px !important;
 }
 
-.preview-content :deep(li) {
+.preview-content :deep(li),
+.preview-modal-content :deep(li) {
   line-height: 1.4 !important;
 }
 
-/* Скрываем скроллбар для toolbar */
 .editor-toolbar::-webkit-scrollbar {
   display: none;
 }
@@ -1086,27 +1377,27 @@ export default {
     flex-wrap: wrap;
     gap: 4px;
   }
-  
+
   .toolbar-group {
     padding-right: 4px;
     margin-right: 4px;
   }
-  
+
   .toolbar-group.lists-group {
     width: 110px;
   }
-  
+
   .toolbar-btn {
     min-width: 28px;
     height: 26px;
     font-size: 11px;
     padding: 4px 6px;
   }
-  
+
   .custom-select.fixed-width-select {
     width: 70px;
   }
-  
+
   .select-header {
     font-size: 11px;
     padding: 4px 6px;
