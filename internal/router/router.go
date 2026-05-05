@@ -10,7 +10,7 @@ import (
 // Setup регистрирует все маршруты.
 // loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
 // В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, maintenanceBlock echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, maintenanceBlock echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -256,6 +256,25 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
 	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.POST("/auto-generate", permissions.AutoGenerate)
+
+	// Группы прав (#187a)
+	pgGroup := protected.Group("/permission-groups")
+	pgGroup.GET("", permGroups.List)
+	pgGroup.GET("/:id", permGroups.Get)
+	pgGroup.POST("", permGroups.Create)
+	pgGroup.PUT("/:id", permGroups.Update)
+	pgGroup.DELETE("/:id", permGroups.Delete)
+	pgGroup.POST("/merge", permGroups.Merge)
+	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser)
+	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser)
+
+	// Роли (#187a)
+	rolesGroup := protected.Group("/roles")
+	rolesGroup.GET("", roles.List)
+	rolesGroup.POST("", roles.Create)
+	rolesGroup.PUT("/:id", roles.Update)
+	rolesGroup.DELETE("/:id", roles.Delete)
+	rolesGroup.PUT("/:id/default-groups", roles.SetDefaultGroups)
 
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")

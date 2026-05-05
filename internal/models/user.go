@@ -12,6 +12,9 @@ type User struct {
 	Company           Company      `json:"company,omitempty"`
 	TypeID            int          `gorm:"default:1" json:"type_id"`
 	UserType          UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
+	RoleID            *int         `json:"role_id"`
+	Role              *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	IsSuperAdmin      bool         `gorm:"default:false;index" json:"is_super_admin"`
 	LastName          *string      `gorm:"size:100" json:"last_name"`
 	FirstName         *string      `gorm:"size:100" json:"first_name"`
 	MiddleName        *string      `gorm:"size:100" json:"middle_name"`
