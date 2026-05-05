@@ -7,6 +7,7 @@ import bus from './eventBus'
 import { tryRestoreSession } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import './assets/tokens.css'
+import './assets/forms.css'
 
 const app = createApp(App)
 app.config.globalProperties.$bus = bus

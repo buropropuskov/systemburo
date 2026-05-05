@@ -1,94 +1,93 @@
 <template>
-  <section class="feedback">
-    <header class="feedback__header">
-      <div class="header-top">
-        <h2 class="feedback__title">
+  <section class="feedback-admin">
+    <header class="feedback-admin__header">
+      <div class="header-row">
+        <h2 class="feedback-admin__title">
           Обратная связь
         </h2>
-        <div class="header-stats">
-          <div class="stat-item">
-            <span class="stat-label">Всего:</span>
-            <span class="stat-value">{{ feedbacks.length }}</span>
-          </div>
-          <div
-            v-if="unreadCount > 0"
-            class="stat-item"
-          >
-            <span class="stat-label">Новые:</span>
-            <span class="stat-value stat-new">{{ unreadCount }}</span>
-          </div>
-        </div>
+        <button
+          class="lk-button lk-button--secondary"
+          :disabled="loading"
+          @click="fetchFeedbacks"
+        >
+          <span
+            v-if="loading"
+            class="spinner"
+          />
+          <span>Обновить</span>
+        </button>
+      </div>
+
+      <div class="summary-cards">
+        <button
+          class="summary-card"
+          :class="{ 'summary-card--active': statusFilter === null && readFilter === null }"
+          @click="resetAllFilters"
+        >
+          <span class="summary-card__label">Всего</span>
+          <span class="summary-card__value">{{ feedbacks.length }}</span>
+        </button>
+        <button
+          class="summary-card summary-card--accent"
+          :class="{ 'summary-card--active': readFilter === 'false' }"
+          @click="toggleReadFilter('false')"
+        >
+          <span class="summary-card__label">Новые</span>
+          <span class="summary-card__value">{{ unreadCount }}</span>
+        </button>
+        <button
+          class="summary-card summary-card--warning"
+          :class="{ 'summary-card--active': statusFilter === 'Не решено' }"
+          @click="toggleStatusFilter('Не решено')"
+        >
+          <span class="summary-card__label">В работе</span>
+          <span class="summary-card__value">{{ pendingCount }}</span>
+        </button>
+        <button
+          class="summary-card summary-card--success"
+          :class="{ 'summary-card--active': statusFilter === 'Решено' }"
+          @click="toggleStatusFilter('Решено')"
+        >
+          <span class="summary-card__label">Решено</span>
+          <span class="summary-card__value">{{ resolvedCount }}</span>
+        </button>
+      </div>
+
+      <div class="filters-row">
         <SearchComponent
           v-model="searchQuery"
           title="Поиск по имени или сообщению..."
           class="search-component"
           @search="handleSearch"
         />
-        <button 
-          class="refresh-btn-header"
-          :disabled="loading"
-          @click="fetchFeedbacks"
-        >
-          Обновить
-        </button>
+        <div class="filter-toggle-group">
+          <button
+            class="lk-button"
+            :class="readFilter === 'false' ? 'lk-button--primary' : 'lk-button--ghost'"
+            @click="toggleReadFilter('false')"
+          >
+            Новые
+          </button>
+          <button
+            class="lk-button"
+            :class="readFilter === 'true' ? 'lk-button--primary' : 'lk-button--ghost'"
+            @click="toggleReadFilter('true')"
+          >
+            Просмотренные
+          </button>
+        </div>
       </div>
     </header>
-    
-    <div class="feedback__filters">
-      <div class="filters-row">
-        <div class="filters-group">
-          <span class="filters-label">Статус:</span>
-          <div class="filter-buttons">
-            <button
-              class="filter-btn"
-              :class="{ active: statusFilter === 'Не решено' }"
-              @click="toggleStatusFilter('Не решено')"
-            >
-              Не решено
-            </button>
-            <button 
-              class="filter-btn"
-              :class="{ 'active': statusFilter === 'Решено' }"
-              @click="toggleStatusFilter('Решено')"
-            >
-              Решено
-            </button>
-          </div>
-        </div>
-        
-        <div class="filters-group">
-          <span class="filters-label">Просмотр:</span>
-          <div class="filter-buttons">
-            <button 
-              class="filter-btn"
-              :class="{ 'active': readFilter === 'false' }"
-              @click="toggleReadFilter('false')"
-            >
-              Новые
-            </button>
-            <button 
-              class="filter-btn"
-              :class="{ 'active': readFilter === 'true' }"
-              @click="toggleReadFilter('true')"
-            >
-              Просмотренные
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <div
-      class="feedback__list"
-      :class="{ loading }"
-    >
+    <div class="feedback-admin__list">
       <SkeletonTransition :loading="loading">
         <template #skeleton>
-          <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px;">
-            <SkeletonCard :lines="3" />
-            <SkeletonCard :lines="3" />
-            <SkeletonCard :lines="3" />
-            <SkeletonCard :lines="3" />
+          <div class="skeleton-grid">
+            <SkeletonCard
+              v-for="i in 4"
+              :key="i"
+              :lines="3"
+            />
           </div>
         </template>
 
@@ -96,110 +95,134 @@
           v-if="filteredFeedbacks.length === 0"
           class="empty-state"
         >
-          <p class="no-data-message">
-            {{ getEmptyMessage() }}
-          </p>
+          <p>{{ getEmptyMessage() }}</p>
         </div>
 
         <div
           v-else
-          class="feedbacks-container"
+          class="cards-grid"
         >
-          <div
+          <article
             v-for="feedback in filteredFeedbacks"
             :key="feedback.id"
-            class="feedback-item"
+            class="ticket-card"
             :class="{
-              unread: !feedback.is_read,
-              'feedback-resolved': feedback.status === 'Решено'
+              'ticket-card--unread': !feedback.is_read,
+              'ticket-card--resolved': feedback.status === 'Решено'
             }"
           >
-            <div class="feedback-header">
-              <div class="user-info">
-                <div class="user-name-container">
-                  <span class="user-name">{{ feedback.user_name || 'Неизвестный пользователь' }}</span>
-                  <span class="ticket-number">#{{ feedback.id }}</span>
-                  <span
-                    v-if="!feedback.is_read"
-                    class="unread-dot"
-                  />
-                </div>
-                <div class="user-meta">
-                  <span class="timestamp">Создано: {{ formatDateTime(feedback.created_at) }}</span>
-                  <span
-                    v-if="feedback.resolved_at"
-                    class="timestamp resolved-time"
-                  >Выполнено: {{ formatDateTime(feedback.resolved_at) }}</span>
-                </div>
+            <header class="ticket-card__header">
+              <div class="ticket-card__meta">
+                <span class="ticket-id">#{{ feedback.id }}</span>
+                <span class="ticket-author">{{ feedback.user_name || 'Неизвестный пользователь' }}</span>
               </div>
+              <Badge
+                :variant="feedback.status === 'Решено' ? 'success' : 'warning'"
+                :label="feedback.status"
+                size="sm"
+              />
+            </header>
 
-              <div class="status-indicators">
+            <p class="ticket-card__message">
+              {{ feedback.message }}
+            </p>
+
+            <div
+              v-if="feedback.resolution_comment"
+              class="ticket-card__response"
+            >
+              <span class="response-label">Ответ:</span>
+              <p>{{ feedback.resolution_comment }}</p>
+            </div>
+
+            <footer class="ticket-card__footer">
+              <div class="ticket-card__times">
+                <span class="ticket-time">{{ formatDateTime(feedback.created_at) }}</span>
                 <span
-                  class="status-badge"
-                  :class="getStatusClass(feedback.status)"
+                  v-if="feedback.resolved_at"
+                  class="ticket-time ticket-time--resolved"
                 >
-                  {{ feedback.status }}
+                  Решено: {{ formatDateTime(feedback.resolved_at) }}
                 </span>
               </div>
-            </div>
-
-            <div class="feedback-content">
-              <p class="message">
-                {{ feedback.message }}
-              </p>
-              <div
-                v-if="feedback.resolution_comment"
-                class="resolution-comment"
-              >
-                <strong>Ответ заявителю:</strong> {{ feedback.resolution_comment }}
-              </div>
-            </div>
-
-            <div class="feedback-actions">
-              <div class="action-buttons">
+              <div class="ticket-card__actions">
                 <button
                   v-if="!feedback.is_read"
-                  class="action-btn mark-read-btn"
+                  class="lk-button lk-button--ghost"
                   :disabled="updating === feedback.id"
                   @click="markAsRead(feedback.id)"
                 >
                   Прочитано
                 </button>
-
-                <div
+                <button
                   v-if="feedback.status === 'Не решено'"
-                  class="resolve-section"
+                  class="lk-button lk-button--primary"
+                  :disabled="updating === feedback.id"
+                  @click="openResolveModal(feedback)"
                 >
-                  <button
-                    class="action-btn resolve-btn"
-                    :disabled="updating === feedback.id"
-                    @click="markAsResolved(feedback.id)"
-                  >
-                    Выполнить
-                  </button>
-                  <textarea
-                    v-model="resolveComments[feedback.id]"
-                    placeholder="Ответ заявителю (тот, кто подал обращение увидит ваш ответ)"
-                    class="resolve-comment-input"
-                    rows="2"
-                    :disabled="updating === feedback.id"
-                  />
-                </div>
-
+                  Ответить
+                </button>
                 <button
                   v-if="feedback.status === 'Решено'"
-                  class="action-btn return-btn"
+                  class="lk-button lk-button--danger"
                   :disabled="updating === feedback.id"
                   @click="markAsPending(feedback.id)"
                 >
                   Вернуть в обращение
                 </button>
               </div>
-            </div>
-          </div>
+            </footer>
+          </article>
         </div>
       </SkeletonTransition>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="resolveTarget"
+        class="modal-overlay"
+        @click.self="closeResolveModal"
+      >
+        <div class="modal-content">
+          <header class="modal-content__header">
+            <h3>Ответ на обращение #{{ resolveTarget.id }}</h3>
+            <button
+              class="modal-close-btn"
+              @click="closeResolveModal"
+            >
+              ×
+            </button>
+          </header>
+          <section class="modal-content__body">
+            <p class="resolve-context"><strong>{{ resolveTarget.user_name || 'Пользователь' }}:</strong> {{ resolveTarget.message }}</p>
+            <label class="resolve-label">
+              Ответ заявителю
+              <textarea
+                v-model="resolveCommentValue"
+                class="lk-textarea"
+                rows="4"
+                placeholder="Заявитель увидит ваш ответ. Опишите решение или причину отказа."
+              />
+            </label>
+          </section>
+          <footer class="modal-content__footer">
+            <button
+              class="lk-button lk-button--ghost"
+              @click="closeResolveModal"
+            >
+              Отмена
+            </button>
+            <button
+              class="lk-button lk-button--primary"
+              :disabled="updating === resolveTarget.id"
+              @click="confirmResolve"
+            >
+              Отметить решённым
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -207,7 +230,7 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import SearchComponent from '@/components/SearchComponent.vue';
-import { SkeletonTransition, SkeletonCard } from '@/components/ui';
+import { SkeletonTransition, SkeletonCard, Badge } from '@/components/ui';
 
 export default {
   name: 'FeedbackPage',
@@ -215,6 +238,7 @@ export default {
     SearchComponent,
     SkeletonTransition,
     SkeletonCard,
+    Badge,
   },
   data() {
     return {
@@ -225,49 +249,47 @@ export default {
       readFilter: null,
       searchQuery: '',
       searchVariants: [''],
-      resolveComments: {}
+      resolveTarget: null,
+      resolveCommentValue: ''
     };
   },
   computed: {
     filteredFeedbacks() {
       let filtered = this.feedbacks;
-      
-      // Применяем поиск
+
       if (this.searchQuery.trim() !== '') {
         filtered = filtered.filter(feedback => {
           const userName = (feedback.user_name || '').toLowerCase();
           const message = (feedback.message || '').toLowerCase();
-          
-          // Проверяем все варианты поиска
           return this.searchVariants.some(variant => {
             if (!variant) return false;
             return userName.includes(variant) || message.includes(variant);
           });
         });
       }
-      
-      // Применяем фильтры по статусу
+
       if (this.statusFilter) {
         filtered = filtered.filter(f => f.status === this.statusFilter);
       }
-      
-      // Применяем фильтры по прочтению
+
       if (this.readFilter !== null) {
         const isRead = this.readFilter === 'true';
         filtered = filtered.filter(f => f.is_read === isRead);
       }
-      
-      // Сначала непрочитанные, потом по дате (новые сверху)
+
       return filtered.sort((a, b) => {
-        if (a.is_read !== b.is_read) {
-          return a.is_read ? 1 : -1;
-        }
+        if (a.is_read !== b.is_read) return a.is_read ? 1 : -1;
         return new Date(b.created_at) - new Date(a.created_at);
       });
     },
-    
     unreadCount() {
       return this.feedbacks.filter(f => !f.is_read).length;
+    },
+    pendingCount() {
+      return this.feedbacks.filter(f => f.status === 'Не решено').length;
+    },
+    resolvedCount() {
+      return this.feedbacks.filter(f => f.status === 'Решено').length;
     }
   },
   mounted() {
@@ -277,713 +299,459 @@ export default {
     handleSearch(variants) {
       this.searchVariants = variants;
     },
-    
     toggleStatusFilter(status) {
-      if (this.statusFilter === status) {
-        this.statusFilter = null;
-      } else {
-        this.statusFilter = status;
-      }
+      this.statusFilter = this.statusFilter === status ? null : status;
     },
-    
-    toggleReadFilter(readState) {
-      if (this.readFilter === readState) {
-        this.readFilter = null;
-      } else {
-        this.readFilter = readState;
-      }
+    toggleReadFilter(state) {
+      this.readFilter = this.readFilter === state ? null : state;
     },
-    
+    resetAllFilters() {
+      this.statusFilter = null;
+      this.readFilter = null;
+      this.searchQuery = '';
+      this.searchVariants = [''];
+    },
     async fetchFeedbacks() {
       this.loading = true;
       try {
         const authStore = useAuthStore();
-        if (!authStore.token) {
-          console.error("Пользователь не авторизован");
-          return;
-        }
-
-        const response = await apiRequest("/feedback/all", {
-          method: "GET",
-        });
-
+        if (!authStore.token) return;
+        const response = await apiRequest('/feedback/all', { method: 'GET' });
         if (response.ok) {
-          const data = await response.json();
-          this.feedbacks = data;
-        } else {
-          console.error("Ошибка при загрузке обращений:", await response.text());
+          this.feedbacks = await response.json();
         }
-      } catch (error) {
-        console.error("Ошибка сети при загрузке обращений:", error);
+      } catch (e) {
+        console.error('Ошибка при загрузке обращений:', e);
       } finally {
         this.loading = false;
       }
     },
-    
     async markAsRead(feedbackId) {
-      await this.updateFeedback(feedbackId, { is_read: true });
+      await this.updateRead(feedbackId, true);
     },
-    
-    async markAsResolved(feedbackId) {
-      const comment = this.resolveComments[feedbackId] || '';
+    openResolveModal(feedback) {
+      this.resolveTarget = feedback;
+      this.resolveCommentValue = '';
+    },
+    closeResolveModal() {
+      this.resolveTarget = null;
+      this.resolveCommentValue = '';
+    },
+    async confirmResolve() {
+      const feedbackId = this.resolveTarget.id;
+      const comment = this.resolveCommentValue;
       this.updating = feedbackId;
       try {
         const response = await apiRequest(`/feedback/${feedbackId}/status`, {
           method: 'PUT',
           body: JSON.stringify({ status: 'Решено', comment })
         });
-
         if (response.ok) {
-          const index = this.feedbacks.findIndex(f => f.id === feedbackId);
-          if (index !== -1) {
-            this.feedbacks[index] = {
-              ...this.feedbacks[index],
+          const idx = this.feedbacks.findIndex(f => f.id === feedbackId);
+          if (idx !== -1) {
+            this.feedbacks[idx] = {
+              ...this.feedbacks[idx],
               status: 'Решено',
               resolution_comment: comment.trim() || null,
-              resolved_at: new Date().toISOString()
+              resolved_at: new Date().toISOString(),
+              is_read: true
             };
           }
-          delete this.resolveComments[feedbackId];
-          await this.markAsRead(feedbackId);
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          console.error('Ошибка при выполнении обращения:', errorData.message || 'Неизвестная ошибка');
+          this.closeResolveModal();
         }
-      } catch (error) {
-        console.error('Ошибка при выполнении обращения:', error);
+      } catch (e) {
+        console.error('Ошибка при выполнении обращения:', e);
       } finally {
         this.updating = null;
       }
     },
-
     async markAsPending(feedbackId) {
-      await this.updateFeedback(feedbackId, { status: 'Не решено' });
-    },
-    
-    async updateFeedback(feedbackId, updates) {
       this.updating = feedbackId;
       try {
-        let url, method, body;
-        
-        if ('is_read' in updates) {
-          url = `/feedback/${feedbackId}/read`;
-          method = 'PUT';
-          body = JSON.stringify({ is_read: updates.is_read });
-        } else if ('status' in updates) {
-          url = `/feedback/${feedbackId}/status`;
-          method = 'PUT';
-          body = JSON.stringify({ status: updates.status });
-        } else {
-          throw new Error('Неизвестное обновление');
-        }
-        
-        const response = await apiRequest(url, {
-          method,
-          body
+        const response = await apiRequest(`/feedback/${feedbackId}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'Не решено' })
         });
-
         if (response.ok) {
-          const index = this.feedbacks.findIndex(f => f.id === feedbackId);
-          if (index !== -1) {
-            this.feedbacks[index] = { ...this.feedbacks[index], ...updates };
-            if (updates.status === 'Не решено') {
-              this.feedbacks[index].resolution_comment = null;
-              this.feedbacks[index].resolved_at = null;
-            }
+          const idx = this.feedbacks.findIndex(f => f.id === feedbackId);
+          if (idx !== -1) {
+            this.feedbacks[idx] = {
+              ...this.feedbacks[idx],
+              status: 'Не решено',
+              resolution_comment: null,
+              resolved_at: null
+            };
           }
-        } else {
-          const errorText = await response.text();
-          console.error("Ошибка при обновлении:", errorText);
         }
-      } catch (error) {
-        console.error("Ошибка сети при обновлении:", error);
       } finally {
         this.updating = null;
       }
     },
-    
-    formatDateTime(dateTimeString) {
-      if (!dateTimeString) return '';
-      const date = new Date(dateTimeString);
-      return date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+    async updateRead(feedbackId, isRead) {
+      this.updating = feedbackId;
+      try {
+        const response = await apiRequest(`/feedback/${feedbackId}/read`, {
+          method: 'PUT',
+          body: JSON.stringify({ is_read: isRead })
+        });
+        if (response.ok) {
+          const idx = this.feedbacks.findIndex(f => f.id === feedbackId);
+          if (idx !== -1) this.feedbacks[idx] = { ...this.feedbacks[idx], is_read: isRead };
+        }
+      } finally {
+        this.updating = null;
+      }
+    },
+    formatDateTime(s) {
+      if (!s) return '';
+      const d = new Date(s);
+      return d.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       });
     },
-    
-    getStatusClass(status) {
-      return {
-        'status-pending': status === 'Не решено',
-        'status-resolved': status === 'Решено'
-      };
-    },
-    
     getEmptyMessage() {
-      if (this.searchQuery.trim() !== '') {
-        return 'Нет обращений по вашему запросу';
-      }
-      if (this.statusFilter !== null || this.readFilter !== null) {
-        return 'Нет обращений по выбранным фильтрам';
-      }
+      if (this.searchQuery.trim() !== '') return 'Нет обращений по вашему запросу';
+      if (this.statusFilter !== null || this.readFilter !== null) return 'Нет обращений по выбранным фильтрам';
       return 'Обращений пока нет';
     }
   }
-}
+};
 </script>
 
 <style scoped>
-.feedback {
-  padding: 12px;
+.feedback-admin {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.feedback__header {
-  padding-bottom: 8px;
-  margin-bottom: 8px;
+.feedback-admin__header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.header-top {
+.header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 4px;
-  flex-wrap: wrap;
 }
 
-.feedback__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #000;
+.feedback-admin__title {
   margin: 0;
-  white-space: nowrap;
-}
-
-.header-stats {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-left: auto;
-  margin-right: 12px;
-  flex-shrink: 0;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #666;
-}
-
-.stat-value {
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 600;
-  color: #333;
-  padding: 1px 6px;
-  background: #f1f1f1;
-  border-radius: 4px;
+  color: var(--color-text);
 }
 
-.stat-new {
-  color: #dc3545;
-  background: #fff5f5;
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.search-component {
-  width: 220px;
-  flex-shrink: 0;
-}
-
-.refresh-btn-header {
-  padding: 4px 12px;
-  border: 1px solid #4F5BDF;
-  background: white;
-  border-radius: 50px;
+.summary-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  font-family: inherit;
+}
+
+.summary-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-card--active {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.summary-card__label {
   font-size: 12px;
-  transition: all 0.2s;
-  height: 28px;
-  color: #4F5BDF;
-  white-space: nowrap;
+  color: var(--color-text-muted);
   font-weight: 500;
-  min-width: 80px;
-  flex-shrink: 0;
 }
 
-.refresh-btn-header:hover:not(:disabled) {
-  background: #4F5BDF;
-  color: white;
+.summary-card__value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
-.refresh-btn-header:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  border-color: #e6e6e6;
-  color: #999;
-}
-
-.feedback__filters {
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #e6e6e6;
-}
+.summary-card--accent .summary-card__value { color: var(--color-primary); }
+.summary-card--warning .summary-card__value { color: #b45309; }
+.summary-card--success .summary-card__value { color: #15803d; }
 
 .filters-row {
   display: flex;
+  gap: 12px;
   align-items: center;
-  gap: 16px;
   flex-wrap: wrap;
 }
 
-.filters-group {
+.search-component {
+  flex: 1 1 260px;
+  max-width: 360px;
+}
+
+.filter-toggle-group {
   display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.filters-label {
-  font-size: 12px;
-  color: #666;
-  white-space: nowrap;
+.feedback-admin__list {
+  min-height: 240px;
 }
 
-.filter-buttons {
-  display: flex;
-  gap: 6px;
+.skeleton-grid,
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
 }
 
-.filter-btn {
-  padding: 4px 12px;
-  border: 1px solid #e6e6e6;
-  background: white;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-  color: #666;
-  white-space: nowrap;
-  height: 28px;
-  box-sizing: border-box;
-  min-width: 100px;
-  text-align: center;
-  line-height: 1;
-  border-width: 1px;
-  position: relative;
-  top: 0;
-}
-
-.filter-btn:hover {
-  background: #f5f5f5;
-  border-color: #d0d0d0;
-}
-
-.filter-btn.active {
-  background: #4F5BDF;
-  color: white;
-  font-weight: 500;
-  border-color: #4F5BDF;
-  border-width: 1px;
-}
-
-.filter-btn:active {
-  top: 0;
-}
-
-.feedback__list {
-  min-height: 200px;
-  border: 1px solid #e6e6e6;
-  border-radius: 16px;
+.ticket-card {
   background: #fff;
-  overflow: hidden;
-}
-
-.feedback__list.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.feedbacks-container {
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.feedback-item {
-  padding: 10px;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.2s ease;
-  position: relative;
-}
-
-.feedback-item:last-child {
-  border-bottom: none;
-}
-
-.feedback-item.unread {
-  background: #f8f9fa;
-}
-
-.feedback-item.feedback-resolved {
-  opacity: 0.9;
-  background: #f9f9f9;
-}
-
-.feedback-item:hover {
-  background-color: #f5f5f5;
-}
-
-.feedback-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 6px;
-}
-
-.user-info {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.user-name-container {
+.ticket-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.ticket-card--unread {
+  border-left: 3px solid var(--color-primary);
+}
+
+.ticket-card--resolved {
+  background: #fafafa;
+}
+
+.ticket-card__header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-}
-
-.user-name {
-  font-weight: 600;
-  color: #333;
-  font-size: 13px;
-}
-
-.ticket-number {
-  font-size: 12px;
-  color: #888;
-  background: #f1f1f1;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-
-.unread-dot {
-  width: 6px;
-  height: 6px;
-  background: #4F5BDF;
-  border-radius: 50%;
-  flex-shrink: 0;
-  animation: pulse 2.5s infinite ease-in-out;
-  position: relative;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 0 rgba(79, 91, 223, 0.2);
-  }
-  50% {
-    opacity: 1;
-    box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
-  }
-  100% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 0 rgba(79, 91, 223, 0);
-  }
-}
-
-.user-meta {
-  display: flex;
   gap: 8px;
-  align-items: center;
 }
 
-.timestamp {
-  font-size: 11px;
-  color: #888;
-}
-
-.resolved-time {
-  margin-left: 0;
-}
-
-.status-indicators {
+.ticket-card__meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  min-width: 0;
 }
 
-.status-badge {
-  padding: 3px 10px;
-  border-radius: 50px;
-  font-size: 11px;
-  font-weight: 500;
+.ticket-id {
+  font-family: 'JetBrains Mono', monospace, ui-monospace;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.ticket-author {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-pending {
-  background: #fff8e1;
-  color: #ff8f00;
-  border: 1px solid #ffeaa7;
-}
-
-.status-resolved {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #c8e6c9;
-}
-
-.feedback-content {
-  margin-bottom: 8px;
-}
-
-.message {
-  color: #333;
-  line-height: 1.4;
-  font-size: 12px;
+.ticket-card__message {
   margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text);
   white-space: pre-wrap;
 }
 
-.resolution-comment {
-  margin-top: 8px;
+.ticket-card__response {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
   padding: 8px 12px;
-  background: #f9f9f9;
-  border-left: 3px solid #28a745;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #555;
+  border-left: 3px solid var(--color-success);
 }
 
-.resolution-comment strong {
-  color: #333;
+.ticket-card__response p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text);
 }
 
-.feedback-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 6px;
-}
-
-.action-btn {
-  padding: 4px 12px;
-  border: 1px solid #e6e6e6;
-  background: white;
-  border-radius: 50px;
-  cursor: pointer;
+.response-label {
+  display: block;
   font-size: 11px;
-  transition: all 0.2s;
-  color: #333;
-  height: 24px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.ticket-card__footer {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 80px;
-  font-weight: 500;
-  box-sizing: border-box;
-  line-height: 1;
-  position: relative;
-  top: 0;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
 }
 
-.mark-read-btn {
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+.ticket-card__times {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--color-text-muted);
 }
 
-.mark-read-btn:hover:not(:disabled) {
-  background: #4F5BDF;
-  color: white;
+.ticket-time--resolved {
+  color: var(--color-success);
 }
 
-.resolve-section {
+.ticket-card__actions {
   display: flex;
   gap: 8px;
-  min-width: 200px;
-}
-
-.resolve-comment-input {
-  width: 300px;
-  padding: 6px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  font-size: 13px;
-  font-family: inherit;
-  line-height: 1.4;
-  transition: border 0.2s;
-  background: #fff;
-  resize: none;
-  min-height: 32px;
-}
-
-.resolve-comment-input:focus {
-  outline: none;
-  border-color: #4F5BDF;
-  box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.1);
-}
-
-.resolve-btn {
-  border-color: #28a745;
-  color: #28a745;
-}
-
-.resolve-btn:hover:not(:disabled) {
-  background: #28a745;
-  color: white;
-}
-
-.return-btn {
-  border-color: #dc3545;
-  color: #dc3545;
-}
-
-.return-btn:hover:not(:disabled) {
-  background: #dc3545;
-  color: white;
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
 }
 
 .empty-state {
-  padding: 40px;
-}
-
-.no-data-message {
   text-align: center;
-  color: #a2a2a2;
-  margin: 0;
-  font-size: 13px;
+  padding: 48px 24px;
+  color: var(--color-text-muted);
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid #e6e6e6;
-  border-top-color: #4F5BDF;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
   border-radius: 50%;
-  animation: spinner-rotate 1s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
-@keyframes spinner-rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-/* Стили для скроллбара */
-.feedbacks-container::-webkit-scrollbar {
-  width: 6px;
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
 }
 
-.feedbacks-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 3px;
+.modal-content {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
 }
 
-.feedbacks-container::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
-  border-radius: 3px;
+.modal-content__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.feedbacks-container {
-  scrollbar-width: thin;
-  scrollbar-color: #D9E2FF transparent;
+.modal-content__header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.modal-content__body {
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.resolve-context {
+  background: var(--color-bg-secondary);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin: 0 0 14px 0;
+  line-height: 1.5;
+}
+
+.resolve-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.modal-content__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
 }
 
 @media (max-width: 768px) {
-  .feedback {
-    padding: 8px;
+  .summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  
-  .header-top {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  
-  .feedback__title {
-    align-self: flex-start;
-  }
-  
-  .header-stats {
-    margin-left: 0;
-    margin-right: 0;
-    justify-content: center;
-    order: 1;
-  }
-  
-  .search-component {
-    width: 100%;
-    order: 2;
-  }
-  
-  .refresh-btn-header {
-    width: 100%;
-    max-width: 200px;
-    align-self: center;
-    order: 3;
-  }
-  
   .filters-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
   }
-  
-  .filters-group {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+  .search-component {
+    max-width: 100%;
   }
-  
-  .filter-buttons {
+  .filter-toggle-group {
     width: 100%;
   }
-  
-  .filter-btn {
+  .filter-toggle-group .lk-button {
     flex: 1;
-    min-width: 0;
   }
-  
-  .feedback-header {
-    flex-direction: column;
-    gap: 6px;
-    align-items: flex-start;
-  }
-  
-  .status-indicators {
-    align-self: flex-start;
-  }
-  
-  .action-buttons {
-    flex-direction: column;
-    width: 100%;
-  }
-  
-  .action-btn {
-    width: 100%;
+  .cards-grid,
+  .skeleton-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

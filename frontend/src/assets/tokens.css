@@ -11,10 +11,15 @@
   --color-bg-secondary: #f9f9f9;
   --radius-sm: 8px;
   --radius-md: 15px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
   --spacing-sm: 10px;
   --spacing-md: 20px;
   --color-skeleton: #e9eaef;
   --color-skeleton-shine: #f4f5f9;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(79, 91, 223, 0.18);
 
   /*
    * Breakpoints - единый стандарт проекта для responsive-дизайна.

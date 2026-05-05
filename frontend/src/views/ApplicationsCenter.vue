@@ -1062,8 +1062,12 @@ export default {
 }
 
 .center__filters {
-    padding-bottom: 15px;
-    border-bottom: 1px solid var(--color-border);
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
 }
 
 .center__tabs {
@@ -1075,10 +1079,14 @@ export default {
     align-items: center;
     gap: 10px;
     margin-bottom: 12px;
+    flex-wrap: wrap;
 }
 
 .filters-row--secondary {
     gap: 20px;
+    margin-bottom: 0;
+    padding-top: 12px;
+    border-top: 1px dashed var(--color-border);
 }
 
 .filter-section {
@@ -1109,16 +1117,22 @@ export default {
 
 .field {
     width: 200px;
-    height: 35px;
+    height: 36px;
     background-color: #FFF;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--color-border);
-    padding: 0 10px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
     position: relative;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-focus);
 }
 
 .field--select {
@@ -1174,51 +1188,44 @@ export default {
     flex-wrap: wrap;
 }
 
-.status-btn {
-    padding: 6px 12px;
+.status-btn,
+.reset-sort-btn,
+.reset-filters-btn,
+.today-filter-btn {
+    padding: 7px 14px;
     border: 1px solid var(--color-border);
     background: white;
-    border-radius: 15px;
+    border-radius: var(--radius-pill);
     cursor: pointer;
     font-size: 12px;
-    transition: all 0.2s;
-    height: 30px;
-    color: #333;
+    font-weight: 500;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    height: 32px;
+    color: var(--color-text);
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
 }
 
-.status-btn:hover:not(.status-btn--active) {
-    background: #f5f5f5;
+.status-btn:hover:not(.status-btn--active),
+.reset-sort-btn:hover:not(:disabled),
+.today-filter-btn:hover:not(.today-filter-btn--active) {
+    background: var(--color-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
 }
 
-.status-btn--active {
+.status-btn--active,
+.today-filter-btn--active {
     background: var(--color-primary);
     color: white;
     border-color: var(--color-primary);
 }
 
-.status-btn--active:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
-}
-
-.reset-sort-btn,
-.reset-filters-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--color-border);
-    background: white;
-    border-radius: 15px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-    height: 30px;
-    color: #333;
-    white-space: nowrap;
-}
-
-.reset-sort-btn:hover:not(:disabled),
-.reset-filters-btn:hover:not(:disabled) {
-    background: #f5f5f5;
+.status-btn--active:hover,
+.today-filter-btn--active:hover {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
 }
 
 .reset-sort-btn:disabled,
@@ -1228,41 +1235,15 @@ export default {
 }
 
 .reset-filters-btn {
-    background: #fff5f5;
-    border-color: #fed7d7;
-    color: #c53030;
+    background: #fff;
+    border-color: #fecaca;
+    color: var(--color-danger);
 }
 
 .reset-filters-btn:hover:not(:disabled) {
-    background: #fed7d7;
-}
-
-.today-filter-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--color-border);
-    background: white;
-    border-radius: 15px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-    height: 30px;
-    color: #333;
-    white-space: nowrap;
-}
-
-.today-filter-btn:hover {
-    background: #f5f5f5;
-}
-
-.today-filter-btn--active {
-    background: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
-}
-
-.today-filter-btn--active:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: #fff;
 }
 
 .applications-table {

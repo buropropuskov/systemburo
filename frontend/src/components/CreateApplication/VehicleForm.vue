@@ -317,6 +317,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
 import { getCurrentInstance } from 'vue'
@@ -352,6 +353,7 @@ export default {
     emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added'],
     setup() {
         const instance = getCurrentInstance()
+        const toast = useToast()
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
             const vm = instance.proxy
@@ -386,7 +388,7 @@ export default {
             ]
         })
 
-        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip }
+        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast }
     },
     data() {
         return {
@@ -562,9 +564,11 @@ export default {
 
                     if (orgPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await orgPlacesResponse.json();
-                        // Автоматически выбираем только активные привязанные места
                         const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
                         this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
+                        if (this.selectedUnloadingPlaces.length > 0) {
+                            this.toast.success('Место разгрузки выбрано автоматически для вашей организации');
+                        }
                     }
                 }
 
@@ -574,9 +578,11 @@ export default {
 
                     if (companyPlacesResponse.ok) {
                         this.attachedUnloadingPlaces = await companyPlacesResponse.json();
-                        // Автоматически выбираем только активные привязанные места
                         const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
                         this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
+                        if (this.selectedUnloadingPlaces.length > 0) {
+                            this.toast.success('Место разгрузки выбрано автоматически для вашей компании');
+                        }
                     }
                 }
 

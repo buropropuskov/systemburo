@@ -577,16 +577,18 @@ export default {
     flex-direction: column;
     background: #fff;
     overflow: hidden;
-    border-radius: 50px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 30px 16px;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
+    background: #fff;
 }
 
 .header-with-status {
@@ -625,12 +627,13 @@ export default {
     color: #a2a2a2;
 }
 
-.modal-body {   
-    padding: 20px 30px;
+.modal-body {
+    padding: 18px 24px;
     overflow-y: auto;
     flex: 1;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    background: var(--color-bg-secondary);
 }
 
 .modal-body::-webkit-scrollbar {
@@ -644,15 +647,17 @@ export default {
 }
 
 .details-section {
-    border: 1px solid #e6e6e6;
-    border-radius: 20px;
-    background: #fafafa;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: #fff;
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .section-header {
-    padding: 12px 20px;
-    border-bottom: 1px solid #e6e6e6;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg);
 }
 
 .location-header {
