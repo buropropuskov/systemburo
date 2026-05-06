@@ -37,6 +37,8 @@ const (
 var tables = []string{
 	"system_settings",
 	"pd_audit_logs", "pd_consents",
+	"user_permission_overrides", "user_groups", "permission_group_grants",
+	"role_default_groups", "permission_groups",
 	"user_permissions", "permissions",
 	"bug_reports",
 	"request_log", "request_logs", "notifications", "news", "announcements",
@@ -56,6 +58,7 @@ var tables = []string{
 	"citizenships",
 	"companies_users", "organization_users",
 	"refresh_tokens", "users",
+	"roles",
 	"companies", "organizations", "user_types",
 }
 
@@ -98,6 +101,9 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
 	permissionService := services.NewPermissionService(db)
+	permissionResolver := services.NewPermissionResolver(db)
+	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
+	roleService := services.NewRoleService(db, permissionResolver)
 	systemTableService := services.NewSystemTableService(db, "./uploads", 10*1024*1024, permissionService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
@@ -142,6 +148,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
+	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
+	roleHandler := handlers.NewRoleHandler(roleService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 	telegramService := services.NewTelegramService("", "")
@@ -160,7 +168,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, nil, []byte(TestJWTSecret), nil)
+		applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, nil, []byte(TestJWTSecret), nil)
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

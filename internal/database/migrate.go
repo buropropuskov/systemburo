@@ -97,6 +97,15 @@ func AllModels() []interface{} {
 		&models.Permission{},
 		&models.UserPermission{},
 
+		// New permission system (#229): roles, groups, grants, overrides.
+		// PermissionGroup перед Role - RoleDefaultGroup ссылается на обе.
+		&models.PermissionGroup{},
+		&models.Role{},
+		&models.RoleDefaultGroup{},
+		&models.PermissionGroupGrant{},
+		&models.UserGroup{},
+		&models.UserPermissionOverride{},
+
 		// PD consent & audit (152-FZ)
 		&models.PDConsent{},
 		&models.PDAuditLog{},

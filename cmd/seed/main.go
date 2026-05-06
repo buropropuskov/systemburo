@@ -58,14 +58,17 @@ func main() {
 	lastName := "Администратор"
 	firstName := "Системный"
 
+	// is_super_admin=true дублирует type_id=6 для поэтапного отказа от хардкода (#187a).
+	// Старые проверки по type_id=6 продолжают работать; новые — через is_super_admin.
 	result := db.Exec(`
-		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name)
-		VALUES ('buropropuskov', ?, ?, ?, ?, ?, ?)
+		INSERT INTO users (username, password, organization_id, company_id, type_id, is_super_admin, last_name, first_name)
+		VALUES ('buropropuskov', ?, ?, ?, ?, true, ?, ?)
 		ON CONFLICT (username) DO UPDATE SET
 			password = EXCLUDED.password,
 			organization_id = EXCLUDED.organization_id,
 			company_id = EXCLUDED.company_id,
-			type_id = EXCLUDED.type_id
+			type_id = EXCLUDED.type_id,
+			is_super_admin = true
 	`, hash, orgID, compID, typeID, lastName, firstName)
 
 	if result.Error != nil {
