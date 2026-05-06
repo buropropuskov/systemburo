@@ -33,8 +33,10 @@ type cacheEntry struct {
 
 // PermissionSet -- финальный набор прав юзера.
 // allowAll = true означает super-admin (HasPermission всегда true).
+// banned = true означает забаненный юзер (HasPermission всегда false).
 type PermissionSet struct {
 	allowAll bool
+	banned   bool
 	allows   map[string]struct{}
 }
 
@@ -45,11 +47,19 @@ func NewPermissionResolver(db *gorm.DB) *PermissionResolver {
 
 // Has проверяет наличие конкретного permission_key у юзера.
 func (s *PermissionSet) Has(key string) bool {
+	if s.banned {
+		return false
+	}
 	if s.allowAll {
 		return true
 	}
 	_, ok := s.allows[key]
 	return ok
+}
+
+// IsBanned сообщает, что юзер заблокирован.
+func (s *PermissionSet) IsBanned() bool {
+	return s.banned
 }
 
 // Keys возвращает отсортированный список разрешённых ключей.
@@ -119,10 +129,15 @@ func (r *PermissionResolver) InvalidateAll() {
 // computeSet -- основная логика без кэша. Вынесена для тестируемости.
 func (r *PermissionResolver) computeSet(ctx context.Context, userID int) (PermissionSet, error) {
 	var user models.User
-	if err := r.db.WithContext(ctx).Select("id, role_id, is_super_admin").First(&user, userID).Error; err != nil {
+	if err := r.db.WithContext(ctx).Select("id, role_id, is_super_admin, is_banned").First(&user, userID).Error; err != nil {
 		return PermissionSet{}, fmt.Errorf("user not found: %w", err)
 	}
 
+	// Бан проверяется до super-admin: super-admin теоретически не может быть забанен,
+	// но даже если -- бан сильнее (защита от случайной самоблокировки и логичная семантика).
+	if user.IsBanned {
+		return PermissionSet{banned: true}, nil
+	}
 	if user.IsSuperAdmin {
 		return PermissionSet{allowAll: true}, nil
 	}

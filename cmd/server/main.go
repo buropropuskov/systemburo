@@ -153,6 +153,8 @@ func main() {
 	permissionResolver := services.NewPermissionResolver(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
+	accessDenialService := services.NewAccessDenialService(db)
+	userBanService := services.NewUserBanService(db, permissionResolver)
 	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
@@ -194,6 +196,8 @@ func main() {
 	permissionHandler := handlers.NewPermissionHandler(permissionService)
 	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)
 	roleHandler := handlers.NewRoleHandler(roleService)
+	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
+	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
@@ -213,7 +217,7 @@ func main() {
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, maintenanceBlock, []byte(cfg.JWTSecret), loginLimiter)
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, permissionResolver, accessDenialService, maintenanceBlock, []byte(cfg.JWTSecret), loginLimiter)
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
 	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -223,6 +227,9 @@ func main() {
 	// с прошедшим entry_date_to/entry_time_to, завершает заявку когда все
 	// вложения неактивны. См. ApplicationWorkflowService.CheckExpiredAttachments.
 	go startExpiryScheduler(ctxSig, applicationService, 15*time.Minute)
+
+	// Архив access_denials: 3 мес retention, цикл раз в сутки.
+	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
 
 	// Graceful shutdown
 	go func() {
@@ -243,6 +250,35 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("server stopped")
+}
+
+// startAccessDenialsArchiver запускает периодический архив записей старше retention.
+// retention -- срок хранения в активной таблице (по умолчанию 3 месяца).
+// interval -- частота запуска (по умолчанию раз в сутки).
+func startAccessDenialsArchiver(ctx context.Context, svc *services.AccessDenialService, retention, interval time.Duration) {
+	archive := func() {
+		cutoff := time.Now().Add(-retention)
+		moved, err := svc.ArchiveOlderThan(ctx, cutoff)
+		if err != nil {
+			slog.Error("access denials archive failed", "error", err)
+			return
+		}
+		if moved > 0 {
+			slog.Info("access denials archived", "count", moved, "cutoff", cutoff)
+		}
+	}
+	archive()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("access denials archiver stopped")
+			return
+		case <-ticker.C:
+			archive()
+		}
+	}
 }
 
 // startExpiryScheduler запускает периодическую проверку истёкших вложений заявок.

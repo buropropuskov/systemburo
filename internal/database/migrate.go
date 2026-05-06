@@ -106,6 +106,10 @@ func AllModels() []interface{} {
 		&models.UserGroup{},
 		&models.UserPermissionOverride{},
 
+		// Access denials journal (#230)
+		&models.AccessDenial{},
+		&models.AccessDenialArchive{},
+
 		// PD consent & audit (152-FZ)
 		&models.PDConsent{},
 		&models.PDAuditLog{},

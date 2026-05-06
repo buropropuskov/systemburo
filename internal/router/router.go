@@ -3,6 +3,7 @@ package router
 import (
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
+	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -10,7 +11,7 @@ import (
 // Setup регистрирует все маршруты.
 // loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
 // В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, maintenanceBlock echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -275,6 +276,21 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	rolesGroup.PUT("/:id", roles.Update)
 	rolesGroup.DELETE("/:id", roles.Delete)
 	rolesGroup.PUT("/:id/default-groups", roles.SetDefaultGroups)
+
+	// Журнал отказов в доступе (#230). Защищён permission.audit.read
+	// для просмотра и permission.audit.manage для модификаций.
+	auditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditRead)
+	auditManage := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditManage)
+	denialsGroup := protected.Group("/access-denials")
+	denialsGroup.GET("", accessDenials.List, auditRead)
+	denialsGroup.GET("/archive", accessDenials.ListArchive, auditRead)
+	denialsGroup.DELETE("", accessDenials.DeleteByFilter, auditManage)
+	denialsGroup.POST("/archive", accessDenials.ArchiveOlderThan, auditManage)
+
+	// Бан пользователей (#230). Защищён action.ban.user.
+	banUser := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionBanUser)
+	protected.POST("/users/:id/ban", userBan.Ban, banUser)
+	protected.POST("/users/:id/unban", userBan.Unban, banUser)
 
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")
