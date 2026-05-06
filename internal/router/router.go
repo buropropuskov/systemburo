@@ -266,8 +266,10 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	pgGroup.PUT("/:id", permGroups.Update)
 	pgGroup.DELETE("/:id", permGroups.Delete)
 	pgGroup.POST("/merge", permGroups.Merge)
+	protected.GET("/users/:user_id/permission-groups", permGroups.ListForUser)
 	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser)
 	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser)
+	protected.PUT("/users/:id/role", permGroups.SetUserRole)
 
 	// Роли (#187a)
 	rolesGroup := protected.Group("/roles")

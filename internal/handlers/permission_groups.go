@@ -96,6 +96,38 @@ func (h *PermissionGroupHandler) Merge(c echo.Context) error {
 	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": group})
 }
 
+// ListForUser -- GET /users/:user_id/permission-groups.
+// Возвращает группы прав, явно назначенные пользователю (без дефолтных групп роли).
+func (h *PermissionGroupHandler) ListForUser(c echo.Context) error {
+	userID, err := ParseID(c, "user_id")
+	if err != nil {
+		return err
+	}
+	groups, err := h.service.ListForUser(c.Request().Context(), userID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, groups)
+}
+
+// SetUserRole -- PUT /users/:id/role.
+func (h *PermissionGroupHandler) SetUserRole(c echo.Context) error {
+	userID, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+	var req struct {
+		RoleID *int `json:"role_id"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid body: "+err.Error())
+	}
+	if err := h.service.SetUserRole(c.Request().Context(), userID, req.RoleID); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"updated": true})
+}
+
 // AssignToUser -- POST /users/:user_id/permission-groups/:group_id.
 func (h *PermissionGroupHandler) AssignToUser(c echo.Context) error {
 	userID, err := ParseID(c, "user_id")

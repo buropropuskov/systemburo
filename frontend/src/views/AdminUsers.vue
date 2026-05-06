@@ -239,6 +239,12 @@
               </button>
               <button
                 class="admin-users__btn admin-users__btn--outline"
+                @click="showPermissionsModal = true"
+              >
+                Роль и группы прав
+              </button>
+              <button
+                class="admin-users__btn admin-users__btn--outline"
                 @click="showPasswordModal = true"
               >
                 Сбросить пароль
@@ -431,6 +437,13 @@
         </button>
       </template>
     </BaseModal>
+
+    <UserPermissionsModal
+      :show="showPermissionsModal"
+      :user="selectedUser"
+      @close="showPermissionsModal = false"
+      @updated="handlePermissionsUpdated"
+    />
   </section>
 </template>
 
@@ -447,6 +460,7 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import { formatShortName } from '@/utils/formatName';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import SkeletonLine from '@/components/ui/SkeletonLine.vue';
+import UserPermissionsModal from '@/components/admin/UserPermissionsModal.vue';
 
 export default {
   name: 'AdminUsers',
@@ -457,6 +471,7 @@ export default {
     SkeletonTransition,
     SkeletonTable,
     SkeletonLine,
+    UserPermissionsModal,
   },
   setup() {
     const toast = useToast();
@@ -493,6 +508,7 @@ export default {
 
       showPasswordModal: false,
       showDeleteModal: false,
+      showPermissionsModal: false,
       newPassword: '',
       showNewPass: false,
 
@@ -522,6 +538,13 @@ export default {
     ]);
   },
   methods: {
+    handlePermissionsUpdated() {
+      this.fetchUsers();
+      if (this.selectedUser) {
+        const updated = this.users.find(u => u.id === this.selectedUser.id);
+        if (updated) this.selectedUser = updated;
+      }
+    },
     async fetchUsers() {
       this.loading = true;
       try {

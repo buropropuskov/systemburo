@@ -13,7 +13,11 @@
       class="nav-menu"
       role="navigation"
       aria-label="Основная навигация"
-      :class="{ expanded: isExpanded, 'nav-menu--mobile-open': mobileOpen }"
+      :class="{
+        expanded: isExpanded,
+        'nav-menu--mobile-open': mobileOpen,
+        'nav-menu--banned': isBanned,
+      }"
       @mouseenter="expandMenu"
       @mouseleave="collapseMenu"
     >
@@ -236,6 +240,24 @@
               </div>
               <div
                 class="dropdown-item"
+                @click="navigateToAdminPermissionGroups"
+              >
+                Группы прав
+              </div>
+              <div
+                class="dropdown-item"
+                @click="navigateToAdminRoles"
+              >
+                Роли
+              </div>
+              <div
+                class="dropdown-item"
+                @click="navigateToAccessDenials"
+              >
+                Журнал отказов
+              </div>
+              <div
+                class="dropdown-item"
                 @click="navigateToAdminSettings"
               >
                 Настройки
@@ -294,7 +316,8 @@ export default {
       newApplicationsCount: 0,
       applicationsPollingInterval: null,
       tablesPollingInterval: null,
-      mobileOpen: false
+      mobileOpen: false,
+      isBanned: false,
     };
   },
   watch: {
@@ -305,6 +328,7 @@ export default {
   },
   async mounted() {
     document.body.classList.add('auth-active');
+    await this.fetchBanStatus();
     await this.fetchSystemTables();
     this.startApplicationsPolling();
     this.startTablesPolling();
@@ -444,6 +468,18 @@ export default {
       this.$router.push('/admin/users');
       this.closeAllDropdowns();
     },
+    navigateToAdminPermissionGroups() {
+      this.$router.push('/admin/permission-groups');
+      this.closeAllDropdowns();
+    },
+    navigateToAdminRoles() {
+      this.$router.push('/admin/roles');
+      this.closeAllDropdowns();
+    },
+    navigateToAccessDenials() {
+      this.$router.push('/admin/access-denials');
+      this.closeAllDropdowns();
+    },
     navigateToAdminSettings() {
       this.$router.push('/admin/settings');
       this.closeAllDropdowns();
@@ -465,6 +501,18 @@ export default {
       this.$router.push('/employeesview');
     },
     
+    async fetchBanStatus() {
+      try {
+        const res = await apiRequest('/users/me');
+        if (res.ok) {
+          const data = await res.json();
+          this.isBanned = !!data?.data?.is_banned;
+        }
+      } catch {
+        // Не критично -- игнорируем сетевые ошибки
+      }
+    },
+
     async fetchSystemTables() {
       try {
         const response = await apiRequest("/system-tables", {
@@ -913,6 +961,25 @@ export default {
     border: none !important;
     margin-left: 20px !important;
   }
+}
+
+/*
+ * Заблокированный пользователь (#230). Все nav-items серым/disabled,
+ * pointer-events отключены кроме pages из списка allowed (личный кабинет).
+ * Кнопка выхода обрабатывается отдельно через v-if.
+ */
+.nav-menu--banned .nav-item:not([data-testid="nav-link-cabinet"]):not(.banned-passthrough),
+.nav-menu--banned .dropdown-item,
+.nav-menu--banned .has-dropdown {
+  pointer-events: none !important;
+  opacity: 0.4;
+  cursor: not-allowed !important;
+}
+
+.nav-menu--banned .nav-item:not([data-testid="nav-link-cabinet"]):not(.banned-passthrough):hover,
+.nav-menu--banned .dropdown-item:hover {
+  background: transparent !important;
+  color: inherit !important;
 }
 
 </style>
