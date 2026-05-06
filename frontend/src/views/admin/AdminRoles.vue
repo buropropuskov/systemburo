@@ -81,6 +81,7 @@
             Изменить
           </button>
           <button
+            v-permission-scope="'permission.audit.manage'"
             class="lk-button lk-button--danger"
             @click="confirmDelete(role)"
           >

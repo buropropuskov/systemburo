@@ -142,6 +142,12 @@ const routes = [
     name: 'SystemControl',
     component: () => import('./views/admin/SystemControl.vue'),
     meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/403',
+    name: 'Forbidden',
+    component: () => import('./views/Forbidden.vue'),
+    meta: { requiresAuth: true }
   }
 ];
 
@@ -154,7 +160,7 @@ const router = createRouter({
 // поэтому к моменту первой navigation auth store уже hydrated (token
 // в памяти если refresh cookie жив). На F5 guard сразу видит реальное
 // состояние без async гонок.
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const maintenanceStore = useMaintenanceStore();
   const isAuthenticated = authStore.isAuthenticated;
@@ -174,16 +180,31 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/');
+    return;
   }
-  else if (to.meta.requiresBuro && !isBuroPropuskov) {
+  if (to.meta.requiresBuro && !isBuroPropuskov) {
     next('/personal-cabinet');
+    return;
   }
-  else if (to.path === '/' && isAuthenticated) {
+  if (to.path === '/' && isAuthenticated) {
     next('/news');
+    return;
   }
-  else {
-    next();
+
+  // Permission polling (#187e): refresh permissions при stale-cache на любой
+  // протектед-странице. Бан/изменение прав администратором заметится в
+  // течение 30s максимум.
+  if (isAuthenticated && (to.meta.requiresAuth || to.meta.permission)) {
+    const { usePermissionsStore } = await import('@/stores/permissions');
+    const store = usePermissionsStore();
+    if (store.isStale) await store.fetchPermissions();
+    if (to.meta.permission && !store.hasPermission(to.meta.permission)) {
+      next({ name: 'Forbidden', query: { permission: to.meta.permission, from: to.fullPath } });
+      return;
+    }
   }
+
+  next();
 });
 
 export default router;
