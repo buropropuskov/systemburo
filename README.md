@@ -85,6 +85,7 @@ make deploy-seed    # создать админа на production
 | [Frontend](docs/FRONTEND.md) | Архитектура Vue, stores, API-клиент, компоненты, skeleton |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, ручной деплой, production, бэкапы |
 | [Security](docs/SECURITY.md) | 152-ФЗ, шифрование, аудит, авторизация, rate limiting |
+| [Access Control](docs/access-control/) | Система прав: роли, группы, журнал отказов, ban, миграция type_id=6 |
 | [ADR](docs/adr/) | Архитектурные решения (Go vs Rust, GORM, AES-GCM, Pinia и др.) |
 | [Contributing](CONTRIBUTING.md) | Рабочий процесс: ветки, коммиты, PR, issues, CI/CD |
 
