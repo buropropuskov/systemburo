@@ -137,6 +137,24 @@ async function baseRequest(path, options = {}) {
     return response
   }
 
+  // 403 Forbidden -- логируется в access_denials на бэке. Здесь показываем
+  // тост, но НЕ редиректим: вызывающий код сам решит как обработать
+  // (например, ApplicationsCenter может остаться на месте). Для GET-роутов
+  // прямой переход через router guard уже сработал бы раньше.
+  if (response.status === 403 && !isAuthEndpoint(path)) {
+    try {
+      const body = await response.clone().json();
+      const msg = body?.banned
+        ? 'Учётная запись заблокирована. Обратитесь к администратору.'
+        : 'Нет прав на это действие.';
+      const { useUiStore } = await import('@/stores/ui');
+      useUiStore().error(msg);
+    } catch {
+      // body может быть пустым/не json -- это OK
+    }
+    return response
+  }
+
   if (response.status !== 401 || isAuthEndpoint(path) || options._retried) {
     return response
   }
