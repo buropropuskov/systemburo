@@ -15,6 +15,9 @@ type User struct {
 	RoleID            *int         `json:"role_id"`
 	Role              *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
 	IsSuperAdmin      bool         `gorm:"default:false;index" json:"is_super_admin"`
+	IsBanned          bool         `gorm:"default:false;index" json:"is_banned"`
+	BannedAt          *time.Time   `json:"banned_at,omitempty"`
+	BannedBy          *int         `json:"banned_by,omitempty"`
 	LastName          *string      `gorm:"size:100" json:"last_name"`
 	FirstName         *string      `gorm:"size:100" json:"first_name"`
 	MiddleName        *string      `gorm:"size:100" json:"middle_name"`
