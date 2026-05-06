@@ -108,6 +108,24 @@ const routes = [
     meta: { requiresAuth: true, requiresBuro: true }
   },
   {
+    path: '/admin/permission-groups',
+    name: 'AdminPermissionGroups',
+    component: () => import('./views/admin/AdminPermissionGroups.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/roles',
+    name: 'AdminRoles',
+    component: () => import('./views/admin/AdminRoles.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/access-denials',
+    name: 'AccessDenialsLog',
+    component: () => import('./views/admin/AccessDenialsLog.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
     path: '/500',
     name: 'Error500',
     component: () => import('./views/Error500.vue'),

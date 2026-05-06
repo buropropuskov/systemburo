@@ -205,6 +205,60 @@ func (s *PermissionGroupService) AssignToUser(ctx context.Context, userID, group
 	return nil
 }
 
+// ListForUser возвращает группы прав, явно назначенные пользователю.
+// Не включает дефолтные группы роли (они вычисляются resolver-ом).
+func (s *PermissionGroupService) ListForUser(ctx context.Context, userID int) ([]models.PermissionGroupResponse, error) {
+	var groupIDs []int
+	if err := s.db.WithContext(ctx).
+		Model(&models.UserGroup{}).
+		Where("user_id = ?", userID).
+		Pluck("group_id", &groupIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to load user groups: %w", err)
+	}
+	if len(groupIDs) == 0 {
+		return []models.PermissionGroupResponse{}, nil
+	}
+	var groups []models.PermissionGroup
+	if err := s.db.WithContext(ctx).Where("id IN ?", groupIDs).Find(&groups).Error; err != nil {
+		return nil, fmt.Errorf("failed to load groups: %w", err)
+	}
+	var grants []models.PermissionGroupGrant
+	if err := s.db.WithContext(ctx).
+		Where("group_id IN ? AND value = ?", groupIDs, "allow").
+		Find(&grants).Error; err != nil {
+		return nil, fmt.Errorf("failed to load grants: %w", err)
+	}
+	keysByGroup := make(map[int][]string)
+	for _, g := range grants {
+		keysByGroup[g.GroupID] = append(keysByGroup[g.GroupID], g.PermissionKey)
+	}
+	result := make([]models.PermissionGroupResponse, len(groups))
+	for i, g := range groups {
+		keys := keysByGroup[g.ID]
+		if keys == nil {
+			keys = []string{}
+		}
+		result[i] = models.PermissionGroupResponse{
+			ID:          g.ID,
+			Name:        g.Name,
+			Description: g.Description,
+			Keys:        keys,
+		}
+	}
+	return result, nil
+}
+
+// SetUserRole присваивает роль пользователю (nil очищает).
+func (s *PermissionGroupService) SetUserRole(ctx context.Context, userID int, roleID *int) error {
+	updates := map[string]any{"role_id": roleID}
+	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).
+		Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to set role: %w", err)
+	}
+	s.resolver.Invalidate(userID)
+	return nil
+}
+
 // UnassignFromUser убирает группу у юзера.
 func (s *PermissionGroupService) UnassignFromUser(ctx context.Context, userID, groupID int) error {
 	if err := s.db.WithContext(ctx).
