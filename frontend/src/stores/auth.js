@@ -28,8 +28,16 @@ export const useAuthStore = defineStore('auth', {
     userType() {
       return this.userPayload?.type_id || null;
     },
+    /**
+     * @deprecated используется для legacy-проверок. Новый код должен
+     * использовать `isSuperAdmin` (читается из claim `is_super_admin`).
+     * После #187 type_id=6 не идентифицирует супер-админа.
+     */
     isAdmin() {
-      return this.userType === 6;
+      return this.isSuperAdmin;
+    },
+    isSuperAdmin() {
+      return this.userPayload?.is_super_admin === true;
     },
     username() {
       return this.userPayload?.username || null;

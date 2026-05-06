@@ -3,6 +3,8 @@ data.company_id
 data.email
 data.first_name
 data.id
+data.is_banned
+data.is_super_admin
 data.last_name
 data.middle_name
 data.organization

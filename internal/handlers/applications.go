@@ -126,7 +126,6 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 // @Router       /applications/{id} [get]
 func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
@@ -137,7 +136,7 @@ func (h *ApplicationHandler) GetApplicationByID(c echo.Context) error {
 		return err
 	}
 
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -163,8 +162,7 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -247,13 +245,12 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 // @Router       /applications/{id} [put]
 func (h *ApplicationHandler) UpdateApplication(c echo.Context) error {
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 

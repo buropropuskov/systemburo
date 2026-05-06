@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log/slog"
 
 	"systemburo/internal/models"
@@ -125,7 +126,29 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
+	if err := backfillSuperAdmin(db); err != nil {
+		return err
+	}
 	slog.Info("AutoMigrate completed")
+	return nil
+}
+
+// backfillSuperAdmin проставляет is_super_admin=true пользователям с type_id,
+// соответствующим коду 'buropropuskov' в user_types (#231).
+// Безопасна для повторного запуска: WHERE not (already true) делает её noop.
+// После полного отказа от type_id=6 проверки эту миграцию можно удалить.
+func backfillSuperAdmin(db *gorm.DB) error {
+	res := db.Exec(`
+		UPDATE users SET is_super_admin = true
+		WHERE is_super_admin = false
+		  AND type_id IN (SELECT id FROM user_types WHERE code = 'buropropuskov')
+	`)
+	if res.Error != nil {
+		return fmt.Errorf("backfill is_super_admin: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("super-admin backfilled", "users_updated", res.RowsAffected)
+	}
 	return nil
 }
 

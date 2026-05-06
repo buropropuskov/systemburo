@@ -95,8 +95,7 @@ func (h *ApplicationHandler) CheckApprovalStatus(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -264,8 +263,7 @@ func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error 
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 

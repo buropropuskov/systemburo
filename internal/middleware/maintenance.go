@@ -9,15 +9,15 @@ import (
 )
 
 // MaintenanceBlock - после JWTAuth блокирует 503-м любой protected-запрос
-// если включён режим техработ. Super-admin (type_id=6) проходит всегда.
+// если включён режим техработ. Super-admin (is_super_admin=true) проходит всегда.
 // Для производительности использует GetStatusCached (10-сек in-memory).
 func MaintenanceBlock(svc services.MaintenanceService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			typeID, _ := c.Get("type_id").(int)
+			isSuper, _ := c.Get("is_super_admin").(bool)
 			// Super-admin проходит всегда - иначе как включать/выключать
 			// maintenance и тестировать систему.
-			if typeID == 6 {
+			if isSuper {
 				return next(c)
 			}
 			st := svc.GetStatusCached(c.Request().Context())

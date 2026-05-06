@@ -11,7 +11,7 @@ export const usePermissionsStore = defineStore('permissions', {
   getters: {
     hasPermission: (state) => (key) => {
       const auth = useAuthStore()
-      if (auth.isAdmin) return true
+      if (auth.isSuperAdmin) return true
       return state.permissions[key] === 'allow'
     },
   },

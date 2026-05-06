@@ -309,9 +309,9 @@ func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID in
 }
 
 // CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
-// Доступ имеют: администраторы (type_id=6), отправитель, ответственные и просматривающие.
-func (s *applicationService) CanAccessApplication(ctx context.Context, applicationID int, username string, typeID int) bool {
-	if typeID == 6 {
+// Доступ имеют: super-admin, отправитель, ответственные и просматривающие.
+func (s *applicationService) CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool {
+	if isSuperAdmin {
 		return true
 	}
 

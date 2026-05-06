@@ -35,9 +35,8 @@ func (h *MaintenanceHandler) GetPublicStatus(c echo.Context) error {
 // Оставлен как отдельный метод - если позже понадобятся доп. поля только для
 // админа (например, кто включил и когда), их можно добавить только сюда.
 func (h *MaintenanceHandler) GetAdminStatus(c echo.Context) error {
-	typeID, _ := c.Get("type_id").(int)
-	if typeID != 6 {
-		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для бюро пропусков")
+	if !IsSuperAdmin(c) {
+		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}
 	st, err := h.service.GetStatus(c.Request().Context())
 	if err != nil {
@@ -57,9 +56,8 @@ type MaintenanceToggleRequest struct {
 // При Enable=true дополнительно revoke non-admin refresh_tokens
 // (см. MaintenanceService.Enable).
 func (h *MaintenanceHandler) ToggleMaintenance(c echo.Context) error {
-	typeID, _ := c.Get("type_id").(int)
-	if typeID != 6 {
-		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для бюро пропусков")
+	if !IsSuperAdmin(c) {
+		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}
 	userID, _ := c.Get("user_id").(int)
 	username, _ := c.Get("username").(string)
