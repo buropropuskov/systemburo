@@ -27,8 +27,7 @@ func (h *ApplicationHandler) GetApplicationResponsibleUsers(c echo.Context) erro
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -57,8 +56,7 @@ func (h *ApplicationHandler) GetApplicationHistory(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -89,8 +87,7 @@ func (h *ApplicationHandler) AddHistoryEntry(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), req.ApplicationID, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), req.ApplicationID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -121,8 +118,7 @@ func (h *ApplicationHandler) GetApplicationViewers(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -151,8 +147,7 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -185,8 +180,7 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 		return err
 	}
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -219,8 +213,7 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 		return err
 	}
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -253,8 +246,7 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 		return err
 	}
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -284,8 +276,7 @@ func (h *ApplicationHandler) MarkAsRead(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
 	}
 
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -313,8 +304,7 @@ func (h *ApplicationHandler) GetReads(c echo.Context) error {
 	}
 
 	username := c.Get("username").(string)
-	typeID := c.Get("type_id").(int)
-	if !h.service.CanAccessApplication(c.Request().Context(), id, username, typeID) {
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 

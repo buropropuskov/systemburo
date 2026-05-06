@@ -58,6 +58,8 @@ type LoginResponse struct {
 	CompanyID      *int   `json:"company_id"`
 	TypeID         int    `json:"type_id"`
 	UserType       string `json:"user_type"`
+	IsSuperAdmin   bool   `json:"is_super_admin"`
+	IsBanned       bool   `json:"is_banned"`
 }
 
 type TokenPairResponse struct {
@@ -87,6 +89,8 @@ type CurrentUserResponse struct {
 	TypeID         int     `json:"type_id"`
 	UserType       string  `json:"user_type"`
 	UserTypeCode   string  `json:"user_type_code"`
+	IsSuperAdmin   bool    `json:"is_super_admin"`
+	IsBanned       bool    `json:"is_banned"`
 	LastName       *string `json:"last_name"`
 	FirstName      *string `json:"first_name"`
 	MiddleName     *string `json:"middle_name"`

@@ -62,7 +62,7 @@ export default {
     },
     isBuropropuskov() {
       const authStore = useAuthStore()
-      return authStore.isAdmin
+      return authStore.isSuperAdmin
     },
     /**
      * Показывать шапку, навигацию и связанный chrome только когда юзер

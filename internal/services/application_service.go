@@ -112,7 +112,7 @@ type ApplicationService interface {
 	GetUnreadCount(ctx context.Context, username string) (*models.UnreadCountResponse, error)
 
 	// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
-	CanAccessApplication(ctx context.Context, applicationID int, username string, typeID int) bool
+	CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool
 
 	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения.
 	GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error)

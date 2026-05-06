@@ -28,6 +28,7 @@ func JWTAuth(jwtSecret []byte) echo.MiddlewareFunc {
 			c.Set("username", username)
 			c.Set("user_id", claims.UserID)
 			c.Set("type_id", claims.TypeID)
+			c.Set("is_super_admin", claims.IsSuperAdmin)
 
 			return next(c)
 		}

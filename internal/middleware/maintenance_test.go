@@ -33,13 +33,13 @@ func (s *stubMaintenanceService) Disable(ctx context.Context, _ int, _ string) e
 }
 func (s *stubMaintenanceService) InvalidateCache() {}
 
-func callMW(t *testing.T, enabled bool, typeID int) int {
+func callMW(t *testing.T, enabled bool, isSuperAdmin bool) int {
 	t.Helper()
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	ctx.Set("type_id", typeID)
+	ctx.Set("is_super_admin", isSuperAdmin)
 
 	mw := MaintenanceBlock(&stubMaintenanceService{enabled: enabled})
 	h := mw(func(c echo.Context) error {
@@ -55,13 +55,13 @@ func callMW(t *testing.T, enabled bool, typeID int) int {
 }
 
 func TestMaintenanceBlock_AllowsSuperAdmin(t *testing.T) {
-	assert.Equal(t, http.StatusOK, callMW(t, true, 6))
+	assert.Equal(t, http.StatusOK, callMW(t, true, true))
 }
 
 func TestMaintenanceBlock_BlocksRegularWhenEnabled(t *testing.T) {
-	assert.Equal(t, http.StatusServiceUnavailable, callMW(t, true, 1))
+	assert.Equal(t, http.StatusServiceUnavailable, callMW(t, true, false))
 }
 
 func TestMaintenanceBlock_AllowsRegularWhenDisabled(t *testing.T) {
-	assert.Equal(t, http.StatusOK, callMW(t, false, 1))
+	assert.Equal(t, http.StatusOK, callMW(t, false, false))
 }

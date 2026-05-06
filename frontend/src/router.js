@@ -140,7 +140,7 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const maintenanceStore = useMaintenanceStore();
   const isAuthenticated = authStore.isAuthenticated;
-  const isBuroPropuskov = authStore.isAdmin;
+  const isBuroPropuskov = authStore.isSuperAdmin;
 
   // Maintenance: если режим включён и юзер не супер-админ - на /maintenance.
   // Сам /maintenance + /500 доступны всегда чтобы не зациклить.

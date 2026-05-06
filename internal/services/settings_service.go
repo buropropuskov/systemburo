@@ -16,8 +16,8 @@ import (
 )
 
 type SettingsService interface {
-	GetAll(ctx context.Context, callerTypeID int) ([]models.SystemSetting, error)
-	Update(ctx context.Context, callerTypeID int, key string, value string) (*models.SystemSetting, error)
+	GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error)
+	Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error)
 	GetUploadSettings(ctx context.Context) (map[string]interface{}, error)
 }
 
@@ -73,16 +73,16 @@ func (s *settingsService) loadCache() {
 	}
 }
 
-func (s *settingsService) checkBuro(typeID int) error {
-	if typeID != 6 {
-		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для бюро пропусков")
+func (s *settingsService) checkSuper(isSuperAdmin bool) error {
+	if !isSuperAdmin {
+		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}
 	return nil
 }
 
 // GetAll возвращает все системные настройки из кэша.
-func (s *settingsService) GetAll(ctx context.Context, callerTypeID int) ([]models.SystemSetting, error) {
-	if err := s.checkBuro(callerTypeID); err != nil {
+func (s *settingsService) GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error) {
+	if err := s.checkSuper(isSuperAdmin); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -96,8 +96,8 @@ func (s *settingsService) GetAll(ctx context.Context, callerTypeID int) ([]model
 }
 
 // Update обновляет значение системной настройки по ключу.
-func (s *settingsService) Update(ctx context.Context, callerTypeID int, key string, value string) (*models.SystemSetting, error) {
-	if err := s.checkBuro(callerTypeID); err != nil {
+func (s *settingsService) Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error) {
+	if err := s.checkSuper(isSuperAdmin); err != nil {
 		return nil, err
 	}
 	settingType, ok := knownKeys[key]

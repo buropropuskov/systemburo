@@ -142,12 +142,12 @@ func (s *maintenanceService) Enable(ctx context.Context, adminUserID int, adminU
 		if err := upsertSetting(tx, keyMaintenanceSupportEmail, supportEmail); err != nil {
 			return err
 		}
-		// Отзываем refresh-токены всех не-админов. Через ≤15 мин access
+		// Отзываем refresh-токены всех не-супер-админов. Через ≤15 мин access
 		// истечёт и их выкинет на /login, где получат 503 → /maintenance.
 		if err := tx.Exec(`
 			UPDATE refresh_tokens
 			SET is_revoked = true
-			WHERE user_id IN (SELECT id FROM users WHERE type_id != 6)
+			WHERE user_id IN (SELECT id FROM users WHERE is_super_admin = false)
 			  AND is_revoked = false
 		`).Error; err != nil {
 			return fmt.Errorf("revoke non-admin refresh tokens: %w", err)

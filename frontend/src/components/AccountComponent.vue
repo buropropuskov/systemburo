@@ -185,6 +185,7 @@ export default {
       username: "",
       type_id: 1,
       user_type: "user",
+      is_super_admin: false,
       userId: null,
       userOrganizationId: null,
       userCompanyId: null,
@@ -200,7 +201,7 @@ export default {
   },
   computed: {
     isBuroPropuskov() {
-      return this.type_id === 6 || this.user_type === 'buropropuskov';
+      return this.is_super_admin === true;
     }
   },
   mounted() {
@@ -240,6 +241,7 @@ export default {
       this.username = userData.username || "";
       this.type_id = userData.type_id || 1;
       this.user_type = userData.user_type || "user";
+      this.is_super_admin = userData.is_super_admin === true;
       this.userId = userData.id || null;
       this.userOrganizationId = userData.organization_id || null;
       this.userCompanyId = userData.company_id || null;

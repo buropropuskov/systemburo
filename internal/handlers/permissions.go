@@ -27,35 +27,30 @@ func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
 	return RespondSuccess(c, perms)
 }
 
-// GetUserPermissions возвращает разрешения указанного пользователя (только admin).
+// GetUserPermissions возвращает разрешения указанного пользователя (только super-admin).
 func (h *PermissionHandler) GetUserPermissions(c echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	typeID := GetTypeID(c)
-
-	perms, err := h.service.GetUserPermissions(c.Request().Context(), typeID, userID)
+	perms, err := h.service.GetUserPermissions(c.Request().Context(), IsSuperAdmin(c), userID)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, perms)
 }
 
-// UpdateUserPermissions обновляет разрешения указанного пользователя (только admin).
+// UpdateUserPermissions обновляет разрешения указанного пользователя (только super-admin).
 func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	typeID := GetTypeID(c)
-
 	var req models.UpdatePermissionsRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-
-	if err := h.service.UpdateUserPermissions(c.Request().Context(), typeID, userID, req); err != nil {
+	if err := h.service.UpdateUserPermissions(c.Request().Context(), IsSuperAdmin(c), GetUserID(c), userID, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "ok")

@@ -44,9 +44,12 @@ type AuthService interface {
 }
 
 // Claims is the JWT claims structure matching the Rust backend.
+// is_super_admin кладётся в access-токен чтобы middleware мог проверить
+// без дополнительного запроса в БД на каждый запрос (#231).
 type Claims struct {
-	UserID int `json:"user_id"`
-	TypeID int `json:"type_id"`
+	UserID       int  `json:"user_id"`
+	TypeID       int  `json:"type_id"`
+	IsSuperAdmin bool `json:"is_super_admin"`
 	jwt.RegisteredClaims
 }
 
@@ -106,10 +109,11 @@ func verifyPassword(phcHash, password string) bool {
 
 // --- JWT ---
 
-func (s *authService) createAccessToken(username string, userID int, typeID int) (string, error) {
+func (s *authService) createAccessToken(username string, userID int, typeID int, isSuperAdmin bool) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		TypeID: typeID,
+		UserID:       userID,
+		TypeID:       typeID,
+		IsSuperAdmin: isSuperAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTTL)),
@@ -210,7 +214,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	}
 	s.db.WithContext(ctx).Model(&user).Updates(updates)
 
-	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID)
+	accessToken, err := s.createAccessToken(user.Username, user.ID, user.TypeID, user.IsSuperAdmin)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
 	}
@@ -245,6 +249,8 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		CompanyID:      user.CompanyID,
 		TypeID:         user.TypeID,
 		UserType:       user.UserType.Name,
+		IsSuperAdmin:   user.IsSuperAdmin,
+		IsBanned:       user.IsBanned,
 	}, nil
 }
 
@@ -296,7 +302,7 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	// Ротация: помечаем старый revoked, выдаём новую пару в той же family.
 	s.db.WithContext(ctx).Model(&storedToken).Update("is_revoked", true)
 
-	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID)
+	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID, user.IsSuperAdmin)
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to create token")
 	}
@@ -408,6 +414,8 @@ func (s *authService) GetCurrentUser(ctx context.Context, username string) (*mod
 		TypeID:         user.TypeID,
 		UserType:       user.UserType.Name,
 		UserTypeCode:   user.UserType.Code,
+		IsSuperAdmin:   user.IsSuperAdmin,
+		IsBanned:       user.IsBanned,
 		LastName:       user.LastName,
 		FirstName:      user.FirstName,
 		MiddleName:     user.MiddleName,

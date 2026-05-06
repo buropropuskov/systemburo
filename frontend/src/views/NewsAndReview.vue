@@ -610,7 +610,7 @@ export default {
   },
   computed: {
     isAdminUser() {
-      return useAuthStore().isAdmin;
+      return useAuthStore().isSuperAdmin;
     },
     guideSections() {
       return this.isAdminUser ? ADMIN_GUIDE_SECTIONS : USER_GUIDE_SECTIONS;

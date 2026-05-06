@@ -70,17 +70,29 @@ describe('auth store', () => {
     });
   });
 
-  describe('isAdmin', () => {
-    it('возвращает true когда type_id=6', () => {
+  describe('isSuperAdmin', () => {
+    it('возвращает true когда is_super_admin=true в JWT', () => {
       const store = useAuthStore();
-      store.setTokens(createMockJWT({ type_id: 6 }));
-      expect(store.isAdmin).toBe(true);
+      store.setTokens(createMockJWT({ type_id: 6, is_super_admin: true }));
+      expect(store.isSuperAdmin).toBe(true);
     });
 
-    it('возвращает false для не-админа', () => {
+    it('возвращает false если is_super_admin=false независимо от type_id', () => {
+      const store = useAuthStore();
+      store.setTokens(createMockJWT({ type_id: 6, is_super_admin: false }));
+      expect(store.isSuperAdmin).toBe(false);
+    });
+
+    it('возвращает false для обычного юзера', () => {
       const store = useAuthStore();
       store.setTokens(createMockJWT({ type_id: 2 }));
-      expect(store.isAdmin).toBe(false);
+      expect(store.isSuperAdmin).toBe(false);
+    });
+
+    it('isAdmin (legacy) возвращает то же что isSuperAdmin', () => {
+      const store = useAuthStore();
+      store.setTokens(createMockJWT({ type_id: 6, is_super_admin: true }));
+      expect(store.isAdmin).toBe(true);
     });
   });
 

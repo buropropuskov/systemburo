@@ -30,6 +30,9 @@ func AuthHeader(token string) http.Header {
 }
 
 // RegisterUser creates a user directly in DB.
+// type_id=6 (buropropuskov) дополнительно получает is_super_admin=true,
+// чтобы тесты-сценарии для супер-админа корректно работали с middleware
+// которое после #231 проверяет is_super_admin вместо type_id=6.
 func RegisterUser(t *testing.T, e *echo.Echo, username, password string, typeID, orgID, companyID int) {
 	t.Helper()
 	user := models.User{
@@ -38,6 +41,7 @@ func RegisterUser(t *testing.T, e *echo.Echo, username, password string, typeID,
 		OrganizationID: intPtrOrZero(orgID),
 		CompanyID:      intPtrOrZero(companyID),
 		TypeID:         typeID,
+		IsSuperAdmin:   typeID == 6,
 	}
 	err := cachedDB.Create(&user).Error
 	require.NoError(t, err, "failed to seed user %s", username)
@@ -90,12 +94,16 @@ func RegisterManager(t *testing.T, e *echo.Echo, username string, orgID, company
 func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgID, companyID int) string {
 	t.Helper()
 
+	// type_id=6 -- buropropuskov код. После #231 super-admin определяется
+	// флагом is_super_admin, а не type_id. Сохраняем оба для тестов
+	// которые могут проверять как старое, так и новое поведение.
 	user := models.User{
 		Username:       username,
 		Password:       hashTestPassword(adminPassword),
 		OrganizationID: intPtrOrZero(orgID),
 		CompanyID:      intPtrOrZero(companyID),
 		TypeID:         typeID,
+		IsSuperAdmin:   typeID == 6,
 	}
 	err := cachedDB.Create(&user).Error
 	require.NoError(t, err, "failed to seed user %s", username)

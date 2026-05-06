@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"systemburo/internal/auth"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -16,8 +15,8 @@ import (
 // PermissionService определяет интерфейс управления разрешениями.
 type PermissionService interface {
 	GetMyPermissions(ctx context.Context, username string) ([]models.UserPermissionResponse, error)
-	GetUserPermissions(ctx context.Context, typeID int, userID int) ([]models.UserPermissionResponse, error)
-	UpdateUserPermissions(ctx context.Context, typeID int, userID int, req models.UpdatePermissionsRequest) error
+	GetUserPermissions(ctx context.Context, isSuperAdmin bool, userID int) ([]models.UserPermissionResponse, error)
+	UpdateUserPermissions(ctx context.Context, isSuperAdmin bool, actorID int, userID int, req models.UpdatePermissionsRequest) error
 	GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error)
 	AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error
 	HasPermission(ctx context.Context, userID int, key string) (bool, error)
@@ -50,9 +49,9 @@ func (s *permissionService) GetMyPermissions(ctx context.Context, username strin
 }
 
 // GetUserPermissions возвращает разрешения указанного пользователя (admin-only).
-func (s *permissionService) GetUserPermissions(ctx context.Context, typeID int, userID int) ([]models.UserPermissionResponse, error) {
-	if err := auth.CheckAdminByTypeID(s.db, ctx, typeID); err != nil {
-		return nil, err
+func (s *permissionService) GetUserPermissions(ctx context.Context, isSuperAdmin bool, userID int) ([]models.UserPermissionResponse, error) {
+	if !isSuperAdmin {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}
 
 	// Verify user exists
@@ -90,9 +89,9 @@ func (s *permissionService) getUserPermissionsList(ctx context.Context, userID i
 }
 
 // UpdateUserPermissions обновляет набор разрешений пользователя (admin-only).
-func (s *permissionService) UpdateUserPermissions(ctx context.Context, typeID int, userID int, req models.UpdatePermissionsRequest) error {
-	if err := auth.CheckAdminByTypeID(s.db, ctx, typeID); err != nil {
-		return err
+func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAdmin bool, actorID int, userID int, req models.UpdatePermissionsRequest) error {
+	if !isSuperAdmin {
+		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
 	}
 
 	// Verify user exists
@@ -118,17 +117,7 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, typeID in
 		return echo.NewHTTPError(http.StatusBadRequest, "Некоторые ключи разрешений не существуют")
 	}
 
-	// Get admin user ID for granted_by
-	var adminID int
-	err := s.db.WithContext(ctx).
-		Table("users").
-		Select("id").
-		Joins("JOIN user_types ON users.type_id = user_types.id").
-		Where("user_types.id = ?", typeID).
-		Row().Scan(&adminID)
-	if err != nil {
-		adminID = 0
-	}
+	adminID := actorID
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, p := range req.Permissions {

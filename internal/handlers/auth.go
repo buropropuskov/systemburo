@@ -79,11 +79,11 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	// Maintenance-bypass: super-admin (type_id=6) всегда проходит, иначе -
+	// Maintenance-bypass: super-admin всегда проходит, иначе -
 	// отзываем только что выданный refresh и возвращаем 503. Проверку
 	// делаем после пароля чтобы не выдавать 503 как oracle для подбора
 	// учёток (одинаковая задержка на верный и неверный пароль).
-	if h.maintenance != nil && resp.TypeID != 6 {
+	if h.maintenance != nil && !resp.IsSuperAdmin {
 		if st := h.maintenance.GetStatusCached(c.Request().Context()); st != nil && st.Enabled {
 			_ = h.service.Logout(c.Request().Context(), req.Username,
 				models.LogoutRequest{RefreshToken: resp.RefreshToken}, requestMeta(c))
