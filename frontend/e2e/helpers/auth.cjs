@@ -38,18 +38,23 @@ async function loginViaAPI(username, password) {
   return unwrap(await response.json());
 }
 
+// Landing после логина зависит от роли и Pinia state: super-admin и
+// часть админов идут на /news (обзор и новости), обычный юзер - на
+// /personal-cabinet. Ждём любой из них.
+const POST_LOGIN_URL = /\/(personal-cabinet|news)(\?|$|\/)/;
+
 async function loginAsAdmin(page) {
   const loginPage = new LoginPage(page);
   await loginPage.goto();
   await loginPage.login(SEED_ADMIN.username, SEED_ADMIN.password);
-  await page.waitForURL('/personal-cabinet');
+  await page.waitForURL(POST_LOGIN_URL);
 }
 
 async function loginAsUser(page) {
   const loginPage = new LoginPage(page);
   await loginPage.goto();
   await loginPage.login(SEED_USER.username, SEED_USER.password);
-  await page.waitForURL('/personal-cabinet');
+  await page.waitForURL(POST_LOGIN_URL);
 }
 
 async function setAuthTokens(page, username, password) {
