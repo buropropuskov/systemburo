@@ -8,16 +8,22 @@ module.exports = defineConfig({
   // и на seed-данные (application categories, attachments, unique-cars).
   // Переработаем отдельной задачей — расширим cmd/seed и/или вынесем fixtures.
   testIgnore: [
-    '**/auth.spec.js',
-    '**/application-lifecycle.spec.js',
-    '**/application-center.spec.js',
-    '**/application-create.spec.js',
+    '**/auth.spec.{js,cjs}',
+    '**/application-lifecycle.spec.{js,cjs}',
+    '**/application-center.spec.{js,cjs}',
+    '**/application-create.spec.{js,cjs}',
   ],
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:8081',
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    ...(process.env.E2E_HTTP_USER && {
+      httpCredentials: {
+        username: process.env.E2E_HTTP_USER,
+        password: process.env.E2E_HTTP_PASSWORD || '',
+      },
+    }),
   },
   projects: [
     {
