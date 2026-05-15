@@ -242,10 +242,9 @@ export default {
           ...this.filters,
         };
         const fn = this.mode === 'archive' ? listAccessDenialsArchive : listAccessDenials;
-        const json = await fn(params);
-        const data = json.data || {};
-        this.items = data.items || [];
-        this.total = data.total || 0;
+        const data = (await fn(params)) || {};
+        this.items = Array.isArray(data.items) ? data.items : [];
+        this.total = typeof data.total === 'number' ? data.total : 0;
       } catch (e) {
         console.error('Ошибка загрузки журнала:', e);
       } finally {

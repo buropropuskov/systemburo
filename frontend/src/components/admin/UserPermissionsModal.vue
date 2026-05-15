@@ -215,8 +215,8 @@ export default {
           listPermissionGroups(),
           this.user ? this.fetchUserGroups(this.user.id) : Promise.resolve([]),
         ]);
-        this.roles = rolesJson.data || [];
-        this.groups = groupsJson.data || [];
+        this.roles = Array.isArray(rolesJson) ? rolesJson : [];
+        this.groups = Array.isArray(groupsJson) ? groupsJson : [];
         this.currentGroupIds = new Set(currentGroupsJson.map(g => g.id));
         this.selectedGroupIds = new Set(this.currentGroupIds);
         this.form.role_id = this.user?.role_id ?? null;

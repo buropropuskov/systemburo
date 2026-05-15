@@ -172,7 +172,7 @@ export default {
       this.loading = true;
       try {
         const json = await listPermissionGroups();
-        this.groups = json.data || [];
+        this.groups = Array.isArray(json) ? json : [];
       } catch (e) {
         console.error('Ошибка загрузки групп:', e);
       } finally {
@@ -220,8 +220,8 @@ export default {
           });
           this.renameOpen = false;
           await this.fetch();
-          if (created && created.data) {
-            const group = this.groups.find(g => g.id === created.data.id);
+          if (created && created.id) {
+            const group = this.groups.find(g => g.id === created.id);
             if (group) this.openEditModal(group);
           }
         } catch (e) {
