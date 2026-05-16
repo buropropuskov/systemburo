@@ -51,13 +51,13 @@ const routes = [
     path: '/carsview',
     name: 'CarsView',
     component: CarsView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, permission: 'page.cars' }
   },
   {
     path: '/center',
     name: 'ApplicationsCenter',
     component: ApplicationsCenter,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, permission: 'page.center' }
   },
   {
     path: '/table-constructor',
@@ -75,7 +75,7 @@ const routes = [
     path: '/employeesview',
     name: 'EmployeeView',
     component: EmployeeView,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, permission: 'page.employees' }
   },
   {
     path: '/news',
@@ -87,43 +87,43 @@ const routes = [
     path: '/admin/feedback',
     name: 'FeedbackPage',
     component: FeedbackPage,
-    meta: {requiresAuth: true, requiresBuro: true}
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.feedback' }
   },
   {
     path: '/admin/requests',
     name: 'RequestsView',
     component: RequestsView,
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
   },
   {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('./views/AdminSettings.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
   },
   {
     path: '/admin/users',
     name: 'AdminUsers',
     component: () => import('./views/AdminUsers.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.users' }
   },
   {
     path: '/admin/permission-groups',
     name: 'AdminPermissionGroups',
     component: () => import('./views/admin/AdminPermissionGroups.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.manage' }
   },
   {
     path: '/admin/roles',
     name: 'AdminRoles',
     component: () => import('./views/admin/AdminRoles.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.manage' }
   },
   {
     path: '/admin/access-denials',
     name: 'AccessDenialsLog',
     component: () => import('./views/admin/AccessDenialsLog.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.read' }
   },
   {
     path: '/500',
@@ -141,7 +141,7 @@ const routes = [
     path: '/admin/system-control',
     name: 'SystemControl',
     component: () => import('./views/admin/SystemControl.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.system_control' }
   },
   {
     path: '/403',

@@ -258,31 +258,36 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.POST("/auto-generate", permissions.AutoGenerate)
 
-	// Группы прав (#187a)
+	// permission.audit.manage = управление системой прав
+	// (роли, группы, назначения, журнал отказов).
+	// GET-эндпоинты остаются открытыми для любых авторизованных, т.к. они
+	// нужны UI UserPermissionsModal для отображения списков (не разглашают
+	// ничего секретного - только публичные метаданные ролей/групп).
+	auditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditRead)
+	auditManage := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditManage)
+
+	// Группы прав (#187a). CRUD защищён permission.audit.manage.
 	pgGroup := protected.Group("/permission-groups")
 	pgGroup.GET("", permGroups.List)
 	pgGroup.GET("/:id", permGroups.Get)
-	pgGroup.POST("", permGroups.Create)
-	pgGroup.PUT("/:id", permGroups.Update)
-	pgGroup.DELETE("/:id", permGroups.Delete)
-	pgGroup.POST("/merge", permGroups.Merge)
+	pgGroup.POST("", permGroups.Create, auditManage)
+	pgGroup.PUT("/:id", permGroups.Update, auditManage)
+	pgGroup.DELETE("/:id", permGroups.Delete, auditManage)
+	pgGroup.POST("/merge", permGroups.Merge, auditManage)
 	protected.GET("/users/:user_id/permission-groups", permGroups.ListForUser)
-	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser)
-	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser)
-	protected.PUT("/users/:id/role", permGroups.SetUserRole)
+	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser, auditManage)
+	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser, auditManage)
+	protected.PUT("/users/:id/role", permGroups.SetUserRole, auditManage)
 
-	// Роли (#187a)
+	// Роли (#187a). CRUD защищён permission.audit.manage.
 	rolesGroup := protected.Group("/roles")
 	rolesGroup.GET("", roles.List)
-	rolesGroup.POST("", roles.Create)
-	rolesGroup.PUT("/:id", roles.Update)
-	rolesGroup.DELETE("/:id", roles.Delete)
-	rolesGroup.PUT("/:id/default-groups", roles.SetDefaultGroups)
+	rolesGroup.POST("", roles.Create, auditManage)
+	rolesGroup.PUT("/:id", roles.Update, auditManage)
+	rolesGroup.DELETE("/:id", roles.Delete, auditManage)
+	rolesGroup.PUT("/:id/default-groups", roles.SetDefaultGroups, auditManage)
 
-	// Журнал отказов в доступе (#230). Защищён permission.audit.read
-	// для просмотра и permission.audit.manage для модификаций.
-	auditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditRead)
-	auditManage := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditManage)
+	// Журнал отказов в доступе (#230).
 	denialsGroup := protected.Group("/access-denials")
 	denialsGroup.GET("", accessDenials.List, auditRead)
 	denialsGroup.GET("/archive", accessDenials.ListArchive, auditRead)

@@ -57,4 +57,22 @@ test.describe('Admin / Roles CRUD', () => {
 
     if (found) await deleteRole(request, token, found.id).catch(() => {});
   });
+
+  test('обычный юзер БЕЗ permission.audit.manage не может создать роль (403)', async ({ request }) => {
+    // Регресс-тест на критическую уязвимость, найденную smoke-проверкой.
+    // До фикса POST /api/roles возвращал 201 для любого авторизованного юзера.
+    const apiBase = process.env.E2E_API_BASE_URL || '/api';
+    const loginRes = await request.post(`${apiBase}/login`, {
+      data: { username: 'e2e_user', password: 'testpass123' },
+    });
+    expect(loginRes.ok()).toBeTruthy();
+    const loginBody = await loginRes.json();
+    const userToken = loginBody.data.token;
+
+    const res = await request.post(`${apiBase}/roles`, {
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      data: { code: 'hack_attempt', name: 'HACK', description: '' },
+    });
+    expect(res.status()).toBe(403);
+  });
 });
