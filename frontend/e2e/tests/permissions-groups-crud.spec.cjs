@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage } = require('../pages/LoginPage');
+const { loginAsSuperAdminUI } = require('../helpers/auth');
 const { AdminPermissionGroupsPage } = require('../pages/AdminPermissionGroupsPage');
 const {
   loginAsSuperAdmin,
@@ -8,7 +8,6 @@ const {
   deleteGroup,
   cleanupE2eEntities,
   e2eName,
-  SUPER_ADMIN,
 } = require('../helpers/permissions');
 
 test.describe('Admin / Permission Groups CRUD', () => {
@@ -26,8 +25,7 @@ test.describe('Admin / Permission Groups CRUD', () => {
     });
     expect(created).toMatchObject({ name });
 
-    await new LoginPage(page).goto();
-    await new LoginPage(page).login(SUPER_ADMIN.username, SUPER_ADMIN.password);
+    await loginAsSuperAdminUI(page);
 
     const groupsPage = new AdminPermissionGroupsPage(page);
     await groupsPage.goto();
@@ -37,8 +35,7 @@ test.describe('Admin / Permission Groups CRUD', () => {
   });
 
   test('создаёт группу через UI и API подтверждает её существование', async ({ page, request }) => {
-    await new LoginPage(page).goto();
-    await new LoginPage(page).login(SUPER_ADMIN.username, SUPER_ADMIN.password);
+    await loginAsSuperAdminUI(page);
 
     const groupsPage = new AdminPermissionGroupsPage(page);
     await groupsPage.goto();

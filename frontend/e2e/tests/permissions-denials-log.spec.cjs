@@ -1,12 +1,10 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage } = require('../pages/LoginPage');
+const { loginAsSuperAdminUI } = require('../helpers/auth');
 const { AdminAccessDenialsPage } = require('../pages/AdminAccessDenialsPage');
-const { SUPER_ADMIN } = require('../helpers/permissions');
 
 test.describe('Admin / Access Denials Log', () => {
   test('страница журнала отказов открывается и рендерит контейнер', async ({ page }) => {
-    await new LoginPage(page).goto();
-    await new LoginPage(page).login(SUPER_ADMIN.username, SUPER_ADMIN.password);
+    await loginAsSuperAdminUI(page);
 
     const denialsPage = new AdminAccessDenialsPage(page);
     await denialsPage.goto();

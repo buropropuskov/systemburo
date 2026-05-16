@@ -9,6 +9,11 @@ const SUPER_ADMIN = {
   password: process.env.E2E_SUPERADMIN_PASSWORD || 'admin123',
 };
 
+// Прямой URL до backend API. На staging - nginx проксирует /api на бэк
+// (https://stagingburo.washka17.site/api). В CI и dev фронт на :8081
+// без proxy, бэк на :8080 - тогда нужен absolute URL.
+const API_BASE = process.env.E2E_API_BASE_URL || '/api';
+
 const E2E_PREFIX = 'e2e_';
 
 function unwrap(body) {
@@ -22,7 +27,7 @@ function unwrap(body) {
 }
 
 async function loginAsSuperAdmin(request) {
-  const res = await request.post('/api/login', {
+  const res = await request.post(`${API_BASE}/login`, {
     data: { username: SUPER_ADMIN.username, password: SUPER_ADMIN.password },
   });
   if (!res.ok()) {
@@ -38,13 +43,13 @@ function authHeaders(token) {
 }
 
 async function apiGet(request, token, path) {
-  const res = await request.get(`/api${path}`, { headers: authHeaders(token) });
+  const res = await request.get(`${API_BASE}${path}`, { headers: authHeaders(token) });
   if (!res.ok()) throw new Error(`GET ${path} failed: ${res.status()}`);
   return unwrap(await res.json());
 }
 
 async function apiPost(request, token, path, body) {
-  const res = await request.post(`/api${path}`, { headers: authHeaders(token), data: body || {} });
+  const res = await request.post(`${API_BASE}${path}`, { headers: authHeaders(token), data: body || {} });
   if (!res.ok() && res.status() !== 201) {
     throw new Error(`POST ${path} failed: ${res.status()} ${await res.text()}`);
   }
@@ -52,13 +57,13 @@ async function apiPost(request, token, path, body) {
 }
 
 async function apiPut(request, token, path, body) {
-  const res = await request.put(`/api${path}`, { headers: authHeaders(token), data: body || {} });
+  const res = await request.put(`${API_BASE}${path}`, { headers: authHeaders(token), data: body || {} });
   if (!res.ok()) throw new Error(`PUT ${path} failed: ${res.status()} ${await res.text()}`);
   return unwrap(await res.json());
 }
 
 async function apiDelete(request, token, path) {
-  const res = await request.delete(`/api${path}`, { headers: authHeaders(token) });
+  const res = await request.delete(`${API_BASE}${path}`, { headers: authHeaders(token) });
   if (!res.ok() && res.status() !== 204) {
     throw new Error(`DELETE ${path} failed: ${res.status()} ${await res.text()}`);
   }

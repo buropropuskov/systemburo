@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { LoginPage } = require('../pages/LoginPage');
+const { loginAsSuperAdminUI } = require('../helpers/auth');
 const { AdminRolesPage } = require('../pages/AdminRolesPage');
 const {
   loginAsSuperAdmin,
@@ -8,7 +8,6 @@ const {
   deleteRole,
   cleanupE2eEntities,
   e2eName,
-  SUPER_ADMIN,
 } = require('../helpers/permissions');
 
 test.describe('Admin / Roles CRUD', () => {
@@ -26,8 +25,7 @@ test.describe('Admin / Roles CRUD', () => {
     });
     expect(created).toMatchObject({ code, name: `E2E Role ${code}` });
 
-    await new LoginPage(page).goto();
-    await new LoginPage(page).login(SUPER_ADMIN.username, SUPER_ADMIN.password);
+    await loginAsSuperAdminUI(page);
 
     const rolesPage = new AdminRolesPage(page);
     await rolesPage.goto();
@@ -37,8 +35,7 @@ test.describe('Admin / Roles CRUD', () => {
   });
 
   test('создаёт роль через UI и видит её в списке (полный круг)', async ({ page, request }) => {
-    await new LoginPage(page).goto();
-    await new LoginPage(page).login(SUPER_ADMIN.username, SUPER_ADMIN.password);
+    await loginAsSuperAdminUI(page);
 
     const rolesPage = new AdminRolesPage(page);
     await rolesPage.goto();

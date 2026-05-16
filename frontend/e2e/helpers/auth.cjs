@@ -57,6 +57,18 @@ async function loginAsUser(page) {
   await page.waitForURL(POST_LOGIN_URL);
 }
 
+const SUPER_ADMIN_UI = {
+  username: process.env.E2E_SUPERADMIN_USER || 'buropropuskov',
+  password: process.env.E2E_SUPERADMIN_PASSWORD || 'admin123',
+};
+
+async function loginAsSuperAdminUI(page) {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login(SUPER_ADMIN_UI.username, SUPER_ADMIN_UI.password);
+  await page.waitForURL(POST_LOGIN_URL);
+}
+
 async function setAuthTokens(page, username, password) {
   const data = await loginViaAPI(username, password);
   await page.goto('/');
@@ -74,8 +86,11 @@ module.exports = {
   loginViaAPI,
   loginAsAdmin,
   loginAsUser,
+  loginAsSuperAdminUI,
   setAuthTokens,
   SEED_ADMIN,
   SEED_USER,
+  SUPER_ADMIN_UI,
   unwrap,
+  POST_LOGIN_URL,
 };

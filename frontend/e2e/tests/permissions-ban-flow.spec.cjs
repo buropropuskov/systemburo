@@ -4,7 +4,6 @@ const {
   loginAsSuperAdmin,
   banUser,
   unbanUser,
-  SUPER_ADMIN,
 } = require('../helpers/permissions');
 
 const BAN_TARGET_USERNAME = process.env.E2E_BAN_TARGET_USERNAME;
