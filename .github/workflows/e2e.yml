@@ -55,6 +55,8 @@ jobs:
       E2E_SUPERADMIN_USER: buropropuskov
       E2E_SUPERADMIN_PASSWORD: 'BuroAdmin2026!'
       E2E_API_BASE_URL: 'http://localhost:8080/api'
+      LOGIN_RATE_LIMIT_MAX: '1000'
+      LOGIN_RATE_LIMIT_WINDOW_SEC: '60'
     steps:
       - uses: actions/checkout@v6
 

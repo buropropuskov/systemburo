@@ -30,6 +30,11 @@ type Config struct {
 	RequireEncryption  bool   `env:"REQUIRE_ENCRYPTION" envDefault:"false"`
 	RateLimitPerMinute int    `env:"RATE_LIMIT_PER_MINUTE" envDefault:"200"`
 	RateLimitWindowSec int64  `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
+
+	// LoginRateLimit ограничивает попытки /login per-IP (защита от brute-force).
+	// Дефолт 5/15м оставляем для production. В CI/e2e задаём LOGIN_RATE_LIMIT=1000.
+	LoginRateLimitMax       int   `env:"LOGIN_RATE_LIMIT_MAX" envDefault:"5"`
+	LoginRateLimitWindowSec int64 `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"900"`
 	PaginationMaxLimit int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
 	UploadPath         string `env:"UPLOAD_PATH" envDefault:"./uploads"`
 
