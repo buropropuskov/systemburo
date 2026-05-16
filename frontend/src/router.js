@@ -51,13 +51,13 @@ const routes = [
     path: '/carsview',
     name: 'CarsView',
     component: CarsView,
-    meta: { requiresAuth: true, permission: 'page.cars' }
+    meta: { requiresAuth: true }
   },
   {
     path: '/center',
     name: 'ApplicationsCenter',
     component: ApplicationsCenter,
-    meta: { requiresAuth: true, permission: 'page.center' }
+    meta: { requiresAuth: true }
   },
   {
     path: '/table-constructor',
@@ -75,7 +75,7 @@ const routes = [
     path: '/employeesview',
     name: 'EmployeeView',
     component: EmployeeView,
-    meta: { requiresAuth: true, permission: 'page.employees' }
+    meta: { requiresAuth: true }
   },
   {
     path: '/news',
