@@ -235,8 +235,8 @@ export default {
       this.loading = true;
       try {
         const [roles, groups] = await Promise.all([listRoles(), listPermissionGroups()]);
-        this.roles = roles.data || [];
-        this.allGroups = groups.data || [];
+        this.roles = Array.isArray(roles) ? roles : [];
+        this.allGroups = Array.isArray(groups) ? groups : [];
       } finally {
         this.loading = false;
       }
