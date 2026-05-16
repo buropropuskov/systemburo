@@ -6,16 +6,23 @@ class AdminPermissionGroupsPage {
     this.cards = page.locator('.permission-groups .cards .card');
     this.emptyState = page.locator('.permission-groups .empty');
 
-    this.renameModal = page.locator('.form-modal').filter({ hasText: /Новая группа|Переименовать/ });
+    // Модалка имеет класс .rename-modal в AdminPermissionGroups.vue,
+    // h3 - "Новая группа прав" (create) или "Имя и описание" (edit).
+    this.renameModal = page.locator('.rename-modal');
     this.renameName = this.renameModal.getByRole('textbox', { name: 'Название' });
-    this.renameDescription = this.renameModal.getByRole('textbox', { name: 'Описание' });
-    this.renameSave = this.renameModal.getByRole('button', { name: 'Сохранить' });
+    this.renameDescription = this.renameModal.getByRole('textbox', { name: /Описание/ });
+    // Кнопка submit зависит от режима: create → "Создать и редактировать ключи",
+    // edit → "Сохранить".
+    this.renameSubmitCreate = this.renameModal.getByRole('button', { name: /Создать/ });
+    this.renameSubmitEdit = this.renameModal.getByRole('button', { name: 'Сохранить' });
     this.renameCancel = this.renameModal.getByRole('button', { name: 'Отмена' });
 
+    // После create открывается PermissionTreeModal - дерево прав. Тест
+    // создания группы не должен его заполнять, просто закрыть.
     this.treeModal = page.locator('.permission-tree-modal');
     this.treeSearch = this.treeModal.getByRole('textbox', { name: /Поиск/ });
     this.treeSave = this.treeModal.getByRole('button', { name: 'Сохранить' });
-    this.treeCancel = this.treeModal.getByRole('button', { name: 'Отмена' });
+    this.treeCancel = this.treeModal.getByRole('button', { name: /Отмена|Закрыть/ });
   }
 
   async goto() {
@@ -36,8 +43,14 @@ class AdminPermissionGroupsPage {
     await this.openCreate();
     await this.renameName.fill(name);
     if (description) await this.renameDescription.fill(description);
-    await this.renameSave.click();
+    await this.renameSubmitCreate.click();
     await this.renameModal.waitFor({ state: 'hidden' });
+    // После клика "Создать и редактировать ключи" открывается treeModal.
+    // Закрываем его (cancel), нам нужна только сама группа.
+    if (await this.treeModal.isVisible().catch(() => false)) {
+      await this.treeCancel.click().catch(() => {});
+      await this.treeModal.waitFor({ state: 'hidden' }).catch(() => {});
+    }
   }
 
   async togglePermissionKey(key) {
