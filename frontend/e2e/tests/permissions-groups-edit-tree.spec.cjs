@@ -46,7 +46,9 @@ test.describe('Admin / Permission Groups - edit keys via tree', () => {
     if (await pagesSection.isVisible({ timeout: 1000 }).catch(() => false)) {
       await pagesSection.click();
     }
-    const pageCarsLabel = page.getByText('page.cars').first();
+    // Tree-item имеет structure: <label class="tree-item"><input type="checkbox"><span>page.cars</span></label>
+    // Кликаем по label который содержит текст page.cars - сработает на checkbox.
+    const pageCarsLabel = page.locator('label.tree-item', { hasText: 'page.cars' }).first();
     await pageCarsLabel.click();
 
     await groupsPage.treeSave.click();
