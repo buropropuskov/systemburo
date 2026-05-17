@@ -14,7 +14,8 @@ type RefreshToken struct {
 	TokenHash string    `gorm:"uniqueIndex" json:"token_hash"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
-	IsRevoked bool      `gorm:"default:false" json:"is_revoked"`
-	IPAddress *string   `gorm:"size:45" json:"ip_address"`
-	UserAgent *string   `json:"user_agent"`
+	IsRevoked bool       `gorm:"default:false" json:"is_revoked"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	IPAddress *string    `gorm:"size:45" json:"ip_address"`
+	UserAgent *string    `json:"user_agent"`
 }
