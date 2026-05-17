@@ -175,7 +175,6 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
           load: ${{ github.event_name != 'push' || github.ref != 'refs/heads/dev' }}
           tags: |
-            systemburo-frontend:ci
             ghcr.io/${{ steps.repo.outputs.lower }}-frontend:${{ github.sha }}
             ghcr.io/${{ steps.repo.outputs.lower }}-frontend:dev
           cache-from: type=gha,scope=systemburo-frontend
