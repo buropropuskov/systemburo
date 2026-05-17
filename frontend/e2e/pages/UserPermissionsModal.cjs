@@ -1,12 +1,15 @@
 class UserPermissionsModal {
   constructor(page) {
     this.page = page;
-    this.root = page.locator('.user-permissions-modal, .modal').filter({ hasText: /Роль и группы|Права пользователя/ }).first();
-    this.roleSelect = this.root.getByRole('combobox', { name: /Роль/ }).first();
-    this.groupCheckboxes = this.root.locator('input[type="checkbox"][data-group-id], .group-checkbox');
-    this.banToggle = this.root.getByRole('switch', { name: /Забанить|Блокировка/ }).first();
+    // UserPermissionsModal использует .modal-overlay + .modal-content, без специфического класса.
+    // Идентифицируем по h3 "Права пользователя «...»".
+    this.root = page.locator('.modal-overlay').filter({
+      has: page.getByRole('heading', { level: 3, name: /Права пользователя/ }),
+    }).first();
+    this.roleSelect = this.root.locator('select.lk-select').first();
+    this.groupCheckboxes = this.root.locator('.group-row input[type="checkbox"]');
     this.saveButton = this.root.getByRole('button', { name: 'Сохранить' });
-    this.cancelButton = this.root.getByRole('button', { name: /Отмена|Закрыть/ });
+    this.cancelButton = this.root.getByRole('button', { name: /Отмена|Закрыть|×/ }).first();
   }
 
   async waitForOpen() {
