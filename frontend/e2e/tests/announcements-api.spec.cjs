@@ -47,6 +47,27 @@ test.describe('Announcements API', () => {
     expect(active?.id).toBe(created.id);
   });
 
+  test('POST /announcements/:id/hide делает is_active=false', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const createRes = await request.post(`${API_BASE}/announcements`, {
+      headers: headers(token),
+      data: { title: `E2E Hide ${Date.now()}`, description: 'for hide test', is_active: true },
+    });
+    const created = (await createRes.json()).data;
+    createdIds.push(created.id);
+
+    const hideRes = await request.post(`${API_BASE}/announcements/${created.id}/hide`, {
+      headers: headers(token),
+    });
+    expect(hideRes.ok()).toBeTruthy();
+
+    const allRes = await request.get(`${API_BASE}/announcements/all`, { headers: headers(token) });
+    const all = (await allRes.json()).data || [];
+    const found = all.find(a => a.id === created.id);
+    expect(found).toBeTruthy();
+    expect(found.is_active).toBeFalsy();
+  });
+
   test('PUT /announcements/:id и DELETE', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const createRes = await request.post(`${API_BASE}/announcements`, {

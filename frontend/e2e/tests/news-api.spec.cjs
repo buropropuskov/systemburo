@@ -57,6 +57,18 @@ test.describe('News API - CRUD', () => {
     expect(updated.title).toBe(newTitle);
   });
 
+  test('GET /news (active) возвращает массив активных', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const res = await request.get(`${API_BASE}/news`, { headers: headers(token) });
+    expect(res.ok()).toBeTruthy();
+    const list = (await res.json()).data || [];
+    expect(Array.isArray(list)).toBeTruthy();
+    // активные = is_active true (если есть)
+    for (const n of list) {
+      expect(n.is_active === undefined || n.is_active === true).toBeTruthy();
+    }
+  });
+
   test('DELETE /news/:id убирает новость', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const createRes = await request.post(`${API_BASE}/news`, {
