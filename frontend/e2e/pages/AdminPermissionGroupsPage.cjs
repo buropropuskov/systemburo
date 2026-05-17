@@ -82,6 +82,21 @@ class AdminPermissionGroupsPage {
     }
     await this.treeModal.getByText(key, { exact: false }).first().click();
   }
+
+  /**
+   * Открыть rename-модалку для редактирования имени/описания группы.
+   * В AdminPermissionGroups.vue нет отдельной кнопки rename - "Редактировать"
+   * открывает PermissionTreeModal. Тест только подтверждает что нажатие
+   * корректно открывает дерево.
+   */
+  async clickEditTree(name) {
+    await this.card(name).getByRole('button', { name: 'Редактировать' }).click();
+    await this.treeModal.waitFor({ state: 'visible' });
+  }
+
+  async clickDelete(name) {
+    await this.card(name).getByRole('button', { name: 'Удалить' }).click();
+  }
 }
 
 module.exports = { AdminPermissionGroupsPage };
