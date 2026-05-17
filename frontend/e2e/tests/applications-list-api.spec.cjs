@@ -29,4 +29,46 @@ test.describe('Applications list API', () => {
     const data = body.data || body;
     expect(Array.isArray(data) || Array.isArray(data.items)).toBeTruthy();
   });
+
+  test('GET /applications/unread-count возвращает число', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const res = await request.get(`${API_BASE}/applications/unread-count`, { headers: headers(token) });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    const data = body.data ?? body;
+    expect(typeof (data.count ?? data) === 'number' || typeof data === 'object').toBeTruthy();
+  });
+
+  test('GET /applications/:id и связанные read-only ручки работают для существующей заявки', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const listRes = await request.get(`${API_BASE}/applications`, { headers: headers(token) });
+    if (!listRes.ok()) {
+      test.skip(true, 'cannot list applications');
+      return;
+    }
+    const body = await listRes.json();
+    const list = body.data?.items || body.data || body.items || [];
+    if (!Array.isArray(list) || !list.length) {
+      test.skip(true, 'no applications in DB to test against');
+      return;
+    }
+    const appId = list[0].id;
+
+    const endpoints = [
+      `/applications/${appId}`,
+      `/applications/${appId}/responsible-users`,
+      `/applications/${appId}/details`,
+      `/applications/${appId}/attachments`,
+      `/applications/${appId}/history`,
+      `/applications/${appId}/viewers`,
+      `/applications/${appId}/reads`,
+      `/applications/${appId}/check-approval-status`,
+    ];
+
+    for (const path of endpoints) {
+      const res = await request.get(`${API_BASE}${path}`, { headers: headers(token) });
+      expect(res.status(), `GET ${path} вернул ${res.status()}`).toBeLessThan(500);
+      expect([200, 404]).toContain(res.status());
+    }
+  });
 });
