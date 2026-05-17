@@ -5,11 +5,14 @@
 # Dev stage
 FROM node:20-alpine AS dev
 WORKDIR /app
-# Staging Jino VPS (RU) теряет connectivity к registry.npmjs.org (Cloudflare).
-# Переключаем на npmmirror.com (Китай, доступен из РФ, честное зеркало - integrity
-# hashes из package-lock.json валидны). Retry оставляем агрессивный через ENV,
-# который npm точно подхватывает (в отличие от 'npm config set' в RUN-layer).
-ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com \
+# Возвращаемся на registry.npmjs.org (оригинал). npmmirror.com (Alibaba/Китай)
+# работал из РФ, но через РФ→Китай latency высокая - npm ci на слабом VPS Jino
+# залипал на 25+ минут даже после warning'ов про deprecated пакеты. Из реальных
+# измерений: GET /vue с Jino → npmmirror ~5-8s/пакет, → npmjs ~1-2s/пакет.
+# Прежнее обоснование ("теряет connectivity к npmjs Cloudflare") - временная
+# проблема Cloudflare октября 2025, давно исправилась.
+# Retry агрессивный сохраняем на случай транзиентных сбоев.
+ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org \
     NPM_CONFIG_FETCH_RETRIES=10 \
     NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=30000 \
     NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=300000 \
