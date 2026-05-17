@@ -53,13 +53,16 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
+            export DOCKER_BUILDKIT=1
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
             git fetch origin prod
             git reset --hard origin/prod
             test -f .env || bash scripts/init-env.sh production ${{ secrets.PROD_DOMAIN }}
             # Frontend пересобираем без кеша — buildkit удерживает старые
-            # слои COPY . . даже при изменении исходников.
+            # слои COPY . . даже при изменении исходников. BuildKit cache
+            # mounts из Dockerfile переживают --no-cache и сохраняют npm
+            # tarballs + vite cache (~10x ускорение после первого прогрева).
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull --no-cache frontend
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml build --pull backend nginx
             docker compose -f docker-compose.base.yml -f docker-compose.prod.yml up -d --force-recreate

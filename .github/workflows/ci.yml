@@ -192,6 +192,7 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
+            export DOCKER_BUILDKIT=1
             test -d /opt/systemburo/.git || git clone git@github.com:${{ github.repository }}.git /opt/systemburo
             cd /opt/systemburo
             git fetch origin dev
@@ -200,11 +201,18 @@ jobs:
             # Forced rebuild для frontend — docker buildkit агрессивно кеширует
             # слои через COPY . .; при git reset даже при изменении .vue файлов
             # слой может остаться CACHED и старый бандл окажется в проде.
+            # --no-cache инвалидирует только image-layer cache, BuildKit
+            # cache mounts (--mount=type=cache в Dockerfile) переживают
+            # пересборку и сохраняют npm+vite tarballs/transforms между
+            # деплоями. Деплой 1-2 мин вместо 15-30 после прогрева кэша.
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build --pull --no-cache frontend
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml build --pull backend nginx
             docker compose -f docker-compose.base.yml -f docker-compose.staging.yml up -d --force-recreate
             docker system prune -f --filter 'until=24h' 2>/dev/null || true
-            docker builder prune -f --filter 'until=24h' 2>/dev/null || true
+            # builder prune раньше сносил BuildKit cache mounts каждые 24h,
+            # из-за чего каждый деплой был холодным. Удлиняем до 7 дней:
+            # при стабильных package-lock.json кэш живёт между фичами.
+            docker builder prune -f --filter 'until=168h' 2>/dev/null || true
             sleep 5
             wget -qO- http://localhost/health || exit 1
             echo "Staging deploy completed at $(date)"
