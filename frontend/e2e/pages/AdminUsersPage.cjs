@@ -24,19 +24,21 @@ class AdminUsersPage {
   async goto() {
     await this.page.goto('/admin/users');
     await this.title.waitFor({ state: 'visible' });
+    // ждём пока загрузится хотя бы 1 row - таблица fetch'ит users async
+    await this.rows.first().waitFor({ state: 'visible', timeout: 10000 });
   }
 
   async search(query) {
     await this.searchInput.fill(query);
-    await this.page.waitForTimeout(200);
+    await this.page.waitForTimeout(400); // debounce
   }
 
   rowByLogin(login) {
-    return this.page.locator(`tr:has-text("${login}")`);
+    return this.page.locator(`tr.admin-users__row:has-text("${login}")`);
   }
 
   async selectUserByLogin(login) {
-    await this.rowByLogin(login).click();
+    await this.rowByLogin(login).first().click();
     await this.tabInfo.waitFor({ state: 'visible' });
   }
 }
