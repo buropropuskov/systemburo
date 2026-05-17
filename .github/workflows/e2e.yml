@@ -113,7 +113,9 @@ jobs:
 
       - name: Run Playwright tests (shard ${{ matrix.shard }}/${{ matrix.totalShards }})
         working-directory: frontend
-        run: npx playwright test --project=chromium --shard=${{ matrix.shard }}/${{ matrix.totalShards }}
+        # --grep-invert site-smoke - тяжёлый crawler (5+ мин против staging)
+        # запускается отдельно через site-smoke.yml workflow_dispatch.
+        run: npx playwright test --project=chromium --shard=${{ matrix.shard }}/${{ matrix.totalShards }} --grep-invert "Site smoke"
 
       - name: Upload Playwright report
         if: failure()

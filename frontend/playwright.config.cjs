@@ -20,9 +20,6 @@ module.exports = defineConfig({
     '**/navigation.spec.{js,cjs}',
     '**/cabinet.spec.{js,cjs}',
     '**/admin-access.spec.{js,cjs}',
-    // Тяжёлый smoke-crawler ~3-5 минут, требует staging credentials.
-    // Запускается отдельным workflow site-smoke.yml через workflow_dispatch.
-    '**/site-smoke-crawler.spec.{js,cjs}',
   ],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:8081',
