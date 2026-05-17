@@ -73,13 +73,15 @@ test.describe('Misc API endpoints', () => {
     expect(data).toBeTruthy();
   });
 
-  test('GET /permissions/my возвращает массив прав суперадмина', async ({ request }) => {
+  test('GET /permissions/my возвращает массив (пустой для superadmin - у него bypass)', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const res = await request.get(`${API_BASE}/permissions/my`, { headers: headers(token) });
     expect(res.ok()).toBeTruthy();
     const data = (await res.json()).data || [];
-    // Суперадмин имеет bypass через is_super_admin - resolver вернёт все ключи
+    // Суперадмин обходит resolver через is_super_admin - resolver возвращает
+    // PermissionSet с IsSuperAdmin=true и пустыми keys. Фронт проверяет
+    // isSuperAdmin отдельно в usePermissionsStore.hasPermission. Здесь просто
+    // убеждаемся что endpoint работает и возвращает массив.
     expect(Array.isArray(data)).toBeTruthy();
-    expect(data.length).toBeGreaterThan(0);
   });
 });
