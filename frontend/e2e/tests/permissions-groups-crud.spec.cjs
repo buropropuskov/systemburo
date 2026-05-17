@@ -5,6 +5,7 @@ const {
   loginAsSuperAdmin,
   createGroup,
   listGroups,
+  updateGroup,
   deleteGroup,
   cleanupE2eEntities,
   e2eName,
@@ -51,6 +52,36 @@ test.describe('Admin / Permission Groups CRUD', () => {
     expect(found).toBeTruthy();
 
     if (found) await deleteGroup(request, token, found.id).catch(() => {});
+  });
+
+  test('PUT /permission-groups/:id обновляет name + keys', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const name = e2eName('edit_group');
+    const created = await createGroup(request, token, { name, description: 'orig', keys: ['page.cars'] });
+
+    const newName = e2eName('renamed_group');
+    await updateGroup(request, token, created.id, {
+      name: newName,
+      description: 'updated',
+      keys: ['page.cars', 'entity.cars.read'],
+    });
+
+    const all = await listGroups(request, token);
+    const updated = all.find(g => g.id === created.id);
+    expect(updated.name).toBe(newName);
+    expect([...updated.keys].sort()).toEqual(['entity.cars.read', 'page.cars']);
+
+    await deleteGroup(request, token, created.id).catch(() => {});
+  });
+
+  test('DELETE /permission-groups/:id убирает группу из списка', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const created = await createGroup(request, token, { name: e2eName('to_del'), keys: [] });
+
+    await deleteGroup(request, token, created.id);
+
+    const all = await listGroups(request, token);
+    expect(all.find(g => g.id === created.id)).toBeFalsy();
   });
 
   test('обычный юзер БЕЗ permission.audit.manage не может создать группу (403)', async ({ request }) => {
