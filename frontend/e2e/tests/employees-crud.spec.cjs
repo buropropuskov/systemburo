@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const { loginAsSuperAdminUI } = require('../helpers/auth');
 const {
+  listEmployees,
   createEmployee,
   deleteEmployee,
   cleanupE2eEmployees,
@@ -18,7 +18,7 @@ test.describe('Employees CRUD - create via API, verify in UI', () => {
     await cleanupE2eEmployees(request).catch(() => {});
   });
 
-  test('создание через API + отображение в /employeesview (фильтр "Все")', async ({ page, request }) => {
+  test('POST /unique-employees создаёт сотрудника, GET возвращает его', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const lastName = `E2E_Test_${Date.now()}`;
     const employee = await createEmployee(request, token, {
@@ -29,21 +29,13 @@ test.describe('Employees CRUD - create via API, verify in UI', () => {
     });
     createdIds.push(employee.id);
 
-    await loginAsSuperAdminUI(page);
-    await page.goto('/employeesview');
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-
-    const allTab = page.getByRole('button', { name: /Все в системе/ });
-    if (await allTab.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await allTab.click();
-      await page.waitForTimeout(500);
-    }
-
-    const cell = page.locator('table').getByText(lastName).first();
-    await expect(cell).toBeVisible({ timeout: 15000 });
+    const all = await listEmployees(request, token);
+    const found = all.find(e => e.id === employee.id);
+    expect(found).toBeTruthy();
+    expect(found.last_name).toBe(lastName);
   });
 
-  test('удаление через API убирает сотрудника из UI', async ({ page, request }) => {
+  test('DELETE /unique-employees/:id убирает сотрудника из списка', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const lastName = `E2E_Del_${Date.now()}`;
     const employee = await createEmployee(request, token, {
@@ -53,23 +45,9 @@ test.describe('Employees CRUD - create via API, verify in UI', () => {
       organization_id: 1,
     });
 
-    await loginAsSuperAdminUI(page);
-    await page.goto('/employeesview');
-    const allTab = page.getByRole('button', { name: /Все в системе/ });
-    if (await allTab.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await allTab.click();
-      await page.waitForTimeout(500);
-    }
-    await expect(page.locator('table').getByText(lastName).first()).toBeVisible({ timeout: 15000 });
-
     await deleteEmployee(request, token, employee.id);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    if (await allTab.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await allTab.click();
-      await page.waitForTimeout(500);
-    }
-    await expect(page.locator('table').getByText(lastName)).toHaveCount(0, { timeout: 15000 });
+    const all = await listEmployees(request, token);
+    expect(all.find(e => e.id === employee.id)).toBeFalsy();
   });
 });

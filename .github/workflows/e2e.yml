@@ -57,6 +57,10 @@ jobs:
       E2E_API_BASE_URL: 'http://localhost:8080/api'
       LOGIN_RATE_LIMIT_MAX: '1000'
       LOGIN_RATE_LIMIT_WINDOW_SEC: '60'
+      # API rate-limit повышаем для параллельных e2e shards - 4 worker'а
+      # перегружали дефолтный 200/мин при создании unique-employees/cars.
+      RATE_LIMIT_PER_MINUTE: '5000'
+      RATE_LIMIT_WINDOW_SEC: '60'
     steps:
       - uses: actions/checkout@v6
 
