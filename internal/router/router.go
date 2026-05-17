@@ -11,7 +11,7 @@ import (
 // Setup регистрирует все маршруты.
 // loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
 // В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, banCheck echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -40,6 +40,12 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	// проходит, остальным 503. Передаём nil в тестах чтобы не блочить.
 	if maintenanceBlock != nil {
 		protected.Use(maintenanceBlock)
+	}
+	// BanCheck - после JWTAuth (нужен user_id). Забаненный получает 403 даже с
+	// валидным access-токеном до истечения exp. Кэш TTL 30s. Инвалидируется при
+	// Ban/Unban из UserBanService. nil в тестах чтобы не требовать service.
+	if banCheck != nil {
+		protected.Use(banCheck)
 	}
 
 	protected.POST("/logout", auth.Logout)

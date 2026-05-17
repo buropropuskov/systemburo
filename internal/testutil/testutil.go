@@ -106,7 +106,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
-	userBanService := services.NewUserBanService(db, permissionResolver)
+	userBanService := services.NewUserBanService(db, permissionResolver, nil)
 	systemTableService := services.NewSystemTableService(db, "./uploads", 10*1024*1024, permissionService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
@@ -173,7 +173,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, permissionResolver, accessDenialService, nil, []byte(TestJWTSecret), nil)
+		applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, permissionResolver, accessDenialService, nil, nil, []byte(TestJWTSecret), nil)
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}

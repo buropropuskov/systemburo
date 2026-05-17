@@ -178,7 +178,7 @@ func TestRequirePermissionV2_LogsBannedReason(t *testing.T) {
 func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver)
+	banSvc := services.NewUserBanService(db, resolver, nil)
 
 	targetID, _, cleanup := setupMWUser(t, db, false, false)
 	defer cleanup()
@@ -216,7 +216,7 @@ func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 func TestUserBanService_CannotBanSelf(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver)
+	banSvc := services.NewUserBanService(db, resolver, nil)
 
 	userID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
@@ -230,7 +230,7 @@ func TestUserBanService_CannotBanSelf(t *testing.T) {
 func TestUserBanService_CannotBanSuperAdmin(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver)
+	banSvc := services.NewUserBanService(db, resolver, nil)
 
 	targetID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
@@ -240,6 +240,93 @@ func TestUserBanService_CannotBanSuperAdmin(t *testing.T) {
 	err := banSvc.Ban(context.Background(), targetID, actorID)
 	if err == nil {
 		t.Error("expected error when banning super-admin")
+	}
+}
+
+func TestBanCheck_AllowsActiveUser(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewBanCheckService(db, time.Minute)
+
+	userID, _, cleanup := setupMWUser(t, db, false, false)
+	defer cleanup()
+
+	e := echo.New()
+	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+		func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				c.Set("user_id", userID)
+				return next(c)
+			}
+		},
+		middleware.BanCheck(svc),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for active user, got %d", rec.Code)
+	}
+}
+
+func TestBanCheck_DeniesBannedUser(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewBanCheckService(db, time.Minute)
+
+	userID, _, cleanup := setupMWUser(t, db, false, true)
+	defer cleanup()
+
+	e := echo.New()
+	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+		func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				c.Set("user_id", userID)
+				return next(c)
+			}
+		},
+		middleware.BanCheck(svc),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for banned user, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
+	// Регресс на issue #271: после Ban() кэш ban-чекера должен инвалидироваться,
+	// чтобы следующий же запрос забаненного юзера получил 403 без ожидания TTL.
+	_, db, _ := testutil.SetupTestApp(t)
+	banCache := services.NewBanCheckService(db, time.Hour)
+	resolver := services.NewPermissionResolver(db)
+	banSvc := services.NewUserBanService(db, resolver, banCache)
+
+	targetID, _, cleanup := setupMWUser(t, db, false, false)
+	defer cleanup()
+	actorID, _, cleanupActor := setupMWUser(t, db, true, false)
+	defer cleanupActor()
+
+	// 1. До бана IsBanned=false, заполняется кэш.
+	banned, err := banCache.IsBanned(context.Background(), targetID)
+	if err != nil {
+		t.Fatalf("ban check: %v", err)
+	}
+	if banned {
+		t.Fatalf("expected not banned before Ban()")
+	}
+
+	// 2. Баним - должен инвалидировать кэш.
+	if err := banSvc.Ban(context.Background(), targetID, actorID); err != nil {
+		t.Fatalf("ban: %v", err)
+	}
+
+	// 3. Сразу читаем - должен быть true (кэш сброшен, идём в БД).
+	banned, err = banCache.IsBanned(context.Background(), targetID)
+	if err != nil {
+		t.Fatalf("ban check after ban: %v", err)
+	}
+	if !banned {
+		t.Errorf("expected banned=true after Ban() even with long TTL")
 	}
 }
 

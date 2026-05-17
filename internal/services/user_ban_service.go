@@ -17,11 +17,13 @@ import (
 type UserBanService struct {
 	db       *gorm.DB
 	resolver *PermissionResolver
+	banCache *BanCheckService
 }
 
-// NewUserBanService конструирует сервис.
-func NewUserBanService(db *gorm.DB, resolver *PermissionResolver) *UserBanService {
-	return &UserBanService{db: db, resolver: resolver}
+// NewUserBanService конструирует сервис. banCache опционален: если nil,
+// инвалидация ban-кэша пропускается (полезно для тестов).
+func NewUserBanService(db *gorm.DB, resolver *PermissionResolver, banCache *BanCheckService) *UserBanService {
+	return &UserBanService{db: db, resolver: resolver, banCache: banCache}
 }
 
 // Ban блокирует пользователя и отзывает его активные refresh-токены.
@@ -58,6 +60,9 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int)
 	})
 	if err == nil {
 		s.resolver.Invalidate(targetUserID)
+		if s.banCache != nil {
+			s.banCache.Invalidate(targetUserID)
+		}
 	}
 	return err
 }
@@ -75,5 +80,8 @@ func (s *UserBanService) Unban(ctx context.Context, targetUserID int) error {
 		return fmt.Errorf("unban: %w", err)
 	}
 	s.resolver.Invalidate(targetUserID)
+	if s.banCache != nil {
+		s.banCache.Invalidate(targetUserID)
+	}
 	return nil
 }
