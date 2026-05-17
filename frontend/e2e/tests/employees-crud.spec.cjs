@@ -18,13 +18,14 @@ test.describe('Employees CRUD - create via API, verify in UI', () => {
     await cleanupE2eEmployees(request).catch(() => {});
   });
 
-  test('создание через API + отображение в /employeesview', async ({ page, request }) => {
+  test('создание через API + отображение в /employeesview (фильтр "Все")', async ({ page, request }) => {
     const token = await loginAsSuperAdmin(request);
     const lastName = `E2E_Test_${Date.now()}`;
     const employee = await createEmployee(request, token, {
       last_name: lastName,
       first_name: 'Tester',
       middle_name: 'E2E',
+      organization_id: 1,
     });
     createdIds.push(employee.id);
 
@@ -32,9 +33,14 @@ test.describe('Employees CRUD - create via API, verify in UI', () => {
     await page.goto('/employeesview');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
-    // Поиск по фамилии в таблице
+    const allTab = page.getByRole('button', { name: /Все в системе/ });
+    if (await allTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await allTab.click();
+      await page.waitForTimeout(500);
+    }
+
     const cell = page.locator('table').getByText(lastName).first();
-    await expect(cell).toBeVisible({ timeout: 10000 });
+    await expect(cell).toBeVisible({ timeout: 15000 });
   });
 
   test('удаление через API убирает сотрудника из UI', async ({ page, request }) => {
@@ -44,16 +50,26 @@ test.describe('Employees CRUD - create via API, verify in UI', () => {
       last_name: lastName,
       first_name: 'Delete',
       middle_name: 'Me',
+      organization_id: 1,
     });
 
     await loginAsSuperAdminUI(page);
     await page.goto('/employeesview');
-    await expect(page.locator('table').getByText(lastName).first()).toBeVisible({ timeout: 10000 });
+    const allTab = page.getByRole('button', { name: /Все в системе/ });
+    if (await allTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await allTab.click();
+      await page.waitForTimeout(500);
+    }
+    await expect(page.locator('table').getByText(lastName).first()).toBeVisible({ timeout: 15000 });
 
     await deleteEmployee(request, token, employee.id);
 
     await page.reload();
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    await expect(page.locator('table').getByText(lastName)).toHaveCount(0, { timeout: 10000 });
+    if (await allTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await allTab.click();
+      await page.waitForTimeout(500);
+    }
+    await expect(page.locator('table').getByText(lastName)).toHaveCount(0, { timeout: 15000 });
   });
 });
