@@ -44,6 +44,15 @@ class AdminRolesPage {
     await this.fillMeta({ name, code, description });
     await this.submitMeta();
   }
+
+  async openEditMeta(code) {
+    await this.card(code).getByRole('button', { name: 'Изменить' }).click();
+    await this.metaModal.waitFor({ state: 'visible' });
+  }
+
+  async clickDelete(code) {
+    await this.card(code).getByRole('button', { name: 'Удалить' }).click();
+  }
 }
 
 module.exports = { AdminRolesPage };
