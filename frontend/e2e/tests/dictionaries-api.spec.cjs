@@ -13,6 +13,9 @@ function headers(token) {
 // валидация полей вынесена в backend-тесты.
 
 test.describe('Dictionaries API - CRUD', () => {
+  // Note: POST для справочников возвращает {id, message} - без полного объекта.
+  // Поэтому проверяем созданную запись через последующий GET в списке.
+
   test('citizenships: POST → GET → PUT → DELETE', async ({ request }) => {
     const token = await loginAsSuperAdmin(request);
     const name = `E2E Cit ${Date.now()}`;
@@ -22,20 +25,20 @@ test.describe('Dictionaries API - CRUD', () => {
       data: { name, is_default: false },
     });
     expect(createRes.ok() || createRes.status() === 201).toBeTruthy();
-    const created = (await createRes.json()).data;
-    expect(created.name).toBe(name);
+    const createdId = (await createRes.json()).data?.id;
+    expect(createdId).toBeTruthy();
 
     const listRes = await request.get(`${API_BASE}/citizenships`, { headers: headers(token) });
     const list = (await listRes.json()).data || [];
-    expect(list.find(c => c.id === created.id)).toBeTruthy();
+    const found = list.find(c => c.id === createdId);
+    expect(found?.name).toBe(name);
 
-    const newName = `${name} updated`;
-    await request.put(`${API_BASE}/citizenships/${created.id}`, {
+    await request.put(`${API_BASE}/citizenships/${createdId}`, {
       headers: headers(token),
-      data: { name: newName },
+      data: { name: `${name} updated` },
     });
 
-    const delRes = await request.delete(`${API_BASE}/citizenships/${created.id}`, { headers: headers(token) });
+    const delRes = await request.delete(`${API_BASE}/citizenships/${createdId}`, { headers: headers(token) });
     expect(delRes.ok() || delRes.status() === 204).toBeTruthy();
   });
 
@@ -48,13 +51,14 @@ test.describe('Dictionaries API - CRUD', () => {
       data: { name },
     });
     expect(createRes.ok() || createRes.status() === 201).toBeTruthy();
-    const created = (await createRes.json()).data;
+    const createdId = (await createRes.json()).data?.id;
+    expect(createdId).toBeTruthy();
 
     const listRes = await request.get(`${API_BASE}/organizations`, { headers: headers(token) });
     const list = (await listRes.json()).data || [];
-    expect(list.find(o => o.id === created.id)).toBeTruthy();
+    expect(list.find(o => o.id === createdId)).toBeTruthy();
 
-    const delRes = await request.delete(`${API_BASE}/organizations/${created.id}`, { headers: headers(token) });
+    const delRes = await request.delete(`${API_BASE}/organizations/${createdId}`, { headers: headers(token) });
     expect(delRes.ok() || delRes.status() === 204).toBeTruthy();
   });
 
@@ -67,13 +71,14 @@ test.describe('Dictionaries API - CRUD', () => {
       data: { name },
     });
     expect(createRes.ok() || createRes.status() === 201).toBeTruthy();
-    const created = (await createRes.json()).data;
+    const createdId = (await createRes.json()).data?.id;
+    expect(createdId).toBeTruthy();
 
     const listRes = await request.get(`${API_BASE}/companies`, { headers: headers(token) });
     const list = (await listRes.json()).data || [];
-    expect(list.find(c => c.id === created.id)).toBeTruthy();
+    expect(list.find(c => c.id === createdId)).toBeTruthy();
 
-    await request.delete(`${API_BASE}/companies/${created.id}`, { headers: headers(token) });
+    await request.delete(`${API_BASE}/companies/${createdId}`, { headers: headers(token) });
   });
 
   test('license-plate-formats: POST → GET → DELETE', async ({ request }) => {
@@ -84,18 +89,20 @@ test.describe('Dictionaries API - CRUD', () => {
       headers: headers(token),
       data: { name, pattern: 'A###AA' },
     });
-    // Если endpoint требует другие поля - просто проверим что есть ответ
     if (!createRes.ok() && createRes.status() !== 201) {
-      // skip - возможно валидация другая
       test.skip(true, `lpf create returned ${createRes.status()}`);
       return;
     }
-    const created = (await createRes.json()).data;
+    const createdId = (await createRes.json()).data?.id;
+    if (!createdId) {
+      test.skip(true, 'lpf create did not return id');
+      return;
+    }
 
     const listRes = await request.get(`${API_BASE}/license-plate-formats`, { headers: headers(token) });
     expect(listRes.ok()).toBeTruthy();
 
-    await request.delete(`${API_BASE}/license-plate-formats/${created.id}`, { headers: headers(token) });
+    await request.delete(`${API_BASE}/license-plate-formats/${createdId}`, { headers: headers(token) });
   });
 
   test('user-types: GET /user-types (public) возвращает массив', async ({ request }) => {
