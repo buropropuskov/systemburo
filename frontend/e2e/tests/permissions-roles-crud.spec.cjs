@@ -5,6 +5,7 @@ const {
   loginAsSuperAdmin,
   createRole,
   listRoles,
+  updateRole,
   deleteRole,
   cleanupE2eEntities,
   e2eName,
@@ -56,6 +57,39 @@ test.describe('Admin / Roles CRUD', () => {
     expect(found.name).toBe(`E2E UI Role ${code}`);
 
     if (found) await deleteRole(request, token, found.id).catch(() => {});
+  });
+
+  test('PUT /roles/:id обновляет name и description', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const code = e2eName('edit_role');
+    const created = await createRole(request, token, {
+      name: 'Initial Name',
+      code,
+      description: 'Initial desc',
+    });
+
+    await updateRole(request, token, created.id, {
+      name: 'Updated Name',
+      description: 'Updated desc',
+    });
+
+    const all = await listRoles(request, token);
+    const updated = all.find(r => r.id === created.id);
+    expect(updated.name).toBe('Updated Name');
+    expect(updated.description).toBe('Updated desc');
+
+    await deleteRole(request, token, created.id).catch(() => {});
+  });
+
+  test('DELETE /roles/:id убирает роль из списка', async ({ request }) => {
+    const token = await loginAsSuperAdmin(request);
+    const code = e2eName('del_role');
+    const created = await createRole(request, token, { name: 'To Delete', code });
+
+    await deleteRole(request, token, created.id);
+
+    const all = await listRoles(request, token);
+    expect(all.find(r => r.id === created.id)).toBeFalsy();
   });
 
   test('обычный юзер БЕЗ permission.audit.manage не может создать роль (403)', async ({ request }) => {
