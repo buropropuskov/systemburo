@@ -31,7 +31,9 @@ test.describe('Admin / Roles CRUD', () => {
     const rolesPage = new AdminRolesPage(page);
     await rolesPage.goto();
 
-    await expect(rolesPage.cards).not.toHaveCount(0);
+    // Конкретная карточка с кодом должна быть видна.
+    // not.toHaveCount(0) на rolesPage.cards убрали - параллельные cleanup-и
+    // в других тестах могут временно опустошить список.
     await expect(rolesPage.card(code)).toBeVisible();
   });
 
