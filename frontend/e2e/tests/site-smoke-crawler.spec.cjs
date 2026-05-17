@@ -63,6 +63,20 @@ const ROUTES = [
 
 if (!fs.existsSync(REPORT_DIR)) fs.mkdirSync(REPORT_DIR, { recursive: true });
 
+// browser.newContext() НЕ наследует use.httpCredentials/baseURL из playwright.config.
+// Передаём явно из env (нужно для basic-auth на staging nginx).
+function siteContextOptions(extra = {}) {
+  const opts = { ...extra };
+  if (process.env.E2E_BASE_URL) opts.baseURL = process.env.E2E_BASE_URL;
+  if (process.env.E2E_HTTP_USER) {
+    opts.httpCredentials = {
+      username: process.env.E2E_HTTP_USER,
+      password: process.env.E2E_HTTP_PASSWORD || '',
+    };
+  }
+  return opts;
+}
+
 const REPORT_PATH = path.join(REPORT_DIR, `crawl-${Date.now()}.md`);
 const reportSink = fs.createWriteStream(REPORT_PATH, { flags: 'a' });
 reportSink.write(`# Site smoke crawl\n\nbase: ${process.env.E2E_BASE_URL || 'http://localhost:8081'}\nstarted: ${new Date().toISOString()}\n\n`);
@@ -76,7 +90,7 @@ test.describe('Site smoke crawler', () => {
   let authState;
 
   test.beforeAll(async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await browser.newContext(siteContextOptions());
     const page = await context.newPage();
     await loginAsSuperAdminUI(page);
     authState = await context.storageState();
@@ -87,7 +101,7 @@ test.describe('Site smoke crawler', () => {
     test(`route ${route.path} (${route.name})`, async ({ browser }) => {
       test.setTimeout(120_000);
 
-      const context = await browser.newContext({ storageState: authState });
+      const context = await browser.newContext(siteContextOptions({ storageState: authState }));
       const page = await context.newPage();
       const collectors = setupErrorCollectors(page);
 
