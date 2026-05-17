@@ -52,4 +52,22 @@ test.describe('Admin / Permission Groups CRUD', () => {
 
     if (found) await deleteGroup(request, token, found.id).catch(() => {});
   });
+
+  test('обычный юзер БЕЗ permission.audit.manage не может создать группу (403)', async ({ request }) => {
+    // Регресс-тест на критическую уязвимость, найденную smoke-проверкой.
+    // До фикса POST /api/permission-groups возвращал 201 для любого
+    // авторизованного юзера, что позволяло манипулировать системой прав.
+    const apiBase = process.env.E2E_API_BASE_URL || '/api';
+    const loginRes = await request.post(`${apiBase}/login`, {
+      data: { username: 'e2e_user', password: 'testpass123' },
+    });
+    expect(loginRes.ok()).toBeTruthy();
+    const userToken = (await loginRes.json()).data.token;
+
+    const res = await request.post(`${apiBase}/permission-groups`, {
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      data: { name: 'HACK Group', description: '', keys: [] },
+    });
+    expect(res.status()).toBe(403);
+  });
 });

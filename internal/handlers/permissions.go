@@ -9,20 +9,36 @@ import (
 
 // PermissionHandler -- HTTP-обработчики разрешений.
 type PermissionHandler struct {
-	service services.PermissionService
+	service  services.PermissionService
+	resolver *services.PermissionResolver
 }
 
 // NewPermissionHandler создаёт новый экземпляр обработчика разрешений.
-func NewPermissionHandler(service services.PermissionService) *PermissionHandler {
-	return &PermissionHandler{service: service}
+// resolver используется для GetMyPermissions (новая система прав #187),
+// service остаётся для legacy /permissions/tree, /user/:id и auto-generate.
+func NewPermissionHandler(service services.PermissionService, resolver *services.PermissionResolver) *PermissionHandler {
+	return &PermissionHandler{service: service, resolver: resolver}
 }
 
-// GetMyPermissions возвращает разрешения текущего пользователя.
+// GetMyPermissions возвращает разрешения текущего пользователя в виде
+// массива {key, value:"allow"} - формат сохранён ради backward-compat
+// с usePermissionsStore на фронте. Источник данных - PermissionResolver
+// из #187 (roles + permission_groups + user_groups + overrides), а не
+// старая таблица user_permissions (она устарела и не отражает реальные
+// права после миграции на новую систему).
 func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
-	username := GetUsername(c)
-	perms, err := h.service.GetMyPermissions(c.Request().Context(), username)
+	userID := GetUserID(c)
+	set, err := h.resolver.Resolve(c.Request().Context(), userID)
 	if err != nil {
 		return err
+	}
+	keys := set.Keys()
+	perms := make([]models.UserPermissionResponse, 0, len(keys))
+	for _, k := range keys {
+		perms = append(perms, models.UserPermissionResponse{
+			Key:   k,
+			Value: "allow",
+		})
 	}
 	return RespondSuccess(c, perms)
 }
