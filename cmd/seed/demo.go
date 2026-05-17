@@ -78,19 +78,20 @@ func seedExtendedDictionaries(db *gorm.DB, defaultOrgID, defaultCompID int) ([]i
 	}
 
 	// License plate formats: 3 региональных формата.
+	// Колонки модели: name, country_code, icon, is_active, is_default.
 	lpfSpecs := []struct {
-		name    string
-		pattern string
+		name        string
+		countryCode string
 	}{
-		{"Россия", `^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$`},
-		{"Беларусь", `^\d{4}[A-Z]{2}-\d$`},
-		{"Казахстан", `^\d{3}[A-Z]{3}\d{2}$`},
+		{"Россия", "RU"},
+		{"Беларусь", "BY"},
+		{"Казахстан", "KZ"},
 	}
 	for _, s := range lpfSpecs {
 		db.Exec(`
-			INSERT INTO license_plate_formats (name, pattern)
-			SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM license_plate_formats WHERE name = ?)
-		`, s.name, s.pattern, s.name)
+			INSERT INTO license_plate_formats (name, country_code, is_active)
+			SELECT ?, ?, true WHERE NOT EXISTS (SELECT 1 FROM license_plate_formats WHERE name = ?)
+		`, s.name, s.countryCode, s.name)
 	}
 
 	return orgIDs, compIDs, placeNames, nil
