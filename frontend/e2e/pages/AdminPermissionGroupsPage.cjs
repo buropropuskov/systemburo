@@ -17,15 +17,33 @@ class AdminPermissionGroupsPage {
     this.renameSubmitEdit = this.renameModal.getByRole('button', { name: 'Сохранить' });
     this.renameCancel = this.renameModal.getByRole('button', { name: 'Отмена' });
 
-    // После create открывается PermissionTreeModal - дерево прав. Класс
-    // самой модалки - .modal-content внутри .modal-overlay. Идентифицируем
-    // по banner-heading "Права группы «...»".
-    this.treeModal = page.locator('.modal-overlay').filter({
-      has: page.getByRole('heading', { name: /Права группы/ }),
-    });
-    this.treeSearch = this.treeModal.getByRole('textbox', { name: /Поиск/ });
-    this.treeSave = this.treeModal.getByRole('button', { name: 'Сохранить' });
-    this.treeCancel = this.treeModal.getByRole('button', { name: /Отмена|Закрыть/ });
+    // PermissionTreeModal - дерево прав. Используем data-testid (стабильные)
+    // потому что CSS-классы пересекаются с другими modal-content в приложении.
+    this.treeModal = page.getByTestId('permission-tree-modal');
+    this.treeSearch = page.getByTestId('permission-tree-search');
+    this.treeSave = page.getByTestId('permission-tree-save');
+    this.treeCancel = page.getByTestId('permission-tree-cancel');
+  }
+
+  /**
+   * Возвращает локатор для tree-item по permission key (например 'page.cars').
+   * Гарантировано видим - метод сам разворачивает collapsed-группу если надо.
+   */
+  treeKey(key) {
+    return this.page.getByTestId(`permission-tree-key-${key}`);
+  }
+
+  /**
+   * Раскрывает группу по prefix (без точки), если она collapsed.
+   * Например expandGroup('page') / expandGroup('entity').
+   */
+  async expandGroup(prefix) {
+    const toggle = this.page.getByTestId(`permission-tree-group-toggle-${prefix}`);
+    if (await toggle.isVisible({ timeout: 1000 }).catch(() => false)) {
+      // Если у заголовка нет класса collapsed - группа уже открыта.
+      const collapsed = await toggle.evaluate(el => el.classList.contains('tree-group__header--collapsed')).catch(() => false);
+      if (collapsed) await toggle.click();
+    }
   }
 
   async goto() {

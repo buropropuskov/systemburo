@@ -21,11 +21,7 @@ test.describe('Admin / Permission Groups - edit keys via tree', () => {
     await cleanupE2eEntities(request).catch(() => {});
   });
 
-  // TODO: tree-item элементы скрыты в collapsed категориях, скрипт expand
-  // через click по button "Страницы 0/1" работает нестабильно (DOM меняется
-  // от .toggleGroup, иногда click не доходит). Нужен явный data-testid в
-  // PermissionTreeModal или waitFor expand state. Отложено.
-  test.skip('открыть редактирование группы и сохранить выбранные ключи', async ({ page, request }) => {
+  test('открыть редактирование группы и сохранить выбранные ключи', async ({ page, request }) => {
     const token = await loginAsSuperAdmin(request);
     const name = e2eName('edit_group');
     const created = await createGroup(request, token, { name, description: 'e2e edit tree', keys: [] });
@@ -36,29 +32,20 @@ test.describe('Admin / Permission Groups - edit keys via tree', () => {
     const groupsPage = new AdminPermissionGroupsPage(page);
     await groupsPage.goto();
 
-    // Найти группу и нажать "Редактировать" - откроется PermissionTreeModal
     const card = groupsPage.card(name);
     await expect(card).toBeVisible();
     await card.getByRole('button', { name: 'Редактировать' }).click();
     await groupsPage.treeModal.waitFor({ state: 'visible' });
 
-    // Поиск + выбор page.cars
+    // Поиск + развернуть категорию + клик по конкретному testid
     await groupsPage.treeSearch.fill('cars');
     await page.waitForTimeout(300);
-    // раскрыть категорию "Страницы 0/1" и выбрать page.cars
-    const pagesSection = page.getByRole('button', { name: /Страницы 0\/1 Выбрать все/ });
-    if (await pagesSection.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await pagesSection.click();
-    }
-    // Tree-item имеет structure: <label class="tree-item"><input type="checkbox"><span>page.cars</span></label>
-    // Кликаем по label который содержит текст page.cars - сработает на checkbox.
-    const pageCarsLabel = page.locator('label.tree-item', { hasText: 'page.cars' }).first();
-    await pageCarsLabel.click();
+    await groupsPage.expandGroup('page');
+    await groupsPage.treeKey('page.cars').click();
 
     await groupsPage.treeSave.click();
     await groupsPage.treeModal.waitFor({ state: 'hidden' });
 
-    // Проверить через API что keys сохранились
     const groups = await listGroups(request, token);
     const updated = groups.find(g => g.id === createdGroupId);
     expect(updated.keys).toContain('page.cars');
