@@ -60,7 +60,9 @@ make deploy-seed    # создать админа на production
 | `make bash` | Shell в контейнере бэкенда |
 | `make db-shell` | psql к БД |
 | `make seed [PASS=...]` | Создать тестового админа (dev) |
+| `make seed-demo [PASS=...]` | Создать админа + полный демо-набор (12 заявок в разных статусах, организации, машины, сотрудники, история, объявления) |
 | `make staging-seed [PASS=...]` | Создать админа на staging |
+| `make staging-seed-demo [PASS=...]` | Демо-набор на staging |
 | `make deploy-seed [PASS=...]` | Создать админа на production |
 | `make prod-build` | Собрать production образ |
 | `make security` | govulncheck + npm audit |
