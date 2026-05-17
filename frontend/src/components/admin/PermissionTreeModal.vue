@@ -5,11 +5,15 @@
       class="modal-overlay"
       @click.self="$emit('close')"
     >
-      <div class="modal-content">
+      <div
+        class="modal-content"
+        data-testid="permission-tree-modal"
+      >
         <header class="modal-content__header">
           <h3>{{ title }}</h3>
           <button
             class="close-btn"
+            data-testid="permission-tree-close"
             @click="$emit('close')"
           >
             ×
@@ -22,6 +26,7 @@
             type="text"
             placeholder="Поиск по ключу или описанию..."
             class="lk-input search-input"
+            data-testid="permission-tree-search"
           >
 
           <div class="tree">
@@ -29,10 +34,12 @@
               v-for="group in filteredGroups"
               :key="group.prefix"
               class="tree-group"
+              :data-testid="`permission-tree-group-${group.prefix.replace('.', '')}`"
             >
               <button
                 class="tree-group__header"
                 :class="{ 'tree-group__header--collapsed': collapsed[group.prefix] }"
+                :data-testid="`permission-tree-group-toggle-${group.prefix.replace('.', '')}`"
                 @click="toggleGroup(group.prefix)"
               >
                 <span class="tree-group__chevron">▾</span>
@@ -58,6 +65,7 @@
                   :class="{
                     'tree-item--changed': hasChanged(key.value)
                   }"
+                  :data-testid="`permission-tree-key-${key.value}`"
                 >
                   <input
                     type="checkbox"
@@ -86,6 +94,7 @@
           </span>
           <button
             class="lk-button lk-button--ghost"
+            data-testid="permission-tree-cancel"
             @click="$emit('close')"
           >
             Отмена
@@ -93,6 +102,7 @@
           <button
             class="lk-button lk-button--primary"
             :disabled="changedCount === 0 || saving"
+            data-testid="permission-tree-save"
             @click="save"
           >
             {{ saving ? 'Сохранение...' : 'Сохранить' }}
