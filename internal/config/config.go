@@ -32,9 +32,12 @@ type Config struct {
 	RateLimitWindowSec int64  `env:"RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
 
 	// LoginRateLimit ограничивает попытки /login per-IP (защита от brute-force).
-	// Дефолт 5/15м оставляем для production. В CI/e2e задаём LOGIN_RATE_LIMIT=1000.
-	LoginRateLimitMax       int   `env:"LOGIN_RATE_LIMIT_MAX" envDefault:"5"`
-	LoginRateLimitWindowSec int64 `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"900"`
+	// Дефолт 10/5м: лояльно к опечаткам пароля живых юзеров, но всё ещё
+	// блокирует brute-force - Argon2id и так растягивает каждую попытку
+	// на 100мс+, 10 попыток за 5 минут это ~17 запросов/час максимум.
+	// В CI/e2e ставим LOGIN_RATE_LIMIT_MAX=1000.
+	LoginRateLimitMax       int   `env:"LOGIN_RATE_LIMIT_MAX" envDefault:"10"`
+	LoginRateLimitWindowSec int64 `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"300"`
 	PaginationMaxLimit int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
 	UploadPath         string `env:"UPLOAD_PATH" envDefault:"./uploads"`
 
