@@ -40,13 +40,13 @@ test.describe('Admin / Permission Groups - merge via API', () => {
     const mergedName = e2eName('merge_result');
     const merged = await mergeGroups(request, token, {
       name: mergedName,
-      source_ids: [groupA.id, groupB.id],
+      source_group_ids: [groupA.id, groupB.id],
     });
     createdIds.push(merged.id);
 
     expect(merged.name).toBe(mergedName);
-    // Union должен содержать все 4 ключа
-    expect(merged.keys.sort()).toEqual([
+    // Union должен содержать все 4 ключа (порядок может отличаться)
+    expect([...merged.keys].sort()).toEqual([
       'entity.cars.read',
       'entity.employees.read',
       'page.cars',
