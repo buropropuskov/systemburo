@@ -3,6 +3,13 @@ services:
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
 
+  # Frontend pre-built в GitHub Actions, pull из ghcr.io.
+  # Override от docker-compose.base.yml (build: → image:).
+  # FRONTEND_IMAGE подставляет deploy script с SHA коммита.
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/buropropuskov/systemburo-frontend:dev}
+    build: !reset null
+
   nginx:
     build:
       context: ./nginx
