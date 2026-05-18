@@ -8,10 +8,101 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Setup регистрирует все маршруты.
-// loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
-// В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, marks *handlers.MarkHandler, attachmentTemplates *handlers.AttachmentTemplateHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, banCheck echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+// Dependencies - все хендлеры/сервисы/middleware, нужные для регистрации маршрутов.
+// Использование именованных полей вместо длинного списка позиционных параметров
+// решает проблему "30+ параметров в Setup": IDE подсказывает имена, диффы при
+// добавлении handler-а становятся одной строкой, тесты могут не заполнять
+// неиспользуемые поля.
+type Dependencies struct {
+	// Handlers
+	Auth                *handlers.AuthHandler
+	UserTypes           *handlers.UserTypesHandler
+	Attachments         *handlers.AttachmentHandler
+	LPF                 *handlers.LicensePlateFormatHandler
+	Citizenship        *handlers.CitizenshipHandler
+	Organization        *handlers.OrganizationHandler
+	Company             *handlers.CompanyHandler
+	Users               *handlers.UsersHandler
+	UnloadPlace         *handlers.UnloadPlaceHandler
+	Cars                *handlers.CarHandler
+	Employees           *handlers.EmployeeHandler
+	SystemTable         *handlers.SystemTableHandler
+	UniqueCar           *handlers.UniqueCarHandler
+	UniqueEmployee      *handlers.UniqueEmployeeHandler
+	Feedback            *handlers.FeedbackHandler
+	Application         *handlers.ApplicationHandler
+	Approver            *handlers.ApproverHandler
+	Permissions         *handlers.PermissionHandler
+	PermGroups          *handlers.PermissionGroupHandler
+	Roles               *handlers.RoleHandler
+	AccessDenials       *handlers.AccessDenialHandler
+	UserBan             *handlers.UserBanHandler
+	Consent             *handlers.ConsentHandler
+	Settings            *handlers.SettingsHandler
+	News                *handlers.NewsHandler
+	Notifications       *handlers.NotificationHandler
+	RequestLogs         *handlers.RequestLogsHandler
+	EmployeesHistory    *handlers.EmployeesHistoryHandler
+	BugReport           *handlers.BugReportHandler
+	Maintenance         *handlers.MaintenanceHandler
+	Marks               *handlers.MarkHandler
+	AttachmentTemplates *handlers.AttachmentTemplateHandler
+	AttachmentBlanks    *handlers.AttachmentBlankHandler
+
+	// Services (для middleware и audit)
+	PermResolver *services.PermissionResolver
+	DenialLog    *services.AccessDenialService
+
+	// Middleware - все опциональны (nil в тестах допустим)
+	MaintenanceBlock echo.MiddlewareFunc
+	BanCheck         echo.MiddlewareFunc
+	LoginLimiter     echo.MiddlewareFunc
+
+	// Misc
+	JWTSecret []byte
+}
+
+// Setup регистрирует все маршруты. См. Dependencies для описания полей.
+func Setup(e *echo.Echo, d Dependencies) {
+	auth := d.Auth
+	userTypes := d.UserTypes
+	attachments := d.Attachments
+	lpf := d.LPF
+	cs := d.Citizenship
+	org := d.Organization
+	comp := d.Company
+	users := d.Users
+	up := d.UnloadPlace
+	cars := d.Cars
+	employees := d.Employees
+	st := d.SystemTable
+	uc := d.UniqueCar
+	ue := d.UniqueEmployee
+	fb := d.Feedback
+	app := d.Application
+	approvers := d.Approver
+	permissions := d.Permissions
+	permGroups := d.PermGroups
+	roles := d.Roles
+	accessDenials := d.AccessDenials
+	userBan := d.UserBan
+	consent := d.Consent
+	settings := d.Settings
+	news := d.News
+	notifications := d.Notifications
+	requestLogs := d.RequestLogs
+	employeesHistory := d.EmployeesHistory
+	bugReport := d.BugReport
+	maintenance := d.Maintenance
+	marks := d.Marks
+	attachmentTemplates := d.AttachmentTemplates
+	attachmentBlanks := d.AttachmentBlanks
+	permResolver := d.PermResolver
+	denialLog := d.DenialLog
+	maintenanceBlock := d.MaintenanceBlock
+	banCheck := d.BanCheck
+	loginLimiter := d.LoginLimiter
+	jwtSecret := d.JWTSecret
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -251,6 +342,7 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
 	apg.GET("/:id/details", app.GetApplicationDetails)
 	apg.GET("/:id/attachments", app.GetApplicationAttachments)
+	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx
 	apg.POST("/:id/update-items-status", app.UpdateApplicationItemsStatus)
 	apg.POST("/:id/forward", app.ForwardApplication)
 	apg.POST("/:id/approve", app.ApproveApplicationByUser)
