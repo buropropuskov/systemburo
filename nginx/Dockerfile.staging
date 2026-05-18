@@ -1,2 +1,4 @@
 FROM nginx:1.25-alpine
-RUN apk add --no-cache apache2-utils
+# apache2-utils нужен для htpasswd (basic auth на staging).
+# Иногда apk-индекс в Docker Hub Alpine repos временно битый - retry с явным update.
+RUN apk update && apk add --no-cache apache2-utils
