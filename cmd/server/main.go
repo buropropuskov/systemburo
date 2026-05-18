@@ -172,6 +172,7 @@ func main() {
 	bugReportService := services.NewBugReportService(db, telegramService)
 	maintenanceService := services.NewMaintenanceService(db)
 	markService := services.NewMarkService(db)
+	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
@@ -205,6 +206,7 @@ func main() {
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
+	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -223,7 +225,7 @@ func main() {
 	banCheck := mw.BanCheck(banCheckService)
 
 	// Routes
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, markHandler, permissionResolver, accessDenialService, maintenanceBlock, banCheck, []byte(cfg.JWTSecret), loginLimiter)
+	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler, citizenshipHandler, organizationHandler, companyHandler, usersHandler, unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler, uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler, applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, markHandler, attachmentTemplateHandler, permissionResolver, accessDenialService, maintenanceBlock, banCheck, []byte(cfg.JWTSecret), loginLimiter)
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
 	ctxSig, stopSig := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

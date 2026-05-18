@@ -67,6 +67,12 @@ func AllModels() []interface{} {
 		// Attachments (depends on Application, UniqueAttachment)
 		&models.Attachment{},
 
+		// Attachment templates (#183: Excel-бланки)
+		&models.AttachmentTemplate{},
+		&models.AttachmentTemplateMapping{},
+		&models.AttachmentCustomField{},
+		&models.AttachmentCustomValue{},
+
 		// Cars (depends on Attachment)
 		&models.Car{},
 		&models.CarHistory{},
