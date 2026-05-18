@@ -28,6 +28,11 @@ type Employee struct {
 	Status                   *int         `gorm:"index" json:"status"`
 	DateCreated              *time.Time   `json:"date_created"`
 	DateDeleted              *time.Time   `json:"date_deleted"`
+	// IsPurged - финальное удаление из корзины (#186). Запись остаётся в БД для
+	// аудита, но скрывается даже из корзины. Восстановление невозможно.
+	IsPurged                 bool         `gorm:"default:false;index" json:"is_purged"`
+	PurgedAt                 *time.Time   `json:"purged_at,omitempty"`
+	PurgedByUserID           *int         `json:"purged_by_user_id,omitempty"`
 	CreatedAt                time.Time    `json:"created_at"`
 	UpdatedAt                time.Time    `json:"updated_at"`
 }

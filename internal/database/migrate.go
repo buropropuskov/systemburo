@@ -101,6 +101,8 @@ func AllModels() []interface{} {
 		// Logging
 		&models.RequestLog{},
 		&models.RequestLogs{},
+		// Trash history для system_tables (#186)
+		&models.SystemTableTrashHistory{},
 
 		// Permissions
 		&models.Permission{},
