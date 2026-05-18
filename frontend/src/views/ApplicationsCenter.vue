@@ -342,6 +342,11 @@
       @duplicate="handleDuplicate"
       @application-changed="handleApplicationChanged"
     />
+    <DownloadBlanksModal
+      v-if="showDownloadModal && downloadAppId"
+      :application-id="downloadAppId"
+      @close="showDownloadModal = false"
+    />
   </section>
 </template>
 
@@ -355,6 +360,7 @@ import DateFilter from '../components/DateFilter.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
 import { useToast } from '@/composables/useToast';
 
 export default {
@@ -366,11 +372,14 @@ export default {
         DateFilter,
         FilterTabs,
         SkeletonTransition,
-        SkeletonTable
+        SkeletonTable,
+        DownloadBlanksModal,
     },
     emits: ['refresh-data'],
     data() {
         return {
+            showDownloadModal: false,
+            downloadAppId: 0,
             searchQuery: '',
             selectedOrganizationId: null,
             selectedOrganizationName: '',
@@ -901,11 +910,11 @@ export default {
         },
 
         downloadApplication(application) {
-            console.log('Скачивание заявки:', application.application_number);
+            this.downloadAppId = application.id;
+            this.showDownloadModal = true;
         },
 
         async openApplication(application) {
-            console.log('Открытие заявки:', application.application_number);
             
             if (application.status === 'Непрочитано') {
                 try {
