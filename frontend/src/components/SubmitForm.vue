@@ -129,7 +129,7 @@
           v-for="(car, index) in formData.cars"
           :key="index"
         >
-          {{ car.car_number }} | {{ car.car_brand }} | {{ car.unload_place }}
+          {{ car.car_number }} | {{ car.mark_name || car.car_brand }} | {{ car.unload_place }}
         </li>
       </ul>
     </div>
@@ -168,10 +168,10 @@ export default {
       carBrand: '',
       unloadPlace: '',
       existingCars: [],
-      carBrands: [
-        "Митсубиси", "Тойота", "Хонда", "Форд", "Шевроле",
-        "БМВ", "Мерседес", "Ауди", "Киа", "Ниссан"
-      ],
+      // carBrands заполняется из API /marks (активные), см. fetchMarks.
+      // Раньше был hardcoded список - теперь динамический справочник (#185).
+      carBrands: [],
+      markId: null,
     };
   },
   computed: {
@@ -184,6 +184,7 @@ export default {
   },
   async mounted() {
     await this.fetchOrganization();
+    await this.fetchMarks();
   },
   methods: {
     formatPart1() {
@@ -201,6 +202,19 @@ export default {
     },
     formatPart4() {
       this.carNumber.part4 = this.carNumber.part4.replace(/[^0-9]/g, '');
+    },
+    async fetchMarks() {
+      try {
+        const { listMarks } = await import('@/api/marks');
+        const data = await listMarks({ includeArchived: false });
+        const arr = Array.isArray(data) ? data : [];
+        // v-select поддерживает options как массив объектов или строк.
+        // Используем массив {label, value} - label отображается, value идёт в v-model.
+        this.carBrands = arr.map(m => ({ label: m.name, value: m.id, name: m.name }));
+      } catch {
+        // Fallback на пустой список - юзер сможет ввести вручную.
+        this.carBrands = [];
+      }
     },
     async fetchOrganization() {
       const authStore = useAuthStore();
@@ -262,9 +276,15 @@ export default {
           }
         }
 
+        // carBrand может быть объектом (выбран из справочника) или строкой (ручной ввод).
+        // Передаём обе формы - backend решает: при наличии mark_id сохраняет
+        // snapshot имени в mark_name, иначе используется свободный car_brand.
+        const isMarkObject = this.carBrand && typeof this.carBrand === 'object';
         const car = {
           car_number: this.fullCarNumber,
-          car_brand: this.carBrand,
+          car_brand: isMarkObject ? this.carBrand.name : this.carBrand,
+          mark_id: isMarkObject ? this.carBrand.value : null,
+          mark_name: isMarkObject ? this.carBrand.name : this.carBrand,
           unload_place: this.unloadPlace
         };
         

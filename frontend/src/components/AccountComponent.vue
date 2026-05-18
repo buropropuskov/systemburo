@@ -107,6 +107,13 @@
     </CollapsibleSection>
     <CollapsibleSection
       v-if="isBuroPropuskov"
+      title="Марки автомобилей"
+      anchor-id="marks"
+    >
+      <MarksManagement class="dashboard-card dashboard-card-animated" />
+    </CollapsibleSection>
+    <CollapsibleSection
+      v-if="isBuroPropuskov"
       title="Таблицы системы"
       anchor-id="tables"
     >
@@ -151,6 +158,7 @@ import TableConstructor from './TableConstructor.vue';
 import UserTypes from './UserTypes.vue';
 import AccountSettings from './AccountSettings.vue';
 import CitizenshipManagement from './CitizenshipManagement.vue';
+import MarksManagement from './MarksManagement.vue';
 import AttachmentsManagement from './AttachmentsManagement.vue';
 import ApplicationApprovers from './ApplicationApprovers.vue';
 import CollapsibleSection from './ui/CollapsibleSection.vue';
@@ -170,6 +178,7 @@ export default {
     UserTypes,
     AccountSettings,
     CitizenshipManagement,
+    MarksManagement,
     AttachmentsManagement,
     ApplicationApprovers,
     CollapsibleSection,
