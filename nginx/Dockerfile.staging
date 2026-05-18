@@ -1,4 +1,4 @@
 FROM nginx:1.25-alpine
-# apache2-utils нужен для htpasswd (basic auth на staging).
-# Иногда apk-индекс в Docker Hub Alpine repos временно битый - retry с явным update.
-RUN apk update && apk add --no-cache apache2-utils
+# Раньше тут был "apk add apache2-utils" для htpasswd.
+# Теперь генерируем .htpasswd через openssl (встроен в alpine-base) - см. staging-entrypoint.sh.
+# Это избавляет от зависимости от alpine repos в build-стадии и runtime.
