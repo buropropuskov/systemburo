@@ -157,13 +157,16 @@ export default {
       try {
         const res = await apiRequest(`/system-tables/name/${this.tableName}`);
         const data = await res.json();
-        if (!data || !data.id) {
+        // API возвращает { table: {...}, ... } - сам объект таблицы вложен.
+        // Падаем обратно на data если структура изменилась.
+        const tbl = (data && data.table) || data;
+        if (!tbl || !tbl.id) {
           this.error = 'Таблица не найдена';
           return;
         }
-        this.tableID = data.id;
-        this.tableType = data.table_type;
-        this.displayName = data.display_name || data.name || this.tableName;
+        this.tableID = tbl.id;
+        this.tableType = tbl.table_type;
+        this.displayName = tbl.display_name || tbl.name || this.tableName;
         if (this.tableType !== 'cars' && this.tableType !== 'people') {
           this.error = 'Этот тип таблицы не поддерживает корзину';
         }
