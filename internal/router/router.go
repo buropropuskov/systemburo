@@ -11,7 +11,7 @@ import (
 // Setup регистрирует все маршруты.
 // loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
 // В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, marks *handlers.MarkHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, banCheck echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, marks *handlers.MarkHandler, attachmentTemplates *handlers.AttachmentTemplateHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, banCheck echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -94,6 +94,18 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	marksGroup.POST("/:id/archive", marks.Archive)
 	marksGroup.POST("/:id/restore", marks.Restore)
 	marksGroup.GET("/:id/history", marks.GetHistory)
+
+	// Attachment Excel-templates (#183) - вложенные ручки под /attachments/:id/...
+	attRoot := protected.Group("/attachments")
+	attRoot.GET("/:id/template", attachmentTemplates.Get)
+	attRoot.POST("/:id/template", attachmentTemplates.Upload)
+	attRoot.PUT("/:id/template/mappings", attachmentTemplates.UpdateMappings)
+	attRoot.DELETE("/:id/template", attachmentTemplates.Delete)
+	attRoot.GET("/:id/template-fields", attachmentTemplates.GetFields)
+	attRoot.GET("/:id/custom-fields", attachmentTemplates.ListCustomFields)
+	attRoot.POST("/:id/custom-fields", attachmentTemplates.CreateCustomField)
+	attRoot.PUT("/custom-fields/:fid", attachmentTemplates.UpdateCustomField)
+	attRoot.DELETE("/custom-fields/:fid", attachmentTemplates.DeleteCustomField)
 
 	// Организации
 	orgg := protected.Group("/organizations")
