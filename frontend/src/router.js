@@ -41,6 +41,12 @@ const routes = [
     component: TablesComponent,
     meta: { requiresAuth: true, requiresBuro: true }
   },
+  {
+    path: '/table/:tableName/trash',
+    name: 'TableTrash',
+    component: () => import('@/views/TrashView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
   { 
     path: '/personal-cabinet', 
     name: 'Account', 
