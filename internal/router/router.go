@@ -11,7 +11,7 @@ import (
 // Setup регистрирует все маршруты.
 // loginLimiter опционален (nil в тестах) - отдельный per-IP rate limit на /login.
 // В production передаётся mw.LoginRateLimit из cmd/server/main.go.
-func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, banCheck echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
+func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTypesHandler, attachments *handlers.AttachmentHandler, lpf *handlers.LicensePlateFormatHandler, cs *handlers.CitizenshipHandler, org *handlers.OrganizationHandler, comp *handlers.CompanyHandler, users *handlers.UsersHandler, up *handlers.UnloadPlaceHandler, cars *handlers.CarHandler, employees *handlers.EmployeeHandler, st *handlers.SystemTableHandler, uc *handlers.UniqueCarHandler, ue *handlers.UniqueEmployeeHandler, fb *handlers.FeedbackHandler, app *handlers.ApplicationHandler, approvers *handlers.ApproverHandler, permissions *handlers.PermissionHandler, permGroups *handlers.PermissionGroupHandler, roles *handlers.RoleHandler, accessDenials *handlers.AccessDenialHandler, userBan *handlers.UserBanHandler, consent *handlers.ConsentHandler, settings *handlers.SettingsHandler, news *handlers.NewsHandler, notifications *handlers.NotificationHandler, requestLogs *handlers.RequestLogsHandler, employeesHistory *handlers.EmployeesHistoryHandler, bugReport *handlers.BugReportHandler, maintenance *handlers.MaintenanceHandler, marks *handlers.MarkHandler, permResolver *services.PermissionResolver, denialLog *services.AccessDenialService, maintenanceBlock echo.MiddlewareFunc, banCheck echo.MiddlewareFunc, jwtSecret []byte, loginLimiter echo.MiddlewareFunc) {
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, map[string]string{"status": "ok"})
@@ -85,6 +85,15 @@ func Setup(e *echo.Echo, auth *handlers.AuthHandler, userTypes *handlers.UserTyp
 	lpfGroup.POST("", lpf.Create)
 	lpfGroup.PUT("/:id", lpf.Update)
 	lpfGroup.DELETE("/:id", lpf.Delete)
+
+	// Марки автомобилей (#185) - справочник с историчностью.
+	marksGroup := protected.Group("/marks")
+	marksGroup.GET("", marks.GetAll)
+	marksGroup.POST("", marks.Create)
+	marksGroup.PUT("/:id", marks.Update)
+	marksGroup.POST("/:id/archive", marks.Archive)
+	marksGroup.POST("/:id/restore", marks.Restore)
+	marksGroup.GET("/:id/history", marks.GetHistory)
 
 	// Организации
 	orgg := protected.Group("/organizations")

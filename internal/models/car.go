@@ -7,7 +7,10 @@ type Car struct {
 	AttachmentID       int        `gorm:"index" json:"attachment_id"`
 	Attachment         Attachment `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	CarNumber          *string    `gorm:"size:50;index" json:"car_number"`
-	CarBrand           *string    `gorm:"size:100" json:"car_brand"`
+	CarBrand           *string    `gorm:"size:100" json:"car_brand"` // deprecated: оставлен на N релизов, см. mark_name
+	MarkID             *int       `gorm:"index" json:"mark_id,omitempty"`
+	MarkName           *string    `gorm:"size:100" json:"mark_name,omitempty"` // snapshot имени марки на момент присвоения
+	Mark               *Mark      `gorm:"foreignKey:MarkID" json:"-"`
 	UnloadPlace        *string    `gorm:"size:255" json:"unload_place"`
 	EntryDateFrom      *string    `gorm:"size:20" json:"entry_date_from"`
 	EntryTimeFrom      *string    `gorm:"size:20" json:"entry_time_from"`

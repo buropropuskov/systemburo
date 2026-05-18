@@ -127,6 +127,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 
 	// Create maintenance service early so authHandler can get it.
 	maintenanceService := services.NewMaintenanceService(db)
+	markService := services.NewMarkService(db)
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, false, 168*time.Hour)
@@ -161,6 +162,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
+	markHandler := handlers.NewMarkHandler(markService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -173,7 +175,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
 		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
 		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, permissionResolver, accessDenialService, nil, nil, []byte(TestJWTSecret), nil)
+		applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, markHandler, permissionResolver, accessDenialService, nil, nil, []byte(TestJWTSecret), nil)
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}
