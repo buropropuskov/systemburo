@@ -129,6 +129,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	maintenanceService := services.NewMaintenanceService(db)
 	markService := services.NewMarkService(db)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
+	attachmentBlankService := services.NewAttachmentBlankService(db)
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, false, 168*time.Hour)
@@ -165,6 +166,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
+	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -173,11 +175,44 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	e.Validator = appvalidator.New()
 	// nil loginLimiter - в тестах rate-limit на /login не применяется,
 	// т.к. тесты делают много логинов подряд. Отдельный Test* покрывает сам лимитер.
-	router.Setup(e, authHandler, userTypesHandler, attachmentHandler, lpfHandler,
-		citizenshipHandler, organizationHandler, companyHandler, usersHandler,
-		unloadPlaceHandler, carHandler, employeeHandler, systemTableHandler,
-		uniqueCarHandler, uniqueEmployeeHandler, feedbackHandler,
-		applicationHandler, approverHandler, permissionHandler, permissionGroupHandler, roleHandler, accessDenialHandler, userBanHandler, consentHandler, settingsHandler, newsHandler, notificationHandler, requestLogsHandler, employeesHistoryHandler, bugReportHandler, maintenanceHandler, markHandler, attachmentTemplateHandler, permissionResolver, accessDenialService, nil, nil, []byte(TestJWTSecret), nil)
+	router.Setup(e, router.Dependencies{
+		Auth:                authHandler,
+		UserTypes:           userTypesHandler,
+		Attachments:         attachmentHandler,
+		LPF:                 lpfHandler,
+		Citizenship:         citizenshipHandler,
+		Organization:        organizationHandler,
+		Company:             companyHandler,
+		Users:               usersHandler,
+		UnloadPlace:         unloadPlaceHandler,
+		Cars:                carHandler,
+		Employees:           employeeHandler,
+		SystemTable:         systemTableHandler,
+		UniqueCar:           uniqueCarHandler,
+		UniqueEmployee:      uniqueEmployeeHandler,
+		Feedback:            feedbackHandler,
+		Application:         applicationHandler,
+		Approver:            approverHandler,
+		Permissions:         permissionHandler,
+		PermGroups:          permissionGroupHandler,
+		Roles:               roleHandler,
+		AccessDenials:       accessDenialHandler,
+		UserBan:             userBanHandler,
+		Consent:             consentHandler,
+		Settings:            settingsHandler,
+		News:                newsHandler,
+		Notifications:       notificationHandler,
+		RequestLogs:         requestLogsHandler,
+		EmployeesHistory:    employeesHistoryHandler,
+		BugReport:           bugReportHandler,
+		Maintenance:         maintenanceHandler,
+		Marks:               markHandler,
+		AttachmentTemplates: attachmentTemplateHandler,
+		AttachmentBlanks:    attachmentBlankHandler,
+		PermResolver:        permissionResolver,
+		DenialLog:           accessDenialService,
+		JWTSecret:           []byte(TestJWTSecret),
+	})
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}
