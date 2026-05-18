@@ -656,6 +656,13 @@ func TestRefresh_ReuseDetection_InvalidatesFamily(t *testing.T) {
 	}
 	require.NotEmpty(t, refresh2)
 
+	// Симулируем что между ротацией и reuse прошло > grace-window (10s).
+	// Иначе попадём в grace-режим и family не убьём (см. #272).
+	pastTime := time.Now().Add(-1 * time.Hour)
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = true", "replayuser").
+		Update("revoked_at", pastTime)
+
 	// Attacker пробует заюзать revoked refresh1 - должно триггернуть reuse detection.
 	rec = testutil.POST(t, e, "/refresh-token", "{}", h1)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
