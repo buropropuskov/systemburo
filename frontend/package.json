@@ -16,15 +16,15 @@
     "exceljs": "^4.4.0",
     "mitt": "^3.0.1",
     "pinia": "^3.0.4",
-    "vue": "^3.5.33",
-    "vue-router": "^5.0.6",
+    "vue": "^3.5.34",
+    "vue-router": "^5.0.7",
     "vue-select": "^4.0.0-beta.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.42.0",
     "@vitejs/plugin-vue": "^6.0.6",
-    "@vue/test-utils": "^2.4.0",
+    "@vue/test-utils": "^2.4.10",
     "eslint": "^10.2.1",
     "eslint-plugin-vue": "^10.9.0",
     "globals": "^15.0.0",
