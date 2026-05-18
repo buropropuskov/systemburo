@@ -171,6 +171,13 @@ func hashRefreshToken(token string) string {
 const (
 	maxFailedLoginsBeforeLock = 10
 	accountLockDuration       = 30 * time.Minute
+	// refreshReuseGraceWindow: окно, в течение которого только что отозванный
+	// refresh-токен НЕ считается reuse-атакой. Защита от ложного срабатывания
+	// при параллельных refresh из двух табов (общий cookie). Внутри окна -
+	// 401 "retry" без family kill, после - полноценный reuse detection.
+	// 10s выбрано как компромисс: легитимные race-условия проходят, окно
+	// для атакующего минимальное (Auth0 дефолт 0-30s).
+	refreshReuseGraceWindow = 10 * time.Second
 )
 
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
@@ -285,13 +292,26 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	}
 
 	if storedToken.IsRevoked {
-		// Reuse detection: токен валиден по подписи, но уже отозван.
+		// Grace-window: если токен был revoked совсем недавно (< refreshReuseGraceWindow),
+		// это скорее race-condition между двумя табами (общий HttpOnly cookie),
+		// чем настоящий reuse. Возвращаем 401 retry без family kill -
+		// клиент повторит refresh, теперь уже с обновлённым cookie от первого таба.
+		if storedToken.RevokedAt != nil &&
+			time.Since(*storedToken.RevokedAt) < refreshReuseGraceWindow {
+			slog.Info("refresh token grace-window hit, treating as race not reuse",
+				"user_id", user.ID, "family_id", storedToken.FamilyID,
+				"revoked_age_ms", time.Since(*storedToken.RevokedAt).Milliseconds())
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token recently rotated, please retry")
+		}
+
+		// Reuse detection: токен валиден по подписи, отозван давно.
 		// Инвалидируем всю семью - включая текущий активный refresh attacker-а
 		// или legitimate user-а. Оба будут вынуждены перелогиниться.
+		now := time.Now().UTC()
 		s.db.WithContext(ctx).
 			Model(&models.RefreshToken{}).
 			Where("family_id = ? AND is_revoked = false", storedToken.FamilyID).
-			Update("is_revoked", true)
+			Updates(map[string]any{"is_revoked": true, "revoked_at": now})
 		slog.Warn("refresh token reuse detected - family invalidated",
 			"user_id", user.ID, "family_id", storedToken.FamilyID)
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventTokenReuseDetected, false, meta,
@@ -299,8 +319,10 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Refresh token reuse detected, please log in again")
 	}
 
-	// Ротация: помечаем старый revoked, выдаём новую пару в той же family.
-	s.db.WithContext(ctx).Model(&storedToken).Update("is_revoked", true)
+	// Ротация: помечаем старый revoked + revoked_at, выдаём новую пару в той же family.
+	now := time.Now().UTC()
+	s.db.WithContext(ctx).Model(&storedToken).
+		Updates(map[string]any{"is_revoked": true, "revoked_at": now})
 
 	newAccess, err := s.createAccessToken(username, user.ID, user.TypeID, user.IsSuperAdmin)
 	if err != nil {
@@ -356,10 +378,11 @@ func (s *authService) LogoutAll(ctx context.Context, username string) (int, erro
 		return 0, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
 
+	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).
 		Model(&models.RefreshToken{}).
 		Where("user_id = ? AND is_revoked = false", user.ID).
-		Update("is_revoked", true)
+		Updates(map[string]any{"is_revoked": true, "revoked_at": now})
 	if result.Error != nil {
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke sessions")
 	}

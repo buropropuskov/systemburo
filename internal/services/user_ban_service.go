@@ -53,7 +53,7 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int)
 		// Отзываем все активные refresh-токены: следующий /refresh даст 401 -> логаут.
 		if err := tx.Model(&models.RefreshToken{}).
 			Where("user_id = ? AND is_revoked = ?", targetUserID, false).
-			Update("is_revoked", true).Error; err != nil {
+			Updates(map[string]any{"is_revoked": true, "revoked_at": now}).Error; err != nil {
 			return fmt.Errorf("revoke refresh tokens: %w", err)
 		}
 		return nil

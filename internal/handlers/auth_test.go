@@ -302,6 +302,74 @@ func TestRefreshToken_RevokedToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
+// TestRefreshToken_GraceWindowDoesNotKillFamily проверяет регресс на issue #272.
+// Если refresh пришёл с только что отозванным токеном (грейс-окно), family
+// должна остаться активной - это race-condition двух табов, не reuse-атака.
+func TestRefreshToken_GraceWindowDoesNotKillFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "graceuser", "pass123", 1, td.OrgID, td.CompanyID)
+	_, refreshToken := testutil.LoginUser(t, e, "graceuser", "pass123")
+
+	h := http.Header{}
+	h.Set("Cookie", "refresh_token="+refreshToken)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Сразу повторно с тем же токеном - попадаем в grace-window: 401 retry,
+	// но family НЕ убита.
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Token recently rotated")
+
+	// Свежий refresh-токен из первого вызова должен ещё работать -
+	// family жива. Берём cookie из последнего успешного ответа.
+	// Для упрощения теста: проверяем что в БД есть активный токен в этой family.
+	var activeCount int64
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = false", "graceuser").
+		Count(&activeCount)
+	assert.Equal(t, int64(1), activeCount, "family должна остаться с одним активным токеном")
+}
+
+// TestRefreshToken_AfterGraceWindowKillsFamily проверяет что после истечения
+// grace-window повторное использование revoked-токена убивает всю family.
+func TestRefreshToken_AfterGraceWindowKillsFamily(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "killuser", "pass123", 1, td.OrgID, td.CompanyID)
+	_, refreshToken := testutil.LoginUser(t, e, "killuser", "pass123")
+
+	h := http.Header{}
+	h.Set("Cookie", "refresh_token="+refreshToken)
+	rec := testutil.POST(t, e, "/refresh-token", "{}", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Симулируем что прошло > grace-window: правим revoked_at в прошлое.
+	pastTime := time.Now().Add(-1 * time.Hour)
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = true", "killuser").
+		Update("revoked_at", pastTime)
+
+	// Повторный refresh старым токеном - reuse detection, family kill.
+	rec = testutil.POST(t, e, "/refresh-token", "{}", h)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "reuse detected")
+
+	// Все токены family должны быть revoked.
+	var activeCount int64
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = false", "killuser").
+		Count(&activeCount)
+	assert.Equal(t, int64(0), activeCount, "family должна быть полностью убита")
+}
+
 // --- POST /logout ---
 
 func TestLogout_Success(t *testing.T) {
@@ -587,6 +655,13 @@ func TestRefresh_ReuseDetection_InvalidatesFamily(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, refresh2)
+
+	// Симулируем что между ротацией и reuse прошло > grace-window (10s).
+	// Иначе попадём в grace-режим и family не убьём (см. #272).
+	pastTime := time.Now().Add(-1 * time.Hour)
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = (SELECT id FROM users WHERE username = ?) AND is_revoked = true", "replayuser").
+		Update("revoked_at", pastTime)
 
 	// Attacker пробует заюзать revoked refresh1 - должно триггернуть reuse detection.
 	rec = testutil.POST(t, e, "/refresh-token", "{}", h1)
