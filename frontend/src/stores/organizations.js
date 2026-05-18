@@ -4,8 +4,8 @@ import { apiRequest } from '@/api/client'
 /**
  * Глобальный стор справочника организаций.
  *
- * Используется компонентами ЛК (OrganizationsManagement, UserControl,
- * CreateUserModal). Поддерживает два представления:
+ * Используется компонентами ЛК (OrganizationsManagement, UserControl).
+ * Поддерживает два представления:
  *   - items: лёгкий список { id, name } для dropdown'ов и выбора
  *   - itemsWithUsers: расширенный список с user_count и метаданными для
  *     управления (таблица в OrganizationsManagement)
