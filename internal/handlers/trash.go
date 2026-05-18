@@ -33,10 +33,10 @@ func NewTrashHandler(s services.TrashService, dbRef DBRef) *TrashHandler {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID SystemTable"
-// @Param        search query string false ""
-// @Param        organization_id query int false ""
-// @Param        date_from query string false "YYYY-MM-DD"
-// @Param        date_to query string false "YYYY-MM-DD"
+// @Param        search query string false "Поиск по номеру/ФИО"
+// @Param        organization_id query int false "Фильтр по организации"
+// @Param        date_from query string false "Дата удаления с (YYYY-MM-DD)"
+// @Param        date_to query string false "Дата удаления по (YYYY-MM-DD)"
 // @Success      200 {array} models.TrashItem
 // @Router       /system-tables/{id}/trash [get]
 func (h *TrashHandler) List(c echo.Context) error {
