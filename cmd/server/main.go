@@ -174,6 +174,8 @@ func main() {
 	markService := services.NewMarkService(db)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
+	trashService := services.NewTrashService(db)
+	trashDBRef := services.NewTrashDBRef(db)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
@@ -209,6 +211,7 @@ func main() {
 	markHandler := handlers.NewMarkHandler(markService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
+	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -261,6 +264,7 @@ func main() {
 		Marks:               markHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
+		Trash:               trashHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,

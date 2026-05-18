@@ -48,6 +48,7 @@ type Dependencies struct {
 	Marks               *handlers.MarkHandler
 	AttachmentTemplates *handlers.AttachmentTemplateHandler
 	AttachmentBlanks    *handlers.AttachmentBlankHandler
+	Trash               *handlers.TrashHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -97,6 +98,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	marks := d.Marks
 	attachmentTemplates := d.AttachmentTemplates
 	attachmentBlanks := d.AttachmentBlanks
+	trash := d.Trash
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	maintenanceBlock := d.MaintenanceBlock
@@ -300,6 +302,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.POST("/:id/photos", st.UploadPhoto)
 	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto)
 	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto)
+
+	// Корзина таблицы (#186) - удалённые элементы с возможностью восстановить
+	// или окончательно удалить. Тип элементов определяется по table_type
+	// системной таблицы (cars или people).
+	stg.GET("/:id/trash", trash.List)
+	stg.POST("/:id/trash/restore", trash.Restore)
+	stg.DELETE("/:id/trash/:item_id", trash.PurgeOne)
+	stg.DELETE("/:id/trash", trash.ClearAll)
 
 	// Реестр автомобилей (unique_cars)
 	ucg := protected.Group("/unique-cars")

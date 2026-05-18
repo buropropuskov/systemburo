@@ -130,6 +130,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	markService := services.NewMarkService(db)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentBlankService := services.NewAttachmentBlankService(db)
+	trashService := services.NewTrashService(db)
+	trashDBRef := services.NewTrashDBRef(db)
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, false, 168*time.Hour)
@@ -167,6 +169,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	markHandler := handlers.NewMarkHandler(markService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
+	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -209,6 +212,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Marks:               markHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
+		Trash:               trashHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		JWTSecret:           []byte(TestJWTSecret),

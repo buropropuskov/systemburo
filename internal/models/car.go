@@ -21,6 +21,11 @@ type Car struct {
 	Status             *int       `gorm:"index" json:"status"`
 	DateAdded          *time.Time `json:"date_added"`
 	DateRemoved        *time.Time `json:"date_removed"`
+	// IsPurged - финальное удаление из корзины (#186). Запись остаётся в БД для
+	// аудита, но скрывается даже из корзины. Восстановление невозможно.
+	IsPurged           bool       `gorm:"default:false;index" json:"is_purged"`
+	PurgedAt           *time.Time `json:"purged_at,omitempty"`
+	PurgedByUserID     *int       `json:"purged_by_user_id,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	TerritoryExitTime  *time.Time `json:"territory_exit_time"`
