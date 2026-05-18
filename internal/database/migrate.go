@@ -20,6 +20,8 @@ func AllModels() []interface{} {
 		&models.Company{},
 		&models.Citizenship{},
 		&models.LicensePlateFormat{},
+		&models.Mark{},
+		&models.MarkHistory{},
 		&models.UnloadPlace{},
 		&models.SystemTable{},
 
