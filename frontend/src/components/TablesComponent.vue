@@ -117,6 +117,14 @@
           class="options__icon"
           @click="clearFilters"
         >
+        <RouterLink
+          :to="`/table/${$route.params.tableName}/trash`"
+          class="options__trash-link"
+          title="Корзина таблицы"
+          data-testid="table-trash-link"
+        >
+          Корзина
+        </RouterLink>
         <button class="options__export">
           <img
             src="@/assets/icons/export.png"
