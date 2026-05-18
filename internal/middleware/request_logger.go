@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -9,6 +10,10 @@ import (
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
+
+// requestLogWriteTimeout - таймаут на запись лога в БД из фоновой горутины.
+// Защита от висящих горутин при медленной БД (например, во время shutdown).
+const requestLogWriteTimeout = 5 * time.Second
 
 // RequestLogger записывает все HTTP-запросы в таблицу request_logs.
 func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
@@ -35,6 +40,10 @@ func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 			}
 
 			go func() {
+				// Отдельный context с таймаутом - request-context уже отменён
+				// после возврата из handler-а.
+				ctx, cancel := context.WithTimeout(context.Background(), requestLogWriteTimeout)
+				defer cancel()
 				log := models.RequestLogs{
 					UserID:         userID,
 					Username:       username,
@@ -44,7 +53,7 @@ func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 					DurationMs:     &durationInt,
 					CreatedAt:      start,
 				}
-				if dbErr := db.Create(&log).Error; dbErr != nil {
+				if dbErr := db.WithContext(ctx).Create(&log).Error; dbErr != nil {
 					slog.Error("failed to write request log", "error", dbErr, "url", url)
 				}
 			}()
