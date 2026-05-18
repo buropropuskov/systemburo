@@ -300,11 +300,17 @@
                   rows="8"
                 />
               </div>
+
+              <!-- Excel-бланк и кастомные поля (#183) -->
+              <AttachmentTemplateEditor
+                v-if="selectedAttachment.is_active"
+                :unique-attachment-id="selectedAttachment.id"
+              />
             </div>
           </div>
         </div>
       </div>
-      
+
       <div
         v-else
         class="no-selection-message"
@@ -551,13 +557,15 @@ import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
+import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 
 export default {
   name: 'AttachmentsManagement',
   components: {
     SearchComponent,
     RefreshButton,
-    TextConstructor
+    TextConstructor,
+    AttachmentTemplateEditor,
   },
   data() {
     return {

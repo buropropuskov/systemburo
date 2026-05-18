@@ -74,13 +74,17 @@ function wrapJsonUnwrap(response) {
 async function doFetch(path, options, token) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10000)
+  // Для FormData (multipart upload) НЕ ставим Content-Type - браузер сам добавит
+  // с правильным boundary. Иначе сервер не сможет распарсить multipart.
+  const isFormData = options.body instanceof FormData
+  const baseHeaders = isFormData ? {} : { 'Content-Type': 'application/json' }
   try {
     return await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       credentials: 'include',
       signal: options.signal || controller.signal,
       headers: {
-        'Content-Type': 'application/json',
+        ...baseHeaders,
         // Accept: application/json нужен чтобы nginx с Accept-based роутингом
         // (см. nginx/staging.conf для /news и /announcements) отличал API-запрос
         // от браузерного перехода по тому же пути и отдавал JSON, а не SPA HTML.
