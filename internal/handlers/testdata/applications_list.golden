@@ -5,6 +5,7 @@ data[].company_name
 data[].confirmation
 data[].confirmation_datetime
 data[].data_approval
+data[].has_blank_template
 data[].id
 data[].message
 data[].organization_id

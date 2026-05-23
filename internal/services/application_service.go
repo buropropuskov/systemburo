@@ -388,7 +388,7 @@ type AttachmentInfo struct {
 	UniqueAttachmentTitle       *string    `json:"unique_attachment_title"`
 	UniqueAttachmentDisplayName *string             `json:"unique_attachment_display_name"`
 	HasTemplate                 bool                `json:"has_template"`
-	CustomValues                []CustomValueDetail `json:"custom_values,omitempty"`
+	CustomValues                []CustomValueDetail `gorm:"-" json:"custom_values,omitempty"`
 }
 
 // CustomValueDetail значение кастомного поля для отображения.
