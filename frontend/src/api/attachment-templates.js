@@ -91,8 +91,11 @@ export async function downloadBlank(applicationID, attachmentID) {
   const blob = await res.blob();
   // Извлекаем имя файла из Content-Disposition.
   const cd = res.headers.get('Content-Disposition') || '';
-  const match = cd.match(/filename="?([^"]+)"?/);
-  const filename = match ? match[1] : `blank_${applicationID}_${attachmentID}.xlsx`;
+  const utf8Match = cd.match(/filename\*=UTF-8''(.+)/i);
+  const basicMatch = cd.match(/filename="?([^";]+)"?/);
+  const filename = utf8Match
+    ? decodeURIComponent(utf8Match[1])
+    : basicMatch ? basicMatch[1] : `blank_${applicationID}_${attachmentID}.xlsx`;
   return { blob, filename };
 }
 

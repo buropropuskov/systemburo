@@ -107,6 +107,26 @@ func resolveAttachment(bctx *BlankContext, path string) string {
 		return derefStr(a.EntryTimeFrom)
 	case "attachment.entry_time_to":
 		return derefStr(a.EntryTimeTo)
+	case "attachment.entry_date_range":
+		from := formatDate(derefStr(a.EntryDateFrom))
+		to := formatDate(derefStr(a.EntryDateTo))
+		if from != "" && to != "" {
+			return from + " - " + to
+		}
+		if from != "" {
+			return from
+		}
+		return to
+	case "attachment.entry_time_range":
+		from := formatTime(derefStr(a.EntryTimeFrom))
+		to := formatTime(derefStr(a.EntryTimeTo))
+		if from != "" && to != "" {
+			return from + " - " + to
+		}
+		if from != "" {
+			return from
+		}
+		return to
 	}
 	return ""
 }
@@ -152,6 +172,10 @@ func resolveEmployee(bctx *BlankContext, e *models.Employee, path string, rowIdx
 		}
 	case "employee.passport_series_number":
 		return derefStr(e.PassportSeriesNumber)
+	case "employee.patent_number":
+		return derefStr(e.PatentNumber)
+	case "employee.other_permission":
+		return derefStr(e.OtherPermission)
 	}
 	return ""
 }
@@ -168,6 +192,28 @@ func resolveItem(it *models.Item, path string, rowIdx int) string {
 		}
 	}
 	return ""
+}
+
+func formatDate(s string) string {
+	if s == "" {
+		return ""
+	}
+	t, err := time.Parse("2006-01-02", s[:min(len(s), 10)])
+	if err != nil {
+		return s
+	}
+	return t.Format("02.01.2006")
+}
+
+func formatTime(s string) string {
+	if s == "" {
+		return ""
+	}
+	parts := strings.SplitN(s, ":", 3)
+	if len(parts) >= 2 {
+		return parts[0] + ":" + parts[1]
+	}
+	return s
 }
 
 func derefStr(p *string) string {
