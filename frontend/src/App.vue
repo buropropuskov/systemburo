@@ -35,6 +35,7 @@
       <ScrollTopButton v-if="showChrome" />
     </div>
     <ToastContainer />
+    <ConfirmDialog />
   </div>
 </template>
 
@@ -46,6 +47,7 @@ import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
 import ToastContainer from './components/ToastContainer.vue';
+import ConfirmDialog from './components/ConfirmDialog.vue';
 
 export default {
   name: "App",
@@ -53,7 +55,8 @@ export default {
     NavMenu,
     TheHeader,
     ScrollTopButton,
-    ToastContainer
+    ToastContainer,
+    ConfirmDialog,
   },
   computed: {
     isAuthenticated() {

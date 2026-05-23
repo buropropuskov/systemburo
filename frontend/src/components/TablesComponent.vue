@@ -112,11 +112,6 @@
         />
       </div>
       <div class="filters__options">
-        <img
-          src="@/assets/icons/trashcan.png"
-          class="options__icon"
-          @click="clearFilters"
-        >
         <RouterLink
           :to="`/table/${$route.params.tableName}/trash`"
           class="options__trash-link"
@@ -573,6 +568,7 @@ export default {
     gap: 10px;
     position: relative;
 }
+
 
 .field {
     width: 200px;
