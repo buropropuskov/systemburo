@@ -1,4 +1,5 @@
 FROM nginx:1.25-alpine
-# Раньше тут был "apk add apache2-utils" для htpasswd.
-# Теперь генерируем .htpasswd через openssl (встроен в alpine-base) - см. staging-entrypoint.sh.
-# Это избавляет от зависимости от alpine repos в build-стадии и runtime.
+# openssl нужен entrypoint-скрипту /docker-entrypoint.d/40-htpasswd.sh для
+# генерации apr1-хеша в .htpasswd. В nginx:alpine он НЕ предустановлен.
+# Без этого entrypoint падает с "openssl: not found" и basic auth не работает.
+RUN apk add --no-cache openssl
