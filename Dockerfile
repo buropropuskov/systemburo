@@ -34,6 +34,7 @@ RUN addgroup -S -g 1001 appgroup && \
     adduser -S -u 1001 -G appgroup appuser
 WORKDIR /app
 COPY --from=builder --chown=appuser:appgroup /app/server /app/seed ./
+RUN mkdir -p /app/uploads/templates && chown -R appuser:appgroup /app/uploads
 USER appuser
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

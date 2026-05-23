@@ -142,6 +142,13 @@
           @clear-phone="handleClearPhoneFormat"
         />
 
+        <CustomFieldsSection
+          v-if="currentCustomFields.length"
+          :fields="currentCustomFields"
+          :model-value="currentCustomFieldValues"
+          @update:model-value="updateCustomFieldValues($event)"
+        />
+
         <!-- 3 ряд: Заголовок, Дата действия, Время пребывания (теперь индивидуально для вложения) -->
         <div class="form__info-row">
           <DateRangeSection
@@ -297,6 +304,7 @@ import ItemsForm from './ItemsForm.vue';
 import ItemsList from './ItemsList.vue';
 import UniversalBindingModal from './UniversalBindingModal.vue';
 import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
+import CustomFieldsSection from './CustomFieldsSection.vue';
 
 export default {
     name: 'CreateApplication',
@@ -311,7 +319,8 @@ export default {
         ItemsForm,
         ItemsList,
         UniversalBindingModal,
-        ApplicationSuccessModal
+        ApplicationSuccessModal,
+        CustomFieldsSection
     },
     data() {
         return {
@@ -374,6 +383,9 @@ export default {
 
             showSubmitTooltip: false,
             tooltipTimer: null,
+
+            customFieldsByAttachment: {},
+            customFieldDefinitions: {},
         }
     },
     computed: {
@@ -397,6 +409,18 @@ export default {
         items() {
             if (!this.selectedAttachment) return [];
             return this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
+        },
+
+        currentCustomFields() {
+            if (!this.selectedAttachment) return [];
+            const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
+            return this.customFieldDefinitions[uaId] || [];
+        },
+
+        currentCustomFieldValues() {
+            if (!this.selectedAttachment) return {};
+            const key = this.attachmentKey(this.selectedAttachment);
+            return this.customFieldsByAttachment[key] || {};
         },
 
         currentAttachmentData() {
@@ -908,15 +932,34 @@ export default {
             this.phoneNumber = clearPhoneFormat(this.rawPhoneNumber);
         },
 
+        updateCustomFieldValues(values) {
+            const key = this.attachmentKey(this.selectedAttachment);
+            this.customFieldsByAttachment[key] = values;
+        },
+
+        async loadCustomFields(uniqueAttachmentId) {
+            if (this.customFieldDefinitions[uniqueAttachmentId]) return;
+            try {
+                const { listCustomFields } = await import('@/api/attachment-templates');
+                const data = await listCustomFields(uniqueAttachmentId);
+                this.customFieldDefinitions[uniqueAttachmentId] = Array.isArray(data) ? data : [];
+            } catch {
+                this.customFieldDefinitions[uniqueAttachmentId] = [];
+            }
+        },
+
         handleAttachmentSelected(attachment) {
             if (!attachment) {
                 this.selectedAttachment = null;
                 this.clearFormData();
                 return;
             }
-            
+
             this.selectedAttachment = attachment;
             this.restoreAttachmentData(attachment);
+
+            const uaId = attachment.template_id || attachment.id;
+            this.loadCustomFields(uaId);
         },
 
         attachmentKey(attachment) {
@@ -1696,6 +1739,16 @@ export default {
                     }
                 }
 
+                const customValues = this.customFieldsByAttachment[key] || {};
+                if (Object.keys(customValues).length > 0) {
+                    attachmentData.custom_values = Object.entries(customValues)
+                        .filter(([, v]) => v)
+                        .map(([fieldId, value]) => ({
+                            custom_field_id: parseInt(fieldId),
+                            value: value,
+                        }));
+                }
+
                 applicationData.attachments.push(attachmentData);
             }
 
@@ -1867,14 +1920,16 @@ export default {
 
         resetForm() {
             this.clearFormData();
-            
+
             this.applicationNumber++;
 
             this.vehiclesByAttachment = {};
             this.employeesByAttachment = {};
             this.itemsByAttachment = {};
             this.attachmentDatesByAttachment = {};
-            
+            this.customFieldsByAttachment = {};
+            this.customFieldDefinitions = {};
+
             this.vehicleIdCounter = 1;
             this.employeeIdCounter = 1;
             this.itemIdCounter = 1;
@@ -1919,6 +1974,7 @@ export default {
                     itemsByAttachment: hasAttachments ? this.itemsByAttachment : {},
 
                     attachmentDatesByAttachment: hasAttachments ? this.attachmentDatesByAttachment : {},
+                    customFieldsByAttachment: hasAttachments ? this.customFieldsByAttachment : {},
 
                     vehicleIdCounter: this.vehicleIdCounter,
                     employeeIdCounter: this.employeeIdCounter,
@@ -1954,6 +2010,7 @@ export default {
                     this.itemsByAttachment = parsedData.itemsByAttachment || {};
 
                     this.attachmentDatesByAttachment = parsedData.attachmentDatesByAttachment || {};
+                    this.customFieldsByAttachment = parsedData.customFieldsByAttachment || {};
 
                     this.vehicleIdCounter = parsedData.vehicleIdCounter || 1;
                     this.employeeIdCounter = parsedData.employeeIdCounter || 1;
