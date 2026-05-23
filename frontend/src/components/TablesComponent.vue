@@ -122,8 +122,13 @@
           class="options__trash-link"
           title="Корзина таблицы"
           data-testid="table-trash-link"
+          aria-label="Корзина таблицы"
         >
-          Корзина
+          <img
+            src="@/assets/icons/trashcan.png"
+            class="options__icon"
+            alt=""
+          >
         </RouterLink>
         <button class="options__export">
           <img

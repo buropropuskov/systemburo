@@ -1,126 +1,212 @@
 <template>
-  <div class="trash-view">
+  <section class="trash-view">
     <header class="trash-header">
-      <div class="trash-title">
-        <RouterLink :to="`/table/${tableName}`" class="back-btn">← Назад</RouterLink>
-        <h2>
-          <RouterLink :to="`/table/${tableName}`" class="trash-table-name">{{ displayName }}</RouterLink>
-          <span class="trash-slash"> / Корзина</span>
-        </h2>
-      </div>
-      <div class="trash-controls">
-        <input
+      <h2 class="trash-title">
+        <RouterLink
+          :to="`/table/${tableName}`"
+          class="trash-title__name"
+        >
+          {{ displayName }}
+        </RouterLink>
+        <span class="trash-title__slash">/</span>
+        <span class="trash-title__current">Корзина</span>
+        <RouterLink
+          :to="`/table/${tableName}`"
+          class="trash-back-btn"
+          data-testid="trash-back"
+        >
+          ← Назад
+        </RouterLink>
+      </h2>
+
+      <div class="trash-filters">
+        <SearchComponent
           v-model="filters.search"
-          class="lk-input"
-          placeholder="Поиск..."
-          @input="onFilterChange"
+          :title="'Поиск..'"
+          class="trash-filters__search"
+          @input="onSearchChange"
+        />
+        <OrganizationFilter
+          ref="organizationFilter"
+          v-model="filters.organizationId"
+          @change="onOrganizationChange"
+        />
+        <DateFilter
+          :selected-date="filters.selectedDate"
+          :date-range-start="filters.dateFrom"
+          :date-range-end="filters.dateTo"
+          @update:selected-date="filters.selectedDate = $event"
+          @update:date-range-start="filters.dateFrom = $event"
+          @update:date-range-end="filters.dateTo = $event"
+          @apply="reload"
+          @clear="onDateClear"
+        />
+        <button
+          class="trash-action-btn trash-action-btn--ghost"
+          data-testid="trash-clear-filters"
+          @click="clearFilters"
         >
-        <input
-          v-model="filters.dateFrom"
-          type="date"
-          class="lk-input"
-          @change="reload"
-        >
-        <input
-          v-model="filters.dateTo"
-          type="date"
-          class="lk-input"
-          @change="reload"
-        >
-        <button class="lk-btn lk-btn--ghost" :disabled="isLoading" @click="reload">
-          Обновить
+          Очистить
         </button>
         <button
-          class="lk-btn lk-btn--danger"
+          class="trash-action-btn trash-action-btn--ghost"
+          data-testid="trash-export"
           :disabled="!items.length"
-          @click="onClearAll"
+          @click="onExport"
         >
-          Очистить корзину
+          <img
+            src="@/assets/icons/export.png"
+            class="trash-action-btn__icon"
+            alt=""
+          >
+          Экспорт
         </button>
+        <RefreshButton
+          :loading="isLoading"
+          @refresh="reload"
+        />
       </div>
     </header>
 
-    <div class="trash-bulk-actions" v-if="selectedIds.length">
-      <span>{{ selectedIds.length }} выбрано</span>
-      <button class="lk-btn" @click="onRestoreSelected">Восстановить</button>
-      <button class="lk-btn lk-btn--danger" @click="onPurgeSelected">Удалить безвозвратно</button>
-    </div>
+    <article class="trash-card">
+      <div class="trash-card__header">
+        <h3 class="trash-card__title">
+          {{ tableType === 'cars' ? 'Удалённые автомобили' : 'Удалённые сотрудники' }}
+        </h3>
+        <button
+          v-if="items.length"
+          class="trash-card__link"
+          data-testid="trash-restore-all-link"
+          @click="onRestoreAll"
+        >
+          Восстановить
+        </button>
+        <div class="trash-card__spacer" />
+        <button
+          class="trash-action-btn trash-action-btn--primary"
+          data-testid="trash-restore-selected"
+          :disabled="!selectedIds.length"
+          @click="onRestoreSelected"
+        >
+          Восстановить
+        </button>
+      </div>
 
-    <div v-if="isLoading" class="trash-loader">Загрузка...</div>
-    <div v-else-if="error" class="trash-error">{{ error }}</div>
-    <div v-else-if="!items.length" class="trash-empty">Корзина пуста</div>
-    <table v-else class="trash-table">
-      <thead>
-        <tr>
-          <th class="th-checkbox">
-            <input
-              type="checkbox"
-              :checked="allSelected"
-              @change="toggleAll"
+      <div class="trash-card__body">
+        <div
+          v-if="isLoading"
+          class="trash-state"
+        >
+          Загрузка...
+        </div>
+        <div
+          v-else-if="error"
+          class="trash-state trash-state--error"
+        >
+          {{ error }}
+        </div>
+        <div
+          v-else-if="!items.length"
+          class="trash-state"
+        >
+          Корзина пуста
+        </div>
+        <table
+          v-else
+          class="trash-table"
+          data-testid="trash-table"
+        >
+          <thead>
+            <tr>
+              <th class="trash-table__th-checkbox">
+                <input
+                  type="checkbox"
+                  :checked="allSelected"
+                  data-testid="trash-select-all"
+                  @change="toggleAll"
+                >
+              </th>
+              <th>Номер заявки</th>
+              <th>Дата и время удаления</th>
+              <template v-if="tableType === 'cars'">
+                <th>Номер Т/С</th>
+                <th>Марка</th>
+              </template>
+              <template v-else>
+                <th>Фамилия</th>
+                <th>Имя</th>
+              </template>
+              <th>Организация</th>
+              <th>Действует до</th>
+              <th>Время</th>
+              <th>Статус</th>
+              <th class="trash-table__th-actions" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in items"
+              :key="item.id"
+              data-testid="trash-row"
             >
-          </th>
-          <th>Номер заявки</th>
-          <th>Дата удаления</th>
-          <template v-if="tableType === 'cars'">
-            <th>Номер ТС</th>
-            <th>Марка</th>
-            <th>Организация</th>
-            <th>Действует до</th>
-          </template>
-          <template v-else>
-            <th>Фамилия</th>
-            <th>Имя</th>
-            <th>Отчество</th>
-            <th>Организация</th>
-          </template>
-          <th>Статус</th>
-          <th>Кто удалил</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="item in items" :key="item.id" data-testid="trash-row">
-          <td>
-            <input
-              type="checkbox"
-              :value="item.id"
-              v-model="selectedIds"
-            >
-          </td>
-          <td>{{ item.application_number || '—' }}</td>
-          <td>{{ formatDate(item.deleted_at) }}</td>
-          <template v-if="tableType === 'cars'">
-            <td>{{ item.car_number || '—' }}</td>
-            <td>{{ item.mark_name || '—' }}</td>
-            <td>{{ item.organization || '—' }}</td>
-            <td>{{ item.entry_date_to || '—' }}</td>
-          </template>
-          <template v-else>
-            <td>{{ item.last_name || '—' }}</td>
-            <td>{{ item.first_name || '—' }}</td>
-            <td>{{ item.middle_name || '—' }}</td>
-            <td>{{ item.organization || '—' }}</td>
-          </template>
-          <td class="status-trash">{{ tableType === 'cars' ? 'Удалена' : 'Удален' }}</td>
-          <td>{{ item.deleted_by_name || '—' }}</td>
-          <td>
-            <button class="icon-btn danger" title="Удалить безвозвратно" @click="onPurgeOne(item.id)">
-              ✕
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+              <td>
+                <input
+                  v-model="selectedIds"
+                  type="checkbox"
+                  :value="item.id"
+                >
+              </td>
+              <td class="trash-table__app-number">
+                {{ item.application_number || '—' }}
+              </td>
+              <td>{{ formatDateTime(item.deleted_at) }}</td>
+              <template v-if="tableType === 'cars'">
+                <td>{{ item.car_number || '—' }}</td>
+                <td>{{ item.mark_name || '—' }}</td>
+              </template>
+              <template v-else>
+                <td>{{ item.last_name || '—' }}</td>
+                <td>{{ item.first_name || '—' }}</td>
+              </template>
+              <td>{{ item.organization || '—' }}</td>
+              <td>{{ formatDate(item.entry_date_to) }}</td>
+              <td>{{ formatTimeRange(item) }}</td>
+              <td class="trash-table__status">
+                {{ tableType === 'cars' ? 'Удалена' : 'Удалён' }}
+              </td>
+              <td class="trash-table__actions">
+                <button
+                  class="trash-icon-btn"
+                  title="Удалить безвозвратно"
+                  data-testid="trash-purge-one"
+                  @click="onPurgeOne(item.id)"
+                >
+                  <img
+                    src="@/assets/icons/trashcan.png"
+                    alt=""
+                  >
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client';
 import { useUiStore } from '@/stores/ui';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
+import SearchComponent from '@/components/SearchComponent.vue';
+import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import DateFilter from '@/components/DateFilter.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 
 export default {
   name: 'TrashView',
+  components: { SearchComponent, OrganizationFilter, DateFilter, RefreshButton },
   data() {
     return {
       tableID: 0,
@@ -130,7 +216,13 @@ export default {
       selectedIds: [],
       isLoading: false,
       error: '',
-      filters: { search: '', dateFrom: '', dateTo: '' },
+      filters: {
+        search: '',
+        organizationId: null,
+        selectedDate: null,
+        dateFrom: null,
+        dateTo: null,
+      },
       searchTimer: null,
     };
   },
@@ -142,14 +234,14 @@ export default {
       return this.items.length > 0 && this.selectedIds.length === this.items.length;
     },
   },
-  async mounted() {
-    await this.fetchTable();
-    if (this.tableID) await this.reload();
-  },
   watch: {
     '$route.params.tableName'() {
       this.fetchTable().then(() => this.reload());
     },
+  },
+  async mounted() {
+    await this.fetchTable();
+    if (this.tableID) await this.reload();
   },
   methods: {
     async fetchTable() {
@@ -157,8 +249,6 @@ export default {
       try {
         const res = await apiRequest(`/system-tables/name/${this.tableName}`);
         const data = await res.json();
-        // API возвращает { table: {...}, ... } - сам объект таблицы вложен.
-        // Падаем обратно на data если структура изменилась.
         const tbl = (data && data.table) || data;
         if (!tbl || !tbl.id) {
           this.error = 'Таблица не найдена';
@@ -179,11 +269,15 @@ export default {
       this.isLoading = true;
       this.selectedIds = [];
       try {
-        const data = await listTrash(this.tableID, {
+        const params = {
           search: this.filters.search,
-          dateFrom: this.filters.dateFrom,
-          dateTo: this.filters.dateTo,
-        });
+          dateFrom: this.filters.selectedDate || this.filters.dateFrom || '',
+          dateTo: this.filters.selectedDate || this.filters.dateTo || '',
+        };
+        if (this.filters.organizationId) {
+          params.organizationId = this.filters.organizationId;
+        }
+        const data = await listTrash(this.tableID, params);
         this.items = Array.isArray(data) ? data : [];
       } catch {
         useUiStore().error('Не удалось загрузить корзину');
@@ -191,21 +285,56 @@ export default {
         this.isLoading = false;
       }
     },
-    onFilterChange() {
-      // Debounce поиска: ждём 300мс после последнего ввода.
+    onSearchChange() {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => this.reload(), 300);
+    },
+    onOrganizationChange() {
+      this.reload();
+    },
+    onDateClear() {
+      this.filters.selectedDate = null;
+      this.filters.dateFrom = null;
+      this.filters.dateTo = null;
+      this.reload();
+    },
+    clearFilters() {
+      this.filters.search = '';
+      this.filters.organizationId = null;
+      this.filters.selectedDate = null;
+      this.filters.dateFrom = null;
+      this.filters.dateTo = null;
+      if (this.$refs.organizationFilter?.reset) this.$refs.organizationFilter.reset();
+      this.reload();
     },
     toggleAll(e) {
       this.selectedIds = e.target.checked ? this.items.map(i => i.id) : [];
     },
-    formatDate(s) {
+    formatDateTime(s) {
       if (!s) return '—';
       try {
-        return new Date(s).toLocaleString('ru-RU');
+        const d = new Date(s);
+        const date = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return `${date} ${time}`;
       } catch {
         return s;
       }
+    },
+    formatDate(s) {
+      if (!s) return '—';
+      try {
+        return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } catch {
+        return s;
+      }
+    },
+    formatTimeRange(item) {
+      const from = item.entry_time_from || item.time_from;
+      const to = item.entry_time_to || item.time_to;
+      if (from && to) return `${from} - ${to}`;
+      if (from) return from;
+      return '—';
     },
     async onRestoreSelected() {
       if (!this.selectedIds.length) return;
@@ -223,20 +352,17 @@ export default {
         useUiStore().error('Не удалось восстановить');
       }
     },
-    async onPurgeSelected() {
-      if (!this.selectedIds.length) return;
-      if (!confirm(`Удалить безвозвратно ${this.selectedIds.length} элемент(ов)?`)) return;
-      let purged = 0;
-      for (const id of this.selectedIds) {
-        try {
-          await purgeItem(this.tableID, id);
-          purged++;
-        } catch {
-          // Одиночный fail не прерывает массовое.
-        }
+    async onRestoreAll() {
+      if (!this.items.length) return;
+      const ids = this.items.map(i => i.id);
+      try {
+        const result = await restoreItems(this.tableID, ids);
+        const r = (result && result.restored) || 0;
+        useUiStore().success(`Восстановлено: ${r}`);
+        await this.reload();
+      } catch {
+        useUiStore().error('Не удалось восстановить');
       }
-      useUiStore().success(`Удалено: ${purged}`);
-      await this.reload();
     },
     async onPurgeOne(id) {
       if (!confirm('Удалить эту запись безвозвратно?')) return;
@@ -258,160 +384,276 @@ export default {
         useUiStore().error('Не удалось очистить');
       }
     },
+    onExport() {
+      useUiStore().info('Экспорт корзины - скоро');
+    },
   },
 };
 </script>
 
 <style scoped>
 .trash-view {
-  padding: 20px;
-  max-width: 1400px;
+  padding: 24px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
 .trash-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .trash-title {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-
-.back-btn {
-  color: #666;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.back-btn:hover {
-  color: var(--color-primary);
-}
-
-.trash-title h2 {
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 600;
   margin: 0;
-  font-size: 22px;
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.trash-table-name {
-  color: #a2a2a2;
-  text-decoration: none;
-}
-
-.trash-table-name:hover {
-  color: var(--color-primary);
-}
-
-.trash-slash {
-  color: #000;
-}
-
-.trash-controls {
-  display: flex;
-  gap: 8px;
   flex-wrap: wrap;
 }
 
-.lk-input {
-  padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 13px;
+.trash-title__name {
+  color: #000;
+  text-decoration: none;
 }
 
-.lk-btn {
+.trash-title__name:hover {
+  color: #4F5BDF;
+}
+
+.trash-title__slash {
+  color: #999;
+  font-weight: 400;
+}
+
+.trash-title__current {
+  color: #000;
+}
+
+.trash-back-btn {
+  display: inline-flex;
+  align-items: center;
   padding: 6px 14px;
-  border-radius: 6px;
-  border: 0;
-  background: var(--color-primary);
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #e6e6e6;
+  border-radius: 50px;
+  font-size: 0.85em;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  margin-left: 8px;
 }
 
-.lk-btn:disabled {
+.trash-back-btn:hover {
+  background: #f3f4ff;
+  border-color: #4F5BDF;
+}
+
+.trash-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.trash-filters__search {
+  flex: 1 1 220px;
+  min-width: 200px;
+}
+
+.trash-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.trash-action-btn--ghost {
+  background: #fff;
+  color: #333;
+  border: 1px solid #e6e6e6;
+}
+
+.trash-action-btn--ghost:hover:not(:disabled) {
+  background: #f8f9fa;
+}
+
+.trash-action-btn--primary {
+  background: #4F5BDF;
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+
+.trash-action-btn--primary:hover:not(:disabled) {
+  background: #3a45b2;
+}
+
+.trash-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.lk-btn--ghost {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: #333;
+.trash-action-btn__icon {
+  width: 16px;
+  height: 16px;
 }
 
-.lk-btn--danger {
-  background: #d73a3a;
+.trash-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
-.trash-bulk-actions {
+.trash-card__header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: var(--color-bg-secondary);
-  border-radius: 8px;
-  margin-bottom: 12px;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.trash-card__title {
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 600;
+  color: #000;
+}
+
+.trash-card__link {
+  background: none;
+  border: none;
+  color: #4F5BDF;
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 0;
+}
+
+.trash-card__link:hover {
+  text-decoration: underline;
+}
+
+.trash-card__spacer {
+  flex: 1;
+}
+
+.trash-card__body {
+  padding: 0;
+}
+
+.trash-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+  font-size: 0.95em;
+}
+
+.trash-state--error {
+  color: #d73a3a;
 }
 
 .trash-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 0.9em;
 }
 
 .trash-table th,
 .trash-table td {
-  padding: 8px 10px;
+  padding: 12px 16px;
   text-align: left;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .trash-table th {
-  background: var(--color-bg-secondary);
+  background: #fafafa;
+  font-weight: 500;
   color: #666;
-  font-weight: 600;
+  font-size: 0.85em;
 }
 
-.th-checkbox {
+.trash-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.trash-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.trash-table__th-checkbox {
   width: 40px;
 }
 
-.status-trash {
-  color: #d73a3a;
-  font-weight: 600;
+.trash-table__th-actions {
+  width: 50px;
 }
 
-.icon-btn {
-  background: none;
-  border: 0;
-  cursor: pointer;
-  font-size: 16px;
+.trash-table__app-number {
   color: #999;
 }
 
-.icon-btn.danger:hover {
+.trash-table__status {
   color: #d73a3a;
+  font-weight: 500;
 }
 
-.trash-empty,
-.trash-loader,
-.trash-error {
-  text-align: center;
-  padding: 60px 20px;
-  color: #888;
+.trash-table__actions {
+  text-align: right;
 }
 
-.trash-error {
-  color: #d73a3a;
+.trash-icon-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.trash-icon-btn:hover {
+  background: #f0f0f0;
+}
+
+.trash-icon-btn img {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 768px) {
+  .trash-view {
+    padding: 16px;
+  }
+
+  .trash-title {
+    font-size: 1.2em;
+  }
+
+  .trash-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trash-filters__search,
+  .trash-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .trash-table th:nth-child(n+4),
+  .trash-table td:nth-child(n+4) {
+    display: none;
+  }
 }
 </style>
