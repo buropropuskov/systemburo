@@ -214,13 +214,19 @@
                     >
                   </div>
                   <div class="mark__dropdown-list">
-                    <div 
-                      v-for="mark in filteredMarks" 
-                      :key="mark"
+                    <div
+                      v-for="mark in filteredMarks"
+                      :key="mark.id"
                       class="mark__dropdown-item"
                       @click="selectMark(mark)"
                     >
-                      <span class="mark__item-text">{{ mark }}</span>
+                      <span class="mark__item-text">{{ mark.name }}</span>
+                    </div>
+                    <div
+                      v-if="!filteredMarks.length"
+                      class="mark__dropdown-empty"
+                    >
+                      Марки не найдены
                     </div>
                   </div>
                 </div>
@@ -399,13 +405,10 @@ export default {
             isFormatDropdownOpen: false,
             isMarkByFact: false,
             selectedMark: '',
+            selectedMarkId: null,
             isMarkDropdownOpen: false,
             markSearch: '',
-            marks: [
-                'ВАЗ', 'Мерседес', 'БМВ', 'Газель', 'ГАЗ', 'Вольво', 'Тойота', 'Митсубиси',
-                'Ауди', 'Фольксваген', 'Шевроле', 'Хендай', 'Киа', 'Ниссан', 'Рено', 'Пежо',
-                'Ситроен', 'Форд', 'Опель', 'Шкода', 'Лада', 'УАЗ'
-            ],
+            marks: [],
             filteredMarks: [],
             allUnloadingPlaces: [],
             attachedUnloadingPlaces: [],
@@ -457,10 +460,9 @@ export default {
     async mounted() {
         await Promise.all([
             this.loadLicensePlateFormats(),
-            this.loadUnloadingPlaces()
+            this.loadUnloadingPlaces(),
+            this.loadMarks()
         ]);
-        
-        this.filteredMarks = this.marks;
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.format__dropdown')) {
@@ -744,10 +746,14 @@ export default {
             const plateNumber = this.isNumberByFact ? 'По факту' : this.numberParts.join(' ');
             
             const mark = this.isMarkByFact ? 'По факту' : this.selectedMark;
+            const markId = this.isMarkByFact ? null : (this.selectedMarkId || null);
+            const markName = this.isMarkByFact ? null : (this.selectedMark || null);
 
             const newVehicle = {
                 plateNumber: plateNumber,
                 mark: mark,
+                markId: markId,
+                markName: markName,
                 unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
                 formatId: this.selectedFormat ? this.selectedFormat.format.id : null,
@@ -767,21 +773,23 @@ export default {
         clearVehicleFormPartial() {
             this.initializeNumberParts();
             this.selectedMark = '';
+            this.selectedMarkId = null;
             this.isNumberByFact = false;
             this.isMarkByFact = false;
-            this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
+            this.activeCarInfo = null;
         },
-        
+
         clearVehicleForm() {
             this.initializeNumberParts();
             this.selectedMark = '';
+            this.selectedMarkId = null;
             this.selectedUnloadingPlaces = [];
             this.isNumberByFact = false;
             this.isMarkByFact = false;
             this.errors.unloadingPlaces = '';
             this.selectedExistingCars = [];
             this.editingVehicle = null;
-            this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
+            this.activeCarInfo = null;
         },
 
         openExistingCarsModal() {
@@ -812,6 +820,8 @@ export default {
             const vehicles = this.selectedExistingCars.map(car => ({
                 plateNumber: car.number,
                 mark: car.mark,
+                markId: car.mark_id || null,
+                markName: car.mark_name || car.mark || null,
                 unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
                 formatId: car.format_id,
@@ -832,12 +842,28 @@ export default {
             this.selectedExistingCars = [];
             this.activeCarInfo = null; // Сбрасываем информацию об активной заявке
             
+            const restoreMarkSelection = () => {
+                if (vehicle.mark === 'По факту') {
+                    this.isMarkByFact = true;
+                    this.selectedMark = '';
+                    this.selectedMarkId = null;
+                } else {
+                    this.isMarkByFact = false;
+                    this.selectedMark = vehicle.mark || '';
+                    if (vehicle.markId) {
+                        this.selectedMarkId = vehicle.markId;
+                    } else {
+                        const match = this.marks.find(m => m.name === vehicle.mark);
+                        this.selectedMarkId = match ? match.id : null;
+                    }
+                }
+            };
+
             if (vehicle.isExisting) {
-                this.selectedMark = vehicle.mark;
-                this.isMarkByFact = vehicle.mark === 'По факту';
+                restoreMarkSelection();
                 this.isNumberByFact = vehicle.plateNumber === 'По факту';
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
-                
+
                 if (vehicle.formatId) {
                     const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
                     if (format) {
@@ -855,14 +881,9 @@ export default {
                         this.numberParts = vehicle.plateNumber.split(' ');
                     }
                 }
-                
-                if (vehicle.mark === 'По факту') {
-                    this.isMarkByFact = true;
-                } else {
-                    this.isMarkByFact = false;
-                    this.selectedMark = vehicle.mark;
-                }
-                
+
+                restoreMarkSelection();
+
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
             }
         },
@@ -880,23 +901,39 @@ export default {
             }
         },
         
+        async loadMarks() {
+            try {
+                const { listMarks } = await import('@/api/marks');
+                const res = await listMarks();
+                const arr = Array.isArray(res) ? res : (res?.marks || []);
+                this.marks = arr
+                    .filter(m => m.is_active !== false)
+                    .map(m => ({ id: m.id, name: m.name }));
+                this.filteredMarks = this.marks;
+            } catch (err) {
+                console.error('Не удалось загрузить справочник марок', err);
+                this.marks = [];
+                this.filteredMarks = [];
+            }
+        },
+
         filterMarks() {
             if (!this.markSearch) {
                 this.filteredMarks = this.marks;
             } else {
                 const searchTerm = this.markSearch.toLowerCase();
-                this.filteredMarks = this.marks.filter(mark => 
-                    mark.toLowerCase().includes(searchTerm)
+                this.filteredMarks = this.marks.filter(mark =>
+                    mark.name.toLowerCase().includes(searchTerm)
                 );
             }
         },
-        
+
         selectMark(mark) {
-            this.selectedMark = mark;
+            this.selectedMark = mark.name;
+            this.selectedMarkId = mark.id;
             this.isMarkDropdownOpen = false;
             this.markSearch = '';
 
-            // Проверяем активность после выбора марки
             this.checkVehicleActive();
         },
         
