@@ -112,18 +112,18 @@
         />
       </div>
       <div class="filters__options">
-        <img
-          src="@/assets/icons/trashcan.png"
-          class="options__icon"
-          @click="clearFilters"
-        >
         <RouterLink
           :to="`/table/${$route.params.tableName}/trash`"
           class="options__trash-link"
           title="Корзина таблицы"
           data-testid="table-trash-link"
+          aria-label="Корзина таблицы"
         >
-          Корзина
+          <img
+            src="@/assets/icons/trashcan.png"
+            class="options__icon"
+            alt=""
+          >
         </RouterLink>
         <button class="options__export">
           <img
@@ -568,6 +568,7 @@ export default {
     gap: 10px;
     position: relative;
 }
+
 
 .field {
     width: 200px;
