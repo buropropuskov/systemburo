@@ -26,6 +26,20 @@
       </div>
     </div>
 
+    <div
+      v-if="attachment.custom_values && attachment.custom_values.length"
+      class="custom-values-section"
+    >
+      <div
+        v-for="cv in attachment.custom_values"
+        :key="cv.field_id"
+        class="custom-value-row"
+      >
+        <span class="custom-value-label">{{ cv.label }}:</span>
+        <span class="custom-value-text">{{ cv.value }}</span>
+      </div>
+    </div>
+
     <div class="attachment-data-section">
       <div class="attachment-data">
         <!-- Автомобили -->
@@ -333,6 +347,31 @@ export default {
 }
 
 .date-value, .time-value {
+    color: #000;
+    font-weight: 400;
+    font-size: 15px;
+}
+
+.custom-values-section {
+    padding: 15px;
+    border-bottom: 1px solid #e6e6e6;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.custom-value-row {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+}
+
+.custom-value-label {
+    color: #a2a2a2;
+    font-weight: 400;
+}
+
+.custom-value-text {
     color: #000;
     font-weight: 400;
     font-size: 15px;

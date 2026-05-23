@@ -113,15 +113,16 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
-                  }" 
+                  }"
                 >
               </div>
+              <div class="header-col actions-col" />
             </div>
           </div>
           
@@ -169,12 +170,22 @@
                         </span>
                       </div>
                       <div class="application-col status-col">
-                        <span 
+                        <span
                           class="status-badge"
                           :class="getStatusClass(application.status)"
                         >
                           {{ application.status }}
                         </span>
+                      </div>
+                      <div class="application-col actions-col">
+                        <button
+                          v-if="application.has_blank_template"
+                          class="download-btn"
+                          title="Скачать"
+                          @click.stop="downloadApplication(application)"
+                        >
+                          Скачать
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -199,9 +210,8 @@
       </div>
     </div>
 
-    <!-- Модальное окно деталей заявки (рендерится вне текущего компонента через портал) -->
     <teleport to="body">
-      <ApplicationDetail 
+      <ApplicationDetail
         v-if="showDetailModal"
         :application="selectedApplication"
         :current-user-id="currentUserId"
@@ -209,6 +219,11 @@
         :mode="'user'"
         @close="closeApplicationDetail"
         @duplicate="handleDuplicate"
+      />
+      <DownloadBlanksModal
+        v-if="showDownloadModal && downloadAppId"
+        :application-id="downloadAppId"
+        @close="showDownloadModal = false"
       />
     </teleport>
   </div>
@@ -220,6 +235,7 @@ import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
+import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 
 export default {
@@ -227,6 +243,7 @@ export default {
     RefreshButton,
     SearchComponent,
     ApplicationDetail,
+    DownloadBlanksModal,
     LoaderSpinner
   },
   props: {
@@ -255,7 +272,9 @@ export default {
       isLoading: false,
       currentFilter: 'my',
       currentUserId: null,
-      currentUserName: ''
+      currentUserName: '',
+      showDownloadModal: false,
+      downloadAppId: null
     };
   },
   computed: {
@@ -516,8 +535,12 @@ export default {
 
     handleDuplicate(application) {
       console.log('Дублирование заявки из UserApplications:', application.application_number);
-      // Здесь будет логика дублирования заявки
       this.showNotification('Функция дублирования пока не реализована', 'error');
+    },
+
+    downloadApplication(application) {
+      this.downloadAppId = application.id;
+      this.showDownloadModal = true;
     },
 
     sortBy(field) {
@@ -779,9 +802,44 @@ export default {
 }
 
 .status-col {
-  flex: 1; /* Статус */
- min-width: 180px;
+  flex: 1;
+  min-width: 180px;
   max-width: 180px;
+}
+
+.actions-col {
+  flex: 0 0 100px;
+  min-width: 100px;
+  max-width: 100px;
+  justify-content: flex-end;
+  cursor: default;
+}
+
+.header-col.actions-col:hover {
+  color: #a2a2a2;
+}
+
+.download-btn {
+  height: 25px;
+  background-color: #fff;
+  color: #000;
+  border-radius: 50px;
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.download-btn:hover {
+  background-color: #f5f5f5;
+  border-color: #d0d0d0;
 }
 
 /* Тело таблицы */
@@ -1169,6 +1227,11 @@ export default {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .header-col.actions-col,
+  .application-col.actions-col {
+    display: none;
   }
 }
 

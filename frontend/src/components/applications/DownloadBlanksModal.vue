@@ -77,9 +77,7 @@ export default {
   },
   computed: {
     eligibleAttachments() {
-      // На бэке нет флага has_template в Attachment - показываем все, при
-      // скачивании 404/400 если шаблона нет (ошибка в toast).
-      return this.attachments;
+      return this.attachments.filter(att => att.has_template);
     },
   },
   mounted() {
