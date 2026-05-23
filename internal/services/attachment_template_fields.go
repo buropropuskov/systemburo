@@ -47,8 +47,10 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 			Fields: []TemplateField{
 				{Path: "attachment.entry_date_from", Label: "Дата с"},
 				{Path: "attachment.entry_date_to", Label: "Дата по"},
+				{Path: "attachment.entry_date_range", Label: "Период действия (дата с - дата по)"},
 				{Path: "attachment.entry_time_from", Label: "Время с"},
 				{Path: "attachment.entry_time_to", Label: "Время по"},
+				{Path: "attachment.entry_time_range", Label: "Время пребывания (с - по)"},
 			},
 		},
 		{
@@ -75,6 +77,8 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "employee.position", Label: "Должность", IsList: true},
 				{Path: "employee.citizenship", Label: "Гражданство", IsList: true},
 				{Path: "employee.passport_series_number", Label: "Серия и номер паспорта", IsList: true},
+				{Path: "employee.patent_number", Label: "Номер патента", IsList: true},
+				{Path: "employee.other_permission", Label: "Иное разрешение на работы", IsList: true},
 			},
 		},
 		{

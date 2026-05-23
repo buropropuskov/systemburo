@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -44,8 +45,9 @@ func (h *AttachmentBlankHandler) Download(c echo.Context) error {
 	}
 	c.Response().Header().Set("Content-Type",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	encoded := url.PathEscape(filename)
 	c.Response().Header().Set("Content-Disposition",
-		`attachment; filename="`+sanitizeHeader(filename)+`"`)
+		`attachment; filename="blank.xlsx"; filename*=UTF-8''`+encoded)
 	return c.Stream(http.StatusOK,
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reader)
 }
