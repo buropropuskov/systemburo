@@ -98,45 +98,63 @@
     </div>
 
     <!-- Add / Edit modal -->
-    <div
-      v-if="modalMode"
-      class="modal-overlay"
-      data-testid="marks-modal"
-      @click.self="closeModal"
-    >
-      <div class="modal-content">
-        <h3 class="modal-title">
-          {{ modalMode === 'add' ? 'Новая марка' : 'Переименование марки' }}
-        </h3>
-        <input
-          v-model.trim="form.name"
-          type="text"
-          placeholder="Например, Toyota"
-          maxlength="100"
-          class="lk-input"
-          data-testid="marks-input-name"
-          @keyup.enter="onSubmit"
-        >
-        <div v-if="error" class="form-error">{{ error }}</div>
-        <div class="modal-actions">
-          <button
-            class="lk-btn lk-btn--ghost"
-            data-testid="marks-modal-cancel"
-            @click="closeModal"
-          >
-            Отмена
-          </button>
-          <button
-            class="lk-btn"
-            :disabled="!form.name || isSubmitting"
-            data-testid="marks-modal-save"
-            @click="onSubmit"
-          >
-            {{ modalMode === 'add' ? 'Создать' : 'Сохранить' }}
-          </button>
+    <Teleport to="body">
+      <div
+        v-if="modalMode"
+        class="modal-overlay"
+        data-testid="marks-modal"
+        @click.self="closeModal"
+      >
+        <div class="modal-content small-modal">
+          <div class="modal-header">
+            <h3>{{ modalMode === 'add' ? 'Новая марка' : 'Переименование марки' }}</h3>
+            <button
+              class="modal-close"
+              data-testid="marks-modal-close"
+              @click="closeModal"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Название марки</label>
+              <input
+                v-model.trim="form.name"
+                type="text"
+                placeholder="Например, Toyota"
+                maxlength="100"
+                class="form-input"
+                data-testid="marks-input-name"
+                @keyup.enter="onSubmit"
+              >
+            </div>
+            <div v-if="error" class="form-error">
+              {{ error }}
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button
+              class="modal-cancel"
+              data-testid="marks-modal-cancel"
+              @click="closeModal"
+            >
+              Отмена
+            </button>
+            <button
+              class="modal-confirm"
+              :disabled="!form.name || isSubmitting"
+              data-testid="marks-modal-save"
+              @click="onSubmit"
+            >
+              {{ modalMode === 'add' ? 'Добавить' : 'Сохранить' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <MarkHistoryModal
       v-if="historyForMark"
@@ -365,68 +383,171 @@ export default {
   padding: 30px 0;
 }
 
+.add-header-button {
+  padding: 8px 16px;
+  background: #4F5BDF;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.add-header-button:hover {
+  background: #3a45b2;
+}
+
 .modal-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
+}
+
+.small-modal {
+  max-width: 400px;
 }
 
 .modal-content {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  width: 400px;
-  max-width: 90vw;
-}
-
-.modal-title {
-  margin: 0 0 16px;
-  font-size: 18px;
-}
-
-.lk-input {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #fff;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #000;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.85em;
+  color: #666;
+  font-weight: 500;
+}
+
+.form-input {
+  padding: 8px 12px;
+  border: 1px solid #e6e6e6;
   border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 12px;
+  font-size: 0.9em;
+  transition: border-color 0.2s;
+  background: #fff;
+  width: 100%;
+  height: 35px;
+}
+
+.form-input:focus {
+  border-color: #4F5BDF;
+  outline: none;
 }
 
 .form-error {
   color: #d73a3a;
-  font-size: 13px;
-  margin-bottom: 8px;
+  font-size: 0.85em;
 }
 
-.modal-actions {
+.modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid #e6e6e6;
+  background: #fff;
 }
 
-.lk-btn {
+.modal-cancel {
   padding: 8px 16px;
-  border-radius: 8px;
-  border: 0;
-  background: var(--color-primary);
-  color: #fff;
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
   cursor: pointer;
+  font-size: 0.85em;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-.lk-btn:disabled {
+.modal-cancel:hover {
+  background: #e9ecef;
+}
+
+.modal-confirm {
+  padding: 8px 16px;
+  background: #4F5BDF;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.modal-confirm:hover {
+  background: #3a45b2;
+}
+
+.modal-confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.lk-btn--ghost {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: #333;
 }
 </style>

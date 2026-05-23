@@ -1518,6 +1518,8 @@ export default {
                             const vehicleData = {
                                 number: vehicle.plateNumber,
                                 mark: vehicle.mark,
+                                mark_id: vehicle.markId || null,
+                                mark_name: vehicle.markName || vehicle.mark || null,
                                 user_id: null,
                                 organization_id: bindingData.vehicles.bindToOrganization ? this.organizationId : null,
                                 company_id: bindingData.vehicles.bindToCompany ? this.companyId : null,
@@ -1661,6 +1663,8 @@ export default {
                         attachmentData.data.vehicles = vehicles.map(vehicle => ({
                             car_number: vehicle.plateNumber,
                             car_brand: vehicle.mark,
+                            mark_id: vehicle.markId || null,
+                            mark_name: vehicle.markName || vehicle.mark || null,
                             unload_place: vehicle.unloadingPlace,
                             unload_places: vehicle.unloadPlaces || []
                         }));

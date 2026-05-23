@@ -455,13 +455,19 @@
                             >
                           </div>
                           <div class="mark__dropdown-list">
-                            <div 
-                              v-for="mark in filteredMarks" 
-                              :key="mark"
+                            <div
+                              v-for="mark in filteredMarks"
+                              :key="mark.id"
                               class="mark__dropdown-item"
                               @click="selectMark(mark)"
                             >
-                              <span class="mark__item-text">{{ mark }}</span>
+                              <span class="mark__item-text">{{ mark.name }}</span>
+                            </div>
+                            <div
+                              v-if="!filteredMarks.length"
+                              class="mark__dropdown-empty"
+                            >
+                              Марки не найдены
                             </div>
                           </div>
                         </div>
@@ -581,13 +587,10 @@ export default {
             
             // Марка
             selectedMark: '',
+            selectedMarkId: null,
             isMarkDropdownOpen: false,
             markSearch: '',
-            marks: [
-                'ВАЗ', 'Мерседес', 'БМВ', 'Газель', 'ГАЗ', 'Вольво', 'Тойота', 'Митсубиси',
-                'Ауди', 'Фольксваген', 'Шевроле', 'Хендай', 'Киа', 'Ниссан', 'Рено', 'Пежо',
-                'Ситроен', 'Форд', 'Опель', 'Шкода', 'Лада', 'УАЗ'
-            ],
+            marks: [],
             filteredMarks: [],
             
             // Привязка
@@ -726,7 +729,8 @@ export default {
     async mounted() {
         await Promise.all([
             this.fetchOwnershipInfo(),
-            this.fetchFormats()
+            this.fetchFormats(),
+            this.loadMarks()
         ]);
         await this.fetchCars();
         
@@ -1145,19 +1149,36 @@ export default {
             }
         },
 
+        async loadMarks() {
+            try {
+                const { listMarks } = await import('@/api/marks');
+                const res = await listMarks();
+                const arr = Array.isArray(res) ? res : (res?.marks || []);
+                this.marks = arr
+                    .filter(m => m.is_active !== false)
+                    .map(m => ({ id: m.id, name: m.name }));
+                this.filteredMarks = this.marks;
+            } catch (err) {
+                console.error('Не удалось загрузить справочник марок', err);
+                this.marks = [];
+                this.filteredMarks = [];
+            }
+        },
+
         filterMarks() {
             if (!this.markSearch) {
                 this.filteredMarks = this.marks;
             } else {
                 const searchTerm = this.markSearch.toLowerCase();
-                this.filteredMarks = this.marks.filter(mark => 
-                    mark.toLowerCase().includes(searchTerm)
+                this.filteredMarks = this.marks.filter(mark =>
+                    mark.name.toLowerCase().includes(searchTerm)
                 );
             }
         },
 
         selectMark(mark) {
-            this.selectedMark = mark;
+            this.selectedMark = mark.name;
+            this.selectedMarkId = mark.id;
             this.isMarkDropdownOpen = false;
             this.markSearch = '';
         },
