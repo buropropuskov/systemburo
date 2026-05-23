@@ -155,15 +155,16 @@ type CompleteApplicationRequest struct {
 
 // AttachmentData данные вложения при создании заявки.
 type AttachmentData struct {
-	AttachmentType        string                `json:"attachment_type"`
-	AttachmentName        string                `json:"attachment_name"`
-	AttachmentDisplayName string                `json:"attachment_display_name"`
-	UniqueAttachmentID    int                   `json:"unique_attachment_id"`
-	EntryDateFrom         *string               `json:"entry_date_from"`
-	EntryDateTo           *string               `json:"entry_date_to"`
-	EntryTimeFrom         *string               `json:"entry_time_from"`
-	EntryTimeTo           *string               `json:"entry_time_to"`
-	Data                  AttachmentContentData `json:"data"`
+	AttachmentType        string                     `json:"attachment_type"`
+	AttachmentName        string                     `json:"attachment_name"`
+	AttachmentDisplayName string                     `json:"attachment_display_name"`
+	UniqueAttachmentID    int                        `json:"unique_attachment_id"`
+	EntryDateFrom         *string                    `json:"entry_date_from"`
+	EntryDateTo           *string                    `json:"entry_date_to"`
+	EntryTimeFrom         *string                    `json:"entry_time_from"`
+	EntryTimeTo           *string                    `json:"entry_time_to"`
+	Data                  AttachmentContentData      `json:"data"`
+	CustomValues          *[]models.CustomValueInput `json:"custom_values,omitempty"`
 }
 
 // AttachmentContentData содержимое вложения: машины, сотрудники или ТМЦ.
@@ -287,6 +288,7 @@ type ApplicationWithDetails struct {
 	ResponsibleName      string     `json:"responsible_name"`
 	ResponsibleComment   *string    `json:"responsible_comment"`
 	DataApproval         bool       `json:"data_approval"`
+	HasBlankTemplate     bool       `json:"has_blank_template"`
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
@@ -384,7 +386,16 @@ type AttachmentInfo struct {
 	CreatedAt                   *time.Time `json:"created_at"`
 	UniqueAttachmentID          *int       `json:"unique_attachment_id"`
 	UniqueAttachmentTitle       *string    `json:"unique_attachment_title"`
-	UniqueAttachmentDisplayName *string    `json:"unique_attachment_display_name"`
+	UniqueAttachmentDisplayName *string             `json:"unique_attachment_display_name"`
+	HasTemplate                 bool                `json:"has_template"`
+	CustomValues                []CustomValueDetail `json:"custom_values,omitempty"`
+}
+
+// CustomValueDetail значение кастомного поля для отображения.
+type CustomValueDetail struct {
+	FieldID   int    `json:"field_id"`
+	Label     string `json:"label"`
+	Value     string `json:"value"`
 }
 
 // CarWithPlaces автомобиль с привязанными местами разгрузки.
@@ -481,7 +492,8 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
-			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id WHERE att.application_id = a.id) as has_blank_template
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -543,7 +555,8 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
-			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id WHERE att.application_id = a.id) as has_blank_template
 		`).
 		Order("a.sending_datetime DESC").
 		Offset(offset).
@@ -572,7 +585,8 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
-			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
+			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id WHERE att.application_id = a.id) as has_blank_template
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -1164,6 +1178,22 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		default:
 			tx.Rollback()
 			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment type")
+		}
+
+		if att.CustomValues != nil {
+			for _, cv := range *att.CustomValues {
+				if cv.Value == "" {
+					continue
+				}
+				if err := tx.Create(&models.AttachmentCustomValue{
+					AttachmentID:  attID,
+					CustomFieldID: cv.CustomFieldID,
+					Value:         cv.Value,
+				}).Error; err != nil {
+					tx.Rollback()
+					return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error saving custom field value")
+				}
+			}
 		}
 	}
 

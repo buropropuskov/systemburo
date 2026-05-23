@@ -1,7 +1,7 @@
 <template>
   <section class="template-editor">
     <header class="te-header">
-      <h3>Excel-бланк (#183)</h3>
+      <h3>Excel-бланк</h3>
       <label class="te-toggle">
         <input
           type="checkbox"

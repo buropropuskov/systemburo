@@ -53,7 +53,8 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 			a.created_at,
 			a.unique_attachment_id,
 			ua.title as unique_attachment_title,
-			ua.display_name as unique_attachment_display_name
+			ua.display_name as unique_attachment_display_name,
+			EXISTS (SELECT 1 FROM attachment_templates at2 WHERE at2.unique_attachment_id = a.unique_attachment_id) as has_template
 		FROM attachments a
 		LEFT JOIN unique_attachments ua ON a.unique_attachment_id = ua.id
 		WHERE a.application_id = ?
@@ -63,6 +64,39 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 	if err != nil {
 		slog.Error("Ошибка получения вложений", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachments")
+	}
+
+	if len(attachments) > 0 {
+		attIDs := make([]int, len(attachments))
+		for i, a := range attachments {
+			attIDs[i] = a.ID
+		}
+		type cvRow struct {
+			AttachmentID int    `gorm:"column:attachment_id"`
+			FieldID      int    `gorm:"column:field_id"`
+			Label        string `gorm:"column:label"`
+			Value        string `gorm:"column:value"`
+		}
+		var cvRows []cvRow
+		s.db.WithContext(ctx).Raw(`
+			SELECT acv.attachment_id, acf.id as field_id, acf.label, acv.value
+			FROM attachment_custom_values acv
+			JOIN attachment_custom_fields acf ON acv.custom_field_id = acf.id
+			WHERE acv.attachment_id IN ?
+			ORDER BY acf.sort_order, acf.id
+		`, attIDs).Scan(&cvRows)
+
+		cvMap := map[int][]CustomValueDetail{}
+		for _, r := range cvRows {
+			cvMap[r.AttachmentID] = append(cvMap[r.AttachmentID], CustomValueDetail{
+				FieldID: r.FieldID,
+				Label:   r.Label,
+				Value:   r.Value,
+			})
+		}
+		for i := range attachments {
+			attachments[i].CustomValues = cvMap[attachments[i].ID]
+		}
 	}
 
 	return attachments, nil

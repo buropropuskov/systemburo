@@ -58,13 +58,11 @@ func (s *attachmentTemplateService) Get(ctx context.Context, uaID int) (*models.
 }
 
 func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *multipart.FileHeader, req models.CreateTemplateRequest, userID int) (*models.AttachmentTemplate, error) {
-	// Проверяем что UniqueAttachment существует.
 	var ua models.UniqueAttachment
 	if err := s.db.WithContext(ctx).First(&ua, uaID).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
 	}
 
-	// Сохраняем файл в uploads/templates/<uaID>.xlsx (перезаписывает существующий).
 	dir := filepath.Join(s.uploadPath, "templates")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось создать директорию шаблонов")
@@ -73,11 +71,6 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 	if err := saveMultipartFile(file, dst); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить файл")
 	}
-
-	// Удаляем старую запись (вместе с mappings через cascade нет - сделаем явно).
-	s.db.WithContext(ctx).Where("template_id IN (SELECT id FROM attachment_templates WHERE unique_attachment_id = ?)", uaID).
-		Delete(&models.AttachmentTemplateMapping{})
-	s.db.WithContext(ctx).Where("unique_attachment_id = ?", uaID).Delete(&models.AttachmentTemplate{})
 
 	t := models.AttachmentTemplate{
 		UniqueAttachmentID: uaID,
@@ -91,7 +84,20 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 	if t.MaxListRows == 0 && t.ListStartRow > 0 && t.ListEndRow >= t.ListStartRow {
 		t.MaxListRows = t.ListEndRow - t.ListStartRow + 1
 	}
-	if err := s.db.WithContext(ctx).Create(&t).Error; err != nil {
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("template_id IN (SELECT id FROM attachment_templates WHERE unique_attachment_id = ?)", uaID).
+			Delete(&models.AttachmentTemplateMapping{}).Error; err != nil {
+			return fmt.Errorf("failed to delete old mappings: %w", err)
+		}
+		if err := tx.Where("unique_attachment_id = ?", uaID).
+			Delete(&models.AttachmentTemplate{}).Error; err != nil {
+			return fmt.Errorf("failed to delete old template: %w", err)
+		}
+		return tx.Create(&t).Error
+	})
+	if err != nil {
+		_ = os.Remove(dst)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить шаблон")
 	}
 	return &t, nil

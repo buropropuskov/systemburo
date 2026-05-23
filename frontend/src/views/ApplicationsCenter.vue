@@ -308,8 +308,9 @@
                   </span>
                 </div>
                 <div class="application-col actions-col">
-                  <button 
-                    class="download-btn" 
+                  <button
+                    v-if="application.has_blank_template"
+                    class="download-btn"
                     title="Скачать"
                     @click.stop="downloadApplication(application)"
                   >
