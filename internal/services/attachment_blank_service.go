@@ -70,7 +70,7 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	var template models.AttachmentTemplate
 	if err := s.db.WithContext(ctx).
 		Preload("Mappings").
-		Where("unique_attachment_id = ?", *att.UniqueAttachmentID).
+		Where("unique_attachment_id = ? AND is_active = ?", *att.UniqueAttachmentID, true).
 		First(&template).Error; err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusNotFound, "Шаблон бланка не настроен")
 	}

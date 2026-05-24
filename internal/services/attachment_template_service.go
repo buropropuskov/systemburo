@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -22,9 +22,13 @@ import (
 // (будет реализована в следующем PR).
 type AttachmentTemplateService interface {
 	Get(ctx context.Context, uniqueAttachmentID int) (*models.AttachmentTemplate, error)
+	ListTemplates(ctx context.Context, uniqueAttachmentID int) ([]models.AttachmentTemplate, error)
 	Upload(ctx context.Context, uniqueAttachmentID int, file *multipart.FileHeader, req models.CreateTemplateRequest, userID int) (*models.AttachmentTemplate, error)
 	UpdateMappings(ctx context.Context, uniqueAttachmentID int, req models.UpdateMappingsRequest) error
 	Delete(ctx context.Context, uniqueAttachmentID int) error
+	DeleteByID(ctx context.Context, templateID int) error
+	SetActive(ctx context.Context, uniqueAttachmentID int, templateID int) error
+	GetByID(ctx context.Context, templateID int) (*models.AttachmentTemplate, error)
 	// Custom fields
 	ListCustomFields(ctx context.Context, uniqueAttachmentID int) ([]models.AttachmentCustomField, error)
 	CreateCustomField(ctx context.Context, uniqueAttachmentID int, req models.CreateCustomFieldRequest) (*models.AttachmentCustomField, error)
@@ -46,7 +50,7 @@ func (s *attachmentTemplateService) Get(ctx context.Context, uaID int) (*models.
 	var t models.AttachmentTemplate
 	err := s.db.WithContext(ctx).
 		Preload("Mappings").
-		Where("unique_attachment_id = ?", uaID).
+		Where("unique_attachment_id = ? AND is_active = ?", uaID, true).
 		First(&t).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,6 +59,31 @@ func (s *attachmentTemplateService) Get(ctx context.Context, uaID int) (*models.
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения шаблона")
 	}
 	return &t, nil
+}
+
+func (s *attachmentTemplateService) GetByID(ctx context.Context, templateID int) (*models.AttachmentTemplate, error) {
+	var t models.AttachmentTemplate
+	err := s.db.WithContext(ctx).Preload("Mappings").First(&t, templateID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Шаблон не найден")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения шаблона")
+	}
+	return &t, nil
+}
+
+func (s *attachmentTemplateService) ListTemplates(ctx context.Context, uaID int) ([]models.AttachmentTemplate, error) {
+	var templates []models.AttachmentTemplate
+	err := s.db.WithContext(ctx).
+		Preload("Mappings").
+		Where("unique_attachment_id = ?", uaID).
+		Order("created_at DESC").
+		Find(&templates).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения шаблонов")
+	}
+	return templates, nil
 }
 
 func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *multipart.FileHeader, req models.CreateTemplateRequest, userID int) (*models.AttachmentTemplate, error) {
@@ -67,13 +96,14 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось создать директорию шаблонов")
 	}
-	dst := filepath.Join(dir, strconv.Itoa(uaID)+".xlsx")
+	dst := filepath.Join(dir, fmt.Sprintf("%d_%d.xlsx", uaID, time.Now().UnixMilli()))
 	if err := saveMultipartFile(file, dst); err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить файл")
 	}
 
 	t := models.AttachmentTemplate{
 		UniqueAttachmentID: uaID,
+		IsActive:           true,
 		FilePath:           dst,
 		OriginalFileName:   file.Filename,
 		ListStartRow:       req.ListStartRow,
@@ -86,13 +116,10 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("template_id IN (SELECT id FROM attachment_templates WHERE unique_attachment_id = ?)", uaID).
-			Delete(&models.AttachmentTemplateMapping{}).Error; err != nil {
-			return fmt.Errorf("failed to delete old mappings: %w", err)
-		}
-		if err := tx.Where("unique_attachment_id = ?", uaID).
-			Delete(&models.AttachmentTemplate{}).Error; err != nil {
-			return fmt.Errorf("failed to delete old template: %w", err)
+		if err := tx.Model(&models.AttachmentTemplate{}).
+			Where("unique_attachment_id = ? AND is_active = ?", uaID, true).
+			Update("is_active", false).Error; err != nil {
+			return fmt.Errorf("failed to deactivate old templates: %w", err)
 		}
 		return tx.Create(&t).Error
 	})
@@ -105,7 +132,7 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 
 func (s *attachmentTemplateService) UpdateMappings(ctx context.Context, uaID int, req models.UpdateMappingsRequest) error {
 	var t models.AttachmentTemplate
-	if err := s.db.WithContext(ctx).Where("unique_attachment_id = ?", uaID).First(&t).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&t).Error; err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "Шаблон не настроен")
 	}
 
@@ -147,18 +174,61 @@ func (s *attachmentTemplateService) UpdateMappings(ctx context.Context, uaID int
 
 func (s *attachmentTemplateService) Delete(ctx context.Context, uaID int) error {
 	var t models.AttachmentTemplate
-	if err := s.db.WithContext(ctx).Where("unique_attachment_id = ?", uaID).First(&t).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&t).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка")
 	}
+	return s.deleteTemplate(ctx, &t)
+}
+
+func (s *attachmentTemplateService) DeleteByID(ctx context.Context, templateID int) error {
+	var t models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).First(&t, templateID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Шаблон не найден")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка")
+	}
+	wasActive := t.IsActive
+	if err := s.deleteTemplate(ctx, &t); err != nil {
+		return err
+	}
+	if wasActive {
+		var next models.AttachmentTemplate
+		if err := s.db.WithContext(ctx).
+			Where("unique_attachment_id = ?", t.UniqueAttachmentID).
+			Order("created_at DESC").
+			First(&next).Error; err == nil {
+			s.db.WithContext(ctx).Model(&next).Update("is_active", true)
+		}
+	}
+	return nil
+}
+
+func (s *attachmentTemplateService) deleteTemplate(ctx context.Context, t *models.AttachmentTemplate) error {
 	_ = os.Remove(t.FilePath)
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("template_id = ?", t.ID).Delete(&models.AttachmentTemplateMapping{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&t).Error
+		return tx.Delete(t).Error
+	})
+}
+
+func (s *attachmentTemplateService) SetActive(ctx context.Context, uaID int, templateID int) error {
+	var t models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).Where("id = ? AND unique_attachment_id = ?", templateID, uaID).First(&t).Error; err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Шаблон не найден")
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.AttachmentTemplate{}).
+			Where("unique_attachment_id = ? AND is_active = ?", uaID, true).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
+		return tx.Model(&t).Update("is_active", true).Error
 	})
 }
 
