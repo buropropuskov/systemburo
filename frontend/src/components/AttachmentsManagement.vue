@@ -161,15 +161,22 @@
               </div>
             </div>
             <div class="details-header-actions">
-              <button 
+              <button
+                v-if="selectedAttachment.is_active"
+                class="action-btn excel-btn"
+                @click="showTemplateEditor = true"
+              >
+                Excel-бланк
+              </button>
+              <button
                 v-if="!selectedAttachment.is_active"
                 class="action-btn restore-btn"
                 @click="restoreAttachment(selectedAttachment)"
               >
                 Восстановить
               </button>
-              <button 
-                v-else
+              <button
+                v-if="selectedAttachment.is_active"
                 class="delete-icon-btn"
                 @click="confirmDeleteAttachment(selectedAttachment)"
               >
@@ -301,10 +308,12 @@
                 />
               </div>
 
-              <!-- Excel-бланк и кастомные поля (#183) -->
+              <!-- Excel-бланк (#183) -->
               <AttachmentTemplateEditor
                 v-if="selectedAttachment.is_active"
+                :show="showTemplateEditor"
                 :unique-attachment-id="selectedAttachment.id"
+                @close="showTemplateEditor = false"
               />
             </div>
           </div>
@@ -594,6 +603,7 @@ export default {
         type: 'info'
       },
       showArchive: false,
+      showTemplateEditor: false,
       duplicateCheck: {
         display_name: null,
         name: null,
@@ -972,6 +982,7 @@ export default {
     },
     
     selectAttachment(attachment) {
+      this.showTemplateEditor = false;
       this.selectedAttachment = JSON.parse(JSON.stringify(attachment));
       this.originalInstruction = attachment.instruction || '';
     },
@@ -1207,6 +1218,15 @@ export default {
   font-size: 0.85em;
   font-weight: 500;
   transition: all 0.2s ease;
+}
+
+.excel-btn {
+  background: var(--color-primary);
+  color: white;
+}
+
+.excel-btn:hover {
+  background: var(--color-primary-hover);
 }
 
 .restore-btn {
