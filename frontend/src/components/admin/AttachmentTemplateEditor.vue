@@ -31,22 +31,38 @@
       ref="modalBody"
       class="te-modal-body"
     >
-      <!-- Баннер перепривязки -->
-      <div
-        v-if="rebindingMode"
-        class="te-rebind-banner"
-      >
-        <span>
-          Перепривязка: <strong>{{ getFieldLabel(rebindMapping.field_path) }}</strong>
-          ({{ rebindMapping.old_cell_ref }}) - кликните на новую ячейку
-        </span>
-        <button
-          class="lk-button lk-button--ghost te-btn-sm"
-          @click="cancelRebind"
+      <!-- Баннер привязки/перепривязки -->
+      <transition name="te-banner-fade">
+        <div
+          v-if="rebindingMode"
+          class="te-action-banner te-action-banner--warning"
         >
-          Отмена
-        </button>
-      </div>
+          <span>
+            Перепривязка: <strong>{{ getFieldLabel(rebindMapping.field_path) }}</strong>
+            ({{ rebindMapping.old_cell_ref }}) - кликните на новую ячейку
+          </span>
+          <button
+            class="lk-button lk-button--ghost te-btn-sm"
+            @click="cancelRebind"
+          >
+            Отмена
+          </button>
+        </div>
+        <div
+          v-else-if="pendingFieldPath"
+          class="te-action-banner te-action-banner--info"
+        >
+          <span>
+            Привязка: <strong>{{ pendingFieldLabel }}</strong> - кликните на ячейку в документе
+          </span>
+          <button
+            class="lk-button lk-button--ghost te-btn-sm"
+            @click="pendingFieldPath = ''; pendingFieldLabel = ''"
+          >
+            Отмена
+          </button>
+        </div>
+      </transition>
 
       <!-- SVG линии поверх всего -->
       <svg
@@ -57,6 +73,15 @@
       >
         <path
           v-for="line in pathLines"
+          :key="line.id + '-hit'"
+          :d="line.d"
+          class="te-path-hitarea"
+          @mouseenter="onPathHover(line)"
+          @mouseleave="onPathLeave"
+          @click="onPathClick(line, $event)"
+        />
+        <path
+          v-for="line in pathLines"
           :key="line.id"
           :d="line.d"
           class="te-path-line"
@@ -65,9 +90,6 @@
             'te-path-highlighted': hoveredFieldPath === line.fieldPath,
           }"
           :style="{ stroke: line.color, opacity: line.opacity }"
-          @mouseenter="onPathHover(line)"
-          @mouseleave="onPathLeave"
-          @click="onPathClick(line, $event)"
         />
         <circle
           v-for="line in pathLines"
@@ -113,6 +135,7 @@
       <div
         ref="previewPanel"
         class="te-preview-panel"
+        @click="pathPopup = null; removePopupField = ''"
       >
         <XlsxViewer
           v-if="enabled && templateFileBuffer"
@@ -135,7 +158,93 @@
       <div
         ref="settingsPanel"
         class="te-settings-panel"
+        @click="onSettingsClick"
       >
+        <!-- Поля для привязки (в самом верху) -->
+        <div
+          v-if="enabled && template && template.file_path"
+          class="te-field-picker"
+        >
+          <div class="te-picker-header">
+            <h4>Поля</h4>
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="lk-input te-search-input"
+              placeholder="Поиск..."
+            >
+          </div>
+          <div
+            ref="fieldPickerScroll"
+            class="te-field-picker-scroll"
+          >
+            <div
+              v-for="g in filteredFieldGroups"
+              :key="g.group"
+              class="te-field-group"
+            >
+              <span class="te-field-group-label">{{ g.label }}</span>
+              <div class="te-field-chips">
+                <button
+                  v-for="f in g.fields"
+                  :key="f.path"
+                  :data-field-path="f.path"
+                  class="te-field-chip"
+                  :class="{
+                    active: pendingFieldPath === f.path,
+                    used: fieldPathUsed(f.path),
+                  }"
+                  :style="chipStyle(f.path)"
+                  @click="selectField(f)"
+                  @mouseenter="onChipHover(f.path)"
+                  @mouseleave="onChipHover('')"
+                >
+                  <span class="te-chip-label">{{ f.label }}</span>
+                  <span
+                    v-if="fieldPathUsed(f.path)"
+                    class="te-chip-ref"
+                  >
+                    {{ fieldCellRefs(f.path) }}
+                  </span>
+                  <span
+                    v-if="fieldPathUsed(f.path)"
+                    class="te-chip-remove"
+                    @click.stop="onChipRemoveClick(f.path)"
+                  >
+                    &times;
+                  </span>
+                  <div
+                    v-if="removePopupField === f.path"
+                    class="te-remove-popup"
+                    @click.stop
+                  >
+                    <div
+                      v-for="rm in fieldMappingEntries(f.path)"
+                      :key="rm.idx"
+                      class="te-remove-popup__item"
+                      @click="removeMapping(rm.idx); removePopupField = ''"
+                    >
+                      {{ rm.cell_ref }} <span class="te-remove-popup__x">&times;</span>
+                    </div>
+                    <div
+                      class="te-remove-popup__all"
+                      @click="removeMappingsByPath(f.path); removePopupField = ''"
+                    >
+                      Удалить все
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="filteredFieldGroups.length === 0"
+              class="te-no-results"
+            >
+              Поля не найдены
+            </div>
+          </div>
+        </div>
+
         <!-- Файл шаблона -->
         <div
           v-if="enabled"
@@ -263,116 +372,6 @@
               >
                 {{ uploading ? 'Загрузка...' : 'Загрузить' }}
               </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Поиск и фильтры -->
-        <div
-          v-if="enabled && template && template.file_path"
-          class="te-section te-section--compact"
-        >
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="lk-input te-compact-input"
-            placeholder="Поиск полей..."
-          >
-          <div class="te-category-filter">
-            <button
-              v-for="g in fieldGroups"
-              :key="g.group"
-              class="te-cat-btn"
-              :class="{ active: activeCategory === g.group }"
-              @click="activeCategory = activeCategory === g.group ? '' : g.group"
-            >
-              {{ g.label }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Поля для привязки -->
-        <div
-          v-if="enabled && template && template.file_path"
-          class="te-field-picker"
-        >
-          <div class="te-picker-header">
-            <h4>Поля</h4>
-            <span
-              v-if="pendingFieldPath"
-              class="te-pick-hint"
-            >
-              Кликните на ячейку
-            </span>
-          </div>
-          <div
-            ref="fieldPickerScroll"
-            class="te-field-picker-scroll"
-          >
-            <div
-              v-for="g in filteredFieldGroups"
-              :key="g.group"
-              class="te-field-group"
-            >
-              <span class="te-field-group-label">{{ g.label }}</span>
-              <div class="te-field-chips">
-                <button
-                  v-for="f in g.fields"
-                  :key="f.path"
-                  :data-field-path="f.path"
-                  class="te-field-chip"
-                  :class="{
-                    active: pendingFieldPath === f.path,
-                    used: fieldPathUsed(f.path),
-                  }"
-                  :style="chipStyle(f.path)"
-                  @click="selectField(f)"
-                  @mouseenter="onChipHover(f.path)"
-                  @mouseleave="onChipHover('')"
-                >
-                  <span class="te-chip-label">{{ f.label }}</span>
-                  <span
-                    v-if="fieldPathUsed(f.path)"
-                    class="te-chip-ref"
-                  >
-                    {{ fieldCellRefs(f.path) }}
-                  </span>
-                  <span
-                    v-if="fieldPathUsed(f.path)"
-                    class="te-chip-remove"
-                    @click.stop="onChipRemoveClick(f.path)"
-                  >
-                    &times;
-                  </span>
-                  <!-- Popup выбора привязки для удаления -->
-                  <div
-                    v-if="removePopupField === f.path"
-                    class="te-remove-popup"
-                    @click.stop
-                  >
-                    <div
-                      v-for="rm in fieldMappingEntries(f.path)"
-                      :key="rm.idx"
-                      class="te-remove-popup__item"
-                      @click="removeMapping(rm.idx); removePopupField = ''"
-                    >
-                      {{ rm.cell_ref }} <span class="te-remove-popup__x">&times;</span>
-                    </div>
-                    <div
-                      class="te-remove-popup__all"
-                      @click="removeMappingsByPath(f.path); removePopupField = ''"
-                    >
-                      Удалить все
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-            <div
-              v-if="filteredFieldGroups.length === 0"
-              class="te-no-results"
-            >
-              Поля не найдены
             </div>
           </div>
         </div>
@@ -564,6 +563,10 @@ export default {
     this.cleanupPathListeners();
   },
   methods: {
+    onSettingsClick() {
+      this.removePopupField = '';
+      this.pathPopup = null;
+    },
     resetState() {
       this.pendingFieldPath = '';
       this.pendingCellRef = '';
@@ -933,6 +936,18 @@ export default {
       });
 
       this.pathLines = lines;
+
+      if (this.pathPopup) {
+        const match = lines.find(
+          l => l.fieldPath === this.pathPopup.fieldPath && l.cellRef === this.pathPopup.cellRef
+        );
+        if (match) {
+          this.pathPopup.x = (match.x1 + match.x2) / 2;
+          this.pathPopup.y = (match.y1 + match.y2) / 2;
+        } else {
+          this.pathPopup = null;
+        }
+      }
     },
   },
 };
@@ -967,6 +982,7 @@ export default {
   position: relative;
   height: calc(92vh - 100px);
   min-height: 400px;
+  overflow: hidden;
 }
 
 .te-preview-panel {
@@ -980,6 +996,8 @@ export default {
   border: none;
   border-radius: 0;
   min-height: 100%;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .te-preview-empty {
@@ -1001,8 +1019,8 @@ export default {
   gap: 10px;
 }
 
-/* ---- Rebind banner ---- */
-.te-rebind-banner {
+/* ---- Action banner ---- */
+.te-action-banner {
   position: absolute;
   top: 0;
   left: 0;
@@ -1013,10 +1031,37 @@ export default {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 16px;
+  font-size: 13px;
+}
+
+.te-action-banner--warning {
   background: #fff3cd;
   border-bottom: 1px solid #ffc107;
-  font-size: 13px;
   color: #856404;
+}
+
+.te-action-banner--info {
+  background: #e8f4fd;
+  border-bottom: 1px solid var(--color-primary);
+  color: #1a4a7a;
+}
+
+.te-banner-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.te-banner-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.te-banner-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+.te-banner-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-100%);
 }
 
 /* ---- SVG paths ---- */
@@ -1028,7 +1073,7 @@ export default {
   height: 100%;
   pointer-events: none;
   z-index: 15;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .te-path-line {
@@ -1036,15 +1081,19 @@ export default {
   stroke-width: 1.5;
   pointer-events: stroke;
   cursor: pointer;
-  transition: opacity 0.25s ease, stroke-width 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 
-.te-path-line:hover {
-  stroke-width: 3;
+.te-path-hitarea {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
 }
 
 .te-path-line.te-path-highlighted {
-  stroke-width: 2.5;
+  filter: brightness(0.85);
 }
 
 .te-path-line.te-path-dimmed {
@@ -1080,8 +1129,8 @@ export default {
 /* ---- Sections ---- */
 .te-section {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  border-radius: 30px;
+  padding: 10px 16px;
   background: #fff;
 }
 
@@ -1279,6 +1328,12 @@ export default {
   color: var(--color-text);
 }
 
+.te-search-input {
+  width: 140px;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+}
+
 .te-pick-hint {
   font-size: 11px;
   color: var(--color-primary);
@@ -1294,8 +1349,8 @@ export default {
 .te-field-picker-scroll {
   overflow-y: auto;
   padding: 8px 10px;
-  height: 500px;
-  max-height: 500px;
+  min-height: 400px;
+  max-height: 600px;
 }
 
 .te-field-group {
