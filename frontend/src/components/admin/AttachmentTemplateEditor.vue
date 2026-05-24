@@ -16,13 +16,13 @@
             :model-value="enabled"
             @update:model-value="onToggleEnabled"
           >
-            Генерация
+            Генерация бланка
           </ToggleSwitch>
           <ToggleSwitch
             v-if="enabled && template && template.file_path"
             v-model="showPaths"
           >
-            Пути
+            Отображать пути
           </ToggleSwitch>
         </div>
       </div>
@@ -82,36 +82,33 @@
           @click="onPathClick(line, $event)"
         />
         <path
-          v-for="line in pathLines"
+          v-for="(line, idx) in pathLines"
           :key="line.id"
           :d="line.d"
           class="te-path-line"
-          :class="{
-            'te-path-dimmed': hoveredFieldPath && line.fieldPath !== hoveredFieldPath,
-            'te-path-highlighted': hoveredFieldPath === line.fieldPath,
-          }"
+          :class="pathLineClasses(line, idx)"
           :style="{ stroke: line.color, opacity: line.opacity }"
         />
         <circle
-          v-for="line in pathLines"
+          v-for="(line, idx) in pathLines"
           :key="line.id + '-dot-l'"
           :cx="line.x2"
           :cy="line.y2"
           r="3"
           :fill="line.color"
           class="te-path-dot"
-          :class="{ 'te-path-dimmed': hoveredFieldPath && line.fieldPath !== hoveredFieldPath }"
+          :class="pathDotClasses(line, idx)"
           :style="{ opacity: line.opacity }"
         />
         <circle
-          v-for="line in pathLines"
+          v-for="(line, idx) in pathLines"
           :key="line.id + '-dot-r'"
           :cx="line.x1"
           :cy="line.y1"
           r="3"
           :fill="line.color"
           class="te-path-dot"
-          :class="{ 'te-path-dimmed': hoveredFieldPath && line.fieldPath !== hoveredFieldPath }"
+          :class="pathDotClasses(line, idx)"
           :style="{ opacity: line.opacity }"
         />
         <!-- Кнопка удаления на пути -->
@@ -155,7 +152,7 @@
           v-else
           class="te-preview-empty"
         >
-          <span>Загрузите .xlsx файл для предпросмотра</span>
+          <span>Загрузите шаблон .xlsx для настройки генерации бланка</span>
         </div>
       </div>
 
@@ -171,7 +168,7 @@
           class="te-field-picker"
         >
           <div class="te-picker-header">
-            <h4>Поля</h4>
+            <h4>Привязка полей системы</h4>
             <input
               v-model="searchQuery"
               type="text"
@@ -461,6 +458,19 @@ import XlsxViewer from './XlsxViewer.vue';
 const PATH_COLORS = [
   '#4F5BDF', '#e85d75', '#2e9e5a', '#e8a317', '#8e44ad',
   '#16a085', '#c0392b', '#2980b9', '#d35400', '#e06090',
+  '#1abc9c', '#6c5ce7', '#00b894', '#e17055', '#0984e3',
+  '#b8255f', '#299438', '#6accbc', '#af38eb', '#ff9933',
+];
+
+function getPathColor(index) {
+  if (index < PATH_COLORS.length) return PATH_COLORS[index];
+  const hue = (index * 137.508) % 360;
+  if (hue > 180 && hue < 240) return `hsl(${(hue + 80) % 360}, 65%, 45%)`;
+  return `hsl(${hue}, 65%, 45%)`;
+}
+
+const GROUP_ORDER = [
+  'application', 'attachment', 'employee', 'car', 'item', 'custom',
 ];
 
 export default {
@@ -497,6 +507,7 @@ export default {
       rebindMapping: null,
       pathLines: [],
       pathsAnimatingOut: false,
+      hoveredPathIndex: null,
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -510,7 +521,15 @@ export default {
       }));
     },
     filteredFieldGroups() {
-      let groups = this.fieldGroups;
+      let groups = this.fieldGroups.map(g => ({
+        ...g,
+        fields: [...g.fields].sort((a, b) => a.label.localeCompare(b.label, 'ru')),
+      }));
+      groups.sort((a, b) => {
+        const ai = GROUP_ORDER.indexOf(a.group);
+        const bi = GROUP_ORDER.indexOf(b.group);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
       if (this.activeCategory) {
         groups = groups.filter(g => g.group === this.activeCategory);
       }
@@ -534,7 +553,7 @@ export default {
       if (!this.showPaths) return new Map();
       const map = new Map();
       this.mappings.forEach((m, i) => {
-        const color = PATH_COLORS[i % PATH_COLORS.length];
+        const color = getPathColor(i);
         map.set(m.cell_ref.toUpperCase(), color);
       });
       return map;
@@ -560,7 +579,7 @@ export default {
           this.pathsAnimatingOut = false;
           this.pathLines = [];
           this.cleanupPathListeners();
-        }, 400);
+        }, 800);
       }
     },
     mappings: {
@@ -587,6 +606,7 @@ export default {
       this.pathPopup = null;
       this.removePopupField = '';
       this.hoveredFieldPath = '';
+      this.hoveredPathIndex = null;
       this.pathLines = [];
       this.pathsAnimatingOut = false;
       this.showPaths = false;
@@ -808,7 +828,7 @@ export default {
     },
     getFieldColor(fieldPath) {
       const idx = this.mappings.findIndex(m => m.field_path === fieldPath);
-      return idx >= 0 ? PATH_COLORS[idx % PATH_COLORS.length] : '';
+      return idx >= 0 ? getPathColor(idx) : '';
     },
     chipStyle(fieldPath) {
       if (!this.showPaths || !this.fieldPathUsed(fieldPath)) return {};
@@ -833,12 +853,50 @@ export default {
       this.hoveredFieldPath = fieldPath;
     },
     onPathHover(line) {
+      const idx = this.pathLines.findIndex(l => l.id === line.id);
+      this.hoveredPathIndex = idx >= 0 ? idx : null;
       this.hoveredFieldPath = line.fieldPath;
     },
     onPathLeave() {
       if (!this.pathPopup) {
+        this.hoveredPathIndex = null;
         this.hoveredFieldPath = '';
       }
+    },
+    pathLineClasses(line, idx) {
+      if (this.pathPopup) {
+        return {
+          'te-path-dimmed': line.fieldPath !== this.pathPopup.fieldPath || line.cellRef !== this.pathPopup.cellRef,
+          'te-path-highlighted': line.fieldPath === this.pathPopup.fieldPath && line.cellRef === this.pathPopup.cellRef,
+        };
+      }
+      if (this.hoveredPathIndex !== null) {
+        return {
+          'te-path-hover-hidden': idx !== this.hoveredPathIndex,
+          'te-path-hover-active': idx === this.hoveredPathIndex,
+        };
+      }
+      if (this.hoveredFieldPath) {
+        return {
+          'te-path-hover-hidden': line.fieldPath !== this.hoveredFieldPath,
+          'te-path-hover-active': line.fieldPath === this.hoveredFieldPath,
+        };
+      }
+      return {};
+    },
+    pathDotClasses(line, idx) {
+      if (this.pathPopup) {
+        return {
+          'te-path-dimmed': line.fieldPath !== this.pathPopup.fieldPath || line.cellRef !== this.pathPopup.cellRef,
+        };
+      }
+      if (this.hoveredPathIndex !== null) {
+        return { 'te-path-hover-hidden': idx !== this.hoveredPathIndex };
+      }
+      if (this.hoveredFieldPath) {
+        return { 'te-path-hover-hidden': line.fieldPath !== this.hoveredFieldPath };
+      }
+      return {};
     },
     onPathClick(line, e) {
       e.stopPropagation();
@@ -951,7 +1009,7 @@ export default {
           d,
           x1, y1, x2, y2,
           opacity,
-          color: PATH_COLORS[i % PATH_COLORS.length],
+          color: getPathColor(i),
         });
       });
 
@@ -1024,6 +1082,12 @@ export default {
   height: 100%;
   color: var(--color-text-muted);
   font-size: 14px;
+  padding: 20px 40px;
+  text-align: center;
+}
+
+:deep(.base-modal) {
+  border-radius: 30px !important;
 }
 
 .te-settings-panel {
@@ -1100,11 +1164,11 @@ export default {
   cursor: pointer;
   transition: opacity 0.25s ease;
   stroke-dasharray: 2000;
-  animation: te-path-draw 0.5s ease forwards;
+  animation: te-path-draw 1s ease forwards;
 }
 
 .te-paths-leaving .te-path-line {
-  animation: te-path-retract 0.4s ease forwards;
+  animation: te-path-retract 0.8s ease forwards;
 }
 
 @keyframes te-path-draw {
@@ -1118,7 +1182,7 @@ export default {
 }
 
 .te-paths-leaving .te-path-dot {
-  animation: te-dot-fade-out 0.3s ease forwards;
+  animation: te-dot-fade-out 0.6s ease forwards;
 }
 
 @keyframes te-dot-fade-out {
@@ -1141,12 +1205,26 @@ export default {
   opacity: 0.15 !important;
 }
 
+.te-path-line.te-path-hover-hidden {
+  opacity: 0 !important;
+  transition: opacity 0.25s ease;
+}
+
+.te-path-line.te-path-hover-active {
+  stroke-width: 3.5 !important;
+  filter: brightness(0.85);
+}
+
 .te-path-dot {
   transition: opacity 0.25s ease;
 }
 
 .te-path-dot.te-path-dimmed {
   opacity: 0.15 !important;
+}
+
+.te-path-dot.te-path-hover-hidden {
+  opacity: 0 !important;
 }
 
 .te-path-delete-btn {
@@ -1413,11 +1491,15 @@ export default {
 }
 
 .te-field-group {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .te-field-group:last-child {
   margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .te-field-group-label {
@@ -1560,9 +1642,10 @@ export default {
 /* ---- Mappings (collapsible) ---- */
 .te-mappings-section {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: 30px;
   background: #fff;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .te-section-toggle {
