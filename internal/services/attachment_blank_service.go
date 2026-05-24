@@ -29,6 +29,7 @@ type BlankContext struct {
 	Items            []models.Item
 	Citizenships     map[int]string // citizenship_id → name
 	CustomValues     map[int]string // custom_field_id → value
+	ApproverName     string         // ФИО согласовавшего
 }
 
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
@@ -209,6 +210,9 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 		bctx.Company = &c
 	}
 
+	// ApproverName: ФИО согласовавшего.
+	bctx.ApproverName = s.resolveApproverName(ctx, appID)
+
 	// Cars / employees / items - только для этого attachment.
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Cars)
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Employees)
@@ -239,4 +243,37 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	}
 
 	return bctx, nil
+}
+
+// resolveApproverName определяет ФИО согласовавшего заявку:
+// - если есть обязательные согласующие (required_approval=true) с approval_status='approved',
+//   берется последний по approval_datetime;
+// - иначе берется первый согласовавший (approval_status='approved').
+func (s *attachmentBlankService) resolveApproverName(ctx context.Context, appID int) string {
+	var responsible []models.ApplicationResponsibleUser
+	s.db.WithContext(ctx).
+		Preload("User").
+		Where("application_id = ? AND approval_status = ?", appID, "approved").
+		Order("approval_datetime ASC").
+		Find(&responsible)
+
+	if len(responsible) == 0 {
+		return ""
+	}
+
+	var required []models.ApplicationResponsibleUser
+	for _, r := range responsible {
+		if r.RequiredApproval {
+			required = append(required, r)
+		}
+	}
+
+	var approver *models.User
+	if len(required) > 0 {
+		approver = &required[len(required)-1].User
+	} else {
+		approver = &responsible[0].User
+	}
+
+	return joinFullName(derefStr(approver.LastName), derefStr(approver.FirstName), derefStr(approver.MiddleName))
 }

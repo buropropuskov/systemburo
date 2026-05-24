@@ -39,6 +39,13 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "application.sender.short_name", Label: "Фамилия И.О. отправителя"},
 				{Path: "application.sender.last_name", Label: "Фамилия отправителя"},
 				{Path: "application.sender.first_name", Label: "Имя отправителя"},
+				{Path: "application.sender.middle_name", Label: "Отчество отправителя"},
+				{Path: "application.sender.phone", Label: "Телефон отправителя"},
+				{Path: "application.sender.email", Label: "Email отправителя"},
+				{Path: "application.sender.position", Label: "Должность отправителя"},
+				{Path: "application.confirmation_datetime", Label: "Дата согласования"},
+				{Path: "application.approver_name", Label: "Согласовавший (ФИО)"},
+				{Path: "application.responsible_comment", Label: "Комментарий ответственного"},
 			},
 		},
 		{
@@ -63,6 +70,8 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "car.unload_place", Label: "Место разгрузки", IsList: true},
 				{Path: "car.entry_date_from", Label: "Дата с", IsList: true},
 				{Path: "car.entry_date_to", Label: "Дата по", IsList: true},
+				{Path: "car.entry_time_from", Label: "Время с", IsList: true},
+				{Path: "car.entry_time_to", Label: "Время по", IsList: true},
 			},
 		},
 		{
