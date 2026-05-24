@@ -331,22 +331,23 @@ export default {
         if (cell.font.bold) style.fontWeight = 'bold';
         if (cell.font.italic) style.fontStyle = 'italic';
         if (cell.font.underline) style.textDecoration = 'underline';
-        if (cell.font.size) style.fontSize = Math.min(cell.font.size, 16) + 'px';
+        if (cell.font.size) style.fontSize = cell.font.size + 'px';
         if (cell.font.name) style.fontFamily = cell.font.name + ', sans-serif';
         if (cell.font.color && cell.font.color.argb) {
           style.color = '#' + cell.font.color.argb.slice(2);
         }
       }
 
-      if (cell.fill) {
-        if (cell.fill.type === 'pattern' && cell.fill.fgColor && cell.fill.fgColor.argb) {
-          const hex = '#' + cell.fill.fgColor.argb.slice(2);
-          if (hex.toLowerCase() !== '#000000') style.backgroundColor = hex;
-        }
+      if (cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
+        const hex = '#' + cell.fill.fgColor.argb.slice(2);
+        if (hex.toLowerCase() !== '#000000') style.backgroundColor = hex;
       }
 
       if (cell.alignment) {
-        if (cell.alignment.horizontal) style.textAlign = cell.alignment.horizontal;
+        if (cell.alignment.horizontal) {
+          const hmap = { centerContinuous: 'center', distributed: 'justify', fill: 'left' };
+          style.textAlign = hmap[cell.alignment.horizontal] || cell.alignment.horizontal;
+        }
         if (cell.alignment.vertical) {
           const vmap = { top: 'top', middle: 'middle', bottom: 'bottom' };
           style.verticalAlign = vmap[cell.alignment.vertical] || 'middle';
@@ -477,14 +478,12 @@ export default {
 
 .xv-table {
   border-collapse: collapse;
-  font-size: 11px;
 }
 
 .xv-table th,
 .xv-table td {
   border: 1px solid #d0d0d0;
   padding: 2px 4px;
-  vertical-align: middle;
 }
 
 .xv-corner {
@@ -573,7 +572,6 @@ export default {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
 }
 
 .xv-cell-image {

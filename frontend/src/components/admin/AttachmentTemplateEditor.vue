@@ -1028,8 +1028,7 @@ export default {
 
 .te-settings-panel {
   flex: 1 1 0;
-  min-width: 320px;
-  max-width: 500px;
+  min-width: 280px;
   overflow-y: auto;
   padding: 12px;
   display: flex;
