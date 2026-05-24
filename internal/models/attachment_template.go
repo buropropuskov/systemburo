@@ -14,6 +14,7 @@ type AttachmentTemplate struct {
 	ListStartRow        int                          `json:"list_start_row"`
 	ListEndRow          int                          `json:"list_end_row"`
 	MaxListRows         int                          `json:"max_list_rows"`
+	ConcatSeparator     *string                      `gorm:"size:20" json:"concat_separator,omitempty"`
 	UploadedByUserID    *int                         `json:"uploaded_by_user_id,omitempty"`
 	CreatedAt           time.Time                    `json:"created_at"`
 	UpdatedAt           time.Time                    `json:"updated_at"`

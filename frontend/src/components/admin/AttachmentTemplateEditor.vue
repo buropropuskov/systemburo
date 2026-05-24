@@ -724,11 +724,6 @@ export default {
       }
 
       if (this.pendingFieldPath) {
-        const existing = this.mappings.find(m => m.cell_ref === cellRef);
-        if (existing && existing.field_path !== this.pendingFieldPath) {
-          useUiStore().error(`Ячейка ${cellRef} уже привязана к "${this.getFieldLabel(existing.field_path)}"`);
-          return;
-        }
         const duplicate = this.mappings.find(
           m => m.cell_ref === cellRef && m.field_path === this.pendingFieldPath
         );
@@ -768,11 +763,6 @@ export default {
     },
     finishRebind(newCellRef) {
       if (!this.rebindMapping) return;
-      const existing = this.mappings.find(m => m.cell_ref === newCellRef);
-      if (existing && existing.field_path !== this.rebindMapping.field_path) {
-        useUiStore().error(`Ячейка ${newCellRef} уже привязана к "${this.getFieldLabel(existing.field_path)}"`);
-        return;
-      }
       if (this.rebindMapping.index >= 0) {
         this.mappings[this.rebindMapping.index].cell_ref = newCellRef;
       }

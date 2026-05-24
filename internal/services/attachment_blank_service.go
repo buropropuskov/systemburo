@@ -89,17 +89,30 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	defer f.Close()
 	sheet := f.GetSheetName(0)
 
-	// 4. Простые (не list) маппинги - сразу в ячейку.
+	// 4. Простые (не list) маппинги - группировка по cell_ref для совмещения.
 	var listMappings []models.AttachmentTemplateMapping
+	cellValues := make(map[string][]string)
+	cellOrder := make([]string, 0)
 	for _, m := range template.Mappings {
 		if m.IsListField {
 			listMappings = append(listMappings, m)
 			continue
 		}
 		val := resolveValue(bctx, m.FieldPath, 0)
-		if val != "" {
-			_ = f.SetCellValue(sheet, m.CellRef, val)
+		if val == "" {
+			continue
 		}
+		if _, exists := cellValues[m.CellRef]; !exists {
+			cellOrder = append(cellOrder, m.CellRef)
+		}
+		cellValues[m.CellRef] = append(cellValues[m.CellRef], val)
+	}
+	sep := ", "
+	if template.ConcatSeparator != nil && *template.ConcatSeparator != "" {
+		sep = *template.ConcatSeparator
+	}
+	for _, ref := range cellOrder {
+		_ = f.SetCellValue(sheet, ref, strings.Join(cellValues[ref], sep))
 	}
 
 	// 5. List-fields с авторасширением.
