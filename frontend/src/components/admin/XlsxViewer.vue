@@ -1,11 +1,28 @@
 <template>
-  <div class="xlsx-viewer" :class="{ loading }">
-    <div v-if="loading" class="xv-loading">
+  <div
+    class="xlsx-viewer"
+    :class="{ loading }"
+  >
+    <div
+      v-if="loading"
+      class="xv-loading"
+    >
       <span>Загрузка превью...</span>
     </div>
-    <div v-else-if="error" class="xv-error">{{ error }}</div>
-    <div v-else-if="sheets.length" class="xv-content">
-      <div v-if="sheets.length > 1" class="xv-tabs">
+    <div
+      v-else-if="error"
+      class="xv-error"
+    >
+      {{ error }}
+    </div>
+    <div
+      v-else-if="sheets.length"
+      class="xv-content"
+    >
+      <div
+        v-if="sheets.length > 1"
+        class="xv-tabs"
+      >
         <button
           v-for="(sheet, idx) in sheets"
           :key="idx"
@@ -20,7 +37,7 @@
         <table class="xv-table">
           <thead>
             <tr>
-              <th class="xv-corner"></th>
+              <th class="xv-corner" />
               <th
                 v-for="col in currentSheet.cols"
                 :key="col"
@@ -31,11 +48,17 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in currentSheet.rows" :key="row.num">
-              <td class="xv-row-header">{{ row.num }}</td>
+            <tr
+              v-for="row in currentSheet.rows"
+              :key="row.num"
+            >
+              <td class="xv-row-header">
+                {{ row.num }}
+              </td>
               <td
                 v-for="cell in row.cells"
                 :key="cell.ref"
+                :data-cell-ref="cell.ref"
                 class="xv-cell"
                 :class="{
                   selected: selectedCell === cell.ref,
@@ -48,7 +71,10 @@
                 @click="onCellClick(cell)"
               >
                 <span class="xv-cell-text">{{ cell.display }}</span>
-                <span v-if="mappedCells.has(cell.ref)" class="xv-mapped-badge">
+                <span
+                  v-if="mappedCells.has(cell.ref)"
+                  class="xv-mapped-badge"
+                >
                   {{ mappedCells.get(cell.ref) }}
                 </span>
               </td>
@@ -57,7 +83,12 @@
         </table>
       </div>
     </div>
-    <div v-else class="xv-empty">Файл не загружен</div>
+    <div
+      v-else
+      class="xv-empty"
+    >
+      Файл не загружен
+    </div>
   </div>
 </template>
 
@@ -258,7 +289,6 @@ export default {
 .xv-table-wrap {
   overflow: auto;
   flex: 1;
-  max-height: 500px;
 }
 
 .xv-table {
