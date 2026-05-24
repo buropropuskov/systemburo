@@ -159,7 +159,7 @@ export default {
   background: #fff;
   border-radius: var(--radius-md);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-  max-height: 85vh;
+  max-height: 92vh;
   overflow-y: auto;
   width: 100%;
   margin: 0 20px;
@@ -169,7 +169,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--color-border);
 }
 
