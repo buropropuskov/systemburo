@@ -1,12 +1,32 @@
 <template>
   <BaseModal
     :show="show"
-    title="Excel-бланк"
     width="95vw"
     closable
     :close-on-overlay="!rebindingMode"
     @close="onClose"
   >
+    <template #header>
+      <div class="te-header">
+        <h3 class="te-header__title">
+          Настройка генерации Excel-бланка
+        </h3>
+        <div class="te-header__toggles">
+          <ToggleSwitch
+            :model-value="enabled"
+            @update:model-value="onToggleEnabled"
+          >
+            Генерация
+          </ToggleSwitch>
+          <ToggleSwitch
+            v-if="enabled && template && template.file_path"
+            v-model="showPaths"
+          >
+            Пути
+          </ToggleSwitch>
+        </div>
+      </div>
+    </template>
     <div
       ref="modalBody"
       class="te-modal-body"
@@ -116,16 +136,6 @@
         ref="settingsPanel"
         class="te-settings-panel"
       >
-        <!-- Генерация бланка -->
-        <div class="te-section">
-          <ToggleSwitch
-            :model-value="enabled"
-            @update:model-value="onToggleEnabled"
-          >
-            Генерация бланка
-          </ToggleSwitch>
-        </div>
-
         <!-- Файл шаблона -->
         <div
           v-if="enabled"
@@ -330,10 +340,31 @@
                   <span
                     v-if="fieldPathUsed(f.path)"
                     class="te-chip-remove"
-                    @click.stop="removeMappingsByPath(f.path)"
+                    @click.stop="onChipRemoveClick(f.path)"
                   >
                     &times;
                   </span>
+                  <!-- Popup выбора привязки для удаления -->
+                  <div
+                    v-if="removePopupField === f.path"
+                    class="te-remove-popup"
+                    @click.stop
+                  >
+                    <div
+                      v-for="rm in fieldMappingEntries(f.path)"
+                      :key="rm.idx"
+                      class="te-remove-popup__item"
+                      @click="removeMapping(rm.idx); removePopupField = ''"
+                    >
+                      {{ rm.cell_ref }} <span class="te-remove-popup__x">&times;</span>
+                    </div>
+                    <div
+                      class="te-remove-popup__all"
+                      @click="removeMappingsByPath(f.path); removePopupField = ''"
+                    >
+                      Удалить все
+                    </div>
+                  </div>
                 </button>
               </div>
             </div>
@@ -393,16 +424,6 @@
               </button>
             </div>
           </div>
-        </div>
-
-        <!-- Показать пути -->
-        <div
-          v-if="enabled && template && template.file_path"
-          class="te-section te-section--compact"
-        >
-          <ToggleSwitch v-model="showPaths">
-            Показать пути
-          </ToggleSwitch>
         </div>
 
         <!-- Сохранить -->
@@ -467,6 +488,7 @@ export default {
       showMappings: false,
       hoveredFieldPath: '',
       pathPopup: null,
+      removePopupField: '',
       rebindingMode: false,
       rebindMapping: null,
       pathLines: [],
@@ -593,10 +615,6 @@ export default {
       }
     },
     onToggleEnabled(val) {
-      if (!val && this.template && this.template.file_path) {
-        if (!confirm('Отключить генерацию бланка? Текущий шаблон будет удален.')) return;
-        this.onDeleteTemplate();
-      }
       this.enabled = val;
     },
     onFileChange(e) {
@@ -730,6 +748,19 @@ export default {
     removeMapping(idx) {
       this.mappings.splice(idx, 1);
     },
+    onChipRemoveClick(fieldPath) {
+      const entries = this.fieldMappingEntries(fieldPath);
+      if (entries.length <= 1) {
+        this.removeMappingsByPath(fieldPath);
+      } else {
+        this.removePopupField = this.removePopupField === fieldPath ? '' : fieldPath;
+      }
+    },
+    fieldMappingEntries(fieldPath) {
+      return this.mappings
+        .map((m, idx) => ({ ...m, idx }))
+        .filter(m => m.field_path === fieldPath);
+    },
     removeMappingsByPath(fieldPath) {
       this.mappings = this.mappings.filter(m => m.field_path !== fieldPath);
     },
@@ -762,7 +793,7 @@ export default {
     },
     chipStyle(fieldPath) {
       if (!this.showPaths || !this.fieldPathUsed(fieldPath)) return {};
-      return { borderColor: this.getFieldColor(fieldPath), borderWidth: '2px' };
+      return { borderColor: this.getFieldColor(fieldPath) };
     },
     async saveMappings() {
       this.savingMappings = true;
@@ -813,10 +844,7 @@ export default {
       const scrollables = body.querySelectorAll(
         '.te-preview-panel, .xv-table-wrap, .te-field-picker-scroll, .te-settings-panel'
       );
-      this._scrollHandler = () => {
-        if (this.rafId) cancelAnimationFrame(this.rafId);
-        this.rafId = requestAnimationFrame(() => this.updatePaths());
-      };
+      this._scrollHandler = () => this.updatePaths();
       scrollables.forEach(el =>
         el.addEventListener('scroll', this._scrollHandler, { passive: true })
       );
@@ -911,17 +939,39 @@ export default {
 </script>
 
 <style scoped>
+/* ---- Header ---- */
+.te-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+}
+
+.te-header__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.te-header__toggles {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 /* ---- Layout ---- */
 .te-modal-body {
   display: flex;
   position: relative;
-  height: calc(85vh - 120px);
-  min-height: 300px;
+  height: calc(92vh - 100px);
+  min-height: 400px;
 }
 
 .te-preview-panel {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: 300px;
   overflow: auto;
   border-right: 1px solid var(--color-border);
 }
@@ -1211,8 +1261,6 @@ export default {
   background: #fff;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  flex: 1;
 }
 
 .te-picker-header {
@@ -1246,8 +1294,8 @@ export default {
 .te-field-picker-scroll {
   overflow-y: auto;
   padding: 8px 10px;
-  flex: 1;
-  min-height: 0;
+  height: 500px;
+  max-height: 500px;
 }
 
 .te-field-group {
@@ -1336,6 +1384,56 @@ export default {
 .te-chip-remove:hover {
   background: var(--color-danger);
   color: #fff;
+}
+
+/* Remove popup */
+.te-field-chip {
+  position: relative;
+}
+
+.te-remove-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  min-width: 100px;
+  overflow: hidden;
+}
+
+.te-remove-popup__item {
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.te-remove-popup__item:hover {
+  background: #fef2f2;
+}
+
+.te-remove-popup__x {
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.te-remove-popup__all {
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.te-remove-popup__all:hover {
+  background: #fef2f2;
 }
 
 .te-no-results {
