@@ -66,9 +66,10 @@
 
       <!-- SVG линии поверх всего -->
       <svg
-        v-if="showPaths && pathLines.length"
+        v-if="showPaths || pathsAnimatingOut"
         ref="pathSvg"
         class="te-path-overlay"
+        :class="{ 'te-paths-leaving': pathsAnimatingOut }"
         :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
       >
         <path
@@ -114,21 +115,25 @@
           :style="{ opacity: line.opacity }"
         />
         <!-- Кнопка удаления на пути -->
-        <foreignObject
-          v-if="pathPopup"
-          :x="pathPopup.x - 36"
-          :y="pathPopup.y - 14"
-          width="72"
-          height="28"
-          style="pointer-events: auto;"
-        >
-          <button
-            class="te-path-delete-btn"
-            @click="confirmPathDelete"
+        <transition name="te-popup-fade">
+          <foreignObject
+            v-if="pathPopup"
+            :key="pathPopup.fieldPath + pathPopup.cellRef"
+            :x="pathPopup.x - 36"
+            :y="pathPopup.y - 14"
+            width="72"
+            height="28"
+            style="pointer-events: auto;"
+            :class="{ 'te-popup-faded': hoveredFieldPath && hoveredFieldPath !== pathPopup.fieldPath }"
           >
-            Удалить
-          </button>
-        </foreignObject>
+            <button
+              class="te-path-delete-btn"
+              @click="confirmPathDelete"
+            >
+              Удалить
+            </button>
+          </foreignObject>
+        </transition>
       </svg>
 
       <!-- Левая панель: превью документа -->
@@ -455,7 +460,7 @@ import XlsxViewer from './XlsxViewer.vue';
 
 const PATH_COLORS = [
   '#4F5BDF', '#e85d75', '#2e9e5a', '#e8a317', '#8e44ad',
-  '#16a085', '#c0392b', '#2980b9', '#d35400', '#7f8c8d',
+  '#16a085', '#c0392b', '#2980b9', '#d35400', '#e06090',
 ];
 
 export default {
@@ -491,6 +496,7 @@ export default {
       rebindingMode: false,
       rebindMapping: null,
       pathLines: [],
+      pathsAnimatingOut: false,
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -545,11 +551,16 @@ export default {
     },
     showPaths(val) {
       if (val) {
+        this.pathsAnimatingOut = false;
         this.$nextTick(() => this.setupPathListeners());
       } else {
-        this.cleanupPathListeners();
-        this.pathLines = [];
+        this.pathsAnimatingOut = true;
         this.pathPopup = null;
+        setTimeout(() => {
+          this.pathsAnimatingOut = false;
+          this.pathLines = [];
+          this.cleanupPathListeners();
+        }, 400);
       }
     },
     mappings: {
@@ -569,11 +580,16 @@ export default {
     },
     resetState() {
       this.pendingFieldPath = '';
+      this.pendingFieldLabel = '';
       this.pendingCellRef = '';
       this.rebindingMode = false;
       this.rebindMapping = null;
       this.pathPopup = null;
+      this.removePopupField = '';
       this.hoveredFieldPath = '';
+      this.pathLines = [];
+      this.pathsAnimatingOut = false;
+      this.showPaths = false;
     },
     onClose() {
       if (this.rebindingMode) {
@@ -813,16 +829,20 @@ export default {
     },
 
     onChipHover(fieldPath) {
+      if (fieldPath && !this.fieldPathUsed(fieldPath)) return;
       this.hoveredFieldPath = fieldPath;
     },
     onPathHover(line) {
       this.hoveredFieldPath = line.fieldPath;
     },
     onPathLeave() {
-      this.hoveredFieldPath = '';
+      if (!this.pathPopup) {
+        this.hoveredFieldPath = '';
+      }
     },
     onPathClick(line, e) {
       e.stopPropagation();
+      this.hoveredFieldPath = line.fieldPath;
       this.pathPopup = {
         x: (line.x1 + line.x2) / 2,
         y: (line.y1 + line.y2) / 2,
@@ -986,8 +1006,7 @@ export default {
 }
 
 .te-preview-panel {
-  flex: 1 1 0;
-  min-width: 300px;
+  flex: 0 0 auto;
   overflow: auto;
   border-right: 1px solid var(--color-border);
 }
@@ -996,8 +1015,6 @@ export default {
   border: none;
   border-radius: 0;
   min-height: 100%;
-  width: fit-content;
-  min-width: 100%;
 }
 
 .te-preview-empty {
@@ -1010,8 +1027,9 @@ export default {
 }
 
 .te-settings-panel {
-  width: 360px;
-  flex-shrink: 0;
+  flex: 1 1 0;
+  min-width: 320px;
+  max-width: 500px;
   overflow-y: auto;
   padding: 12px;
   display: flex;
@@ -1082,6 +1100,30 @@ export default {
   pointer-events: stroke;
   cursor: pointer;
   transition: opacity 0.25s ease;
+  stroke-dasharray: 2000;
+  animation: te-path-draw 0.5s ease forwards;
+}
+
+.te-paths-leaving .te-path-line {
+  animation: te-path-retract 0.4s ease forwards;
+}
+
+@keyframes te-path-draw {
+  from { stroke-dashoffset: 2000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes te-path-retract {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 2000; }
+}
+
+.te-paths-leaving .te-path-dot {
+  animation: te-dot-fade-out 0.3s ease forwards;
+}
+
+@keyframes te-dot-fade-out {
+  to { opacity: 0; }
 }
 
 .te-path-hitarea {
@@ -1097,7 +1139,7 @@ export default {
 }
 
 .te-path-line.te-path-dimmed {
-  opacity: 0 !important;
+  opacity: 0.15 !important;
 }
 
 .te-path-dot {
@@ -1105,7 +1147,7 @@ export default {
 }
 
 .te-path-dot.te-path-dimmed {
-  opacity: 0 !important;
+  opacity: 0.15 !important;
 }
 
 .te-path-delete-btn {
@@ -1124,6 +1166,24 @@ export default {
 
 .te-path-delete-btn:hover {
   background: #c82333;
+}
+
+.te-popup-faded {
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
+.te-popup-fade-enter-active {
+  transition: opacity 0.2s ease;
+}
+
+.te-popup-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.te-popup-fade-enter-from,
+.te-popup-fade-leave-to {
+  opacity: 0;
 }
 
 /* ---- Sections ---- */
@@ -1306,10 +1366,11 @@ export default {
 /* ---- Field picker ---- */
 .te-field-picker {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: 30px;
   background: #fff;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .te-picker-header {
@@ -1349,8 +1410,7 @@ export default {
 .te-field-picker-scroll {
   overflow-y: auto;
   padding: 8px 10px;
-  min-height: 400px;
-  max-height: 600px;
+  height: 450px;
 }
 
 .te-field-group {
