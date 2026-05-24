@@ -34,7 +34,18 @@
         </button>
       </div>
       <div class="xv-table-wrap">
-        <table class="xv-table">
+        <table
+          class="xv-table"
+          :style="{ tableLayout: 'fixed', width: currentSheet.tableWidth + 'px' }"
+        >
+          <colgroup>
+            <col class="xv-col-num">
+            <col
+              v-for="cw in currentSheet.colWidths"
+              :key="cw.letter"
+              :style="{ width: cw.width + 'px' }"
+            >
+          </colgroup>
           <thead>
             <tr>
               <th class="xv-corner" />
@@ -51,12 +62,14 @@
             <tr
               v-for="row in currentSheet.rows"
               :key="row.num"
+              :style="row.height ? { height: row.height + 'px' } : {}"
             >
               <td class="xv-row-header">
                 {{ row.num }}
               </td>
               <td
                 v-for="cell in row.cells"
+                v-show="!cell.hidden"
                 :key="cell.ref"
                 :data-cell-ref="cell.ref"
                 class="xv-cell"
@@ -71,6 +84,13 @@
                 @click="onCellClick(cell)"
               >
                 <span class="xv-cell-text">{{ cell.display }}</span>
+                <img
+                  v-for="img in cell.images"
+                  :key="img.src"
+                  :src="img.src"
+                  class="xv-cell-image"
+                  :style="img.style"
+                >
                 <span
                   v-if="mappedCells.has(cell.ref)"
                   class="xv-mapped-badge"
@@ -95,6 +115,12 @@
 <script>
 import ExcelJS from 'exceljs';
 
+const DEFAULT_COL_WIDTH = 64;
+const DEFAULT_ROW_HEIGHT = 20;
+const COL_WIDTH_FACTOR = 7.5;
+const ROW_HEIGHT_FACTOR = 1.33;
+const ROW_NUM_COL_WIDTH = 32;
+
 export default {
   name: 'XlsxViewer',
   props: {
@@ -113,7 +139,7 @@ export default {
   },
   computed: {
     currentSheet() {
-      return this.sheets[this.activeSheet] || { cols: [], rows: [] };
+      return this.sheets[this.activeSheet] || { cols: [], rows: [], colWidths: [], tableWidth: 0 };
     },
     mappedCells() {
       const map = new Map();
@@ -142,7 +168,7 @@ export default {
       try {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
-        this.sheets = workbook.worksheets.map(ws => this.parseSheet(ws));
+        this.sheets = workbook.worksheets.map(ws => this.parseSheet(ws, workbook));
         this.activeSheet = 0;
       } catch (e) {
         this.error = 'Не удалось прочитать файл: ' + (e.message || e);
@@ -151,32 +177,129 @@ export default {
         this.loading = false;
       }
     },
-    parseSheet(ws) {
+    parseSheet(ws, workbook) {
       const colCount = Math.min(ws.columnCount || 0, 30);
       const rowCount = Math.min(ws.rowCount || 0, 100);
+
+      const merges = this.parseMerges(ws);
+      const imageMap = this.parseImages(ws, workbook);
+
       const cols = [];
+      const colWidths = [];
       for (let c = 1; c <= colCount; c++) {
-        cols.push(this.colLetter(c));
+        const letter = this.colLetter(c);
+        cols.push(letter);
+        const col = ws.getColumn(c);
+        const w = col.width ? Math.round(col.width * COL_WIDTH_FACTOR) : DEFAULT_COL_WIDTH;
+        colWidths.push({ letter, width: w });
       }
+
+      const tableWidth = ROW_NUM_COL_WIDTH + colWidths.reduce((sum, cw) => sum + cw.width, 0);
+
       const rows = [];
       for (let r = 1; r <= rowCount; r++) {
         const row = ws.getRow(r);
+        const rowHeight = row.height ? Math.round(row.height * ROW_HEIGHT_FACTOR) : DEFAULT_ROW_HEIGHT;
         const cells = [];
         for (let c = 1; c <= colCount; c++) {
           const cell = row.getCell(c);
           const ref = this.colLetter(c) + r;
+
+          const mergeInfo = merges.get(ref);
+          const hidden = mergeInfo && mergeInfo.hidden;
+          const colspan = mergeInfo ? mergeInfo.colspan : 1;
+          const rowspan = mergeInfo ? mergeInfo.rowspan : 1;
+
+          const cellImages = imageMap.get(ref) || [];
+
           cells.push({
             ref,
             value: cell.value,
-            display: this.formatCellValue(cell),
-            style: this.extractStyle(cell),
-            colspan: 1,
-            rowspan: 1,
+            display: hidden ? '' : this.formatCellValue(cell),
+            style: this.extractStyle(cell, mergeInfo),
+            colspan,
+            rowspan,
+            hidden,
+            images: cellImages,
           });
         }
-        rows.push({ num: r, cells });
+        rows.push({ num: r, cells, height: rowHeight });
       }
-      return { name: ws.name, cols, rows };
+      return { name: ws.name, cols, rows, colWidths, tableWidth };
+    },
+    parseMerges(ws) {
+      const map = new Map();
+      if (!ws.model || !ws.model.merges) return map;
+      for (const mergeRange of ws.model.merges) {
+        const parts = mergeRange.split(':');
+        if (parts.length !== 2) continue;
+        const tl = this.parseRef(parts[0]);
+        const br = this.parseRef(parts[1]);
+        if (!tl || !br) continue;
+
+        const colspan = br.col - tl.col + 1;
+        const rowspan = br.row - tl.row + 1;
+
+        const tlRef = parts[0].toUpperCase();
+        map.set(tlRef, { colspan, rowspan, hidden: false });
+
+        for (let r = tl.row; r <= br.row; r++) {
+          for (let c = tl.col; c <= br.col; c++) {
+            const ref = this.colLetter(c) + r;
+            if (ref !== tlRef) {
+              map.set(ref, { colspan: 1, rowspan: 1, hidden: true });
+            }
+          }
+        }
+      }
+      return map;
+    },
+    parseRef(ref) {
+      const m = ref.toUpperCase().match(/^([A-Z]+)(\d+)$/);
+      if (!m) return null;
+      let col = 0;
+      for (const ch of m[1]) {
+        col = col * 26 + (ch.charCodeAt(0) - 64);
+      }
+      return { col, row: parseInt(m[2], 10) };
+    },
+    parseImages(ws, workbook) {
+      const map = new Map();
+      if (!ws.getImages) return map;
+      const wsImages = ws.getImages();
+      for (const img of wsImages) {
+        const mediaImage = workbook.model.media.find(m => m.index === img.imageId);
+        if (!mediaImage || !mediaImage.buffer) continue;
+
+        const ext = mediaImage.extension || 'png';
+        const mime = ext === 'jpeg' || ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+        const b64 = this.bufferToBase64(mediaImage.buffer);
+        const src = `data:${mime};base64,${b64}`;
+
+        let cellRef = '';
+        const style = {};
+        if (img.range) {
+          const tl = img.range.tl;
+          cellRef = this.colLetter(Math.floor(tl.col) + 1) + (Math.floor(tl.row) + 1);
+          if (img.range.ext) {
+            style.maxWidth = Math.round(img.range.ext.width / 9525) + 'px';
+            style.maxHeight = Math.round(img.range.ext.height / 9525) + 'px';
+          }
+        }
+        if (!cellRef) continue;
+
+        if (!map.has(cellRef)) map.set(cellRef, []);
+        map.get(cellRef).push({ src, style });
+      }
+      return map;
+    },
+    bufferToBase64(buffer) {
+      const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
     },
     colLetter(num) {
       let s = '';
@@ -199,26 +322,72 @@ export default {
       }
       return String(cell.value);
     },
-    extractStyle(cell) {
+    extractStyle(cell, mergeInfo) {
       const style = {};
+
       if (cell.font) {
         if (cell.font.bold) style.fontWeight = 'bold';
         if (cell.font.italic) style.fontStyle = 'italic';
-        if (cell.font.size) style.fontSize = Math.min(cell.font.size, 14) + 'px';
+        if (cell.font.underline) style.textDecoration = 'underline';
+        if (cell.font.size) style.fontSize = Math.min(cell.font.size, 16) + 'px';
+        if (cell.font.name) style.fontFamily = cell.font.name + ', sans-serif';
         if (cell.font.color && cell.font.color.argb) {
           style.color = '#' + cell.font.color.argb.slice(2);
         }
       }
-      if (cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
-        const hex = '#' + cell.fill.fgColor.argb.slice(2);
-        if (hex !== '#000000') style.backgroundColor = hex;
+
+      if (cell.fill) {
+        if (cell.fill.type === 'pattern' && cell.fill.fgColor && cell.fill.fgColor.argb) {
+          const hex = '#' + cell.fill.fgColor.argb.slice(2);
+          if (hex.toLowerCase() !== '#000000') style.backgroundColor = hex;
+        }
       }
+
       if (cell.alignment) {
         if (cell.alignment.horizontal) style.textAlign = cell.alignment.horizontal;
+        if (cell.alignment.vertical) {
+          const vmap = { top: 'top', middle: 'middle', bottom: 'bottom' };
+          style.verticalAlign = vmap[cell.alignment.vertical] || 'middle';
+        }
+        if (cell.alignment.wrapText) {
+          style.whiteSpace = 'pre-wrap';
+          style.wordBreak = 'break-word';
+        }
       }
+
+      if (cell.border) {
+        const toBorder = (b) => {
+          if (!b || !b.style) return '';
+          const styleMap = {
+            thin: '1px solid',
+            medium: '2px solid',
+            thick: '3px solid',
+            dotted: '1px dotted',
+            dashed: '1px dashed',
+            double: '3px double',
+            hair: '1px solid',
+          };
+          const bStyle = styleMap[b.style] || '1px solid';
+          let color = '#000';
+          if (b.color && b.color.argb) {
+            color = '#' + b.color.argb.slice(2);
+          }
+          return `${bStyle} ${color}`;
+        };
+        if (cell.border.top) style.borderTop = toBorder(cell.border.top);
+        if (cell.border.bottom) style.borderBottom = toBorder(cell.border.bottom);
+        if (cell.border.left) style.borderLeft = toBorder(cell.border.left);
+        if (cell.border.right) style.borderRight = toBorder(cell.border.right);
+      }
+
+      if (mergeInfo && !mergeInfo.hidden && (mergeInfo.colspan > 1 || mergeInfo.rowspan > 1)) {
+        style.overflow = 'visible';
+      }
+
       return style;
     },
     onCellClick(cell) {
+      if (cell.hidden) return;
       this.$emit('cell-click', cell.ref);
     },
   },
@@ -291,21 +460,22 @@ export default {
   flex: 1;
 }
 
+.xv-col-num {
+  width: 32px;
+}
+
 .xv-table {
   border-collapse: collapse;
   font-size: 11px;
-  min-width: 100%;
-  table-layout: auto;
 }
 
 .xv-table th,
 .xv-table td {
-  border: 1px solid #ddd;
+  border: 1px solid #d0d0d0;
   padding: 2px 4px;
-  white-space: nowrap;
-  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .xv-corner {
@@ -334,13 +504,14 @@ export default {
   position: sticky;
   left: 0;
   z-index: 1;
+  width: 32px;
+  min-width: 32px;
 }
 
 .xv-cell {
   cursor: pointer;
   position: relative;
   transition: background-color 0.1s;
-  min-width: 40px;
 }
 
 .xv-cell:hover {
@@ -367,6 +538,13 @@ export default {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.xv-cell-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 .xv-mapped-badge {
