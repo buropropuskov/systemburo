@@ -203,7 +203,7 @@ export default {
 }
 
 .base-modal__body {
-  padding: 20px;
+  padding: 0;
 }
 
 .base-modal__actions {

@@ -484,8 +484,6 @@ export default {
 .xv-table td {
   border: 1px solid #d0d0d0;
   padding: 2px 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   vertical-align: middle;
 }
 
@@ -575,6 +573,7 @@ export default {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .xv-cell-image {
