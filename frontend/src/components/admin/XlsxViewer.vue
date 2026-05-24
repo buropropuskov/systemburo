@@ -83,6 +83,8 @@
                 :colspan="cell.colspan || 1"
                 :rowspan="cell.rowspan || 1"
                 @click="onCellClick(cell)"
+                @mouseenter="$emit('cell-hover', cell.ref)"
+                @mouseleave="$emit('cell-hover', '')"
               >
                 <span class="xv-cell-text">{{ cell.display }}</span>
                 <img
@@ -130,7 +132,7 @@ export default {
     selectedCell: { type: String, default: '' },
     cellColors: { type: Map, default: () => new Map() },
   },
-  emits: ['cell-click'],
+  emits: ['cell-click', 'cell-hover'],
   data() {
     return {
       sheets: [],

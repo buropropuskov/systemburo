@@ -69,7 +69,8 @@ type CreateTemplateRequest struct {
 
 // UpdateMappingsRequest - bulk-обновление mappings одним запросом.
 type UpdateMappingsRequest struct {
-	Mappings []MappingInput `json:"mappings" validate:"required,dive"`
+	Mappings        []MappingInput `json:"mappings" validate:"required,dive"`
+	ConcatSeparator *string        `json:"concat_separator,omitempty"`
 }
 
 // MappingInput - элемент списка mappings (без ID, его выдаст БД).

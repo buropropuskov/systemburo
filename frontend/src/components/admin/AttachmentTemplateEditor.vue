@@ -147,6 +147,7 @@
           :selected-cell="activeCellRef"
           :cell-colors="cellColorMap"
           @cell-click="onCellClick"
+          @cell-hover="onCellHover"
         />
         <div
           v-else
@@ -252,36 +253,34 @@
           v-if="enabled"
           class="te-section"
         >
-          <!-- Список шаблонов (если >1) -->
+          <!-- Шаблоны: табы + действия -->
           <div
-            v-if="allTemplates.length > 1 && !showUpload"
-            class="te-template-tabs"
+            v-if="allTemplates.length > 0 && !showUpload"
+            class="te-templates-block"
           >
-            <button
-              v-for="tmpl in allTemplates"
-              :key="tmpl.id"
-              class="te-template-tab"
-              :class="{ active: tmpl.is_active }"
-              @click="switchTemplate(tmpl)"
-            >
-              <span class="te-tab-name">{{ tmpl.original_file_name || 'template.xlsx' }}</span>
-              <span
-                v-if="allTemplates.length > 1"
-                class="te-tab-remove"
-                @click.stop="deleteSpecificTemplate(tmpl)"
-              >&times;</span>
-            </button>
-          </div>
-
-          <div
-            v-if="template && template.file_path && !showUpload"
-            class="te-file-block"
-          >
-            <div class="te-file-info">
-              <span class="te-file-name">{{ template.original_file_name || 'template.xlsx' }}</span>
-              <span class="te-file-meta">
-                строки {{ template.list_start_row }}-{{ template.list_end_row }}
-              </span>
+            <div class="te-template-tabs">
+              <button
+                v-for="tmpl in allTemplates"
+                :key="tmpl.id"
+                class="te-template-tab"
+                :class="{ active: tmpl.is_active }"
+                :title="tmpl.original_file_name"
+                @click="switchTemplate(tmpl)"
+              >
+                <span class="te-tab-name">{{ tmpl.original_file_name || 'template.xlsx' }}</span>
+                <span
+                  v-if="allTemplates.length > 1"
+                  class="te-tab-remove"
+                  @click.stop="deleteSpecificTemplate(tmpl)"
+                >&times;</span>
+              </button>
+              <button
+                class="te-template-tab te-tab-add"
+                title="Загрузить ещё один шаблон"
+                @click="showUpload = true"
+              >
+                +
+              </button>
             </div>
             <div class="te-file-actions">
               <button
@@ -291,18 +290,26 @@
                 Скачать
               </button>
               <button
-                class="lk-button lk-button--ghost te-btn-sm"
-                @click="showUpload = true"
-              >
-                Заменить
-              </button>
-              <button
                 class="lk-button lk-button--danger te-btn-sm"
                 @click="onDeleteTemplate"
               >
                 Удалить
               </button>
             </div>
+          </div>
+
+          <!-- Настройка разделителя (для совмещения полей) -->
+          <div
+            v-if="template && template.file_path && !showUpload && hasCombinedCells"
+            class="te-separator-block"
+          >
+            <label class="te-separator-label">Разделитель совмещенных полей:</label>
+            <input
+              v-model="concatSeparator"
+              type="text"
+              class="lk-input te-separator-input"
+              placeholder=", "
+            >
           </div>
 
           <!-- Drag & Drop загрузка -->
@@ -515,6 +522,7 @@ export default {
       form: { file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0 },
       uploading: false,
       savingMappings: false,
+      concatSeparator: ', ',
       templateFileBuffer: null,
       pendingFieldPath: '',
       pendingFieldLabel: '',
@@ -531,6 +539,7 @@ export default {
       pathLines: [],
       pathsAnimatingOut: false,
       hoveredPathIndex: null,
+      hoveredCellRef: '',
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -572,6 +581,13 @@ export default {
       if (this.rebindingMode && this.rebindMapping) return this.rebindMapping.old_cell_ref;
       return this.pendingCellRef;
     },
+    hasCombinedCells() {
+      const cellCounts = {};
+      for (const m of this.mappings) {
+        cellCounts[m.cell_ref] = (cellCounts[m.cell_ref] || 0) + 1;
+      }
+      return Object.values(cellCounts).some(c => c > 1);
+    },
     cellColorMap() {
       if (!this.showPaths) return new Map();
       const map = new Map();
@@ -585,10 +601,15 @@ export default {
   watch: {
     show(val) {
       if (val) {
+        this.templateFileBuffer = null;
+        this.template = null;
+        this.allTemplates = [];
+        this.mappings = [];
         this.loadAll();
       } else {
         this.cleanupPathListeners();
         this.resetState();
+        this.templateFileBuffer = null;
       }
     },
     showPaths(val) {
@@ -630,6 +651,7 @@ export default {
       this.removePopupField = '';
       this.hoveredFieldPath = '';
       this.hoveredPathIndex = null;
+      this.hoveredCellRef = '';
       this.pathLines = [];
       this.pathsAnimatingOut = false;
       this.showPaths = false;
@@ -653,6 +675,7 @@ export default {
         this.form.listStartRow = data && data.list_start_row || 1;
         this.form.listEndRow = data && data.list_end_row || 1;
         this.form.maxListRows = data && data.max_list_rows || 0;
+        this.concatSeparator = data && data.concat_separator || ', ';
         if (this.enabled) this.loadTemplateFile();
       } catch {
         this.template = null;
@@ -884,7 +907,7 @@ export default {
       this.savingMappings = true;
       try {
         const payload = this.mappings.filter(m => m.cell_ref && m.field_path);
-        await updateMappings(this.uniqueAttachmentId, payload);
+        await updateMappings(this.uniqueAttachmentId, payload, this.concatSeparator);
         useUiStore().success('Привязки сохранены');
         await this.loadTemplate();
       } catch (err) {
@@ -898,51 +921,65 @@ export default {
       if (fieldPath && !this.fieldPathUsed(fieldPath)) return;
       this.hoveredFieldPath = fieldPath;
     },
+    onCellHover(cellRef) {
+      if (!this.showPaths) return;
+      if (cellRef && this.mappings.some(m => m.cell_ref === cellRef)) {
+        this.hoveredCellRef = cellRef;
+      } else {
+        this.hoveredCellRef = '';
+      }
+    },
     onPathHover(line) {
       const idx = this.pathLines.findIndex(l => l.id === line.id);
       this.hoveredPathIndex = idx >= 0 ? idx : null;
-      this.hoveredFieldPath = line.fieldPath;
     },
     onPathLeave() {
-      if (!this.pathPopup) {
-        this.hoveredPathIndex = null;
-        this.hoveredFieldPath = '';
+      this.hoveredPathIndex = null;
+    },
+    isPathHighlighted(line, idx) {
+      if (this.hoveredPathIndex === idx) return true;
+      return false;
+    },
+    isPathHidden(line, idx) {
+      if (this.hoveredPathIndex !== null) {
+        return idx !== this.hoveredPathIndex;
       }
+      if (this.hoveredFieldPath) {
+        return line.fieldPath !== this.hoveredFieldPath;
+      }
+      if (this.hoveredCellRef) {
+        return line.cellRef !== this.hoveredCellRef;
+      }
+      if (this.pathPopup) {
+        return false;
+      }
+      return false;
+    },
+    isPathDimmed(line) {
+      if (this.pathPopup && this.hoveredPathIndex === null) {
+        const isPopupPath = line.fieldPath === this.pathPopup.fieldPath
+          && line.cellRef === this.pathPopup.cellRef;
+        return !isPopupPath;
+      }
+      return false;
     },
     pathLineClasses(line, idx) {
-      if (this.pathPopup) {
-        return {
-          'te-path-dimmed': line.fieldPath !== this.pathPopup.fieldPath || line.cellRef !== this.pathPopup.cellRef,
-          'te-path-highlighted': line.fieldPath === this.pathPopup.fieldPath && line.cellRef === this.pathPopup.cellRef,
-        };
-      }
-      if (this.hoveredPathIndex !== null) {
-        return {
-          'te-path-hover-hidden': idx !== this.hoveredPathIndex,
-          'te-path-hover-active': idx === this.hoveredPathIndex,
-        };
-      }
-      if (this.hoveredFieldPath) {
-        return {
-          'te-path-hover-hidden': line.fieldPath !== this.hoveredFieldPath,
-          'te-path-hover-active': line.fieldPath === this.hoveredFieldPath,
-        };
-      }
-      return {};
+      const highlighted = this.isPathHighlighted(line, idx);
+      const hidden = this.isPathHidden(line, idx);
+      const dimmed = this.isPathDimmed(line, idx);
+      return {
+        'te-path-hover-active': highlighted,
+        'te-path-hover-hidden': hidden && !highlighted,
+        'te-path-dimmed': dimmed && !highlighted && !hidden,
+      };
     },
     pathDotClasses(line, idx) {
-      if (this.pathPopup) {
-        return {
-          'te-path-dimmed': line.fieldPath !== this.pathPopup.fieldPath || line.cellRef !== this.pathPopup.cellRef,
-        };
-      }
-      if (this.hoveredPathIndex !== null) {
-        return { 'te-path-hover-hidden': idx !== this.hoveredPathIndex };
-      }
-      if (this.hoveredFieldPath) {
-        return { 'te-path-hover-hidden': line.fieldPath !== this.hoveredFieldPath };
-      }
-      return {};
+      const highlighted = this.isPathHighlighted(line, idx);
+      const hidden = this.isPathHidden(line, idx);
+      const dimmed = this.isPathDimmed(line, idx);
+      return {
+        'te-path-hover-hidden': (hidden || dimmed) && !highlighted,
+      };
     },
     onPathClick(line, e) {
       e.stopPropagation();
@@ -1133,7 +1170,7 @@ export default {
 }
 
 :deep(.base-modal) {
-  border-radius: 30px !important;
+  border-radius: 50px !important;
 }
 
 .te-settings-panel {
@@ -1208,7 +1245,7 @@ export default {
   stroke-width: 1.5;
   pointer-events: stroke;
   cursor: pointer;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
   stroke-dasharray: 2000;
   animation: te-path-draw 1s ease forwards;
 }
@@ -1257,8 +1294,9 @@ export default {
 }
 
 .te-path-line.te-path-hover-active {
-  stroke-width: 3.5 !important;
+  stroke-width: 2.5 !important;
   filter: brightness(0.85);
+  transition: stroke-width 0.25s ease, filter 0.25s ease, opacity 0.25s ease;
 }
 
 .te-path-dot {
@@ -1323,7 +1361,17 @@ export default {
   gap: 8px;
 }
 
-/* ---- Template tabs ---- */
+/* ---- Templates block ---- */
+.te-templates-block {
+  border: 1px solid var(--color-border);
+  border-radius: 30px;
+  padding: 10px 14px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .te-template-tabs {
   display: flex;
   gap: 4px;
@@ -1375,6 +1423,38 @@ export default {
 
 .te-template-tab.active .te-tab-remove:hover {
   color: #ffc;
+}
+
+.te-tab-add {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 4px 12px;
+  color: var(--color-primary);
+  border-style: dashed;
+}
+
+.te-tab-add:hover {
+  background: #f0f4ff;
+}
+
+/* ---- Separator ---- */
+.te-separator-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.te-separator-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.te-separator-input {
+  width: 60px;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  text-align: center;
 }
 
 /* ---- File block ---- */
