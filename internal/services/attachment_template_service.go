@@ -153,6 +153,11 @@ func (s *attachmentTemplateService) UpdateMappings(ctx context.Context, uaID int
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if req.ConcatSeparator != nil {
+			if err := tx.Model(&t).Update("concat_separator", *req.ConcatSeparator).Error; err != nil {
+				return err
+			}
+		}
 		if err := tx.Where("template_id = ?", t.ID).Delete(&models.AttachmentTemplateMapping{}).Error; err != nil {
 			return err
 		}

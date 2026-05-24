@@ -52,10 +52,12 @@ export async function uploadTemplate(uniqueAttachmentID, file, { listStartRow, l
   return res.json();
 }
 
-export async function updateMappings(uniqueAttachmentID, mappings) {
+export async function updateMappings(uniqueAttachmentID, mappings, concatSeparator) {
+  const body = { mappings };
+  if (concatSeparator !== undefined) body.concat_separator = concatSeparator;
   const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/mappings`, {
     method: 'PUT',
-    body: JSON.stringify({ mappings }),
+    body: JSON.stringify(body),
   });
   return res.json();
 }
