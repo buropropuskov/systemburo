@@ -147,6 +147,7 @@
           :selected-cell="activeCellRef"
           :cell-colors="cellColorMap"
           @cell-click="onCellClick"
+          @cell-hover="onCellHover"
         />
         <div
           v-else
@@ -531,6 +532,7 @@ export default {
       pathLines: [],
       pathsAnimatingOut: false,
       hoveredPathIndex: null,
+      hoveredCellRef: '',
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -585,10 +587,15 @@ export default {
   watch: {
     show(val) {
       if (val) {
+        this.templateFileBuffer = null;
+        this.template = null;
+        this.allTemplates = [];
+        this.mappings = [];
         this.loadAll();
       } else {
         this.cleanupPathListeners();
         this.resetState();
+        this.templateFileBuffer = null;
       }
     },
     showPaths(val) {
@@ -630,6 +637,7 @@ export default {
       this.removePopupField = '';
       this.hoveredFieldPath = '';
       this.hoveredPathIndex = null;
+      this.hoveredCellRef = '';
       this.pathLines = [];
       this.pathsAnimatingOut = false;
       this.showPaths = false;
@@ -898,51 +906,65 @@ export default {
       if (fieldPath && !this.fieldPathUsed(fieldPath)) return;
       this.hoveredFieldPath = fieldPath;
     },
+    onCellHover(cellRef) {
+      if (!this.showPaths) return;
+      if (cellRef && this.mappings.some(m => m.cell_ref === cellRef)) {
+        this.hoveredCellRef = cellRef;
+      } else {
+        this.hoveredCellRef = '';
+      }
+    },
     onPathHover(line) {
       const idx = this.pathLines.findIndex(l => l.id === line.id);
       this.hoveredPathIndex = idx >= 0 ? idx : null;
-      this.hoveredFieldPath = line.fieldPath;
     },
     onPathLeave() {
-      if (!this.pathPopup) {
-        this.hoveredPathIndex = null;
-        this.hoveredFieldPath = '';
+      this.hoveredPathIndex = null;
+    },
+    isPathHighlighted(line, idx) {
+      if (this.hoveredPathIndex === idx) return true;
+      return false;
+    },
+    isPathHidden(line, idx) {
+      if (this.hoveredPathIndex !== null) {
+        return idx !== this.hoveredPathIndex;
       }
+      if (this.hoveredFieldPath) {
+        return line.fieldPath !== this.hoveredFieldPath;
+      }
+      if (this.hoveredCellRef) {
+        return line.cellRef !== this.hoveredCellRef;
+      }
+      if (this.pathPopup) {
+        return false;
+      }
+      return false;
+    },
+    isPathDimmed(line) {
+      if (this.pathPopup && this.hoveredPathIndex === null) {
+        const isPopupPath = line.fieldPath === this.pathPopup.fieldPath
+          && line.cellRef === this.pathPopup.cellRef;
+        return !isPopupPath;
+      }
+      return false;
     },
     pathLineClasses(line, idx) {
-      if (this.pathPopup) {
-        return {
-          'te-path-dimmed': line.fieldPath !== this.pathPopup.fieldPath || line.cellRef !== this.pathPopup.cellRef,
-          'te-path-highlighted': line.fieldPath === this.pathPopup.fieldPath && line.cellRef === this.pathPopup.cellRef,
-        };
-      }
-      if (this.hoveredPathIndex !== null) {
-        return {
-          'te-path-hover-hidden': idx !== this.hoveredPathIndex,
-          'te-path-hover-active': idx === this.hoveredPathIndex,
-        };
-      }
-      if (this.hoveredFieldPath) {
-        return {
-          'te-path-hover-hidden': line.fieldPath !== this.hoveredFieldPath,
-          'te-path-hover-active': line.fieldPath === this.hoveredFieldPath,
-        };
-      }
-      return {};
+      const highlighted = this.isPathHighlighted(line, idx);
+      const hidden = this.isPathHidden(line, idx);
+      const dimmed = this.isPathDimmed(line, idx);
+      return {
+        'te-path-hover-active': highlighted,
+        'te-path-hover-hidden': hidden && !highlighted,
+        'te-path-dimmed': dimmed && !highlighted && !hidden,
+      };
     },
     pathDotClasses(line, idx) {
-      if (this.pathPopup) {
-        return {
-          'te-path-dimmed': line.fieldPath !== this.pathPopup.fieldPath || line.cellRef !== this.pathPopup.cellRef,
-        };
-      }
-      if (this.hoveredPathIndex !== null) {
-        return { 'te-path-hover-hidden': idx !== this.hoveredPathIndex };
-      }
-      if (this.hoveredFieldPath) {
-        return { 'te-path-hover-hidden': line.fieldPath !== this.hoveredFieldPath };
-      }
-      return {};
+      const highlighted = this.isPathHighlighted(line, idx);
+      const hidden = this.isPathHidden(line, idx);
+      const dimmed = this.isPathDimmed(line, idx);
+      return {
+        'te-path-hover-hidden': (hidden || dimmed) && !highlighted,
+      };
     },
     onPathClick(line, e) {
       e.stopPropagation();
@@ -1133,7 +1155,7 @@ export default {
 }
 
 :deep(.base-modal) {
-  border-radius: 30px !important;
+  border-radius: 50px !important;
 }
 
 .te-settings-panel {
@@ -1257,7 +1279,7 @@ export default {
 }
 
 .te-path-line.te-path-hover-active {
-  stroke-width: 3.5 !important;
+  stroke-width: 2.5 !important;
   filter: brightness(0.85);
 }
 
