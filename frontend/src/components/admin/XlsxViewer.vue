@@ -72,13 +72,14 @@
                 v-show="!cell.hidden"
                 :key="cell.ref"
                 :data-cell-ref="cell.ref"
+                :data-tooltip="cell.ref"
                 class="xv-cell"
                 :class="{
                   selected: selectedCell === cell.ref,
                   mapped: mappedCells.has(cell.ref),
                   'has-value': cell.value,
                 }"
-                :style="cell.style"
+                :style="cellStyle(cell)"
                 :colspan="cell.colspan || 1"
                 :rowspan="cell.rowspan || 1"
                 @click="onCellClick(cell)"
@@ -127,6 +128,7 @@ export default {
     fileBuffer: { type: ArrayBuffer, default: null },
     mappings: { type: Array, default: () => [] },
     selectedCell: { type: String, default: '' },
+    cellColors: { type: Map, default: () => new Map() },
   },
   emits: ['cell-click'],
   data() {
@@ -386,6 +388,15 @@ export default {
 
       return style;
     },
+    cellStyle(cell) {
+      const base = { ...cell.style };
+      const color = this.cellColors.get(cell.ref);
+      if (color) {
+        base.outline = `2px solid ${color}`;
+        base.outlineOffset = '-2px';
+      }
+      return base;
+    },
     onCellClick(cell) {
       if (cell.hidden) return;
       this.$emit('cell-click', cell.ref);
@@ -512,6 +523,32 @@ export default {
   cursor: pointer;
   position: relative;
   transition: background-color 0.1s;
+}
+
+.xv-cell::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background: #1a1a1a;
+  color: #fff;
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 20;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition-delay: 0s;
+}
+
+.xv-cell:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  transition-delay: 0.5s;
 }
 
 .xv-cell:hover {
