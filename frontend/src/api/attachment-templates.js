@@ -76,6 +76,17 @@ export async function deleteCustomField(fieldID) {
   return res.json();
 }
 
+// --- Template File (preview) ---
+
+export async function getTemplateFile(uniqueAttachmentID) {
+  const { apiRequestRaw } = await import('./client');
+  const res = await apiRequestRaw(`/attachments/${uniqueAttachmentID}/template/file`);
+  if (!res.ok) {
+    throw new Error(`Failed to get template file: ${res.status}`);
+  }
+  return res.arrayBuffer();
+}
+
 // --- Download ---
 
 /**

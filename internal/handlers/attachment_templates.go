@@ -130,6 +130,29 @@ func (h *AttachmentTemplateHandler) Delete(c echo.Context) error {
 	return RespondMessage(c, "Шаблон удалён")
 }
 
+// DownloadFile godoc
+// @Summary      Скачать файл шаблона для предпросмотра
+// @Tags         attachment-templates
+// @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Success      200 {file} binary
+// @Router       /attachments/{id}/template/file [get]
+func (h *AttachmentTemplateHandler) DownloadFile(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	t, err := h.service.Get(c.Request().Context(), uaID)
+	if err != nil {
+		return err
+	}
+	if t.FilePath == "" {
+		return echo.NewHTTPError(http.StatusNotFound, "Файл шаблона не загружен")
+	}
+	return c.File(t.FilePath)
+}
+
 // GetFields godoc
 // @Summary      Справочник полей доступных для маппинга
 // @Tags         attachment-templates
