@@ -9,109 +9,111 @@
   >
     <div class="te-modal-body">
       <!-- Верхняя панель: управление -->
-      <div class="te-toolbar">
-        <div class="te-toolbar-left">
-          <label class="te-toggle">
-            <input
-              type="checkbox"
-              :checked="enabled"
-              @change="onToggle"
-            >
-            <span>Генерация бланка</span>
-          </label>
-        </div>
-        <div
-          v-if="enabled && template && template.file_path"
-          class="te-toolbar-right"
-        >
-          <div class="te-file-info">
-            <span class="te-file-name">{{ template.original_file_name || 'template.xlsx' }}</span>
-            <span class="te-file-meta">
-              строки {{ template.list_start_row }}-{{ template.list_end_row }}
-            </span>
+      <div class="te-section">
+        <div class="te-toolbar">
+          <div class="te-toolbar-left">
+            <label class="te-toggle">
+              <input
+                type="checkbox"
+                :checked="enabled"
+                @change="onToggle"
+              >
+              <span>Генерация бланка</span>
+            </label>
           </div>
-          <button
-            class="lk-button lk-button--ghost te-btn-sm"
-            @click="showUpload = true"
+          <div
+            v-if="enabled && template && template.file_path"
+            class="te-toolbar-right"
           >
-            Заменить
-          </button>
-          <button
-            class="lk-button lk-button--danger te-btn-sm"
-            @click="onDeleteTemplate"
-          >
-            Удалить
-          </button>
-        </div>
-      </div>
-
-      <!-- Форма загрузки шаблона -->
-      <div
-        v-if="enabled && (!template || !template.file_path || showUpload)"
-        class="te-upload-section"
-      >
-        <form
-          class="te-upload-form"
-          @submit.prevent="onUpload"
-        >
-          <div class="te-upload-file">
-            <input
-              type="file"
-              accept=".xlsx"
-              required
-              @change="onFileChange"
-            >
-          </div>
-          <div class="te-upload-fields">
-            <div class="te-form-field">
-              <label>Начальная строка списка</label>
-              <input
-                v-model.number="form.listStartRow"
-                type="number"
-                min="1"
-                class="lk-input"
-                required
-              >
+            <div class="te-file-info">
+              <span class="te-file-name">{{ template.original_file_name || 'template.xlsx' }}</span>
+              <span class="te-file-meta">
+                строки {{ template.list_start_row }}-{{ template.list_end_row }}
+              </span>
             </div>
-            <div class="te-form-field">
-              <label>Конечная строка списка</label>
-              <input
-                v-model.number="form.listEndRow"
-                type="number"
-                min="1"
-                class="lk-input"
-                required
-              >
-            </div>
-            <div class="te-form-field">
-              <label>Макс. записей</label>
-              <input
-                v-model.number="form.maxListRows"
-                type="number"
-                min="0"
-                class="lk-input"
-                placeholder="авто"
-              >
-            </div>
-          </div>
-          <div class="te-upload-actions">
             <button
-              v-if="template && template.file_path"
-              type="button"
               class="lk-button lk-button--ghost te-btn-sm"
-              @click="showUpload = false"
+              @click="showUpload = true"
             >
-              Отмена
+              Заменить
             </button>
             <button
-              type="submit"
-              class="lk-button lk-button--primary te-btn-sm"
-              :disabled="!form.file || uploading"
+              class="lk-button lk-button--danger te-btn-sm"
+              @click="onDeleteTemplate"
             >
-              {{ uploading ? 'Загрузка...' : 'Загрузить' }}
+              Удалить
             </button>
           </div>
-        </form>
+        </div>
+
+        <!-- Форма загрузки шаблона -->
+        <div
+          v-if="enabled && (!template || !template.file_path || showUpload)"
+          class="te-upload-area"
+        >
+          <form
+            class="te-upload-form"
+            @submit.prevent="onUpload"
+          >
+            <div class="te-upload-file">
+              <input
+                type="file"
+                accept=".xlsx"
+                required
+                @change="onFileChange"
+              >
+            </div>
+            <div class="te-upload-fields">
+              <div class="te-form-field">
+                <label>Начальная строка списка</label>
+                <input
+                  v-model.number="form.listStartRow"
+                  type="number"
+                  min="1"
+                  class="lk-input"
+                  required
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Конечная строка списка</label>
+                <input
+                  v-model.number="form.listEndRow"
+                  type="number"
+                  min="1"
+                  class="lk-input"
+                  required
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Макс. записей</label>
+                <input
+                  v-model.number="form.maxListRows"
+                  type="number"
+                  min="0"
+                  class="lk-input"
+                  placeholder="авто"
+                >
+              </div>
+            </div>
+            <div class="te-upload-actions">
+              <button
+                v-if="template && template.file_path"
+                type="button"
+                class="lk-button lk-button--ghost te-btn-sm"
+                @click="showUpload = false"
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                class="lk-button lk-button--primary te-btn-sm"
+                :disabled="!form.file || uploading"
+              >
+                {{ uploading ? 'Загрузка...' : 'Загрузить' }}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
       <!-- Визуальный редактор -->
@@ -172,6 +174,10 @@
               :key="line.id"
               :d="line.d"
               class="te-path-line"
+              :class="{
+                'te-path-dimmed': hoveredFieldPath && line.fieldPath !== hoveredFieldPath,
+                'te-path-highlighted': hoveredFieldPath && line.fieldPath === hoveredFieldPath,
+              }"
               :style="{ stroke: line.color }"
             />
             <circle
@@ -181,6 +187,10 @@
               :cy="line.y2"
               r="3"
               :fill="line.color"
+              class="te-path-dot"
+              :class="{
+                'te-path-dimmed': hoveredFieldPath && line.fieldPath !== hoveredFieldPath,
+              }"
             />
             <circle
               v-for="line in pathLines"
@@ -189,6 +199,10 @@
               :cy="line.y1"
               r="3"
               :fill="line.color"
+              class="te-path-dot"
+              :class="{
+                'te-path-dimmed': hoveredFieldPath && line.fieldPath !== hoveredFieldPath,
+              }"
             />
           </svg>
 
@@ -222,46 +236,50 @@
                   Кликните на ячейку слева
                 </span>
               </div>
-              <div
-                v-for="g in filteredFieldGroups"
-                :key="g.group"
-                class="te-field-group"
-              >
-                <span class="te-field-group-label">{{ g.label }}</span>
-                <div class="te-field-chips">
-                  <button
-                    v-for="f in g.fields"
-                    :key="f.path"
-                    :data-field-path="f.path"
-                    class="te-field-chip"
-                    :class="{
-                      active: pendingFieldPath === f.path,
-                      used: fieldPathUsed(f.path),
-                    }"
-                    @click="selectField(f)"
-                  >
-                    <span class="te-chip-label">{{ f.label }}</span>
-                    <span
-                      v-if="fieldPathUsed(f.path)"
-                      class="te-chip-ref"
+              <div class="te-field-picker-scroll">
+                <div
+                  v-for="g in filteredFieldGroups"
+                  :key="g.group"
+                  class="te-field-group"
+                >
+                  <span class="te-field-group-label">{{ g.label }}</span>
+                  <div class="te-field-chips">
+                    <button
+                      v-for="f in g.fields"
+                      :key="f.path"
+                      :data-field-path="f.path"
+                      class="te-field-chip"
+                      :class="{
+                        active: pendingFieldPath === f.path,
+                        used: fieldPathUsed(f.path),
+                      }"
+                      @click="selectField(f)"
+                      @mouseenter="onChipHover(f.path)"
+                      @mouseleave="onChipHover('')"
                     >
-                      {{ fieldCellRef(f.path) }}
-                    </span>
-                    <span
-                      v-if="fieldPathUsed(f.path)"
-                      class="te-chip-remove"
-                      @click.stop="removeMappingByPath(f.path)"
-                    >
-                      &times;
-                    </span>
-                  </button>
+                      <span class="te-chip-label">{{ f.label }}</span>
+                      <span
+                        v-if="fieldPathUsed(f.path)"
+                        class="te-chip-ref"
+                      >
+                        {{ fieldCellRef(f.path) }}
+                      </span>
+                      <span
+                        v-if="fieldPathUsed(f.path)"
+                        class="te-chip-remove"
+                        @click.stop="removeMappingByPath(f.path)"
+                      >
+                        &times;
+                      </span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div
-                v-if="filteredFieldGroups.length === 0"
-                class="te-no-results"
-              >
-                Поля не найдены
+                <div
+                  v-if="filteredFieldGroups.length === 0"
+                  class="te-no-results"
+                >
+                  Поля не найдены
+                </div>
               </div>
             </div>
 
@@ -283,6 +301,8 @@
                   :key="idx"
                   class="te-mapping-row"
                   :class="{ highlight: pendingCellRef === m.cell_ref }"
+                  @mouseenter="onChipHover(m.field_path)"
+                  @mouseleave="onChipHover('')"
                 >
                   <span class="te-mapping-cell">{{ m.cell_ref }}</span>
                   <span class="te-mapping-field">{{ m.fieldLabel || m.field_path }}</span>
@@ -301,92 +321,6 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Кастомные поля -->
-      <div class="te-custom-section">
-        <div class="te-section-header">
-          <h4>Дополнительные поля вложения</h4>
-        </div>
-        <table class="te-custom-table">
-          <thead>
-            <tr>
-              <th>Заголовок</th>
-              <th>Плейсхолдер</th>
-              <th class="th-order">
-                N
-              </th>
-              <th class="th-actions" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="cf in customFields"
-              :key="cf.id"
-            >
-              <td>
-                <input
-                  v-model="cf.label"
-                  class="lk-input te-table-input"
-                >
-              </td>
-              <td>
-                <input
-                  v-model="cf.placeholder"
-                  class="lk-input te-table-input"
-                >
-              </td>
-              <td>
-                <input
-                  v-model.number="cf.sort_order"
-                  type="number"
-                  class="lk-input te-table-input te-order-input"
-                >
-              </td>
-              <td class="te-row-actions">
-                <button
-                  class="lk-button lk-button--ghost te-btn-xs"
-                  @click="updateCF(cf)"
-                >
-                  Сохранить
-                </button>
-                <button
-                  class="lk-button lk-button--danger te-btn-xs"
-                  @click="deleteCF(cf)"
-                >
-                  Удалить
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!customFields.length">
-              <td
-                colspan="4"
-                class="te-empty-cell"
-              >
-                Кастомных полей нет
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="te-custom-add">
-          <input
-            v-model="newCF.label"
-            placeholder="Заголовок"
-            class="lk-input te-add-input"
-          >
-          <input
-            v-model="newCF.placeholder"
-            placeholder="Плейсхолдер"
-            class="lk-input te-add-input"
-          >
-          <button
-            class="lk-button lk-button--primary te-btn-sm"
-            :disabled="!newCF.label"
-            @click="addCF"
-          >
-            + Добавить поле
-          </button>
         </div>
       </div>
     </div>
@@ -415,7 +349,6 @@ import { useUiStore } from '@/stores/ui';
 import {
   getTemplate, uploadTemplate, updateMappings, deleteTemplate,
   getTemplateFields, getTemplateFile,
-  listCustomFields, createCustomField, updateCustomField, deleteCustomField,
 } from '@/api/attachment-templates';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import XlsxViewer from './XlsxViewer.vue';
@@ -438,8 +371,6 @@ export default {
       template: null,
       mappings: [],
       fieldGroups: [],
-      customFields: [],
-      newCF: { label: '', placeholder: '' },
       enabled: false,
       showUpload: false,
       form: { file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0 },
@@ -452,6 +383,7 @@ export default {
       searchQuery: '',
       activeCategory: '',
       showPaths: false,
+      hoveredFieldPath: '',
       pathLines: [],
       svgWidth: 0,
       svgHeight: 0,
@@ -511,7 +443,7 @@ export default {
   },
   methods: {
     async loadAll() {
-      await Promise.all([this.loadTemplate(), this.loadCustomFields(), this.loadFields()]);
+      await Promise.all([this.loadTemplate(), this.loadFields()]);
     },
     async loadTemplate() {
       try {
@@ -535,14 +467,6 @@ export default {
         this.templateFileBuffer = await getTemplateFile(this.uniqueAttachmentId);
       } catch {
         this.templateFileBuffer = null;
-      }
-    },
-    async loadCustomFields() {
-      try {
-        const data = await listCustomFields(this.uniqueAttachmentId);
-        this.customFields = Array.isArray(data) ? data : [];
-      } catch {
-        this.customFields = [];
       }
     },
     async loadFields() {
@@ -621,12 +545,7 @@ export default {
         this.pendingFieldLabel = '';
         this.pendingCellRef = '';
       } else {
-        const mappedIdx = this.mappings.findIndex(m => m.cell_ref === cellRef);
-        if (mappedIdx >= 0) {
-          this.pendingCellRef = cellRef;
-        } else {
-          this.pendingCellRef = cellRef;
-        }
+        this.pendingCellRef = cellRef;
       }
     },
     removeMapping(idx) {
@@ -670,44 +589,8 @@ export default {
         this.savingMappings = false;
       }
     },
-    async addCF() {
-      if (!this.newCF.label) return;
-      try {
-        await createCustomField(this.uniqueAttachmentId, {
-          label: this.newCF.label,
-          placeholder: this.newCF.placeholder,
-          sortOrder: this.customFields.length,
-        });
-        this.newCF = { label: '', placeholder: '' };
-        await this.loadCustomFields();
-        await this.loadFields();
-        useUiStore().success('Поле добавлено');
-      } catch {
-        useUiStore().error('Не удалось добавить поле');
-      }
-    },
-    async updateCF(cf) {
-      try {
-        await updateCustomField(cf.id, {
-          label: cf.label,
-          placeholder: cf.placeholder || '',
-          sortOrder: cf.sort_order || 0,
-        });
-        useUiStore().success('Поле обновлено');
-      } catch {
-        useUiStore().error('Не удалось обновить');
-      }
-    },
-    async deleteCF(cf) {
-      if (!confirm(`Удалить поле "${cf.label}"?`)) return;
-      try {
-        await deleteCustomField(cf.id);
-        await this.loadCustomFields();
-        await this.loadFields();
-        useUiStore().success('Поле удалено');
-      } catch {
-        useUiStore().error('Не удалось удалить');
-      }
+    onChipHover(fieldPath) {
+      this.hoveredFieldPath = fieldPath;
     },
 
     setupPathListeners() {
@@ -783,6 +666,7 @@ export default {
 
         lines.push({
           id: m.field_path + '-' + m.cell_ref,
+          fieldPath: m.field_path,
           d,
           x1, y1, x2, y2,
           color: PATH_COLORS[i % PATH_COLORS.length],
@@ -796,12 +680,19 @@ export default {
 </script>
 
 <style scoped>
-/* Modal body override */
 .te-modal-body {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+}
+
+/* Секция с рамкой */
+.te-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  background: #fff;
 }
 
 /* Toolbar */
@@ -811,9 +702,6 @@ export default {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 12px 16px;
-  background: var(--color-bg-secondary);
-  border-radius: var(--radius-sm);
 }
 
 .te-toolbar-left {
@@ -860,17 +748,16 @@ export default {
 .te-file-meta {
   font-size: 12px;
   color: var(--color-text-muted);
-  background: #fff;
+  background: var(--color-bg-secondary);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
 }
 
-/* Upload section */
-.te-upload-section {
-  border: 2px dashed var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  background: #fff;
+/* Upload area */
+.te-upload-area {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
 }
 
 .te-upload-form {
@@ -913,6 +800,10 @@ export default {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
 }
 
 .te-search-wrap {
@@ -977,7 +868,7 @@ export default {
   position: relative;
   flex: 1;
   min-height: 0;
-  height: calc(60vh - 100px);
+  height: calc(60vh - 80px);
 }
 
 .te-path-overlay {
@@ -995,6 +886,24 @@ export default {
   fill: none;
   stroke-width: 1.5;
   opacity: 0.6;
+  transition: opacity 0.25s ease, stroke-width 0.25s ease;
+}
+
+.te-path-line.te-path-highlighted {
+  opacity: 0.85;
+  stroke-width: 2.5;
+}
+
+.te-path-line.te-path-dimmed {
+  opacity: 0;
+}
+
+.te-path-dot {
+  transition: opacity 0.25s ease;
+}
+
+.te-path-dot.te-path-dimmed {
+  opacity: 0;
 }
 
 .te-panel-left {
@@ -1013,7 +922,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
   min-height: 0;
 }
 
@@ -1021,15 +929,20 @@ export default {
 .te-field-picker {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  padding: 12px;
   background: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .te-picker-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .te-picker-header h4 {
@@ -1049,6 +962,13 @@ export default {
 @keyframes te-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+.te-field-picker-scroll {
+  overflow-y: auto;
+  padding: 10px 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .te-field-group {
@@ -1153,8 +1073,8 @@ export default {
   border-radius: var(--radius-sm);
   padding: 12px;
   background: #fff;
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
+  max-height: 200px;
   display: flex;
   flex-direction: column;
 }
@@ -1163,7 +1083,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .te-section-header h4 {
@@ -1186,7 +1107,7 @@ export default {
   font-size: 12px;
   color: var(--color-text-muted);
   text-align: center;
-  padding: 16px 0;
+  padding: 12px 0;
 }
 
 .te-mappings-list {
@@ -1198,7 +1119,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border-radius: 6px;
   font-size: 12px;
   transition: background 0.1s;
@@ -1256,78 +1177,10 @@ export default {
   color: var(--color-danger);
 }
 
-/* Custom fields */
-.te-custom-section {
-  border-top: 1px solid var(--color-border);
-  padding-top: 16px;
-}
-
-.te-custom-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-
-.te-custom-table th {
-  padding: 8px 10px;
-  text-align: left;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  border-bottom: 2px solid var(--color-border);
-}
-
-.te-custom-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: middle;
-}
-
-.th-order { width: 60px; }
-.th-actions { width: 180px; }
-
-.te-table-input {
-  padding: 5px 8px !important;
-  font-size: 13px !important;
-}
-
-.te-order-input { width: 60px; }
-
-.te-row-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.te-empty-cell {
-  text-align: center;
-  color: var(--color-text-muted);
-  padding: 16px 0 !important;
-}
-
-.te-custom-add {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.te-add-input {
-  flex: 1;
-  padding: 6px 10px !important;
-  font-size: 13px !important;
-}
-
 /* Button sizes */
 .te-btn-sm {
   padding: 6px 14px !important;
   font-size: 12px !important;
-}
-
-.te-btn-xs {
-  padding: 4px 10px !important;
-  font-size: 11px !important;
 }
 
 /* Responsive */

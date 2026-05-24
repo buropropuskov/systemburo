@@ -308,6 +308,12 @@
                 />
               </div>
 
+              <!-- Дополнительные поля (#183) -->
+              <AttachmentCustomFields
+                v-if="selectedAttachment.is_active"
+                :unique-attachment-id="selectedAttachment.id"
+              />
+
               <!-- Excel-бланк (#183) -->
               <AttachmentTemplateEditor
                 v-if="selectedAttachment.is_active"
@@ -567,6 +573,7 @@ import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
+import AttachmentCustomFields from './admin/AttachmentCustomFields.vue';
 
 export default {
   name: 'AttachmentsManagement',
@@ -575,6 +582,7 @@ export default {
     RefreshButton,
     TextConstructor,
     AttachmentTemplateEditor,
+    AttachmentCustomFields,
   },
   data() {
     return {
