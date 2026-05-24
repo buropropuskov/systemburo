@@ -252,6 +252,27 @@
           v-if="enabled"
           class="te-section"
         >
+          <!-- Список шаблонов (если >1) -->
+          <div
+            v-if="allTemplates.length > 1 && !showUpload"
+            class="te-template-tabs"
+          >
+            <button
+              v-for="tmpl in allTemplates"
+              :key="tmpl.id"
+              class="te-template-tab"
+              :class="{ active: tmpl.is_active }"
+              @click="switchTemplate(tmpl)"
+            >
+              <span class="te-tab-name">{{ tmpl.original_file_name || 'template.xlsx' }}</span>
+              <span
+                v-if="allTemplates.length > 1"
+                class="te-tab-remove"
+                @click.stop="deleteSpecificTemplate(tmpl)"
+              >&times;</span>
+            </button>
+          </div>
+
           <div
             v-if="template && template.file_path && !showUpload"
             class="te-file-block"
@@ -450,6 +471,7 @@ import { useUiStore } from '@/stores/ui';
 import {
   getTemplate, uploadTemplate, updateMappings, deleteTemplate,
   getTemplateFields, getTemplateFile, saveBlobAs,
+  listTemplates, setActiveTemplate, deleteTemplateByID, getTemplateFileByID,
 } from '@/api/attachment-templates';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
@@ -484,6 +506,7 @@ export default {
   data() {
     return {
       template: null,
+      allTemplates: [],
       mappings: [],
       fieldGroups: [],
       enabled: false,
@@ -637,10 +660,20 @@ export default {
         this.enabled = false;
         this.templateFileBuffer = null;
       }
+      try {
+        const all = await listTemplates(this.uniqueAttachmentId);
+        this.allTemplates = Array.isArray(all) ? all : [];
+      } catch {
+        this.allTemplates = [];
+      }
     },
     async loadTemplateFile() {
       try {
-        this.templateFileBuffer = await getTemplateFile(this.uniqueAttachmentId);
+        if (this.template && this.template.id) {
+          this.templateFileBuffer = await getTemplateFileByID(this.uniqueAttachmentId, this.template.id);
+        } else {
+          this.templateFileBuffer = await getTemplateFile(this.uniqueAttachmentId);
+        }
       } catch {
         this.templateFileBuffer = null;
       }
@@ -683,6 +716,29 @@ export default {
         useUiStore().error(err.message || 'Не удалось загрузить шаблон');
       } finally {
         this.uploading = false;
+      }
+    },
+    async switchTemplate(tmpl) {
+      if (tmpl.id === this.template?.id) return;
+      try {
+        await setActiveTemplate(this.uniqueAttachmentId, tmpl.id);
+        useUiStore().success('Шаблон активирован');
+        this.resetState();
+        await this.loadTemplate();
+      } catch {
+        useUiStore().error('Не удалось переключить шаблон');
+      }
+    },
+    async deleteSpecificTemplate(tmpl) {
+      try {
+        await deleteTemplateByID(this.uniqueAttachmentId, tmpl.id);
+        useUiStore().success('Шаблон удален');
+        if (tmpl.id === this.template?.id) {
+          this.templateFileBuffer = null;
+        }
+        await this.loadTemplate();
+      } catch {
+        useUiStore().error('Не удалось удалить шаблон');
       }
     },
     async onDeleteTemplate() {
@@ -1265,6 +1321,60 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ---- Template tabs ---- */
+.te-template-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.te-template-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--color-text);
+}
+
+.te-template-tab:hover {
+  border-color: var(--color-primary);
+}
+
+.te-template-tab.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.te-tab-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.te-tab-remove {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.te-tab-remove:hover {
+  opacity: 1;
+  color: var(--color-danger);
+}
+
+.te-template-tab.active .te-tab-remove:hover {
+  color: #ffc;
 }
 
 /* ---- File block ---- */

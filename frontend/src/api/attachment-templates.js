@@ -11,6 +11,32 @@ export async function getTemplate(uniqueAttachmentID) {
   return res.json();
 }
 
+export async function listTemplates(uniqueAttachmentID) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/templates`);
+  return res.json();
+}
+
+export async function setActiveTemplate(uniqueAttachmentID, templateID) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/${templateID}/activate`, {
+    method: 'PUT',
+  });
+  return res.json();
+}
+
+export async function deleteTemplateByID(uniqueAttachmentID, templateID) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/${templateID}`, {
+    method: 'DELETE',
+  });
+  return res.json();
+}
+
+export async function getTemplateFileByID(uniqueAttachmentID, templateID) {
+  const { apiRequestRaw } = await import('./client');
+  const res = await apiRequestRaw(`/attachments/${uniqueAttachmentID}/template/${templateID}/file`);
+  if (!res.ok) throw new Error(`Failed to get template file: ${res.status}`);
+  return res.arrayBuffer();
+}
+
 export async function uploadTemplate(uniqueAttachmentID, file, { listStartRow, listEndRow, maxListRows = 0 }) {
   const form = new FormData();
   form.append('file', file);

@@ -41,6 +41,59 @@ func (h *AttachmentTemplateHandler) Get(c echo.Context) error {
 	return RespondSuccess(c, t)
 }
 
+func (h *AttachmentTemplateHandler) ListTemplates(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	templates, err := h.service.ListTemplates(c.Request().Context(), uaID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, templates)
+}
+
+func (h *AttachmentTemplateHandler) SetActive(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	tid, err := strconv.Atoi(c.Param("tid"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid template id")
+	}
+	if err := h.service.SetActive(c.Request().Context(), uaID, tid); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Шаблон активирован")
+}
+
+func (h *AttachmentTemplateHandler) DeleteByID(c echo.Context) error {
+	tid, err := strconv.Atoi(c.Param("tid"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid template id")
+	}
+	if err := h.service.DeleteByID(c.Request().Context(), tid); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Шаблон удален")
+}
+
+func (h *AttachmentTemplateHandler) DownloadFileByID(c echo.Context) error {
+	tid, err := strconv.Atoi(c.Param("tid"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid template id")
+	}
+	t, err := h.service.GetByID(c.Request().Context(), tid)
+	if err != nil {
+		return err
+	}
+	if t.FilePath == "" {
+		return echo.NewHTTPError(http.StatusNotFound, "Файл шаблона не загружен")
+	}
+	return c.File(t.FilePath)
+}
+
 // Upload godoc
 // @Summary      Загрузить .xlsx шаблон бланка
 // @Tags         attachment-templates

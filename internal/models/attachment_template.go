@@ -3,11 +3,12 @@ package models
 import "time"
 
 // AttachmentTemplate - настройки Excel-бланка для UniqueAttachment (#183).
-// Один шаблон на UniqueAttachment, поэтому unique_attachment_id с UNIQUE.
+// Несколько шаблонов на UniqueAttachment, активный определяется IsActive=true.
 // file_path - путь к загруженному .xlsx в uploads/templates/.
 type AttachmentTemplate struct {
 	ID                  int                          `json:"id"`
-	UniqueAttachmentID  int                          `gorm:"uniqueIndex" json:"unique_attachment_id"`
+	UniqueAttachmentID  int                          `gorm:"index" json:"unique_attachment_id"`
+	IsActive            bool                         `gorm:"default:true;index" json:"is_active"`
 	UniqueAttachment    *UniqueAttachment            `gorm:"foreignKey:UniqueAttachmentID" json:"-"`
 	FilePath            string                       `gorm:"size:500" json:"file_path"`
 	OriginalFileName    string                       `gorm:"size:255" json:"original_file_name"`
