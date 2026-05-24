@@ -192,6 +192,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attRoot := protected.Group("/attachments")
 	attRoot.GET("/:id/template", attachmentTemplates.Get)
 	attRoot.POST("/:id/template", attachmentTemplates.Upload)
+	attRoot.GET("/:id/template/file", attachmentTemplates.DownloadFile)
 	attRoot.PUT("/:id/template/mappings", attachmentTemplates.UpdateMappings)
 	attRoot.DELETE("/:id/template", attachmentTemplates.Delete)
 	attRoot.GET("/:id/template-fields", attachmentTemplates.GetFields)
