@@ -89,6 +89,30 @@ func resolveApplication(bctx *BlankContext, path string) string {
 		if bctx.Sender != nil {
 			return derefStr(bctx.Sender.FirstName)
 		}
+	case "application.sender.middle_name":
+		if bctx.Sender != nil {
+			return derefStr(bctx.Sender.MiddleName)
+		}
+	case "application.sender.phone":
+		if bctx.Sender != nil {
+			return derefStr(bctx.Sender.Phone)
+		}
+	case "application.sender.email":
+		if bctx.Sender != nil {
+			return derefStr(bctx.Sender.Email)
+		}
+	case "application.sender.position":
+		if bctx.Sender != nil {
+			return derefStr(bctx.Sender.Position)
+		}
+	case "application.confirmation_datetime":
+		if app.ConfirmationDatetime != nil {
+			return app.ConfirmationDatetime.Format("02.01.2006")
+		}
+	case "application.approver_name":
+		return bctx.ApproverName
+	case "application.responsible_comment":
+		return derefStr(app.ResponsibleComment)
 	}
 	return ""
 }
@@ -148,6 +172,10 @@ func resolveCar(c *models.Car, path string, rowIdx int) string {
 		return derefStr(c.EntryDateFrom)
 	case "car.entry_date_to":
 		return derefStr(c.EntryDateTo)
+	case "car.entry_time_from":
+		return formatTime(derefStr(c.EntryTimeFrom))
+	case "car.entry_time_to":
+		return formatTime(derefStr(c.EntryTimeTo))
 	}
 	return ""
 }

@@ -29,6 +29,7 @@ type BlankContext struct {
 	Items            []models.Item
 	Citizenships     map[int]string // citizenship_id → name
 	CustomValues     map[int]string // custom_field_id → value
+	ApproverName     string         // ФИО согласовавшего
 }
 
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
@@ -88,17 +89,30 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	defer f.Close()
 	sheet := f.GetSheetName(0)
 
-	// 4. Простые (не list) маппинги - сразу в ячейку.
+	// 4. Простые (не list) маппинги - группировка по cell_ref для совмещения.
 	var listMappings []models.AttachmentTemplateMapping
+	cellValues := make(map[string][]string)
+	cellOrder := make([]string, 0)
 	for _, m := range template.Mappings {
 		if m.IsListField {
 			listMappings = append(listMappings, m)
 			continue
 		}
 		val := resolveValue(bctx, m.FieldPath, 0)
-		if val != "" {
-			_ = f.SetCellValue(sheet, m.CellRef, val)
+		if val == "" {
+			continue
 		}
+		if _, exists := cellValues[m.CellRef]; !exists {
+			cellOrder = append(cellOrder, m.CellRef)
+		}
+		cellValues[m.CellRef] = append(cellValues[m.CellRef], val)
+	}
+	sep := ", "
+	if template.ConcatSeparator != nil && *template.ConcatSeparator != "" {
+		sep = *template.ConcatSeparator
+	}
+	for _, ref := range cellOrder {
+		_ = f.SetCellValue(sheet, ref, strings.Join(cellValues[ref], sep))
 	}
 
 	// 5. List-fields с авторасширением.
@@ -209,6 +223,9 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 		bctx.Company = &c
 	}
 
+	// ApproverName: ФИО согласовавшего.
+	bctx.ApproverName = s.resolveApproverName(ctx, appID)
+
 	// Cars / employees / items - только для этого attachment.
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Cars)
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Employees)
@@ -239,4 +256,37 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	}
 
 	return bctx, nil
+}
+
+// resolveApproverName определяет ФИО согласовавшего заявку:
+// - если есть обязательные согласующие (required_approval=true) с approval_status='approved',
+//   берется последний по approval_datetime;
+// - иначе берется первый согласовавший (approval_status='approved').
+func (s *attachmentBlankService) resolveApproverName(ctx context.Context, appID int) string {
+	var responsible []models.ApplicationResponsibleUser
+	s.db.WithContext(ctx).
+		Preload("User").
+		Where("application_id = ? AND approval_status = ?", appID, "approved").
+		Order("approval_datetime ASC").
+		Find(&responsible)
+
+	if len(responsible) == 0 {
+		return ""
+	}
+
+	var required []models.ApplicationResponsibleUser
+	for _, r := range responsible {
+		if r.RequiredApproval {
+			required = append(required, r)
+		}
+	}
+
+	var approver *models.User
+	if len(required) > 0 {
+		approver = &required[len(required)-1].User
+	} else {
+		approver = &responsible[0].User
+	}
+
+	return joinFullName(derefStr(approver.LastName), derefStr(approver.FirstName), derefStr(approver.MiddleName))
 }
