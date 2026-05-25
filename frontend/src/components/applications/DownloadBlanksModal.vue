@@ -52,7 +52,7 @@
             class="dbm-checkbox"
           >
           <div class="dbm-item-info">
-            <span class="dbm-item-name">{{ att.display_name || att.name }}</span>
+            <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
             <span
               v-if="attachmentTypeLabel(att.attachment_type)"
               class="dbm-item-type"
