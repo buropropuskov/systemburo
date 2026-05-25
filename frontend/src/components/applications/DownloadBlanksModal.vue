@@ -1,24 +1,65 @@
 <template>
-  <div class="modal-overlay" data-testid="download-blanks-modal" @click.self="$emit('close')">
-    <div class="modal-content">
-      <h3 class="modal-title">Скачивание бланков заявки</h3>
+  <div
+    class="dbm-overlay"
+    data-testid="download-blanks-modal"
+    @click.self="$emit('close')"
+  >
+    <div class="dbm-modal">
+      <div class="dbm-header">
+        <h3 class="dbm-title">
+          Скачивание бланков
+        </h3>
+        <button
+          class="dbm-close"
+          @click="$emit('close')"
+        >
+          &times;
+        </button>
+      </div>
 
-      <div v-if="isLoading" class="loader">Загрузка вложений...</div>
-      <div v-else-if="error" class="error">{{ error }}</div>
-      <div v-else-if="!eligibleAttachments.length" class="empty">
+      <div
+        v-if="isLoading"
+        class="dbm-state"
+      >
+        <span class="dbm-spinner" />
+      </div>
+      <div
+        v-else-if="error"
+        class="dbm-state dbm-state--error"
+      >
+        {{ error }}
+      </div>
+      <div
+        v-else-if="!eligibleAttachments.length"
+        class="dbm-state"
+      >
         У заявки нет вложений с настроенным шаблоном бланка.
       </div>
-      <div v-else class="attachments">
-        <label v-for="att in eligibleAttachments" :key="att.id" class="attachment-row">
+      <div
+        v-else
+        class="dbm-list"
+      >
+        <label
+          v-for="att in eligibleAttachments"
+          :key="att.id"
+          class="dbm-item"
+          :class="{ selected: selectedIds.includes(att.id) }"
+        >
           <input
+            v-model="selectedIds"
             type="checkbox"
             :value="att.id"
-            v-model="selectedIds"
+            class="dbm-checkbox"
           >
-          <span class="att-name">{{ att.display_name || att.name }}</span>
-          <span class="att-type">{{ attachmentTypeLabel(att.attachment_type) }}</span>
+          <div class="dbm-item-info">
+            <span class="dbm-item-name">{{ att.display_name || att.name }}</span>
+            <span
+              v-if="attachmentTypeLabel(att.attachment_type)"
+              class="dbm-item-type"
+            >{{ attachmentTypeLabel(att.attachment_type) }}</span>
+          </div>
           <button
-            class="link-btn"
+            class="dbm-item-download"
             :disabled="downloadingId === att.id"
             @click.prevent="downloadOne(att)"
           >
@@ -27,21 +68,29 @@
         </label>
       </div>
 
-      <footer v-if="eligibleAttachments.length" class="modal-actions">
-        <button class="lk-btn lk-btn--ghost" @click="$emit('close')">Закрыть</button>
+      <footer
+        v-if="eligibleAttachments.length"
+        class="dbm-footer"
+      >
         <button
-          class="lk-btn"
-          :disabled="!selectedIds.length || downloadingAll"
-          @click="downloadSelected"
+          class="dbm-btn dbm-btn--ghost"
+          @click="$emit('close')"
         >
-          {{ downloadingAll ? 'Скачивание...' : `Скачать выбранное (${selectedIds.length})` }}
+          Закрыть
         </button>
         <button
-          class="lk-btn lk-btn--ghost"
+          class="dbm-btn dbm-btn--ghost"
           :disabled="downloadingAll"
           @click="downloadAll"
         >
           Скачать все
+        </button>
+        <button
+          class="dbm-btn dbm-btn--primary"
+          :disabled="!selectedIds.length || downloadingAll"
+          @click="downloadSelected"
+        >
+          {{ downloadingAll ? 'Скачивание...' : `Скачать (${selectedIds.length})` }}
         </button>
       </footer>
     </div>
@@ -112,8 +161,6 @@ export default {
     },
     async downloadSelected() {
       if (!this.selectedIds.length) return;
-      // ZIP-выгрузка пока не реализована на бэке - скачиваем по одному.
-      // TODO: backend endpoint /applications/:id/blanks?attachment_ids= → отдельная задача.
       this.downloadingAll = true;
       try {
         for (const id of this.selectedIds) {
@@ -133,101 +180,211 @@ export default {
 </script>
 
 <style scoped>
-.modal-overlay {
+.dbm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
 }
 
-.modal-content {
+.dbm-modal {
   background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  width: 520px;
+  border-radius: 30px;
+  padding: 0;
+  width: 480px;
   max-width: 92vw;
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
-.modal-title {
-  margin: 0 0 16px;
-  font-size: 18px;
-}
-
-.loader, .empty, .error {
-  text-align: center;
-  color: #888;
-  padding: 24px 0;
-}
-
-.error {
-  color: #d73a3a;
-}
-
-.attachment-row {
+.dbm-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--color-border);
-  cursor: pointer;
+  justify-content: space-between;
+  padding: 20px 24px 0;
 }
 
-.attachment-row:hover {
+.dbm-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dbm-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
   background: var(--color-bg-secondary);
+  border-radius: 50%;
+  font-size: 18px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
 }
 
-.att-name {
+.dbm-close:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.dbm-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.dbm-state--error {
+  color: var(--color-danger);
+}
+
+.dbm-spinner {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: dbm-spin 0.7s linear infinite;
+}
+
+@keyframes dbm-spin {
+  to { transform: rotate(360deg); }
+}
+
+.dbm-list {
+  padding: 16px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dbm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #fff;
+}
+
+.dbm-item:hover {
+  border-color: var(--color-primary);
+  background: #f8faff;
+}
+
+.dbm-item.selected {
+  border-color: var(--color-primary);
+  background: #eef4ff;
+}
+
+.dbm-checkbox {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.dbm-item-info {
   flex: 1;
-  font-size: 14px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.att-type {
-  font-size: 12px;
-  color: #888;
+.dbm-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.link-btn {
+.dbm-item-type {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.dbm-item-download {
+  flex-shrink: 0;
   background: none;
-  border: 0;
+  border: none;
   color: var(--color-primary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  transition: all 0.15s;
 }
 
-.link-btn:disabled {
-  opacity: 0.5;
+.dbm-item-download:hover {
+  background: #eef4ff;
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.lk-btn {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 0;
-  background: var(--color-primary);
-  color: #fff;
-  cursor: pointer;
-}
-
-.lk-btn:disabled {
+.dbm-item-download:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.lk-btn--ghost {
+.dbm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+.dbm-btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dbm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dbm-btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.dbm-btn--primary:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.dbm-btn--ghost {
   background: transparent;
   border: 1px solid var(--color-border);
-  color: #333;
+  color: var(--color-text);
+}
+
+.dbm-btn--ghost:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 </style>

@@ -139,8 +139,14 @@
         class="te-preview-panel"
         @click="pathPopup = null; removePopupField = ''"
       >
+        <div
+          v-if="loadingTemplate"
+          class="te-preview-empty"
+        >
+          <span class="te-spinner" />
+        </div>
         <XlsxViewer
-          v-if="enabled && templateFileBuffer"
+          v-else-if="enabled && templateFileBuffer"
           ref="xlsxViewer"
           :file-buffer="templateFileBuffer"
           :mappings="enrichedMappings"
@@ -170,19 +176,33 @@
         >
           <div class="te-picker-header">
             <h4>Привязка полей системы</h4>
-            <input
-              v-model="searchQuery"
-              type="text"
-              class="lk-input te-search-input"
-              placeholder="Поиск..."
-            >
+            <div class="te-search-wrap">
+              <img
+                src="@/assets/icons/search.png"
+                class="te-search-icon"
+                alt=""
+              >
+              <input
+                v-model="searchQuery"
+                type="text"
+                class="lk-input te-search-input"
+                placeholder="Поиск..."
+              >
+            </div>
           </div>
           <div
             ref="fieldPickerScroll"
             class="te-field-picker-scroll"
           >
             <div
+              v-if="loadingFields"
+              class="te-fields-loading"
+            >
+              <span class="te-spinner" />
+            </div>
+            <div
               v-for="g in filteredFieldGroups"
+              v-else
               :key="g.group"
               class="te-field-group"
             >
@@ -253,34 +273,44 @@
           v-if="enabled"
           class="te-section"
         >
-          <!-- Шаблоны: табы + действия -->
+          <!-- Шаблоны: dropdown + действия -->
           <div
             v-if="allTemplates.length > 0 && !showUpload"
             class="te-templates-block"
           >
-            <div class="te-template-tabs">
+            <div class="te-template-dropdown-wrap">
               <button
-                v-for="tmpl in allTemplates"
-                :key="tmpl.id"
-                class="te-template-tab"
-                :class="{ active: tmpl.is_active }"
-                :title="tmpl.original_file_name"
-                @click="switchTemplate(tmpl)"
+                class="te-template-dropdown-trigger"
+                @click="templateDropdownOpen = !templateDropdownOpen"
               >
-                <span class="te-tab-name">{{ tmpl.original_file_name || 'template.xlsx' }}</span>
+                <span class="te-dropdown-filename">{{ template?.original_file_name || 'template.xlsx' }}</span>
                 <span
-                  v-if="allTemplates.length > 1"
-                  class="te-tab-remove"
-                  @click.stop="deleteSpecificTemplate(tmpl)"
-                >&times;</span>
+                  class="te-dropdown-arrow"
+                  :class="{ open: templateDropdownOpen }"
+                >&#9662;</span>
               </button>
-              <button
-                class="te-template-tab te-tab-add"
-                title="Загрузить ещё один шаблон"
-                @click="showUpload = true"
-              >
-                +
-              </button>
+              <transition name="te-dropdown-fade">
+                <div
+                  v-if="templateDropdownOpen"
+                  class="te-template-dropdown"
+                >
+                  <button
+                    v-for="tmpl in allTemplates"
+                    :key="tmpl.id"
+                    class="te-dropdown-item"
+                    :class="{ active: tmpl.id === template?.id }"
+                    @click="onDropdownSelectTemplate(tmpl)"
+                  >
+                    {{ tmpl.original_file_name || 'template.xlsx' }}
+                  </button>
+                  <button
+                    class="te-dropdown-item te-dropdown-add"
+                    @click="showUpload = true; templateDropdownOpen = false"
+                  >
+                    Добавить файл..
+                  </button>
+                </div>
+              </transition>
             </div>
             <div class="te-file-actions">
               <button
@@ -288,6 +318,12 @@
                 @click="downloadCurrentTemplate"
               >
                 Скачать
+              </button>
+              <button
+                class="lk-button lk-button--ghost te-btn-sm"
+                @click="showUpload = true"
+              >
+                Редактировать
               </button>
               <button
                 class="lk-button lk-button--danger te-btn-sm"
@@ -523,6 +559,8 @@ export default {
       uploading: false,
       savingMappings: false,
       concatSeparator: ', ',
+      loadingTemplate: false,
+      loadingFields: false,
       templateFileBuffer: null,
       pendingFieldPath: '',
       pendingFieldLabel: '',
@@ -540,6 +578,7 @@ export default {
       pathsAnimatingOut: false,
       hoveredPathIndex: null,
       hoveredCellRef: '',
+      templateDropdownOpen: false,
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -652,6 +691,7 @@ export default {
       this.hoveredFieldPath = '';
       this.hoveredPathIndex = null;
       this.hoveredCellRef = '';
+      this.templateDropdownOpen = false;
       this.pathLines = [];
       this.pathsAnimatingOut = false;
       this.showPaths = false;
@@ -667,6 +707,7 @@ export default {
       await Promise.all([this.loadTemplate(), this.loadFields()]);
     },
     async loadTemplate() {
+      this.loadingTemplate = true;
       try {
         const data = await getTemplate(this.uniqueAttachmentId);
         this.template = data;
@@ -676,12 +717,14 @@ export default {
         this.form.listEndRow = data && data.list_end_row || 1;
         this.form.maxListRows = data && data.max_list_rows || 0;
         this.concatSeparator = data && data.concat_separator || ', ';
-        if (this.enabled) this.loadTemplateFile();
+        if (this.enabled) await this.loadTemplateFile();
       } catch {
         this.template = null;
         this.mappings = [];
         this.enabled = false;
         this.templateFileBuffer = null;
+      } finally {
+        this.loadingTemplate = false;
       }
       try {
         const all = await listTemplates(this.uniqueAttachmentId);
@@ -702,11 +745,14 @@ export default {
       }
     },
     async loadFields() {
+      this.loadingFields = true;
       try {
         const data = await getTemplateFields(this.uniqueAttachmentId);
         this.fieldGroups = Array.isArray(data) ? data : [];
       } catch {
         this.fieldGroups = [];
+      } finally {
+        this.loadingFields = false;
       }
     },
     onToggleEnabled(val) {
@@ -740,6 +786,11 @@ export default {
       } finally {
         this.uploading = false;
       }
+    },
+    async onDropdownSelectTemplate(tmpl) {
+      this.templateDropdownOpen = false;
+      if (tmpl.id === this.template?.id) return;
+      await this.switchTemplate(tmpl);
     },
     async switchTemplate(tmpl) {
       if (tmpl.id === this.template?.id) return;
@@ -938,6 +989,8 @@ export default {
     },
     isPathHighlighted(line, idx) {
       if (this.hoveredPathIndex === idx) return true;
+      if (this.hoveredFieldPath && line.fieldPath === this.hoveredFieldPath) return true;
+      if (this.hoveredCellRef && line.cellRef === this.hoveredCellRef) return true;
       return false;
     },
     isPathHidden(line, idx) {
@@ -1170,7 +1223,7 @@ export default {
 }
 
 :deep(.base-modal) {
-  border-radius: 50px !important;
+  border-radius: 40px !important;
 }
 
 .te-settings-panel {
@@ -1363,78 +1416,111 @@ export default {
 
 /* ---- Templates block ---- */
 .te-templates-block {
-  border: 1px solid var(--color-border);
-  border-radius: 30px;
-  padding: 10px 14px;
+  padding: 0;
   background: #fff;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.te-template-tabs {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+.te-template-dropdown-wrap {
+  position: relative;
 }
 
-.te-template-tab {
-  display: inline-flex;
+.te-template-dropdown-trigger {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  font-size: 12px;
   background: #fff;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color 0.15s;
   color: var(--color-text);
 }
 
-.te-template-tab:hover {
+.te-template-dropdown-trigger:hover {
   border-color: var(--color-primary);
 }
 
-.te-template-tab.active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
-}
-
-.te-tab-name {
-  max-width: 120px;
+.te-dropdown-filename {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.te-tab-remove {
-  font-size: 14px;
-  line-height: 1;
-  opacity: 0.6;
+.te-dropdown-arrow {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.te-dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.te-template-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+  overflow: hidden;
+}
+
+.te-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  text-align: left;
   cursor: pointer;
+  color: var(--color-text);
+  transition: background 0.1s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.te-tab-remove:hover {
-  opacity: 1;
-  color: var(--color-danger);
+.te-dropdown-item:hover {
+  background: var(--color-bg-secondary);
 }
 
-.te-template-tab.active .te-tab-remove:hover {
-  color: #ffc;
-}
-
-.te-tab-add {
-  font-size: 16px;
-  font-weight: 600;
-  padding: 4px 12px;
+.te-dropdown-item.active {
+  background: #e8f4fd;
   color: var(--color-primary);
-  border-style: dashed;
+  font-weight: 500;
 }
 
-.te-tab-add:hover {
-  background: #f0f4ff;
+.te-dropdown-add {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.te-dropdown-fade-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.te-dropdown-fade-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.te-dropdown-fade-enter-from,
+.te-dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 /* ---- Separator ---- */
@@ -1641,14 +1727,29 @@ export default {
 
 .te-picker-header h4 {
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text);
 }
 
+.te-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.te-search-icon {
+  position: absolute;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .te-search-input {
   width: 140px;
-  padding: 4px 8px !important;
+  padding: 4px 8px 4px 24px !important;
   font-size: 11px !important;
 }
 
@@ -1666,19 +1767,16 @@ export default {
 
 .te-field-picker-scroll {
   overflow-y: auto;
-  padding: 8px 10px;
+  padding: 0;
   height: 450px;
 }
 
 .te-field-group {
-  margin-bottom: 10px;
-  padding-bottom: 10px;
+  padding: 8px 10px 10px;
   border-bottom: 1px solid var(--color-border);
 }
 
 .te-field-group:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
   border-bottom: none;
 }
 
@@ -1950,6 +2048,28 @@ export default {
 .te-btn-sm {
   padding: 5px 12px !important;
   font-size: 11px !important;
+}
+
+/* ---- Spinner ---- */
+.te-spinner {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: te-spin 0.7s linear infinite;
+}
+
+@keyframes te-spin {
+  to { transform: rotate(360deg); }
+}
+
+.te-fields-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
 }
 
 /* ---- Responsive ---- */
