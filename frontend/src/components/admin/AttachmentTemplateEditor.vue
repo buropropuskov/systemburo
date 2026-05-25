@@ -3,6 +3,7 @@
     :show="show"
     width="95vw"
     closable
+    content-class="te-modal-rounded"
     :close-on-overlay="!rebindingMode"
     @close="onClose"
   >
@@ -139,28 +140,36 @@
         class="te-preview-panel"
         @click="pathPopup = null; removePopupField = ''"
       >
-        <div
-          v-if="loadingTemplate"
-          class="te-preview-empty"
+        <transition
+          name="te-content-fade"
+          mode="out-in"
         >
-          <span class="te-spinner" />
-        </div>
-        <XlsxViewer
-          v-else-if="enabled && templateFileBuffer"
-          ref="xlsxViewer"
-          :file-buffer="templateFileBuffer"
-          :mappings="enrichedMappings"
-          :selected-cell="activeCellRef"
-          :cell-colors="cellColorMap"
-          @cell-click="onCellClick"
-          @cell-hover="onCellHover"
-        />
-        <div
-          v-else
-          class="te-preview-empty"
-        >
-          <span>Загрузите шаблон .xlsx для настройки генерации бланка</span>
-        </div>
+          <div
+            v-if="loadingTemplate"
+            key="loading"
+            class="te-preview-empty"
+          >
+            <span class="te-spinner" />
+          </div>
+          <XlsxViewer
+            v-else-if="enabled && templateFileBuffer"
+            key="viewer"
+            ref="xlsxViewer"
+            :file-buffer="templateFileBuffer"
+            :mappings="enrichedMappings"
+            :selected-cell="activeCellRef"
+            :cell-colors="cellColorMap"
+            @cell-click="onCellClick"
+            @cell-hover="onCellHover"
+          />
+          <div
+            v-else
+            key="empty"
+            class="te-preview-empty"
+          >
+            <span>Загрузите шаблон .xlsx для настройки генерации бланка</span>
+          </div>
+        </transition>
       </div>
 
       <!-- Правая панель: настройки -->
@@ -194,77 +203,87 @@
             ref="fieldPickerScroll"
             class="te-field-picker-scroll"
           >
-            <div
-              v-if="loadingFields"
-              class="te-fields-loading"
+            <transition
+              name="te-content-fade"
+              mode="out-in"
             >
-              <span class="te-spinner" />
-            </div>
-            <div
-              v-for="g in filteredFieldGroups"
-              v-else
-              :key="g.group"
-              class="te-field-group"
-            >
-              <span class="te-field-group-label">{{ g.label }}</span>
-              <div class="te-field-chips">
-                <button
-                  v-for="f in g.fields"
-                  :key="f.path"
-                  :data-field-path="f.path"
-                  class="te-field-chip"
-                  :class="{
-                    active: pendingFieldPath === f.path,
-                    used: fieldPathUsed(f.path),
-                  }"
-                  :style="chipStyle(f.path)"
-                  @click="selectField(f)"
-                  @mouseenter="onChipHover(f.path)"
-                  @mouseleave="onChipHover('')"
-                >
-                  <span class="te-chip-label">{{ f.label }}</span>
-                  <span
-                    v-if="fieldPathUsed(f.path)"
-                    class="te-chip-ref"
-                  >
-                    {{ fieldCellRefs(f.path) }}
-                  </span>
-                  <span
-                    v-if="fieldPathUsed(f.path)"
-                    class="te-chip-remove"
-                    @click.stop="onChipRemoveClick(f.path)"
-                  >
-                    &times;
-                  </span>
-                  <div
-                    v-if="removePopupField === f.path"
-                    class="te-remove-popup"
-                    @click.stop
-                  >
-                    <div
-                      v-for="rm in fieldMappingEntries(f.path)"
-                      :key="rm.idx"
-                      class="te-remove-popup__item"
-                      @click="removeMapping(rm.idx); removePopupField = ''"
-                    >
-                      {{ rm.cell_ref }} <span class="te-remove-popup__x">&times;</span>
-                    </div>
-                    <div
-                      class="te-remove-popup__all"
-                      @click="removeMappingsByPath(f.path); removePopupField = ''"
-                    >
-                      Удалить все
-                    </div>
-                  </div>
-                </button>
+              <div
+                v-if="loadingFields"
+                key="fields-loading"
+                class="te-fields-loading"
+              >
+                <span class="te-spinner" />
               </div>
-            </div>
-            <div
-              v-if="filteredFieldGroups.length === 0"
-              class="te-no-results"
-            >
-              Поля не найдены
-            </div>
+              <div
+                v-else
+                key="fields-list"
+              >
+                <div
+                  v-for="g in filteredFieldGroups"
+                  :key="g.group"
+                  class="te-field-group"
+                >
+                  <span class="te-field-group-label">{{ g.label }}</span>
+                  <div class="te-field-chips">
+                    <button
+                      v-for="f in g.fields"
+                      :key="f.path"
+                      :data-field-path="f.path"
+                      class="te-field-chip"
+                      :class="{
+                        active: pendingFieldPath === f.path,
+                        used: fieldPathUsed(f.path),
+                      }"
+                      :style="chipStyle(f.path)"
+                      @click="selectField(f)"
+                      @mouseenter="onChipHover(f.path)"
+                      @mouseleave="onChipHover('')"
+                    >
+                      <span class="te-chip-label">{{ f.label }}</span>
+                      <span
+                        v-if="fieldPathUsed(f.path)"
+                        class="te-chip-ref"
+                      >
+                        {{ fieldCellRefs(f.path) }}
+                      </span>
+                      <span
+                        v-if="fieldPathUsed(f.path)"
+                        class="te-chip-remove"
+                        @click.stop="onChipRemoveClick(f.path)"
+                      >
+                        &times;
+                      </span>
+                      <div
+                        v-if="removePopupField === f.path"
+                        class="te-remove-popup"
+                        @click.stop
+                      >
+                        <div
+                          v-for="rm in fieldMappingEntries(f.path)"
+                          :key="rm.idx"
+                          class="te-remove-popup__item"
+                          @click="removeMapping(rm.idx); removePopupField = ''"
+                        >
+                          {{ rm.cell_ref }} <span class="te-remove-popup__x">&times;</span>
+                        </div>
+                        <div
+                          class="te-remove-popup__all"
+                          @click="removeMappingsByPath(f.path); removePopupField = ''"
+                        >
+                          Удалить все
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                <div
+                  v-if="filteredFieldGroups.length === 0"
+                  class="te-no-results"
+                >
+                  Поля не найдены
+                </div>
+              </div>
+            </transition>
           </div>
         </div>
 
@@ -1222,10 +1241,6 @@ export default {
   text-align: center;
 }
 
-:deep(.base-modal) {
-  border-radius: 40px !important;
-}
-
 .te-settings-panel {
   flex: 1 1 0;
   min-width: 280px;
@@ -1471,7 +1486,7 @@ export default {
   right: 0;
   background: #fff;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 20px;
   box-shadow: var(--shadow-md);
   z-index: 30;
   overflow: hidden;
@@ -1486,7 +1501,7 @@ export default {
   font-size: 12px;
   text-align: left;
   cursor: pointer;
-  color: var(--color-text);
+  color: #000;
   transition: background 0.1s;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2050,6 +2065,20 @@ export default {
   font-size: 11px !important;
 }
 
+/* ---- Content transitions ---- */
+.te-content-fade-enter-active {
+  transition: opacity 0.3s ease;
+}
+
+.te-content-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.te-content-fade-enter-from,
+.te-content-fade-leave-to {
+  opacity: 0;
+}
+
 /* ---- Spinner ---- */
 .te-spinner {
   display: block;
@@ -2087,6 +2116,18 @@ export default {
 
   .te-settings-panel {
     width: 100%;
+  }
+}
+</style>
+
+<style>
+.te-modal-rounded.base-modal {
+  border-radius: 40px;
+}
+
+@media (max-width: 768px) {
+  .te-modal-rounded.base-modal {
+    border-radius: 16px 16px 0 0;
   }
 }
 </style>

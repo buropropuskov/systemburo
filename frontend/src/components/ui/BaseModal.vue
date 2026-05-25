@@ -10,6 +10,7 @@
         <div
           ref="modal"
           class="base-modal"
+          :class="contentClass"
           :style="{ maxWidth: width }"
           role="dialog"
           aria-modal="true"
@@ -74,6 +75,10 @@ export default {
     closeOnOverlay: {
       type: Boolean,
       default: true,
+    },
+    contentClass: {
+      type: String,
+      default: '',
     },
   },
   emits: ['close'],
