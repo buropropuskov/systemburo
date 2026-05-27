@@ -534,7 +534,6 @@
     />
 
     <VehicleDetailsModal
-      v-if="detailsCar"
       :show="showDetailsViewModal"
       :vehicle="detailsCar"
       :all-unloading-places="[]"

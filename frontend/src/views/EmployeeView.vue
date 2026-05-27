@@ -303,7 +303,6 @@
     />
 
     <EmployeeDetailsModal
-      v-if="detailsEmployee"
       :show="showDetailsModal"
       :employee="detailsEmployee"
       :all-tables="[]"

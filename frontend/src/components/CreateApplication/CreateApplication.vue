@@ -488,6 +488,14 @@ export default {
                 if (hasValidDates && !hasValidTime) {
                     reasons.push(`"${label}": время окончания должно быть позже времени начала`);
                 }
+
+                const uaId = attachment.template_id || attachment.id;
+                const fields = this.customFieldDefinitions[uaId] || [];
+                const values = this.customFieldsByAttachment[key] || {};
+                const emptyFields = fields.filter(f => !values[f.id] || !values[f.id].trim());
+                if (emptyFields.length > 0) {
+                    reasons.push(`"${label}": заполните доп. поля: ${emptyFields.map(f => f.label).join(', ')}`);
+                }
             });
 
             return reasons;
@@ -549,6 +557,14 @@ export default {
                     }
                 } else {
                     errors.push('Не заполнены даты действия и время пребывания');
+                }
+
+                const uaId = attachment.template_id || attachment.id;
+                const cfFields = this.customFieldDefinitions[uaId] || [];
+                const cfValues = this.customFieldsByAttachment[key] || {};
+                const emptyCf = cfFields.filter(f => !cfValues[f.id] || !cfValues[f.id].trim());
+                if (emptyCf.length > 0) {
+                    emptyCf.forEach(f => errors.push(`Не заполнено доп. поле "${f.label}"`));
                 }
 
                 if (errors.length) {
