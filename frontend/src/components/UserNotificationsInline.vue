@@ -243,6 +243,7 @@ export default {
 .notifications {
   flex: 1;
   min-height: 200px;
+  max-height: 200px;
   background-color: #fff;
   border-radius: 30px;
   border: 1px solid #e6e6e6;
