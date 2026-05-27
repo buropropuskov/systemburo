@@ -197,6 +197,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attRoot.GET("/:id/template/:tid/file", attachmentTemplates.DownloadFileByID)
 	attRoot.PUT("/:id/template/mappings", attachmentTemplates.UpdateMappings)
 	attRoot.PUT("/:id/template/:tid/activate", attachmentTemplates.SetActive)
+	attRoot.PUT("/:id/template/deactivate", attachmentTemplates.DeactivateAll)
 	attRoot.DELETE("/:id/template", attachmentTemplates.Delete)
 	attRoot.DELETE("/:id/template/:tid", attachmentTemplates.DeleteByID)
 	attRoot.GET("/:id/template-fields", attachmentTemplates.GetFields)

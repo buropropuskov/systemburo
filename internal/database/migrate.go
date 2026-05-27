@@ -133,6 +133,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(AllModels()...); err != nil {
 		return err
 	}
+	if err := fixAttachmentTemplateIndex(db); err != nil {
+		return err
+	}
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
@@ -160,6 +163,27 @@ func backfillSuperAdmin(db *gorm.DB) error {
 		slog.Info("super-admin backfilled", "users_updated", res.RowsAffected)
 	}
 	return nil
+}
+
+// fixAttachmentTemplateIndex заменяет UNIQUE индекс на обычный, если GORM
+// создал его при AutoMigrate для belongs-to связи. Несколько шаблонов на
+// одно вложение - штатный сценарий (#183).
+func fixAttachmentTemplateIndex(db *gorm.DB) error {
+	return db.Exec(`
+		DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1 FROM pg_indexes
+				WHERE tablename = 'attachment_templates'
+				  AND indexname = 'idx_attachment_templates_unique_attachment_id'
+				  AND indexdef LIKE '%UNIQUE%'
+			) THEN
+				DROP INDEX idx_attachment_templates_unique_attachment_id;
+				CREATE INDEX idx_attachment_templates_unique_attachment_id
+					ON attachment_templates(unique_attachment_id);
+			END IF;
+		END $$;
+	`).Error
 }
 
 // installSQLFunctions создаёт пользовательские SQL-функции, переиспользуемые

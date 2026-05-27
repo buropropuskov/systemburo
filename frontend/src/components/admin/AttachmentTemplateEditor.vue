@@ -534,6 +534,7 @@ import {
   getTemplate, uploadTemplate, updateMappings, deleteTemplate,
   getTemplateFields, getTemplateFile, saveBlobAs,
   listTemplates, setActiveTemplate, deleteTemplateByID, getTemplateFileByID,
+  deactivateAllTemplates,
 } from '@/api/attachment-templates';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
@@ -774,8 +775,20 @@ export default {
         this.loadingFields = false;
       }
     },
-    onToggleEnabled(val) {
+    async onToggleEnabled(val) {
       this.enabled = val;
+      try {
+        if (!val) {
+          await deactivateAllTemplates(this.uniqueAttachmentId);
+        } else if (this.allTemplates.length > 0) {
+          const latest = this.allTemplates[0];
+          await setActiveTemplate(this.uniqueAttachmentId, latest.id);
+          await this.loadTemplate();
+        }
+      } catch {
+        this.enabled = !val;
+        useUiStore().error('Не удалось переключить генерацию бланка');
+      }
     },
     onFileChange(e) {
       this.form.file = e.target.files[0] || null;
@@ -1438,105 +1451,6 @@ export default {
   gap: 8px;
 }
 
-.te-template-dropdown-wrap {
-  position: relative;
-}
-
-.te-template-dropdown-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  background: #fff;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  color: var(--color-text);
-}
-
-.te-template-dropdown-trigger:hover {
-  border-color: var(--color-primary);
-}
-
-.te-dropdown-filename {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.te-dropdown-arrow {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
-.te-dropdown-arrow.open {
-  transform: rotate(180deg);
-}
-
-.te-template-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 20px;
-  box-shadow: var(--shadow-md);
-  z-index: 30;
-  overflow: hidden;
-}
-
-.te-dropdown-item {
-  display: block;
-  width: 100%;
-  padding: 7px 12px;
-  border: none;
-  background: none;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-  color: #000;
-  transition: background 0.1s;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.te-dropdown-item:hover {
-  background: var(--color-bg-secondary);
-}
-
-.te-dropdown-item.active {
-  background: #e8f4fd;
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
-.te-dropdown-add {
-  border-top: 1px solid var(--color-border);
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
-.te-dropdown-fade-enter-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.te-dropdown-fade-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
-}
-
-.te-dropdown-fade-enter-from,
-.te-dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
 
 /* ---- Separator ---- */
 .te-separator-block {
@@ -2129,5 +2043,105 @@ export default {
   .te-modal-rounded.base-modal {
     border-radius: 16px 16px 0 0;
   }
+}
+
+.te-template-dropdown-wrap {
+  position: relative;
+}
+
+.te-template-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  color: var(--color-text);
+}
+
+.te-template-dropdown-trigger:hover {
+  border-color: var(--color-primary);
+}
+
+.te-dropdown-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.te-dropdown-arrow {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.te-dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.te-template-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+  overflow: hidden;
+}
+
+.te-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  color: #000;
+  transition: background 0.1s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.te-dropdown-item:hover {
+  background: var(--color-bg-secondary);
+}
+
+.te-dropdown-item.active {
+  background: #e8f4fd;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.te-dropdown-add {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.te-dropdown-fade-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.te-dropdown-fade-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.te-dropdown-fade-enter-from,
+.te-dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

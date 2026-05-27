@@ -28,6 +28,7 @@ type AttachmentTemplateService interface {
 	Delete(ctx context.Context, uniqueAttachmentID int) error
 	DeleteByID(ctx context.Context, templateID int) error
 	SetActive(ctx context.Context, uniqueAttachmentID int, templateID int) error
+	DeactivateAll(ctx context.Context, uniqueAttachmentID int) error
 	GetByID(ctx context.Context, templateID int) (*models.AttachmentTemplate, error)
 	// Custom fields
 	ListCustomFields(ctx context.Context, uniqueAttachmentID int) ([]models.AttachmentCustomField, error)
@@ -220,6 +221,16 @@ func (s *attachmentTemplateService) deleteTemplate(ctx context.Context, t *model
 		}
 		return tx.Delete(t).Error
 	})
+}
+
+func (s *attachmentTemplateService) DeactivateAll(ctx context.Context, uaID int) error {
+	res := s.db.WithContext(ctx).Model(&models.AttachmentTemplate{}).
+		Where("unique_attachment_id = ? AND is_active = ?", uaID, true).
+		Update("is_active", false)
+	if res.Error != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось деактивировать шаблоны")
+	}
+	return nil
 }
 
 func (s *attachmentTemplateService) SetActive(ctx context.Context, uaID int, templateID int) error {
