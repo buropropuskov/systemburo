@@ -61,22 +61,22 @@ export default {
 }
 
 /* Green */
-.status-badge--green { background: #dcfce7; color: #166534; }
+.status-badge--green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 .status-badge--green .status-badge__dot { background: #22c55e; }
 
 /* Gray */
-.status-badge--gray { background: #e5e7eb; color: #374151; }
+.status-badge--gray { background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; }
 .status-badge--gray .status-badge__dot { background: #9ca3af; }
 
 /* Yellow */
-.status-badge--yellow { background: #fef3c7; color: #92400e; }
+.status-badge--yellow { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
 .status-badge--yellow .status-badge__dot { background: #f59e0b; }
 
 /* Red */
-.status-badge--red { background: #fee2e2; color: #991b1b; }
+.status-badge--red { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 .status-badge--red .status-badge__dot { background: #ef4444; }
 
 /* Blue */
-.status-badge--blue { background: #dbeafe; color: #1e40af; }
+.status-badge--blue { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
 .status-badge--blue .status-badge__dot { background: #3b82f6; }
 </style>

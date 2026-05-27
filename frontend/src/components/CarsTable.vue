@@ -272,6 +272,7 @@
       :show-car-features="true"
       :source="'carstable'"
       @close="closeVehicleDetails"
+      @open-application="$emit('open-application', $event)"
     />
 
     <!-- Модальное окно истории всех машин -->

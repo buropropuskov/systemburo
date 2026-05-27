@@ -164,7 +164,7 @@ export default {
       this.downloadingAll = true;
       try {
         for (let i = 0; i < this.selectedIds.length; i++) {
-          if (i > 0) await new Promise(r => setTimeout(r, 500));
+          if (i > 0) await new Promise(r => setTimeout(r, 1000));
           await this.downloadOne({ id: this.selectedIds[i] });
         }
         useUiStore().success(`Скачано: ${this.selectedIds.length}`);
