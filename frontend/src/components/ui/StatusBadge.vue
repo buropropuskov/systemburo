@@ -61,22 +61,22 @@ export default {
 }
 
 /* Green */
-.status-badge--green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-.status-badge--green .status-badge__dot { background: #22c55e; }
+.status-badge--green { background: #e8f5e8; color: #2e7d32; border: 1px solid #c8e6c9; }
+.status-badge--green .status-badge__dot { background: #2e7d32; }
 
 /* Gray */
-.status-badge--gray { background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; }
+.status-badge--gray { background: #f5f5f5; color: #616161; border: 1px solid #e0e0e0; }
 .status-badge--gray .status-badge__dot { background: #9ca3af; }
 
 /* Yellow */
-.status-badge--yellow { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.status-badge--yellow { background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
 .status-badge--yellow .status-badge__dot { background: #f59e0b; }
 
 /* Red */
-.status-badge--red { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.status-badge--red { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
 .status-badge--red .status-badge__dot { background: #ef4444; }
 
 /* Blue */
-.status-badge--blue { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+.status-badge--blue { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
 .status-badge--blue .status-badge__dot { background: #3b82f6; }
 </style>

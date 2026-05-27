@@ -105,33 +105,21 @@
                         <span class="detail-label">Формат номера:</span>
                         <span class="detail-value">{{ getFormatName(vehicle.formatId) }}</span>
                       </div>
-                      <div
-                        v-if="vehicle.organization"
-                        class="detail-item"
-                      >
+                      <div class="detail-item">
                         <span class="detail-label">Организация:</span>
-                        <span class="detail-value">{{ vehicle.organization }}</span>
+                        <span class="detail-value">{{ vehicle.organization || '-' }}</span>
                       </div>
-                      <div
-                        v-if="vehicle.company"
-                        class="detail-item"
-                      >
+                      <div class="detail-item">
                         <span class="detail-label">Компания:</span>
-                        <span class="detail-value">{{ vehicle.company }}</span>
+                        <span class="detail-value">{{ vehicle.company || '-' }}</span>
                       </div>
-                      <div
-                        v-if="vehicle.entry_date_to"
-                        class="detail-item"
-                      >
+                      <div class="detail-item">
                         <span class="detail-label">Действует до:</span>
-                        <span class="detail-value">{{ formatDate(vehicle.entry_date_to) }}</span>
+                        <span class="detail-value">{{ formatDate(vehicle.entry_date_to) || '-' }}</span>
                       </div>
-                      <div
-                        v-if="vehicle.entry_time_from || vehicle.entry_time_to"
-                        class="detail-item"
-                      >
+                      <div class="detail-item">
                         <span class="detail-label">Время пребывания:</span>
-                        <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) }}</span>
+                        <span class="detail-value">{{ formatTimeRange(vehicle.entry_time_from, vehicle.entry_time_to) || '-' }}</span>
                       </div>
                     </div>
                   </div>

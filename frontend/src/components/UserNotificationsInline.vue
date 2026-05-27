@@ -360,7 +360,7 @@ export default {
 .notifications__items {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 
 .notification-item {

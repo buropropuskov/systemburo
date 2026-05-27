@@ -1090,6 +1090,7 @@ export default {
     margin-bottom: 0;
     padding-top: 12px;
     border-top: 1px dashed var(--color-border);
+    align-items: flex-end;
 }
 
 .filter-section {

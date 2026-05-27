@@ -968,7 +968,7 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 10000;
+    z-index: 10002;
     backdrop-filter: blur(0.1px);
     -webkit-backdrop-filter: blur(0.1px);
     animation: fadeIn 0.2s ease-out;

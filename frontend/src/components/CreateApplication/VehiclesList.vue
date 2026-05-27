@@ -375,7 +375,7 @@ export default {
 }
 
 .details-btn .details-icon {
-    color: #8c8c8c;
+    color: #6b6b6b;
 }
 
 .details-btn:hover .details-icon {

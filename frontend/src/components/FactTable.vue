@@ -11,7 +11,6 @@
       </div>
       <div class="card-header__settings">
         <RefreshButton
-          :loading="loading"
           @refresh="$emit('refresh-data')"
         />
       </div>
