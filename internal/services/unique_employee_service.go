@@ -227,7 +227,7 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 				AND CURRENT_DATE <= a.entry_date_to::date
 				ORDER BY a.entry_date_to DESC LIMIT 1
 			) as active_entry_date_to,
-			(SELECT e.pass_time FROM employees e
+			(SELECT CONCAT(a.entry_time_from, ' - ', a.entry_time_to) FROM employees e
 				JOIN attachments a ON e.attachment_id = a.id
 				JOIN applications app ON a.application_id = app.id
 				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
