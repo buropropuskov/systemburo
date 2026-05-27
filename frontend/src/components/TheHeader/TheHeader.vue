@@ -384,7 +384,8 @@ h3 {
   transition: background-color 0.2s ease;
 }
 
-.user__notifications--active .notifications__icon {
+.user__notifications--active .notifications__icon,
+.user__notifications--active .notifications__icon:hover {
   filter: grayscale(100%) brightness(0.6);
 }
 

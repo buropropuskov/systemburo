@@ -113,6 +113,7 @@ export default {
   name: 'DownloadBlanksModal',
   props: {
     applicationId: { type: Number, required: true },
+    applicationInfo: { type: Object, default: null },
   },
   emits: ['close'],
   data() {
@@ -184,7 +185,12 @@ export default {
         }
       }
       const content = await zip.generateAsync({ type: 'blob' });
-      saveBlobAs(content, `blanks_${this.applicationId}.zip`);
+      const info = this.applicationInfo;
+      const num = info?.application_number || this.applicationId;
+      const date = info?.sending_datetime ? new Date(info.sending_datetime).toLocaleDateString('ru-RU') : '';
+      const org = info?.organization_name || '';
+      const parts = [num, date, org].filter(Boolean).join('_').replace(/[/\\:*?"<>|]/g, '_');
+      saveBlobAs(content, `${parts}.zip`);
       useUiStore().success(`Скачано: ${ids.length} файлов в ZIP`);
     },
     async downloadAll() {
