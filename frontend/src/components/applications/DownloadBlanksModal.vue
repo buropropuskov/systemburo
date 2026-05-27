@@ -98,6 +98,7 @@
 </template>
 
 <script>
+import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
 import { useUiStore } from '@/stores/ui';
 import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
@@ -163,14 +164,28 @@ export default {
       if (!this.selectedIds.length) return;
       this.downloadingAll = true;
       try {
-        for (let i = 0; i < this.selectedIds.length; i++) {
-          if (i > 0) await new Promise(r => setTimeout(r, 1000));
-          await this.downloadOne({ id: this.selectedIds[i] });
+        if (this.selectedIds.length === 1) {
+          await this.downloadOne({ id: this.selectedIds[0] });
+        } else {
+          await this.downloadAsZip(this.selectedIds);
         }
-        useUiStore().success(`Скачано: ${this.selectedIds.length}`);
       } finally {
         this.downloadingAll = false;
       }
+    },
+    async downloadAsZip(ids) {
+      const zip = new JSZip();
+      for (const id of ids) {
+        try {
+          const { blob, filename } = await downloadBlank(this.applicationId, id);
+          zip.file(filename, blob);
+        } catch (err) {
+          useUiStore().error(err.message || 'Не удалось скачать файл');
+        }
+      }
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveBlobAs(content, `blanks_${this.applicationId}.zip`);
+      useUiStore().success(`Скачано: ${ids.length} файлов в ZIP`);
     },
     async downloadAll() {
       this.selectedIds = this.eligibleAttachments.map(a => a.id);

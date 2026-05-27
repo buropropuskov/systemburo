@@ -384,8 +384,8 @@ h3 {
   transition: background-color 0.2s ease;
 }
 
-.user__notifications--active {
-  background-color: #e6e6e6;
+.user__notifications--active .notifications__icon {
+  filter: grayscale(100%) brightness(0.6);
 }
 
 .notifications__badge {

@@ -542,10 +542,20 @@ export default {
         },
 
         async loadHistory() {
-            if (!this.employee?.id) return;
+            if (!this.employee) return;
             this.loadingHistory = true;
             try {
-                const res = await apiRequest(`/employees/${this.employee.id}/history`, { method: 'GET' });
+                let res;
+                if (this.source === 'employeesview') {
+                    const params = new URLSearchParams({
+                        last_name: this.employee.last_name || '',
+                        first_name: this.employee.first_name || ''
+                    });
+                    if (this.employee.middle_name) params.set('middle_name', this.employee.middle_name);
+                    res = await apiRequest(`/employees/history/unified?${params}`, { method: 'GET' });
+                } else {
+                    res = await apiRequest(`/employees/${this.employee.id}/history`, { method: 'GET' });
+                }
                 if (res.ok) {
                     this.history = await res.json();
                 }
