@@ -260,7 +260,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 20px;
+  padding: 10px 20px;
   flex-shrink: 0;
   background: #fff;
   gap: 12px;
@@ -367,7 +367,7 @@ export default {
 .notification-item {
   display: flex;
   align-items: flex-start;
-  padding: 8px 20px;
+  padding: 10px 20px;
   gap: 10px;
   border-bottom: 1px solid #f5f5f5;
   transition: background-color 0.15s;

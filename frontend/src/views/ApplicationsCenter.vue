@@ -348,6 +348,7 @@
     <DownloadBlanksModal
       v-if="showDownloadModal && downloadAppId"
       :application-id="downloadAppId"
+      :application-info="downloadAppInfo"
       @close="showDownloadModal = false"
     />
   </section>
@@ -383,6 +384,7 @@ export default {
         return {
             showDownloadModal: false,
             downloadAppId: 0,
+            downloadAppInfo: null,
             searchQuery: '',
             selectedOrganizationId: null,
             selectedOrganizationName: '',
@@ -914,6 +916,7 @@ export default {
 
         downloadApplication(application) {
             this.downloadAppId = application.id;
+            this.downloadAppInfo = application;
             this.showDownloadModal = true;
         },
 
