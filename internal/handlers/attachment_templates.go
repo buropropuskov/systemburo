@@ -68,6 +68,17 @@ func (h *AttachmentTemplateHandler) SetActive(c echo.Context) error {
 	return RespondMessage(c, "Шаблон активирован")
 }
 
+func (h *AttachmentTemplateHandler) DeactivateAll(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	if err := h.service.DeactivateAll(c.Request().Context(), uaID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Шаблоны деактивированы")
+}
+
 func (h *AttachmentTemplateHandler) DeleteByID(c echo.Context) error {
 	tid, err := strconv.Atoi(c.Param("tid"))
 	if err != nil {

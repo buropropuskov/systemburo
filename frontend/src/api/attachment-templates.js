@@ -23,6 +23,13 @@ export async function setActiveTemplate(uniqueAttachmentID, templateID) {
   return res.json();
 }
 
+export async function deactivateAllTemplates(uniqueAttachmentID) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/deactivate`, {
+    method: 'PUT',
+  });
+  return res.json();
+}
+
 export async function deleteTemplateByID(uniqueAttachmentID, templateID) {
   const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/${templateID}`, {
     method: 'DELETE',
