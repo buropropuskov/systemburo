@@ -577,7 +577,7 @@ export default {
     flex-direction: column;
     background: #fff;
     overflow: hidden;
-    border-radius: var(--radius-lg);
+    border-radius: 50px;
     box-shadow: var(--shadow-md);
 }
 
