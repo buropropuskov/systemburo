@@ -139,7 +139,13 @@
       <!-- Тело таблицы -->
       <div class="fact-container">
         <div
-          v-if="filteredData.length > 0"
+          v-if="loading"
+          class="loading-message"
+        >
+          <LoaderSpinner :label="tableType === 'cars' ? 'Загрузка машин...' : 'Загрузка...'" />
+        </div>
+        <div
+          v-else-if="filteredData.length > 0"
           class="fact-body"
         >
           <transition-group
@@ -266,12 +272,14 @@
 <script>
 import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 
 export default {
   name: 'FactTable',
   components: {
     RefreshButton,
+    LoaderSpinner,
     VehicleDetailsModal
   },
   props: {
@@ -1067,5 +1075,17 @@ export default {
     height: 28px;
     font-size: 11px;
   }
+}
+
+.loading-message {
+  text-align: center;
+  color: #a2a2a2;
+  padding: 40px 20px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
 </style>
