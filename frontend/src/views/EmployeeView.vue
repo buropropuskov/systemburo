@@ -555,8 +555,11 @@ export default {
                 passport_series_number: employee.passport_series_number,
                 patent_number: employee.patent_number,
                 other_permission: employee.other_permission,
-                organization: employee.organization_name,
-                company: employee.company_name,
+                organization: employee.active_app_org_name || employee.organization_name,
+                company: employee.active_app_company_name || employee.company_name,
+                entry_date_to: employee.active_entry_date_to,
+                pass_time: employee.active_pass_time,
+                isActive: employee.status,
                 target_tables: []
             };
             this.showDetailsModal = true;

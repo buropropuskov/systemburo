@@ -83,6 +83,10 @@ type UniqueEmployeeWithRelations struct {
 	OrganizationName     *string    `json:"organization_name"`
 	CompanyName          *string    `json:"company_name"`
 	CitizenshipName      *string    `json:"citizenship_name"`
+	ActiveEntryDateTo    *string    `json:"active_entry_date_to"`
+	ActivePassTime       *string    `json:"active_pass_time"`
+	ActiveAppOrgName     *string    `json:"active_app_org_name"`
+	ActiveAppCompanyName *string    `json:"active_app_company_name"`
 }
 
 // NewUniqueEmployeeRequest -- тело запроса на создание/обновление сотрудника.
@@ -214,7 +218,41 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 				AND app.status IN ('В работе', 'Завершено')
 				AND CURRENT_DATE <= a.entry_date_to::date
 				LIMIT 1
-			), false) as status`).
+			), false) as status,
+			(SELECT a.entry_date_to FROM employees e
+				JOIN attachments a ON e.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_entry_date_to,
+			(SELECT CONCAT(a.entry_time_from, ' - ', a.entry_time_to) FROM employees e
+				JOIN attachments a ON e.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_pass_time,
+			(SELECT ao.name FROM employees e
+				JOIN attachments a ON e.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				LEFT JOIN organizations ao ON app.organization_id = ao.id
+				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_app_org_name,
+			(SELECT ac.name FROM employees e
+				JOIN attachments a ON e.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				LEFT JOIN companies ac ON app.company_id = ac.id
+				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_app_company_name`).
 		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id")

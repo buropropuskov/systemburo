@@ -372,7 +372,7 @@ export default {
 }
 
 .details-btn .details-icon {
-    color: #a2a2a2;
+    color: #8c8c8c;
 }
 
 .details-btn:hover .details-icon {

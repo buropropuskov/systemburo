@@ -54,6 +54,7 @@
       </p>
       <div
         class="user__notifications"
+        :class="{ 'user__notifications--active': showNotifications }"
         @click.stop="showNotifications = !showNotifications"
       >
         <img
@@ -74,7 +75,6 @@
         <button
           class="appl-btn"
           data-testid="header-button-submit-app"
-          :class="{ 'appl-btn--fixed': isHeaderHidden }"
           @click="navigateToSubmit"
         >
           Подать заявку
@@ -381,6 +381,11 @@ h3 {
   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
   position: relative;
   cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.user__notifications--active {
+  background-color: #e6e6e6;
 }
 
 .notifications__badge {

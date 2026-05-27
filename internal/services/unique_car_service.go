@@ -54,12 +54,17 @@ type UniqueCarWithRelations struct {
 	CompanyID        *int       `json:"company_id"`
 	FormatID         *int       `json:"format_id"`
 	UserID           *int       `json:"user_id"`
-	Status           bool       `json:"status"`
-	CreatedAt        *time.Time `json:"created_at"`
-	OrganizationName *string    `json:"organization_name"`
-	CompanyName      *string    `json:"company_name"`
-	FormatName       *string    `json:"format_name"`
-	UserName         *string    `json:"user_name"`
+	Status               bool       `json:"status"`
+	CreatedAt            *time.Time `json:"created_at"`
+	OrganizationName     *string    `json:"organization_name"`
+	CompanyName          *string    `json:"company_name"`
+	FormatName           *string    `json:"format_name"`
+	UserName             *string    `json:"user_name"`
+	ActiveEntryDateTo    *string    `json:"active_entry_date_to"`
+	ActiveEntryTimeFrom  *string    `json:"active_entry_time_from"`
+	ActiveEntryTimeTo    *string    `json:"active_entry_time_to"`
+	ActiveAppOrgName     *string    `json:"active_app_org_name"`
+	ActiveAppCompanyName *string    `json:"active_app_company_name"`
 }
 
 // NewUniqueCarRequest -- тело запроса на создание/обновление машины.
@@ -196,7 +201,49 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 				AND app.status IN ('В работе', 'Завершено')
 				AND CURRENT_DATE <= a.entry_date_to::date
 				LIMIT 1
-			), false) as status`).
+			), false) as status,
+			(SELECT a.entry_date_to FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_entry_date_to,
+			(SELECT a.entry_time_from FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_entry_time_from,
+			(SELECT a.entry_time_to FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_entry_time_to,
+			(SELECT ao.name FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				LEFT JOIN organizations ao ON app.organization_id = ao.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_app_org_name,
+			(SELECT ac.name FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				LEFT JOIN companies ac ON app.company_id = ac.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_app_company_name`).
 		Joins("LEFT JOIN organizations o ON uc.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON uc.company_id = c.id").
 		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").

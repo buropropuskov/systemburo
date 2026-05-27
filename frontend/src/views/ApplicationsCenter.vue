@@ -572,7 +572,7 @@ export default {
         },
 
         unreadCount() {
-            return this.applications.filter(app => app.status === 'Непрочитано').length;
+            return this.applications.filter(app => !app.is_read).length;
         }
     },
     watch: {
@@ -1014,7 +1014,7 @@ export default {
                         this.shouldShake = false;
                     }, 600);
                 }
-            }, 60000);
+            }, 10000);
         }
     }
 }
@@ -1096,6 +1096,7 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    justify-content: flex-end;
 }
 
 .table-toolbar {
@@ -1447,7 +1448,7 @@ export default {
 }
 
 .application-item.unread {
-    background-color: #fffeda;
+    background-color: #fff5e0;
 }
 
 .application-row {

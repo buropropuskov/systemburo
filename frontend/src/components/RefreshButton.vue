@@ -2,7 +2,7 @@
   <button
     class="refresh-btn"
     :class="{ 'refresh-btn--loading': loading }"
-    :disabled="loading"
+    :disabled="loading || cooldown"
     type="button"
     @click="handleRefresh"
   >
@@ -23,10 +23,15 @@ export default {
     loading: { type: Boolean, default: false },
   },
   emits: ['refresh'],
+  data() {
+    return { cooldown: false };
+  },
   methods: {
     handleRefresh() {
-      if (this.loading) return;
+      if (this.loading || this.cooldown) return;
+      this.cooldown = true;
       this.$emit('refresh');
+      setTimeout(() => { this.cooldown = false; }, 2000);
     }
   }
 }
