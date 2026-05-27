@@ -214,7 +214,6 @@ import { apiRequest } from '@/api/client'
 import { sanitizeHtml } from '@/utils/sanitize';
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
-import RefreshButton from './RefreshButton.vue';
 import DateFilter from './DateFilter.vue';
 import FactTable from './FactTable.vue';
 import CarsTable from './CarsTable.vue';
@@ -226,7 +225,6 @@ export default {
     components: {
         OrganizationFilter,
         UnloadingPlaceFilter,
-        RefreshButton,
         DateFilter,
         FactTable,
         CarsTable,
