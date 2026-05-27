@@ -223,6 +223,7 @@
       <DownloadBlanksModal
         v-if="showDownloadModal && downloadAppId"
         :application-id="downloadAppId"
+        :application-info="downloadAppInfo"
         @close="showDownloadModal = false"
       />
     </teleport>
@@ -274,7 +275,8 @@ export default {
       currentUserId: null,
       currentUserName: '',
       showDownloadModal: false,
-      downloadAppId: null
+      downloadAppId: null,
+      downloadAppInfo: null
     };
   },
   computed: {
@@ -540,6 +542,7 @@ export default {
 
     downloadApplication(application) {
       this.downloadAppId = application.id;
+      this.downloadAppInfo = application;
       this.showDownloadModal = true;
     },
 
