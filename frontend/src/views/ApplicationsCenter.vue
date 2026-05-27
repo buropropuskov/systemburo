@@ -132,12 +132,6 @@
       class="applications-table"
       :class="{ 'with-details': selectedApplication }"
     >
-      <div class="table-toolbar">
-        <RefreshButton
-          :loading="refreshing"
-          @refresh="fetchApplications"
-        />
-      </div>
       <div class="table-header">
         <div class="header-row">
           <div
@@ -236,7 +230,12 @@
               }" 
             >
           </div>
-          <div class="header-col actions-col" />
+          <div class="header-col actions-col">
+            <RefreshButton
+              :loading="refreshing"
+              @refresh="fetchApplications"
+            />
+          </div>
         </div>
       </div>
             

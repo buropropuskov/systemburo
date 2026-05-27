@@ -339,7 +339,7 @@ export default {
 .notifications__list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 0;
   max-height: 200px;
 }
 

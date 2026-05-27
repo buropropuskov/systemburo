@@ -243,13 +243,6 @@
                           class="delete-icon"
                         >
                       </button>
-                      <span
-                        v-if="!canEditEmployee(employee)"
-                        class="read-only-text"
-                        :title="canEditTooltip(employee)"
-                      >
-                        Только просмотр
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -866,6 +859,7 @@ export default {
     padding: 10px 16px;
     align-items: center;
     border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
 }
 
 .employee-col {

@@ -317,21 +317,24 @@ export default {
 .attachment-header-section {
     padding: 15px;
     border-bottom: 1px solid #e6e6e6;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    align-items: baseline;
 }
 
 .attachment-details h4 {
     font-size: 18px;
     color: #4F5BDF;
-    padding-bottom: 15px;
     font-weight: 700;
     margin: 0;
+    width: 100%;
 }
 
 .date-range, .time-range {
     display: flex;
     flex-direction: column;
     gap: 0px;
-    margin-bottom: 8px;
     font-size: 14px;
 }
 
@@ -356,8 +359,8 @@ export default {
     padding: 15px;
     border-bottom: 1px solid #e6e6e6;
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 6px 20px;
 }
 
 .custom-value-row {

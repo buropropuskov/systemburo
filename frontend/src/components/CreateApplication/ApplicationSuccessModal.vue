@@ -345,7 +345,7 @@ export default {
     position: relative;
     cursor: pointer;
     user-select: none;
-    border-radius: 4px;
+    border-radius: 50px;
     outline: none;
     padding: 2px 6px;
     transition: background-color 0.15s;
@@ -370,6 +370,7 @@ export default {
     padding: 4px 8px;
     border-radius: 6px;
     font-size: 11px;
+    font-weight: 500;
     white-space: nowrap;
     z-index: 1000;
     pointer-events: none;

@@ -454,6 +454,7 @@ export default {
             attachedPassageTables: [],
             selectedPassageTables: [],
             loadingPassageTables: false,
+            autoPlacesNotified: false,
             
             errors: {
                 passageTables: ''
@@ -630,7 +631,8 @@ export default {
                 
                 const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
                 this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
-                if (this.selectedPassageTables.length > 0) {
+                if (this.selectedPassageTables.length > 0 && !this.autoPlacesNotified) {
+                    this.autoPlacesNotified = true;
                     this.toast.success('Места прохода выбраны автоматически для вашей организации');
                 }
             }
@@ -669,7 +671,8 @@ export default {
                 
                 const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
                 this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
-                if (this.selectedPassageTables.length > 0) {
+                if (this.selectedPassageTables.length > 0 && !this.autoPlacesNotified) {
+                    this.autoPlacesNotified = true;
                     this.toast.success('Места прохода выбраны автоматически для вашей компании');
                 }
             }

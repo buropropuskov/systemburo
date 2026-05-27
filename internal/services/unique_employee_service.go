@@ -202,9 +202,19 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		Select(`ue.id, ue.last_name, ue.first_name, ue.middle_name,
 			ue.organization_id, ue.company_id, ue.citizenship_id, ue.user_id,
 			ue."position", ue.passport_series_number, ue.patent_number,
-			ue.other_permission, ue.status, ue.created_at,
+			ue.other_permission, ue.created_at,
 			o.name as organization_name, c.name as company_name,
-			cit.name as citizenship_name`).
+			cit.name as citizenship_name,
+			COALESCE((
+				SELECT true FROM employees e
+				JOIN attachments a ON e.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+				AND e.status = 1
+				AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				LIMIT 1
+			), false) as status`).
 		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id")

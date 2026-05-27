@@ -4,24 +4,18 @@
       <h1 class="tables__title">
         Таблица <span class="table-name">{{ tableDisplayName }}</span>
       </h1>
-      <div class="tables__header-actions">
-        <RefreshButton
-          :loading="isRefreshing"
-          @refresh="refreshData"
-        />
-        <button
-          class="tables__instruction"
-          @click="showInstruction = true"
+      <button
+        class="tables__instruction"
+        @click="showInstruction = true"
+      >
+        <img
+          src="@/assets/icons/instruction.png"
+          class="tables__icon"
         >
-          <img
-            src="@/assets/icons/instruction.png"
-            class="tables__icon"
-          >
-          <p class="instruction__text">
-            Инструкция
-          </p>
-        </button>
-      </div>
+        <p class="instruction__text">
+          Инструкция
+        </p>
+      </button>
     </div>
         
     <!-- Модальное окно с инструкцией -->
@@ -574,7 +568,7 @@ export default {
     width: 200px;
     height: 35px;
     background-color: #FFF;
-    border-radius: 10px;
+    border-radius: 15px;
     border: 1px solid #e6e6e6;
     padding: 0 10px;
     display: flex;

@@ -52,14 +52,9 @@
       <p class="time">
         {{ currentDateTime }}
       </p>
-      <div class="language-selector">
-        <p class="current-language">
-          RU
-        </p>
-      </div>
       <div
         class="user__notifications"
-        @click="showNotifications = !showNotifications"
+        @click.stop="showNotifications = !showNotifications"
       >
         <img
           src="@/assets/icons/notifications.png"
@@ -162,15 +157,22 @@ export default {
     this.$nextTick(() => {
       this.initIntersectionObserver();
     });
+    this._onDocumentClick = () => {
+      if (this.showNotifications) {
+        this.showNotifications = false;
+      }
+    };
+    document.addEventListener('click', this._onDocumentClick);
   },
   beforeUnmount() {
     if (this.timer) {
       clearInterval(this.timer);
     }
-    
+
     if (this.observer) {
       this.observer.disconnect();
     }
+    document.removeEventListener('click', this._onDocumentClick);
   },
   methods: {
     async fetchActiveAnnouncement() {
@@ -367,17 +369,6 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
-.current-language {
-  font-size: 16px;
-  font-weight: 500;
-  color: #a2a2a2;
-  cursor: pointer;
-}
-
-.current-language:hover {
-  color: #333
-}
-
 .user__notifications {
   width: 35px;
   height: 35px;
@@ -428,7 +419,7 @@ h3 {
 }
 
 .appl-btn {
-  position: fixed;
+  position: relative;
   height: 30px;
   width: fit-content;
   padding: 0 20px;
@@ -537,8 +528,7 @@ h3 {
   /* Вторичная информация не помещается на мобильном - скрываем */
   .feedback-btn,
   .broadcast,
-  .time,
-  .language-selector {
+  .time {
     display: none;
   }
 
