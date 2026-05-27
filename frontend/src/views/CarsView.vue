@@ -758,12 +758,16 @@ export default {
                 plateNumber: car.number,
                 mark: car.mark,
                 formatId: car.format_id || null,
-                organization: car.organization_name || null,
+                organization: car.active_app_org_name || car.organization_name || null,
                 organizationId: car.organization_id || null,
-                company: car.company_name || null,
+                company: car.active_app_company_name || car.company_name || null,
                 companyId: car.company_id || null,
                 isExisting: true,
                 unloadPlaces: [],
+                entry_date_to: car.active_entry_date_to,
+                entry_time_from: car.active_entry_time_from,
+                entry_time_to: car.active_entry_time_to,
+                isActive: car.status,
             };
             this.showDetailsViewModal = true;
         },
