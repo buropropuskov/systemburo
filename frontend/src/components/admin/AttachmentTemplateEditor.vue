@@ -728,6 +728,7 @@ export default {
     },
     async loadTemplate() {
       this.loadingTemplate = true;
+      this.templateFileBuffer = null;
       try {
         const data = await getTemplate(this.uniqueAttachmentId);
         this.template = data;
@@ -826,13 +827,18 @@ export default {
     },
     async switchTemplate(tmpl) {
       if (tmpl.id === this.template?.id) return;
+      this.loadingTemplate = true;
+      this.loadingFields = true;
+      this.templateFileBuffer = null;
       try {
         await setActiveTemplate(this.uniqueAttachmentId, tmpl.id);
         useUiStore().success('Шаблон активирован');
         this.resetState();
-        await this.loadTemplate();
+        await Promise.all([this.loadTemplate(), this.loadFields()]);
       } catch {
         useUiStore().error('Не удалось переключить шаблон');
+        this.loadingTemplate = false;
+        this.loadingFields = false;
       }
     },
     async deleteSpecificTemplate(tmpl) {
@@ -2121,13 +2127,13 @@ export default {
 
 .te-dropdown-item.active {
   background: #e8f4fd;
-  color: var(--color-primary);
+  color: #000;
   font-weight: 500;
 }
 
 .te-dropdown-add {
   border-top: 1px solid var(--color-border);
-  color: var(--color-primary);
+  color: #000;
   font-weight: 500;
 }
 

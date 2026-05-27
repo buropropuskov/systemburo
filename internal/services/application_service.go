@@ -493,7 +493,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id WHERE att.application_id = a.id) as has_blank_template
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
@@ -556,7 +556,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id WHERE att.application_id = a.id) as has_blank_template
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template
 		`).
 		Order("a.sending_datetime DESC").
 		Offset(offset).
@@ -586,7 +586,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id WHERE att.application_id = a.id) as has_blank_template
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template
 		`).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
