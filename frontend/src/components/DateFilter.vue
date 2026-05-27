@@ -760,7 +760,7 @@ export default {
     width: 215px;
     height: 35px;
     background-color: #FFF;
-    border-radius: 10px;
+    border-radius: 15px;
     border: 1px solid #e6e6e6;
     padding: 0 10px;
     cursor: pointer;

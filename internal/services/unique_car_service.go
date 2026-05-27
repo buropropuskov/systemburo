@@ -184,9 +184,19 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 	query := s.db.WithContext(ctx).
 		Table("unique_cars uc").
 		Select(`uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id,
-			uc.format_id, uc.user_id, uc.status, uc.created_at,
+			uc.format_id, uc.user_id, uc.created_at,
 			o.name as organization_name, c.name as company_name,
-			lpf.name as format_name, u.username as user_name`).
+			lpf.name as format_name, u.username as user_name,
+			COALESCE((
+				SELECT true FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1
+				AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				LIMIT 1
+			), false) as status`).
 		Joins("LEFT JOIN organizations o ON uc.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON uc.company_id = c.id").
 		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").

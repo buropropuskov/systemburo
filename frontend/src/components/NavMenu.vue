@@ -737,6 +737,11 @@ export default {
   overflow: hidden;
 }
 
+.user-section .dropdown-list {
+  top: auto;
+  bottom: 0;
+}
+
 .dropdown-item {
   padding: 8px 16px;
   font-family: 'Montserrat', sans-serif;

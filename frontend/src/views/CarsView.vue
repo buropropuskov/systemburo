@@ -533,10 +533,16 @@
       @cancel="cancelDeleteCar"
     />
 
-    <CarDetailsViewModal
+    <VehicleDetailsModal
       v-if="detailsCar"
       :show="showDetailsViewModal"
-      :car="detailsCar"
+      :vehicle="detailsCar"
+      :all-unloading-places="[]"
+      :license-plate-formats="[]"
+      :current-user-id="ownershipInfo?.user_id || null"
+      :current-user-name="''"
+      :show-car-features="false"
+      source="carsview"
       @close="closeCarDetails"
     />
   </section>
@@ -550,7 +556,7 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
-import CarDetailsViewModal from '@/components/CarDetailsViewModal.vue';
+import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 
 export default {
     components: {
@@ -560,7 +566,7 @@ export default {
         SkeletonTable,
         StatusBadge,
         ConfirmationModal,
-        CarDetailsViewModal
+        VehicleDetailsModal
     },
     data() {
         return {
@@ -747,7 +753,18 @@ export default {
     },
     methods: {
         openCarDetails(car) {
-            this.detailsCar = car;
+            this.detailsCar = {
+                id: car.id,
+                plateNumber: car.number,
+                mark: car.mark,
+                formatId: car.format_id || null,
+                organization: car.organization_name || null,
+                organizationId: car.organization_id || null,
+                company: car.company_name || null,
+                companyId: car.company_id || null,
+                isExisting: true,
+                unloadPlaces: [],
+            };
             this.showDetailsViewModal = true;
         },
         closeCarDetails() {
@@ -1528,6 +1545,7 @@ export default {
     padding: 10px 16px;
     align-items: center;
     border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
 }
 
 .car-col {
