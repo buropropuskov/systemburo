@@ -317,10 +317,9 @@ export default {
 .attachment-header-section {
     padding: 15px;
     border-bottom: 1px solid #e6e6e6;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 20px;
-    align-items: baseline;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px 24px;
 }
 
 .attachment-details h4 {
@@ -328,7 +327,7 @@ export default {
     color: #4F5BDF;
     font-weight: 700;
     margin: 0;
-    width: 100%;
+    grid-column: 1 / -1;
 }
 
 .date-range, .time-range {
@@ -358,9 +357,9 @@ export default {
 .custom-values-section {
     padding: 15px;
     border-bottom: 1px solid #e6e6e6;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px 24px;
 }
 
 .custom-value-row {
