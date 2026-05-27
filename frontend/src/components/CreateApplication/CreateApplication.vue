@@ -1018,6 +1018,9 @@ export default {
 
             this.selectAttachment(attachment);
 
+            const uaId = attachment.template_id || attachment.id;
+            this.loadCustomFields(uaId);
+
             this.saveToLocalStorage();
         },
 

@@ -859,7 +859,7 @@ export default {
   transition: background-color 0.2s ease;
   opacity: 0;
   transform: translateY(10px);
-  animation: fadeInUp 0.5s ease forwards;
+  animation: fadeInUp 0.3s ease forwards;
   cursor: pointer;
 }
 
