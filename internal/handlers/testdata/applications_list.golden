@@ -7,6 +7,7 @@ data[].confirmation_datetime
 data[].data_approval
 data[].has_blank_template
 data[].id
+data[].is_read
 data[].message
 data[].organization_id
 data[].organization_name
