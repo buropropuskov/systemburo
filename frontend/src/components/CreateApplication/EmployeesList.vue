@@ -365,8 +365,8 @@ export default {
 }
 
 .details-icon, .edit-icon, .delete-icon {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     opacity: 0.6;
     transition: opacity 0.2s ease, color 0.2s ease;
 }
