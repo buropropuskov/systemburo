@@ -70,15 +70,6 @@
           </button>
 
           <button
-            class="today-filter-btn"
-            :class="{ 'today-filter-btn--active': activeToday }"
-            data-testid="center-button-today"
-            @click="toggleActiveToday"
-          >
-            Заявки на сегодня
-          </button>
-
-          <button
             class="reset-filters-btn"
             data-testid="center-button-reset-filters"
             :disabled="!hasActiveFilters"
@@ -89,6 +80,18 @@
         </div>
 
         <div class="filters-row filters-row--secondary">
+          <div class="filter-section">
+            <div class="status-buttons">
+              <button
+                class="status-btn"
+                :class="{ 'status-btn--active': activeToday }"
+                data-testid="center-button-today"
+                @click="toggleActiveToday"
+              >
+                Заявки на сегодня
+              </button>
+            </div>
+          </div>
           <div class="filter-section">
             <div class="filter-section__header">
               <span class="filter-label">Подтверждение</span>
@@ -256,7 +259,7 @@
               :key="application.id"
               class="application-item"
               :class="{
-                'unread': application.status === 'Непрочитано',
+                'unread': !application.is_read,
                 'initial-load': isInitialLoad,
                 'filtered': !isInitialLoad
               }"
@@ -915,25 +918,16 @@ export default {
         },
 
         async openApplication(application) {
-            
-            if (application.status === 'Непрочитано') {
+            if (!application.is_read) {
                 try {
-                    const response = await apiRequest(`/applications/${application.id}`, {
-                        method: "PUT",
-                        body: JSON.stringify({
-                            status: "В обработке"
-                        })
+                    const response = await apiRequest(`/applications/${application.id}/read`, {
+                        method: "POST"
                     });
-
                     if (response.ok) {
-                        application.status = 'В обработке';
-                        this.fetchApplications();
-                    } else {
-                        const errorText = await response.text();
-                        console.error("Ошибка при обновлении статуса заявки:", errorText);
+                        application.is_read = true;
                     }
                 } catch (error) {
-                    console.error("Ошибка сети при обновлении статуса заявки:", error);
+                    console.error("Ошибка при отметке прочтения:", error);
                 }
             }
 

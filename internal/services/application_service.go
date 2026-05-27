@@ -289,6 +289,7 @@ type ApplicationWithDetails struct {
 	ResponsibleComment   *string    `json:"responsible_comment"`
 	DataApproval         bool       `json:"data_approval"`
 	HasBlankTemplate     bool       `json:"has_blank_template"`
+	IsRead               bool       `json:"is_read"`
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
@@ -493,8 +494,9 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template
-		`).
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
+			EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read
+		`, user.ID).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
@@ -556,8 +558,9 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template
-		`).
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
+			EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read
+		`, user.ID).
 		Order("a.sending_datetime DESC").
 		Offset(offset).
 		Limit(perPage)
@@ -573,7 +576,8 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 
 // GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 func (s *applicationService) GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
-	if _, err := s.getUserByUsername(ctx, username); err != nil {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
 		return nil, err
 	}
 
@@ -586,8 +590,9 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template
-		`).
+			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
+			EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read
+		`, user.ID).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
