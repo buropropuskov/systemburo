@@ -403,7 +403,8 @@ export default {
     },
 
     getActionClass(actionType) {
-      return actionType === 'entry' ? 'dot-entry' : 'dot-exit';
+      if (actionType === 'entry' || actionType === 'restore') return 'dot-entry';
+      return 'dot-exit';
     },
 
     getActionText(item) {
@@ -411,6 +412,12 @@ export default {
         return 'Проход на территорию';
       } else if (item.action_type === 'exit') {
         return 'Выход с территории';
+      } else if (item.action_type === 'delete') {
+        return 'Удаление из таблицы';
+      } else if (item.action_type === 'restore') {
+        return 'Восстановление в таблице';
+      } else if (item.action_type === 'purge') {
+        return 'Безвозвратное удаление';
       }
       return item.action_type;
     },

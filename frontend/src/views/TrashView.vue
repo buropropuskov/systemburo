@@ -3,7 +3,14 @@
     <header class="trash-header">
       <div class="trash-titlebar">
         <h2 class="trash-title">
-          Таблица <RouterLink :to="`/table/${tableName}`" class="trash-title__name">{{ displayName }}</RouterLink> / Корзина
+          Таблица
+          <RouterLink
+            :to="`/table/${tableName}`"
+            class="trash-title__name"
+          >
+            {{ displayName }}
+          </RouterLink>
+          / Корзина
         </h2>
         <RouterLink
           :to="`/table/${tableName}`"
@@ -46,15 +53,15 @@
         <div class="trash-filters__group trash-filters__group--right">
           <button
             class="trash-btn trash-btn--ghost"
-            data-testid="trash-clear-filters"
-            @click="clearFilters"
+            data-testid="trash-history"
+            @click="openHistory"
           >
-            Очистить
+            История
           </button>
           <button
             class="trash-btn trash-btn--ghost"
             data-testid="trash-export"
-            :disabled="!items.length"
+            :disabled="!items.length || isExporting"
             @click="onExport"
           >
             <img
@@ -65,6 +72,14 @@
             Экспорт
           </button>
           <button
+            class="trash-btn trash-btn--ghost"
+            data-testid="trash-clear"
+            :disabled="!items.length"
+            @click="onClearAll"
+          >
+            Очистить
+          </button>
+          <button
             class="trash-btn trash-btn--refresh"
             data-testid="trash-refresh"
             :disabled="isLoading"
@@ -73,6 +88,7 @@
             <img
               src="@/assets/icons/refresh.png"
               class="trash-btn__icon"
+              :class="{ 'trash-btn__icon--spin': isLoading }"
               alt=""
             >
             Обновить
@@ -86,17 +102,15 @@
         <h3 class="trash-card__title">
           {{ tableType === 'cars' ? 'Удаленные автомобили' : 'Удаленные сотрудники' }}
         </h3>
-        <button
-          class="trash-card__link"
-          data-testid="trash-restore-all-link"
-          :disabled="!items.length"
-          @click="onRestoreAll"
-        >
-          Восстановить
-        </button>
 
         <div class="trash-card__spacer" />
 
+        <span
+          v-if="selectedIds.length"
+          class="trash-card__selected"
+        >
+          Выбрано: {{ selectedIds.length }}
+        </span>
         <button
           class="trash-btn trash-btn--primary"
           data-testid="trash-restore-selected"
@@ -112,6 +126,7 @@
           v-if="isLoading"
           class="trash-state"
         >
+          <span class="trash-spinner" />
           Загрузка...
         </div>
         <div
@@ -133,6 +148,15 @@
         >
           <thead>
             <tr>
+              <th class="trash-table__th trash-table__th-check">
+                <input
+                  type="checkbox"
+                  class="trash-check"
+                  :checked="allSelected"
+                  data-testid="trash-select-all"
+                  @change="toggleSelectAll"
+                >
+              </th>
               <th
                 v-for="col in columns"
                 :key="col.key"
@@ -155,8 +179,22 @@
             <tr
               v-for="item in sortedItems"
               :key="item.id"
+              class="trash-table__row"
               data-testid="trash-row"
+              @click="onRowClick(item)"
             >
+              <td
+                class="trash-table__td trash-table__td-check"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="trash-check"
+                  :checked="isSelected(item.id)"
+                  data-testid="trash-row-check"
+                  @change="toggleSelect(item.id)"
+                >
+              </td>
               <td class="trash-table__td trash-table__td--muted">
                 {{ item.application_number || '—' }}
               </td>
@@ -178,6 +216,9 @@
                 <td class="trash-table__td">
                   {{ item.first_name || '—' }}
                 </td>
+                <td class="trash-table__td">
+                  {{ item.middle_name || '—' }}
+                </td>
               </template>
               <td class="trash-table__td">
                 {{ item.organization || '—' }}
@@ -191,7 +232,10 @@
               <td class="trash-table__td trash-table__td--danger">
                 {{ tableType === 'cars' ? 'Удалена' : 'Удалён' }}
               </td>
-              <td class="trash-table__td trash-table__td--actions">
+              <td
+                class="trash-table__td trash-table__td--actions"
+                @click.stop
+              >
                 <button
                   class="trash-icon-btn"
                   title="Удалить безвозвратно"
@@ -209,20 +253,120 @@
         </table>
       </div>
     </article>
+
+    <!-- Детальная модалка -->
+    <VehicleDetailsModal
+      v-if="tableType === 'cars' && showDetails"
+      :show="showDetails"
+      :vehicle="selectedDetail"
+      :all-unloading-places="[]"
+      :license-plate-formats="[]"
+      :show-car-features="false"
+      :source="'trash'"
+      @close="closeDetails"
+    />
+    <EmployeeDetailsModal
+      v-if="tableType === 'people' && showDetails"
+      :show="showDetails"
+      :employee="selectedDetail"
+      :all-tables="[]"
+      :source="'trash'"
+      @close="closeDetails"
+      @open-application="() => {}"
+    />
+
+    <!-- Модалка истории корзины -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showHistory"
+          class="trash-modal-overlay"
+          @click.self="closeHistory"
+        >
+          <div class="trash-modal">
+            <div class="trash-modal__header">
+              <h3 class="trash-modal__title">
+                История корзины
+              </h3>
+              <button
+                class="trash-modal__close"
+                data-testid="trash-history-close"
+                @click="closeHistory"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="trash-modal__body">
+              <div
+                v-if="historyLoading"
+                class="trash-state"
+              >
+                <span class="trash-spinner" />
+                Загрузка...
+              </div>
+              <div
+                v-else-if="!historyItems.length"
+                class="trash-state"
+              >
+                История пуста
+              </div>
+              <ul
+                v-else
+                class="trash-log"
+              >
+                <li
+                  v-for="h in historyItems"
+                  :key="h.id"
+                  class="trash-log__item"
+                >
+                  <span
+                    class="trash-log__dot"
+                    :class="h.action_type === 'bulk_restored' ? 'trash-log__dot--restore' : 'trash-log__dot--clear'"
+                  />
+                  <div class="trash-log__content">
+                    <p class="trash-log__text">
+                      {{ historyActionText(h) }}
+                    </p>
+                    <p class="trash-log__meta">
+                      {{ h.user_name || 'Система' }} · {{ formatDateTime(h.created_at) }}
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </section>
 </template>
 
 <script>
+import ExcelJS from 'exceljs';
 import { apiRequest } from '@/api/client';
 import { useUiStore } from '@/stores/ui';
-import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
+import { listTrash, restoreItems, purgeItem, clearTrash, getTrashHistory } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import DateFilter from '@/components/DateFilter.vue';
+import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
+import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 
 export default {
   name: 'TrashView',
-  components: { SearchComponent, OrganizationFilter, DateFilter },
+  components: { SearchComponent, OrganizationFilter, DateFilter, VehicleDetailsModal, EmployeeDetailsModal },
   data() {
     return {
       tableID: 0,
@@ -231,6 +375,7 @@ export default {
       items: [],
       selectedIds: [],
       isLoading: false,
+      isExporting: false,
       error: '',
       filters: {
         search: '',
@@ -242,6 +387,11 @@ export default {
       searchTimer: null,
       sortField: 'deleted_at',
       sortDir: 'desc',
+      showDetails: false,
+      selectedDetail: null,
+      showHistory: false,
+      historyItems: [],
+      historyLoading: false,
     };
   },
   computed: {
@@ -261,6 +411,7 @@ export default {
         : [
             { key: 'last_name', label: 'Фамилия', sortable: true },
             { key: 'first_name', label: 'Имя', sortable: true },
+            { key: 'middle_name', label: 'Отчество', sortable: true },
           ];
       return [
         ...base,
@@ -268,7 +419,7 @@ export default {
         { key: 'organization', label: 'Организация', sortable: true },
         { key: 'entry_date_to', label: 'Действует до', sortable: true },
         { key: 'time', label: 'Время', sortable: false },
-        { key: 'status', label: 'Статус', sortable: true },
+        { key: 'status', label: 'Статус', sortable: false },
       ];
     },
     sortedItems() {
@@ -283,6 +434,9 @@ export default {
         return 0;
       });
       return arr;
+    },
+    allSelected() {
+      return this.items.length > 0 && this.selectedIds.length === this.items.length;
     },
   },
   watch: {
@@ -349,15 +503,6 @@ export default {
       this.filters.dateTo = null;
       this.reload();
     },
-    clearFilters() {
-      this.filters.search = '';
-      this.filters.organizationId = null;
-      this.filters.selectedDate = null;
-      this.filters.dateFrom = null;
-      this.filters.dateTo = null;
-      if (this.$refs.organizationFilter?.reset) this.$refs.organizationFilter.reset();
-      this.reload();
-    },
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
@@ -365,6 +510,18 @@ export default {
         this.sortField = field;
         this.sortDir = 'desc';
       }
+    },
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    toggleSelectAll() {
+      if (this.allSelected) this.selectedIds = [];
+      else this.selectedIds = this.items.map(i => i.id);
     },
     formatDateTime(s) {
       if (!s) return '—';
@@ -390,7 +547,58 @@ export default {
       const to = item.entry_time_to || item.time_to;
       if (from && to) return `${from} - ${to}`;
       if (from) return from;
+      if (to) return to;
       return '—';
+    },
+    onRowClick(item) {
+      const deletedAtText = this.formatDateTime(item.deleted_at);
+      if (this.tableType === 'cars') {
+        this.selectedDetail = {
+          plateNumber: item.car_number,
+          mark: item.mark_name,
+          formatId: null,
+          organization: item.organization,
+          organizationId: null,
+          company: '',
+          companyId: null,
+          isExisting: true,
+          unloadPlaces: [],
+          entry_date_to: item.entry_date_to,
+          entry_time_from: item.entry_time_from,
+          entry_time_to: item.entry_time_to,
+          applicationId: null,
+          deletedByName: item.deleted_by_name,
+          deletedAtText,
+        };
+      } else {
+        this.selectedDetail = {
+          id: item.id,
+          last_name: item.last_name,
+          first_name: item.first_name,
+          middle_name: item.middle_name,
+          position: '',
+          citizenshipName: '',
+          passport_series_number: '',
+          patent_number: '',
+          other_permission: '',
+          organization: item.organization,
+          organizationId: null,
+          company: '',
+          companyId: null,
+          entry_date_to: item.entry_date_to,
+          pass_time: this.formatTimeRange(item),
+          target_tables: [],
+          territory_status: null,
+          applicationId: null,
+          deletedByName: item.deleted_by_name,
+          deletedAtText,
+        };
+      }
+      this.showDetails = true;
+    },
+    closeDetails() {
+      this.showDetails = false;
+      this.selectedDetail = null;
     },
     async onRestoreSelected() {
       if (!this.selectedIds.length) return;
@@ -403,18 +611,6 @@ export default {
         } else {
           useUiStore().success(`Восстановлено: ${r}`);
         }
-        await this.reload();
-      } catch {
-        useUiStore().error('Не удалось восстановить');
-      }
-    },
-    async onRestoreAll() {
-      if (!this.items.length) return;
-      const ids = this.items.map(i => i.id);
-      try {
-        const result = await restoreItems(this.tableID, ids);
-        const r = (result && result.restored) || 0;
-        useUiStore().success(`Восстановлено: ${r}`);
         await this.reload();
       } catch {
         useUiStore().error('Не удалось восстановить');
@@ -452,8 +648,82 @@ export default {
         useUiStore().error('Не удалось очистить');
       }
     },
-    onExport() {
-      useUiStore().info('Экспорт корзины - скоро');
+    async openHistory() {
+      this.showHistory = true;
+      this.historyLoading = true;
+      try {
+        const data = await getTrashHistory(this.tableID);
+        this.historyItems = Array.isArray(data) ? data : [];
+      } catch {
+        useUiStore().error('Не удалось загрузить историю');
+        this.historyItems = [];
+      } finally {
+        this.historyLoading = false;
+      }
+    },
+    closeHistory() {
+      this.showHistory = false;
+    },
+    historyActionText(h) {
+      if (h.action_type === 'cleared') {
+        return `Корзина очищена (${h.affected_count} запис.)`;
+      }
+      if (h.action_type === 'bulk_restored') {
+        return `Восстановлено ${h.affected_count} элемент(ов)`;
+      }
+      return h.action_type;
+    },
+    async onExport() {
+      if (!this.items.length) return;
+      this.isExporting = true;
+      try {
+        const isCars = this.tableType === 'cars';
+        const headers = isCars
+          ? ['Номер заявки', 'Дата и время удаления', 'Номер Т/С', 'Марка', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил']
+          : ['Номер заявки', 'Дата и время удаления', 'Фамилия', 'Имя', 'Отчество', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил'];
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Korzina');
+
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 25;
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
+          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+
+        this.sortedItems.forEach((item, index) => {
+          const status = isCars ? 'Удалена' : 'Удалён';
+          const row = isCars
+            ? [item.application_number || '', this.formatDateTime(item.deleted_at), item.car_number || '', item.mark_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']
+            : [item.application_number || '', this.formatDateTime(item.deleted_at), item.last_name || '', item.first_name || '', item.middle_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || ''];
+          const r = worksheet.addRow(row);
+          r.height = 20;
+          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+          r.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+            cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
+            cell.alignment = { vertical: 'middle' };
+          });
+        });
+
+        worksheet.columns = headers.map(() => ({ width: 22 }));
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.download = `korzina_${this.displayName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        a.href = url;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Ошибка экспорта корзины', e);
+        useUiStore().error('Ошибка при экспорте');
+      } finally {
+        this.isExporting = false;
+      }
     },
   },
 };
@@ -620,6 +890,10 @@ export default {
   height: 15px;
 }
 
+.trash-btn__icon--spin {
+  animation: trash-spin 0.8s linear infinite;
+}
+
 .trash-btn--refresh {
   border-radius: 50px;
   color: #4F5BDF;
@@ -665,29 +939,13 @@ export default {
   color: #000000;
 }
 
-.trash-card__link {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 500;
-  font-size: 12px;
-  line-height: 15px;
-  color: #A2A2A2;
-}
-
-.trash-card__link:hover:not(:disabled) {
-  color: #4F5BDF;
-}
-
-.trash-card__link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .trash-card__spacer {
   flex: 1;
+}
+
+.trash-card__selected {
+  font-size: 13px;
+  color: #A2A2A2;
 }
 
 .trash-card__body {
@@ -702,10 +960,27 @@ export default {
   font-family: 'Montserrat', sans-serif;
   color: #A2A2A2;
   font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
 .trash-state--error {
   color: #FF6668;
+}
+
+.trash-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #E6E6E6;
+  border-top-color: #4F5BDF;
+  border-radius: 50%;
+  animation: trash-spin 0.8s linear infinite;
+}
+
+@keyframes trash-spin {
+  to { transform: rotate(360deg); }
 }
 
 .trash-table {
@@ -725,8 +1000,11 @@ export default {
   user-select: none;
 }
 
-.trash-table__th:first-child {
+.trash-table__th-check,
+.trash-table__td-check {
+  width: 44px;
   padding-left: 20px;
+  padding-right: 0;
 }
 
 .trash-table__th--sortable {
@@ -762,6 +1040,15 @@ export default {
   width: 60px;
 }
 
+.trash-table__row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trash-table__row:hover {
+  background: #f8f9ff;
+}
+
 .trash-table__td {
   padding: 12px;
   font-weight: 400;
@@ -769,10 +1056,6 @@ export default {
   line-height: 17px;
   color: #000000;
   border-top: 1px solid #F0F0F0;
-}
-
-.trash-table__td:first-child {
-  padding-left: 20px;
 }
 
 .trash-table__td--muted {
@@ -786,6 +1069,13 @@ export default {
 .trash-table__td--actions {
   text-align: right;
   padding-right: 20px;
+}
+
+.trash-check {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
 }
 
 .trash-icon-btn {
@@ -809,6 +1099,109 @@ export default {
   height: 20px;
 }
 
+/* История корзины */
+.trash-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.trash-modal {
+  background: #FFFFFF;
+  border-radius: 30px;
+  width: 480px;
+  max-width: calc(100vw - 40px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.trash-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #E6E6E6;
+}
+
+.trash-modal__title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 16px;
+  color: #000;
+}
+
+.trash-modal__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.trash-modal__body {
+  padding: 12px 24px 24px;
+  overflow-y: auto;
+}
+
+.trash-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.trash-log__item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.trash-log__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.trash-log__dot--restore {
+  background: #34C759;
+}
+
+.trash-log__dot--clear {
+  background: #FF6668;
+}
+
+.trash-log__text {
+  margin: 0;
+  font-size: 14px;
+  color: #000;
+}
+
+.trash-log__meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #A2A2A2;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
 @media (max-width: 1100px) {
   .trash-filters {
     flex-direction: column;
@@ -825,10 +1218,6 @@ export default {
   }
   .trash-title {
     font-size: 16px;
-  }
-  .trash-table th:nth-child(n+5),
-  .trash-table td:nth-child(n+5) {
-    display: none;
   }
 }
 </style>

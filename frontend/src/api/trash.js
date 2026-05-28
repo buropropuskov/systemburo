@@ -37,3 +37,8 @@ export async function clearTrash(systemTableID) {
   });
   return res.json();
 }
+
+export async function getTrashHistory(systemTableID) {
+  const res = await apiRequest(`/system-tables/${systemTableID}/trash/history`);
+  return res.json();
+}

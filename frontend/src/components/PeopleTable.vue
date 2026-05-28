@@ -689,7 +689,7 @@ export default {
       try {
         const response = await apiRequest(`/employees/${item.id}/deactivate`, {
           method: "PUT",
-          body: JSON.stringify({ status: 0, user_id: this.currentUserId })
+          body: JSON.stringify({ status: 0, user_id: this.currentUserId, table_id: this.currentTableId })
         });
         if (response.ok) {
           this.itemsData.splice(itemIndex, 1);

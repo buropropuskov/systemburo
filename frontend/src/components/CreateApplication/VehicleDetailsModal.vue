@@ -81,6 +81,30 @@
                 v-if="vehicle"
                 class="vehicle-details"
               >
+                <!-- Секция Удаление (только корзина) -->
+                <div
+                  v-if="source === 'trash' && (vehicle.deletedByName || vehicle.deletedAtText)"
+                  class="details-section"
+                >
+                  <div class="section-header">
+                    <h4 class="section-title">
+                      Удаление
+                    </h4>
+                  </div>
+                  <div class="section-body">
+                    <div class="details-grid two-columns">
+                      <div class="detail-item">
+                        <span class="detail-label">Дата и время удаления:</span>
+                        <span class="detail-value">{{ vehicle.deletedAtText || '-' }}</span>
+                      </div>
+                      <div class="detail-item">
+                        <span class="detail-label">Кто удалил:</span>
+                        <span class="detail-value">{{ vehicle.deletedByName || '-' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Секция Основная информация -->
                 <div class="details-section">
                   <div class="section-header">

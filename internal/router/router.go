@@ -313,6 +313,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// или окончательно удалить. Тип элементов определяется по table_type
 	// системной таблицы (cars или people).
 	stg.GET("/:id/trash", trash.List)
+	stg.GET("/:id/trash/history", trash.History)
 	stg.POST("/:id/trash/restore", trash.Restore)
 	stg.DELETE("/:id/trash/:item_id", trash.PurgeOne)
 	stg.DELETE("/:id/trash", trash.ClearAll)

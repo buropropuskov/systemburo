@@ -110,8 +110,9 @@ type UpdateTerritoryStatusRequest struct {
 
 // DeactivateCarRequest -- тело запроса деактивации автомобиля.
 type DeactivateCarRequest struct {
-	Status int  `json:"status"`
-	UserID *int `json:"user_id"`
+	Status  int  `json:"status"`
+	UserID  *int `json:"user_id"`
+	TableID *int `json:"table_id"`
 }
 
 // ActivateCarRequest -- тело запроса активации автомобиля.

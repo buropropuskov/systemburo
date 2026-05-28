@@ -54,6 +54,7 @@ var tables = []string{
 	"companies_unload_places", "organization_unload_places",
 	"unload_place_time_slots", "unload_place_photos", "unload_places",
 	"table_fields", "companies_tables", "organization_tables",
+	"system_table_trash_histories",
 	"system_table_time_slots", "system_table_photos", "system_tables",
 	"license_plate_format_cells", "license_plate_formats",
 	"citizenships",

@@ -425,6 +425,12 @@ export default {
         return 'Отметил о прибытии';
       } else if (item.action_type === 'exit') {
         return 'Машина уехала';
+      } else if (item.action_type === 'delete') {
+        return 'Удаление из таблицы';
+      } else if (item.action_type === 'restore') {
+        return 'Восстановление в таблице';
+      } else if (item.action_type === 'purge') {
+        return 'Безвозвратное удаление';
       }
       return item.action_type;
     },
@@ -455,7 +461,8 @@ export default {
     },
 
     getActionClass(actionType) {
-      return actionType === 'entry' ? 'dot-entry' : 'dot-exit';
+      if (actionType === 'entry' || actionType === 'restore') return 'dot-entry';
+      return 'dot-exit';
     },
 
     formatDateTime(dateTimeString) {
