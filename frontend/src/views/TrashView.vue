@@ -46,7 +46,7 @@
           />
           <OrganizationFilter
             ref="organizationFilter"
-            v-model="filters.organizationId"
+            :value="filters.organizationId"
             :organizations="organizations"
             @change="onOrganizationChange"
           />
@@ -283,7 +283,7 @@
       v-if="tableType === 'people' && showDetails"
       :show="showDetails"
       :employee="selectedDetail"
-      :all-tables="[]"
+      :all-tables="detailPlaces"
       :source="'trash'"
       @close="closeDetails"
       @open-application="() => {}"
@@ -304,6 +304,7 @@
 import ExcelJS from 'exceljs';
 import { apiRequest } from '@/api/client';
 import { useUiStore } from '@/stores/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
@@ -486,7 +487,8 @@ export default {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => this.reload(), 300);
     },
-    onOrganizationChange() {
+    onOrganizationChange(payload) {
+      this.filters.organizationId = payload && payload.id ? payload.id : null;
       this.reload();
     },
     onDateClear() {
@@ -566,6 +568,8 @@ export default {
           deletedAtText,
         };
       } else {
+        const places = Array.isArray(item.pass_places) ? item.pass_places : [];
+        this.detailPlaces = places;
         this.selectedDetail = {
           id: item.id,
           last_name: item.last_name,
@@ -582,7 +586,7 @@ export default {
           companyId: null,
           entry_date_to: item.entry_date_to,
           pass_time: this.formatTimeRange(item),
-          target_tables: [],
+          target_tables: places.map(p => p.id),
           territory_status: null,
           applicationId: null,
           deletedByName: item.deleted_by_name,
@@ -597,18 +601,39 @@ export default {
     },
     async onRestoreSelected() {
       if (!this.selectedIds.length) return;
+      const firstItem = this.items.find(i => i.id === this.selectedIds[0]);
       try {
         const result = await restoreItems(this.tableID, this.selectedIds);
         const r = (result && result.restored) || 0;
         const req = (result && result.requested) || this.selectedIds.length;
+        if (r >= 1) {
+          this.notifyRestored(r, firstItem);
+        }
         if (r < req) {
           useUiStore().warning(`Восстановлено ${r} из ${req}. У остальных нет активной согласованной заявки.`);
-        } else {
-          useUiStore().success(`Восстановлено: ${r}`);
         }
         await this.reload();
       } catch {
         useUiStore().error('Не удалось восстановить');
+      }
+    },
+    notifyRestored(count, firstItem) {
+      const isCars = this.tableType === 'cars';
+      if (count === 1 && firstItem) {
+        const name = isCars
+          ? firstItem.car_number
+          : [firstItem.last_name, firstItem.first_name, firstItem.middle_name].filter(Boolean).join(' ');
+        useDeletionsStore().notify({
+          prefix: isCars ? 'Машина ' : 'Сотрудник ',
+          bold: name || '',
+          suffix: isCars ? ' восстановлена' : ' восстановлен',
+        });
+      } else {
+        useDeletionsStore().notify({
+          prefix: 'Восстановлено ',
+          bold: String(count),
+          suffix: ' элемент(ов)',
+        });
       }
     },
     async onPurgeOne(id) {
@@ -688,7 +713,7 @@ export default {
         // Авто-ширина по содержимому (через getColumn - применяется после addRow).
         headers.forEach((h, i) => {
           const maxLen = Math.max(h.length, ...dataRows.map(row => String(row[i] ?? '').length));
-          worksheet.getColumn(i + 1).width = Math.min(Math.max(maxLen + 4, 14), 60);
+          worksheet.getColumn(i + 1).width = Math.min(Math.max(maxLen + 6, 16), 80);
         });
         // Первый столбец должен вмещать подписи футера.
         worksheet.getColumn(1).width = Math.max(worksheet.getColumn(1).width || 0, 22);

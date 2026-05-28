@@ -11,6 +11,7 @@
             {{ item.prefix }}<strong>{{ item.bold }}</strong>{{ item.suffix }}
           </span>
           <button
+            v-if="item.showUndo"
             class="del-undo"
             @click="store.undo(item.id)"
           >
@@ -105,7 +106,7 @@ function colorFor(progress) {
 
 .del-track {
   margin-top: 10px;
-  height: 15px;
+  height: 10px;
   border: 1px solid #e6e6e6;
   border-radius: 50px;
   overflow: hidden;
@@ -127,5 +128,15 @@ function colorFor(progress) {
 .del-leave-to {
   transform: translateX(20px);
   opacity: 0;
+}
+
+/* Плавный сдвиг оставшихся карточек при удалении одной из стека. */
+.del-move {
+  transition: transform 0.3s ease;
+}
+
+.del-leave-active {
+  position: absolute;
+  right: 0;
 }
 </style>

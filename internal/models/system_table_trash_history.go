@@ -44,11 +44,12 @@ type TrashItem struct {
 	MarkName     *string         `json:"mark_name,omitempty"`
 	UnloadPlaces json.RawMessage `json:"unload_places,omitempty" gorm:"type:jsonb" swaggerignore:"true"`
 	// Employees-only
-	LastName        *string `json:"last_name,omitempty"`
-	FirstName       *string `json:"first_name,omitempty"`
-	MiddleName      *string `json:"middle_name,omitempty"`
-	Position        *string `json:"position,omitempty"`
-	CitizenshipName string  `json:"citizenship_name,omitempty"`
+	LastName        *string         `json:"last_name,omitempty"`
+	FirstName       *string         `json:"first_name,omitempty"`
+	MiddleName      *string         `json:"middle_name,omitempty"`
+	Position        *string         `json:"position,omitempty"`
+	CitizenshipName string          `json:"citizenship_name,omitempty"`
+	PassPlaces      json.RawMessage `json:"pass_places,omitempty" gorm:"type:jsonb" swaggerignore:"true"`
 }
 
 // TrashHistoryItem - запись лога корзины с именем пользователя для API.

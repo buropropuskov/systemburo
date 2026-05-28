@@ -20,7 +20,7 @@
           </button>
         </span>
         <RefreshButton
-          :disabled="isLoading"
+          :loading="refreshing"
           @refresh="loadData"
         />
       </div>
@@ -305,6 +305,7 @@ export default {
       itemsData: [],
       pendingDeleteIds: [],
       isLoading: false,
+      refreshing: false,
       organizationsMap: {},
       carUnloadPlacesMap: {},
       allUnloadingPlaces: [],
@@ -436,9 +437,14 @@ export default {
       }
     },
 
-    // Для внешнего вызова (кнопка Refresh)
+    // Для внешнего вызова (кнопка Refresh) - тихо, без скачка высоты таблицы.
     async loadData() {
-      await this._loadData(false);
+      this.refreshing = true;
+      try {
+        await this._loadData(true);
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     // Для тихого обновления по таймеру

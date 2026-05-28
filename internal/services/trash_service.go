@@ -112,6 +112,11 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 			COALESCE(org.name, '') AS organization,
 			COALESCE(comp.name, '') AS company,
 			COALESCE(cit.name, '') AS citizenship_name,
+			COALESCE((
+				SELECT json_agg(json_build_object('id', st.id, 'display_name', st.display_name))
+				FROM employee_target_tables ett2 JOIN system_tables st ON st.id = ett2.table_id
+				WHERE ett2.employee_id = e.id
+			), '[]') AS pass_places,
 			att.entry_date_to, att.entry_time_from, att.entry_time_to,
 			e.date_deleted AS deleted_at,
 			COALESCE((

@@ -15,7 +15,7 @@
           >История</button>
         </span>
         <RefreshButton
-          :disabled="isLoading"
+          :loading="refreshing"
           @refresh="loadData"
         />
       </div>
@@ -326,6 +326,7 @@ export default {
       itemsData: [],
       pendingDeleteIds: [],
       isLoading: false,
+      refreshing: false,
       currentTableId: null,
       organizationsMap: {},
       allTables: [],
@@ -460,7 +461,12 @@ export default {
     },
 
     async loadData() {
-      await this._loadData(false);
+      this.refreshing = true;
+      try {
+        await this._loadData(true);
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     async silentRefresh() {
@@ -834,18 +840,16 @@ export default {
   white-space: nowrap;
 }
 
-.entry-col { width: 6%; }
-.exit-col { width: 6%; }
-.last-name-col { width: 9%; }
-.first-name-col { width: 8%; }
-.middle-name-col { width: 8%; }
-.position-col { width: 9%; }
-.citizenship-col { width: 8%; }
-.organization-col { width: 11%; }
-.pass-places-col { width: 10%; }
-.date-col { width: 8%; }
-.time-col { width: 8%; }
-.status-col { width: 7%; }
+.entry-col { width: 7%; }
+.exit-col { width: 7%; }
+.last-name-col { width: 11%; }
+.first-name-col { width: 10%; }
+.middle-name-col { width: 10%; }
+.position-col { width: 11%; }
+.organization-col { width: 14%; }
+.date-col { width: 10%; }
+.time-col { width: 10%; }
+.status-col { width: 8%; }
 .actions-col { width: 2%; }
 
 .header-row .col {
@@ -1107,8 +1111,7 @@ export default {
 
   .col.last-name-col,
   .col.first-name-col,
-  .col.organization-col,
-  .col.pass-places-col {
+  .col.organization-col {
     min-width: 110px !important;
   }
 

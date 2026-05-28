@@ -1,122 +1,129 @@
 <template>
   <Teleport to="body">
-    <div
-      class="modal-overlay"
-      @click.self="$emit('close')"
+    <transition
+      name="trash-modal-fade"
+      appear
+      @after-leave="$emit('close')"
     >
-      <div class="trash-history-modal">
-        <div class="modal-header">
-          <h3>История корзины — {{ tableDisplayName }}</h3>
-          <div class="header-actions">
+      <div
+        v-if="show"
+        class="modal-overlay"
+        @click.self="close"
+      >
+        <div class="trash-history-modal">
+          <div class="modal-header">
+            <h3>История корзины — {{ tableDisplayName }}</h3>
+            <div class="header-actions">
+              <button
+                class="export-btn"
+                data-testid="trash-history-export"
+                :disabled="filteredHistory.length === 0 || isExporting"
+                @click="exportToExcel"
+              >
+                <img
+                  v-if="!isExporting"
+                  src="@/assets/icons/export.png"
+                  class="export-icon"
+                >
+                <span v-if="!isExporting">Экспорт</span>
+                <div
+                  v-else
+                  class="export-loader"
+                />
+              </button>
+              <button
+                class="close-btn"
+                data-testid="trash-history-close"
+                @click="close"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="history.length"
+            class="history-filters"
+          >
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="hf-input"
+              placeholder="Поиск по действию или пользователю..."
+            >
+            <select
+              v-model="selectedUser"
+              class="hf-select"
+            >
+              <option :value="null">
+                Все пользователи
+              </option>
+              <option
+                v-for="u in uniqueUsers"
+                :key="u"
+                :value="u"
+              >
+                {{ u }}
+              </option>
+            </select>
             <button
-              class="export-btn"
-              data-testid="trash-history-export"
-              :disabled="filteredHistory.length === 0 || isExporting"
-              @click="exportToExcel"
+              class="hf-sort"
+              @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
             >
               <img
-                v-if="!isExporting"
-                src="@/assets/icons/export.png"
-                class="export-icon"
+                src="@/assets/icons/sort.png"
+                class="hf-sort-icon"
+                :class="{ 'hf-sort-icon--asc': sortOrder === 'asc' }"
               >
-              <span v-if="!isExporting">Экспорт</span>
-              <div
-                v-else
-                class="export-loader"
-              />
-            </button>
-            <button
-              class="close-btn"
-              data-testid="trash-history-close"
-              @click="$emit('close')"
-            >
-              ×
+              <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
             </button>
           </div>
-        </div>
 
-        <div
-          v-if="history.length"
-          class="history-filters"
-        >
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="hf-input"
-            placeholder="Поиск по действию или пользователю..."
-          >
-          <select
-            v-model="selectedUser"
-            class="hf-select"
-          >
-            <option :value="null">
-              Все пользователи
-            </option>
-            <option
-              v-for="u in uniqueUsers"
-              :key="u"
-              :value="u"
-            >
-              {{ u }}
-            </option>
-          </select>
-          <button
-            class="hf-sort"
-            @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
-          >
-            <img
-              src="@/assets/icons/sort.png"
-              class="hf-sort-icon"
-              :class="{ 'hf-sort-icon--asc': sortOrder === 'asc' }"
-            >
-            <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
-          </button>
-        </div>
-
-        <div class="modal-content">
-          <div
-            v-if="loading"
-            class="history-empty"
-          >
-            <div class="loader" />
-          </div>
-          <div
-            v-else-if="filteredHistory.length === 0"
-            class="history-empty"
-          >
-            {{ history.length ? 'Ничего не найдено' : 'История пуста' }}
-          </div>
-          <div
-            v-else
-            class="history-timeline"
-          >
+          <div class="modal-content">
             <div
-              v-for="(item, index) in filteredHistory"
-              :key="item.id"
-              class="history-item"
+              v-if="loading"
+              class="history-empty"
+            >
+              <div class="loader" />
+            </div>
+            <div
+              v-else-if="filteredHistory.length === 0"
+              class="history-empty"
+            >
+              {{ history.length ? 'Ничего не найдено' : 'История пуста' }}
+            </div>
+            <div
+              v-else
+              class="history-timeline"
             >
               <div
-                class="timeline-dot"
-                :class="getActionClass(item.action_type)"
-              />
-              <div
-                v-if="index < filteredHistory.length - 1"
-                class="timeline-line"
-              />
-              <div class="history-content">
-                <div class="history-header">
-                  <span class="action-title">{{ getActionText(item) }}</span>
-                  <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                </div>
-                <div class="action-user">
-                  {{ item.user_name || 'Система' }}
+                v-for="(item, index) in filteredHistory"
+                :key="item.id"
+                class="history-item"
+              >
+                <div
+                  class="timeline-dot"
+                  :class="getActionClass(item.action_type)"
+                />
+                <div
+                  v-if="index < filteredHistory.length - 1"
+                  class="timeline-line"
+                />
+                <div class="history-content">
+                  <div class="history-header">
+                    <span class="action-title">{{ getActionText(item) }}</span>
+                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                  </div>
+                  <div class="action-user">
+                    {{ item.user_name || 'Система' }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -134,6 +141,7 @@ export default {
   emits: ['close'],
   data() {
     return {
+      show: false,
       history: [],
       loading: false,
       isExporting: false,
@@ -178,9 +186,13 @@ export default {
     },
   },
   mounted() {
+    this.show = true;
     this.loadHistory();
   },
   methods: {
+    close() {
+      this.show = false;
+    },
     async loadHistory() {
       this.loading = true;
       try {
@@ -548,5 +560,15 @@ export default {
 .action-user {
   font-size: 13px;
   color: #555;
+}
+
+.trash-modal-fade-enter-active,
+.trash-modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.trash-modal-fade-enter-from,
+.trash-modal-fade-leave-to {
+  opacity: 0;
 }
 </style>
