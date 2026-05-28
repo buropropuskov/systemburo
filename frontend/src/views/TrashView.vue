@@ -97,13 +97,6 @@
         <h3 class="trash-card__title">
           {{ tableType === 'cars' ? 'Удаленные автомобили' : 'Удаленные сотрудники' }}
         </h3>
-        <button
-          class="trash-history-btn"
-          data-testid="trash-history"
-          @click="openHistory"
-        >
-          История
-        </button>
 
         <div class="trash-card__spacer" />
 
@@ -120,6 +113,13 @@
           @click="onRestoreSelected"
         >
           Восстановить
+        </button>
+        <button
+          class="trash-history-btn"
+          data-testid="trash-history"
+          @click="openHistory"
+        >
+          История
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -833,7 +833,18 @@ export default {
 }
 
 .trash-filters :deep(.field) {
+  width: 200px;
+  height: 35px;
+  background-color: #fff;
+  border: 1px solid #e6e6e6;
   border-radius: 15px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
+  cursor: pointer;
 }
 
 .trash-tool-btn {
@@ -1087,8 +1098,8 @@ export default {
 .trash-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
-  border-radius: 8px;
+  padding: 4px 12px;
+  border-radius: 50px;
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;

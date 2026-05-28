@@ -324,6 +324,7 @@ export default {
       sortField: null,
       sortDirection: 'desc',
       itemsData: [],
+      pendingDeleteIds: [],
       isLoading: false,
       currentTableId: null,
       organizationsMap: {},
@@ -336,8 +337,8 @@ export default {
   },
   computed: {
     displayItems() {
-      let filtered = [...this.itemsData];
-      
+      let filtered = this.itemsData.filter(i => !this.pendingDeleteIds.includes(i.id));
+
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase().trim();
         filtered = filtered.filter(item => {
@@ -637,29 +638,26 @@ export default {
 
     removeItemWithNotification(item) {
       if (this.isLoading) return;
-      const originalItem = { ...item };
-      const itemIndex = this.itemsData.findIndex(i => i.id === item.id);
-      if (itemIndex === -1) return;
-      this.itemsData.splice(itemIndex, 1);
+      if (this.pendingDeleteIds.includes(item.id)) return;
       const empId = item.id;
       const tableId = this.currentTableId;
       const userId = this.currentUserId;
       const fullName = [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ') || String(item.last_name || '');
+      this.pendingDeleteIds.push(empId);
       useDeletionsStore().enqueue({
         prefix: 'Сотрудник ',
         bold: fullName,
         suffix: ' удалён',
-        onConfirm: () => this.commitDelete(empId, tableId, userId, originalItem, itemIndex),
-        onUndo: () => this.reinsertItem(originalItem, itemIndex),
+        onConfirm: () => this.commitDelete(empId, tableId, userId),
+        onUndo: () => this.unhidePending(empId),
       });
     },
 
-    reinsertItem(originalItem, itemIndex) {
-      if (this.itemsData.some(i => i.id === originalItem.id)) return;
-      this.itemsData.splice(Math.min(itemIndex, this.itemsData.length), 0, originalItem);
+    unhidePending(empId) {
+      this.pendingDeleteIds = this.pendingDeleteIds.filter(id => id !== empId);
     },
 
-    async commitDelete(empId, tableId, userId, originalItem, itemIndex) {
+    async commitDelete(empId, tableId, userId) {
       try {
         const response = await apiRequest(`/employees/${empId}/deactivate`, {
           method: "PUT",
@@ -667,11 +665,14 @@ export default {
         });
         if (!response.ok) {
           console.error("Ошибка при удалении");
-          this.reinsertItem(originalItem, itemIndex);
+          this.unhidePending(empId);
+          return;
         }
+        await this._loadData(true);
+        this.unhidePending(empId);
       } catch (error) {
         console.error("Ошибка сети при удалении:", error);
-        this.reinsertItem(originalItem, itemIndex);
+        this.unhidePending(empId);
       }
     },
 

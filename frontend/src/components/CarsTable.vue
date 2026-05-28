@@ -303,6 +303,7 @@ export default {
       sortField: null,
       sortDirection: 'desc',
       itemsData: [],
+      pendingDeleteIds: [],
       isLoading: false,
       organizationsMap: {},
       carUnloadPlacesMap: {},
@@ -316,7 +317,7 @@ export default {
   },
   computed: {
     displayItems() {
-      let filtered = [...this.itemsData];
+      let filtered = this.itemsData.filter(i => !this.pendingDeleteIds.includes(i.id));
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase().trim();
         filtered = filtered.filter(item => {
@@ -677,29 +678,26 @@ export default {
 
     removeItemWithNotification(item) {
       if (this.isLoading) return;
-      const originalItem = { ...item };
-      const itemIndex = this.itemsData.findIndex(i => i.id === item.id);
-      if (itemIndex === -1) return;
-      // Оптимистично убираем строку, удаление подтверждается по таймеру (с возможностью отмены).
-      this.itemsData.splice(itemIndex, 1);
+      if (this.pendingDeleteIds.includes(item.id)) return;
       const carId = item.id;
       const tableId = this.tableId;
       const userId = this.currentUserId;
+      // Прячем строку через displayItems-фильтр (устойчиво к polling), пока идёт окно отмены.
+      this.pendingDeleteIds.push(carId);
       useDeletionsStore().enqueue({
         prefix: 'Машина ',
         bold: item.car_number,
         suffix: ' удалена',
-        onConfirm: () => this.commitDelete(carId, tableId, userId, originalItem, itemIndex),
-        onUndo: () => this.reinsertItem(originalItem, itemIndex),
+        onConfirm: () => this.commitDelete(carId, tableId, userId),
+        onUndo: () => this.unhidePending(carId),
       });
     },
 
-    reinsertItem(originalItem, itemIndex) {
-      if (this.itemsData.some(i => i.id === originalItem.id)) return;
-      this.itemsData.splice(Math.min(itemIndex, this.itemsData.length), 0, originalItem);
+    unhidePending(carId) {
+      this.pendingDeleteIds = this.pendingDeleteIds.filter(id => id !== carId);
     },
 
-    async commitDelete(carId, tableId, userId, originalItem, itemIndex) {
+    async commitDelete(carId, tableId, userId) {
       try {
         const response = await apiRequest(`/cars/${carId}/deactivate`, {
           method: "PUT",
@@ -707,11 +705,14 @@ export default {
         });
         if (!response.ok) {
           console.error("Ошибка при удалении");
-          this.reinsertItem(originalItem, itemIndex);
+          this.unhidePending(carId);
+          return;
         }
+        await this._loadData(true);
+        this.unhidePending(carId);
       } catch (error) {
         console.error("Ошибка сети при удалении:", error);
-        this.reinsertItem(originalItem, itemIndex);
+        this.unhidePending(carId);
       }
     },
 
