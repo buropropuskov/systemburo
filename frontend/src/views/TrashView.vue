@@ -543,8 +543,9 @@ export default {
       }
     },
     formatTimeRange(item) {
-      const from = item.entry_time_from || item.time_from;
-      const to = item.entry_time_to || item.time_to;
+      const hhmm = (v) => (typeof v === 'string' && v.length >= 5 ? v.slice(0, 5) : v);
+      const from = hhmm(item.entry_time_from || item.time_from);
+      const to = hhmm(item.entry_time_to || item.time_to);
       if (from && to) return `${from} - ${to}`;
       if (from) return from;
       if (to) return to;
