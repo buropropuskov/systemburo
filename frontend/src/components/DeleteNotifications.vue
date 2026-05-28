@@ -46,13 +46,13 @@ function colorFor(progress) {
 <style scoped>
 .del-stack {
   position: fixed;
-  top: 20px;
+  top: 15px;
   right: 20px;
   z-index: 11000;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 10px;
-  width: 320px;
   max-width: calc(100vw - 40px);
 }
 
@@ -63,18 +63,22 @@ function colorFor(progress) {
   padding: 14px 16px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
   font-family: 'Montserrat', sans-serif;
+  width: max-content;
+  min-width: 300px;
+  max-width: calc(100vw - 40px);
 }
 
 .del-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .del-text {
   flex: 1;
   font-size: 14px;
   color: #000;
+  white-space: nowrap;
 }
 
 .del-text :deep(strong) {
