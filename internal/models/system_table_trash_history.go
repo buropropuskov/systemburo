@@ -42,7 +42,7 @@ type TrashItem struct {
 	// Cars-only
 	CarNumber    *string         `json:"car_number,omitempty"`
 	MarkName     *string         `json:"mark_name,omitempty"`
-	UnloadPlaces json.RawMessage `json:"unload_places,omitempty" gorm:"type:jsonb"`
+	UnloadPlaces json.RawMessage `json:"unload_places,omitempty" gorm:"type:jsonb" swaggerignore:"true"`
 	// Employees-only
 	LastName        *string `json:"last_name,omitempty"`
 	FirstName       *string `json:"first_name,omitempty"`
