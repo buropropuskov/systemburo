@@ -3,22 +3,6 @@
     class="selected-table-card"
     data-testid="cars-table"
   >
-    <transition name="slide-down">
-      <div
-        v-if="notification.message"
-        class="notification"
-      >
-        <span>{{ notification.message }}</span>
-        <button @click="undoDelete">
-          Отменить
-        </button>
-        <div
-          class="progress-bar"
-          :style="{ width: `${progress}%` }"
-        />
-      </div>
-    </transition>
-
     <div class="card-header">
       <div class="card-header__title">
         <h3 class="card-title">
@@ -288,6 +272,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions';
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
@@ -318,9 +303,6 @@ export default {
       sortField: null,
       sortDirection: 'desc',
       itemsData: [],
-      notification: { message: null, item: null },
-      progress: 100,
-      progressInterval: null,
       isLoading: false,
       organizationsMap: {},
       carUnloadPlacesMap: {},
@@ -434,7 +416,6 @@ export default {
   },
   beforeUnmount() {
     this.stopPolling();
-    if (this.progressInterval) clearInterval(this.progressInterval);
   },
   methods: {
     // Основной метод загрузки данных с флагом silent (без показа лоадера)
@@ -698,52 +679,40 @@ export default {
       if (this.isLoading) return;
       const originalItem = { ...item };
       const itemIndex = this.itemsData.findIndex(i => i.id === item.id);
-      if (this.notification.message) clearInterval(this.progressInterval);
-      this.notification = { 
-        message: `Машина ${item.car_number} удалена.`, 
-        item,
-        originalItem,
-        itemIndex,
-        undoFunction: () => {
-          if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1, { ...originalItem });
-        }
-      };
-      item.status = 'Удален';
-      item.checked = false;
-      this.progress = 100;
-      clearInterval(this.progressInterval);
-      this.progressInterval = setInterval(() => {
-        this.progress -= 1;
-        if (this.progress <= 0) {
-          clearInterval(this.progressInterval);
-          this.actuallyDeleteItem(item, originalItem, itemIndex);
-          if (this.notification.item?.id === item.id) this.notification = { message: null, item: null };
-        }
-      }, 100);
+      if (itemIndex === -1) return;
+      // Оптимистично убираем строку, удаление подтверждается по таймеру (с возможностью отмены).
+      this.itemsData.splice(itemIndex, 1);
+      const carId = item.id;
+      const tableId = this.tableId;
+      const userId = this.currentUserId;
+      useDeletionsStore().enqueue({
+        prefix: 'Машина ',
+        bold: item.car_number,
+        suffix: ' удалена',
+        onConfirm: () => this.commitDelete(carId, tableId, userId, originalItem, itemIndex),
+        onUndo: () => this.reinsertItem(originalItem, itemIndex),
+      });
     },
 
-    async actuallyDeleteItem(item, originalItem, itemIndex) {
+    reinsertItem(originalItem, itemIndex) {
+      if (this.itemsData.some(i => i.id === originalItem.id)) return;
+      this.itemsData.splice(Math.min(itemIndex, this.itemsData.length), 0, originalItem);
+    },
+
+    async commitDelete(carId, tableId, userId, originalItem, itemIndex) {
       try {
-        const response = await apiRequest(`/cars/${item.id}/deactivate`, {
+        const response = await apiRequest(`/cars/${carId}/deactivate`, {
           method: "PUT",
-          body: JSON.stringify({ status: 0, user_id: this.currentUserId, table_id: this.tableId })
+          body: JSON.stringify({ status: 0, user_id: userId, table_id: tableId })
         });
         if (!response.ok) {
           console.error("Ошибка при удалении");
-          if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1, { ...originalItem });
-          return;
+          this.reinsertItem(originalItem, itemIndex);
         }
-        if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1);
       } catch (error) {
         console.error("Ошибка сети при удалении:", error);
-        if (itemIndex !== -1) this.itemsData.splice(itemIndex, 1, { ...originalItem });
+        this.reinsertItem(originalItem, itemIndex);
       }
-    },
-
-    undoDelete() {
-      clearInterval(this.progressInterval);
-      if (this.notification.undoFunction) this.notification.undoFunction();
-      this.notification = { message: null, item: null };
     },
 
     openVehicleDetails(item) {
@@ -1133,69 +1102,6 @@ export default {
   transition: transform 0.3s ease;
 }
 
-.notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-left: 4px solid #FF6668;
-  border-radius: 15px;
-  padding: 14px 18px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-  z-index: 1000;
-  min-width: 280px;
-  overflow: hidden;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  color: #000;
-}
-
-.notification button {
-  margin-left: auto;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  padding: 6px 16px;
-  border-radius: 50px;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.notification button:hover {
-  background: #3a46d2;
-}
-
-.progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: #FF6668;
-  transition: width 0.1s linear;
-}
-
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-down-enter-from {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-
-.slide-down-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-
 @media (max-width: 768px) {
   .selected-table-card {
     max-height: none;
@@ -1256,12 +1162,6 @@ export default {
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
-  }
-
-  .notification {
-    left: 20px;
-    right: 20px;
-    min-width: auto;
   }
 
   .action-btn {

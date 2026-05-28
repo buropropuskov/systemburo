@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // SystemTableTrashHistory логирует массовые действия с корзиной таблицы (#186):
 // очистка (cleared) и массовое восстановление (bulk_restored). Действия с
@@ -31,17 +34,21 @@ type TrashItem struct {
 	ApplicationNumber *string    `json:"application_number,omitempty"`
 	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
 	DeletedByName     string     `json:"deleted_by_name,omitempty"`
-	// Cars-only
-	CarNumber     *string `json:"car_number,omitempty"`
-	MarkName      *string `json:"mark_name,omitempty"`
 	Organization  string  `json:"organization,omitempty"`
+	Company       string  `json:"company,omitempty"`
 	EntryDateTo   *string `json:"entry_date_to,omitempty"`
 	EntryTimeFrom *string `json:"entry_time_from,omitempty"`
 	EntryTimeTo   *string `json:"entry_time_to,omitempty"`
+	// Cars-only
+	CarNumber    *string         `json:"car_number,omitempty"`
+	MarkName     *string         `json:"mark_name,omitempty"`
+	UnloadPlaces json.RawMessage `json:"unload_places,omitempty" gorm:"type:jsonb"`
 	// Employees-only
-	LastName   *string `json:"last_name,omitempty"`
-	FirstName  *string `json:"first_name,omitempty"`
-	MiddleName *string `json:"middle_name,omitempty"`
+	LastName        *string `json:"last_name,omitempty"`
+	FirstName       *string `json:"first_name,omitempty"`
+	MiddleName      *string `json:"middle_name,omitempty"`
+	Position        *string `json:"position,omitempty"`
+	CitizenshipName string  `json:"citizenship_name,omitempty"`
 }
 
 // TrashHistoryItem - запись лога корзины с именем пользователя для API.

@@ -36,6 +36,7 @@
     </div>
     <ToastContainer />
     <ConfirmDialog />
+    <DeleteNotifications />
   </div>
 </template>
 
@@ -48,6 +49,7 @@ import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
 import ToastContainer from './components/ToastContainer.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import DeleteNotifications from './components/DeleteNotifications.vue';
 
 export default {
   name: "App",
@@ -57,6 +59,7 @@ export default {
     ScrollTopButton,
     ToastContainer,
     ConfirmDialog,
+    DeleteNotifications,
   },
   computed: {
     isAuthenticated() {

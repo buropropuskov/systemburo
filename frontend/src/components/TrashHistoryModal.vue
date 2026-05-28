@@ -11,7 +11,7 @@
             <button
               class="export-btn"
               data-testid="trash-history-export"
-              :disabled="history.length === 0 || isExporting"
+              :disabled="filteredHistory.length === 0 || isExporting"
               @click="exportToExcel"
             >
               <img
@@ -35,6 +35,44 @@
           </div>
         </div>
 
+        <div
+          v-if="history.length"
+          class="history-filters"
+        >
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="hf-input"
+            placeholder="Поиск по действию или пользователю..."
+          >
+          <select
+            v-model="selectedUser"
+            class="hf-select"
+          >
+            <option :value="null">
+              Все пользователи
+            </option>
+            <option
+              v-for="u in uniqueUsers"
+              :key="u"
+              :value="u"
+            >
+              {{ u }}
+            </option>
+          </select>
+          <button
+            class="hf-sort"
+            @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
+          >
+            <img
+              src="@/assets/icons/sort.png"
+              class="hf-sort-icon"
+              :class="{ 'hf-sort-icon--asc': sortOrder === 'asc' }"
+            >
+            <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+          </button>
+        </div>
+
         <div class="modal-content">
           <div
             v-if="loading"
@@ -43,17 +81,17 @@
             <div class="loader" />
           </div>
           <div
-            v-else-if="history.length === 0"
+            v-else-if="filteredHistory.length === 0"
             class="history-empty"
           >
-            История пуста
+            {{ history.length ? 'Ничего не найдено' : 'История пуста' }}
           </div>
           <div
             v-else
             class="history-timeline"
           >
             <div
-              v-for="(item, index) in history"
+              v-for="(item, index) in filteredHistory"
               :key="item.id"
               class="history-item"
             >
@@ -62,7 +100,7 @@
                 :class="getActionClass(item.action_type)"
               />
               <div
-                v-if="index < history.length - 1"
+                v-if="index < filteredHistory.length - 1"
                 class="timeline-line"
               />
               <div class="history-content">
@@ -99,9 +137,34 @@ export default {
       history: [],
       loading: false,
       isExporting: false,
+      searchQuery: '',
+      selectedUser: null,
+      sortOrder: 'desc',
     };
   },
   computed: {
+    uniqueUsers() {
+      return [...new Set(this.history.map(h => h.user_name || 'Система'))];
+    },
+    filteredHistory() {
+      let arr = [...this.history];
+      if (this.selectedUser) {
+        arr = arr.filter(h => (h.user_name || 'Система') === this.selectedUser);
+      }
+      if (this.searchQuery) {
+        const q = this.searchQuery.toLowerCase();
+        arr = arr.filter(h =>
+          this.getActionText(h).toLowerCase().includes(q)
+          || (h.user_name || 'Система').toLowerCase().includes(q),
+        );
+      }
+      arr.sort((a, b) => {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        return this.sortOrder === 'asc' ? da - db : db - da;
+      });
+      return arr;
+    },
     formattedCurrentDateTime() {
       return new Date().toLocaleString('ru-RU', {
         day: '2-digit', month: '2-digit', year: 'numeric',
@@ -149,7 +212,7 @@ export default {
       }).replace(',', '');
     },
     async exportToExcel() {
-      if (this.history.length === 0) return;
+      if (this.filteredHistory.length === 0) return;
       this.isExporting = true;
       try {
         const workbook = new ExcelJS.Workbook();
@@ -164,7 +227,7 @@ export default {
           cell.alignment = { vertical: 'middle', horizontal: 'center' };
         });
 
-        this.history.forEach((item, index) => {
+        this.filteredHistory.forEach((item, index) => {
           const row = worksheet.addRow([
             this.formatDateTime(item.created_at),
             this.getActionText(item),
@@ -324,6 +387,73 @@ export default {
 .close-btn:hover {
   background: #f5f5f5;
   color: #333;
+}
+
+.history-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 25px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #fafafa;
+}
+
+.hf-input {
+  flex: 1 1 220px;
+  height: 32px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  padding: 0 12px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  outline: none;
+}
+
+.hf-input:focus {
+  border-color: #4F5BDF;
+}
+
+.hf-select {
+  height: 32px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  padding: 0 10px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.hf-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hf-sort:hover {
+  border-color: #4F5BDF;
+}
+
+.hf-sort-icon {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s ease;
+}
+
+.hf-sort-icon--asc {
+  transform: rotate(180deg);
 }
 
 .modal-content {
