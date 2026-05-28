@@ -713,7 +713,7 @@ export default {
       this.progress = 100;
       clearInterval(this.progressInterval);
       this.progressInterval = setInterval(() => {
-        this.progress -= 10;
+        this.progress -= 1;
         if (this.progress <= 0) {
           clearInterval(this.progressInterval);
           this.actuallyDeleteItem(item, originalItem, itemIndex);
@@ -1137,22 +1137,33 @@ export default {
   position: fixed;
   top: 20px;
   right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: #fff;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  padding: 12px 16px;
+  border-left: 4px solid #FF6668;
+  border-radius: 15px;
+  padding: 14px 18px;
   box-shadow: 0 3px 10px rgba(0,0,0,0.1);
   z-index: 1000;
-  min-width: 250px;
+  min-width: 280px;
+  overflow: hidden;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  color: #000;
 }
 
 .notification button {
-  margin-left: 10px;
+  margin-left: auto;
   background: #4F5BDF;
   color: white;
   border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 16px;
+  border-radius: 50px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -1166,7 +1177,7 @@ export default {
   bottom: 0;
   left: 0;
   height: 3px;
-  background: #4F5BDF;
+  background: #FF6668;
   transition: width 0.1s linear;
 }
 

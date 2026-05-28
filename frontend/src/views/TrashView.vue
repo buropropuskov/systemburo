@@ -3,25 +3,35 @@
     <header class="trash-header">
       <div class="trash-titlebar">
         <h2 class="trash-title">
-          Таблица
           <RouterLink
             :to="`/table/${tableName}`"
-            class="trash-title__name"
+            class="trash-title__link"
           >
-            {{ displayName }}
+            <span class="trash-title__prefix">Таблица</span>
+            <span class="trash-title__name">{{ displayName }}</span>
           </RouterLink>
-          / Корзина
+          <span class="trash-title__sep">/ Корзина</span>
         </h2>
         <RouterLink
           :to="`/table/${tableName}`"
           class="trash-back-btn"
           data-testid="trash-back"
         >
-          <img
-            src="@/assets/icons/arrow.png"
+          <svg
             class="trash-back-btn__icon"
-            alt=""
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
           >
+            <path
+              d="M15 18L9 12L15 6"
+              stroke="#4F5BDF"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
           Назад
         </RouterLink>
       </div>
@@ -52,46 +62,37 @@
         </div>
         <div class="trash-filters__group trash-filters__group--right">
           <button
-            class="trash-btn trash-btn--ghost"
+            class="trash-tool-btn"
             data-testid="trash-history"
             @click="openHistory"
           >
             История
           </button>
           <button
-            class="trash-btn trash-btn--ghost"
+            class="trash-tool-btn"
             data-testid="trash-export"
             :disabled="!items.length || isExporting"
             @click="onExport"
           >
             <img
               src="@/assets/icons/export.png"
-              class="trash-btn__icon"
+              class="trash-tool-btn__icon"
               alt=""
             >
             Экспорт
           </button>
           <button
-            class="trash-btn trash-btn--ghost"
+            class="trash-tool-btn"
             data-testid="trash-clear"
             :disabled="!items.length"
             @click="onClearAll"
           >
-            Очистить
-          </button>
-          <button
-            class="trash-btn trash-btn--refresh"
-            data-testid="trash-refresh"
-            :disabled="isLoading"
-            @click="reload"
-          >
             <img
-              src="@/assets/icons/refresh.png"
-              class="trash-btn__icon"
-              :class="{ 'trash-btn__icon--spin': isLoading }"
+              src="@/assets/icons/trashcan.png"
+              class="trash-tool-btn__icon"
               alt=""
             >
-            Обновить
+            Очистить
           </button>
         </div>
       </div>
@@ -112,13 +113,17 @@
           Выбрано: {{ selectedIds.length }}
         </span>
         <button
-          class="trash-btn trash-btn--primary"
+          class="trash-restore-btn"
           data-testid="trash-restore-selected"
           :disabled="!selectedIds.length"
           @click="onRestoreSelected"
         >
           Восстановить
         </button>
+        <RefreshButton
+          :loading="isLoading"
+          @refresh="reload"
+        />
       </div>
 
       <div class="trash-card__body">
@@ -165,10 +170,10 @@
               >
                 <span>{{ col.label }}</span>
                 <img
-                  v-if="col.sortable"
+                  v-if="col.sortable && sortField === col.key"
                   src="@/assets/icons/sort.png"
                   class="trash-table__sort"
-                  :class="{ 'trash-table__sort--desc': sortField === col.key && sortDir === 'desc' }"
+                  :class="{ 'trash-table__sort--desc': sortDir === 'desc' }"
                   alt=""
                 >
               </th>
@@ -229,8 +234,10 @@
               <td class="trash-table__td">
                 {{ formatTimeRange(item) }}
               </td>
-              <td class="trash-table__td trash-table__td--danger">
-                {{ tableType === 'cars' ? 'Удалена' : 'Удалён' }}
+              <td class="trash-table__td">
+                <span class="trash-badge trash-badge--deleted">
+                  {{ tableType === 'cars' ? 'Удалена' : 'Удалён' }}
+                </span>
               </td>
               <td
                 class="trash-table__td trash-table__td--actions"
@@ -275,81 +282,14 @@
       @open-application="() => {}"
     />
 
-    <!-- Модалка истории корзины -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showHistory"
-          class="trash-modal-overlay"
-          @click.self="closeHistory"
-        >
-          <div class="trash-modal">
-            <div class="trash-modal__header">
-              <h3 class="trash-modal__title">
-                История корзины
-              </h3>
-              <button
-                class="trash-modal__close"
-                data-testid="trash-history-close"
-                @click="closeHistory"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                >
-                  <path
-                    d="M13 1L1 13M1 1L13 13"
-                    stroke="#666"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div class="trash-modal__body">
-              <div
-                v-if="historyLoading"
-                class="trash-state"
-              >
-                <span class="trash-spinner" />
-                Загрузка...
-              </div>
-              <div
-                v-else-if="!historyItems.length"
-                class="trash-state"
-              >
-                История пуста
-              </div>
-              <ul
-                v-else
-                class="trash-log"
-              >
-                <li
-                  v-for="h in historyItems"
-                  :key="h.id"
-                  class="trash-log__item"
-                >
-                  <span
-                    class="trash-log__dot"
-                    :class="h.action_type === 'bulk_restored' ? 'trash-log__dot--restore' : 'trash-log__dot--clear'"
-                  />
-                  <div class="trash-log__content">
-                    <p class="trash-log__text">
-                      {{ historyActionText(h) }}
-                    </p>
-                    <p class="trash-log__meta">
-                      {{ h.user_name || 'Система' }} · {{ formatDateTime(h.created_at) }}
-                    </p>
-                  </div>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
+    <!-- История корзины -->
+    <TrashHistoryModal
+      v-if="showHistory"
+      :table-id="tableID"
+      :table-display-name="displayName"
+      :current-user-name="currentUserName"
+      @close="closeHistory"
+    />
   </section>
 </template>
 
@@ -357,21 +297,27 @@
 import ExcelJS from 'exceljs';
 import { apiRequest } from '@/api/client';
 import { useUiStore } from '@/stores/ui';
-import { listTrash, restoreItems, purgeItem, clearTrash, getTrashHistory } from '@/api/trash';
+import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import DateFilter from '@/components/DateFilter.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
+import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
 
 export default {
   name: 'TrashView',
-  components: { SearchComponent, OrganizationFilter, DateFilter, VehicleDetailsModal, EmployeeDetailsModal },
+  components: {
+    SearchComponent, OrganizationFilter, DateFilter, RefreshButton,
+    VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal,
+  },
   data() {
     return {
       tableID: 0,
       tableType: '',
       displayName: '',
+      currentUserName: '',
       items: [],
       selectedIds: [],
       isLoading: false,
@@ -385,13 +331,11 @@ export default {
         dateTo: null,
       },
       searchTimer: null,
-      sortField: 'deleted_at',
+      sortField: '',
       sortDir: 'desc',
       showDetails: false,
       selectedDetail: null,
       showHistory: false,
-      historyItems: [],
-      historyLoading: false,
     };
   },
   computed: {
@@ -424,8 +368,8 @@ export default {
     },
     sortedItems() {
       const arr = [...this.items];
-      const field = this.sortField;
-      const dir = this.sortDir === 'asc' ? 1 : -1;
+      const field = this.sortField || 'deleted_at';
+      const dir = (this.sortField && this.sortDir === 'asc') ? 1 : -1;
       arr.sort((a, b) => {
         const va = a[field] ?? '';
         const vb = b[field] ?? '';
@@ -438,6 +382,17 @@ export default {
     allSelected() {
       return this.items.length > 0 && this.selectedIds.length === this.items.length;
     },
+    currentUserDisplayName() {
+      if (!this.currentUserName) return 'Пользователь';
+      const parts = this.currentUserName.split(' ').filter(p => p && p !== 'null' && p !== 'undefined');
+      return parts.length > 0 ? parts.join(' ') : 'Пользователь';
+    },
+    formattedExportDateTime() {
+      return new Date().toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).replace(',', '');
+    },
   },
   watch: {
     '$route.params.tableName'() {
@@ -445,10 +400,21 @@ export default {
     },
   },
   async mounted() {
+    this.fetchCurrentUser();
     await this.fetchTable();
     if (this.tableID) await this.reload();
   },
   methods: {
+    async fetchCurrentUser() {
+      try {
+        const res = await apiRequest('/users/me');
+        const data = await res.json();
+        const parts = [data.last_name, data.first_name, data.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || data.username || '';
+      } catch {
+        this.currentUserName = '';
+      }
+    },
     async fetchTable() {
       this.error = '';
       try {
@@ -649,30 +615,11 @@ export default {
         useUiStore().error('Не удалось очистить');
       }
     },
-    async openHistory() {
+    openHistory() {
       this.showHistory = true;
-      this.historyLoading = true;
-      try {
-        const data = await getTrashHistory(this.tableID);
-        this.historyItems = Array.isArray(data) ? data : [];
-      } catch {
-        useUiStore().error('Не удалось загрузить историю');
-        this.historyItems = [];
-      } finally {
-        this.historyLoading = false;
-      }
     },
     closeHistory() {
       this.showHistory = false;
-    },
-    historyActionText(h) {
-      if (h.action_type === 'cleared') {
-        return `Корзина очищена (${h.affected_count} запис.)`;
-      }
-      if (h.action_type === 'bulk_restored') {
-        return `Восстановлено ${h.affected_count} элемент(ов)`;
-      }
-      return h.action_type;
     },
     async onExport() {
       if (!this.items.length) return;
@@ -682,6 +629,11 @@ export default {
         const headers = isCars
           ? ['Номер заявки', 'Дата и время удаления', 'Номер Т/С', 'Марка', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил']
           : ['Номер заявки', 'Дата и время удаления', 'Фамилия', 'Имя', 'Отчество', 'Организация', 'Действует до', 'Время', 'Статус', 'Кто удалил'];
+
+        const status = isCars ? 'Удалена' : 'Удалён';
+        const dataRows = this.sortedItems.map((item) => (isCars
+          ? [item.application_number || '', this.formatDateTime(item.deleted_at), item.car_number || '', item.mark_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']
+          : [item.application_number || '', this.formatDateTime(item.deleted_at), item.last_name || '', item.first_name || '', item.middle_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']));
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Korzina');
@@ -694,11 +646,7 @@ export default {
           cell.alignment = { vertical: 'middle', horizontal: 'center' };
         });
 
-        this.sortedItems.forEach((item, index) => {
-          const status = isCars ? 'Удалена' : 'Удалён';
-          const row = isCars
-            ? [item.application_number || '', this.formatDateTime(item.deleted_at), item.car_number || '', item.mark_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || '']
-            : [item.application_number || '', this.formatDateTime(item.deleted_at), item.last_name || '', item.first_name || '', item.middle_name || '', item.organization || '', this.formatDate(item.entry_date_to), this.formatTimeRange(item), status, item.deleted_by_name || ''];
+        dataRows.forEach((row, index) => {
           const r = worksheet.addRow(row);
           r.height = 20;
           const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
@@ -709,7 +657,20 @@ export default {
           });
         });
 
-        worksheet.columns = headers.map(() => ({ width: 22 }));
+        // Авто-ширина по содержимому.
+        worksheet.columns = headers.map((h, i) => {
+          const maxLen = Math.max(h.length, ...dataRows.map(row => String(row[i] ?? '').length));
+          return { width: Math.min(Math.max(maxLen + 4, 12), 50) };
+        });
+
+        worksheet.addRow([]);
+        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
+        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedExportDateTime]);
+        [infoRow1, infoRow2].forEach((row) => {
+          row.eachCell((cell) => {
+            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+          });
+        });
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -732,23 +693,22 @@ export default {
 
 <style scoped>
 .trash-view {
-  padding: 24px;
-  max-width: 1440px;
-  margin: 0 auto;
+  padding: 20px;
   font-family: 'Montserrat', sans-serif;
+  position: relative;
 }
 
 .trash-header {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  margin-bottom: 20px;
+  gap: 15px;
+  margin-bottom: 15px;
 }
 
 .trash-titlebar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
 }
 
 .trash-title {
@@ -757,45 +717,56 @@ export default {
   font-weight: 700;
   font-size: 18px;
   line-height: 22px;
-  color: #A2A2A2;
 }
 
-.trash-title__name {
-  color: #A2A2A2;
+.trash-title__link {
   text-decoration: none;
 }
 
-.trash-title__name:hover {
+.trash-title__prefix,
+.trash-title__name {
+  color: #A2A2A2;
+  transition: color 0.2s ease;
+}
+
+.trash-title__link:hover .trash-title__prefix {
+  color: #000;
+}
+
+.trash-title__link:hover .trash-title__name {
   color: #4F5BDF;
+}
+
+.trash-title__sep {
+  color: #000;
 }
 
 .trash-back-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  height: 35px;
-  background: #FFFFFF;
-  border: 1px solid #E6E6E6;
+  gap: 5px;
+  height: 25px;
+  padding: 0 12px;
+  background: #FFF;
+  border: 1px solid #e6e6e6;
   border-radius: 50px;
   font-family: 'Montserrat', sans-serif;
   font-weight: 500;
   font-size: 14px;
-  line-height: 17px;
   color: #4F5BDF;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .trash-back-btn:hover {
-  background: #f3f4ff;
+  background: #f2f2f2;
+  border-color: #4F5BDF;
 }
 
 .trash-back-btn__icon {
-  width: 12px;
-  height: 12px;
-  transform: rotate(180deg);
+  width: 14px;
+  height: 14px;
 }
 
 .trash-filters {
@@ -804,6 +775,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 .trash-filters__group {
@@ -821,94 +794,41 @@ export default {
   flex: 0 0 auto;
 }
 
-.trash-filters__search {
-  flex: 0 0 200px;
-}
-
 .trash-filters :deep(.field) {
-  height: 35px;
-  width: 200px;
-  background-color: #FFFFFF;
-  border-radius: 10px;
-  border: 1px solid #E6E6E6;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  position: relative;
-  cursor: pointer;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
+  border-radius: 15px;
 }
 
-.trash-filters :deep(.field--select) {
-  width: 200px;
-  min-width: 200px;
-}
-
-.trash-filters :deep(.field--select .select-text) {
-  font-size: 14px;
-  color: #A2A2A2;
-}
-
-.trash-filters :deep(.field--select .select-icon) {
-  width: 10px;
-  height: 10px;
-}
-
-.trash-btn {
+.trash-tool-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 35px;
-  padding: 0 16px;
-  background: #FFFFFF;
-  border: 1px solid #E6E6E6;
+  gap: 5px;
+  height: 25px;
+  padding: 0 12px;
+  background: #FFF;
+  border: 1px solid #e6e6e6;
   border-radius: 10px;
   font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
   font-weight: 500;
-  font-size: 14px;
-  line-height: 17px;
-  color: #000000;
+  color: #000;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s ease;
 }
 
-.trash-btn:hover:not(:disabled) {
-  background: #f8f9fa;
+.trash-tool-btn:hover:not(:disabled) {
+  background: #f2f2f2;
 }
 
-.trash-btn:disabled {
+.trash-tool-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.trash-btn__icon {
+.trash-tool-btn__icon {
   width: 15px;
   height: 15px;
-}
-
-.trash-btn__icon--spin {
-  animation: trash-spin 0.8s linear infinite;
-}
-
-.trash-btn--refresh {
-  border-radius: 50px;
-  color: #4F5BDF;
-}
-
-.trash-btn--primary {
-  background: #4F5BDF;
-  border-color: #4F5BDF;
-  color: #FFFFFF;
-  padding: 0 20px;
-}
-
-.trash-btn--primary:hover:not(:disabled) {
-  background: #3a45b2;
 }
 
 .trash-card {
@@ -917,15 +837,16 @@ export default {
   box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
   border-radius: 30px;
   overflow: hidden;
-  max-height: 575px;
+  max-height: 600px;
   display: flex;
   flex-direction: column;
+  margin-top: 15px;
 }
 
 .trash-card__header {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
   padding: 0 20px;
   height: 50px;
   border-bottom: 1px solid #E6E6E6;
@@ -936,7 +857,7 @@ export default {
   margin: 0;
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
-  font-size: 1.1em;
+  font-size: 16px;
   color: #000000;
 }
 
@@ -947,6 +868,29 @@ export default {
 .trash-card__selected {
   font-size: 13px;
   color: #A2A2A2;
+}
+
+.trash-restore-btn {
+  height: 25px;
+  padding: 0 18px;
+  background: #4F5BDF;
+  border: 1px solid #4F5BDF;
+  color: #FFFFFF;
+  border-radius: 50px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.trash-restore-btn:hover:not(:disabled) {
+  background: #3a45b2;
+}
+
+.trash-restore-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .trash-card__body {
@@ -1004,8 +948,9 @@ export default {
 .trash-table__th-check,
 .trash-table__td-check {
   width: 44px;
-  padding-left: 20px;
-  padding-right: 0;
+  padding: 0 0 0 20px;
+  text-align: left;
+  vertical-align: middle;
 }
 
 .trash-table__th--sortable {
@@ -1025,12 +970,8 @@ export default {
   height: 12px;
   margin-left: 6px;
   vertical-align: middle;
-  opacity: 0.6;
-  transition: transform 0.2s ease;
-}
-
-.trash-table__th--active .trash-table__sort {
   opacity: 1;
+  transition: transform 0.2s ease;
 }
 
 .trash-table__sort--desc {
@@ -1063,13 +1004,24 @@ export default {
   color: #A2A2A2;
 }
 
-.trash-table__td--danger {
-  color: #FF6668;
-}
-
 .trash-table__td--actions {
   text-align: right;
   padding-right: 20px;
+}
+
+.trash-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.trash-badge--deleted {
+  background: #FFECEC;
+  color: #FF6668;
 }
 
 .trash-check {
@@ -1077,6 +1029,7 @@ export default {
   height: 16px;
   cursor: pointer;
   accent-color: #4F5BDF;
+  display: block;
 }
 
 .trash-icon-btn {
@@ -1100,109 +1053,6 @@ export default {
   height: 20px;
 }
 
-/* История корзины */
-.trash-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.trash-modal {
-  background: #FFFFFF;
-  border-radius: 30px;
-  width: 480px;
-  max-width: calc(100vw - 40px);
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: 'Montserrat', sans-serif;
-}
-
-.trash-modal__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid #E6E6E6;
-}
-
-.trash-modal__title {
-  margin: 0;
-  font-weight: 600;
-  font-size: 16px;
-  color: #000;
-}
-
-.trash-modal__close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.trash-modal__body {
-  padding: 12px 24px 24px;
-  overflow-y: auto;
-}
-
-.trash-log {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.trash-log__item {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.trash-log__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-top: 5px;
-  flex-shrink: 0;
-}
-
-.trash-log__dot--restore {
-  background: #34C759;
-}
-
-.trash-log__dot--clear {
-  background: #FF6668;
-}
-
-.trash-log__text {
-  margin: 0;
-  font-size: 14px;
-  color: #000;
-}
-
-.trash-log__meta {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #A2A2A2;
-}
-
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
 @media (max-width: 1100px) {
   .trash-filters {
     flex-direction: column;
@@ -1214,9 +1064,6 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .trash-view {
-    padding: 16px;
-  }
   .trash-title {
     font-size: 16px;
   }
