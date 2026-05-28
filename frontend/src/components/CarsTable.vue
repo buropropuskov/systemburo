@@ -303,6 +303,7 @@ export default {
   },
   props: {
     tableName: { type: String, default: '' },
+    tableId: { type: Number, default: null },
     searchQuery: { type: String, default: '' },
     selectedOrganizationId: { type: [Number, String], default: null },
     selectedUnloadingPlaceId: { type: [Number, String], default: null },
@@ -725,7 +726,7 @@ export default {
       try {
         const response = await apiRequest(`/cars/${item.id}/deactivate`, {
           method: "PUT",
-          body: JSON.stringify({ status: 0, user_id: this.currentUserId })
+          body: JSON.stringify({ status: 0, user_id: this.currentUserId, table_id: this.tableId })
         });
         if (!response.ok) {
           console.error("Ошибка при удалении");

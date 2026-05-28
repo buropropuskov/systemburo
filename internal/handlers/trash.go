@@ -138,9 +138,9 @@ func (h *TrashHandler) PurgeOne(c echo.Context) error {
 	userID, _ := c.Get("user_id").(int)
 	switch tableType {
 	case "cars":
-		err = h.service.PurgeCar(c.Request().Context(), itemID, userID)
+		err = h.service.PurgeCar(c.Request().Context(), tableID, itemID, userID)
 	case "people":
-		err = h.service.PurgeEmployee(c.Request().Context(), itemID, userID)
+		err = h.service.PurgeEmployee(c.Request().Context(), tableID, itemID, userID)
 	default:
 		return echo.NewHTTPError(http.StatusBadRequest, "Тип таблицы не поддерживает корзину")
 	}
@@ -148,6 +148,26 @@ func (h *TrashHandler) PurgeOne(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Удалено безвозвратно")
+}
+
+// History godoc
+// @Summary      Лог массовых действий с корзиной таблицы
+// @Tags         trash
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID SystemTable"
+// @Success      200 {array} models.TrashHistoryItem
+// @Router       /system-tables/{id}/trash/history [get]
+func (h *TrashHandler) History(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid table id")
+	}
+	items, err := h.service.ListTrashHistory(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
 
 // ClearAll godoc

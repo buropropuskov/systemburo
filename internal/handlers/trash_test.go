@@ -1,0 +1,152 @@
+package handlers_test
+
+import (
+	"fmt"
+	"net/http"
+	"testing"
+
+	"systemburo/internal/models"
+	"systemburo/internal/testutil"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestTrash_CarFlowListScopingRestoreHistory(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "trashcar1", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// Имя пользователю -> deleted_by_name не пустой.
+	var u models.User
+	require.NoError(t, db.Where("username = ?", "trashcar1").First(&u).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", u.ID).Updates(map[string]any{
+		"last_name": "Иванов", "first_name": "Иван", "middle_name": "Иванович",
+	}).Error)
+
+	// Две cars-таблицы для проверки скоупинга.
+	dn1, dn2 := "Корзина КПП 1", "Корзина КПП 2"
+	t1 := models.SystemTable{Name: "trash_cars_t1", DisplayName: &dn1, TableType: "cars", IsActive: true}
+	t2 := models.SystemTable{Name: "trash_cars_t2", DisplayName: &dn2, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&t1).Error)
+	require.NoError(t, db.Create(&t2).Error)
+
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	// Удаление из таблицы t1 с указанием table_id.
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
+		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, t1.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Корзина t1: ровно 1 элемент с заполненными полями.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash", t1.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 1)
+	assert.Equal(t, float64(carID), items[0]["id"])
+	assert.Equal(t, "B002BB799", items[0]["car_number"])
+	assert.Equal(t, "Test Organization", items[0]["organization"])
+	assert.NotEmpty(t, items[0]["deleted_by_name"], "deleted_by_name должен заполняться")
+	assert.NotEmpty(t, items[0]["entry_date_to"], "Действует до должно заполняться")
+	assert.NotEmpty(t, items[0]["deleted_at"])
+
+	// Скоупинг: корзина t2 пуста.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash", t2.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, testutil.ParseSlice(t, rec), "удалённое из t1 не должно показываться в t2")
+
+	// Восстановление.
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/trash/restore", t1.ID),
+		fmt.Sprintf(`{"ids":[%d]}`, carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	restoreResp := testutil.ParseMap(t, rec)
+	assert.Equal(t, float64(1), restoreResp["restored"])
+
+	// Машина снова активна и пропала из корзины.
+	var car models.Car
+	require.NoError(t, db.First(&car, carID).Error)
+	require.NotNil(t, car.Status)
+	assert.Equal(t, 1, *car.Status)
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash", t1.ID), testutil.AuthHeader(token))
+	assert.Empty(t, testutil.ParseSlice(t, rec))
+
+	// История корзины: запись bulk_restored.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash/history", t1.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	history := testutil.ParseSlice(t, rec)
+	require.NotEmpty(t, history)
+	assert.Equal(t, "bulk_restored", history[0]["action_type"])
+	assert.Equal(t, float64(1), history[0]["affected_count"])
+}
+
+func TestTrash_RestoreBlockedWithoutApprovedApplication(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "trashcar2", "pass123", 1, td.OrgID, td.CompanyID)
+	var u models.User
+	require.NoError(t, db.Where("username = ?", "trashcar2").First(&u).Error)
+
+	dn := "Корзина КПП"
+	tbl := models.SystemTable{Name: "trash_cars_blocked", DisplayName: &dn, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	// Машина без согласованной заявки (не активируем).
+	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
+		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// В корзине есть, но восстановление запрещено.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash", tbl.ID), testutil.AuthHeader(token))
+	require.Len(t, testutil.ParseSlice(t, rec), 1)
+
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/trash/restore", tbl.ID),
+		fmt.Sprintf(`{"ids":[%d]}`, carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	resp := testutil.ParseMap(t, rec)
+	assert.Equal(t, float64(0), resp["restored"], "без согласованной заявки восстановление невозможно")
+}
+
+func TestTrash_PurgeOneRemovesFromTrash(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "trashcar3", "pass123", 1, td.OrgID, td.CompanyID)
+	var u models.User
+	require.NoError(t, db.Where("username = ?", "trashcar3").First(&u).Error)
+
+	dn := "Корзина КПП"
+	tbl := models.SystemTable{Name: "trash_cars_purge", DisplayName: &dn, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID),
+		fmt.Sprintf(`{"status":0,"user_id":%d,"table_id":%d}`, u.ID, tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Окончательное удаление.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/trash/%d", tbl.ID, carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Пропала из корзины, is_purged=true, есть history purge.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash", tbl.ID), testutil.AuthHeader(token))
+	assert.Empty(t, testutil.ParseSlice(t, rec))
+
+	var car models.Car
+	require.NoError(t, db.First(&car, carID).Error)
+	assert.True(t, car.IsPurged)
+
+	var purgeCount int64
+	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = 'purge'", carID).Count(&purgeCount)
+	assert.Equal(t, int64(1), purgeCount)
+}

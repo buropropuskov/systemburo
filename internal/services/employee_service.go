@@ -33,8 +33,9 @@ type EmployeeService interface {
 
 // DeactivateEmployeeRequest -- тело запроса деактивации сотрудника.
 type DeactivateEmployeeRequest struct {
-	Status int  `json:"status"`
-	UserID *int `json:"user_id"`
+	Status  int  `json:"status"`
+	UserID  *int `json:"user_id"`
+	TableID *int `json:"table_id"`
 }
 
 // ActivateEmployeeRequest -- тело запроса активации сотрудника.
@@ -332,6 +333,7 @@ func (s *employeeService) DeactivateEmployee(ctx context.Context, employeeID int
 			ActionType: actionType,
 			Comment:    &comment,
 			CreatedAt:  now,
+			TableID:    req.TableID,
 		}
 		if err := tx.Create(&history).Error; err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)

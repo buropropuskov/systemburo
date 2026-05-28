@@ -156,6 +156,7 @@ func (s *carService) DeactivateCar(ctx context.Context, carID int, req Deactivat
 			ActionType: actionType,
 			Comment:    &comment,
 			CreatedAt:  now,
+			TableID:    req.TableID,
 		}
 		if err := tx.Create(&history).Error; err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)

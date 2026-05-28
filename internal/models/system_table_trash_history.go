@@ -36,11 +36,21 @@ type TrashItem struct {
 	MarkName        *string    `json:"mark_name,omitempty"`
 	Organization    string     `json:"organization,omitempty"`
 	EntryDateTo     *string    `json:"entry_date_to,omitempty"`
+	EntryTimeFrom   *string    `json:"entry_time_from,omitempty"`
 	EntryTimeTo     *string    `json:"entry_time_to,omitempty"`
 	// Employees-only
 	LastName        *string    `json:"last_name,omitempty"`
 	FirstName       *string    `json:"first_name,omitempty"`
 	MiddleName      *string    `json:"middle_name,omitempty"`
+}
+
+// TrashHistoryItem - запись лога корзины с именем пользователя для API.
+type TrashHistoryItem struct {
+	ID            int       `json:"id"`
+	ActionType    string    `json:"action_type"`
+	AffectedCount int       `json:"affected_count"`
+	UserName      string    `json:"user_name,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // RestoreTrashRequest - тело запроса POST /system-tables/:id/trash/restore.
