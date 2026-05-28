@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -200,7 +201,7 @@ func (s *trashService) CanRestoreEmployee(ctx context.Context, id int) (bool, st
 }
 
 func (s *trashService) RestoreCars(ctx context.Context, systemTableID int, ids []int, userID int) (int, error) {
-	restored := 0
+	restoredIDs := make([]int, 0, len(ids))
 	for _, id := range ids {
 		ok, _ := s.CanRestoreCar(ctx, id)
 		if !ok {
@@ -221,17 +222,17 @@ func (s *trashService) RestoreCars(ctx context.Context, systemTableID int, ids [
 			}).Error
 		})
 		if err == nil {
-			restored++
+			restoredIDs = append(restoredIDs, id)
 		}
 	}
-	if restored >= 1 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, restored, userID)
+	if len(restoredIDs) >= 1 {
+		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, s.carDetails(ctx, restoredIDs))
 	}
-	return restored, nil
+	return len(restoredIDs), nil
 }
 
 func (s *trashService) RestoreEmployees(ctx context.Context, systemTableID int, ids []int, userID int) (int, error) {
-	restored := 0
+	restoredIDs := make([]int, 0, len(ids))
 	for _, id := range ids {
 		ok, _ := s.CanRestoreEmployee(ctx, id)
 		if !ok {
@@ -252,13 +253,13 @@ func (s *trashService) RestoreEmployees(ctx context.Context, systemTableID int, 
 			}).Error
 		})
 		if err == nil {
-			restored++
+			restoredIDs = append(restoredIDs, id)
 		}
 	}
-	if restored >= 1 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, restored, userID)
+	if len(restoredIDs) >= 1 {
+		s.logTrashAction(ctx, systemTableID, models.TrashActionBulkRestored, len(restoredIDs), userID, s.employeeDetails(ctx, restoredIDs))
 	}
-	return restored, nil
+	return len(restoredIDs), nil
 }
 
 func (s *trashService) PurgeCar(ctx context.Context, systemTableID, id, userID int) error {
@@ -314,34 +315,47 @@ func (s *trashService) PurgeEmployee(ctx context.Context, systemTableID, id, use
 // ClearCarsTrash покрывает все cars в корзине этой таблицы (через cars_history.table_id).
 func (s *trashService) ClearCarsTrash(ctx context.Context, systemTableID, userID int) (int, error) {
 	now := time.Now().UTC()
-	subq := s.db.Table("cars_history").
-		Select("DISTINCT car_id").
-		Where("action_type = 'delete' AND table_id = ?", systemTableID)
+	subqIDs := func() *gorm.DB {
+		return s.db.Table("cars_history").Select("DISTINCT car_id").
+			Where("action_type = 'delete' AND table_id = ?", systemTableID)
+	}
+	// Детали очищаемых машин собираем до purge.
+	purgeIDs := make([]int, 0)
+	s.db.WithContext(ctx).Model(&models.Car{}).
+		Where("status = 0 AND is_purged = false AND id IN (?)", subqIDs()).
+		Pluck("id", &purgeIDs)
+	details := s.carDetails(ctx, purgeIDs)
 	res := s.db.WithContext(ctx).Model(&models.Car{}).
-		Where("status = 0 AND is_purged = false AND id IN (?)", subq).
+		Where("status = 0 AND is_purged = false AND id IN (?)", subqIDs()).
 		Updates(map[string]any{"is_purged": true, "purged_at": now, "purged_by_user_id": userID})
 	if res.Error != nil {
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка очистки")
 	}
 	if res.RowsAffected > 0 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionCleared, int(res.RowsAffected), userID)
+		s.logTrashAction(ctx, systemTableID, models.TrashActionCleared, int(res.RowsAffected), userID, details)
 	}
 	return int(res.RowsAffected), nil
 }
 
 func (s *trashService) ClearEmployeesTrash(ctx context.Context, systemTableID, userID int) (int, error) {
 	now := time.Now().UTC()
-	subq := s.db.Table("employees_history").
-		Select("DISTINCT employee_id").
-		Where("action_type = 'delete' AND table_id = ?", systemTableID)
+	subqIDs := func() *gorm.DB {
+		return s.db.Table("employees_history").Select("DISTINCT employee_id").
+			Where("action_type = 'delete' AND table_id = ?", systemTableID)
+	}
+	purgeIDs := make([]int, 0)
+	s.db.WithContext(ctx).Model(&models.Employee{}).
+		Where("status = 0 AND is_purged = false AND id IN (?)", subqIDs()).
+		Pluck("id", &purgeIDs)
+	details := s.employeeDetails(ctx, purgeIDs)
 	res := s.db.WithContext(ctx).Model(&models.Employee{}).
-		Where("status = 0 AND is_purged = false AND id IN (?)", subq).
+		Where("status = 0 AND is_purged = false AND id IN (?)", subqIDs()).
 		Updates(map[string]any{"is_purged": true, "purged_at": now, "purged_by_user_id": userID})
 	if res.Error != nil {
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка очистки")
 	}
 	if res.RowsAffected > 0 {
-		s.logTrashAction(ctx, systemTableID, models.TrashActionCleared, int(res.RowsAffected), userID)
+		s.logTrashAction(ctx, systemTableID, models.TrashActionCleared, int(res.RowsAffected), userID, details)
 	}
 	return int(res.RowsAffected), nil
 }
@@ -349,7 +363,7 @@ func (s *trashService) ClearEmployeesTrash(ctx context.Context, systemTableID, u
 // ListTrashHistory возвращает лог массовых действий с корзиной таблицы.
 func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) ([]models.TrashHistoryItem, error) {
 	sql := `
-		SELECT h.id, h.action_type, h.affected_count,
+		SELECT h.id, h.action_type, h.affected_count, h.details,
 			COALESCE(format_short_name(u.last_name, u.first_name, u.middle_name), '') AS user_name,
 			h.created_at
 		FROM system_table_trash_histories h
@@ -364,12 +378,42 @@ func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) 
 }
 
 // logTrashAction пишет запись в лог корзины. Ошибка не прерывает основную операцию.
-func (s *trashService) logTrashAction(ctx context.Context, systemTableID int, action string, count, userID int) {
+func (s *trashService) logTrashAction(ctx context.Context, systemTableID int, action string, count, userID int, details []models.TrashDetail) {
 	uid := userID
-	_ = s.db.WithContext(ctx).Create(&models.SystemTableTrashHistory{
+	rec := models.SystemTableTrashHistory{
 		SystemTableID: systemTableID,
 		ActionType:    action,
 		AffectedCount: count,
 		UserID:        &uid,
-	}).Error
+	}
+	if len(details) > 0 {
+		if b, err := json.Marshal(details); err == nil {
+			rec.Details = b
+		}
+	}
+	_ = s.db.WithContext(ctx).Create(&rec).Error
+}
+
+// carDetails возвращает [{id,label}] машин для лога корзины (номер + марка).
+func (s *trashService) carDetails(ctx context.Context, ids []int) []models.TrashDetail {
+	if len(ids) == 0 {
+		return nil
+	}
+	rows := make([]models.TrashDetail, 0)
+	s.db.WithContext(ctx).Table("cars").
+		Select("id, TRIM(COALESCE(car_number, '') || ' ' || COALESCE(mark_name, car_brand, '')) AS label").
+		Where("id IN ?", ids).Scan(&rows)
+	return rows
+}
+
+// employeeDetails возвращает [{id,label}] сотрудников для лога корзины (ФИО).
+func (s *trashService) employeeDetails(ctx context.Context, ids []int) []models.TrashDetail {
+	if len(ids) == 0 {
+		return nil
+	}
+	rows := make([]models.TrashDetail, 0)
+	s.db.WithContext(ctx).Table("employees").
+		Select("id, TRIM(CONCAT_WS(' ', last_name, first_name, middle_name)) AS label").
+		Where("id IN ?", ids).Scan(&rows)
+	return rows
 }

@@ -445,6 +445,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Настройки системы
 	protected.GET("/settings", settings.GetAll)
 	protected.GET("/settings/upload", settings.GetUploadSettings)
+	protected.GET("/settings/notifications", settings.GetNotificationSettings)
 	protected.PUT("/settings/:key", settings.Update)
 
 	// Новости

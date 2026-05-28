@@ -47,3 +47,12 @@ func (h *SettingsHandler) GetUploadSettings(c echo.Context) error {
 	}
 	return RespondSuccess(c, result)
 }
+
+// GetNotificationSettings возвращает длительности уведомлений удаления/восстановления.
+func (h *SettingsHandler) GetNotificationSettings(c echo.Context) error {
+	result, err := h.service.GetNotificationSettings(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}

@@ -111,12 +111,38 @@
                 />
                 <div class="history-content">
                   <div class="history-header">
-                    <span class="action-title">{{ getActionText(item) }}</span>
+                    <span class="action-title">{{ actionTitle(item) }}</span>
                     <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
                   </div>
                   <div class="action-user">
                     {{ item.user_name || 'Система' }}
                   </div>
+                  <template v-if="itemDetails(item).length > 1">
+                    <button
+                      class="detail-toggle"
+                      @click="toggleExpand(item.id)"
+                    >
+                      {{ expanded[item.id] ? 'Свернуть' : `Раскрыть (${itemDetails(item).length})` }}
+                    </button>
+                    <ul
+                      v-if="expanded[item.id]"
+                      class="detail-list"
+                    >
+                      <li
+                        v-for="(d, i) in visibleDetails(item)"
+                        :key="i"
+                      >
+                        {{ d.label || ('ID ' + d.id) }}
+                      </li>
+                    </ul>
+                    <button
+                      v-if="expanded[item.id] && visibleDetails(item).length < filteredDetails(item).length"
+                      class="detail-more"
+                      @click="showMore(item.id)"
+                    >
+                      Показать ещё
+                    </button>
+                  </template>
                 </div>
               </div>
             </div>
@@ -148,6 +174,8 @@ export default {
       searchQuery: '',
       selectedUser: null,
       sortOrder: 'desc',
+      expanded: {},
+      shown: {},
     };
   },
   computed: {
@@ -163,7 +191,8 @@ export default {
         const q = this.searchQuery.toLowerCase();
         arr = arr.filter(h =>
           this.getActionText(h).toLowerCase().includes(q)
-          || (h.user_name || 'Система').toLowerCase().includes(q),
+          || (h.user_name || 'Система').toLowerCase().includes(q)
+          || this.itemDetails(h).some(d => (d.label || '').toLowerCase().includes(q)),
         );
       }
       arr.sort((a, b) => {
@@ -215,6 +244,39 @@ export default {
     },
     getActionClass(actionType) {
       return actionType === 'bulk_restored' ? 'dot-restore' : 'dot-clear';
+    },
+    itemDetails(item) {
+      return Array.isArray(item.details) ? item.details : [];
+    },
+    actionVerb(item) {
+      return item.action_type === 'bulk_restored' ? 'Восстановлено' : 'Удалено';
+    },
+    actionTitle(item) {
+      const d = this.itemDetails(item);
+      if (d.length === 1) {
+        return `${this.actionVerb(item)}: ${d[0].label || ('ID ' + d[0].id)}`;
+      }
+      if (d.length > 1) {
+        return `${this.actionVerb(item)} ${item.affected_count} элемент(ов)`;
+      }
+      return this.getActionText(item);
+    },
+    filteredDetails(item) {
+      const d = this.itemDetails(item);
+      if (!this.searchQuery) return d;
+      const q = this.searchQuery.toLowerCase();
+      const matched = d.filter(x => (x.label || '').toLowerCase().includes(q));
+      return matched.length ? matched : d;
+    },
+    visibleDetails(item) {
+      return this.filteredDetails(item).slice(0, this.shown[item.id] || 10);
+    },
+    toggleExpand(id) {
+      if (!this.shown[id]) this.shown[id] = 10;
+      this.expanded[id] = !this.expanded[id];
+    },
+    showMore(id) {
+      this.shown[id] = (this.shown[id] || 10) + 10;
     },
     formatDateTime(s) {
       if (!s) return '';
@@ -560,6 +622,41 @@ export default {
 .action-user {
   font-size: 13px;
   color: #555;
+}
+
+.detail-toggle,
+.detail-more {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4F5BDF;
+  cursor: pointer;
+}
+
+.detail-toggle:hover,
+.detail-more:hover {
+  text-decoration: underline;
+}
+
+.detail-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  background: #f7f8ff;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-list li {
+  font-size: 13px;
+  color: #333;
 }
 
 .trash-modal-fade-enter-active,

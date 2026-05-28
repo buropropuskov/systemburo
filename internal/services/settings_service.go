@@ -19,15 +19,18 @@ type SettingsService interface {
 	GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error)
 	Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error)
 	GetUploadSettings(ctx context.Context) (map[string]interface{}, error)
+	GetNotificationSettings(ctx context.Context) (map[string]interface{}, error)
 }
 
 var knownKeys = map[string]string{
-	"upload.max_file_size":        "int",
-	"upload.allowed_image_types":  "json",
-	"upload.allowed_doc_types":    "json",
-	"pagination.max_per_page":     "int",
-	"notifications.enabled":       "bool",
-	"notifications.poll_interval": "int",
+	"upload.max_file_size":            "int",
+	"upload.allowed_image_types":      "json",
+	"upload.allowed_doc_types":        "json",
+	"pagination.max_per_page":         "int",
+	"notifications.enabled":           "bool",
+	"notifications.poll_interval":     "int",
+	"notifications.delete_duration":   "int",
+	"notifications.restore_duration":  "int",
 }
 
 type settingsService struct {
@@ -44,8 +47,10 @@ func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 		"upload.allowed_image_types":  {Key: "upload.allowed_image_types", Value: mustJSON(cfg.UploadAllowedImageTypes), Type: "json"},
 		"upload.allowed_doc_types":    {Key: "upload.allowed_doc_types", Value: mustJSON(cfg.UploadAllowedDocTypes), Type: "json"},
 		"pagination.max_per_page":     {Key: "pagination.max_per_page", Value: strconv.Itoa(cfg.PaginationMaxLimit), Type: "int"},
-		"notifications.enabled":       {Key: "notifications.enabled", Value: "true", Type: "bool"},
-		"notifications.poll_interval": {Key: "notifications.poll_interval", Value: "30", Type: "int"},
+		"notifications.enabled":         {Key: "notifications.enabled", Value: "true", Type: "bool"},
+		"notifications.poll_interval":    {Key: "notifications.poll_interval", Value: "30", Type: "int"},
+		"notifications.delete_duration":  {Key: "notifications.delete_duration", Value: "10", Type: "int"},
+		"notifications.restore_duration": {Key: "notifications.restore_duration", Value: "5", Type: "int"},
 	}
 
 	s := &settingsService{db: db, defaults: defaults, cache: make(map[string]models.SystemSetting)}
@@ -148,6 +153,25 @@ func (s *settingsService) GetUploadSettings(ctx context.Context) (map[string]int
 	}, nil
 }
 
+// GetNotificationSettings возвращает длительности уведомлений удаления/восстановления (сек).
+func (s *settingsService) GetNotificationSettings(ctx context.Context) (map[string]interface{}, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	del, _ := strconv.Atoi(s.cache["notifications.delete_duration"].Value)
+	res, _ := strconv.Atoi(s.cache["notifications.restore_duration"].Value)
+	if del <= 0 {
+		del = 10
+	}
+	if res <= 0 {
+		res = 5
+	}
+	return map[string]interface{}{
+		"delete_duration":  del,
+		"restore_duration": res,
+	}, nil
+}
+
 func validateSettingValue(key, value string) error {
 	switch key {
 	case "upload.max_file_size":
@@ -164,6 +188,11 @@ func validateSettingValue(key, value string) error {
 		v, err := strconv.Atoi(value)
 		if err != nil || v < 10 || v > 120 {
 			return fmt.Errorf("notifications.poll_interval: 10-120 сек (получено %s)", value)
+		}
+	case "notifications.delete_duration", "notifications.restore_duration":
+		v, err := strconv.Atoi(value)
+		if err != nil || v < 3 || v > 60 {
+			return fmt.Errorf("%s: 3-60 сек (получено %s)", key, value)
 		}
 	case "notifications.enabled":
 		if value != "true" && value != "false" {

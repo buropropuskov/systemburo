@@ -9,12 +9,13 @@ import (
 // очистка (cleared) и массовое восстановление (bulk_restored). Действия с
 // отдельными элементами логируются в cars_history/employees_history.
 type SystemTableTrashHistory struct {
-	ID            int       `json:"id"`
-	SystemTableID int       `gorm:"index" json:"system_table_id"`
-	ActionType    string    `gorm:"size:30;index" json:"action_type"` // cleared | bulk_restored | purged_one
-	AffectedCount int       `json:"affected_count"`
-	UserID        *int      `gorm:"index" json:"user_id,omitempty"`
-	User          *User     `gorm:"foreignKey:UserID" json:"-"`
+	ID            int             `json:"id"`
+	SystemTableID int             `gorm:"index" json:"system_table_id"`
+	ActionType    string          `gorm:"size:30;index" json:"action_type"` // cleared | bulk_restored | purged_one
+	AffectedCount int             `json:"affected_count"`
+	Details       json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"` // [{id,label}] затронутых элементов
+	UserID        *int            `gorm:"index" json:"user_id,omitempty"`
+	User          *User           `gorm:"foreignKey:UserID" json:"-"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -54,11 +55,18 @@ type TrashItem struct {
 
 // TrashHistoryItem - запись лога корзины с именем пользователя для API.
 type TrashHistoryItem struct {
-	ID            int       `json:"id"`
-	ActionType    string    `json:"action_type"`
-	AffectedCount int       `json:"affected_count"`
-	UserName      string    `json:"user_name,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            int             `json:"id"`
+	ActionType    string          `json:"action_type"`
+	AffectedCount int             `json:"affected_count"`
+	Details       json.RawMessage `json:"details,omitempty" swaggerignore:"true"`
+	UserName      string          `json:"user_name,omitempty"`
+	CreatedAt     time.Time       `json:"created_at"`
+}
+
+// TrashDetail - затронутый элемент в логе корзины (для деталей восстановления/очистки).
+type TrashDetail struct {
+	ID    int    `json:"id"`
+	Label string `json:"label"`
 }
 
 // RestoreTrashRequest - тело запроса POST /system-tables/:id/trash/restore.
