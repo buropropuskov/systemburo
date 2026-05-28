@@ -729,6 +729,14 @@ export default {
   transition: color 0.2s ease;
 }
 
+.trash-title__prefix {
+  margin-right: 0.35em;
+}
+
+.trash-title__sep {
+  margin-left: 0.35em;
+}
+
 .trash-title__link:hover .trash-title__prefix {
   color: #000;
 }
@@ -945,8 +953,8 @@ export default {
   user-select: none;
 }
 
-.trash-table__th-check,
-.trash-table__td-check {
+.trash-table__th.trash-table__th-check,
+.trash-table__td.trash-table__td-check {
   width: 44px;
   padding: 0 0 0 20px;
   text-align: left;
