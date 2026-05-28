@@ -30,9 +30,12 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
 
 const store = useDeletionsStore();
+
+onMounted(() => store.loadDurations());
 
 // Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
 function colorFor(progress) {

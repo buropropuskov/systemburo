@@ -247,6 +247,42 @@
               <span class="form-hint">От 10 до 120 секунд</span>
             </div>
 
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="del-duration"
+              >
+                Длительность уведомления об удалении (секунды)
+              </label>
+              <input
+                id="del-duration"
+                v-model.number="settings.notifications_delete_duration"
+                type="number"
+                class="form-input"
+                :min="3"
+                :max="60"
+              >
+              <span class="form-hint">От 3 до 60 секунд (машины и люди)</span>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="res-duration"
+              >
+                Длительность уведомления о восстановлении (секунды)
+              </label>
+              <input
+                id="res-duration"
+                v-model.number="settings.notifications_restore_duration"
+                type="number"
+                class="form-input"
+                :min="3"
+                :max="60"
+              >
+              <span class="form-hint">От 3 до 60 секунд (машины и люди)</span>
+            </div>
+
             <button
               class="btn btn--primary"
               :disabled="saving"
@@ -296,6 +332,8 @@ export default {
         max_per_page: 50,
         notifications_enabled: false,
         notifications_poll_interval: 30,
+        notifications_delete_duration: 10,
+        notifications_restore_duration: 5,
       },
       availableImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
       availableDocTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
@@ -375,6 +413,12 @@ export default {
           case 'notifications.poll_interval':
             this.settings.notifications_poll_interval = Number(item.value) || 30;
             break;
+          case 'notifications.delete_duration':
+            this.settings.notifications_delete_duration = Number(item.value) || 10;
+            break;
+          case 'notifications.restore_duration':
+            this.settings.notifications_restore_duration = Number(item.value) || 5;
+            break;
         }
       }
     },
@@ -440,10 +484,18 @@ export default {
         this.showToast('Интервал должен быть от 10 до 120 секунд', 'error');
         return;
       }
+      const del = this.settings.notifications_delete_duration;
+      const res = this.settings.notifications_restore_duration;
+      if (del < 3 || del > 60 || res < 3 || res > 60) {
+        this.showToast('Длительность уведомлений: от 3 до 60 секунд', 'error');
+        return;
+      }
       this.saving = true;
       try {
         await updateSetting('notifications.enabled', String(this.settings.notifications_enabled));
         await updateSetting('notifications.poll_interval', String(interval));
+        await updateSetting('notifications.delete_duration', String(del));
+        await updateSetting('notifications.restore_duration', String(res));
         this.showToast('Настройки уведомлений сохранены', 'success');
       } catch (error) {
         console.error('Ошибка сохранения:', error);
