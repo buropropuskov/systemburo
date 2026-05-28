@@ -17,31 +17,31 @@ type SystemTableTrashHistory struct {
 
 // TrashActionType - константы для SystemTableTrashHistory.ActionType.
 const (
-	TrashActionCleared       = "cleared"
-	TrashActionBulkRestored  = "bulk_restored"
-	TrashActionPurgedOne     = "purged_one"
+	TrashActionCleared      = "cleared"
+	TrashActionBulkRestored = "bulk_restored"
+	TrashActionPurgedOne    = "purged_one"
 )
 
 // TrashItem - универсальный элемент корзины для API (car или employee).
 // Type определяет какие поля заполнены (для cars: car_number, mark_name;
 // для employees: last_name, first_name, middle_name).
 type TrashItem struct {
-	ID              int        `json:"id"`
-	Type            string     `json:"type"` // car | employee
-	ApplicationNum  *string    `json:"application_number,omitempty"`
-	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
-	DeletedByName   string     `json:"deleted_by_name,omitempty"`
+	ID                int        `json:"id"`
+	Type              string     `json:"type"` // car | employee
+	ApplicationNumber *string    `json:"application_number,omitempty"`
+	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
+	DeletedByName     string     `json:"deleted_by_name,omitempty"`
 	// Cars-only
-	CarNumber       *string    `json:"car_number,omitempty"`
-	MarkName        *string    `json:"mark_name,omitempty"`
-	Organization    string     `json:"organization,omitempty"`
-	EntryDateTo     *string    `json:"entry_date_to,omitempty"`
-	EntryTimeFrom   *string    `json:"entry_time_from,omitempty"`
-	EntryTimeTo     *string    `json:"entry_time_to,omitempty"`
+	CarNumber     *string `json:"car_number,omitempty"`
+	MarkName      *string `json:"mark_name,omitempty"`
+	Organization  string  `json:"organization,omitempty"`
+	EntryDateTo   *string `json:"entry_date_to,omitempty"`
+	EntryTimeFrom *string `json:"entry_time_from,omitempty"`
+	EntryTimeTo   *string `json:"entry_time_to,omitempty"`
 	// Employees-only
-	LastName        *string    `json:"last_name,omitempty"`
-	FirstName       *string    `json:"first_name,omitempty"`
-	MiddleName      *string    `json:"middle_name,omitempty"`
+	LastName   *string `json:"last_name,omitempty"`
+	FirstName  *string `json:"first_name,omitempty"`
+	MiddleName *string `json:"middle_name,omitempty"`
 }
 
 // TrashHistoryItem - запись лога корзины с именем пользователя для API.
