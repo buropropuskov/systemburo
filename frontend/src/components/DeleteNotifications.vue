@@ -1,0 +1,127 @@
+<template>
+  <div class="del-stack">
+    <transition-group name="del">
+      <div
+        v-for="item in store.items"
+        :key="item.id"
+        class="del-card"
+      >
+        <div class="del-row">
+          <span class="del-text">
+            {{ item.prefix }}<strong>{{ item.bold }}</strong>{{ item.suffix }}
+          </span>
+          <button
+            class="del-undo"
+            @click="store.undo(item.id)"
+          >
+            Отменить
+          </button>
+        </div>
+        <div class="del-track">
+          <div
+            class="del-fill"
+            :style="{ width: item.progress + '%', background: colorFor(item.progress) }"
+          />
+        </div>
+      </div>
+    </transition-group>
+  </div>
+</template>
+
+<script setup>
+import { useDeletionsStore } from '@/stores/deletions';
+
+const store = useDeletionsStore();
+
+// Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
+function colorFor(progress) {
+  const t = Math.min(1, Math.max(0, (100 - progress) / 100));
+  const green = [52, 199, 89];
+  const red = [255, 102, 104];
+  const c = green.map((g, i) => Math.round(g + (red[i] - g) * t));
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+</script>
+
+<style scoped>
+.del-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 11000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+}
+
+.del-card {
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  padding: 14px 16px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  font-family: 'Montserrat', sans-serif;
+}
+
+.del-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.del-text {
+  flex: 1;
+  font-size: 14px;
+  color: #000;
+}
+
+.del-text :deep(strong) {
+  font-weight: 700;
+}
+
+.del-undo {
+  flex-shrink: 0;
+  background: #4F5BDF;
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 50px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.del-undo:hover {
+  background: #3a45b2;
+}
+
+.del-track {
+  margin-top: 10px;
+  height: 15px;
+  border: 1px solid #e6e6e6;
+  border-radius: 50px;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.del-fill {
+  height: 100%;
+  border-radius: 50px;
+  transition: width 0.1s linear, background 0.1s linear;
+}
+
+.del-enter-active,
+.del-leave-active {
+  transition: all 0.3s ease;
+}
+
+.del-enter-from,
+.del-leave-to {
+  transform: translateX(20px);
+  opacity: 0;
+}
+</style>

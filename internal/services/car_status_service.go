@@ -130,10 +130,9 @@ func (s *carService) DeactivateCar(ctx context.Context, carID int, req Deactivat
 		}
 
 		now := time.Now().UTC()
-		today := now.Format("2006-01-02")
 		if err := tx.Model(&models.Car{}).Where("id = ?", carID).Updates(map[string]interface{}{
 			"status":       req.Status,
-			"date_removed": today,
+			"date_removed": now,
 			"updated_at":   now,
 		}).Error; err != nil {
 			slog.Error("не удалось деактивировать автомобиль", "car_id", carID, "error", err)

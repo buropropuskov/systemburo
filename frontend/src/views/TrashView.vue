@@ -47,6 +47,7 @@
           <OrganizationFilter
             ref="organizationFilter"
             v-model="filters.organizationId"
+            :organizations="organizations"
             @change="onOrganizationChange"
           />
           <DateFilter
@@ -61,13 +62,6 @@
           />
         </div>
         <div class="trash-filters__group trash-filters__group--right">
-          <button
-            class="trash-tool-btn"
-            data-testid="trash-history"
-            @click="openHistory"
-          >
-            История
-          </button>
           <button
             class="trash-tool-btn"
             data-testid="trash-export"
@@ -103,6 +97,13 @@
         <h3 class="trash-card__title">
           {{ tableType === 'cars' ? 'Удаленные автомобили' : 'Удаленные сотрудники' }}
         </h3>
+        <button
+          class="trash-history-btn"
+          data-testid="trash-history"
+          @click="openHistory"
+        >
+          История
+        </button>
 
         <div class="trash-card__spacer" />
 
@@ -126,28 +127,31 @@
         />
       </div>
 
-      <div class="trash-card__body">
+      <div
+        ref="cardBody"
+        class="trash-card__body"
+        :style="bodyStyle"
+      >
         <div
           v-if="isLoading"
-          class="trash-state"
+          class="trash-overlay"
         >
           <span class="trash-spinner" />
-          Загрузка...
         </div>
         <div
-          v-else-if="error"
+          v-if="error"
           class="trash-state trash-state--error"
         >
           {{ error }}
         </div>
         <div
-          v-else-if="!items.length"
+          v-else-if="!items.length && !isLoading"
           class="trash-state"
         >
           Корзина пуста
         </div>
         <table
-          v-else
+          v-else-if="items.length"
           class="trash-table"
           data-testid="trash-table"
         >
@@ -170,10 +174,13 @@
               >
                 <span>{{ col.label }}</span>
                 <img
-                  v-if="col.sortable && sortField === col.key"
+                  v-if="col.sortable"
                   src="@/assets/icons/sort.png"
                   class="trash-table__sort"
-                  :class="{ 'trash-table__sort--desc': sortDir === 'desc' }"
+                  :class="{
+                    'trash-table__sort--sorted': sortField === col.key,
+                    'trash-table__sort--desc': sortField === col.key && sortDir === 'desc',
+                  }"
                   alt=""
                 >
               </th>
@@ -266,7 +273,7 @@
       v-if="tableType === 'cars' && showDetails"
       :show="showDetails"
       :vehicle="selectedDetail"
-      :all-unloading-places="[]"
+      :all-unloading-places="detailPlaces"
       :license-plate-formats="[]"
       :show-car-features="false"
       :source="'trash'"
@@ -335,7 +342,10 @@ export default {
       sortDir: 'desc',
       showDetails: false,
       selectedDetail: null,
+      detailPlaces: [],
       showHistory: false,
+      organizations: [],
+      lastHeight: 0,
     };
   },
   computed: {
@@ -393,6 +403,9 @@ export default {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
       }).replace(',', '');
     },
+    bodyStyle() {
+      return this.isLoading ? { minHeight: `${this.lastHeight || 200}px` } : {};
+    },
   },
   watch: {
     '$route.params.tableName'() {
@@ -401,6 +414,7 @@ export default {
   },
   async mounted() {
     this.fetchCurrentUser();
+    this.fetchOrganizations();
     await this.fetchTable();
     if (this.tableID) await this.reload();
   },
@@ -413,6 +427,15 @@ export default {
         this.currentUserName = parts.join(' ') || data.username || '';
       } catch {
         this.currentUserName = '';
+      }
+    },
+    async fetchOrganizations() {
+      try {
+        const res = await apiRequest('/organizations');
+        const data = await res.json();
+        this.organizations = Array.isArray(data) ? data : [];
+      } catch {
+        this.organizations = [];
       }
     },
     async fetchTable() {
@@ -437,6 +460,9 @@ export default {
     },
     async reload() {
       if (!this.tableID || this.error) return;
+      if (this.$refs.cardBody && this.$refs.cardBody.offsetHeight) {
+        this.lastHeight = this.$refs.cardBody.offsetHeight;
+      }
       this.isLoading = true;
       this.selectedIds = [];
       try {
@@ -520,16 +546,18 @@ export default {
     onRowClick(item) {
       const deletedAtText = this.formatDateTime(item.deleted_at);
       if (this.tableType === 'cars') {
+        const places = Array.isArray(item.unload_places) ? item.unload_places : [];
+        this.detailPlaces = places;
         this.selectedDetail = {
           plateNumber: item.car_number,
           mark: item.mark_name,
           formatId: null,
           organization: item.organization,
           organizationId: null,
-          company: '',
+          company: item.company || '',
           companyId: null,
           isExisting: true,
-          unloadPlaces: [],
+          unloadPlaces: places.map(p => p.id),
           entry_date_to: item.entry_date_to,
           entry_time_from: item.entry_time_from,
           entry_time_to: item.entry_time_to,
@@ -543,14 +571,14 @@ export default {
           last_name: item.last_name,
           first_name: item.first_name,
           middle_name: item.middle_name,
-          position: '',
-          citizenshipName: '',
+          position: item.position || '',
+          citizenshipName: item.citizenship_name || '',
           passport_series_number: '',
           patent_number: '',
           other_permission: '',
           organization: item.organization,
           organizationId: null,
-          company: '',
+          company: item.company || '',
           companyId: null,
           entry_date_to: item.entry_date_to,
           pass_time: this.formatTimeRange(item),
@@ -657,11 +685,13 @@ export default {
           });
         });
 
-        // Авто-ширина по содержимому.
-        worksheet.columns = headers.map((h, i) => {
+        // Авто-ширина по содержимому (через getColumn - применяется после addRow).
+        headers.forEach((h, i) => {
           const maxLen = Math.max(h.length, ...dataRows.map(row => String(row[i] ?? '').length));
-          return { width: Math.min(Math.max(maxLen + 4, 12), 50) };
+          worksheet.getColumn(i + 1).width = Math.min(Math.max(maxLen + 4, 14), 60);
         });
+        // Первый столбец должен вмещать подписи футера.
+        worksheet.getColumn(1).width = Math.max(worksheet.getColumn(1).width || 0, 22);
 
         worksheet.addRow([]);
         const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
@@ -869,6 +899,23 @@ export default {
   color: #000000;
 }
 
+.trash-history-btn {
+  padding: 4px 12px;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.trash-history-btn:hover {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
 .trash-card__spacer {
   flex: 1;
 }
@@ -905,6 +952,17 @@ export default {
   padding: 0;
   flex-grow: 1;
   overflow-y: auto;
+  position: relative;
+}
+
+.trash-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 2;
 }
 
 .trash-state {
@@ -969,8 +1027,12 @@ export default {
   color: #333;
 }
 
+.trash-table__th--sortable:hover .trash-table__sort {
+  filter: brightness(0);
+}
+
 .trash-table__th--active {
-  color: #4F5BDF;
+  color: #333;
 }
 
 .trash-table__sort {
@@ -978,8 +1040,13 @@ export default {
   height: 12px;
   margin-left: 6px;
   vertical-align: middle;
-  opacity: 1;
+  opacity: 0.7;
   transition: transform 0.2s ease;
+}
+
+.trash-table__sort--sorted {
+  filter: brightness(0);
+  opacity: 1;
 }
 
 .trash-table__sort--desc {
@@ -1020,16 +1087,18 @@ export default {
 .trash-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 12px;
-  border-radius: 50px;
-  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
+  border: 1px solid;
 }
 
 .trash-badge--deleted {
-  background: #FFECEC;
-  color: #FF6668;
+  background-color: #ffebee;
+  color: #c62828;
+  border-color: #ffcdd2;
 }
 
 .trash-check {

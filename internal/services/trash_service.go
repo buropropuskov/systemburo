@@ -50,6 +50,12 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 			c.entry_date_to, c.entry_time_from, c.entry_time_to,
 			COALESCE(c.mark_name, c.car_brand) AS mark_name, c.car_number,
 			COALESCE(org.name, '') AS organization,
+			COALESCE(comp.name, '') AS company,
+			COALESCE((
+				SELECT json_agg(json_build_object('id', up.id, 'name', up.name))
+				FROM car_unload_places cup JOIN unload_places up ON up.id = cup.unload_place_id
+				WHERE cup.car_id = c.id
+			), '[]') AS unload_places,
 			c.date_removed AS deleted_at,
 			COALESCE((
 				SELECT format_short_name(u.last_name, u.first_name, u.middle_name)
@@ -61,6 +67,7 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 		JOIN attachments att ON att.id = c.attachment_id
 		JOIN applications a ON a.id = att.application_id
 		LEFT JOIN organizations org ON org.id = a.organization_id
+		LEFT JOIN companies comp ON comp.id = a.company_id
 		WHERE c.status = 0 AND c.date_removed IS NOT NULL AND c.is_purged = false
 			AND EXISTS (
 				SELECT 1 FROM cars_history ch
@@ -101,7 +108,10 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 		SELECT e.id, 'employee' AS type,
 			a.application_number,
 			e.last_name, e.first_name, e.middle_name,
+			e.position,
 			COALESCE(org.name, '') AS organization,
+			COALESCE(comp.name, '') AS company,
+			COALESCE(cit.name, '') AS citizenship_name,
 			att.entry_date_to, att.entry_time_from, att.entry_time_to,
 			e.date_deleted AS deleted_at,
 			COALESCE((
@@ -114,6 +124,8 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 		JOIN attachments att ON att.id = e.attachment_id
 		JOIN applications a ON a.id = att.application_id
 		LEFT JOIN organizations org ON org.id = a.organization_id
+		LEFT JOIN companies comp ON comp.id = a.company_id
+		LEFT JOIN citizenships cit ON cit.id = e.citizenship_id
 		WHERE e.status = 0 AND e.date_deleted IS NOT NULL AND e.is_purged = false
 			AND EXISTS (
 				SELECT 1 FROM employees_history eh
