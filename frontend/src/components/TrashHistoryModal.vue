@@ -533,7 +533,8 @@ export default {
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  flex: 1;
+  /* Фиксированная высота списка - модалка не меняет размер при поиске/фильтрации. */
+  height: 55vh;
 }
 
 .history-empty {
