@@ -297,6 +297,17 @@
       :current-user-name="currentUserName"
       @close="closeHistory"
     />
+
+    <!-- Подтверждение удаления (как в BlankSelector) -->
+    <ConfirmationModal
+      :show="confirmModal.show"
+      title="Подтверждение удаления"
+      :message="confirmModal.message"
+      :confirm-text="confirmModal.confirmText"
+      :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
+      @confirm="onConfirmModal"
+      @cancel="cancelConfirm"
+    />
   </section>
 </template>
 
@@ -313,12 +324,13 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 export default {
   name: 'TrashView',
   components: {
     SearchComponent, OrganizationFilter, DateFilter, RefreshButton,
-    VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal,
+    VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
   },
   data() {
     return {
@@ -347,6 +359,7 @@ export default {
       showHistory: false,
       organizations: [],
       lastHeight: 0,
+      confirmModal: { show: false, message: '', confirmText: 'Удалить', action: null, itemId: null },
     };
   },
   computed: {
@@ -639,14 +652,37 @@ export default {
         });
       }
     },
-    async onPurgeOne(id) {
-      const ok = await useUiStore().confirm({
-        title: 'Удаление записи',
+    onPurgeOne(id) {
+      this.confirmModal = {
+        show: true,
         message: 'Удалить эту запись безвозвратно? Действие нельзя отменить.',
         confirmText: 'Удалить',
-        danger: true,
-      });
-      if (!ok) return;
+        action: 'purge',
+        itemId: id,
+      };
+    },
+    onClearAll() {
+      this.confirmModal = {
+        show: true,
+        message: 'Очистить корзину целиком? Действие нельзя отменить.',
+        confirmText: 'Очистить',
+        action: 'clear',
+        itemId: null,
+      };
+    },
+    cancelConfirm() {
+      this.confirmModal.show = false;
+    },
+    async onConfirmModal() {
+      const { action, itemId } = this.confirmModal;
+      this.confirmModal.show = false;
+      if (action === 'purge') {
+        await this.purgeOne(itemId);
+      } else if (action === 'clear') {
+        await this.clearAllConfirmed();
+      }
+    },
+    async purgeOne(id) {
       try {
         await purgeItem(this.tableID, id);
         useUiStore().success('Запись удалена безвозвратно');
@@ -655,14 +691,7 @@ export default {
         useUiStore().error('Не удалось удалить');
       }
     },
-    async onClearAll() {
-      const ok = await useUiStore().confirm({
-        title: 'Очистка корзины',
-        message: 'Очистить корзину целиком? Действие нельзя отменить.',
-        confirmText: 'Очистить',
-        danger: true,
-      });
-      if (!ok) return;
+    async clearAllConfirmed() {
       try {
         const result = await clearTrash(this.tableID);
         useUiStore().success(`Корзина очищена: ${(result && result.purged) || 0} запис(ей)`);
