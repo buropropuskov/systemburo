@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"systemburo/internal/crypto"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -110,6 +111,7 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 			a.application_number, a.id AS application_id,
 			e.last_name, e.first_name, e.middle_name,
 			e.position,
+			e.passport_series_number, e.patent_number, e.other_permission,
 			COALESCE(org.name, '') AS organization,
 			COALESCE(comp.name, '') AS company,
 			COALESCE(cit.name, '') AS citizenship_name,
@@ -161,6 +163,12 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	rows := make([]models.TrashItem, 0)
 	if err := s.db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения корзины")
+	}
+	// Паспорт и патент хранятся в зашифрованном виде; raw-scan не вызывает
+	// AfterFind модели Employee, поэтому расшифровываем вручную.
+	for i := range rows {
+		rows[i].PassportSeriesNumber = crypto.DecryptOptional(rows[i].PassportSeriesNumber)
+		rows[i].PatentNumber = crypto.DecryptOptional(rows[i].PatentNumber)
 	}
 	return rows, nil
 }

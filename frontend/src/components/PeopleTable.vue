@@ -211,7 +211,7 @@
                   {{ formatPassTime(item.pass_time) }}
                 </div>
                 <div class="col status-col">
-                  <span class="status-text">{{ item.status }}</span>
+                  <StatusBadge :status="item.status" />
                 </div>
                 <div
                   class="col actions-col"
@@ -272,13 +272,15 @@ import { useDeletionsStore } from '@/stores/deletions';
 import RefreshButton from './RefreshButton.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
+import StatusBadge from './ui/StatusBadge.vue';
 
 export default {
   name: 'PeopleTable',
   components: {
     RefreshButton,
     EmployeeDetailsModal,
-    EmployeesTableHistoryModal
+    EmployeesTableHistoryModal,
+    StatusBadge
   },
   props: {
     tableName: {
@@ -843,17 +845,17 @@ export default {
   white-space: nowrap;
 }
 
-.entry-col { width: 7%; }
-.exit-col { width: 7%; }
+.entry-col { width: 6.5%; }
+.exit-col { width: 6.5%; }
 .last-name-col { width: 11%; }
-.first-name-col { width: 10%; }
-.middle-name-col { width: 10%; }
-.position-col { width: 11%; }
-.organization-col { width: 14%; }
-.date-col { width: 10%; }
-.time-col { width: 10%; }
+.first-name-col { width: 9.5%; }
+.middle-name-col { width: 9.5%; }
+.position-col { width: 10.5%; }
+.organization-col { width: 13%; }
+.date-col { width: 9.5%; }
+.time-col { width: 9.5%; }
 .status-col { width: 8%; }
-.actions-col { width: 2%; }
+.actions-col { width: 3%; }
 
 .header-row .col {
   font-weight: 500;

@@ -412,12 +412,17 @@ export default {
         };
     },
     computed: {
+        // Кнопки в шапке: "Полная история" (showHistoryButton) и
+        // "Открыть заявку" (source !== 'application' и есть applicationId).
+        visibleActionsCount() {
+            const history = this.showHistoryButton ? 1 : 0;
+            const application = (this.source !== 'application' && !!this.employee?.applicationId) ? 1 : 0;
+            return history + application;
+        },
         modalTitle() {
-            if (this.source === 'application' || this.source === 'employeeslist') {
-                return 'Информация о сотруднике';
-            } else if (this.source === 'peopletable') {
-                return 'Информация';
-            }
+            const count = this.visibleActionsCount;
+            if (count >= 2) return 'Информация';
+            if (count === 1) return 'Детальная информация';
             return 'Детальная информация о сотруднике';
         },
         showHistoryButton() {
@@ -439,7 +444,7 @@ export default {
             return 'Не входил';
         },
         showStatusSection() {
-            return this.source !== 'employeeslist';
+            return this.source !== 'employeeslist' && this.source !== 'trash';
         },
         showHistorySection() {
             return this.source !== 'employeeslist';
