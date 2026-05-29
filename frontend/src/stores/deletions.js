@@ -22,15 +22,37 @@ export const useDeletionsStore = defineStore('deletions', () => {
 
   async function loadDurations() {
     if (durationsLoaded) return;
-    durationsLoaded = true;
     try {
       const res = await apiRequest('/settings/notifications');
       const data = await res.json();
-      if (data && Number(data.delete_duration) > 0) deleteDuration.value = Number(data.delete_duration) * 1000;
-      if (data && Number(data.restore_duration) > 0) restoreDuration.value = Number(data.restore_duration) * 1000;
+      const del = Number(data?.delete_duration);
+      const rest = Number(data?.restore_duration);
+      // Защёлкиваем только при успешном ответе с валидными значениями. До
+      // авторизации запрос отдаёт 401 с JSON-телом (без throw), и значения
+      // остаются дефолтными - в этом случае не латчим, чтобы перечитать после логина.
+      if (del > 0 || rest > 0) {
+        if (del > 0) deleteDuration.value = del * 1000;
+        if (rest > 0) restoreDuration.value = rest * 1000;
+        durationsLoaded = true;
+      }
     } catch {
-      durationsLoaded = false;
+      // оставляем durationsLoaded = false для повторной попытки
     }
+  }
+
+  /**
+   * Принудительно выставить длительности (в секундах).
+   * Вызывается при сохранении настроек, чтобы изменение применилось сразу,
+   * без перезагрузки страницы.
+   * @param {number} deleteSec длительность плашки удаления, сек
+   * @param {number} restoreSec длительность плашки восстановления, сек
+   */
+  function setDurations(deleteSec, restoreSec) {
+    const del = Number(deleteSec);
+    const rest = Number(restoreSec);
+    if (del > 0) deleteDuration.value = del * 1000;
+    if (rest > 0) restoreDuration.value = rest * 1000;
+    durationsLoaded = true;
   }
 
   function enqueue({ prefix = '', bold = '', suffix = '', onConfirm, onUndo, showUndo = true, duration }) {
@@ -86,5 +108,5 @@ export const useDeletionsStore = defineStore('deletions', () => {
     callbacks.delete(id);
   }
 
-  return { items, enqueue, notify, undo, loadDurations };
+  return { items, enqueue, notify, undo, loadDurations, setDurations };
 });

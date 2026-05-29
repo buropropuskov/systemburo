@@ -415,6 +415,9 @@ export default {
   },
   mounted() {
     this.startPolling();
+    // Подгружаем настроенные длительности уведомлений после авторизации
+    // (на холодном старте App.vue запрос мог уйти до получения токена).
+    useDeletionsStore().loadDurations();
   },
   beforeUnmount() {
     this.stopPolling();

@@ -311,6 +311,7 @@
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
   name: 'AdminSettings',
@@ -496,6 +497,9 @@ export default {
         await updateSetting('notifications.poll_interval', String(interval));
         await updateSetting('notifications.delete_duration', String(del));
         await updateSetting('notifications.restore_duration', String(res));
+        // Сразу применяем к стору уведомлений, иначе новые длительности
+        // вступят в силу только после полной перезагрузки страницы.
+        useDeletionsStore().setDurations(del, res);
         this.showToast('Настройки уведомлений сохранены', 'success');
       } catch (error) {
         console.error('Ошибка сохранения:', error);
