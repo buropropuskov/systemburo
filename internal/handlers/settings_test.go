@@ -69,6 +69,53 @@ func TestSettings_Update_InvalidValue(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestSettings_GetNotifications_ReturnsDurations(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	// Доступно любому авторизованному (не только супер-админу).
+	token := testutil.RegisterAndLogin(t, e, "notif_reader", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	rec := testutil.GET(t, e, "/settings/notifications", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp := testutil.ParseMap(t, rec)
+	assert.Equal(t, float64(10), resp["delete_duration"], "дефолт длительности удаления - 10 сек")
+	assert.Equal(t, float64(5), resp["restore_duration"], "дефолт длительности восстановления - 5 сек")
+}
+
+func TestSettings_UpdateNotificationDuration_ValidPersists(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.PUT(t, e, "/settings/notifications.delete_duration", `{"value":"15"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = testutil.PUT(t, e, "/settings/notifications.restore_duration", `{"value":"3"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// GET отражает сохранённые значения.
+	rec = testutil.GET(t, e, "/settings/notifications", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp := testutil.ParseMap(t, rec)
+	assert.Equal(t, float64(15), resp["delete_duration"])
+	assert.Equal(t, float64(3), resp["restore_duration"])
+}
+
+func TestSettings_UpdateNotificationDuration_OutOfRangeRejected(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	for _, v := range []string{"2", "61", "abc"} {
+		rec := testutil.PUT(t, e, "/settings/notifications.delete_duration", `{"value":"`+v+`"}`, testutil.AuthHeader(token))
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "значение %q должно отклоняться (диапазон 3-60)", v)
+	}
+}
+
 func TestSettings_GetUploadSettings_AuthUser(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
