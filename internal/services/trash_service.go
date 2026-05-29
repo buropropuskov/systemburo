@@ -47,7 +47,7 @@ func NewTrashService(db *gorm.DB) TrashService {
 func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error) {
 	sql := `
 		SELECT c.id, 'car' AS type,
-			a.application_number,
+			a.application_number, a.id AS application_id,
 			c.entry_date_to, c.entry_time_from, c.entry_time_to,
 			COALESCE(c.mark_name, c.car_brand) AS mark_name, c.car_number,
 			COALESCE(org.name, '') AS organization,
@@ -107,7 +107,7 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int, filter models.TrashFilter) ([]models.TrashItem, error) {
 	sql := `
 		SELECT e.id, 'employee' AS type,
-			a.application_number,
+			a.application_number, a.id AS application_id,
 			e.last_name, e.first_name, e.middle_name,
 			e.position,
 			COALESCE(org.name, '') AS organization,

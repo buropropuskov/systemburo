@@ -275,9 +275,10 @@
       :vehicle="selectedDetail"
       :all-unloading-places="detailPlaces"
       :license-plate-formats="[]"
-      :show-car-features="false"
+      :show-car-features="true"
       :source="'trash'"
       @close="closeDetails"
+      @open-application="handleOpenApplication"
     />
     <EmployeeDetailsModal
       v-if="tableType === 'people' && showDetails"
@@ -286,7 +287,7 @@
       :all-tables="detailPlaces"
       :source="'trash'"
       @close="closeDetails"
-      @open-application="() => {}"
+      @open-application="handleOpenApplication"
     />
 
     <!-- История корзины -->
@@ -308,6 +309,15 @@
       @confirm="onConfirmModal"
       @cancel="cancelConfirm"
     />
+
+    <!-- Детали заявки (открывается поверх деталей машины/сотрудника) -->
+    <ApplicationDetail
+      v-if="showApplicationDetail && selectedApplication"
+      :application="selectedApplication"
+      :current-user-name="currentUserName"
+      :mode="'center'"
+      @close="closeApplicationDetail"
+    />
   </section>
 </template>
 
@@ -325,12 +335,14 @@ import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsMo
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 import TrashHistoryModal from '@/components/TrashHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 
 export default {
   name: 'TrashView',
   components: {
     SearchComponent, OrganizationFilter, DateFilter, RefreshButton,
     VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
+    ApplicationDetail,
   },
   data() {
     return {
@@ -360,6 +372,8 @@ export default {
       organizations: [],
       lastHeight: 0,
       confirmModal: { show: false, message: '', confirmText: 'Удалить', action: null, itemId: null },
+      showApplicationDetail: false,
+      selectedApplication: null,
     };
   },
   computed: {
@@ -567,6 +581,7 @@ export default {
         const places = Array.isArray(item.unload_places) ? item.unload_places : [];
         this.detailPlaces = places;
         this.selectedDetail = {
+          id: item.id,
           plateNumber: item.car_number,
           mark: item.mark_name,
           formatId: null,
@@ -579,7 +594,7 @@ export default {
           entry_date_to: item.entry_date_to,
           entry_time_from: item.entry_time_from,
           entry_time_to: item.entry_time_to,
-          applicationId: null,
+          applicationId: item.application_id || null,
           deletedByName: item.deleted_by_name,
           deletedAtText,
         };
@@ -604,7 +619,7 @@ export default {
           pass_time: this.formatTimeRange(item),
           target_tables: places.map(p => p.id),
           territory_status: null,
-          applicationId: null,
+          applicationId: item.application_id || null,
           deletedByName: item.deleted_by_name,
           deletedAtText,
         };
@@ -614,6 +629,24 @@ export default {
     closeDetails() {
       this.showDetails = false;
       this.selectedDetail = null;
+    },
+    async handleOpenApplication(applicationId) {
+      if (!applicationId) return;
+      try {
+        const response = await apiRequest(`/applications/${applicationId}/details`, {});
+        if (!response.ok) {
+          useUiStore().error('Не удалось загрузить заявку');
+          return;
+        }
+        this.selectedApplication = await response.json();
+        this.showApplicationDetail = true;
+      } catch {
+        useUiStore().error('Не удалось загрузить заявку');
+      }
+    },
+    closeApplicationDetail() {
+      this.showApplicationDetail = false;
+      this.selectedApplication = null;
     },
     async onRestoreSelected() {
       if (!this.selectedIds.length) return;
