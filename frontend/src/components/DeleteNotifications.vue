@@ -50,7 +50,7 @@ function colorFor(progress) {
 <style scoped>
 .del-stack {
   position: fixed;
-  top: 15px;
+  top: 75px;
   right: 20px;
   z-index: 11000;
   display: flex;
