@@ -843,19 +843,20 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-right: 8px;
 }
 
-.entry-col { width: 6.5%; }
-.exit-col { width: 6.5%; }
+.entry-col { width: 6%; }
+.exit-col { width: 6%; }
 .last-name-col { width: 11%; }
-.first-name-col { width: 9.5%; }
-.middle-name-col { width: 9.5%; }
-.position-col { width: 10.5%; }
-.organization-col { width: 13%; }
-.date-col { width: 9.5%; }
-.time-col { width: 9.5%; }
+.first-name-col { width: 9%; }
+.middle-name-col { width: 9%; }
+.position-col { width: 9.5%; }
+.organization-col { width: 13.5%; }
+.date-col { width: 9%; }
+.time-col { width: 12%; }
 .status-col { width: 8%; }
-.actions-col { width: 3%; }
+.actions-col { width: 2%; padding-right: 0; }
 
 .header-row .col {
   font-weight: 500;
@@ -995,7 +996,7 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1011,8 +1012,8 @@ export default {
 }
 
 .delete-icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   opacity: 0.7;
   transition: opacity 0.2s ease;
 }
