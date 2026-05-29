@@ -247,16 +247,16 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 
 	// Archive filter: by default exclude archived, archive=true shows only archived
 	archiveCondition := `
-		(a.status IN (?, ?) AND EXISTS(
+		(a.status IN ? AND EXISTS(
 			SELECT 1 FROM attachments att WHERE att.application_id = a.id
 			AND att.entry_date_to IS NOT NULL
 			AND CAST(att.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()
 		))
 	`
 	if filter.Archive != nil && *filter.Archive {
-		query = query.Where(archiveCondition, models.StatusCompleted, models.StatusRejected)
+		query = query.Where(archiveCondition, models.ArchivableStatuses)
 	} else {
-		query = query.Where("NOT "+archiveCondition, models.StatusCompleted, models.StatusRejected)
+		query = query.Where("NOT "+archiveCondition, models.ArchivableStatuses)
 	}
 
 	// Active today: заявка активна сегодня, если период действия хотя бы одного

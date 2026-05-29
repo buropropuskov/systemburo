@@ -17,7 +17,7 @@ func (s *applicationService) isArchived(ctx context.Context, applicationID int) 
 		Table("applications app").
 		Joins("JOIN attachments a ON a.application_id = app.id").
 		Where("app.id = ?", applicationID).
-		Where("app.status IN ?", []string{models.StatusCompleted, models.StatusRejected}).
+		Where("app.status IN ?", models.ArchivableStatuses).
 		Where("CAST(a.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()").
 		Count(&count).Error
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 	// Непрочитанные = нет записи в application_reads для пользователя + не архивные.
 	archiveExclude := `
 		NOT (
-			a.status IN (?, ?) AND EXISTS(
+			a.status IN ? AND EXISTS(
 				SELECT 1 FROM attachments att WHERE att.application_id = a.id
 				AND att.entry_date_to IS NOT NULL
 				AND CAST(att.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()
@@ -112,7 +112,7 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 	query := s.db.WithContext(ctx).
 		Table("applications a").
 		Where("NOT EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)", user.ID).
-		Where(archiveExclude, models.StatusCompleted, models.StatusRejected)
+		Where(archiveExclude, models.ArchivableStatuses)
 
 	// Permission filter: совпадает с GetApplications (см. application_service.go).
 	// Если юзер не approver, видит только заявки, где он responsible или viewer.

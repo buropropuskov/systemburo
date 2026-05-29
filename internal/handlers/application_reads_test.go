@@ -204,6 +204,56 @@ func TestGetApplications_ArchiveTrue_ShowsOnlyArchived(t *testing.T) {
 	assert.Equal(t, float64(appID), apps[0]["id"])
 }
 
+// Архив должен включать все закрытые статусы (Завершено, Отказано), а не только
+// Завершено. Заявка "В работе" с истёкшим вложением остаётся активной.
+func TestGetApplications_Archive_IncludesRefused_ExcludesInWork(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	archive := func(name string, status string) int {
+		uaID := seedUniqueAttachment(t, db, "cars", "tmpl_"+name, "Disp_"+name)
+		appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+		db.Model(&models.Application{}).Where("id = ?", appID).Update("status", status)
+		db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
+		return appID
+	}
+
+	completedID := archive("done", models.StatusCompleted)
+	refusedID := archive("refused", models.StatusRefused)
+	inWorkID := archive("inwork", models.StatusInWork)
+
+	ids := func(apps []map[string]interface{}) []float64 {
+		out := make([]float64, 0, len(apps))
+		for _, a := range apps {
+			if id, ok := a["id"].(float64); ok {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+
+	// archive=true: закрытые (Завершено, Отказано), но не "В работе".
+	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	archived := ids(testutil.ParseSlice(t, rec))
+	assert.Contains(t, archived, float64(completedID))
+	assert.Contains(t, archived, float64(refusedID))
+	assert.NotContains(t, archived, float64(inWorkID))
+
+	// Активные (по умолчанию): "В работе" есть, закрытые исключены.
+	recActive := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, recActive.Code)
+	active := ids(testutil.ParseSlice(t, recActive))
+	assert.Contains(t, active, float64(inWorkID))
+	assert.NotContains(t, active, float64(completedID))
+	assert.NotContains(t, active, float64(refusedID))
+}
+
 // --- Part 3: Active today ---
 
 func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
