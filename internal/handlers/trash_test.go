@@ -50,6 +50,8 @@ func TestTrash_CarFlowListScopingRestoreHistory(t *testing.T) {
 	assert.Equal(t, float64(carID), items[0]["id"])
 	assert.Equal(t, "B002BB799", items[0]["car_number"])
 	assert.Equal(t, "Test Organization", items[0]["organization"])
+	assert.NotNil(t, items[0]["application_id"], "application_id нужен для кнопки 'Открыть заявку'")
+	assert.Greater(t, items[0]["application_id"], float64(0))
 	assert.NotEmpty(t, items[0]["deleted_by_name"], "deleted_by_name должен заполняться")
 	assert.NotEmpty(t, items[0]["entry_date_to"], "Действует до должно заполняться")
 	assert.NotEmpty(t, items[0]["deleted_at"])

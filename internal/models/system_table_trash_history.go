@@ -33,6 +33,7 @@ type TrashItem struct {
 	ID                int        `json:"id"`
 	Type              string     `json:"type"` // car | employee
 	ApplicationNumber *string    `json:"application_number,omitempty"`
+	ApplicationID     *int       `json:"application_id,omitempty"`
 	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
 	DeletedByName     string     `json:"deleted_by_name,omitempty"`
 	Organization  string  `json:"organization,omitempty"`
