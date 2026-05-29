@@ -12,6 +12,12 @@ const (
 	StatusRefused    = "Отказано"
 )
 
+// ArchivableStatuses — статусы заявки, при которых она считается закрытой и
+// подлежит переносу в архив (после того как срок действия вложений истёк
+// более месяца назад). Заявки "В работе"/"В обработке"/"Непрочитано" остаются
+// активными независимо от срока - они ещё действуют либо не обработаны.
+var ArchivableStatuses = []string{StatusCompleted, StatusRejected, StatusRefused}
+
 // Application confirmations
 const (
 	ConfirmationPending  = "Согласование"
