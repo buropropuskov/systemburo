@@ -213,7 +213,7 @@
                   {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
                 </div>
                 <div class="col status-col">
-                  <span class="status-text">{{ item.status }}</span>
+                  <StatusBadge :status="item.status" />
                 </div>
                 <div
                   class="col actions-col"
@@ -277,6 +277,7 @@ import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 
 export default {
   name: 'CarsTable',
@@ -284,7 +285,8 @@ export default {
     RefreshButton,
     VehicleDetailsModal,
     CarsTableHistoryModal,
-    LoaderSpinner
+    LoaderSpinner,
+    StatusBadge
   },
   props: {
     tableName: { type: String, default: '' },

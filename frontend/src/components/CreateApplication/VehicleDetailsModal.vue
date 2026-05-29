@@ -177,9 +177,9 @@
                   </div>
                 </div>
 
-                <!-- Секция Статус (только для автомобилей) -->
+                <!-- Секция Статус (только для автомобилей; в корзине не показываем) -->
                 <div
-                  v-if="showCarFeatures"
+                  v-if="showCarFeatures && source !== 'trash'"
                   class="details-section"
                 >
                   <div class="section-header">
@@ -394,13 +394,17 @@ export default {
         }
     },
     computed: {
+        // Кнопки в шапке: "Полная история" видна при showCarFeatures,
+        // "Открыть заявку" - при showCarFeatures и source !== 'application'.
+        visibleActionsCount() {
+            const history = this.showCarFeatures ? 1 : 0;
+            const application = (this.showCarFeatures && this.source !== 'application') ? 1 : 0;
+            return history + application;
+        },
         modalTitle() {
-            if (this.source === 'carstable' || this.source === 'facttable') {
-                return 'Информация';
-            }
-            if (this.source === 'carsview') {
-                return 'Информация о машине';
-            }
+            const count = this.visibleActionsCount;
+            if (count >= 2) return 'Информация';
+            if (count === 1) return 'Детальная информация';
             return 'Детальная информация о Т/С';
         },
         getStatusClass() {
