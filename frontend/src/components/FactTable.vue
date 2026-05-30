@@ -775,13 +775,18 @@ export default {
   flex-direction: column;
 }
 
+/* fact-header повторяет геометрию fact-body (padding-right + margin-right 4px),
+   чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .fact-header {
-  padding: 10px 16px;
   border-bottom: 1px solid #e6e6e6;
   flex-shrink: 0;
+  padding-right: 4px;
+  margin-right: 4px;
 }
 
+/* header-row повторяет геометрию fact-row: padding 10/16 + flex + gap 4. */
 .header-row {
+  padding: 10px 16px;
   display: flex;
   width: 100%;
   align-items: center;
