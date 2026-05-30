@@ -268,6 +268,7 @@ func getDefaultFields(tableType string) []defaultField {
 			{"position", "text", false},
 			{"citizenship_name", "text", false},
 			{"company", "text", false},
+			{"application_id", "text", false},
 		}
 	default:
 		return nil

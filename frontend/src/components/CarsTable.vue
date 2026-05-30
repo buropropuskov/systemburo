@@ -252,7 +252,7 @@
                   v-if="isFieldVisible('application_id')"
                   class="col application-col"
                 >
-                  {{ item.applicationId || '-' }}
+                  {{ item.applicationNumber || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('unload_place')"
@@ -596,6 +596,7 @@ export default {
             entry_time: null,
             exit_time: null,
             applicationId: car.application_id,
+            applicationNumber: car.application_number,
             territory_status: car.territory_status || 0,
             plateNumber: car.car_number,
             mark: car.car_brand,

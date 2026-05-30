@@ -151,6 +151,7 @@ type TableCarResponse struct {
 	EntryTimeTo        *string   `json:"entry_time_to"`
 	Status             int       `json:"status"`
 	ApplicationID      *int      `json:"application_id"`
+	ApplicationNumber  *string   `json:"application_number"`
 	TerritoryStatus    *int      `json:"territory_status"`
 	TerritoryEntryTime *string   `json:"territory_entry_time"`
 }

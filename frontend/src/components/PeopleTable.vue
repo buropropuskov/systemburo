@@ -165,6 +165,20 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('application_id')"
+            class="col application-col"
+            @click="sortBy('application_id')"
+          >
+            <p :class="{ 'active-sort': sortField === 'application_id' }">
+              Номер заявки
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
             class="col status-col"
             @click="sortBy('status')"
           >
@@ -285,6 +299,12 @@
                   class="col time-col"
                 >
                   {{ formatPassTime(item.pass_time) }}
+                </div>
+                <div
+                  v-if="isFieldVisible('application_id')"
+                  class="col application-col"
+                >
+                  {{ item.applicationNumber || '-' }}
                 </div>
                 <div class="col status-col">
                   <StatusBadge :status="item.status" />
@@ -629,6 +649,7 @@ export default {
           pass_places: emp.pass_places || '',
             status: 'Активен',
             applicationId: emp.application_id,
+            applicationNumber: emp.application_number,
             target_tables: emp.target_tables || [],
             passport_series_number: emp.passport_series_number,
             patent_number: emp.patent_number,
@@ -983,6 +1004,7 @@ export default {
 .company-col { flex: 11 0 0; }
 .date-col { flex: 11 0 0; }
 .time-col { flex: 13 0 0; }
+.application-col { flex: 11 0 0; }
 .status-col { flex: 8 0 0; }
 .actions-col { flex: 2 0 0; padding-right: 0; }
 
