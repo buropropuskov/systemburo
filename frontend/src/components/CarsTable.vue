@@ -1172,8 +1172,7 @@ export default {
   flex-grow: 1;
 }
 
-.selected-table-card.enlarged .item-data,
-.selected-table-card.enlarged .header-row {
+.selected-table-card.enlarged .item-data {
   min-height: 36px;
 }
 
