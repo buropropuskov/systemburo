@@ -5,12 +5,12 @@
         Видимые столбцы
       </h4>
       <p class="columns-tab__hint">
-        Отключите столбцы, которые не нужны в этой таблице. Скрытые столбцы не отображаются и не учитываются в фильтрах.
+        Переставляйте столбцы перетаскиванием за иконку слева. Скрытые столбцы не отображаются в таблице.
       </p>
     </div>
 
     <div
-      v-if="!visibleFields.length"
+      v-if="!localFields.length"
       class="columns-tab__empty"
     >
       У этой таблицы пока нет настраиваемых столбцов.
@@ -24,31 +24,69 @@
         v-for="(field, index) in localFields"
         :key="field.field_name"
         class="columns-tab__item"
-        :class="{ 'columns-tab__item--off': !field.is_visible }"
+        :class="{
+          'columns-tab__item--off': !field.is_visible,
+          'columns-tab__item--dragging': draggingIndex === index,
+          'columns-tab__item--drop-target': dragOverIndex === index && draggingIndex !== index,
+        }"
+        :draggable="true"
+        :data-field="field.field_name"
+        @dragstart="onDragStart(index, $event)"
+        @dragover.prevent="onDragOver(index, $event)"
+        @dragleave="onDragLeave(index)"
+        @drop.prevent="onDrop(index)"
+        @dragend="onDragEnd"
       >
         <div class="columns-tab__row">
-          <div class="columns-tab__order">
-            <button
-              type="button"
-              class="columns-tab__order-btn"
-              :disabled="index === 0"
-              :data-action="`move-up-${field.field_name}`"
-              :title="'Переместить вверх'"
-              @click="moveUp(index)"
+          <span
+            class="columns-tab__handle"
+            :title="'Перетащите для смены порядка'"
+            aria-hidden="true"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
             >
-              &uarr;
-            </button>
-            <button
-              type="button"
-              class="columns-tab__order-btn"
-              :disabled="index === localFields.length - 1"
-              :data-action="`move-down-${field.field_name}`"
-              :title="'Переместить вниз'"
-              @click="moveDown(index)"
-            >
-              &darr;
-            </button>
-          </div>
+              <circle
+                cx="4.5"
+                cy="3"
+                r="1.2"
+                fill="currentColor"
+              />
+              <circle
+                cx="9.5"
+                cy="3"
+                r="1.2"
+                fill="currentColor"
+              />
+              <circle
+                cx="4.5"
+                cy="7"
+                r="1.2"
+                fill="currentColor"
+              />
+              <circle
+                cx="9.5"
+                cy="7"
+                r="1.2"
+                fill="currentColor"
+              />
+              <circle
+                cx="4.5"
+                cy="11"
+                r="1.2"
+                fill="currentColor"
+              />
+              <circle
+                cx="9.5"
+                cy="11"
+                r="1.2"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
           <label class="columns-tab__check-row">
             <input
               v-model="field.is_visible"
@@ -87,6 +125,42 @@
     >
       {{ statusMessage }}
     </p>
+
+    <div
+      v-if="visibleFieldsInOrder.length"
+      class="columns-tab__preview"
+    >
+      <h4 class="columns-tab__preview-title">
+        Предпросмотр
+      </h4>
+      <p class="columns-tab__preview-hint">
+        Так таблица будет выглядеть с текущими настройками (примерные данные).
+      </p>
+      <div class="preview-card">
+        <div class="preview-row preview-row--header">
+          <div
+            v-for="f in visibleFieldsInOrder"
+            :key="f.field_name"
+            class="preview-cell"
+          >
+            {{ humanLabel(f.field_name) }}
+          </div>
+        </div>
+        <div
+          v-for="(row, rowIdx) in sampleRows"
+          :key="rowIdx"
+          class="preview-row preview-row--data"
+        >
+          <div
+            v-for="f in visibleFieldsInOrder"
+            :key="f.field_name"
+            class="preview-cell"
+          >
+            {{ row[f.field_name] || '-' }}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -98,6 +172,7 @@ import { apiRequest } from '@/api/client';
  * Используется и в админ-вкладке "Колонки", и в реальных таблицах для совпадения подписей.
  */
 const FIELD_LABELS = {
+  // Базовые поля cars
   car_number: 'Номер Т/С',
   car_brand: 'Марка',
   organization: 'Организация',
@@ -119,6 +194,42 @@ const FIELD_LABELS = {
   company: 'Компания',
 };
 
+/**
+ * Примеры значений для каждого поля. Из них генерируются 10 строк-примеров в предпросмотре.
+ * Длина массивов должна быть >= 10.
+ */
+const SAMPLE_VALUES = {
+  car_number: ['А 123 БВ 77', 'М 456 ГД 99', 'О 789 ЕЖ 50', 'Х 012 ЗИ 77', 'Т 345 КЛ 99',
+    'Е 678 МН 50', 'У 901 ОП 77', 'К 234 РС 99', 'В 567 ТУ 50', 'С 890 ФХ 77'],
+  car_brand: ['Тойота', 'Лада', 'Газель', 'Камаз', 'Вольво', 'МАН', 'Мерседес', 'Рено', 'Скания', 'ДАФ'],
+  organization: ['ООО Альфа', 'ООО Бета', 'ЗАО Гамма', 'ИП Дельта', 'ООО Эпсилон',
+    'АО Дзета', 'ООО Эта', 'ИП Тета', 'ООО Йота', 'ЗАО Каппа'],
+  company: ['Альфа-Сервис', 'Бета-Логистик', 'Гамма-Транс', 'Дельта-Карго', 'Эпсилон-Экспресс',
+    'Дзета-Авто', 'Эта-Логист', 'Тета-Линия', 'Йота-Доставка', 'Каппа-Транс'],
+  application_id: ['20260530/00148', '20260530/00149', '20260530/00150', '20260530/00151',
+    '20260530/00152', '20260531/00001', '20260531/00002', '20260531/00003', '20260531/00004', '20260531/00005'],
+  unload_place: ['Дебаркадер №1', 'Дебаркадер №2', 'Склад А', 'Склад Б', 'Площадка №3',
+    'Зона разгрузки', 'Пандус', 'Склад В', 'Площадка №7', 'Дебаркадер №5'],
+  valid_until: ['31.05.2026', '01.06.2026', '15.06.2026', '30.06.2026', '07.06.2026',
+    '14.06.2026', '21.06.2026', '28.06.2026', '05.07.2026', '12.07.2026'],
+  time_range: ['08:00 - 23:59', '09:00 - 18:00', '06:00 - 22:00', '10:00 - 16:00', '08:00 - 20:00',
+    '07:00 - 19:00', '00:00 - 23:59', '08:00 - 17:00', '09:00 - 21:00', '06:00 - 14:00'],
+  status: ['В работе', 'В работе', 'В работе', 'В работе', 'В работе',
+    'В работе', 'В работе', 'В работе', 'В работе', 'В работе'],
+  last_name: ['Иванов', 'Петров', 'Сидоров', 'Кузнецов', 'Смирнов',
+    'Попов', 'Лебедев', 'Соколов', 'Морозов', 'Волков'],
+  first_name: ['Иван', 'Пётр', 'Александр', 'Сергей', 'Михаил',
+    'Андрей', 'Дмитрий', 'Николай', 'Алексей', 'Владимир'],
+  middle_name: ['Иванович', 'Петрович', 'Сергеевич', 'Александрович', 'Михайлович',
+    'Андреевич', 'Дмитриевич', 'Николаевич', 'Алексеевич', 'Владимирович'],
+  position: ['Грузчик', 'Водитель', 'Экспедитор', 'Кладовщик', 'Менеджер',
+    'Оператор', 'Инженер', 'Логист', 'Контролёр', 'Бригадир'],
+  citizenship_name: ['Россия', 'Россия', 'Беларусь', 'Казахстан', 'Россия',
+    'Узбекистан', 'Россия', 'Армения', 'Россия', 'Таджикистан'],
+  pass_time: ['10:00 - 15:00', '09:00 - 18:00', '08:00 - 17:00', '07:00 - 14:00', '11:00 - 19:00',
+    '06:00 - 12:00', '13:00 - 21:00', '08:00 - 16:00', '10:00 - 18:00', '14:00 - 22:00'],
+};
+
 export default {
   name: 'SystemTableColumnsTab',
   props: {
@@ -134,11 +245,23 @@ export default {
       saving: false,
       statusMessage: '',
       statusError: false,
+      draggingIndex: null,
+      dragOverIndex: null,
     };
   },
   computed: {
-    visibleFields() {
-      return this.localFields;
+    visibleFieldsInOrder() {
+      return this.localFields.filter(f => f.is_visible);
+    },
+    sampleRows() {
+      return Array.from({ length: 10 }, (_, i) => {
+        const row = {};
+        for (const field of this.localFields) {
+          const values = SAMPLE_VALUES[field.field_name];
+          row[field.field_name] = values ? values[i % values.length] : '—';
+        }
+        return row;
+      });
     },
     isDirty() {
       const visibilityChanged = this.localFields.some(
@@ -180,17 +303,37 @@ export default {
       this.statusMessage = '';
       this.statusError = false;
     },
-    moveUp(index) {
-      if (index <= 0) return;
-      const arr = this.localFields.slice();
-      [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
-      this.localFields = arr;
+    onDragStart(index, event) {
+      this.draggingIndex = index;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(index));
     },
-    moveDown(index) {
-      if (index >= this.localFields.length - 1) return;
+    onDragOver(index, event) {
+      event.dataTransfer.dropEffect = 'move';
+      this.dragOverIndex = index;
+    },
+    onDragLeave(index) {
+      if (this.dragOverIndex === index) {
+        this.dragOverIndex = null;
+      }
+    },
+    onDrop(targetIndex) {
+      const from = this.draggingIndex;
+      if (from === null || from === targetIndex) {
+        this.draggingIndex = null;
+        this.dragOverIndex = null;
+        return;
+      }
       const arr = this.localFields.slice();
-      [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(targetIndex, 0, moved);
       this.localFields = arr;
+      this.draggingIndex = null;
+      this.dragOverIndex = null;
+    },
+    onDragEnd() {
+      this.draggingIndex = null;
+      this.dragOverIndex = null;
     },
     async save() {
       if (!this.isDirty || this.saving) return;
@@ -272,13 +415,14 @@ export default {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .columns-tab__item {
   border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  transition: background-color 0.2s ease;
+  border-radius: 10px;
+  transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  background: #fff;
 }
 
 .columns-tab__item:hover {
@@ -290,6 +434,16 @@ export default {
   border-color: #ececec;
 }
 
+.columns-tab__item--dragging {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.columns-tab__item--drop-target {
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.18);
+}
+
 .columns-tab__row {
   display: flex;
   align-items: center;
@@ -298,52 +452,38 @@ export default {
   user-select: none;
 }
 
-.columns-tab__order {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.columns-tab__order-btn {
-  width: 24px;
+.columns-tab__handle {
+  width: 18px;
   height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-  color: #4F5BDF;
-  transition: all 0.15s ease;
-}
-
-.columns-tab__order-btn:hover:not(:disabled) {
-  background: #f0f4ff;
-  border-color: #4F5BDF;
-}
-
-.columns-tab__order-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.3;
   color: #a2a2a2;
+  cursor: grab;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.columns-tab__handle:hover {
+  color: #4F5BDF;
+}
+
+.columns-tab__handle:active {
+  cursor: grabbing;
 }
 
 .columns-tab__check-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
   cursor: pointer;
-  padding: 4px 4px 4px 8px;
+  padding: 4px 4px 4px 4px;
 }
 
 .columns-tab__checkbox {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   accent-color: #4F5BDF;
   cursor: pointer;
   flex-shrink: 0;
@@ -362,8 +502,8 @@ export default {
 
 .columns-tab__field-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  color: #a2a2a2;
+  font-size: 11px;
+  color: #c0c0c0;
 }
 
 .columns-tab__actions {
@@ -420,5 +560,70 @@ export default {
 
 .columns-tab__status--error {
   color: #c62828;
+}
+
+/* Preview pane: миниатюрная таблица, отражает видимость и порядок столбцов. */
+.columns-tab__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.columns-tab__preview-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+}
+
+.columns-tab__preview-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.preview-card {
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.preview-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+}
+
+.preview-row--header {
+  background: #f9fafb;
+  border-bottom: 1px solid #e6e6e6;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.preview-row--data + .preview-row--data {
+  border-top: 1px solid #f3f4f6;
+}
+
+.preview-cell {
+  flex: 1 0 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1f2937;
+}
+
+.preview-row--header .preview-cell {
+  color: #6b7280;
 }
 </style>
