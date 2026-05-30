@@ -162,6 +162,35 @@ func (h *SystemTableHandler) Delete(c echo.Context) error {
 	return RespondMessage(c, "Системная таблица успешно удалена")
 }
 
+// UpdateFields godoc
+// @Summary      Bulk-обновление видимости столбцов таблицы (#345)
+// @Description  Обновляет is_visible для перечисленных field_name. Поля не из БД игнорируются.
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        request body models.UpdateFieldsRequest true "Список столбцов с новой видимостью"
+// @Success      200 {string} string "Видимость столбцов обновлена"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{id}/fields [put]
+func (h *SystemTableHandler) UpdateFields(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateFieldsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateFields(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Видимость столбцов обновлена")
+}
+
 // --- Временные слоты ---
 
 // GetTimeSlots godoc

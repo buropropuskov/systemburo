@@ -309,6 +309,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto)
 	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto)
 
+	// Столбцы таблицы (#345)
+	stg.PUT("/:id/fields", st.UpdateFields)
+
 	// Корзина таблицы (#186) - удалённые элементы с возможностью восстановить
 	// или окончательно удалить. Тип элементов определяется по table_type
 	// системной таблицы (cars или people).

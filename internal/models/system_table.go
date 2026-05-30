@@ -131,3 +131,14 @@ type UpdateTimeSlotRequest struct {
 	IsNextDay *bool   `json:"is_next_day"`
 	IsActive  *bool   `json:"is_active"`
 }
+
+// FieldVisibilityUpdate -- одиночное обновление видимости столбца таблицы (#345).
+type FieldVisibilityUpdate struct {
+	FieldName string `json:"field_name" validate:"required"`
+	IsVisible bool   `json:"is_visible"`
+}
+
+// UpdateFieldsRequest -- bulk-обновление видимости столбцов системной таблицы.
+type UpdateFieldsRequest struct {
+	Fields []FieldVisibilityUpdate `json:"fields" validate:"required"`
+}

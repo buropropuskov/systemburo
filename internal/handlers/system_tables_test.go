@@ -258,3 +258,60 @@ func TestSystemTables_ResponseStructure(t *testing.T) {
 	assert.Contains(t, details, "photos")
 	assert.Contains(t, details, "current_status")
 }
+
+func TestSystemTables_UpdateFields_TogglesVisibility(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fields_test","display_name":"FT","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// PUT /system-tables/:id/fields - скрываем status и unload_place
+	body := `{"fields":[{"field_name":"status","is_visible":false},{"field_name":"unload_place","is_visible":false}]}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/fields", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Re-fetch и проверяем, что is_visible поменялся ровно для двух полей
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	fields := testutil.ParseMap(t, rec)["fields"].([]interface{})
+
+	visibility := map[string]bool{}
+	for _, f := range fields {
+		fm := f.(map[string]interface{})
+		visibility[fm["field_name"].(string)] = fm["is_visible"].(bool)
+	}
+	assert.False(t, visibility["status"], "status должен быть скрыт")
+	assert.False(t, visibility["unload_place"], "unload_place должен быть скрыт")
+	assert.True(t, visibility["car_number"], "car_number должен остаться видимым")
+	assert.True(t, visibility["car_brand"], "car_brand должен остаться видимым")
+}
+
+func TestSystemTables_UpdateFields_UnknownTable_404(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"fields":[{"field_name":"car_number","is_visible":false}]}`
+	rec := testutil.PUT(t, e, "/system-tables/999999/fields", body, h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestSystemTables_UpdateFields_Unauthorized(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	body := `{"fields":[{"field_name":"car_number","is_visible":false}]}`
+	rec := testutil.PUT(t, e, "/system-tables/1/fields", body, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}

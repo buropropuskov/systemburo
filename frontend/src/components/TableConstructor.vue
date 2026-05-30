@@ -147,12 +147,19 @@
           >
             Расписание
           </button>
-          <button 
-            class="tab-btn" 
+          <button
+            class="tab-btn"
             :class="{ 'active': activeTab === 'location' }"
             @click="activeTab = 'location'"
           >
             Местоположение
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ 'active': activeTab === 'columns' }"
+            @click="activeTab = 'columns'"
+          >
+            Колонки
           </button>
         </div>
 
@@ -451,8 +458,20 @@
             @photos-changed="refreshSelectedTable"
           />
         </div>
+
+        <!-- Вкладка Колонки (#345) -->
+        <div
+          v-if="activeTab === 'columns'"
+          class="tab-content"
+        >
+          <SystemTableColumnsTab
+            :table-id="selectedTable.table.id"
+            :fields="selectedTable.fields || []"
+            @update="refreshSelectedTable"
+          />
+        </div>
       </div>
-      
+
       <div
         v-else
         class="no-selection-message"
@@ -495,6 +514,7 @@ import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import SystemTableScheduleTab from './SystemTableScheduleTab.vue';
+import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
 import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
 
@@ -505,6 +525,7 @@ export default {
     RefreshButton,
     TextConstructor,
     SystemTableScheduleTab,
+    SystemTableColumnsTab,
     TableConstructorCreateModal,
     TableConstructorPhotoSection
   },
