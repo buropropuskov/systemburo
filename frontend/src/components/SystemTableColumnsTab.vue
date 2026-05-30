@@ -21,7 +21,6 @@
       tag="ul"
       name="cols-list"
       class="columns-tab__list"
-      @dragover.prevent="onListDragOver"
     >
       <li
         v-for="(field, index) in localFields"
@@ -31,18 +30,15 @@
           'columns-tab__item--off': !field.is_visible,
           'columns-tab__item--dragging': draggingIndex === index,
         }"
-        :draggable="true"
         :data-field="field.field_name"
-        @dragstart="onDragStart(index, $event)"
-        @dragover.prevent="onDragOver(index, $event)"
-        @drop.prevent="onDrop"
-        @dragend="onDragEnd"
+        :data-index="index"
       >
         <div class="columns-tab__row">
           <span
             class="columns-tab__handle"
             :title="'Перетащите для смены порядка'"
             aria-hidden="true"
+            @pointerdown="onHandlePointerDown(index, $event)"
           >
             <svg
               width="14"
@@ -212,6 +208,7 @@ export default {
       statusMessage: '',
       statusError: false,
       draggingIndex: null,
+      prevBodyCursor: '',
     };
   },
   computed: {
@@ -246,7 +243,7 @@ export default {
   },
   beforeUnmount() {
     // На случай если пользователь ушёл с вкладки во время drag.
-    document.removeEventListener('dragover', this.onDocumentDragOver);
+    this.cleanupPointerListeners();
   },
   methods: {
     humanLabel(name) {
@@ -269,51 +266,54 @@ export default {
       this.statusMessage = '';
       this.statusError = false;
     },
-    onDragStart(index, event) {
-      this.draggingIndex = index;
-      event.dataTransfer.effectAllowed = 'move';
-      // Минимальный data payload для Chromium.
-      event.dataTransfer.setData('text/plain', String(index));
-      // Document-level catch-all: гарантирует move-курсор где бы мышь ни оказалась
-      // во время drag (gap'ы, padding, вне списка, на body). Снимаем в onDragEnd.
-      document.addEventListener('dragover', this.onDocumentDragOver);
-    },
-    onDocumentDragOver(event) {
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    },
-    onListDragOver(event) {
-      event.dataTransfer.dropEffect = 'move';
-    },
     /**
-     * Midpoint-алгоритм перестановки: swap происходит только когда курсор
-     * пересекает вертикальную середину целевого элемента. Это убирает
-     * "дрожание" на границах и быстрые повторные перестановки.
+     * Pointer-events DnD (вместо HTML5 native, который не даёт контроля над курсором).
+     * - mousedown на handle: запускаем drag, ставим body cursor=grabbing.
+     * - mousemove document: определяем элемент под курсором, midpoint-swap.
+     * - mouseup document: останавливаем drag, восстанавливаем курсор.
      */
-    onDragOver(targetIndex, event) {
-      event.dataTransfer.dropEffect = 'move';
-      const from = this.draggingIndex;
-      if (from === null || from === targetIndex) return;
-      const rect = event.currentTarget.getBoundingClientRect();
+    onHandlePointerDown(index, event) {
+      event.preventDefault();
+      this.draggingIndex = index;
+      // Глобальный курсор - захватываем body, чтобы grabbing был везде куда мышь идёт.
+      this.prevBodyCursor = document.body.style.cursor;
+      document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('pointermove', this.onPointerMove);
+      document.addEventListener('pointerup', this.onPointerUp);
+      document.addEventListener('pointercancel', this.onPointerUp);
+    },
+    onPointerMove(event) {
+      if (this.draggingIndex === null) return;
+      // Находим <li> под курсором.
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      if (!target) return;
+      const li = target.closest('.columns-tab__item');
+      if (!li) return;
+      const targetIndex = Number(li.dataset.index);
+      if (Number.isNaN(targetIndex) || targetIndex === this.draggingIndex) return;
+      // Midpoint-алгоритм: swap только при пересечении середины цели в нужном направлении.
+      const rect = li.getBoundingClientRect();
       const midpoint = rect.top + rect.height / 2;
-      // Двигаемся вниз: меняем только когда курсор прошёл за середину цели.
-      // Двигаемся вверх: меняем когда курсор ещё перед серединой цели.
-      const movingDown = from < targetIndex;
+      const movingDown = this.draggingIndex < targetIndex;
       if (movingDown && event.clientY < midpoint) return;
       if (!movingDown && event.clientY > midpoint) return;
       const arr = this.localFields.slice();
-      const [moved] = arr.splice(from, 1);
+      const [moved] = arr.splice(this.draggingIndex, 1);
       arr.splice(targetIndex, 0, moved);
       this.localFields = arr;
       this.draggingIndex = targetIndex;
     },
-    onDrop() {
+    onPointerUp() {
       this.draggingIndex = null;
-      document.removeEventListener('dragover', this.onDocumentDragOver);
+      this.cleanupPointerListeners();
     },
-    onDragEnd() {
-      this.draggingIndex = null;
-      document.removeEventListener('dragover', this.onDocumentDragOver);
+    cleanupPointerListeners() {
+      document.removeEventListener('pointermove', this.onPointerMove);
+      document.removeEventListener('pointerup', this.onPointerUp);
+      document.removeEventListener('pointercancel', this.onPointerUp);
+      document.body.style.cursor = this.prevBodyCursor || '';
+      document.body.style.userSelect = '';
     },
     async save() {
       if (!this.isDirty || this.saving) return;
