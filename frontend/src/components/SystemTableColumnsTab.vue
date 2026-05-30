@@ -21,6 +21,7 @@
       tag="ul"
       name="cols-list"
       class="columns-tab__list"
+      @dragover.prevent="onListDragOver"
     >
       <li
         v-for="(field, index) in localFields"
@@ -223,7 +224,7 @@ export default {
       }));
     },
     sampleItems() {
-      return generateSampleRows(this.tableType, 10);
+      return generateSampleRows(this.tableType, 5);
     },
     isDirty() {
       const visibilityChanged = this.localFields.some(
@@ -269,6 +270,13 @@ export default {
       event.dataTransfer.effectAllowed = 'move';
       // Минимальный data payload для Chromium.
       event.dataTransfer.setData('text/plain', String(index));
+    },
+    /**
+     * Catch-all dragover на контейнере списка: убирает not-allowed/copy курсор
+     * когда мышь оказывается в gap'е между элементами (где нет <li>).
+     */
+    onListDragOver(event) {
+      event.dataTransfer.dropEffect = 'move';
     },
     /**
      * Midpoint-алгоритм перестановки: swap происходит только когда курсор
@@ -398,10 +406,13 @@ export default {
 }
 
 .columns-tab__item--dragging {
-  /* Полностью скрываем перетаскиваемый элемент, чтобы не было дрожания между
-     анимированным DOM-узлом и ghost-картинкой курсора. На экране остаётся
-     только browser-ghost; соседи плавно разъезжаются через TransitionGroup. */
-  opacity: 0;
+  /* Полупрозрачный placeholder в "родной" позиции, чтобы было видно откуда
+     тянем. transition: none убирает анимацию перетаскиваемого узла -
+     дрожания между DOM и ghost-картинкой курсора нет. */
+  opacity: 0.4;
+  background: #f0f4ff;
+  border-color: #4F5BDF;
+  border-style: dashed;
   transition: none !important;
 }
 
