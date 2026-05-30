@@ -41,6 +41,9 @@ type SystemTableService interface {
 	UploadPhoto(ctx context.Context, tableID int, username string, file *multipart.FileHeader) (int, error)
 	DeletePhoto(ctx context.Context, tableID, photoID int) error
 	SetMainPhoto(ctx context.Context, tableID, photoID int) error
+
+	// Столбцы таблицы (#345): bulk-обновление видимости.
+	UpdateFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error
 }
 
 type systemTableService struct {
@@ -450,3 +453,30 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+
+
+// UpdateFields bulk-обновляет видимость столбцов таблицы по field_name.
+// Поля, отсутствующие в БД, игнорируются.
+func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error {
+	var table models.SystemTable
+	if err := s.db.WithContext(ctx).Where("id = ?", tableID).First(&table).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table")
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, f := range req.Fields {
+			result := tx.Model(&models.TableField{}).
+				Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
+				Update("is_visible", f.IsVisible)
+			if result.Error != nil {
+				slog.Error("не удалось обновить видимость столбца",
+					"table_id", tableID, "field", f.FieldName, "error", result.Error)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating field visibility")
+			}
+		}
+		return nil
+	})
+}

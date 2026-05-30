@@ -43,6 +43,7 @@
             Выезд
           </div>
           <div
+            v-if="isFieldVisible('car_number')"
             class="col number-col"
             @click="sortBy('car_number')"
           >
@@ -56,6 +57,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('car_brand')"
             class="col brand-col"
             @click="sortBy('car_brand')"
           >
@@ -69,6 +71,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('organization')"
             class="col organization-col"
             @click="sortBy('organization')"
           >
@@ -87,6 +90,7 @@
             style="display: none;"
           />
           <div
+            v-if="isFieldVisible('unload_place')"
             class="col place-col"
             @click="sortBy('unload_place')"
           >
@@ -100,6 +104,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('valid_until')"
             class="col date-col"
             @click="sortBy('entry_date_to')"
           >
@@ -113,6 +118,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('time_range')"
             class="col time-col"
             @click="sortBy('entry_time')"
           >
@@ -126,6 +132,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('status')"
             class="col status-col"
             @click="sortBy('status')"
           >
@@ -194,13 +201,22 @@
                     Выезд
                   </button>
                 </div>
-                <div class="col number-col">
+                <div
+                  v-if="isFieldVisible('car_number')"
+                  class="col number-col"
+                >
                   {{ item.car_number }}
                 </div>
-                <div class="col brand-col">
+                <div
+                  v-if="isFieldVisible('car_brand')"
+                  class="col brand-col"
+                >
                   {{ item.car_brand }}
                 </div>
-                <div class="col organization-col">
+                <div
+                  v-if="isFieldVisible('organization')"
+                  class="col organization-col"
+                >
                   {{ item.organization_name }}
                 </div>
                 <!-- Компания скрыта -->
@@ -208,16 +224,28 @@
                   class="col company-col"
                   style="display: none;"
                 />
-                <div class="col place-col">
+                <div
+                  v-if="isFieldVisible('unload_place')"
+                  class="col place-col"
+                >
                   {{ formatUnloadPlaces(item) }}
                 </div>
-                <div class="col date-col">
+                <div
+                  v-if="isFieldVisible('valid_until')"
+                  class="col date-col"
+                >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
-                <div class="col time-col">
+                <div
+                  v-if="isFieldVisible('time_range')"
+                  class="col time-col"
+                >
                   {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
                 </div>
-                <div class="col status-col">
+                <div
+                  v-if="isFieldVisible('status')"
+                  class="col status-col"
+                >
                   <StatusBadge :status="item.status" />
                 </div>
                 <div
@@ -325,7 +353,8 @@ export default {
       selectedVehicle: null,
       showCarsTableHistory: false,
       pollingInterval: null,
-      enlarged: false
+      enlarged: false,
+      fieldsVisibility: {}
     };
   },
   computed: {
@@ -426,8 +455,11 @@ export default {
     },
     tableId: {
       immediate: true,
-      handler() {
+      handler(newVal) {
         this.loadEnlargedFromStorage();
+        if (newVal) {
+          this.fetchFieldsVisibility();
+        }
       }
     },
     enlarged(value) {
@@ -814,6 +846,26 @@ export default {
         localStorage.setItem(this.enlargedStorageKey(), value ? '1' : '0');
       } catch {
         /* localStorage недоступен - игнорируем */
+      }
+    },
+
+    isFieldVisible(fieldName) {
+      // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
+      const v = this.fieldsVisibility[fieldName];
+      return v === undefined ? true : v;
+    },
+
+    async fetchFieldsVisibility() {
+      if (!this.tableId) return;
+      try {
+        const response = await apiRequest(`/system-tables/${this.tableId}`, {});
+        if (!response.ok) return;
+        const data = await response.json();
+        const next = {};
+        (data.fields || []).forEach(f => { next[f.field_name] = f.is_visible !== false; });
+        this.fieldsVisibility = next;
+      } catch (error) {
+        console.error('Ошибка загрузки настроек столбцов:', error);
       }
     }
   }

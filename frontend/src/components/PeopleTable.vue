@@ -39,6 +39,7 @@
             Выход
           </div>
           <div
+            v-if="isFieldVisible('last_name')"
             class="col last-name-col"
             @click="sortBy('last_name')"
           >
@@ -52,6 +53,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('first_name')"
             class="col first-name-col"
             @click="sortBy('first_name')"
           >
@@ -65,6 +67,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('middle_name')"
             class="col middle-name-col"
             @click="sortBy('middle_name')"
           >
@@ -78,6 +81,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('organization')"
             class="col organization-col"
             @click="sortBy('organization')"
           >
@@ -91,6 +95,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('valid_until')"
             class="col date-col"
             @click="sortBy('entry_date_to')"
           >
@@ -104,6 +109,7 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('pass_time')"
             class="col time-col"
             @click="sortBy('pass_time')"
           >
@@ -184,22 +190,40 @@
                     Выход
                   </button>
                 </div>
-                <div class="col last-name-col">
+                <div
+                  v-if="isFieldVisible('last_name')"
+                  class="col last-name-col"
+                >
                   {{ item.last_name }}
                 </div>
-                <div class="col first-name-col">
+                <div
+                  v-if="isFieldVisible('first_name')"
+                  class="col first-name-col"
+                >
                   {{ item.first_name }}
                 </div>
-                <div class="col middle-name-col">
+                <div
+                  v-if="isFieldVisible('middle_name')"
+                  class="col middle-name-col"
+                >
                   {{ item.middle_name || '-' }}
                 </div>
-                <div class="col organization-col">
+                <div
+                  v-if="isFieldVisible('organization')"
+                  class="col organization-col"
+                >
                   {{ item.organization_name }}
                 </div>
-                <div class="col date-col">
+                <div
+                  v-if="isFieldVisible('valid_until')"
+                  class="col date-col"
+                >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
-                <div class="col time-col">
+                <div
+                  v-if="isFieldVisible('pass_time')"
+                  class="col time-col"
+                >
                   {{ formatPassTime(item.pass_time) }}
                 </div>
                 <div class="col status-col">
@@ -332,7 +356,8 @@ export default {
       selectedEmployee: null,
       showEmployeesHistory: false,
       pollingInterval: null,
-      enlarged: false
+      enlarged: false,
+      fieldsVisibility: {}
     };
   },
   computed: {
@@ -512,6 +537,13 @@ export default {
         const responseData = await tableRes.json();
         const table = responseData.table;
         this.currentTableId = table.id;
+
+        // Подтягиваем конфиг видимости столбцов из того же ответа.
+        const nextVisibility = {};
+        (responseData.fields || []).forEach(f => {
+          nextVisibility[f.field_name] = f.is_visible !== false;
+        });
+        this.fieldsVisibility = nextVisibility;
 
         const employeesRes = await apiRequest(`/employees/active-for-table/${table.id}`, { method: "GET" });
         if (!employeesRes.ok) return;
@@ -759,6 +791,12 @@ export default {
       } catch {
         /* localStorage недоступен - игнорируем */
       }
+    },
+
+    isFieldVisible(fieldName) {
+      // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
+      const v = this.fieldsVisibility[fieldName];
+      return v === undefined ? true : v;
     }
   }
 };
