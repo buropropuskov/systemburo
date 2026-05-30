@@ -1,6 +1,7 @@
 <template>
   <div
     class="selected-table-card"
+    :class="{ 'enlarged': enlarged }"
     data-testid="cars-table"
   >
     <div class="card-header">
@@ -19,6 +20,10 @@
             История
           </button>
         </span>
+        <EnlargedToggle
+          v-model="enlarged"
+          data-testid="enlarged-toggle"
+        />
         <RefreshButton
           :loading="refreshing"
           @refresh="loadData"
@@ -278,6 +283,9 @@ import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
+import EnlargedToggle from '@/components/ui/EnlargedToggle.vue';
+
+const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
 
 export default {
   name: 'CarsTable',
@@ -286,7 +294,8 @@ export default {
     VehicleDetailsModal,
     CarsTableHistoryModal,
     LoaderSpinner,
-    StatusBadge
+    StatusBadge,
+    EnlargedToggle
   },
   props: {
     tableName: { type: String, default: '' },
@@ -315,7 +324,8 @@ export default {
       showVehicleDetails: false,
       selectedVehicle: null,
       showCarsTableHistory: false,
-      pollingInterval: null
+      pollingInterval: null,
+      enlarged: false
     };
   },
   computed: {
@@ -413,10 +423,20 @@ export default {
           this.startPolling();
         }
       }
+    },
+    tableId: {
+      immediate: true,
+      handler() {
+        this.loadEnlargedFromStorage();
+      }
+    },
+    enlarged(value) {
+      this.saveEnlargedToStorage(value);
     }
   },
   mounted() {
     this.startPolling();
+    this.loadEnlargedFromStorage();
     // Подгружаем настроенные длительности уведомлений после авторизации
     // (на холодном старте App.vue запрос мог уйти до получения токена).
     useDeletionsStore().loadDurations();
@@ -775,6 +795,26 @@ export default {
         clearInterval(this.pollingInterval);
         this.pollingInterval = null;
       }
+    },
+
+    enlargedStorageKey() {
+      return `${ENLARGED_KEY_PREFIX}${this.tableId ?? 'default'}`;
+    },
+
+    loadEnlargedFromStorage() {
+      try {
+        this.enlarged = localStorage.getItem(this.enlargedStorageKey()) === '1';
+      } catch {
+        this.enlarged = false;
+      }
+    },
+
+    saveEnlargedToStorage(value) {
+      try {
+        localStorage.setItem(this.enlargedStorageKey(), value ? '1' : '0');
+      } catch {
+        /* localStorage недоступен - игнорируем */
+      }
     }
   }
 };
@@ -1112,6 +1152,30 @@ export default {
 
 .fade-list-move {
   transition: transform 0.3s ease;
+}
+
+/* "Увеличенный режим": крупный шрифт строк, bold номера, скрытый статус.
+   Освободившуюся ширину забирает organization-col через flex-grow. */
+.selected-table-card.enlarged .items-body .col,
+.selected-table-card.enlarged .header-row .col {
+  font-size: 18px;
+}
+
+.selected-table-card.enlarged .items-body .number-col {
+  font-weight: 700;
+}
+
+.selected-table-card.enlarged .status-col {
+  display: none;
+}
+
+.selected-table-card.enlarged .organization-col {
+  flex-grow: 1;
+}
+
+.selected-table-card.enlarged .item-data,
+.selected-table-card.enlarged .header-row {
+  min-height: 36px;
 }
 
 @media (max-width: 768px) {
