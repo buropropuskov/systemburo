@@ -28,6 +28,7 @@ type tableCarRow struct {
 	EntryTimeTo        *string
 	Status             *int
 	ApplicationID      *int
+	ApplicationNumber  *string
 }
 
 // GetActiveCarsForTables возвращает активные автомобили для всех таблиц (без «по факту»).
@@ -40,7 +41,7 @@ func (s *carService) GetActiveCarsForTables(ctx context.Context) ([]TableCarResp
 			o.name AS organization, o.id AS organization_id,
 			c2.name AS company, c2.id AS company_id,
 			c.entry_date_to, c.entry_time_from, c.entry_time_to,
-			c.status, app.id AS application_id`).
+			c.status, app.id AS application_id, app.application_number AS application_number`).
 		Joins("JOIN attachments a ON c.attachment_id = a.id").
 		Joins("JOIN applications app ON a.application_id = app.id").
 		Joins("LEFT JOIN organizations o ON app.organization_id = o.id").
@@ -70,7 +71,7 @@ func (s *carService) GetFactCarsForTables(ctx context.Context) ([]TableCarRespon
 				o.name AS organization, o.id AS organization_id,
 				c2.name AS company, c2.id AS company_id,
 				c.entry_date_to, c.entry_time_from, c.entry_time_to,
-				c.status, app.id AS application_id`).
+				c.status, app.id AS application_id, app.application_number AS application_number`).
 			Joins("JOIN attachments a ON c.attachment_id = a.id").
 			Joins("JOIN applications app ON a.application_id = app.id").
 			Joins("LEFT JOIN organizations o ON app.organization_id = o.id").
@@ -163,6 +164,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			EntryTimeTo:        row.EntryTimeTo,
 			Status:             status,
 			ApplicationID:      row.ApplicationID,
+			ApplicationNumber:  row.ApplicationNumber,
 			TerritoryStatus:    row.TerritoryStatus,
 			TerritoryEntryTime: territoryEntryTimeStr,
 		})
