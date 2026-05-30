@@ -1154,10 +1154,9 @@ export default {
   transition: transform 0.3s ease;
 }
 
-/* "Увеличенный режим": крупный шрифт строк, bold номера, скрытый статус.
-   Освободившуюся ширину забирает organization-col через flex-grow. */
-.selected-table-card.enlarged .items-body .col,
-.selected-table-card.enlarged .header-row .col {
+/* "Увеличенный режим": крупный шрифт только данных строк (заголовки не трогаем),
+   bold номера, скрытый статус. Освободившуюся ширину забирает organization-col. */
+.selected-table-card.enlarged .items-body .col {
   font-size: 18px;
 }
 

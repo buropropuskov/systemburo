@@ -78,19 +78,6 @@
             >
           </div>
           <div
-            class="col position-col"
-            @click="sortBy('position')"
-          >
-            <p :class="{ 'active-sort': sortField === 'position' }">
-              Должность
-            </p>
-            <img
-              src="@/assets/icons/sort.png"
-              class="sort-icon"
-              :class="{ 'sorted': sortField === 'position', 'desc': sortField === 'position' && sortDirection === 'desc' }"
-            >
-          </div>
-          <div
             class="col organization-col"
             @click="sortBy('organization')"
           >
@@ -205,9 +192,6 @@
                 </div>
                 <div class="col middle-name-col">
                   {{ item.middle_name || '-' }}
-                </div>
-                <div class="col position-col">
-                  {{ item.position || '-' }}
                 </div>
                 <div class="col organization-col">
                   {{ item.organization_name }}
@@ -397,7 +381,6 @@ export default {
             case 'middle_name':
             case 'organization':
             case 'status':
-            case 'position':
             case 'pass_places':
               valueA = (a[this.sortField] || '').toString().toLowerCase();
               valueB = (b[this.sortField] || '').toString().toLowerCase();
@@ -886,13 +869,12 @@ export default {
 
 .entry-col { width: 6%; }
 .exit-col { width: 6%; }
-.last-name-col { width: 11%; }
+.last-name-col { width: 14%; }
 .first-name-col { width: 9%; }
-.middle-name-col { width: 9%; }
-.position-col { width: 9.5%; }
-.organization-col { width: 13.5%; }
-.date-col { width: 9%; }
-.time-col { width: 12%; }
+.middle-name-col { width: 11%; }
+.organization-col { width: 16%; }
+.date-col { width: 11%; }
+.time-col { width: 13%; }
 .status-col { width: 8%; }
 .actions-col { width: 2%; padding-right: 0; }
 
@@ -1115,10 +1097,9 @@ export default {
   transition: transform 0.3s ease;
 }
 
-/* "Увеличенный режим": крупный шрифт строк, bold фамилии, скрытый статус.
-   Освободившуюся ширину забирает organization-col через flex-grow. */
-.selected-table-card.enlarged .items-body .col,
-.selected-table-card.enlarged .header-row .col {
+/* "Увеличенный режим": крупный шрифт только данных строк (заголовки не трогаем),
+   bold фамилии, скрытый статус. Освободившуюся ширину забирает organization-col. */
+.selected-table-card.enlarged .items-body .col {
   font-size: 18px;
 }
 
