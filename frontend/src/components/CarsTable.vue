@@ -10,7 +10,10 @@
           <span class="blue">Номера автомобилей</span> по заявке
         </h3>
       </div>
-      <div class="card-header__settings">
+      <div
+        v-if="!preview"
+        class="card-header__settings"
+      >
         <span class="items-count">
           Машин на территории: {{ carsOnTerritory }}
           <button
@@ -211,7 +214,7 @@
               :key="item.id" 
               class="item-row"
               :style="{ animationDelay: `${index * 0.05}s` }"
-              @click="openVehicleDetails(item)"
+              @click="preview ? null : openVehicleDetails(item)"
             >
               <div class="item-data">
                 <!-- Въезд - кнопка -->
@@ -221,6 +224,7 @@
                   @click.stop
                 >
                   <button
+                    v-if="!preview"
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
                     :disabled="item.entry_checked"
@@ -236,6 +240,7 @@
                   @click.stop
                 >
                   <button
+                    v-if="!preview"
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
                     :disabled="!item.entry_checked || item.exit_checked"
@@ -313,6 +318,7 @@
                   @click.stop
                 >
                   <button
+                    v-if="!preview"
                     class="delete-btn"
                     :disabled="isLoading"
                     @click="removeItemWithNotification(item)"
@@ -340,6 +346,7 @@
 
     <!-- Модальное окно с деталями автомобиля -->
     <VehicleDetailsModal
+      v-if="!preview"
       :show="showVehicleDetails"
       :vehicle="selectedVehicle"
       :all-unloading-places="allUnloadingPlaces"
@@ -354,7 +361,7 @@
 
     <!-- Модальное окно истории всех машин -->
     <CarsTableHistoryModal
-      v-if="showCarsTableHistory"
+      v-if="!preview && showCarsTableHistory"
       :cars="itemsData"
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
@@ -395,7 +402,11 @@ export default {
     dateRangeEnd: { type: Date, default: null },
     selectedDate: { type: Date, default: null },
     currentUserId: { type: Number, default: null },
-    currentUserName: { type: String, default: '' }
+    currentUserName: { type: String, default: '' },
+    // Preview-режим для админ-вкладки "Колонки" (#345): seed-данные, без API и без кнопок.
+    preview: { type: Boolean, default: false },
+    previewFields: { type: Array, default: null },
+    previewItems: { type: Array, default: null }
   },
   data() {
     return {
@@ -508,6 +519,7 @@ export default {
     tableName: {
       immediate: true,
       handler(newVal) {
+        if (this.preview) return;
         if (newVal) {
           this.stopPolling();
           this.startPolling();
@@ -517,6 +529,7 @@ export default {
     tableId: {
       immediate: true,
       handler(newVal) {
+        if (this.preview) return;
         this.loadEnlargedFromStorage();
         if (newVal) {
           this.fetchFieldsVisibility();
@@ -524,10 +537,34 @@ export default {
       }
     },
     enlarged(value) {
+      if (this.preview) return;
       this.saveEnlargedToStorage(value);
+    },
+    previewItems: {
+      immediate: true,
+      handler(newVal) {
+        if (this.preview && Array.isArray(newVal)) {
+          this.itemsData = newVal;
+        }
+      }
+    },
+    previewFields: {
+      immediate: true,
+      handler(newVal) {
+        if (!this.preview || !Array.isArray(newVal)) return;
+        const nextVis = {};
+        const nextOrd = {};
+        newVal.forEach((f, i) => {
+          nextVis[f.field_name] = f.is_visible !== false;
+          nextOrd[f.field_name] = typeof f.display_order === 'number' ? f.display_order : i;
+        });
+        this.fieldsVisibility = nextVis;
+        this.fieldOrders = nextOrd;
+      }
     }
   },
   mounted() {
+    if (this.preview) return;
     this.startPolling();
     this.loadEnlargedFromStorage();
     // Подгружаем настроенные длительности уведомлений после авторизации

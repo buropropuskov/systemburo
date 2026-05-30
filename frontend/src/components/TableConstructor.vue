@@ -466,6 +466,7 @@
         >
           <SystemTableColumnsTab
             :table-id="selectedTable.table.id"
+            :table-type="selectedTable.table.table_type"
             :fields="selectedTable.fields || []"
             @update="refreshSelectedTable"
           />
