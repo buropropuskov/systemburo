@@ -244,6 +244,10 @@ export default {
       immediate: true,
     },
   },
+  beforeUnmount() {
+    // На случай если пользователь ушёл с вкладки во время drag.
+    document.removeEventListener('dragover', this.onDocumentDragOver);
+  },
   methods: {
     humanLabel(name) {
       return FIELD_LABELS[name] || name;
@@ -270,11 +274,14 @@ export default {
       event.dataTransfer.effectAllowed = 'move';
       // Минимальный data payload для Chromium.
       event.dataTransfer.setData('text/plain', String(index));
+      // Document-level catch-all: гарантирует move-курсор где бы мышь ни оказалась
+      // во время drag (gap'ы, padding, вне списка, на body). Снимаем в onDragEnd.
+      document.addEventListener('dragover', this.onDocumentDragOver);
     },
-    /**
-     * Catch-all dragover на контейнере списка: убирает not-allowed/copy курсор
-     * когда мышь оказывается в gap'е между элементами (где нет <li>).
-     */
+    onDocumentDragOver(event) {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    },
     onListDragOver(event) {
       event.dataTransfer.dropEffect = 'move';
     },
@@ -302,9 +309,11 @@ export default {
     },
     onDrop() {
       this.draggingIndex = null;
+      document.removeEventListener('dragover', this.onDocumentDragOver);
     },
     onDragEnd() {
       this.draggingIndex = null;
+      document.removeEventListener('dragover', this.onDocumentDragOver);
     },
     async save() {
       if (!this.isDirty || this.saving) return;
@@ -561,9 +570,10 @@ export default {
 .columns-tab__preview-frame {
   width: 100%;
   overflow: hidden;
-  /* Высота - clamp на типовую высоту: реальная max-height 575 * scale + запас. */
-  height: 360px;
-  border-radius: 30px;
+  /* Высота под 5 строк-примеров: ~50px header + 5×40px row = 250px,
+     × scale 0.6 = 150px + ~20px запас на скругление/границу = 175px. */
+  height: 175px;
+  border-radius: 18px;
   border: 1px solid #e6e6e6;
   background: #fff;
 }
