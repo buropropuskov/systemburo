@@ -900,13 +900,18 @@ export default {
   overflow: hidden;
 }
 
+/* items-header повторяет геометрию items-body (padding-right + margin-right 4px),
+   чтобы доступная ширина для колонок совпала и заголовки выровнялись с данными. */
 .items-header {
-  padding: 10px 16px;
   border-bottom: 1px solid #e6e6e6;
   flex-shrink: 0;
+  padding-right: 4px;
+  margin-right: 4px;
 }
 
+/* header-row повторяет геометрию item-data: padding 10/16 + flex + gap 4. */
 .header-row {
+  padding: 10px 16px;
   display: flex;
   width: 100%;
   align-items: center;
@@ -1154,21 +1159,23 @@ export default {
   transition: transform 0.3s ease;
 }
 
-/* "Увеличенный режим": крупный шрифт только данных строк (заголовки не трогаем),
-   bold номера, скрытый статус. Освободившуюся ширину забирает organization-col.
-   Переключение анимируем через transition на font-size, min-height, max-width/opacity. */
+/* "Увеличенный режим": плавный переход в обе стороны.
+   Анимируем width status/organization, font-size данных, min-height строки. */
 .selected-table-card .items-body .col {
-  transition: font-size 0.25s ease;
+  transition: font-size 0.4s ease-in-out;
 }
 
 .selected-table-card .item-data {
-  transition: min-height 0.25s ease;
+  transition: min-height 0.4s ease-in-out;
 }
 
 .selected-table-card .status-col {
-  transition: max-width 0.25s ease, opacity 0.2s ease, padding-right 0.25s ease;
-  max-width: 100%;
+  transition: width 0.4s ease-in-out, opacity 0.3s ease-in-out;
   overflow: hidden;
+}
+
+.selected-table-card .organization-col {
+  transition: width 0.4s ease-in-out;
 }
 
 .selected-table-card.enlarged .items-body .col {
@@ -1179,15 +1186,15 @@ export default {
   font-weight: 700;
 }
 
+/* Освобождённую ширину status-col (7%) переливаем в organization-col (18% -> 25%). */
 .selected-table-card.enlarged .status-col {
-  max-width: 0;
+  width: 0;
   opacity: 0;
-  padding-right: 0;
   pointer-events: none;
 }
 
 .selected-table-card.enlarged .organization-col {
-  flex-grow: 1;
+  width: 25%;
 }
 
 .selected-table-card.enlarged .item-data {
