@@ -81,10 +81,18 @@ const FIELD_LABELS = {
   valid_until: 'Действует до',
   time_range: 'Время',
   status: 'Статус',
+  // Расширенные поля cars (по умолчанию скрыты)
+  application_id: 'Номер заявки',
+  // Базовые поля people
   last_name: 'Фамилия',
   first_name: 'Имя',
   middle_name: 'Отчество',
   pass_time: 'Время прохода',
+  // Расширенные поля people (по умолчанию скрыты)
+  position: 'Должность',
+  citizenship_name: 'Гражданство',
+  // Общие
+  company: 'Компания',
 };
 
 export default {
