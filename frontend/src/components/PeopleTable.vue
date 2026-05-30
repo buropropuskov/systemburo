@@ -32,15 +32,22 @@
     <div class="card-content">
       <div class="items-header">
         <div class="header-row">
-          <div class="col entry-col">
+          <div
+            class="col entry-col"
+            style="order: 0;"
+          >
             Вход
           </div>
-          <div class="col exit-col">
+          <div
+            class="col exit-col"
+            style="order: 1;"
+          >
             Выход
           </div>
           <div
             v-if="isFieldVisible('last_name')"
             class="col last-name-col"
+            :style="getColStyle('last_name')"
             @click="sortBy('last_name')"
           >
             <p :class="{ 'active-sort': sortField === 'last_name' }">
@@ -55,6 +62,7 @@
           <div
             v-if="isFieldVisible('first_name')"
             class="col first-name-col"
+            :style="getColStyle('first_name')"
             @click="sortBy('first_name')"
           >
             <p :class="{ 'active-sort': sortField === 'first_name' }">
@@ -69,6 +77,7 @@
           <div
             v-if="isFieldVisible('middle_name')"
             class="col middle-name-col"
+            :style="getColStyle('middle_name')"
             @click="sortBy('middle_name')"
           >
             <p :class="{ 'active-sort': sortField === 'middle_name' }">
@@ -83,6 +92,7 @@
           <div
             v-if="isFieldVisible('position')"
             class="col position-col"
+            :style="getColStyle('position')"
             @click="sortBy('position')"
           >
             <p :class="{ 'active-sort': sortField === 'position' }">
@@ -97,6 +107,7 @@
           <div
             v-if="isFieldVisible('citizenship_name')"
             class="col citizenship-col"
+            :style="getColStyle('citizenship_name')"
             @click="sortBy('citizenship_name')"
           >
             <p :class="{ 'active-sort': sortField === 'citizenship_name' }">
@@ -111,6 +122,7 @@
           <div
             v-if="isFieldVisible('organization')"
             class="col organization-col"
+            :style="getColStyle('organization')"
             @click="sortBy('organization')"
           >
             <p :class="{ 'active-sort': sortField === 'organization' }">
@@ -125,6 +137,7 @@
           <div
             v-if="isFieldVisible('company')"
             class="col company-col"
+            :style="getColStyle('company')"
             @click="sortBy('company')"
           >
             <p :class="{ 'active-sort': sortField === 'company' }">
@@ -139,6 +152,7 @@
           <div
             v-if="isFieldVisible('valid_until')"
             class="col date-col"
+            :style="getColStyle('valid_until')"
             @click="sortBy('entry_date_to')"
           >
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
@@ -153,6 +167,7 @@
           <div
             v-if="isFieldVisible('pass_time')"
             class="col time-col"
+            :style="getColStyle('pass_time')"
             @click="sortBy('pass_time')"
           >
             <p :class="{ 'active-sort': sortField === 'pass_time' }">
@@ -167,6 +182,7 @@
           <div
             v-if="isFieldVisible('application_id')"
             class="col application-col"
+            :style="getColStyle('application_id')"
             @click="sortBy('application_id')"
           >
             <p :class="{ 'active-sort': sortField === 'application_id' }">
@@ -180,6 +196,7 @@
           </div>
           <div
             class="col status-col"
+            style="order: 9998;"
             @click="sortBy('status')"
           >
             <p :class="{ 'active-sort': sortField === 'status' }">
@@ -191,7 +208,10 @@
               :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
             >
           </div>
-          <div class="col actions-col" />
+          <div
+            class="col actions-col"
+            style="order: 9999;"
+          />
         </div>
       </div>
       
@@ -222,10 +242,11 @@
               <div class="item-data">
                 <div
                   class="col entry-col"
+                  style="order: 0;"
                   @click.stop
                 >
-                  <button 
-                    class="action-btn entry-btn" 
+                  <button
+                    class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
                     :disabled="item.entry_checked"
                     @click="handleEntryExit(item, 'entry')"
@@ -235,10 +256,11 @@
                 </div>
                 <div
                   class="col exit-col"
+                  style="order: 1;"
                   @click.stop
                 >
-                  <button 
-                    class="action-btn exit-btn" 
+                  <button
+                    class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
                     :disabled="!item.entry_checked || item.exit_checked"
                     @click="handleEntryExit(item, 'exit')"
@@ -249,68 +271,82 @@
                 <div
                   v-if="isFieldVisible('last_name')"
                   class="col last-name-col"
+                  :style="getColStyle('last_name')"
                 >
                   {{ item.last_name }}
                 </div>
                 <div
                   v-if="isFieldVisible('first_name')"
                   class="col first-name-col"
+                  :style="getColStyle('first_name')"
                 >
                   {{ item.first_name }}
                 </div>
                 <div
                   v-if="isFieldVisible('middle_name')"
                   class="col middle-name-col"
+                  :style="getColStyle('middle_name')"
                 >
                   {{ item.middle_name || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('position')"
                   class="col position-col"
+                  :style="getColStyle('position')"
                 >
                   {{ item.position || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('citizenship_name')"
                   class="col citizenship-col"
+                  :style="getColStyle('citizenship_name')"
                 >
                   {{ item.citizenshipName || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('organization')"
                   class="col organization-col"
+                  :style="getColStyle('organization')"
                 >
                   {{ item.organization_name }}
                 </div>
                 <div
                   v-if="isFieldVisible('company')"
                   class="col company-col"
+                  :style="getColStyle('company')"
                 >
                   {{ item.company || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('valid_until')"
                   class="col date-col"
+                  :style="getColStyle('valid_until')"
                 >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
                 <div
                   v-if="isFieldVisible('pass_time')"
                   class="col time-col"
+                  :style="getColStyle('pass_time')"
                 >
                   {{ formatPassTime(item.pass_time) }}
                 </div>
                 <div
                   v-if="isFieldVisible('application_id')"
                   class="col application-col"
+                  :style="getColStyle('application_id')"
                 >
                   {{ item.applicationNumber || '-' }}
                 </div>
-                <div class="col status-col">
+                <div
+                  class="col status-col"
+                  style="order: 9998;"
+                >
                   <StatusBadge :status="item.status" />
                 </div>
                 <div
                   class="col actions-col"
+                  style="order: 9999;"
                   @click.stop
                 >
                   <button
@@ -437,7 +473,8 @@ export default {
       showEmployeesHistory: false,
       pollingInterval: null,
       enlarged: false,
-      fieldsVisibility: {}
+      fieldsVisibility: {},
+      fieldOrders: {}
     };
   },
   computed: {
@@ -618,12 +655,17 @@ export default {
         const table = responseData.table;
         this.currentTableId = table.id;
 
-        // Подтягиваем конфиг видимости столбцов из того же ответа.
+        // Подтягиваем конфиг видимости и порядка столбцов из того же ответа.
         const nextVisibility = {};
+        const nextOrders = {};
         (responseData.fields || []).forEach(f => {
           nextVisibility[f.field_name] = f.is_visible !== false;
+          if (typeof f.display_order === 'number') {
+            nextOrders[f.field_name] = f.display_order;
+          }
         });
         this.fieldsVisibility = nextVisibility;
+        this.fieldOrders = nextOrders;
 
         const employeesRes = await apiRequest(`/employees/active-for-table/${table.id}`, { method: "GET" });
         if (!employeesRes.ok) return;
@@ -878,6 +920,16 @@ export default {
       // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
       const v = this.fieldsVisibility[fieldName];
       return v === undefined ? true : v;
+    },
+
+    /**
+     * CSS-order для конфигурируемой ячейки. Фиксированные (Вход/Выход/Статус/Действия)
+     * имеют статические order; конфигурируемые получают 10 + display_order между ними.
+     */
+    getColStyle(fieldName) {
+      const order = this.fieldOrders[fieldName];
+      if (order === undefined) return null;
+      return { order: 10 + order };
     }
   }
 };

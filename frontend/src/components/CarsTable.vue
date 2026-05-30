@@ -35,16 +35,23 @@
       <div class="items-header">
         <div class="header-row">
           <!-- Въезд - отдельная колонка -->
-          <div class="col entry-col">
+          <div
+            class="col entry-col"
+            style="order: 0;"
+          >
             Въезд
           </div>
           <!-- Выезд - отдельная колонка -->
-          <div class="col exit-col">
+          <div
+            class="col exit-col"
+            style="order: 1;"
+          >
             Выезд
           </div>
           <div
             v-if="isFieldVisible('car_number')"
             class="col number-col"
+            :style="getColStyle('car_number')"
             @click="sortBy('car_number')"
           >
             <p :class="{ 'active-sort': sortField === 'car_number' }">
@@ -59,6 +66,7 @@
           <div
             v-if="isFieldVisible('car_brand')"
             class="col brand-col"
+            :style="getColStyle('car_brand')"
             @click="sortBy('car_brand')"
           >
             <p :class="{ 'active-sort': sortField === 'car_brand' }">
@@ -73,6 +81,7 @@
           <div
             v-if="isFieldVisible('organization')"
             class="col organization-col"
+            :style="getColStyle('organization')"
             @click="sortBy('organization')"
           >
             <p :class="{ 'active-sort': sortField === 'organization' }">
@@ -87,6 +96,7 @@
           <div
             v-if="isFieldVisible('company')"
             class="col company-col"
+            :style="getColStyle('company')"
             @click="sortBy('company')"
           >
             <p :class="{ 'active-sort': sortField === 'company' }">
@@ -101,6 +111,7 @@
           <div
             v-if="isFieldVisible('application_id')"
             class="col application-col"
+            :style="getColStyle('application_id')"
             @click="sortBy('application_id')"
           >
             <p :class="{ 'active-sort': sortField === 'application_id' }">
@@ -115,6 +126,7 @@
           <div
             v-if="isFieldVisible('unload_place')"
             class="col place-col"
+            :style="getColStyle('unload_place')"
             @click="sortBy('unload_place')"
           >
             <p :class="{ 'active-sort': sortField === 'unload_place' }">
@@ -129,6 +141,7 @@
           <div
             v-if="isFieldVisible('valid_until')"
             class="col date-col"
+            :style="getColStyle('valid_until')"
             @click="sortBy('entry_date_to')"
           >
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
@@ -143,6 +156,7 @@
           <div
             v-if="isFieldVisible('time_range')"
             class="col time-col"
+            :style="getColStyle('time_range')"
             @click="sortBy('entry_time')"
           >
             <p :class="{ 'active-sort': sortField === 'entry_time' }">
@@ -157,6 +171,7 @@
           <div
             v-if="isFieldVisible('status')"
             class="col status-col"
+            :style="getColStyle('status')"
             @click="sortBy('status')"
           >
             <p :class="{ 'active-sort': sortField === 'status' }">
@@ -168,7 +183,10 @@
               :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
             >
           </div>
-          <div class="col actions-col" />
+          <div
+            class="col actions-col"
+            style="order: 9999;"
+          />
         </div>
       </div>
       
@@ -199,10 +217,11 @@
                 <!-- Въезд - кнопка -->
                 <div
                   class="col entry-col"
+                  style="order: 0;"
                   @click.stop
                 >
-                  <button 
-                    class="action-btn entry-btn" 
+                  <button
+                    class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
                     :disabled="item.entry_checked"
                     @click="handleEntryExit(item, 'entry')"
@@ -213,10 +232,11 @@
                 <!-- Выезд - кнопка -->
                 <div
                   class="col exit-col"
+                  style="order: 1;"
                   @click.stop
                 >
-                  <button 
-                    class="action-btn exit-btn" 
+                  <button
+                    class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
                     :disabled="!item.entry_checked || item.exit_checked"
                     @click="handleEntryExit(item, 'exit')"
@@ -227,59 +247,69 @@
                 <div
                   v-if="isFieldVisible('car_number')"
                   class="col number-col"
+                  :style="getColStyle('car_number')"
                 >
                   {{ item.car_number }}
                 </div>
                 <div
                   v-if="isFieldVisible('car_brand')"
                   class="col brand-col"
+                  :style="getColStyle('car_brand')"
                 >
                   {{ item.car_brand }}
                 </div>
                 <div
                   v-if="isFieldVisible('organization')"
                   class="col organization-col"
+                  :style="getColStyle('organization')"
                 >
                   {{ item.organization_name }}
                 </div>
                 <div
                   v-if="isFieldVisible('company')"
                   class="col company-col"
+                  :style="getColStyle('company')"
                 >
                   {{ item.company || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('application_id')"
                   class="col application-col"
+                  :style="getColStyle('application_id')"
                 >
                   {{ item.applicationNumber || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('unload_place')"
                   class="col place-col"
+                  :style="getColStyle('unload_place')"
                 >
                   {{ formatUnloadPlaces(item) }}
                 </div>
                 <div
                   v-if="isFieldVisible('valid_until')"
                   class="col date-col"
+                  :style="getColStyle('valid_until')"
                 >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
                 <div
                   v-if="isFieldVisible('time_range')"
                   class="col time-col"
+                  :style="getColStyle('time_range')"
                 >
                   {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
                 </div>
                 <div
                   v-if="isFieldVisible('status')"
                   class="col status-col"
+                  :style="getColStyle('status')"
                 >
                   <StatusBadge :status="item.status" />
                 </div>
                 <div
                   class="col actions-col"
+                  style="order: 9999;"
                   @click.stop
                 >
                   <button
@@ -384,7 +414,8 @@ export default {
       showCarsTableHistory: false,
       pollingInterval: null,
       enlarged: false,
-      fieldsVisibility: {}
+      fieldsVisibility: {},
+      fieldOrders: {}
     };
   },
   computed: {
@@ -886,15 +917,33 @@ export default {
       return v === undefined ? true : v;
     },
 
+    /**
+     * CSS-order для конфигурируемой ячейки. Фиксированные колонки (Въезд/Выезд/Действия)
+     * имеют статические order в шаблоне; конфигурируемые получают 10 + display_order,
+     * чтобы оставаться между фиксированными.
+     */
+    getColStyle(fieldName) {
+      const order = this.fieldOrders[fieldName];
+      if (order === undefined) return null;
+      return { order: 10 + order };
+    },
+
     async fetchFieldsVisibility() {
       if (!this.tableId) return;
       try {
         const response = await apiRequest(`/system-tables/${this.tableId}`, {});
         if (!response.ok) return;
         const data = await response.json();
-        const next = {};
-        (data.fields || []).forEach(f => { next[f.field_name] = f.is_visible !== false; });
-        this.fieldsVisibility = next;
+        const nextVis = {};
+        const nextOrd = {};
+        (data.fields || []).forEach(f => {
+          nextVis[f.field_name] = f.is_visible !== false;
+          if (typeof f.display_order === 'number') {
+            nextOrd[f.field_name] = f.display_order;
+          }
+        });
+        this.fieldsVisibility = nextVis;
+        this.fieldOrders = nextOrd;
       } catch (error) {
         console.error('Ошибка загрузки настроек столбцов:', error);
       }
