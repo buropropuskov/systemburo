@@ -10,7 +10,10 @@
           <span class="blue">Люди</span> по заявке
         </h3>
       </div>
-      <div class="card-header__settings">
+      <div
+        v-if="!preview"
+        class="card-header__settings"
+      >
         <span class="items-count">
           Людей зашло: {{ peopleOnTerritory }}
           <button
@@ -237,7 +240,7 @@
               :key="item.id" 
               class="item-row"
               :style="{ animationDelay: `${index * 0.05}s` }"
-              @click="openEmployeeDetails(item)"
+              @click="preview ? null : openEmployeeDetails(item)"
             >
               <div class="item-data">
                 <div
@@ -246,6 +249,7 @@
                   @click.stop
                 >
                   <button
+                    v-if="!preview"
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
                     :disabled="item.entry_checked"
@@ -260,6 +264,7 @@
                   @click.stop
                 >
                   <button
+                    v-if="!preview"
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
                     :disabled="!item.entry_checked || item.exit_checked"
@@ -350,6 +355,7 @@
                   @click.stop
                 >
                   <button
+                    v-if="!preview"
                     class="delete-btn"
                     :disabled="isLoading"
                     @click="removeItemWithNotification(item)"
@@ -377,7 +383,7 @@
 
     <!-- Модальное окно деталей сотрудника -->
     <EmployeeDetailsModal
-      v-if="showDetailsModal"
+      v-if="!preview && showDetailsModal"
       :show="showDetailsModal"
       :employee="selectedEmployee"
       :all-tables="allTables"
@@ -389,7 +395,7 @@
     />
 
     <EmployeesTableHistoryModal
-      v-if="showEmployeesHistory"
+      v-if="!preview && showEmployeesHistory"
       :table-id="currentTableId"
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
@@ -421,7 +427,7 @@ export default {
   props: {
     tableName: {
       type: String,
-      required: true
+      default: ''
     },
     searchQuery: {
       type: String,
@@ -454,7 +460,11 @@ export default {
     currentUserName: {
       type: String,
       default: ''
-    }
+    },
+    // Preview-режим для админ-вкладки "Колонки" (#345): seed-данные, без API и без кнопок.
+    preview: { type: Boolean, default: false },
+    previewFields: { type: Array, default: null },
+    previewItems: { type: Array, default: null }
   },
   emits: ['open-application'],
   data() {
@@ -572,6 +582,7 @@ export default {
   watch: {
     tableName: {
       handler() {
+        if (this.preview) return;
         this.stopPolling();
         this.startPolling();
         this.loadEnlargedFromStorage();
@@ -579,10 +590,34 @@ export default {
       immediate: true
     },
     enlarged(value) {
+      if (this.preview) return;
       this.saveEnlargedToStorage(value);
+    },
+    previewItems: {
+      immediate: true,
+      handler(newVal) {
+        if (this.preview && Array.isArray(newVal)) {
+          this.itemsData = newVal;
+        }
+      }
+    },
+    previewFields: {
+      immediate: true,
+      handler(newVal) {
+        if (!this.preview || !Array.isArray(newVal)) return;
+        const nextVis = {};
+        const nextOrd = {};
+        newVal.forEach((f, i) => {
+          nextVis[f.field_name] = f.is_visible !== false;
+          nextOrd[f.field_name] = typeof f.display_order === 'number' ? f.display_order : i;
+        });
+        this.fieldsVisibility = nextVis;
+        this.fieldOrders = nextOrd;
+      }
     }
   },
   mounted() {
+    if (this.preview) return;
     this.startPolling();
     this.loadEnlargedFromStorage();
     // Подгружаем настроенные длительности уведомлений после авторизации
