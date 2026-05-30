@@ -16,8 +16,10 @@
       У этой таблицы пока нет настраиваемых столбцов.
     </div>
 
-    <ul
+    <TransitionGroup
       v-else
+      tag="ul"
+      name="cols-list"
       class="columns-tab__list"
     >
       <li
@@ -98,7 +100,7 @@
           </label>
         </div>
       </li>
-    </ul>
+    </TransitionGroup>
 
     <div class="columns-tab__actions">
       <button
@@ -136,25 +138,32 @@
         Так таблица будет выглядеть с текущими настройками (примерные данные).
       </p>
       <div class="columns-tab__preview-frame">
-        <CarsTable
-          v-if="tableType === 'cars'"
-          :preview="true"
-          :preview-fields="previewFieldsWithOrder"
-          :preview-items="sampleItems"
-          :table-id="tableId"
-        />
-        <PeopleTable
-          v-else-if="tableType === 'people'"
-          :preview="true"
-          :preview-fields="previewFieldsWithOrder"
-          :preview-items="sampleItems"
-          :table-name="''"
-        />
-        <div
-          v-else
-          class="columns-tab__preview-unknown"
-        >
-          Превью недоступно для этого типа таблицы.
+        <!--
+          Преview - точная копия реальной CarsTable/PeopleTable, пропорционально уменьшенная
+          через CSS transform: scale. Inner-элемент рендерится при ширине 100%/scale
+          (с естественным размером шрифта и отступов), затем визуально масштабируется.
+        -->
+        <div class="columns-tab__preview-scale">
+          <CarsTable
+            v-if="tableType === 'cars'"
+            :preview="true"
+            :preview-fields="previewFieldsWithOrder"
+            :preview-items="sampleItems"
+            :table-id="tableId"
+          />
+          <PeopleTable
+            v-else-if="tableType === 'people'"
+            :preview="true"
+            :preview-fields="previewFieldsWithOrder"
+            :preview-items="sampleItems"
+            :table-name="''"
+          />
+          <div
+            v-else
+            class="columns-tab__preview-unknown"
+          >
+            Превью недоступно для этого типа таблицы.
+          </div>
         </div>
       </div>
     </div>
@@ -524,8 +533,24 @@ export default {
   color: #6b7280;
 }
 
+/* Scale-обёртка: внутренний элемент рендерится при ширине 100%/SCALE и затем
+   уменьшается transform: scale(SCALE) - все размеры (шрифт, padding, gap)
+   сжимаются пропорционально, layout 1:1 с реальной таблицей. */
 .columns-tab__preview-frame {
   width: 100%;
+  overflow: hidden;
+  /* Высота - clamp на типовую высоту: реальная max-height 575 * scale + запас. */
+  height: 360px;
+  border-radius: 30px;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+}
+
+.columns-tab__preview-scale {
+  /* SCALE=0.6 -> 1/0.6 = 166.67% */
+  width: 166.6667%;
+  transform: scale(0.6);
+  transform-origin: top left;
 }
 
 .columns-tab__preview-unknown {
@@ -535,5 +560,12 @@ export default {
   background: #f9fafb;
   border: 1px solid #e6e6e6;
   border-radius: 12px;
+}
+
+/* FLIP-анимация перестановки столбцов в админ-списке. Vue TransitionGroup
+   автоматически вычисляет старое и новое положение каждого элемента
+   и применяет transform с заданным transition. */
+.cols-list-move {
+  transition: transform 0.3s ease;
 }
 </style>
