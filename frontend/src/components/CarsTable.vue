@@ -1155,7 +1155,22 @@ export default {
 }
 
 /* "Увеличенный режим": крупный шрифт только данных строк (заголовки не трогаем),
-   bold номера, скрытый статус. Освободившуюся ширину забирает organization-col. */
+   bold номера, скрытый статус. Освободившуюся ширину забирает organization-col.
+   Переключение анимируем через transition на font-size, min-height, max-width/opacity. */
+.selected-table-card .items-body .col {
+  transition: font-size 0.25s ease;
+}
+
+.selected-table-card .item-data {
+  transition: min-height 0.25s ease;
+}
+
+.selected-table-card .status-col {
+  transition: max-width 0.25s ease, opacity 0.2s ease, padding-right 0.25s ease;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .selected-table-card.enlarged .items-body .col {
   font-size: 18px;
 }
@@ -1165,7 +1180,10 @@ export default {
 }
 
 .selected-table-card.enlarged .status-col {
-  display: none;
+  max-width: 0;
+  opacity: 0;
+  padding-right: 0;
+  pointer-events: none;
 }
 
 .selected-table-card.enlarged .organization-col {
