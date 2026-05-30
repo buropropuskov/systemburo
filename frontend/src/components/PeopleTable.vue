@@ -249,11 +249,10 @@
                   @click.stop
                 >
                   <button
-                    v-if="!preview"
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
-                    :disabled="item.entry_checked"
-                    @click="handleEntryExit(item, 'entry')"
+                    :disabled="preview || item.entry_checked"
+                    @click="preview ? null : handleEntryExit(item, 'entry')"
                   >
                     Вход
                   </button>
@@ -264,11 +263,10 @@
                   @click.stop
                 >
                   <button
-                    v-if="!preview"
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
-                    :disabled="!item.entry_checked || item.exit_checked"
-                    @click="handleEntryExit(item, 'exit')"
+                    :disabled="preview || !item.entry_checked || item.exit_checked"
+                    @click="preview ? null : handleEntryExit(item, 'exit')"
                   >
                     Выход
                   </button>
@@ -355,10 +353,9 @@
                   @click.stop
                 >
                   <button
-                    v-if="!preview"
                     class="delete-btn"
-                    :disabled="isLoading"
-                    @click="removeItemWithNotification(item)"
+                    :disabled="preview || isLoading"
+                    @click="preview ? null : removeItemWithNotification(item)"
                   >
                     <img
                       src="@/assets/icons/trashcan.png"

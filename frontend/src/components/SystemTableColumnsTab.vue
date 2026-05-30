@@ -33,8 +33,7 @@
         :draggable="true"
         :data-field="field.field_name"
         @dragstart="onDragStart(index, $event)"
-        @dragenter.prevent="onDragEnter(index)"
-        @dragover.prevent="onDragOver($event)"
+        @dragover.prevent="onDragOver(index, $event)"
         @drop.prevent="onDrop"
         @dragend="onDragEnd"
       >
@@ -271,14 +270,22 @@ export default {
       // Минимальный data payload для Chromium.
       event.dataTransfer.setData('text/plain', String(index));
     },
-    onDragOver(event) {
-      // Всегда move - никаких "копировать"/"запрещено" курсоров.
+    /**
+     * Midpoint-алгоритм перестановки: swap происходит только когда курсор
+     * пересекает вертикальную середину целевого элемента. Это убирает
+     * "дрожание" на границах и быстрые повторные перестановки.
+     */
+    onDragOver(targetIndex, event) {
       event.dataTransfer.dropEffect = 'move';
-    },
-    onDragEnter(targetIndex) {
-      // Live-перестановка: как только курсор над другим элементом - меняем порядок сразу.
       const from = this.draggingIndex;
       if (from === null || from === targetIndex) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      // Двигаемся вниз: меняем только когда курсор прошёл за середину цели.
+      // Двигаемся вверх: меняем когда курсор ещё перед серединой цели.
+      const movingDown = from < targetIndex;
+      if (movingDown && event.clientY < midpoint) return;
+      if (!movingDown && event.clientY > midpoint) return;
       const arr = this.localFields.slice();
       const [moved] = arr.splice(from, 1);
       arr.splice(targetIndex, 0, moved);
@@ -391,7 +398,11 @@ export default {
 }
 
 .columns-tab__item--dragging {
-  opacity: 0.35;
+  /* Полностью скрываем перетаскиваемый элемент, чтобы не было дрожания между
+     анимированным DOM-узлом и ghost-картинкой курсора. На экране остаётся
+     только browser-ghost; соседи плавно разъезжаются через TransitionGroup. */
+  opacity: 0;
+  transition: none !important;
 }
 
 .columns-tab__row {
