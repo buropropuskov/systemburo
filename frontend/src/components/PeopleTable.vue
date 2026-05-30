@@ -81,6 +81,34 @@
             >
           </div>
           <div
+            v-if="isFieldVisible('position')"
+            class="col position-col"
+            @click="sortBy('position')"
+          >
+            <p :class="{ 'active-sort': sortField === 'position' }">
+              Должность
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'position', 'desc': sortField === 'position' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
+            v-if="isFieldVisible('citizenship_name')"
+            class="col citizenship-col"
+            @click="sortBy('citizenship_name')"
+          >
+            <p :class="{ 'active-sort': sortField === 'citizenship_name' }">
+              Гражданство
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'citizenship_name', 'desc': sortField === 'citizenship_name' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
             v-if="isFieldVisible('organization')"
             class="col organization-col"
             @click="sortBy('organization')"
@@ -92,6 +120,20 @@
               src="@/assets/icons/sort.png"
               class="sort-icon"
               :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
+            v-if="isFieldVisible('company')"
+            class="col company-col"
+            @click="sortBy('company')"
+          >
+            <p :class="{ 'active-sort': sortField === 'company' }">
+              Компания
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'company', 'desc': sortField === 'company' && sortDirection === 'desc' }"
             >
           </div>
           <div
@@ -209,10 +251,28 @@
                   {{ item.middle_name || '-' }}
                 </div>
                 <div
+                  v-if="isFieldVisible('position')"
+                  class="col position-col"
+                >
+                  {{ item.position || '-' }}
+                </div>
+                <div
+                  v-if="isFieldVisible('citizenship_name')"
+                  class="col citizenship-col"
+                >
+                  {{ item.citizenshipName || '-' }}
+                </div>
+                <div
                   v-if="isFieldVisible('organization')"
                   class="col organization-col"
                 >
                   {{ item.organization_name }}
+                </div>
+                <div
+                  v-if="isFieldVisible('company')"
+                  class="col company-col"
+                >
+                  {{ item.company || '-' }}
                 </div>
                 <div
                   v-if="isFieldVisible('valid_until')"
@@ -910,16 +970,21 @@ export default {
   padding-right: 8px;
 }
 
-.entry-col { width: 6%; }
-.exit-col { width: 6%; }
-.last-name-col { width: 14%; }
-.first-name-col { width: 9%; }
-.middle-name-col { width: 11%; }
-.organization-col { width: 16%; }
-.date-col { width: 11%; }
-.time-col { width: 13%; }
-.status-col { width: 8%; }
-.actions-col { width: 2%; padding-right: 0; }
+/* Веса колонок (flex-grow). Браузер делит доступную ширину пропорционально весам
+   видимых колонок. При скрытии любых через v-if остальные автоматически расширяются. */
+.entry-col { flex: 6 0 0; }
+.exit-col { flex: 6 0 0; }
+.last-name-col { flex: 14 0 0; }
+.first-name-col { flex: 9 0 0; }
+.middle-name-col { flex: 11 0 0; }
+.position-col { flex: 9 0 0; }
+.citizenship-col { flex: 10 0 0; }
+.organization-col { flex: 16 0 0; }
+.company-col { flex: 11 0 0; }
+.date-col { flex: 11 0 0; }
+.time-col { flex: 13 0 0; }
+.status-col { flex: 8 0 0; }
+.actions-col { flex: 2 0 0; padding-right: 0; }
 
 .header-row .col {
   font-weight: 500;
@@ -1145,7 +1210,7 @@ export default {
    конфликта специфичности (раньше .items-body .col перекрывал отдельные
    правила .status-col / .organization-col и данные не анимировались). */
 .selected-table-card .col {
-  transition: font-size 0.4s ease-in-out, width 0.4s ease-in-out, opacity 0.3s ease-in-out;
+  transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
 .selected-table-card .item-data {
@@ -1164,16 +1229,16 @@ export default {
   font-weight: 700;
 }
 
-/* Освобождённую ширину status-col (8%) переливаем в organization-col (16% -> 24%).
-   Сумма ширин не меняется - layout идеально сходится в обе стороны. */
+/* В enlarged переливаем вес status-col (8) в organization-col (16 -> 24).
+   Остальные пропорции сохраняются. */
 .selected-table-card.enlarged .status-col {
-  width: 0;
+  flex-grow: 0;
   opacity: 0;
   pointer-events: none;
 }
 
 .selected-table-card.enlarged .organization-col {
-  width: 24%;
+  flex-grow: 24;
 }
 
 .selected-table-card.enlarged .item-data {

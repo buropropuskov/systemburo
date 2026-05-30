@@ -157,6 +157,9 @@ func main() {
 	banCheckService := services.NewBanCheckService(db, 30*time.Second)
 	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService)
 	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService)
+	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
+		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
+	}
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)

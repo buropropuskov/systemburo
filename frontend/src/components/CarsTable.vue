@@ -84,11 +84,34 @@
               :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
             >
           </div>
-          <!-- Компания скрыта, но класс оставлен для возможного использования -->
           <div
+            v-if="isFieldVisible('company')"
             class="col company-col"
-            style="display: none;"
-          />
+            @click="sortBy('company')"
+          >
+            <p :class="{ 'active-sort': sortField === 'company' }">
+              Компания
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'company', 'desc': sortField === 'company' && sortDirection === 'desc' }"
+            >
+          </div>
+          <div
+            v-if="isFieldVisible('application_id')"
+            class="col application-col"
+            @click="sortBy('application_id')"
+          >
+            <p :class="{ 'active-sort': sortField === 'application_id' }">
+              Номер заявки
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
+            >
+          </div>
           <div
             v-if="isFieldVisible('unload_place')"
             class="col place-col"
@@ -219,11 +242,18 @@
                 >
                   {{ item.organization_name }}
                 </div>
-                <!-- Компания скрыта -->
                 <div
+                  v-if="isFieldVisible('company')"
                   class="col company-col"
-                  style="display: none;"
-                />
+                >
+                  {{ item.company || '-' }}
+                </div>
+                <div
+                  v-if="isFieldVisible('application_id')"
+                  class="col application-col"
+                >
+                  {{ item.applicationId || '-' }}
+                </div>
                 <div
                   v-if="isFieldVisible('unload_place')"
                   class="col place-col"
@@ -980,17 +1010,21 @@ export default {
   white-space: nowrap;
 }
 
-.entry-col { width: 6.5%; }
-.exit-col { width: 8%; }
-.number-col { width: 10%; }
-.brand-col { width: 8.5%; }
-.organization-col { width: 18%; }
-.company-col { width: 0%; }
-.place-col { width: 15%; }
-.date-col { width: 11.5%; }
-.time-col { width: 10%; }
-.status-col { width: 7%; }
-.actions-col { width: 2%; }
+/* Веса колонок (flex-grow). Браузер делит доступную ширину пропорционально весам
+   видимых колонок. При скрытии любых через v-if остальные автоматически расширяются,
+   занимая освободившееся место. */
+.entry-col { flex: 6.5 0 0; }
+.exit-col { flex: 8 0 0; }
+.number-col { flex: 10 0 0; }
+.brand-col { flex: 8.5 0 0; }
+.organization-col { flex: 18 0 0; }
+.company-col { flex: 10 0 0; }
+.application-col { flex: 8 0 0; }
+.place-col { flex: 15 0 0; }
+.date-col { flex: 11.5 0 0; }
+.time-col { flex: 10 0 0; }
+.status-col { flex: 7 0 0; }
+.actions-col { flex: 2 0 0; }
 
 .header-row .col {
   font-weight: 500;
@@ -1216,7 +1250,7 @@ export default {
    конфликта специфичности (раньше .items-body .col перекрывал отдельные
    правила .status-col / .organization-col и данные не анимировались). */
 .selected-table-card .col {
-  transition: font-size 0.4s ease-in-out, width 0.4s ease-in-out, opacity 0.3s ease-in-out;
+  transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
 .selected-table-card .item-data {
@@ -1235,16 +1269,16 @@ export default {
   font-weight: 700;
 }
 
-/* Освобождённую ширину status-col (7%) переливаем в organization-col (18% -> 25%).
-   Сумма ширин не меняется - layout идеально сходится в обе стороны. */
+/* В enlarged переливаем вес status-col (7) в organization-col (18 -> 25).
+   Остальные пропорции сохраняются. */
 .selected-table-card.enlarged .status-col {
-  width: 0;
+  flex-grow: 0;
   opacity: 0;
   pointer-events: none;
 }
 
 .selected-table-card.enlarged .organization-col {
-  width: 25%;
+  flex-grow: 25;
 }
 
 .selected-table-card.enlarged .item-data {

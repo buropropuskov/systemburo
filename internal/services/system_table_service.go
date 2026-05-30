@@ -44,6 +44,10 @@ type SystemTableService interface {
 
 	// Столбцы таблицы (#345): bulk-обновление видимости.
 	UpdateFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error
+
+	// SeedMissingFields добавляет default-поля, которых ещё нет у существующих таблиц.
+	// Вызывается один раз при старте сервиса для миграции старых таблиц.
+	SeedMissingFields(ctx context.Context) error
 }
 
 type systemTableService struct {
@@ -225,32 +229,45 @@ func (s *systemTableService) GetByName(ctx context.Context, name string) (*model
 }
 
 // defaultField -- описание поля по умолчанию для нового типа таблицы.
+// IsVisible определяет, включён ли столбец сразу при создании таблицы.
+// "Базовые" столбцы видимы, "дополнительные" - скрыты и включаются админом по необходимости.
 type defaultField struct {
 	Name      string
 	FieldType string
+	IsVisible bool
 }
 
 // getDefaultFields возвращает набор полей по умолчанию для типа таблицы.
+// Видимые сразу после создания таблицы - типовые поля гостевого пропуска.
+// Скрытые - расширенные поля (компания, должность, гражданство и т.п.),
+// которые админ может включить в "Колонки".
 func getDefaultFields(tableType string) []defaultField {
 	switch tableType {
 	case "cars":
 		return []defaultField{
-			{"car_number", "text"},
-			{"car_brand", "text"},
-			{"organization", "text"},
-			{"unload_place", "text"},
-			{"valid_until", "date"},
-			{"time_range", "text"},
-			{"status", "text"},
+			{"car_number", "text", true},
+			{"car_brand", "text", true},
+			{"organization", "text", true},
+			{"unload_place", "text", true},
+			{"valid_until", "date", true},
+			{"time_range", "text", true},
+			{"status", "text", true},
+			// Расширенные (по умолчанию скрытые)
+			{"company", "text", false},
+			{"application_id", "text", false},
 		}
 	case "people":
 		return []defaultField{
-			{"organization", "text"},
-			{"last_name", "text"},
-			{"first_name", "text"},
-			{"middle_name", "text"},
-			{"valid_until", "date"},
-			{"pass_time", "text"},
+			{"organization", "text", true},
+			{"last_name", "text", true},
+			{"first_name", "text", true},
+			{"middle_name", "text", true},
+			{"valid_until", "date", true},
+			{"pass_time", "text", true},
+			// Расширенные (по умолчанию скрытые)
+			{"position", "text", false},
+			{"citizenship_name", "text", false},
+			{"company", "text", false},
 		}
 	default:
 		return nil
@@ -309,7 +326,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 				FieldName:    f.Name,
 				FieldType:    &fieldType,
 				DisplayOrder: &order,
-				IsVisible:    true,
+				IsVisible:    f.IsVisible,
 			}
 			if err := tx.Create(&tf).Error; err != nil {
 				slog.Error("не удалось создать поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
@@ -479,4 +496,69 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 		}
 		return nil
 	})
+}
+
+// SeedMissingFields добавляет недостающие default-поля во все существующие таблицы.
+// Уже существующие поля не трогает (сохраняет ранее настроенную видимость).
+// Идемпотентна - повторные вызовы безопасны. Вызывается один раз при старте сервиса.
+func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
+	var tables []models.SystemTable
+	if err := s.db.WithContext(ctx).
+		Where("is_active = ?", true).
+		Find(&tables).Error; err != nil {
+		return fmt.Errorf("load tables: %w", err)
+	}
+
+	added := 0
+	for _, t := range tables {
+		defaults := getDefaultFields(t.TableType)
+		if len(defaults) == 0 {
+			continue
+		}
+
+		var existing []models.TableField
+		if err := s.db.WithContext(ctx).
+			Where("table_id = ?", t.ID).
+			Find(&existing).Error; err != nil {
+			slog.Error("не удалось загрузить существующие поля таблицы",
+				"table_id", t.ID, "error", err)
+			continue
+		}
+
+		existingSet := make(map[string]bool, len(existing))
+		maxOrder := -1
+		for _, f := range existing {
+			existingSet[f.FieldName] = true
+			if f.DisplayOrder != nil && *f.DisplayOrder > maxOrder {
+				maxOrder = *f.DisplayOrder
+			}
+		}
+
+		for _, d := range defaults {
+			if existingSet[d.Name] {
+				continue
+			}
+			maxOrder++
+			order := maxOrder
+			fieldType := d.FieldType
+			tf := models.TableField{
+				TableID:      t.ID,
+				FieldName:    d.Name,
+				FieldType:    &fieldType,
+				DisplayOrder: &order,
+				IsVisible:    d.IsVisible,
+			}
+			if err := s.db.WithContext(ctx).Create(&tf).Error; err != nil {
+				slog.Error("не удалось добавить отсутствующее поле",
+					"table_id", t.ID, "field", d.Name, "error", err)
+				continue
+			}
+			added++
+		}
+	}
+
+	if added > 0 {
+		slog.Info("досидил отсутствующие поля таблиц (#345)", "added", added)
+	}
+	return nil
 }
