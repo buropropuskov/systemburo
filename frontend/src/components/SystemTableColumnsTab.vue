@@ -32,13 +32,13 @@
         }"
         :data-field="field.field_name"
         :data-index="index"
+        @pointerdown="onItemPointerDown(index, $event)"
       >
         <div class="columns-tab__row">
           <span
             class="columns-tab__handle"
             :title="'Перетащите для смены порядка'"
             aria-hidden="true"
-            @pointerdown="onHandlePointerDown(index, $event)"
           >
             <svg
               width="14"
@@ -84,7 +84,10 @@
               />
             </svg>
           </span>
-          <label class="columns-tab__check-row">
+          <label
+            class="columns-tab__check-row"
+            @pointerdown.stop
+          >
             <input
               v-model="field.is_visible"
               type="checkbox"
@@ -268,11 +271,12 @@ export default {
     },
     /**
      * Pointer-events DnD (вместо HTML5 native, который не даёт контроля над курсором).
-     * - mousedown на handle: запускаем drag, ставим body cursor=grabbing.
-     * - mousemove document: определяем элемент под курсором, midpoint-swap.
-     * - mouseup document: останавливаем drag, восстанавливаем курсор.
+     * - pointerdown на любом месте элемента (кроме чекбокса): запускаем drag.
+     * - pointermove document: определяем элемент под курсором, midpoint-swap.
+     * - pointerup document: останавливаем drag, восстанавливаем курсор.
+     * Чекбокс/label имеет @pointerdown.stop - клик на нём не запускает drag.
      */
-    onHandlePointerDown(index, event) {
+    onItemPointerDown(index, event) {
       event.preventDefault();
       this.draggingIndex = index;
       // Глобальный курсор - захватываем body, чтобы grabbing был везде куда мышь идёт.
@@ -403,6 +407,13 @@ export default {
   border-radius: 10px;
   transition: opacity 0.15s ease, background-color 0.2s ease;
   background: #fff;
+  /* Весь элемент - drag-source. Чекбокс/label имеет @pointerdown.stop,
+     так что клик на нём не перехватывается drag-логикой. */
+  cursor: grab;
+}
+
+.columns-tab__item:active {
+  cursor: grabbing;
 }
 
 .columns-tab__item:hover {
@@ -461,6 +472,10 @@ export default {
   flex: 1;
   cursor: pointer;
   padding: 4px;
+}
+
+.columns-tab__check-row:hover {
+  cursor: pointer;
 }
 
 .columns-tab__checkbox {
