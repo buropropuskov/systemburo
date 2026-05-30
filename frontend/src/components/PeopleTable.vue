@@ -1,5 +1,9 @@
 <template>
-  <div class="selected-table-card">
+  <div
+    class="selected-table-card"
+    :class="{ 'enlarged': enlarged }"
+    data-testid="people-table"
+  >
     <div class="card-header">
       <div class="card-header__title">
         <h3 class="card-title">
@@ -14,6 +18,10 @@
             @click="openEmployeesHistory"
           >История</button>
         </span>
+        <EnlargedToggle
+          v-model="enlarged"
+          data-testid="enlarged-toggle"
+        />
         <RefreshButton
           :loading="refreshing"
           @refresh="loadData"
@@ -273,6 +281,9 @@ import RefreshButton from './RefreshButton.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 import StatusBadge from './ui/StatusBadge.vue';
+import EnlargedToggle from './ui/EnlargedToggle.vue';
+
+const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
 
 export default {
   name: 'PeopleTable',
@@ -280,7 +291,8 @@ export default {
     RefreshButton,
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
-    StatusBadge
+    StatusBadge,
+    EnlargedToggle
   },
   props: {
     tableName: {
@@ -335,7 +347,8 @@ export default {
       showDetailsModal: false,
       selectedEmployee: null,
       showEmployeesHistory: false,
-      pollingInterval: null
+      pollingInterval: null,
+      enlarged: false
     };
   },
   computed: {
@@ -436,12 +449,17 @@ export default {
       handler() {
         this.stopPolling();
         this.startPolling();
+        this.loadEnlargedFromStorage();
       },
       immediate: true
+    },
+    enlarged(value) {
+      this.saveEnlargedToStorage(value);
     }
   },
   mounted() {
     this.startPolling();
+    this.loadEnlargedFromStorage();
     // Подгружаем настроенные длительности уведомлений после авторизации
     // (на холодном старте App.vue запрос мог уйти до получения токена).
     useDeletionsStore().loadDurations();
@@ -737,6 +755,26 @@ export default {
       if (this.pollingInterval) {
         clearInterval(this.pollingInterval);
         this.pollingInterval = null;
+      }
+    },
+
+    enlargedStorageKey() {
+      return `${ENLARGED_KEY_PREFIX}${this.tableName || 'default'}`;
+    },
+
+    loadEnlargedFromStorage() {
+      try {
+        this.enlarged = localStorage.getItem(this.enlargedStorageKey()) === '1';
+      } catch {
+        this.enlarged = false;
+      }
+    },
+
+    saveEnlargedToStorage(value) {
+      try {
+        localStorage.setItem(this.enlargedStorageKey(), value ? '1' : '0');
+      } catch {
+        /* localStorage недоступен - игнорируем */
       }
     }
   }
@@ -1075,6 +1113,30 @@ export default {
 
 .fade-list-move {
   transition: transform 0.3s ease;
+}
+
+/* "Увеличенный режим": крупный шрифт строк, bold фамилии, скрытый статус.
+   Освободившуюся ширину забирает organization-col через flex-grow. */
+.selected-table-card.enlarged .items-body .col,
+.selected-table-card.enlarged .header-row .col {
+  font-size: 18px;
+}
+
+.selected-table-card.enlarged .items-body .last-name-col {
+  font-weight: 700;
+}
+
+.selected-table-card.enlarged .status-col {
+  display: none;
+}
+
+.selected-table-card.enlarged .organization-col {
+  flex-grow: 1;
+}
+
+.selected-table-card.enlarged .item-data,
+.selected-table-card.enlarged .header-row {
+  min-height: 36px;
 }
 
 @media (max-width: 768px) {
