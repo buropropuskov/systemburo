@@ -473,8 +473,8 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 
 
 
-// UpdateFields bulk-обновляет видимость столбцов таблицы по field_name.
-// Поля, отсутствующие в БД, игнорируются.
+// UpdateFields bulk-обновляет видимость и (опционально) порядок столбцов таблицы.
+// Поля, отсутствующие в БД, игнорируются. DisplayOrder применяется только если задан.
 func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error {
 	var table models.SystemTable
 	if err := s.db.WithContext(ctx).Where("id = ?", tableID).First(&table).Error; err != nil {
@@ -486,13 +486,19 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, f := range req.Fields {
+			updates := map[string]interface{}{
+				"is_visible": f.IsVisible,
+			}
+			if f.DisplayOrder != nil {
+				updates["display_order"] = *f.DisplayOrder
+			}
 			result := tx.Model(&models.TableField{}).
 				Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
-				Update("is_visible", f.IsVisible)
+				Updates(updates)
 			if result.Error != nil {
-				slog.Error("не удалось обновить видимость столбца",
+				slog.Error("не удалось обновить столбец",
 					"table_id", tableID, "field", f.FieldName, "error", result.Error)
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating field visibility")
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating field")
 			}
 		}
 		return nil

@@ -315,3 +315,39 @@ func TestSystemTables_UpdateFields_Unauthorized(t *testing.T) {
 	rec := testutil.PUT(t, e, "/system-tables/1/fields", body, nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+func TestSystemTables_UpdateFields_PersistsDisplayOrder(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"order_test","display_name":"OT","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Меняем порядок: car_brand -> 0, car_number -> 5 (всё остальное оставляем без изменений).
+	body := `{"fields":[
+		{"field_name":"car_brand","is_visible":true,"display_order":0},
+		{"field_name":"car_number","is_visible":true,"display_order":5}
+	]}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/fields", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	fields := testutil.ParseMap(t, rec)["fields"].([]interface{})
+
+	orderByName := map[string]int{}
+	for _, f := range fields {
+		fm := f.(map[string]interface{})
+		if order, ok := fm["display_order"].(float64); ok {
+			orderByName[fm["field_name"].(string)] = int(order)
+		}
+	}
+	assert.Equal(t, 0, orderByName["car_brand"], "car_brand должен иметь display_order 0")
+	assert.Equal(t, 5, orderByName["car_number"], "car_number должен иметь display_order 5")
+}

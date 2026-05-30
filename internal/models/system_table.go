@@ -132,10 +132,12 @@ type UpdateTimeSlotRequest struct {
 	IsActive  *bool   `json:"is_active"`
 }
 
-// FieldVisibilityUpdate -- одиночное обновление видимости столбца таблицы (#345).
+// FieldVisibilityUpdate -- одиночное обновление видимости и порядка столбца (#345).
+// DisplayOrder опционален - если не передан, порядок не меняется.
 type FieldVisibilityUpdate struct {
-	FieldName string `json:"field_name" validate:"required"`
-	IsVisible bool   `json:"is_visible"`
+	FieldName    string `json:"field_name" validate:"required"`
+	IsVisible    bool   `json:"is_visible"`
+	DisplayOrder *int   `json:"display_order"`
 }
 
 // UpdateFieldsRequest -- bulk-обновление видимости столбцов системной таблицы.

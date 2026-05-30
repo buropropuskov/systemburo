@@ -21,21 +21,45 @@
       class="columns-tab__list"
     >
       <li
-        v-for="field in localFields"
+        v-for="(field, index) in localFields"
         :key="field.field_name"
         class="columns-tab__item"
         :class="{ 'columns-tab__item--off': !field.is_visible }"
       >
-        <label class="columns-tab__row">
-          <input
-            v-model="field.is_visible"
-            type="checkbox"
-            class="columns-tab__checkbox"
-            :data-field="field.field_name"
-          >
-          <span class="columns-tab__label">{{ humanLabel(field.field_name) }}</span>
-          <span class="columns-tab__field-name">{{ field.field_name }}</span>
-        </label>
+        <div class="columns-tab__row">
+          <div class="columns-tab__order">
+            <button
+              type="button"
+              class="columns-tab__order-btn"
+              :disabled="index === 0"
+              :data-action="`move-up-${field.field_name}`"
+              :title="'Переместить вверх'"
+              @click="moveUp(index)"
+            >
+              &uarr;
+            </button>
+            <button
+              type="button"
+              class="columns-tab__order-btn"
+              :disabled="index === localFields.length - 1"
+              :data-action="`move-down-${field.field_name}`"
+              :title="'Переместить вниз'"
+              @click="moveDown(index)"
+            >
+              &darr;
+            </button>
+          </div>
+          <label class="columns-tab__check-row">
+            <input
+              v-model="field.is_visible"
+              type="checkbox"
+              class="columns-tab__checkbox"
+              :data-field="field.field_name"
+            >
+            <span class="columns-tab__label">{{ humanLabel(field.field_name) }}</span>
+            <span class="columns-tab__field-name">{{ field.field_name }}</span>
+          </label>
+        </div>
       </li>
     </ul>
 
@@ -105,7 +129,8 @@ export default {
   data() {
     return {
       localFields: [],
-      original: {},
+      originalVisibility: {},
+      originalOrder: [],
       saving: false,
       statusMessage: '',
       statusError: false,
@@ -116,7 +141,13 @@ export default {
       return this.localFields;
     },
     isDirty() {
-      return this.localFields.some(f => this.original[f.field_name] !== f.is_visible);
+      const visibilityChanged = this.localFields.some(
+        f => this.originalVisibility[f.field_name] !== f.is_visible,
+      );
+      const orderChanged = this.localFields.some(
+        (f, i) => this.originalOrder[i] !== f.field_name,
+      );
+      return visibilityChanged || orderChanged;
     },
   },
   watch: {
@@ -132,15 +163,34 @@ export default {
       return FIELD_LABELS[name] || name;
     },
     reset() {
-      this.localFields = (this.fields || []).map(f => ({
+      // Сортируем по display_order, чтобы порядок в админке отражал реальный.
+      const sorted = [...(this.fields || [])].sort((a, b) => {
+        const ao = a.display_order ?? 0;
+        const bo = b.display_order ?? 0;
+        return ao - bo;
+      });
+      this.localFields = sorted.map(f => ({
         field_name: f.field_name,
         is_visible: f.is_visible !== false,
       }));
-      this.original = Object.fromEntries(
+      this.originalVisibility = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.is_visible]),
       );
+      this.originalOrder = this.localFields.map(f => f.field_name);
       this.statusMessage = '';
       this.statusError = false;
+    },
+    moveUp(index) {
+      if (index <= 0) return;
+      const arr = this.localFields.slice();
+      [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
+      this.localFields = arr;
+    },
+    moveDown(index) {
+      if (index >= this.localFields.length - 1) return;
+      const arr = this.localFields.slice();
+      [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+      this.localFields = arr;
     },
     async save() {
       if (!this.isDirty || this.saving) return;
@@ -152,9 +202,10 @@ export default {
         const response = await apiRequest(`/system-tables/${this.tableId}/fields`, {
           method: 'PUT',
           body: JSON.stringify({
-            fields: this.localFields.map(f => ({
+            fields: this.localFields.map((f, i) => ({
               field_name: f.field_name,
               is_visible: f.is_visible,
+              display_order: i,
             })),
           }),
         });
@@ -162,10 +213,11 @@ export default {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.message || `HTTP ${response.status}`);
         }
-        this.statusMessage = 'Видимость столбцов сохранена';
-        this.original = Object.fromEntries(
+        this.statusMessage = 'Настройки столбцов сохранены';
+        this.originalVisibility = Object.fromEntries(
           this.localFields.map(f => [f.field_name, f.is_visible]),
         );
+        this.originalOrder = this.localFields.map(f => f.field_name);
         this.$emit('update');
       } catch (e) {
         this.statusError = true;
@@ -241,10 +293,52 @@ export default {
 .columns-tab__row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
+  gap: 8px;
+  padding: 6px 10px;
   user-select: none;
+}
+
+.columns-tab__order {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.columns-tab__order-btn {
+  width: 24px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  color: #4F5BDF;
+  transition: all 0.15s ease;
+}
+
+.columns-tab__order-btn:hover:not(:disabled) {
+  background: #f0f4ff;
+  border-color: #4F5BDF;
+}
+
+.columns-tab__order-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+  color: #a2a2a2;
+}
+
+.columns-tab__check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  cursor: pointer;
+  padding: 4px 4px 4px 8px;
 }
 
 .columns-tab__checkbox {
