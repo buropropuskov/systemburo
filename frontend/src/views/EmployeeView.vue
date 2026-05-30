@@ -757,14 +757,18 @@ export default {
     overflow-y: auto;
 }
 
-/* Заголовок таблицы */
+/* employees-header повторяет геометрию employees-body (padding-right + margin-right 4px),
+   чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .employees-header {
     border-bottom: 1px solid #e6e6e6;
-    padding: 12px 16px;
     flex-shrink: 0;
+    padding-right: 4px;
+    margin-right: 4px;
 }
 
+/* header-row повторяет геометрию employee-row: padding 12/16 + flex. */
 .header-row {
+    padding: 12px 16px;
     display: flex;
     width: 100%;
     align-items: center;

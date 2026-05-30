@@ -1160,9 +1160,11 @@ export default {
 }
 
 /* "Увеличенный режим": плавный переход в обе стороны.
-   Анимируем width status/organization, font-size данных, min-height строки. */
-.selected-table-card .items-body .col {
-  transition: font-size 0.4s ease-in-out;
+   Transition объединён на .col (font-size + width + opacity), чтобы избежать
+   конфликта специфичности (раньше .items-body .col перекрывал отдельные
+   правила .status-col / .organization-col и данные не анимировались). */
+.selected-table-card .col {
+  transition: font-size 0.4s ease-in-out, width 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
 .selected-table-card .item-data {
@@ -1170,12 +1172,7 @@ export default {
 }
 
 .selected-table-card .status-col {
-  transition: width 0.4s ease-in-out, opacity 0.3s ease-in-out;
   overflow: hidden;
-}
-
-.selected-table-card .organization-col {
-  transition: width 0.4s ease-in-out;
 }
 
 .selected-table-card.enlarged .items-body .col {
@@ -1186,7 +1183,8 @@ export default {
   font-weight: 700;
 }
 
-/* Освобождённую ширину status-col (7%) переливаем в organization-col (18% -> 25%). */
+/* Освобождённую ширину status-col (7%) переливаем в organization-col (18% -> 25%).
+   Сумма ширин не меняется - layout идеально сходится в обе стороны. */
 .selected-table-card.enlarged .status-col {
   width: 0;
   opacity: 0;
