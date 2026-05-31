@@ -351,3 +351,41 @@ func TestSystemTables_UpdateFields_PersistsDisplayOrder(t *testing.T) {
 	assert.Equal(t, 0, orderByName["car_brand"], "car_brand должен иметь display_order 0")
 	assert.Equal(t, 5, orderByName["car_number"], "car_number должен иметь display_order 5")
 }
+
+func TestSystemTables_UpdateFields_PersistsWidth(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"width_test","display_name":"WT","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Меняем ширину для car_number и organization.
+	body := `{"fields":[
+		{"field_name":"car_number","is_visible":true,"width":20},
+		{"field_name":"organization","is_visible":true,"width":30}
+	]}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/fields", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	fields := testutil.ParseMap(t, rec)["fields"].([]interface{})
+
+	widthByName := map[string]int{}
+	for _, f := range fields {
+		fm := f.(map[string]interface{})
+		if w, ok := fm["width"].(float64); ok {
+			widthByName[fm["field_name"].(string)] = int(w)
+		}
+	}
+	assert.Equal(t, 20, widthByName["car_number"], "car_number ширина 20")
+	assert.Equal(t, 30, widthByName["organization"], "organization ширина 30")
+	// car_brand не трогали - должен сохранить дефолт (9).
+	assert.Equal(t, 9, widthByName["car_brand"], "car_brand остаётся 9 (дефолт)")
+}

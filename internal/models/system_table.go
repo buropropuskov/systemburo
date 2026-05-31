@@ -75,7 +75,10 @@ type TableField struct {
 	FieldType    *string     `gorm:"size:50" json:"field_type"`
 	DisplayOrder *int        `json:"display_order"`
 	IsVisible    bool        `gorm:"default:true" json:"is_visible"`
-	CreatedAt    time.Time   `json:"created_at"`
+	// Width - относительный вес ширины столбца. Используется как flex-grow:
+	// браузер делит доступную ширину пропорционально весам видимых столбцов.
+	Width     int       `gorm:"default:10" json:"width"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // SystemTableWithDetails -- таблица с полями, слотами, фото и текущим статусом (открыто/закрыто).
@@ -132,12 +135,13 @@ type UpdateTimeSlotRequest struct {
 	IsActive  *bool   `json:"is_active"`
 }
 
-// FieldVisibilityUpdate -- одиночное обновление видимости и порядка столбца (#345).
-// DisplayOrder опционален - если не передан, порядок не меняется.
+// FieldVisibilityUpdate -- одиночное обновление видимости, порядка и ширины столбца (#345).
+// DisplayOrder и Width опциональны - если не переданы, не меняются.
 type FieldVisibilityUpdate struct {
 	FieldName    string `json:"field_name" validate:"required"`
 	IsVisible    bool   `json:"is_visible"`
 	DisplayOrder *int   `json:"display_order"`
+	Width        *int   `json:"width"`
 }
 
 // UpdateFieldsRequest -- bulk-обновление видимости столбцов системной таблицы.
