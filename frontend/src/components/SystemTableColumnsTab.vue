@@ -94,6 +94,20 @@
             <span class="columns-tab__label">{{ humanLabel(field.field_name) }}</span>
             <span class="columns-tab__field-name">{{ field.field_name }}</span>
           </label>
+          <div
+            class="columns-tab__width"
+            :title="'Ширина столбца (вес flex-grow). Браузер делит доступную ширину пропорционально весам видимых столбцов.'"
+          >
+            <input
+              v-model.number="field.width"
+              type="number"
+              min="1"
+              max="100"
+              class="columns-tab__width-input"
+              :data-width-field="field.field_name"
+            >
+            <span class="columns-tab__width-unit">w</span>
+          </div>
         </div>
       </li>
     </TransitionGroup>
@@ -204,6 +218,7 @@ export default {
       localFields: [],
       originalVisibility: {},
       originalOrder: [],
+      originalWidth: {},
       saving: false,
       statusMessage: '',
       statusError: false,
@@ -213,11 +228,12 @@ export default {
   },
   computed: {
     previewFieldsWithOrder() {
-      // Передаём текущий локальный порядок в превью, чтобы оно реагировало до save.
+      // Передаём текущий локальный порядок+ширину в превью, чтобы оно реагировало до save.
       return this.localFields.map((f, i) => ({
         field_name: f.field_name,
         is_visible: f.is_visible,
         display_order: i,
+        width: f.width,
       }));
     },
     sampleItems() {
@@ -230,7 +246,10 @@ export default {
       const orderChanged = this.localFields.some(
         (f, i) => this.originalOrder[i] !== f.field_name,
       );
-      return visibilityChanged || orderChanged;
+      const widthChanged = this.localFields.some(
+        f => this.originalWidth[f.field_name] !== f.width,
+      );
+      return visibilityChanged || orderChanged || widthChanged;
     },
   },
   watch: {
@@ -258,11 +277,15 @@ export default {
       this.localFields = sorted.map(f => ({
         field_name: f.field_name,
         is_visible: f.is_visible !== false,
+        width: typeof f.width === 'number' && f.width > 0 ? f.width : 10,
       }));
       this.originalVisibility = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.is_visible]),
       );
       this.originalOrder = this.localFields.map(f => f.field_name);
+      this.originalWidth = Object.fromEntries(
+        this.localFields.map(f => [f.field_name, f.width]),
+      );
       this.statusMessage = '';
       this.statusError = false;
     },
@@ -329,6 +352,7 @@ export default {
               field_name: f.field_name,
               is_visible: f.is_visible,
               display_order: i,
+              width: Math.max(1, Math.min(100, Number(f.width) || 10)),
             })),
           }),
         });
@@ -341,6 +365,9 @@ export default {
           this.localFields.map(f => [f.field_name, f.is_visible]),
         );
         this.originalOrder = this.localFields.map(f => f.field_name);
+        this.originalWidth = Object.fromEntries(
+          this.localFields.map(f => [f.field_name, f.width]),
+        );
         this.$emit('update');
       } catch (e) {
         this.statusError = true;
@@ -486,6 +513,42 @@ export default {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   color: #c0c0c0;
+}
+
+.columns-tab__width {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-right: 6px;
+}
+
+.columns-tab__width-input {
+  width: 42px;
+  padding: 3px 6px;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: right;
+  color: #333;
+  background: #fff;
+  -moz-appearance: textfield;
+}
+
+.columns-tab__width-input::-webkit-outer-spin-button,
+.columns-tab__width-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.columns-tab__width-input:focus {
+  outline: none;
+  border-color: #4F5BDF;
+}
+
+.columns-tab__width-unit {
+  font-size: 11px;
+  color: #a2a2a2;
 }
 
 .columns-tab__actions {

@@ -423,7 +423,8 @@ export default {
       pollingInterval: null,
       enlarged: false,
       fieldsVisibility: {},
-      fieldOrders: {}
+      fieldOrders: {},
+      fieldWidths: {}
     };
   },
   computed: {
@@ -551,12 +552,15 @@ export default {
         if (!this.preview || !Array.isArray(newVal)) return;
         const nextVis = {};
         const nextOrd = {};
+        const nextW = {};
         newVal.forEach((f, i) => {
           nextVis[f.field_name] = f.is_visible !== false;
           nextOrd[f.field_name] = typeof f.display_order === 'number' ? f.display_order : i;
+          if (typeof f.width === 'number' && f.width > 0) nextW[f.field_name] = f.width;
         });
         this.fieldsVisibility = nextVis;
         this.fieldOrders = nextOrd;
+        this.fieldWidths = nextW;
       }
     }
   },
@@ -952,14 +956,17 @@ export default {
     },
 
     /**
-     * CSS-order для конфигурируемой ячейки. Фиксированные колонки (Въезд/Выезд/Действия)
-     * имеют статические order в шаблоне; конфигурируемые получают 10 + display_order,
-     * чтобы оставаться между фиксированными.
+     * Стиль конфигурируемой ячейки:
+     * - order: 10 + display_order (между фиксированными entry/exit/actions).
+     * - flex-grow: width из конфига (если задан) - переопределяет дефолт из CSS.
      */
     getColStyle(fieldName) {
       const order = this.fieldOrders[fieldName];
-      if (order === undefined) return null;
-      return { order: 10 + order };
+      const width = this.fieldWidths[fieldName];
+      const style = {};
+      if (order !== undefined) style.order = 10 + order;
+      if (width !== undefined && width > 0) style.flexGrow = width;
+      return Object.keys(style).length ? style : null;
     },
 
     async fetchFieldsVisibility() {
@@ -970,14 +977,19 @@ export default {
         const data = await response.json();
         const nextVis = {};
         const nextOrd = {};
+        const nextW = {};
         (data.fields || []).forEach(f => {
           nextVis[f.field_name] = f.is_visible !== false;
           if (typeof f.display_order === 'number') {
             nextOrd[f.field_name] = f.display_order;
           }
+          if (typeof f.width === 'number' && f.width > 0) {
+            nextW[f.field_name] = f.width;
+          }
         });
         this.fieldsVisibility = nextVis;
         this.fieldOrders = nextOrd;
+        this.fieldWidths = nextW;
       } catch (error) {
         console.error('Ошибка загрузки настроек столбцов:', error);
       }

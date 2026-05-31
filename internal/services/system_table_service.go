@@ -229,46 +229,46 @@ func (s *systemTableService) GetByName(ctx context.Context, name string) (*model
 }
 
 // defaultField -- описание поля по умолчанию для нового типа таблицы.
-// IsVisible определяет, включён ли столбец сразу при создании таблицы.
-// "Базовые" столбцы видимы, "дополнительные" - скрыты и включаются админом по необходимости.
+// IsVisible: включён ли столбец сразу при создании таблицы.
+// Width: относительный вес ширины (flex-grow) - браузер делит ширину пропорционально.
 type defaultField struct {
 	Name      string
 	FieldType string
 	IsVisible bool
+	Width     int
 }
 
 // getDefaultFields возвращает набор полей по умолчанию для типа таблицы.
-// Видимые сразу после создания таблицы - типовые поля гостевого пропуска.
-// Скрытые - расширенные поля (компания, должность, гражданство и т.п.),
-// которые админ может включить в "Колонки".
+// Базовые - видимы сразу. Расширенные - скрыты, включаются админом в "Колонки".
+// Width - относительный вес flex-grow, подобранный под типичный контент столбца.
 func getDefaultFields(tableType string) []defaultField {
 	switch tableType {
 	case "cars":
 		return []defaultField{
-			{"car_number", "text", true},
-			{"car_brand", "text", true},
-			{"organization", "text", true},
-			{"unload_place", "text", true},
-			{"valid_until", "date", true},
-			{"time_range", "text", true},
-			{"status", "text", true},
+			{"car_number", "text", true, 10},
+			{"car_brand", "text", true, 9},
+			{"organization", "text", true, 18},
+			{"unload_place", "text", true, 15},
+			{"valid_until", "date", true, 12},
+			{"time_range", "text", true, 10},
+			{"status", "text", true, 7},
 			// Расширенные (по умолчанию скрытые)
-			{"company", "text", false},
-			{"application_id", "text", false},
+			{"company", "text", false, 12},
+			{"application_id", "text", false, 12},
 		}
 	case "people":
 		return []defaultField{
-			{"organization", "text", true},
-			{"last_name", "text", true},
-			{"first_name", "text", true},
-			{"middle_name", "text", true},
-			{"valid_until", "date", true},
-			{"pass_time", "text", true},
+			{"organization", "text", true, 16},
+			{"last_name", "text", true, 14},
+			{"first_name", "text", true, 9},
+			{"middle_name", "text", true, 11},
+			{"valid_until", "date", true, 11},
+			{"pass_time", "text", true, 13},
 			// Расширенные (по умолчанию скрытые)
-			{"position", "text", false},
-			{"citizenship_name", "text", false},
-			{"company", "text", false},
-			{"application_id", "text", false},
+			{"position", "text", false, 11},
+			{"citizenship_name", "text", false, 10},
+			{"company", "text", false, 11},
+			{"application_id", "text", false, 12},
 		}
 	default:
 		return nil
@@ -328,6 +328,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 				FieldType:    &fieldType,
 				DisplayOrder: &order,
 				IsVisible:    f.IsVisible,
+				Width:        f.Width,
 			}
 			if err := tx.Create(&tf).Error; err != nil {
 				slog.Error("не удалось создать поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
@@ -492,6 +493,9 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 			if f.DisplayOrder != nil {
 				updates["display_order"] = *f.DisplayOrder
 			}
+			if f.Width != nil {
+				updates["width"] = *f.Width
+			}
 			result := tx.Model(&models.TableField{}).
 				Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
 				Updates(updates)
@@ -541,6 +545,28 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 			}
 		}
 
+		// Backfill: для существующих полей с width=0 (старые записи без width) -
+		// проставляем дефолтную ширину из getDefaultFields.
+		defaultsByName := make(map[string]defaultField, len(defaults))
+		for _, d := range defaults {
+			defaultsByName[d.Name] = d
+		}
+		for _, f := range existing {
+			if f.Width != 0 {
+				continue
+			}
+			d, ok := defaultsByName[f.FieldName]
+			if !ok || d.Width == 0 {
+				continue
+			}
+			if err := s.db.WithContext(ctx).Model(&models.TableField{}).
+				Where("id = ?", f.ID).
+				Update("width", d.Width).Error; err != nil {
+				slog.Error("не удалось backfill width",
+					"table_id", t.ID, "field", f.FieldName, "error", err)
+			}
+		}
+
 		for _, d := range defaults {
 			if existingSet[d.Name] {
 				continue
@@ -554,6 +580,7 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 				FieldType:    &fieldType,
 				DisplayOrder: &order,
 				IsVisible:    d.IsVisible,
+				Width:        d.Width,
 			}
 			if err := s.db.WithContext(ctx).Create(&tf).Error; err != nil {
 				slog.Error("не удалось добавить отсутствующее поле",
