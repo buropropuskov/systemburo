@@ -1,5 +1,27 @@
 <template>
   <div class="appearance-tab">
+    <div class="appearance-tab__header-top">
+      <h4 class="appearance-tab__header-title">
+        Оформление таблицы
+      </h4>
+      <div class="appearance-tab__actions">
+        <button
+          class="appearance-tab__btn appearance-tab__btn--secondary"
+          :disabled="!isDirty || saving"
+          @click="reset"
+        >
+          Отменить
+        </button>
+        <button
+          class="appearance-tab__btn appearance-tab__btn--primary"
+          :disabled="!isDirty || saving"
+          data-testid="appearance-save"
+          @click="save"
+        >
+          {{ saving ? 'Сохраняем...' : 'Сохранить' }}
+        </button>
+      </div>
+    </div>
     <div class="appearance-tab__section">
       <h4 class="appearance-tab__title">
         Размер шрифта строк
@@ -51,23 +73,6 @@
       </div>
     </div>
 
-    <div class="appearance-tab__actions">
-      <button
-        class="appearance-tab__btn appearance-tab__btn--secondary"
-        :disabled="!isDirty || saving"
-        @click="reset"
-      >
-        Отменить
-      </button>
-      <button
-        class="appearance-tab__btn appearance-tab__btn--primary"
-        :disabled="!isDirty || saving"
-        data-testid="appearance-save"
-        @click="save"
-      >
-        {{ saving ? 'Сохраняем...' : 'Сохранить' }}
-      </button>
-    </div>
   </div>
 </template>
 
@@ -171,6 +176,22 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  line-height: 1.5;
+}
+
+.appearance-tab__header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.appearance-tab__header-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
 }
 
 .appearance-tab__section {
@@ -190,7 +211,7 @@ export default {
   margin: 0;
   font-size: 12px;
   color: #6b7280;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .appearance-tab__row {

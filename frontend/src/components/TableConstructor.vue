@@ -133,57 +133,63 @@
         class="details-section"
       >
         <div class="details-tabs">
-          <button 
-            class="tab-btn" 
-            :class="{ 'active': activeTab === 'main' }"
-            @click="activeTab = 'main'"
-          >
-            Основное
-          </button>
-          <button 
-            class="tab-btn" 
-            :class="{ 'active': activeTab === 'schedule' }"
-            @click="activeTab = 'schedule'"
-          >
-            Расписание
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ 'active': activeTab === 'location' }"
-            @click="activeTab = 'location'"
-          >
-            Местоположение
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ 'active': activeTab === 'columns' }"
-            @click="activeTab = 'columns'"
-          >
-            Колонки
-          </button>
-          <button
-            class="tab-btn"
-            :class="{ 'active': activeTab === 'appearance' }"
-            @click="activeTab = 'appearance'"
-          >
-            Оформление
-          </button>
-          <button
+          <div class="details-tabs__row">
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'main' }"
+              @click="activeTab = 'main'"
+            >
+              Основное
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'schedule' }"
+              @click="activeTab = 'schedule'"
+            >
+              Расписание
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'location' }"
+              @click="activeTab = 'location'"
+            >
+              Местоположение
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'columns' }"
+              @click="activeTab = 'columns'"
+            >
+              Колонки
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'appearance' }"
+              @click="activeTab = 'appearance'"
+            >
+              Оформление
+            </button>
+          </div>
+          <div
             v-if="selectedTable.table.show_fact_table"
-            class="tab-btn"
-            :class="{ 'active': activeTab === 'fact-columns' }"
-            @click="activeTab = 'fact-columns'"
+            class="details-tabs__row details-tabs__row--fact"
           >
-            Колонки (факт)
-          </button>
-          <button
-            v-if="selectedTable.table.show_fact_table"
-            class="tab-btn"
-            :class="{ 'active': activeTab === 'fact-appearance' }"
-            @click="activeTab = 'fact-appearance'"
-          >
-            Оформление (факт)
-          </button>
+            <span class="details-tabs__group-label">По факту:</span>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'fact-columns' }"
+              @click="activeTab = 'fact-columns'"
+            >
+              Колонки
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'fact-appearance' }"
+              @click="activeTab = 'fact-appearance'"
+            >
+              Оформление
+            </button>
+          </div>
         </div>
 
         <!-- Вкладка Основное -->
@@ -1320,13 +1326,32 @@ export default {
 
 .details-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
   border-bottom: 1px solid #e6e6e6;
   background: #f8f9fa;
-  padding: 8px 16px 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  padding: 10px 16px 0;
+}
+
+.details-tabs__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.details-tabs__row--fact {
+  padding: 6px 0;
+  border-top: 1px dashed #e0e0e0;
+  margin-top: 2px;
+}
+
+.details-tabs__group-label {
+  font-size: 11px;
+  color: #a2a2a2;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  padding-right: 4px;
 }
 
 .tab-btn {
@@ -1367,6 +1392,7 @@ export default {
   overflow-y: auto;
   padding: 20px;
   background: #fff;
+  line-height: 1.5;
 }
 
 .details-header {
@@ -1376,10 +1402,14 @@ export default {
   margin-bottom: 20px;
 }
 
+/* table-info-title + table-info-row в одну строку:
+   слева - название + тип-бейдж, справа - system-name + status-бейдж. */
 .details-title-wrapper {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .table-info-title {
