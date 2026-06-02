@@ -89,8 +89,15 @@ type TableField struct {
 	Width int `gorm:"default:10" json:"width"`
 	// Priority - приоритет столбца для портретного режима (1-5).
 	// 1 = всегда виден, 2 = виден на компактных экранах, 3-5 = скрывается в портрете.
-	Priority  int       `gorm:"default:3" json:"priority"`
-	CreatedAt time.Time `json:"created_at"`
+	Priority int `gorm:"default:3" json:"priority"`
+	// Настройки для режима "Увеличенный" (#345).
+	// EnlargedIsVisible - видимость в enlarged (по умолчанию true).
+	// EnlargedWidth - вес ширины в enlarged (0 = брать обычный Width).
+	// EnlargedFontWeight - жирность шрифта в enlarged (400/500/600/700; 0 = default 500).
+	EnlargedIsVisible  bool      `gorm:"default:true" json:"enlarged_is_visible"`
+	EnlargedWidth      int       `gorm:"default:0" json:"enlarged_width"`
+	EnlargedFontWeight int       `gorm:"default:0" json:"enlarged_font_weight"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // TableFieldFact - настраиваемые столбцы FactTable. Хранится отдельно от
@@ -171,13 +178,17 @@ type UpdateTimeSlotRequest struct {
 }
 
 // FieldVisibilityUpdate -- одиночное обновление видимости, порядка, ширины и
-// приоритета столбца (#345). DisplayOrder, Width, Priority опциональны.
+// приоритета столбца (#345). DisplayOrder, Width, Priority и enlarged-поля
+// опциональны - не передаются, если их не меняли.
 type FieldVisibilityUpdate struct {
-	FieldName    string `json:"field_name" validate:"required"`
-	IsVisible    bool   `json:"is_visible"`
-	DisplayOrder *int   `json:"display_order"`
-	Width        *int   `json:"width"`
-	Priority     *int   `json:"priority"`
+	FieldName          string `json:"field_name" validate:"required"`
+	IsVisible          bool   `json:"is_visible"`
+	DisplayOrder       *int   `json:"display_order"`
+	Width              *int   `json:"width"`
+	Priority           *int   `json:"priority"`
+	EnlargedIsVisible  *bool  `json:"enlarged_is_visible"`
+	EnlargedWidth      *int   `json:"enlarged_width"`
+	EnlargedFontWeight *int   `json:"enlarged_font_weight"`
 }
 
 // UpdateFieldsRequest -- bulk-обновление видимости столбцов системной таблицы.

@@ -3,8 +3,30 @@
     <div class="columns-tab__header">
       <div class="columns-tab__header-top">
         <h4 class="columns-tab__title">
-          Видимые столбцы
+          {{ enlargedMode ? 'Столбцы в увеличенном режиме' : 'Видимые столбцы' }}
         </h4>
+        <div
+          class="columns-tab__mode-toggle"
+          role="radiogroup"
+          aria-label="Режим настройки"
+        >
+          <button
+            type="button"
+            class="columns-tab__mode-btn"
+            :class="{ 'columns-tab__mode-btn--active': !enlargedMode }"
+            @click="enlargedMode = false"
+          >
+            Обычный
+          </button>
+          <button
+            type="button"
+            class="columns-tab__mode-btn"
+            :class="{ 'columns-tab__mode-btn--active': enlargedMode }"
+            @click="enlargedMode = true"
+          >
+            Увеличенный
+          </button>
+        </div>
         <div class="columns-tab__actions">
           <button
             class="columns-tab__btn columns-tab__btn--secondary"
@@ -22,15 +44,29 @@
           </button>
         </div>
       </div>
-      <p class="columns-tab__hint">
+      <p
+        v-if="!enlargedMode"
+        class="columns-tab__hint"
+      >
         Переставляйте столбцы перетаскиванием за иконку слева. Скрытые столбцы не отображаются в таблице.
       </p>
-      <p class="columns-tab__hint">
+      <p
+        v-if="!enlargedMode"
+        class="columns-tab__hint"
+      >
         <b>Ширина</b> - относительный вес столбца. Браузер делит доступную ширину
         видимых столбцов пропорционально этим весам. <b>Приоритет</b> (1-5) -
         видимость на вертикальном (книжном) экране охранника: 1 - всегда виден,
         2 - виден на узком экране, 3-5 - скрывается и доступен по кнопке "Подробнее"
         под строкой.
+      </p>
+      <p
+        v-else
+        class="columns-tab__hint"
+      >
+        Настройки применяются ТОЛЬКО когда у пользователя включён
+        <b>Увеличенный режим</b> в шапке таблицы. <b>Ширина</b> - 0 значит
+        брать обычную. <b>Жирность</b> - 0 значит дефолт (500).
       </p>
     </div>
 
@@ -111,20 +147,29 @@
           </span>
           <label class="columns-tab__check-row">
             <input
+              v-if="!enlargedMode"
               v-model="field.is_visible"
               type="checkbox"
               class="columns-tab__checkbox"
               :data-field="field.field_name"
+            >
+            <input
+              v-else
+              v-model="field.enlarged_is_visible"
+              type="checkbox"
+              class="columns-tab__checkbox"
+              :data-field-enlarged="field.field_name"
             >
             <span class="columns-tab__label">{{ humanLabel(field.field_name) }}</span>
             <span class="columns-tab__field-name">{{ field.field_name }}</span>
           </label>
           <div
             class="columns-tab__width"
-            :title="'Ширина столбца (вес flex-grow). Браузер делит доступную ширину пропорционально весам видимых столбцов.'"
+            :title="enlargedMode ? 'Ширина в увеличенном режиме (0 = брать обычную)' : 'Ширина столбца (flex-grow). Браузер делит ширину пропорционально весам видимых столбцов.'"
           >
             <span class="columns-tab__width-label">Ширина:</span>
             <input
+              v-if="!enlargedMode"
               v-model.number="field.width"
               type="number"
               min="1"
@@ -132,8 +177,18 @@
               class="columns-tab__width-input"
               :data-width-field="field.field_name"
             >
+            <input
+              v-else
+              v-model.number="field.enlarged_width"
+              type="number"
+              min="0"
+              max="100"
+              class="columns-tab__width-input"
+              :data-enlarged-width-field="field.field_name"
+            >
           </div>
           <div
+            v-if="!enlargedMode"
             class="columns-tab__priority"
             :title="'Приоритет в портретном режиме (1-5). 1 = всегда виден, 2 = виден на узком экране, 3-5 = скрывается в портрете и доступен по кнопке Подробнее.'"
           >
@@ -150,6 +205,25 @@
               >
                 {{ n }}
               </option>
+            </select>
+          </div>
+          <div
+            v-else
+            class="columns-tab__priority"
+            :title="'Жирность шрифта в увеличенном режиме. 0 = по умолчанию (500).'"
+          >
+            <span class="columns-tab__priority-label">Жирность:</span>
+            <select
+              v-model.number="field.enlarged_font_weight"
+              class="columns-tab__priority-select"
+              :data-enlarged-weight-field="field.field_name"
+            >
+              <option :value="0">0</option>
+              <option :value="400">400</option>
+              <option :value="500">500</option>
+              <option :value="600">600</option>
+              <option :value="700">700</option>
+              <option :value="800">800</option>
             </select>
           </div>
         </div>
@@ -246,9 +320,13 @@ export default {
       originalOrder: [],
       originalWidth: {},
       originalPriority: {},
+      originalEnlargedVisibility: {},
+      originalEnlargedWidth: {},
+      originalEnlargedWeight: {},
       saving: false,
       draggingIndex: null,
       prevBodyCursor: '',
+      enlargedMode: false,
     };
   },
   computed: {
@@ -283,7 +361,17 @@ export default {
       const priorityChanged = this.localFields.some(
         f => this.originalPriority[f.field_name] !== f.priority,
       );
-      return visibilityChanged || orderChanged || widthChanged || priorityChanged;
+      const enlargedVisChanged = this.localFields.some(
+        f => this.originalEnlargedVisibility[f.field_name] !== f.enlarged_is_visible,
+      );
+      const enlargedWChanged = this.localFields.some(
+        f => this.originalEnlargedWidth[f.field_name] !== f.enlarged_width,
+      );
+      const enlargedWeightChanged = this.localFields.some(
+        f => this.originalEnlargedWeight[f.field_name] !== f.enlarged_font_weight,
+      );
+      return visibilityChanged || orderChanged || widthChanged || priorityChanged
+        || enlargedVisChanged || enlargedWChanged || enlargedWeightChanged;
     },
   },
   watch: {
@@ -313,6 +401,9 @@ export default {
         is_visible: f.is_visible !== false,
         width: typeof f.width === 'number' && f.width > 0 ? f.width : 10,
         priority: typeof f.priority === 'number' && f.priority > 0 ? f.priority : 3,
+        enlarged_is_visible: f.enlarged_is_visible !== false,
+        enlarged_width: typeof f.enlarged_width === 'number' ? f.enlarged_width : 0,
+        enlarged_font_weight: typeof f.enlarged_font_weight === 'number' ? f.enlarged_font_weight : 0,
       }));
       this.originalVisibility = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.is_visible]),
@@ -323,6 +414,15 @@ export default {
       );
       this.originalPriority = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.priority]),
+      );
+      this.originalEnlargedVisibility = Object.fromEntries(
+        this.localFields.map(f => [f.field_name, f.enlarged_is_visible]),
+      );
+      this.originalEnlargedWidth = Object.fromEntries(
+        this.localFields.map(f => [f.field_name, f.enlarged_width]),
+      );
+      this.originalEnlargedWeight = Object.fromEntries(
+        this.localFields.map(f => [f.field_name, f.enlarged_font_weight]),
       );
     },
     /**
@@ -387,6 +487,9 @@ export default {
               display_order: i,
               width: Math.max(1, Math.min(100, Number(f.width) || 10)),
               priority: Math.max(1, Math.min(5, Number(f.priority) || 3)),
+              enlarged_is_visible: f.enlarged_is_visible !== false,
+              enlarged_width: Math.max(0, Math.min(100, Number(f.enlarged_width) || 0)),
+              enlarged_font_weight: Number(f.enlarged_font_weight) || 0,
             })),
           }),
         });
@@ -404,6 +507,15 @@ export default {
         );
         this.originalPriority = Object.fromEntries(
           this.localFields.map(f => [f.field_name, f.priority]),
+        );
+        this.originalEnlargedVisibility = Object.fromEntries(
+          this.localFields.map(f => [f.field_name, f.enlarged_is_visible]),
+        );
+        this.originalEnlargedWidth = Object.fromEntries(
+          this.localFields.map(f => [f.field_name, f.enlarged_width]),
+        );
+        this.originalEnlargedWeight = Object.fromEntries(
+          this.localFields.map(f => [f.field_name, f.enlarged_font_weight]),
         );
         this.$emit('update');
       } catch (e) {
@@ -436,6 +548,36 @@ export default {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Toggle "Обычный | Увеличенный" - сегмент-контрол как в Оформление. */
+.columns-tab__mode-toggle {
+  display: inline-flex;
+  border: 1px solid #e6e6e6;
+  border-radius: 50px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.columns-tab__mode-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.columns-tab__mode-btn:hover:not(.columns-tab__mode-btn--active) {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.columns-tab__mode-btn--active {
+  background: #4F5BDF;
+  color: #fff;
+  font-weight: 500;
 }
 
 .columns-tab__title {
