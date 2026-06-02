@@ -140,6 +140,8 @@
         <FactTable
           v-if="currentUserId"
           :table-type="tableType"
+          :table-id="tableData?.table?.id"
+          :table-data="tableData"
           :search-query="searchQuery"
           :selected-organization="selectedOrganizationName"
           :selected-unloading-place="selectedUnloadingPlaceName"

@@ -90,6 +90,9 @@ export default {
   props: {
     tableId: { type: Number, required: true },
     table: { type: Object, required: true },
+    // 'main' - читает/пишет font_size, row_density. 'fact' - font_size_fact,
+    // row_density_fact (отдельные настройки для FactTable).
+    variant: { type: String, default: 'main' },
   },
   emits: ['update'],
   data() {
@@ -109,6 +112,12 @@ export default {
     };
   },
   computed: {
+    fontSizeKey() {
+      return this.variant === 'fact' ? 'font_size_fact' : 'font_size';
+    },
+    densityKey() {
+      return this.variant === 'fact' ? 'row_density_fact' : 'row_density';
+    },
     isDirty() {
       return this.fontSize !== this.originalFontSize
         || this.rowDensity !== this.originalDensity;
@@ -125,9 +134,9 @@ export default {
   },
   methods: {
     reset() {
-      const fs = Number(this.table?.font_size);
+      const fs = Number(this.table?.[this.fontSizeKey]);
       this.fontSize = fs >= 10 && fs <= 24 ? fs : DEFAULT_FONT_SIZE;
-      const dens = this.table?.row_density;
+      const dens = this.table?.[this.densityKey];
       this.rowDensity = ['compact', 'normal', 'spacious'].includes(dens) ? dens : DEFAULT_DENSITY;
       this.originalFontSize = this.fontSize;
       this.originalDensity = this.rowDensity;
@@ -144,8 +153,8 @@ export default {
         const response = await apiRequest(`/system-tables/${this.tableId}`, {
           method: 'PUT',
           body: JSON.stringify({
-            font_size: fs,
-            row_density: this.rowDensity,
+            [this.fontSizeKey]: fs,
+            [this.densityKey]: this.rowDensity,
           }),
         });
         if (!response.ok) {

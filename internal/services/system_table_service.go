@@ -44,6 +44,8 @@ type SystemTableService interface {
 
 	// Столбцы таблицы (#345): bulk-обновление видимости.
 	UpdateFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error
+	// Столбцы фактовой таблицы (#345).
+	UpdateFactFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error
 
 	// SeedMissingFields добавляет default-поля, которых ещё нет у существующих таблиц.
 	// Вызывается один раз при старте сервиса для миграции старых таблиц.
@@ -112,6 +114,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 		Preload("Fields", func(db *gorm.DB) *gorm.DB {
 			return db.Order("display_order")
 		}).
+		Preload("FactFields", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order")
+		}).
 		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
 			return db.Order("day_of_week, open_time")
 		}).
@@ -125,6 +130,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 
 	if table.Fields == nil {
 		table.Fields = []models.TableField{}
+	}
+	if table.FactFields == nil {
+		table.FactFields = []models.TableFieldFact{}
 	}
 	if table.TimeSlots == nil {
 		table.TimeSlots = []models.SystemTableTimeSlot{}
@@ -141,6 +149,7 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 	return &models.SystemTableWithDetails{
 		Table:         table,
 		Fields:        table.Fields,
+		FactFields:    table.FactFields,
 		TimeSlots:     table.TimeSlots,
 		Photos:        table.Photos,
 		CurrentStatus: computeCurrentStatus(status, table.TimeSlots),
@@ -152,6 +161,9 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 	tables := make([]models.SystemTable, 0)
 	if err := s.db.WithContext(ctx).
 		Preload("Fields", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order")
+		}).
+		Preload("FactFields", func(db *gorm.DB) *gorm.DB {
 			return db.Order("display_order")
 		}).
 		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
@@ -176,6 +188,10 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 		if fields == nil {
 			fields = []models.TableField{}
 		}
+		factFields := t.FactFields
+		if factFields == nil {
+			factFields = []models.TableFieldFact{}
+		}
 		slots := t.TimeSlots
 		if slots == nil {
 			slots = []models.SystemTableTimeSlot{}
@@ -193,6 +209,7 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 		result = append(result, models.SystemTableWithDetails{
 			Table:         t,
 			Fields:        fields,
+			FactFields:    factFields,
 			TimeSlots:     slots,
 			Photos:        photos,
 			CurrentStatus: computeCurrentStatus(status, slots),
@@ -279,6 +296,45 @@ func getDefaultFields(tableType string) []defaultField {
 	}
 }
 
+// getDefaultFactFields - дефолты для FactTable. Отражают то, что сейчас
+// рендерится FactTable.vue: для cars - organization+car_brand+valid_until+time_range
+// (company скрыт, status/unload_place закомментированы); для people -
+// organization+valid_until+pass_time. Остальные поля каталога - скрыты,
+// чтобы админ мог их включить, если нужно.
+func getDefaultFactFields(tableType string) []defaultField {
+	switch tableType {
+	case "cars":
+		return []defaultField{
+			{"organization", "text", true, 18, 3},
+			{"car_brand", "text", true, 10, 3},
+			{"valid_until", "date", true, 12, 2},
+			{"time_range", "text", true, 10, 3},
+			// Скрыты (как сейчас в хардкоде)
+			{"car_number", "text", false, 10, 1},
+			{"unload_place", "text", false, 15, 3},
+			{"status", "text", false, 7, 2},
+			{"company", "text", false, 12, 4},
+			{"application_id", "text", false, 12, 4},
+		}
+	case "people":
+		return []defaultField{
+			{"organization", "text", true, 18, 3},
+			{"valid_until", "date", true, 12, 2},
+			{"pass_time", "text", true, 12, 3},
+			// Скрыты
+			{"last_name", "text", false, 14, 1},
+			{"first_name", "text", false, 9, 2},
+			{"middle_name", "text", false, 11, 3},
+			{"position", "text", false, 11, 4},
+			{"citizenship_name", "text", false, 10, 4},
+			{"company", "text", false, 11, 4},
+			{"application_id", "text", false, 12, 4},
+		}
+	default:
+		return nil
+	}
+}
+
 // Create создаёт системную таблицу с полями по умолчанию и автогенерацией разрешений.
 func (s *systemTableService) Create(ctx context.Context, req models.CreateSystemTableRequest) (int, error) {
 	// Проверяем уникальность имени
@@ -342,6 +398,28 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 			if err := tx.Create(&tf).Error; err != nil {
 				slog.Error("не удалось создать поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating table fields")
+			}
+		}
+		factFields := getDefaultFactFields(req.TableType)
+		for i, f := range factFields {
+			order := i
+			fieldType := f.FieldType
+			priority := f.Priority
+			if priority == 0 {
+				priority = 3
+			}
+			tff := models.TableFieldFact{
+				TableID:      table.ID,
+				FieldName:    f.Name,
+				FieldType:    &fieldType,
+				DisplayOrder: &order,
+				IsVisible:    f.IsVisible,
+				Width:        f.Width,
+				Priority:     priority,
+			}
+			if err := tx.Create(&tff).Error; err != nil {
+				slog.Error("не удалось создать факт-поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating fact fields")
 			}
 		}
 		return nil
@@ -422,6 +500,20 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 			return echo.NewHTTPError(http.StatusBadRequest, "row_density должен быть compact|normal|spacious")
 		}
 	}
+	if req.FontSizeFact != nil {
+		if *req.FontSizeFact < 10 || *req.FontSizeFact > 24 {
+			return echo.NewHTTPError(http.StatusBadRequest, "font_size_fact должен быть от 10 до 24")
+		}
+		updates["font_size_fact"] = *req.FontSizeFact
+	}
+	if req.RowDensityFact != nil {
+		switch *req.RowDensityFact {
+		case "compact", "normal", "spacious":
+			updates["row_density_fact"] = *req.RowDensityFact
+		default:
+			return echo.NewHTTPError(http.StatusBadRequest, "row_density_fact должен быть compact|normal|spacious")
+		}
+	}
 
 	if len(updates) == 1 {
 		// Только updated_at, нечего менять
@@ -437,6 +529,16 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+
+	// Если только что включили show_fact_table - сидим факт-поля. Идемпотентно:
+	// уже существующие поля не дублируются.
+	if req.ShowFactTable != nil && *req.ShowFactTable && !table.ShowFactTable {
+		table.ShowFactTable = true
+		if err := s.seedFactFields(ctx, []models.SystemTable{table}); err != nil {
+			slog.Error("не удалось засидить факт-поля при включении флага",
+				"table_id", id, "error", err)
+		}
 	}
 
 	slog.Info("системная таблица обновлена", "id", id)
@@ -532,6 +634,46 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 				slog.Error("не удалось обновить столбец",
 					"table_id", tableID, "field", f.FieldName, "error", result.Error)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating field")
+			}
+		}
+		return nil
+	})
+}
+
+// UpdateFactFields - тоже что UpdateFields, но для table_fields_fact.
+func (s *systemTableService) UpdateFactFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error {
+	var table models.SystemTable
+	if err := s.db.WithContext(ctx).Where("id = ?", tableID).First(&table).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table")
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, f := range req.Fields {
+			updates := map[string]interface{}{
+				"is_visible": f.IsVisible,
+			}
+			if f.DisplayOrder != nil {
+				updates["display_order"] = *f.DisplayOrder
+			}
+			if f.Width != nil {
+				updates["width"] = *f.Width
+			}
+			if f.Priority != nil {
+				if *f.Priority < 1 || *f.Priority > 5 {
+					return echo.NewHTTPError(http.StatusBadRequest, "priority должен быть от 1 до 5")
+				}
+				updates["priority"] = *f.Priority
+			}
+			result := tx.Model(&models.TableFieldFact{}).
+				Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
+				Updates(updates)
+			if result.Error != nil {
+				slog.Error("не удалось обновить факт-столбец",
+					"table_id", tableID, "field", f.FieldName, "error", result.Error)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating fact field")
 			}
 		}
 		return nil
@@ -658,6 +800,76 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 
 	if added > 0 {
 		slog.Info("досидил отсутствующие поля таблиц (#345)", "added", added)
+	}
+
+	// Параллельно сидим факт-поля для таблиц, где показывается фактовая таблица.
+	// Для остальных таблиц фактовые поля не создаём - они появятся, когда админ
+	// включит "Отображать таблицу по факту" (см. ensureFactFields).
+	if err := s.seedFactFields(ctx, tables); err != nil {
+		return err
+	}
+	return nil
+}
+
+// seedFactFields идентичен SeedMissingFields, но для table_fields_fact.
+// Создаёт записи только для таблиц с ShowFactTable=true. Без backfill priority
+// (поля при первом запуске уже создаются с правильными priority через Create).
+func (s *systemTableService) seedFactFields(ctx context.Context, tables []models.SystemTable) error {
+	added := 0
+	for _, t := range tables {
+		if !t.ShowFactTable {
+			continue
+		}
+		defaults := getDefaultFactFields(t.TableType)
+		if len(defaults) == 0 {
+			continue
+		}
+		var existing []models.TableFieldFact
+		if err := s.db.WithContext(ctx).
+			Where("table_id = ?", t.ID).
+			Find(&existing).Error; err != nil {
+			slog.Error("не удалось загрузить существующие факт-поля",
+				"table_id", t.ID, "error", err)
+			continue
+		}
+		existingSet := make(map[string]bool, len(existing))
+		maxOrder := -1
+		for _, f := range existing {
+			existingSet[f.FieldName] = true
+			if f.DisplayOrder != nil && *f.DisplayOrder > maxOrder {
+				maxOrder = *f.DisplayOrder
+			}
+		}
+		for _, d := range defaults {
+			if existingSet[d.Name] {
+				continue
+			}
+			maxOrder++
+			order := maxOrder
+			fieldType := d.FieldType
+			priority := d.Priority
+			if priority == 0 {
+				priority = 3
+			}
+			tff := models.TableFieldFact{
+				TableID:      t.ID,
+				FieldName:    d.Name,
+				FieldType:    &fieldType,
+				DisplayOrder: &order,
+				IsVisible:    d.IsVisible,
+				Width:        d.Width,
+				Priority:     priority,
+			}
+			if err := s.db.WithContext(ctx).Create(&tff).Error; err != nil {
+				slog.Error("не удалось добавить факт-поле",
+					"table_id", t.ID, "field", d.Name, "error", err)
+				continue
+			}
+			added++
+		}
+	}
+	if added > 0 {
+		slog.Info("досидил факт-поля таблиц (#345)", "added", added)
 	}
 	return nil
 }

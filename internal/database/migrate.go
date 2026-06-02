@@ -41,6 +41,7 @@ func AllModels() []interface{} {
 		&models.OrganizationTable{},
 		&models.CompaniesTable{},
 		&models.TableField{},
+		&models.TableFieldFact{},
 
 		// Unload places relations
 		&models.UnloadPlacePhoto{},

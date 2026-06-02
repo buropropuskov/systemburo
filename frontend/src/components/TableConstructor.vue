@@ -168,6 +168,22 @@
           >
             Оформление
           </button>
+          <button
+            v-if="selectedTable.table.show_fact_table"
+            class="tab-btn"
+            :class="{ 'active': activeTab === 'fact-columns' }"
+            @click="activeTab = 'fact-columns'"
+          >
+            Колонки (факт)
+          </button>
+          <button
+            v-if="selectedTable.table.show_fact_table"
+            class="tab-btn"
+            :class="{ 'active': activeTab === 'fact-appearance' }"
+            @click="activeTab = 'fact-appearance'"
+          >
+            Оформление (факт)
+          </button>
         </div>
 
         <!-- Вкладка Основное -->
@@ -490,6 +506,33 @@
             @update="refreshSelectedTable"
           />
         </div>
+
+        <!-- Колонки FactTable (#345) -->
+        <div
+          v-if="activeTab === 'fact-columns' && selectedTable.table.show_fact_table"
+          class="tab-content"
+        >
+          <SystemTableColumnsTab
+            :table-id="selectedTable.table.id"
+            :table-type="selectedTable.table.table_type"
+            :fields="selectedTable.fact_fields || []"
+            variant="fact"
+            @update="refreshSelectedTable"
+          />
+        </div>
+
+        <!-- Оформление FactTable (#345) -->
+        <div
+          v-if="activeTab === 'fact-appearance' && selectedTable.table.show_fact_table"
+          class="tab-content"
+        >
+          <SystemTableAppearanceTab
+            :table-id="selectedTable.table.id"
+            :table="selectedTable.table"
+            variant="fact"
+            @update="refreshSelectedTable"
+          />
+        </div>
       </div>
 
       <div
@@ -639,6 +682,24 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener('show-notification', this.handleNotification);
+  },
+  watch: {
+    // Если активна вкладка фактовой таблицы, а пользователь снял галочку
+    // show_fact_table - возвращаем на главную, чтобы не висел пустой контент.
+    'selectedTable.table.show_fact_table'(val) {
+      if (!val && (this.activeTab === 'fact-columns' || this.activeTab === 'fact-appearance')) {
+        this.activeTab = 'main';
+      }
+    },
+    selectedTable(newVal) {
+      // При переключении таблицы сбрасываем тикеры fact-вкладок, если на новой
+      // таблице фактовая часть выключена.
+      if (newVal && !newVal.table?.show_fact_table) {
+        if (this.activeTab === 'fact-columns' || this.activeTab === 'fact-appearance') {
+          this.activeTab = 'main';
+        }
+      }
+    },
   },
   methods: {
     handleNotification(event) {
