@@ -576,10 +576,27 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 
 		// Backfill: для существующих полей с width=0 / priority=0 (старые записи) -
 		// проставляем дефолты из getDefaultFields.
+		// Отдельно: одноразовый backfill priority когда AutoMigrate проставил всем
+		// строкам default 3 (gorm tag). Признак "первый запуск после миграции" -
+		// у ВСЕХ полей таблицы priority == 3, при этом каталог содержит != 3.
+		// В этом случае применяем каталог. Если хоть одно поле уже не 3 (то есть
+		// уже backfill отработал или админ что-то правил) - не трогаем.
 		defaultsByName := make(map[string]defaultField, len(defaults))
+		hasCatalogVariance := false
 		for _, d := range defaults {
 			defaultsByName[d.Name] = d
+			if d.Priority != 0 && d.Priority != 3 {
+				hasCatalogVariance = true
+			}
 		}
+		allDefaultPriority := true
+		for _, f := range existing {
+			if f.Priority != 3 {
+				allDefaultPriority = false
+				break
+			}
+		}
+		initialPriorityMigration := allDefaultPriority && hasCatalogVariance
 		for _, f := range existing {
 			d, ok := defaultsByName[f.FieldName]
 			if !ok {
@@ -589,12 +606,15 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 			if f.Width == 0 && d.Width != 0 {
 				backfill["width"] = d.Width
 			}
-			if f.Priority == 0 {
+			needPriority := f.Priority == 0 || initialPriorityMigration
+			if needPriority {
 				p := d.Priority
 				if p == 0 {
 					p = 3
 				}
-				backfill["priority"] = p
+				if p != f.Priority {
+					backfill["priority"] = p
+				}
 			}
 			if len(backfill) == 0 {
 				continue
