@@ -311,6 +311,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Столбцы таблицы (#345)
 	stg.PUT("/:id/fields", st.UpdateFields)
+	// Столбцы фактовой таблицы (#345)
+	stg.PUT("/:id/fact-fields", st.UpdateFactFields)
 
 	// Корзина таблицы (#186) - удалённые элементы с возможностью восстановить
 	// или окончательно удалить. Тип элементов определяется по table_type

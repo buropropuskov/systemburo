@@ -164,7 +164,7 @@
     </p>
 
     <div
-      v-if="localFields.length"
+      v-if="localFields.length && variant === 'main'"
       class="columns-tab__preview"
     >
       <h4 class="columns-tab__preview-title">
@@ -237,6 +237,9 @@ export default {
     tableId: { type: Number, required: true },
     tableType: { type: String, required: true },
     fields: { type: Array, required: true },
+    // 'main' = настройки обычной CarsTable/PeopleTable (endpoint /fields).
+    // 'fact' = настройки FactTable (endpoint /fact-fields).
+    variant: { type: String, default: 'main' },
   },
   emits: ['update'],
   data() {
@@ -254,6 +257,11 @@ export default {
     };
   },
   computed: {
+    apiPath() {
+      return this.variant === 'fact'
+        ? `/system-tables/${this.tableId}/fact-fields`
+        : `/system-tables/${this.tableId}/fields`;
+    },
     previewFieldsWithOrder() {
       // Передаём текущий локальный порядок+ширину в превью, чтобы оно реагировало до save.
       return this.localFields.map((f, i) => ({
@@ -380,7 +388,7 @@ export default {
       this.statusError = false;
 
       try {
-        const response = await apiRequest(`/system-tables/${this.tableId}/fields`, {
+        const response = await apiRequest(this.apiPath, {
           method: 'PUT',
           body: JSON.stringify({
             fields: this.localFields.map((f, i) => ({

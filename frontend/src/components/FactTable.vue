@@ -1,6 +1,11 @@
 <template>
   <div
     class="fact-table-card"
+    :class="[
+      { 'config-not-ready': !configReady },
+      `density-${rowDensity}`,
+    ]"
+    :style="{ '--table-font-size': tableFontSize + 'px' }"
     data-testid="fact-table"
   >
     <div class="card-header">
@@ -35,36 +40,39 @@
             Выезд
           </div>
           <div
+            v-if="isFieldVisible('organization')"
             class="col organization-col"
+            :style="getColStyle('organization')"
             @click="sortBy('organization')"
           >
             <p :class="{ 'active-sort': sortField === 'organization' }">
               Организация
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'organization',
                 'desc': sortField === 'organization' && sortDirection === 'desc'
-              }" 
+              }"
             >
           </div>
           <div
-            v-if="tableType === 'cars'"
+            v-if="tableType === 'cars' && isFieldVisible('car_brand')"
             class="col brand-col"
+            :style="getColStyle('car_brand')"
             @click="sortBy('car_brand')"
           >
             <p :class="{ 'active-sort': sortField === 'car_brand' }">
               Марка
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'car_brand',
                 'desc': sortField === 'car_brand' && sortDirection === 'desc'
-              }" 
+              }"
             >
           </div>
           <!-- Компания скрыта -->
@@ -87,35 +95,39 @@
           </div>
           -->
           <div
+            v-if="isFieldVisible('valid_until')"
             class="col date-col"
+            :style="getColStyle('valid_until')"
             @click="sortBy('entry_date_to')"
           >
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
               Действует до
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'entry_date_to',
                 'desc': sortField === 'entry_date_to' && sortDirection === 'desc'
-              }" 
+              }"
             >
           </div>
           <div
+            v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
             class="col time-col"
+            :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
             @click="sortBy('entry_time')"
           >
             <p :class="{ 'active-sort': sortField === 'entry_time' }">
               {{ tableType === 'cars' ? 'Время' : 'Время прохода' }}
             </p>
-            <img 
-              src="@/assets/icons/sort.png" 
-              class="sort-icon" 
-              :class="{ 
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{
                 'sorted': sortField === 'entry_time',
                 'desc': sortField === 'entry_time' && sortDirection === 'desc'
-              }" 
+              }"
             >
           </div>
           <!--<div class="col status-col" @click="sortBy('status')">
@@ -189,31 +201,33 @@
                     Выезд
                   </button>
                 </div>
-                <div class="col organization-col">
+                <div
+                  v-if="isFieldVisible('organization')"
+                  class="col organization-col"
+                  :style="getColStyle('organization')"
+                >
                   {{ item.organization_name }}
                 </div>
                 <div
-                  v-if="tableType === 'cars'"
+                  v-if="tableType === 'cars' && isFieldVisible('car_brand')"
                   class="col brand-col"
+                  :style="getColStyle('car_brand')"
                 >
                   {{ item.car_brand || '-' }}
                 </div>
-                <!-- Компания скрыта -->
                 <div
-                  v-if="tableType === 'cars'"
-                  class="col company-col"
-                  style="display: none;"
-                />
-                <!-- Место разгрузки – закомментировано по требованию
-                <div v-if="tableType === 'cars'" class="col place-col">
-                  {{ formatUnloadPlaces(item) }}
-                </div>
-                -->
-                <div class="col date-col">
+                  v-if="isFieldVisible('valid_until')"
+                  class="col date-col"
+                  :style="getColStyle('valid_until')"
+                >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
-                <div class="col time-col">
-                  {{ tableType === 'cars' 
+                <div
+                  v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
+                  class="col time-col"
+                  :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
+                >
+                  {{ tableType === 'cars'
                     ? formatTimeRange(item.entry_time_from, item.entry_time_to)
                     : formatPassTime(item.pass_time)
                   }}
@@ -283,6 +297,8 @@ export default {
   },
   props: {
     tableType: { type: String, default: 'cars', validator: (v) => ['cars', 'people'].includes(v) },
+    tableId: { type: Number, default: null },
+    tableData: { type: Object, default: null },
     searchQuery: { type: String, default: '' },
     selectedOrganizationId: { type: [Number, String], default: null },
     selectedUnloadingPlaceId: { type: [Number, String], default: null },
@@ -305,7 +321,13 @@ export default {
       licensePlateFormats: [],
       showDetailsModal: false,
       selectedVehicle: null,
-      pollingInterval: null
+      pollingInterval: null,
+      fieldsVisibility: {},
+      fieldOrders: {},
+      fieldWidths: {},
+      tableFontSize: 14,
+      rowDensity: 'normal',
+      configReady: false,
     };
   },
   computed: {
@@ -405,7 +427,37 @@ export default {
         this.startPolling();
       },
       immediate: true
-    }
+    },
+    // Применяем фактовые настройки таблицы (#345 PR-B).
+    tableData: {
+      immediate: true,
+      deep: true,
+      handler(newVal) {
+        if (!newVal) return;
+        const tbl = newVal.table || {};
+        const factFields = newVal.fact_fields || [];
+        const nextVis = {};
+        const nextOrd = {};
+        const nextW = {};
+        factFields.forEach(f => {
+          nextVis[f.field_name] = f.is_visible !== false;
+          if (typeof f.display_order === 'number') nextOrd[f.field_name] = f.display_order;
+          if (typeof f.width === 'number' && f.width > 0) nextW[f.field_name] = f.width;
+        });
+        this.fieldsVisibility = nextVis;
+        this.fieldOrders = nextOrd;
+        this.fieldWidths = nextW;
+        const fs = Number(tbl.font_size_fact);
+        if (fs >= 10 && fs <= 24) this.tableFontSize = fs;
+        const dens = tbl.row_density_fact;
+        if (['compact', 'normal', 'spacious'].includes(dens)) this.rowDensity = dens;
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => { this.configReady = true; });
+        } else {
+          this.configReady = true;
+        }
+      },
+    },
   },
   mounted() {
     this.startPolling();
@@ -414,6 +466,20 @@ export default {
     this.stopPolling();
   },
   methods: {
+    isFieldVisible(fieldName) {
+      const v = this.fieldsVisibility[fieldName];
+      return v === undefined ? true : v;
+    },
+
+    getColStyle(fieldName) {
+      const order = this.fieldOrders[fieldName];
+      const width = this.fieldWidths[fieldName];
+      const style = {};
+      if (order !== undefined) style.order = 10 + order;
+      if (width !== undefined && width > 0) style.flexGrow = width;
+      return Object.keys(style).length ? style : null;
+    },
+
     async _loadData() {
       try {
         await this.fetchUnloadingPlaces();
@@ -1091,5 +1157,29 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+
+/* #345 PR-B: размер шрифта строк через CSS-переменную (только тело). */
+.fact-table-card .fact-body .col {
+  font-size: var(--table-font-size, 14px);
+}
+
+/* Плотность строк через padding row. */
+.fact-table-card.density-compact .fact-row,
+.fact-table-card.density-compact .header-row {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.fact-table-card.density-spacious .fact-row,
+.fact-table-card.density-spacious .header-row {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+/* Пока конфиг не загружен - запрещаем transitions на col, чтобы шапка не
+   "ездила" между дефолтными и сохранёнными ширинами при первом рендере. */
+.fact-table-card.config-not-ready .col {
+  transition: none !important;
 }
 </style>

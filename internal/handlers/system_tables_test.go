@@ -511,3 +511,90 @@ func TestSystemTables_Update_BadRowDensity(t *testing.T) {
 		`{"row_density":"huge"}`, h)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
+
+// TestSystemTables_UpdateFactFields_PersistsVisibility - #345 PR-B:
+// PUT /:id/fact-fields сохраняет видимость в table_field_facts. Существующие
+// fact-поля создаются при включении show_fact_table.
+func TestSystemTables_UpdateFactFields_PersistsVisibility(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fact_vis","display_name":"FV","table_type":"cars","show_fact_table":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Скрываем organization, показываем car_number.
+	body := `{"fields":[
+		{"field_name":"organization","is_visible":false},
+		{"field_name":"car_number","is_visible":true}
+	]}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/fact-fields", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	factFields := testutil.ParseMap(t, rec)["fact_fields"].([]interface{})
+
+	visByName := map[string]bool{}
+	for _, f := range factFields {
+		fm := f.(map[string]interface{})
+		visByName[fm["field_name"].(string)] = fm["is_visible"].(bool)
+	}
+	assert.False(t, visByName["organization"], "organization скрыта")
+	assert.True(t, visByName["car_number"], "car_number видима")
+	// Поле, которое не трогали, сохранило дефолт каталога (car_brand=visible).
+	assert.True(t, visByName["car_brand"], "car_brand видимо (дефолт)")
+}
+
+// TestSystemTables_Update_PersistsAppearanceFact - валидация и сохранение
+// font_size_fact и row_density_fact.
+func TestSystemTables_Update_PersistsAppearanceFact(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fact_style","display_name":"FS","table_type":"cars","show_fact_table":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID),
+		`{"font_size_fact":20,"row_density_fact":"compact"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tbl := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
+	assert.EqualValues(t, 20, tbl["font_size_fact"], "font_size_fact=20")
+	assert.Equal(t, "compact", tbl["row_density_fact"], "row_density_fact=compact")
+	// Обычное оформление не изменилось.
+	assert.EqualValues(t, 14, tbl["font_size"], "font_size остался 14")
+	assert.Equal(t, "normal", tbl["row_density"], "row_density остался normal")
+}
+
+// TestSystemTables_Update_FactFontSizeOutOfRange - валидация 10-24 для fact-варианта.
+func TestSystemTables_Update_FactFontSizeOutOfRange(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fact_fs_bad","display_name":"FF","table_type":"cars","show_fact_table":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID),
+		`{"font_size_fact":50}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}

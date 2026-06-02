@@ -191,6 +191,35 @@ func (h *SystemTableHandler) UpdateFields(c echo.Context) error {
 	return RespondMessage(c, "Видимость столбцов обновлена")
 }
 
+// UpdateFactFields godoc
+// @Summary      Bulk-обновление столбцов FactTable (#345)
+// @Description  То же что UpdateFields, но для table_fields_fact.
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        request body models.UpdateFieldsRequest true "Список столбцов с новой видимостью"
+// @Success      200 {string} string "Видимость столбцов FactTable обновлена"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{id}/fact-fields [put]
+func (h *SystemTableHandler) UpdateFactFields(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateFieldsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateFactFields(c.Request().Context(), id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Видимость столбцов FactTable обновлена")
+}
+
 // --- Временные слоты ---
 
 // GetTimeSlots godoc

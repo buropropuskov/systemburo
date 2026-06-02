@@ -22,10 +22,14 @@ type SystemTable struct {
 	// RowDensity - плотность строк: compact|normal|spacious.
 	FontSize    int    `gorm:"default:14" json:"font_size"`
 	RowDensity  string `gorm:"size:20;default:'normal'" json:"row_density"`
+	// То же самое, но для FactTable (отдельные настройки).
+	FontSizeFact   int    `gorm:"default:14" json:"font_size_fact"`
+	RowDensityFact string `gorm:"size:20;default:'normal'" json:"row_density_fact"`
 
-	Fields    []TableField            `gorm:"foreignKey:TableID" json:"fields,omitempty"`
-	TimeSlots []SystemTableTimeSlot   `gorm:"foreignKey:TableID" json:"time_slots,omitempty"`
-	Photos    []SystemTablePhoto      `gorm:"foreignKey:TableID" json:"photos,omitempty"`
+	Fields     []TableField          `gorm:"foreignKey:TableID" json:"fields,omitempty"`
+	FactFields []TableFieldFact      `gorm:"foreignKey:TableID" json:"fact_fields,omitempty"`
+	TimeSlots  []SystemTableTimeSlot `gorm:"foreignKey:TableID" json:"time_slots,omitempty"`
+	Photos     []SystemTablePhoto    `gorm:"foreignKey:TableID" json:"photos,omitempty"`
 }
 
 type SystemTablePhoto struct {
@@ -89,13 +93,30 @@ type TableField struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// TableFieldFact - настраиваемые столбцы FactTable. Хранится отдельно от
+// TableField, чтобы основная и фактовая таблицы конфигурировались независимо.
+// Семантика полей идентична TableField.
+type TableFieldFact struct {
+	ID           int         `json:"id"`
+	TableID      int         `gorm:"index" json:"table_id"`
+	Table        SystemTable `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"-"`
+	FieldName    string      `gorm:"size:100" json:"field_name"`
+	FieldType    *string     `gorm:"size:50" json:"field_type"`
+	DisplayOrder *int        `json:"display_order"`
+	IsVisible    bool        `gorm:"default:true" json:"is_visible"`
+	Width        int         `gorm:"default:10" json:"width"`
+	Priority     int         `gorm:"default:3" json:"priority"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
 // SystemTableWithDetails -- таблица с полями, слотами, фото и текущим статусом (открыто/закрыто).
 type SystemTableWithDetails struct {
-	Table         SystemTable          `json:"table"`
-	Fields        []TableField         `json:"fields"`
+	Table         SystemTable           `json:"table"`
+	Fields        []TableField          `json:"fields"`
+	FactFields    []TableFieldFact      `json:"fact_fields"`
 	TimeSlots     []SystemTableTimeSlot `json:"time_slots"`
-	Photos        []SystemTablePhoto   `json:"photos"`
-	CurrentStatus string               `json:"current_status"`
+	Photos        []SystemTablePhoto    `json:"photos"`
+	CurrentStatus string                `json:"current_status"`
 }
 
 // CreateSystemTableRequest -- запрос на создание системной таблицы.
@@ -125,8 +146,10 @@ type UpdateSystemTableRequest struct {
 	LocationDescription *string `json:"location_description"`
 	// Оформление таблицы (#345). Валидируется в сервисе: FontSize 10-24,
 	// RowDensity in {compact, normal, spacious}.
-	FontSize   *int    `json:"font_size"`
-	RowDensity *string `json:"row_density"`
+	FontSize       *int    `json:"font_size"`
+	RowDensity     *string `json:"row_density"`
+	FontSizeFact   *int    `json:"font_size_fact"`
+	RowDensityFact *string `json:"row_density_fact"`
 }
 
 // CreateTimeSlotRequest -- запрос на создание временного слота.
