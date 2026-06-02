@@ -389,3 +389,125 @@ func TestSystemTables_UpdateFields_PersistsWidth(t *testing.T) {
 	// car_brand не трогали - должен сохранить дефолт (9).
 	assert.Equal(t, 9, widthByName["car_brand"], "car_brand остаётся 9 (дефолт)")
 }
+
+// TestSystemTables_UpdateFields_PersistsPriority - #345 Phase 1F:
+// PUT /fields сохраняет priority в БД, не задетые поля сохраняют дефолт каталога.
+func TestSystemTables_UpdateFields_PersistsPriority(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"prio_test","display_name":"PT","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	body := `{"fields":[
+		{"field_name":"car_brand","is_visible":true,"priority":2},
+		{"field_name":"organization","is_visible":true,"priority":5}
+	]}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/fields", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	fields := testutil.ParseMap(t, rec)["fields"].([]interface{})
+
+	prioByName := map[string]int{}
+	for _, f := range fields {
+		fm := f.(map[string]interface{})
+		if p, ok := fm["priority"].(float64); ok {
+			prioByName[fm["field_name"].(string)] = int(p)
+		}
+	}
+	assert.Equal(t, 2, prioByName["car_brand"], "car_brand priority=2")
+	assert.Equal(t, 5, prioByName["organization"], "organization priority=5")
+	// car_number не трогали - дефолт каталога = 1.
+	assert.Equal(t, 1, prioByName["car_number"], "car_number priority=1 (дефолт)")
+}
+
+// TestSystemTables_UpdateFields_PriorityOutOfRange - валидация priority 1-5.
+func TestSystemTables_UpdateFields_PriorityOutOfRange(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"prio_bad","display_name":"PB","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	body := `{"fields":[{"field_name":"car_number","is_visible":true,"priority":9}]}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/fields", tableID), body, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestSystemTables_Update_PersistsAppearance - #345 Phase 1D+1E:
+// PUT /system-tables/:id сохраняет font_size и row_density.
+func TestSystemTables_Update_PersistsAppearance(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"style_test","display_name":"ST","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID),
+		`{"font_size":18,"row_density":"spacious"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	table := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
+	assert.EqualValues(t, 18, table["font_size"], "font_size=18")
+	assert.Equal(t, "spacious", table["row_density"], "row_density=spacious")
+}
+
+// TestSystemTables_Update_FontSizeOutOfRange - валидация 10-24.
+func TestSystemTables_Update_FontSizeOutOfRange(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fs_bad","display_name":"FB","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID),
+		`{"font_size":30}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestSystemTables_Update_BadRowDensity - валидация enum row_density.
+func TestSystemTables_Update_BadRowDensity(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"den_bad","display_name":"DB","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID),
+		`{"row_density":"huge"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
