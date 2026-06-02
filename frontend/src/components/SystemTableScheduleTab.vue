@@ -572,7 +572,7 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 15px;
   font-size: 13px;
   line-height: 1.5;
 }

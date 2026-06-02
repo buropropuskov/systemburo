@@ -174,7 +174,7 @@ export default {
 .appearance-tab {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 15px;
   line-height: 1.5;
 }
 
@@ -201,7 +201,7 @@ export default {
 
 .appearance-tab__title {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: #000;
 }
