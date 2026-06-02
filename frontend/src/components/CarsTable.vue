@@ -205,15 +205,26 @@
       </div>
       
       <div class="items-container">
+        <!-- Полноэкранный лоадер - только при первой загрузке (isLoading),
+             когда данных ещё нет вообще. -->
         <div
-          v-if="isLoading || refreshing"
+          v-if="isLoading"
           class="loading-message"
         >
-          <LoaderSpinner :label="refreshing ? 'Обновление…' : 'Загрузка машин…'" />
+          <LoaderSpinner label="Загрузка машин…" />
+        </div>
+
+        <!-- Оверлей-лоадер при refresh: накрывает таблицу полупрозрачной
+             плёнкой, не схлопывает строки - высота остаётся стабильной. -->
+        <div
+          v-if="refreshing && !isLoading"
+          class="refresh-overlay"
+        >
+          <LoaderSpinner label="Обновление…" />
         </div>
 
         <div
-          v-else-if="displayItems.length > 0"
+          v-if="!isLoading && displayItems.length > 0"
           class="items-body"
         >
           <transition-group
@@ -395,7 +406,7 @@
         </div>
         
         <div
-          v-else
+          v-else-if="!isLoading"
           class="no-data-message"
         >
           {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Нет активных автомобилей' }}
@@ -1367,6 +1378,21 @@ export default {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+/* Overlay-лоадер при refresh - сохраняет высоту таблицы (не схлопывает
+   строки). Не используется при первой загрузке (там полноэкранный лоадер). */
+.refresh-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(1px);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .items-body {
@@ -1574,6 +1600,16 @@ export default {
 
 .selected-table-card.enlarged .items-body .number-col {
   font-weight: 700;
+}
+
+/* Номер Т/С и Марка - ключевые столбцы, не должны схлопываться по ellipsis
+   при увеличенном шрифте. Даём фикс. min-width в enlarged-режиме. */
+.selected-table-card.enlarged .number-col {
+  min-width: 130px;
+}
+
+.selected-table-card.enlarged .brand-col {
+  min-width: 110px;
 }
 
 /* В enlarged status-col схлопывается; освободившиеся 7 grow распределяются

@@ -230,15 +230,23 @@
       
       <div class="items-container">
         <div
-          v-if="isLoading || refreshing"
+          v-if="isLoading"
           class="loading-message"
         >
           <div class="loader" />
-          <p>{{ refreshing ? 'Обновление...' : 'Загрузка сотрудников...' }}</p>
+          <p>Загрузка сотрудников...</p>
         </div>
 
         <div
-          v-else-if="displayItems.length > 0"
+          v-if="refreshing && !isLoading"
+          class="refresh-overlay"
+        >
+          <div class="loader" />
+          <p>Обновление...</p>
+        </div>
+
+        <div
+          v-if="!isLoading && displayItems.length > 0"
           class="items-body"
         >
           <transition-group
@@ -425,7 +433,7 @@
         </div>
 
         <div
-          v-else
+          v-else-if="!isLoading"
           class="no-data-message"
         >
           {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Нет активных сотрудников' }}
@@ -1330,6 +1338,22 @@ export default {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+/* Overlay-лоадер при refresh - сохраняет высоту таблицы. */
+.refresh-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(1px);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .items-body {
