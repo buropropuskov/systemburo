@@ -68,25 +68,21 @@
         {{ saving ? 'Сохраняем...' : 'Сохранить' }}
       </button>
     </div>
-
-    <p
-      v-if="statusMessage"
-      class="appearance-tab__status"
-      :class="{ 'appearance-tab__status--error': statusError }"
-    >
-      {{ statusMessage }}
-    </p>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client';
+import { useToast } from '@/composables/useToast';
 
 const DEFAULT_FONT_SIZE = 14;
 const DEFAULT_DENSITY = 'normal';
 
 export default {
   name: 'SystemTableAppearanceTab',
+  setup() {
+    return { toast: useToast() };
+  },
   props: {
     tableId: { type: Number, required: true },
     table: { type: Object, required: true },
@@ -102,8 +98,6 @@ export default {
       originalFontSize: DEFAULT_FONT_SIZE,
       originalDensity: DEFAULT_DENSITY,
       saving: false,
-      statusMessage: '',
-      statusError: false,
       densityOptions: [
         { value: 'compact', label: 'Компактно' },
         { value: 'normal', label: 'Обычно' },
@@ -140,14 +134,10 @@ export default {
       this.rowDensity = ['compact', 'normal', 'spacious'].includes(dens) ? dens : DEFAULT_DENSITY;
       this.originalFontSize = this.fontSize;
       this.originalDensity = this.rowDensity;
-      this.statusMessage = '';
-      this.statusError = false;
     },
     async save() {
       if (!this.isDirty || this.saving) return;
       this.saving = true;
-      this.statusMessage = '';
-      this.statusError = false;
       try {
         const fs = Math.max(10, Math.min(24, Number(this.fontSize) || DEFAULT_FONT_SIZE));
         const response = await apiRequest(`/system-tables/${this.tableId}`, {
@@ -163,11 +153,10 @@ export default {
         }
         this.originalFontSize = fs;
         this.originalDensity = this.rowDensity;
-        this.statusMessage = 'Оформление сохранено';
+        this.toast.success('Оформление сохранено');
         this.$emit('update');
       } catch (e) {
-        this.statusError = true;
-        this.statusMessage = `Ошибка сохранения: ${e.message}`;
+        this.toast.error(`Ошибка сохранения: ${e.message}`);
       } finally {
         this.saving = false;
       }

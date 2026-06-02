@@ -679,7 +679,7 @@ export default {
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
         this.fieldPriorities = nextP;
-        this.configReady = true;
+        this.markConfigReady();
       }
     }
   },
@@ -783,12 +783,7 @@ export default {
         if (fs >= 10 && fs <= 24) this.tableFontSize = fs;
         const dens = table.row_density;
         if (['compact', 'normal', 'spacious'].includes(dens)) this.rowDensity = dens;
-        // Конфиг загружен - снимаем no-transition после применения через rAF.
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => { this.configReady = true; });
-        } else {
-          this.configReady = true;
-        }
+        this.markConfigReady();
 
         const employeesRes = await apiRequest(`/employees/active-for-table/${table.id}`, { method: "GET" });
         if (!employeesRes.ok) return;
@@ -1086,6 +1081,20 @@ export default {
       this.expandedRows = next;
     },
 
+    markConfigReady() {
+      // 2 rAF + 100ms - гарантия что layout с итоговыми ширинами применился
+      // и transition не сработает на стартовом расхождении.
+      if (typeof requestAnimationFrame !== 'function') {
+        this.configReady = true;
+        return;
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => { this.configReady = true; }, 100);
+        });
+      });
+    },
+
     portraitFieldLabel(name) {
       const LABELS = {
         last_name: 'Фамилия',
@@ -1139,21 +1148,27 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0px 20px;
-  height: 50px;
+  gap: 12px;
+  padding: 8px 20px;
+  min-height: 50px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .card-header__title {
   display: flex;
   gap: 12px;
   align-items: center;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .card-header__settings {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .card-title {
@@ -1161,6 +1176,9 @@ export default {
   color: #000;
   font-weight: 600;
   font-size: 1.1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .blue {
@@ -1473,10 +1491,11 @@ export default {
   transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
-/* Пока конфиг не загружен - запрещаем transitions, чтобы шапка/столбцы не
-   "ездили" между дефолтными и сохранёнными ширинами при первом рендере. */
-.selected-table-card.config-not-ready .col,
-.selected-table-card.config-not-ready .item-data {
+/* Пока конфиг не загружен - запрещаем transitions на всех потомках, чтобы
+   шапка/столбцы не "ездили" между дефолтными и сохранёнными значениями
+   при первом рендере. */
+.selected-table-card.config-not-ready,
+.selected-table-card.config-not-ready * {
   transition: none !important;
 }
 

@@ -155,14 +155,6 @@
       </button>
     </div>
 
-    <p
-      v-if="statusMessage"
-      class="columns-tab__status"
-      :class="{ 'columns-tab__status--error': statusError }"
-    >
-      {{ statusMessage }}
-    </p>
-
     <div
       v-if="localFields.length && variant === 'main'"
       class="columns-tab__preview"
@@ -209,6 +201,7 @@
 <script>
 import { apiRequest } from '@/api/client';
 import { generateSampleRows } from '@/utils/tableSamples';
+import { useToast } from '@/composables/useToast';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
 
@@ -233,6 +226,9 @@ const FIELD_LABELS = {
 export default {
   name: 'SystemTableColumnsTab',
   components: { CarsTable, PeopleTable },
+  setup() {
+    return { toast: useToast() };
+  },
   props: {
     tableId: { type: Number, required: true },
     tableType: { type: String, required: true },
@@ -250,8 +246,6 @@ export default {
       originalWidth: {},
       originalPriority: {},
       saving: false,
-      statusMessage: '',
-      statusError: false,
       draggingIndex: null,
       prevBodyCursor: '',
     };
@@ -329,8 +323,6 @@ export default {
       this.originalPriority = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.priority]),
       );
-      this.statusMessage = '';
-      this.statusError = false;
     },
     /**
      * Pointer-events DnD (вместо HTML5 native, который не даёт контроля над курсором).
@@ -384,9 +376,6 @@ export default {
     async save() {
       if (!this.isDirty || this.saving) return;
       this.saving = true;
-      this.statusMessage = '';
-      this.statusError = false;
-
       try {
         const response = await apiRequest(this.apiPath, {
           method: 'PUT',
@@ -404,7 +393,7 @@ export default {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.message || `HTTP ${response.status}`);
         }
-        this.statusMessage = 'Настройки столбцов сохранены';
+        this.toast.success('Настройки столбцов сохранены');
         this.originalVisibility = Object.fromEntries(
           this.localFields.map(f => [f.field_name, f.is_visible]),
         );
@@ -417,8 +406,7 @@ export default {
         );
         this.$emit('update');
       } catch (e) {
-        this.statusError = true;
-        this.statusMessage = `Ошибка сохранения: ${e.message}`;
+        this.toast.error(`Ошибка сохранения: ${e.message}`);
       } finally {
         this.saving = false;
       }
