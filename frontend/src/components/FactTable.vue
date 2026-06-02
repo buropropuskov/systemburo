@@ -451,11 +451,7 @@ export default {
         if (fs >= 10 && fs <= 24) this.tableFontSize = fs;
         const dens = tbl.row_density_fact;
         if (['compact', 'normal', 'spacious'].includes(dens)) this.rowDensity = dens;
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => { this.configReady = true; });
-        } else {
-          this.configReady = true;
-        }
+        this.markConfigReady();
       },
     },
   },
@@ -478,6 +474,18 @@ export default {
       if (order !== undefined) style.order = 10 + order;
       if (width !== undefined && width > 0) style.flexGrow = width;
       return Object.keys(style).length ? style : null;
+    },
+
+    markConfigReady() {
+      if (typeof requestAnimationFrame !== 'function') {
+        this.configReady = true;
+        return;
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => { this.configReady = true; }, 100);
+        });
+      });
     },
 
     async _loadData() {
@@ -1177,9 +1185,10 @@ export default {
   padding-bottom: 16px;
 }
 
-/* Пока конфиг не загружен - запрещаем transitions на col, чтобы шапка не
-   "ездила" между дефолтными и сохранёнными ширинами при первом рендере. */
-.fact-table-card.config-not-ready .col {
+/* Пока конфиг не загружен - запрещаем transitions на всех потомках, чтобы
+   шапка/строки не "ездили" между дефолтами и сохранёнными значениями. */
+.fact-table-card.config-not-ready,
+.fact-table-card.config-not-ready * {
   transition: none !important;
 }
 </style>

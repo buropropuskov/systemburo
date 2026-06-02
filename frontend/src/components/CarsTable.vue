@@ -633,7 +633,7 @@ export default {
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
         this.fieldPriorities = nextP;
-        this.configReady = true;
+        this.markConfigReady();
       }
     }
   },
@@ -1139,17 +1139,23 @@ export default {
       } catch (error) {
         console.error('Ошибка загрузки настроек столбцов:', error);
       } finally {
-        // Снимаем флаг config-not-ready после первой загрузки. Делаем через
-        // requestAnimationFrame, чтобы браузер успел применить итоговые
-        // ширины БЕЗ transition (иначе при снятии класса первая анимация
-        // запустится со старого значения на новое).
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => { this.configReady = true; });
-        } else {
-          this.configReady = true;
-        }
+        // Снимаем флаг config-not-ready после первой загрузки.
+        // 2 rAF + 100ms - гарантия что layout с итоговыми ширинами применился
+        // и transition не сработает на стартовом расхождении.
+        this.markConfigReady();
       }
-    }
+    },
+    markConfigReady() {
+      if (typeof requestAnimationFrame !== 'function') {
+        this.configReady = true;
+        return;
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => { this.configReady = true; }, 100);
+        });
+      });
+    },
   }
 };
 </script>
@@ -1173,21 +1179,27 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0px 20px;
-  height: 50px;
+  gap: 12px;
+  padding: 8px 20px;
+  min-height: 50px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .card-header__title {
   display: flex;
   gap: 12px;
   align-items: center;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .card-header__settings {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .card-title {
@@ -1195,6 +1207,9 @@ export default {
   color: #000;
   font-weight: 600;
   font-size: 1.1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .blue {
@@ -1505,11 +1520,11 @@ export default {
   transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
-/* Пока конфиг не загружен - запрещаем transitions на col/item-data, чтобы
+/* Пока конфиг не загружен - запрещаем transitions на всех потомках, чтобы
    шапка/столбцы не "ездили" между дефолтными и сохранёнными значениями
    при первом рендере. */
-.selected-table-card.config-not-ready .col,
-.selected-table-card.config-not-ready .item-data {
+.selected-table-card.config-not-ready,
+.selected-table-card.config-not-ready * {
   transition: none !important;
 }
 

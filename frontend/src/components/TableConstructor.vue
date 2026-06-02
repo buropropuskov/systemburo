@@ -1320,30 +1320,46 @@ export default {
 
 .details-tabs {
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   border-bottom: 1px solid #e6e6e6;
   background: #f8f9fa;
-  padding: 0 20px;
+  padding: 8px 16px 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .tab-btn {
-  padding: 12px 24px;
+  padding: 10px 18px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #666;
-  transition: all 0.2s ease;
+  color: #6b7280;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-btn:hover {
   color: #4F5BDF;
+  background: #eef0ff;
 }
 
 .tab-btn.active {
   color: #4F5BDF;
   border-bottom-color: #4F5BDF;
+  background: #fff;
+}
+
+@media (max-width: 1100px) {
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }
 
 .tab-content {
