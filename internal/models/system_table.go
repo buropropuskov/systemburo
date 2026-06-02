@@ -18,6 +18,11 @@ type SystemTable struct {
 	StatusComment       *string   `gorm:"type:text" json:"status_comment"`
 	LocationDescription *string   `gorm:"type:text" json:"location_description"`
 
+	// Оформление таблицы (#345). FontSize - размер шрифта строк (px, 10-24).
+	// RowDensity - плотность строк: compact|normal|spacious.
+	FontSize    int    `gorm:"default:14" json:"font_size"`
+	RowDensity  string `gorm:"size:20;default:'normal'" json:"row_density"`
+
 	Fields    []TableField            `gorm:"foreignKey:TableID" json:"fields,omitempty"`
 	TimeSlots []SystemTableTimeSlot   `gorm:"foreignKey:TableID" json:"time_slots,omitempty"`
 	Photos    []SystemTablePhoto      `gorm:"foreignKey:TableID" json:"photos,omitempty"`
@@ -77,7 +82,10 @@ type TableField struct {
 	IsVisible    bool        `gorm:"default:true" json:"is_visible"`
 	// Width - относительный вес ширины столбца. Используется как flex-grow:
 	// браузер делит доступную ширину пропорционально весам видимых столбцов.
-	Width     int       `gorm:"default:10" json:"width"`
+	Width int `gorm:"default:10" json:"width"`
+	// Priority - приоритет столбца для портретного режима (1-5).
+	// 1 = всегда виден, 2 = виден на компактных экранах, 3-5 = скрывается в портрете.
+	Priority  int       `gorm:"default:3" json:"priority"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -115,6 +123,10 @@ type UpdateSystemTableRequest struct {
 	Status              *string `json:"status"`
 	StatusComment       *string `json:"status_comment"`
 	LocationDescription *string `json:"location_description"`
+	// Оформление таблицы (#345). Валидируется в сервисе: FontSize 10-24,
+	// RowDensity in {compact, normal, spacious}.
+	FontSize   *int    `json:"font_size"`
+	RowDensity *string `json:"row_density"`
 }
 
 // CreateTimeSlotRequest -- запрос на создание временного слота.
@@ -135,13 +147,14 @@ type UpdateTimeSlotRequest struct {
 	IsActive  *bool   `json:"is_active"`
 }
 
-// FieldVisibilityUpdate -- одиночное обновление видимости, порядка и ширины столбца (#345).
-// DisplayOrder и Width опциональны - если не переданы, не меняются.
+// FieldVisibilityUpdate -- одиночное обновление видимости, порядка, ширины и
+// приоритета столбца (#345). DisplayOrder, Width, Priority опциональны.
 type FieldVisibilityUpdate struct {
 	FieldName    string `json:"field_name" validate:"required"`
 	IsVisible    bool   `json:"is_visible"`
 	DisplayOrder *int   `json:"display_order"`
 	Width        *int   `json:"width"`
+	Priority     *int   `json:"priority"`
 }
 
 // UpdateFieldsRequest -- bulk-обновление видимости столбцов системной таблицы.

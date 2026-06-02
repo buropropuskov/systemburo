@@ -161,6 +161,13 @@
           >
             Колонки
           </button>
+          <button
+            class="tab-btn"
+            :class="{ 'active': activeTab === 'appearance' }"
+            @click="activeTab = 'appearance'"
+          >
+            Оформление
+          </button>
         </div>
 
         <!-- Вкладка Основное -->
@@ -471,6 +478,18 @@
             @update="refreshSelectedTable"
           />
         </div>
+
+        <!-- Вкладка Оформление (#345 фазы 1D+1E) -->
+        <div
+          v-if="activeTab === 'appearance'"
+          class="tab-content"
+        >
+          <SystemTableAppearanceTab
+            :table-id="selectedTable.table.id"
+            :table="selectedTable.table"
+            @update="refreshSelectedTable"
+          />
+        </div>
       </div>
 
       <div
@@ -516,6 +535,7 @@ import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import SystemTableScheduleTab from './SystemTableScheduleTab.vue';
 import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
+import SystemTableAppearanceTab from './SystemTableAppearanceTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
 import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
 
@@ -527,6 +547,7 @@ export default {
     TextConstructor,
     SystemTableScheduleTab,
     SystemTableColumnsTab,
+    SystemTableAppearanceTab,
     TableConstructorCreateModal,
     TableConstructorPhotoSection
   },

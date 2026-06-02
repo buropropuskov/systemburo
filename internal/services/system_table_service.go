@@ -231,44 +231,48 @@ func (s *systemTableService) GetByName(ctx context.Context, name string) (*model
 // defaultField -- описание поля по умолчанию для нового типа таблицы.
 // IsVisible: включён ли столбец сразу при создании таблицы.
 // Width: относительный вес ширины (flex-grow) - браузер делит ширину пропорционально.
+// Priority: приоритет столбца в портретном режиме (1-5). 1 = всегда виден,
+// 2 = на компактных экранах, 3-5 = скрывается в портрете.
 type defaultField struct {
 	Name      string
 	FieldType string
 	IsVisible bool
 	Width     int
+	Priority  int
 }
 
 // getDefaultFields возвращает набор полей по умолчанию для типа таблицы.
 // Базовые - видимы сразу. Расширенные - скрыты, включаются админом в "Колонки".
 // Width - относительный вес flex-grow, подобранный под типичный контент столбца.
+// Priority - приоритет для портретного режима (см. defaultField).
 func getDefaultFields(tableType string) []defaultField {
 	switch tableType {
 	case "cars":
 		return []defaultField{
-			{"car_number", "text", true, 10},
-			{"car_brand", "text", true, 9},
-			{"organization", "text", true, 18},
-			{"unload_place", "text", true, 15},
-			{"valid_until", "date", true, 12},
-			{"time_range", "text", true, 10},
-			{"status", "text", true, 7},
+			{"car_number", "text", true, 10, 1},
+			{"car_brand", "text", true, 9, 3},
+			{"organization", "text", true, 18, 3},
+			{"unload_place", "text", true, 15, 3},
+			{"valid_until", "date", true, 12, 2},
+			{"time_range", "text", true, 10, 3},
+			{"status", "text", true, 7, 2},
 			// Расширенные (по умолчанию скрытые)
-			{"company", "text", false, 12},
-			{"application_id", "text", false, 12},
+			{"company", "text", false, 12, 4},
+			{"application_id", "text", false, 12, 4},
 		}
 	case "people":
 		return []defaultField{
-			{"organization", "text", true, 16},
-			{"last_name", "text", true, 14},
-			{"first_name", "text", true, 9},
-			{"middle_name", "text", true, 11},
-			{"valid_until", "date", true, 11},
-			{"pass_time", "text", true, 13},
+			{"organization", "text", true, 16, 3},
+			{"last_name", "text", true, 14, 1},
+			{"first_name", "text", true, 9, 2},
+			{"middle_name", "text", true, 11, 3},
+			{"valid_until", "date", true, 11, 2},
+			{"pass_time", "text", true, 13, 3},
 			// Расширенные (по умолчанию скрытые)
-			{"position", "text", false, 11},
-			{"citizenship_name", "text", false, 10},
-			{"company", "text", false, 11},
-			{"application_id", "text", false, 12},
+			{"position", "text", false, 11, 4},
+			{"citizenship_name", "text", false, 10, 4},
+			{"company", "text", false, 11, 4},
+			{"application_id", "text", false, 12, 4},
 		}
 	default:
 		return nil
@@ -322,6 +326,10 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 		for i, f := range fields {
 			order := i
 			fieldType := f.FieldType
+			priority := f.Priority
+			if priority == 0 {
+				priority = 3
+			}
 			tf := models.TableField{
 				TableID:      table.ID,
 				FieldName:    f.Name,
@@ -329,6 +337,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 				DisplayOrder: &order,
 				IsVisible:    f.IsVisible,
 				Width:        f.Width,
+				Priority:     priority,
 			}
 			if err := tx.Create(&tf).Error; err != nil {
 				slog.Error("не удалось создать поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
@@ -398,6 +407,20 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 	if req.LocationDescription != nil {
 		updates["location_description"] = *req.LocationDescription
+	}
+	if req.FontSize != nil {
+		if *req.FontSize < 10 || *req.FontSize > 24 {
+			return echo.NewHTTPError(http.StatusBadRequest, "font_size должен быть от 10 до 24")
+		}
+		updates["font_size"] = *req.FontSize
+	}
+	if req.RowDensity != nil {
+		switch *req.RowDensity {
+		case "compact", "normal", "spacious":
+			updates["row_density"] = *req.RowDensity
+		default:
+			return echo.NewHTTPError(http.StatusBadRequest, "row_density должен быть compact|normal|spacious")
+		}
 	}
 
 	if len(updates) == 1 {
@@ -496,6 +519,12 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 			if f.Width != nil {
 				updates["width"] = *f.Width
 			}
+			if f.Priority != nil {
+				if *f.Priority < 1 || *f.Priority > 5 {
+					return echo.NewHTTPError(http.StatusBadRequest, "priority должен быть от 1 до 5")
+				}
+				updates["priority"] = *f.Priority
+			}
 			result := tx.Model(&models.TableField{}).
 				Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
 				Updates(updates)
@@ -545,24 +574,35 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 			}
 		}
 
-		// Backfill: для существующих полей с width=0 (старые записи без width) -
-		// проставляем дефолтную ширину из getDefaultFields.
+		// Backfill: для существующих полей с width=0 / priority=0 (старые записи) -
+		// проставляем дефолты из getDefaultFields.
 		defaultsByName := make(map[string]defaultField, len(defaults))
 		for _, d := range defaults {
 			defaultsByName[d.Name] = d
 		}
 		for _, f := range existing {
-			if f.Width != 0 {
+			d, ok := defaultsByName[f.FieldName]
+			if !ok {
 				continue
 			}
-			d, ok := defaultsByName[f.FieldName]
-			if !ok || d.Width == 0 {
+			backfill := map[string]interface{}{}
+			if f.Width == 0 && d.Width != 0 {
+				backfill["width"] = d.Width
+			}
+			if f.Priority == 0 {
+				p := d.Priority
+				if p == 0 {
+					p = 3
+				}
+				backfill["priority"] = p
+			}
+			if len(backfill) == 0 {
 				continue
 			}
 			if err := s.db.WithContext(ctx).Model(&models.TableField{}).
 				Where("id = ?", f.ID).
-				Update("width", d.Width).Error; err != nil {
-				slog.Error("не удалось backfill width",
+				Updates(backfill).Error; err != nil {
+				slog.Error("не удалось backfill столбца",
 					"table_id", t.ID, "field", f.FieldName, "error", err)
 			}
 		}
@@ -574,6 +614,10 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 			maxOrder++
 			order := maxOrder
 			fieldType := d.FieldType
+			priority := d.Priority
+			if priority == 0 {
+				priority = 3
+			}
 			tf := models.TableField{
 				TableID:      t.ID,
 				FieldName:    d.Name,
@@ -581,6 +625,7 @@ func (s *systemTableService) SeedMissingFields(ctx context.Context) error {
 				DisplayOrder: &order,
 				IsVisible:    d.IsVisible,
 				Width:        d.Width,
+				Priority:     priority,
 			}
 			if err := s.db.WithContext(ctx).Create(&tf).Error; err != nil {
 				slog.Error("не удалось добавить отсутствующее поле",

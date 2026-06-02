@@ -1,7 +1,11 @@
 <template>
   <div
     class="selected-table-card"
-    :class="{ 'enlarged': enlarged }"
+    :class="[
+      { 'enlarged': enlarged, 'is-portrait': isCompact },
+      `density-${rowDensity}`,
+    ]"
+    :style="{ '--table-font-size': tableFontSize + 'px' }"
     data-testid="cars-table"
   >
     <div class="card-header">
@@ -209,10 +213,11 @@
             name="fade-list"
             tag="div"
           >
-            <div 
-              v-for="(item, index) in displayItems" 
-              :key="item.id" 
+            <div
+              v-for="(item, index) in displayItems"
+              :key="item.id"
               class="item-row"
+              :class="{ 'item-row--expanded': expandedRows[item.id] }"
               :style="{ animationDelay: `${index * 0.05}s` }"
               @click="preview ? null : openVehicleDetails(item)"
             >
@@ -311,6 +316,36 @@
                   <StatusBadge :status="item.status" />
                 </div>
                 <div
+                  v-if="isCompact && hiddenInPortraitFields().length"
+                  class="col expand-col"
+                  style="order: 9998;"
+                  @click.stop
+                >
+                  <button
+                    type="button"
+                    class="expand-btn"
+                    :class="{ 'expand-btn--open': expandedRows[item.id] }"
+                    :aria-expanded="!!expandedRows[item.id]"
+                    :aria-label="expandedRows[item.id] ? 'Скрыть' : 'Подробнее'"
+                    @click="toggleRowExpand(item.id)"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                    >
+                      <path
+                        d="M3.5 5L7 8.5L10.5 5"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div
                   class="col actions-col"
                   style="order: 9999;"
                   @click.stop
@@ -326,6 +361,26 @@
                       class="delete-icon"
                     >
                   </button>
+                </div>
+              </div>
+              <div
+                v-if="isCompact && expandedRows[item.id]"
+                class="item-row__details"
+                @click.stop
+              >
+                <div
+                  v-for="name in hiddenInPortraitFields()"
+                  :key="name"
+                  class="detail-item"
+                >
+                  <span class="detail-item__label">{{ portraitFieldLabel(name) }}:</span>
+                  <span class="detail-item__value">
+                    <StatusBadge
+                      v-if="name === 'status'"
+                      :status="item.status"
+                    />
+                    <template v-else>{{ portraitFieldValue(item, name) }}</template>
+                  </span>
                 </div>
               </div>
             </div>
@@ -370,6 +425,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions';
+import { useOrientation } from '@/composables/useOrientation';
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
@@ -388,6 +444,10 @@ export default {
     LoaderSpinner,
     StatusBadge,
     EnlargedToggle
+  },
+  setup() {
+    const { isPortrait, isCompact } = useOrientation();
+    return { isPortrait, isCompact };
   },
   props: {
     tableName: { type: String, default: '' },
@@ -424,7 +484,12 @@ export default {
       enlarged: false,
       fieldsVisibility: {},
       fieldOrders: {},
-      fieldWidths: {}
+      fieldWidths: {},
+      fieldPriorities: {},
+      tableFontSize: 14,
+      rowDensity: 'normal',
+      expandedRows: {},
+      compactPriorityThreshold: 2,
     };
   },
   computed: {
@@ -553,14 +618,17 @@ export default {
         const nextVis = {};
         const nextOrd = {};
         const nextW = {};
+        const nextP = {};
         newVal.forEach((f, i) => {
           nextVis[f.field_name] = f.is_visible !== false;
           nextOrd[f.field_name] = typeof f.display_order === 'number' ? f.display_order : i;
           if (typeof f.width === 'number' && f.width > 0) nextW[f.field_name] = f.width;
+          if (typeof f.priority === 'number' && f.priority > 0) nextP[f.field_name] = f.priority;
         });
         this.fieldsVisibility = nextVis;
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
+        this.fieldPriorities = nextP;
       }
     }
   },
@@ -952,7 +1020,64 @@ export default {
     isFieldVisible(fieldName) {
       // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
       const v = this.fieldsVisibility[fieldName];
-      return v === undefined ? true : v;
+      const visible = v === undefined ? true : v;
+      if (!visible) return false;
+      // В портретном компактном режиме показываем только столбцы с priority<=threshold.
+      if (this.isCompact) {
+        const p = this.fieldPriorities[fieldName];
+        if (typeof p === 'number' && p > this.compactPriorityThreshold) return false;
+      }
+      return true;
+    },
+
+    /**
+     * Возвращает список field_name, которые видимы по is_visible, но скрыты
+     * в текущем портретном режиме из-за priority. Используется для блока
+     * "Подробнее" под строкой - показать пользователю недостающие поля.
+     */
+    hiddenInPortraitFields() {
+      if (!this.isCompact) return [];
+      return Object.keys(this.fieldsVisibility)
+        .filter(name => this.fieldsVisibility[name] !== false)
+        .filter(name => {
+          const p = this.fieldPriorities[name];
+          return typeof p === 'number' && p > this.compactPriorityThreshold;
+        });
+    },
+
+    toggleRowExpand(rowId) {
+      const next = { ...this.expandedRows };
+      next[rowId] = !next[rowId];
+      this.expandedRows = next;
+    },
+
+    portraitFieldLabel(name) {
+      const LABELS = {
+        car_number: 'Номер Т/С',
+        car_brand: 'Марка',
+        organization: 'Организация',
+        company: 'Компания',
+        application_id: 'Номер заявки',
+        unload_place: 'Место разгрузки',
+        valid_until: 'Действует до',
+        time_range: 'Время',
+        status: 'Статус',
+      };
+      return LABELS[name] || name;
+    },
+
+    portraitFieldValue(item, name) {
+      switch (name) {
+        case 'car_number': return item.car_number || '-';
+        case 'car_brand': return item.car_brand || '-';
+        case 'organization': return item.organization_name || '-';
+        case 'company': return item.company || '-';
+        case 'application_id': return item.applicationNumber || '-';
+        case 'unload_place': return this.formatUnloadPlaces(item);
+        case 'valid_until': return this.formatDate(item.entry_date_to);
+        case 'time_range': return this.formatTimeRange(item.entry_time_from, item.entry_time_to);
+        default: return '-';
+      }
     },
 
     /**
@@ -978,6 +1103,7 @@ export default {
         const nextVis = {};
         const nextOrd = {};
         const nextW = {};
+        const nextP = {};
         (data.fields || []).forEach(f => {
           nextVis[f.field_name] = f.is_visible !== false;
           if (typeof f.display_order === 'number') {
@@ -986,10 +1112,20 @@ export default {
           if (typeof f.width === 'number' && f.width > 0) {
             nextW[f.field_name] = f.width;
           }
+          if (typeof f.priority === 'number' && f.priority > 0) {
+            nextP[f.field_name] = f.priority;
+          }
         });
         this.fieldsVisibility = nextVis;
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
+        this.fieldPriorities = nextP;
+        // Применяем стиль уровня таблицы (#345 фазы 1D+1E).
+        const tbl = data.table || {};
+        const fs = Number(tbl.font_size);
+        if (fs >= 10 && fs <= 24) this.tableFontSize = fs;
+        const dens = tbl.row_density;
+        if (['compact', 'normal', 'spacious'].includes(dens)) this.rowDensity = dens;
       } catch (error) {
         console.error('Ошибка загрузки настроек столбцов:', error);
       }
@@ -1448,5 +1584,102 @@ export default {
     height: 28px;
     font-size: 11px;
   }
+}
+
+/* #345 Phase 1D: размер шрифта строк через CSS-переменную с дефолтом 14px.
+   Применяется ТОЛЬКО к телу таблицы - заголовки сохраняют исходный размер. */
+.selected-table-card .items-body .col {
+  font-size: var(--table-font-size, 14px);
+}
+
+/* #345 Phase 1E: плотность строк управляет вертикальным padding в ячейках. */
+.selected-table-card.density-compact .item-data,
+.selected-table-card.density-compact .header-row {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.selected-table-card.density-spacious .item-data,
+.selected-table-card.density-spacious .header-row {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+/* #345 Phase 1F: портретный режим (узкий экран с orientation: portrait). */
+.expand-col {
+  flex: 2.5 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.expand-btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.expand-btn:hover {
+  background: #f5f5f5;
+  color: #4F5BDF;
+}
+
+.expand-btn--open {
+  transform: rotate(180deg);
+  color: #4F5BDF;
+  background: #eef0ff;
+}
+
+.item-row__details {
+  padding: 8px 16px 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  background: #fafafa;
+  border-top: 1px dashed #e6e6e6;
+}
+
+.detail-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--table-font-size, 14px);
+}
+
+.detail-item__label {
+  color: #6b7280;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.detail-item__value {
+  color: #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* В портретном режиме контролы сверху таблицы превращаем в вертикальный стек. */
+.selected-table-card.is-portrait .card-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  height: auto;
+  padding: 14px 16px;
+}
+
+.selected-table-card.is-portrait .card-header__settings {
+  width: 100%;
+  justify-content: space-between;
 }
 </style>

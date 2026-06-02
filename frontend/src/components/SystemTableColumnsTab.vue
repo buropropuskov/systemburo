@@ -98,6 +98,7 @@
             class="columns-tab__width"
             :title="'Ширина столбца (вес flex-grow). Браузер делит доступную ширину пропорционально весам видимых столбцов.'"
           >
+            <span class="columns-tab__width-label">Ширина:</span>
             <input
               v-model.number="field.width"
               type="number"
@@ -106,7 +107,25 @@
               class="columns-tab__width-input"
               :data-width-field="field.field_name"
             >
-            <span class="columns-tab__width-unit">w</span>
+          </div>
+          <div
+            class="columns-tab__priority"
+            :title="'Приоритет в портретном режиме (1-5). 1 = всегда виден, 2 = виден на узком экране, 3-5 = скрывается в портрете и доступен по кнопке Подробнее.'"
+          >
+            <span class="columns-tab__priority-label">Приоритет:</span>
+            <select
+              v-model.number="field.priority"
+              class="columns-tab__priority-select"
+              :data-priority-field="field.field_name"
+            >
+              <option
+                v-for="n in 5"
+                :key="n"
+                :value="n"
+              >
+                {{ n }}
+              </option>
+            </select>
           </div>
         </div>
       </li>
@@ -219,6 +238,7 @@ export default {
       originalVisibility: {},
       originalOrder: [],
       originalWidth: {},
+      originalPriority: {},
       saving: false,
       statusMessage: '',
       statusError: false,
@@ -234,6 +254,7 @@ export default {
         is_visible: f.is_visible,
         display_order: i,
         width: f.width,
+        priority: f.priority,
       }));
     },
     sampleItems() {
@@ -249,7 +270,10 @@ export default {
       const widthChanged = this.localFields.some(
         f => this.originalWidth[f.field_name] !== f.width,
       );
-      return visibilityChanged || orderChanged || widthChanged;
+      const priorityChanged = this.localFields.some(
+        f => this.originalPriority[f.field_name] !== f.priority,
+      );
+      return visibilityChanged || orderChanged || widthChanged || priorityChanged;
     },
   },
   watch: {
@@ -278,6 +302,7 @@ export default {
         field_name: f.field_name,
         is_visible: f.is_visible !== false,
         width: typeof f.width === 'number' && f.width > 0 ? f.width : 10,
+        priority: typeof f.priority === 'number' && f.priority > 0 ? f.priority : 3,
       }));
       this.originalVisibility = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.is_visible]),
@@ -285,6 +310,9 @@ export default {
       this.originalOrder = this.localFields.map(f => f.field_name);
       this.originalWidth = Object.fromEntries(
         this.localFields.map(f => [f.field_name, f.width]),
+      );
+      this.originalPriority = Object.fromEntries(
+        this.localFields.map(f => [f.field_name, f.priority]),
       );
       this.statusMessage = '';
       this.statusError = false;
@@ -353,6 +381,7 @@ export default {
               is_visible: f.is_visible,
               display_order: i,
               width: Math.max(1, Math.min(100, Number(f.width) || 10)),
+              priority: Math.max(1, Math.min(5, Number(f.priority) || 3)),
             })),
           }),
         });
@@ -367,6 +396,9 @@ export default {
         this.originalOrder = this.localFields.map(f => f.field_name);
         this.originalWidth = Object.fromEntries(
           this.localFields.map(f => [f.field_name, f.width]),
+        );
+        this.originalPriority = Object.fromEntries(
+          this.localFields.map(f => [f.field_name, f.priority]),
         );
         this.$emit('update');
       } catch (e) {
@@ -523,12 +555,18 @@ export default {
   padding-right: 6px;
 }
 
+.columns-tab__width-label {
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
 .columns-tab__width-input {
-  width: 42px;
-  padding: 3px 6px;
+  width: 32px;
+  padding: 2px 4px;
   border: 1px solid #e6e6e6;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   text-align: right;
   color: #333;
   background: #fff;
@@ -546,9 +584,34 @@ export default {
   border-color: #4F5BDF;
 }
 
-.columns-tab__width-unit {
+.columns-tab__priority {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+
+.columns-tab__priority-label {
   font-size: 11px;
-  color: #a2a2a2;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.columns-tab__priority-select {
+  width: 38px;
+  padding: 2px 4px;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #333;
+  background: #fff;
+  cursor: pointer;
+}
+
+.columns-tab__priority-select:focus {
+  outline: none;
+  border-color: #4F5BDF;
 }
 
 .columns-tab__actions {
