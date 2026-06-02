@@ -510,6 +510,7 @@ export default {
     gap: 10px;
     padding-bottom: 15px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .tables__header-actions {
@@ -517,6 +518,8 @@ export default {
     align-items: center;
     gap: 10px;
     margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .tables__instruction {
@@ -554,6 +557,9 @@ export default {
     justify-content: space-between;
     padding-bottom: 15px;
     border-bottom: 1px solid #e6e6e6;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-width: 0;
 }
 
 .filters__fields {
@@ -561,6 +567,8 @@ export default {
     align-items: center;
     gap: 10px;
     position: relative;
+    flex-wrap: wrap;
+    min-width: 0;
 }
 
 
@@ -606,6 +614,8 @@ export default {
     display: flex;
     align-items: center;
     gap: 15px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .options__icon {

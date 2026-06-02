@@ -1236,6 +1236,25 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .card-header {
+    gap: 8px;
+    padding: 6px 12px;
+  }
+  .card-title {
+    font-size: 0.95em;
+  }
+  .items-count {
+    font-size: 0.8em;
+    gap: 6px;
+  }
+  .history-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
 }
 
 .history-btn {
