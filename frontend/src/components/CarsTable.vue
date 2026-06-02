@@ -206,12 +206,12 @@
       
       <div class="items-container">
         <div
-          v-if="isLoading"
+          v-if="isLoading || refreshing"
           class="loading-message"
         >
-          <LoaderSpinner label="Загрузка машин…" />
+          <LoaderSpinner :label="refreshing ? 'Обновление…' : 'Загрузка машин…'" />
         </div>
-        
+
         <div
           v-else-if="displayItems.length > 0"
           class="items-body"

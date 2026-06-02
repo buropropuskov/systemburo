@@ -9,7 +9,6 @@
     <img
       src="@/assets/icons/refresh.png"
       class="refresh-btn__icon"
-      :class="{ 'refresh-btn__icon--spinning': loading }"
       alt=""
     >
     <p class="refresh-btn__text">
@@ -68,15 +67,6 @@ export default {
     .refresh-btn__icon {
         width: 15px;
         height: 15px;
-    }
-
-    .refresh-btn__icon--spinning {
-        animation: refresh-btn-spin 0.9s linear infinite;
-    }
-
-    @keyframes refresh-btn-spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(-360deg); }
     }
 
     .refresh-btn__text {

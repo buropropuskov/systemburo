@@ -230,13 +230,13 @@
       
       <div class="items-container">
         <div
-          v-if="isLoading"
+          v-if="isLoading || refreshing"
           class="loading-message"
         >
           <div class="loader" />
-          <p>Загрузка сотрудников...</p>
+          <p>{{ refreshing ? 'Обновление...' : 'Загрузка сотрудников...' }}</p>
         </div>
-        
+
         <div
           v-else-if="displayItems.length > 0"
           class="items-body"
