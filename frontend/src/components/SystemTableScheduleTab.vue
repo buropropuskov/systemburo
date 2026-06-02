@@ -599,10 +599,12 @@ export default {
   line-height: 1.5;
 }
 
-/* Сетка карточек дней - как в TableInfoModal "Режим работы". */
+/* Сетка карточек дней - как в TableInfoModal "Режим работы".
+   Max 4 столбика: min 25% от ширины - чтобы карточки не были слишком
+   мелкими на широких экранах. */
 .schedule-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(max(150px, calc(25% - 9px)), 1fr));
   gap: 12px;
 }
 
@@ -648,9 +650,11 @@ export default {
   border: 1px solid #e6e6e6;
   font-size: 11px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .slot-badge--round {
@@ -766,7 +770,7 @@ input:checked + .switch-slider:before {
 .slot-actions {
   display: flex;
   gap: 2px;
-  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .icon-btn {
