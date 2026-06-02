@@ -557,34 +557,40 @@ export default {
     justify-content: space-between;
     padding-bottom: 15px;
     border-bottom: 1px solid #e6e6e6;
-    flex-wrap: wrap;
-    gap: 10px;
+    gap: clamp(6px, 0.8vw, 10px);
     min-width: 0;
+    flex-wrap: nowrap;
 }
 
+/* clamp на gap/padding/height/font-size - адаптивное масштабирование без
+   media-queries. Фильтры всегда в одну строку: на узком экране становятся
+   мельче, но не переносятся и не уезжают. */
 .filters__fields {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: clamp(6px, 0.8vw, 10px);
     position: relative;
-    flex-wrap: wrap;
     min-width: 0;
+    flex-wrap: nowrap;
+    flex-shrink: 1;
 }
 
 
 .field {
-    width: 200px;
-    height: 35px;
+    width: clamp(120px, 14vw, 200px);
+    height: clamp(28px, 3vw, 35px);
     background-color: #FFF;
     border-radius: 15px;
     border: 1px solid #e6e6e6;
-    padding: 0 10px;
+    padding: 0 clamp(6px, 0.8vw, 10px);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: clamp(4px, 0.6vw, 10px);
     position: relative;
     cursor: pointer;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
 .field--select {
@@ -595,15 +601,20 @@ export default {
     outline: none;
     border: none;
     background-color: transparent;
-    font-size: 14px;
-    width: 150px;
+    font-size: clamp(11px, 1.1vw, 14px);
+    width: 100%;
+    min-width: 0;
     cursor: pointer;
 }
 
 .select-text {
-    font-size: 14px;
+    font-size: clamp(11px, 1.1vw, 14px);
     color: #000;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .search {
@@ -613,20 +624,22 @@ export default {
 .filters__options {
     display: flex;
     align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
+    gap: clamp(6px, 1vw, 15px);
     justify-content: flex-end;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
 }
 
 .options__icon {
-    width: 20px;
-    height: 20px;
+    width: clamp(14px, 1.6vw, 20px);
+    height: clamp(14px, 1.6vw, 20px);
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .options__export {
-    width: 100px;
-    height: 25px;
+    width: clamp(70px, 8vw, 100px);
+    height: clamp(22px, 2.4vw, 25px);
     background: #FFF;
     border: 1px solid #e6e6e6;
     outline: none;
@@ -636,6 +649,7 @@ export default {
     justify-content: center;
     border-radius: 10px;
     gap: 5px;
+    font-size: clamp(10px, 1vw, 13px);
 }
 
 .options__export:hover {
