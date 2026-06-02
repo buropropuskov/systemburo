@@ -380,7 +380,7 @@
                   :key="name"
                   class="detail-item"
                 >
-                  <span class="detail-item__label">{{ portraitFieldLabel(name) }}:</span>
+                  <span class="detail-item__label">{{ portraitFieldLabel(name) }}</span>
                   <span class="detail-item__value">
                     <StatusBadge
                       v-if="name === 'status'"
@@ -1693,43 +1693,42 @@ export default {
   background: #eef0ff;
 }
 
-/* Раскрытие "Подробнее": label фиксированной колонки 130px, value занимает
-   остаток. Использование display:contents у .detail-item позволяет дочерним
-   label/value лечь напрямую в grid и встать в линеечку. */
+/* Раскрытие "Подробнее" - стиль карточек label/value как в VehicleDetailsModal.
+   Auto-fit grid, каждый item - flex-column с label сверху (мелкий серый)
+   и value снизу (крупнее, тёмный, weight 500), в белой карточке с border. */
 .item-row__details {
-  padding: 8px 16px 12px;
+  padding: 12px 16px 14px;
   display: grid;
-  grid-template-columns: 130px 1fr 130px 1fr;
-  gap: 6px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
   background: #fafafa;
   border-top: 1px dashed #e6e6e6;
 }
 
 .detail-item {
-  display: contents;
-  font-size: var(--table-font-size, 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #ececec;
 }
 
 .detail-item__label {
-  color: #6b7280;
-  font-size: 12px;
+  color: #a2a2a2;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
   white-space: nowrap;
-  align-self: baseline;
 }
 
 .detail-item__value {
-  color: #000;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
   min-width: 0;
-  align-self: baseline;
-}
-
-@media (max-width: 640px) {
-  /* Очень узкий экран - одна пара label/value в строке. */
-  .item-row__details {
-    grid-template-columns: 130px 1fr;
-  }
 }
 </style>
