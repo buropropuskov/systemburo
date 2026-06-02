@@ -2,7 +2,7 @@
   <div
     class="selected-table-card"
     :class="[
-      { 'enlarged': enlarged, 'is-portrait': isCompact },
+      { 'enlarged': enlarged, 'is-portrait': isCompact, 'config-not-ready': !configReady },
       `density-${rowDensity}`,
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
@@ -542,6 +542,9 @@ export default {
       rowDensity: 'normal',
       expandedRows: {},
       compactPriorityThreshold: 2,
+      // false до первой загрузки конфига - класс config-not-ready на корне
+      // подавляет transitions, чтобы шапка/столбцы не "ездили" при init.
+      configReady: false,
     };
   },
   computed: {
@@ -676,6 +679,7 @@ export default {
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
         this.fieldPriorities = nextP;
+        this.configReady = true;
       }
     }
   },
@@ -779,6 +783,12 @@ export default {
         if (fs >= 10 && fs <= 24) this.tableFontSize = fs;
         const dens = table.row_density;
         if (['compact', 'normal', 'spacious'].includes(dens)) this.rowDensity = dens;
+        // Конфиг загружен - снимаем no-transition после применения через rAF.
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => { this.configReady = true; });
+        } else {
+          this.configReady = true;
+        }
 
         const employeesRes = await apiRequest(`/employees/active-for-table/${table.id}`, { method: "GET" });
         if (!employeesRes.ok) return;
@@ -1045,13 +1055,18 @@ export default {
      * Стиль конфигурируемой ячейки:
      * - order: 10 + display_order (между фиксированными entry/exit/status/actions).
      * - flex-grow: width из конфига (если задан) - переопределяет дефолт из CSS.
+     *
+     * Исключение: в enlarged НЕ задаём inline flex-grow для organization и
+     * status, иначе CSS-правила enlarged-режима (status -> grow 0, organization
+     * -> grow 24) не сработают и анимация перетекания пропадает.
      */
     getColStyle(fieldName) {
       const order = this.fieldOrders[fieldName];
       const width = this.fieldWidths[fieldName];
       const style = {};
       if (order !== undefined) style.order = 10 + order;
-      if (width !== undefined && width > 0) style.flexGrow = width;
+      const skipWidth = this.enlarged && (fieldName === 'organization' || fieldName === 'status');
+      if (!skipWidth && width !== undefined && width > 0) style.flexGrow = width;
       return Object.keys(style).length ? style : null;
     },
 
@@ -1458,6 +1473,13 @@ export default {
   transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
+/* Пока конфиг не загружен - запрещаем transitions, чтобы шапка/столбцы не
+   "ездили" между дефолтными и сохранёнными ширинами при первом рендере. */
+.selected-table-card.config-not-ready .col,
+.selected-table-card.config-not-ready .item-data {
+  transition: none !important;
+}
+
 .selected-table-card .item-data {
   transition: min-height 0.4s ease-in-out;
 }
@@ -1611,20 +1633,18 @@ export default {
   background: #eef0ff;
 }
 
+/* Раскрытие "Подробнее": см. CarsTable. label фикс. колонки 130px, value 1fr. */
 .item-row__details {
   padding: 8px 16px 12px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 130px 1fr 130px 1fr;
   gap: 6px 16px;
   background: #fafafa;
   border-top: 1px dashed #e6e6e6;
 }
 
 .detail-item {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
+  display: contents;
   font-size: var(--table-font-size, 14px);
 }
 
@@ -1632,6 +1652,7 @@ export default {
   color: #6b7280;
   font-size: 12px;
   white-space: nowrap;
+  align-self: baseline;
 }
 
 .detail-item__value {
@@ -1640,18 +1661,12 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  align-self: baseline;
 }
 
-.selected-table-card.is-portrait .card-header {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  height: auto;
-  padding: 14px 16px;
-}
-
-.selected-table-card.is-portrait .card-header__settings {
-  width: 100%;
-  justify-content: space-between;
+@media (max-width: 640px) {
+  .item-row__details {
+    grid-template-columns: 130px 1fr;
+  }
 }
 </style>
