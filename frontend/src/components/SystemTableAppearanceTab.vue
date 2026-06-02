@@ -205,6 +205,29 @@ export default {
 .appearance-tab__slider {
   flex: 1;
   accent-color: #4F5BDF;
+  cursor: grab;
+}
+
+.appearance-tab__slider:active {
+  cursor: grabbing;
+}
+
+/* WebKit/Blink (Chrome, Edge, Safari) - кастомизация thumb cursor. */
+.appearance-tab__slider::-webkit-slider-thumb {
+  cursor: grab;
+}
+
+.appearance-tab__slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+/* Firefox */
+.appearance-tab__slider::-moz-range-thumb {
+  cursor: grab;
+}
+
+.appearance-tab__slider:active::-moz-range-thumb {
+  cursor: grabbing;
 }
 
 .appearance-tab__value {

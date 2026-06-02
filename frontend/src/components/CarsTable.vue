@@ -2,7 +2,7 @@
   <div
     class="selected-table-card"
     :class="[
-      { 'enlarged': enlarged, 'is-portrait': isCompact },
+      { 'enlarged': enlarged, 'is-portrait': isCompact, 'config-not-ready': !configReady },
       `density-${rowDensity}`,
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
@@ -490,6 +490,10 @@ export default {
       rowDensity: 'normal',
       expandedRows: {},
       compactPriorityThreshold: 2,
+      // false до тех пор пока не подгрузим конфиг таблицы. Корневой class
+      // config-not-ready подавляет transitions, чтобы шапка/столбцы не
+      // "ездили" между дефолтом и сохранёнными значениями при первом рендере.
+      configReady: false,
     };
   },
   computed: {
@@ -629,6 +633,7 @@ export default {
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
         this.fieldPriorities = nextP;
+        this.configReady = true;
       }
     }
   },
@@ -1084,13 +1089,18 @@ export default {
      * Стиль конфигурируемой ячейки:
      * - order: 10 + display_order (между фиксированными entry/exit/actions).
      * - flex-grow: width из конфига (если задан) - переопределяет дефолт из CSS.
+     *
+     * Исключение: в enlarged-режиме НЕ задаём inline flex-grow для organization
+     * и status, чтобы CSS-правила .enlarged.status-col {grow:0} и
+     * .enlarged.organization-col {grow:25} могли отработать с анимацией.
      */
     getColStyle(fieldName) {
       const order = this.fieldOrders[fieldName];
       const width = this.fieldWidths[fieldName];
       const style = {};
       if (order !== undefined) style.order = 10 + order;
-      if (width !== undefined && width > 0) style.flexGrow = width;
+      const skipWidth = this.enlarged && (fieldName === 'organization' || fieldName === 'status');
+      if (!skipWidth && width !== undefined && width > 0) style.flexGrow = width;
       return Object.keys(style).length ? style : null;
     },
 
@@ -1128,6 +1138,16 @@ export default {
         if (['compact', 'normal', 'spacious'].includes(dens)) this.rowDensity = dens;
       } catch (error) {
         console.error('Ошибка загрузки настроек столбцов:', error);
+      } finally {
+        // Снимаем флаг config-not-ready после первой загрузки. Делаем через
+        // requestAnimationFrame, чтобы браузер успел применить итоговые
+        // ширины БЕЗ transition (иначе при снятии класса первая анимация
+        // запустится со старого значения на новое).
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => { this.configReady = true; });
+        } else {
+          this.configReady = true;
+        }
       }
     }
   }
@@ -1485,6 +1505,14 @@ export default {
   transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
 }
 
+/* Пока конфиг не загружен - запрещаем transitions на col/item-data, чтобы
+   шапка/столбцы не "ездили" между дефолтными и сохранёнными значениями
+   при первом рендере. */
+.selected-table-card.config-not-ready .col,
+.selected-table-card.config-not-ready .item-data {
+  transition: none !important;
+}
+
 .selected-table-card .item-data {
   transition: min-height 0.4s ease-in-out;
 }
@@ -1638,20 +1666,20 @@ export default {
   background: #eef0ff;
 }
 
+/* Раскрытие "Подробнее": label фиксированной колонки 130px, value занимает
+   остаток. Использование display:contents у .detail-item позволяет дочерним
+   label/value лечь напрямую в grid и встать в линеечку. */
 .item-row__details {
   padding: 8px 16px 12px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 130px 1fr 130px 1fr;
   gap: 6px 16px;
   background: #fafafa;
   border-top: 1px dashed #e6e6e6;
 }
 
 .detail-item {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
+  display: contents;
   font-size: var(--table-font-size, 14px);
 }
 
@@ -1659,6 +1687,7 @@ export default {
   color: #6b7280;
   font-size: 12px;
   white-space: nowrap;
+  align-self: baseline;
 }
 
 .detail-item__value {
@@ -1667,19 +1696,13 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  align-self: baseline;
 }
 
-/* В портретном режиме контролы сверху таблицы превращаем в вертикальный стек. */
-.selected-table-card.is-portrait .card-header {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  height: auto;
-  padding: 14px 16px;
-}
-
-.selected-table-card.is-portrait .card-header__settings {
-  width: 100%;
-  justify-content: space-between;
+@media (max-width: 640px) {
+  /* Очень узкий экран - одна пара label/value в строке. */
+  .item-row__details {
+    grid-template-columns: 130px 1fr;
+  }
 }
 </style>
