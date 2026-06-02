@@ -1,9 +1,27 @@
 <template>
   <div class="columns-tab">
     <div class="columns-tab__header">
-      <h4 class="columns-tab__title">
-        Видимые столбцы
-      </h4>
+      <div class="columns-tab__header-top">
+        <h4 class="columns-tab__title">
+          Видимые столбцы
+        </h4>
+        <div class="columns-tab__actions">
+          <button
+            class="columns-tab__btn columns-tab__btn--secondary"
+            :disabled="!isDirty || saving"
+            @click="reset"
+          >
+            Отменить
+          </button>
+          <button
+            class="columns-tab__btn columns-tab__btn--primary"
+            :disabled="!isDirty || saving"
+            @click="save"
+          >
+            {{ saving ? 'Сохраняем...' : 'Сохранить' }}
+          </button>
+        </div>
+      </div>
       <p class="columns-tab__hint">
         Переставляйте столбцы перетаскиванием за иконку слева. Скрытые столбцы не отображаются в таблице.
       </p>
@@ -137,23 +155,6 @@
         </div>
       </li>
     </TransitionGroup>
-
-    <div class="columns-tab__actions">
-      <button
-        class="columns-tab__btn columns-tab__btn--secondary"
-        :disabled="!isDirty || saving"
-        @click="reset"
-      >
-        Отменить
-      </button>
-      <button
-        class="columns-tab__btn columns-tab__btn--primary"
-        :disabled="!isDirty || saving"
-        @click="save"
-      >
-        {{ saving ? 'Сохраняем...' : 'Сохранить' }}
-      </button>
-    </div>
 
     <div
       v-if="localFields.length && variant === 'main'"
@@ -421,12 +422,21 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  line-height: 1.5;
 }
 
 .columns-tab__header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+
+.columns-tab__header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .columns-tab__title {
@@ -440,7 +450,7 @@ export default {
   margin: 0;
   font-size: 13px;
   color: #6b7280;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .columns-tab__empty {
