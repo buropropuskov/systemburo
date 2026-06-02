@@ -16,6 +16,43 @@
       </label>
     </div>
 
+    <!-- Drag&drop zone - можно перетащить файлы из проводника или кликнуть. -->
+    <label
+      class="photo-dropzone"
+      :class="{ 'photo-dropzone--active': isDragging }"
+      @dragenter.prevent="isDragging = true"
+      @dragover.prevent="isDragging = true"
+      @dragleave.prevent="isDragging = false"
+      @drop.prevent="onDrop"
+    >
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        class="photo-dropzone__input"
+        @change="uploadPhotos"
+      >
+      <svg
+        width="32"
+        height="32"
+        viewBox="0 0 24 24"
+        fill="none"
+        class="photo-dropzone__icon"
+      >
+        <path
+          d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <div class="photo-dropzone__text">
+        <strong>Перетащите фотографии сюда</strong>
+        <span>или нажмите, чтобы выбрать из обзора</span>
+      </div>
+    </label>
+
     <div class="photos-grid">
       <div
         v-for="photo in photos"
@@ -125,26 +162,39 @@ export default {
   data() {
     return {
       showPhotoModal: false,
-      viewingPhoto: null
+      viewingPhoto: null,
+      isDragging: false,
     };
   },
   methods: {
     async uploadPhotos(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
+      await this.uploadFiles(files);
+      // Сбрасываем input, чтобы можно было повторно выбрать те же файлы.
+      event.target.value = '';
+    },
 
+    onDrop(event) {
+      this.isDragging = false;
+      const files = event.dataTransfer?.files;
+      if (files && files.length) this.uploadFiles(files);
+    },
+
+    async uploadFiles(files) {
       const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
-        formData.append('photos', files[i]);
+        // Принимаем только изображения - drag из проводника может тащить любое.
+        if (!files[i].type || files[i].type.startsWith('image/')) {
+          formData.append('photos', files[i]);
+        }
       }
-
       try {
         const response = await apiRequest(`/system-tables/${this.tableId}/photos`, {
           method: 'POST',
           body: formData,
           headers: {},
         });
-
         if (response.ok) {
           this.$emit('photos-changed');
           this.dispatchNotification('Фотографии успешно загружены', 'success');
@@ -243,6 +293,67 @@ export default {
 .upload-photo-btn:hover {
   background: #4F5BDF;
   color: white;
+}
+
+/* Drop-zone для перетаскивания файлов из проводника. Также служит обычной
+   кнопкой обзора (label + input file). */
+.photo-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  margin-bottom: 12px;
+  border: 2px dashed #c0c4d8;
+  border-radius: 16px;
+  background: #fafbff;
+  color: #6b7280;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.photo-dropzone:hover {
+  border-color: #4F5BDF;
+  background: #f0f3ff;
+  color: #4F5BDF;
+}
+
+.photo-dropzone--active {
+  border-color: #4F5BDF;
+  background: #e6ebff;
+  color: #4F5BDF;
+}
+
+.photo-dropzone__input {
+  display: none;
+}
+
+.photo-dropzone__icon {
+  color: inherit;
+}
+
+.photo-dropzone__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.photo-dropzone__text strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.photo-dropzone:hover .photo-dropzone__text strong,
+.photo-dropzone--active .photo-dropzone__text strong {
+  color: #4F5BDF;
+}
+
+.photo-dropzone__text span {
+  font-size: 11px;
 }
 
 .photos-grid {

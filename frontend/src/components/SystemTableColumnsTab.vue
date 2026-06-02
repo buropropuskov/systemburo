@@ -418,7 +418,6 @@ export default {
 
 <style scoped>
 .columns-tab {
-  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -631,8 +630,6 @@ export default {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  border-top: 1px solid #f0f0f0;
-  padding-top: 12px;
 }
 
 .columns-tab__btn {
