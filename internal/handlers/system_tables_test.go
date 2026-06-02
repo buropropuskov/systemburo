@@ -598,3 +598,40 @@ func TestSystemTables_Update_FactFontSizeOutOfRange(t *testing.T) {
 		`{"font_size_fact":50}`, h)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
+
+// TestSystemTables_FactFields_DefaultVisibilityFromCatalog - регрессия:
+// при включении show_fact_table факт-поля сохраняют is_visible из каталога
+// (часть видна, часть скрыта). Без Select("*") в seedFactFields все скрытые
+// поля уезжали в visible=true из-за GORM default tag.
+func TestSystemTables_FactFields_DefaultVisibilityFromCatalog(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fact_def_vis","display_name":"FV","table_type":"cars","show_fact_table":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	factFields := testutil.ParseMap(t, rec)["fact_fields"].([]interface{})
+
+	visByName := map[string]bool{}
+	for _, f := range factFields {
+		fm := f.(map[string]interface{})
+		visByName[fm["field_name"].(string)] = fm["is_visible"].(bool)
+	}
+	assert.True(t, visByName["organization"], "organization видим (каталог)")
+	assert.True(t, visByName["car_brand"], "car_brand видим (каталог)")
+	assert.True(t, visByName["valid_until"], "valid_until видим (каталог)")
+	assert.True(t, visByName["time_range"], "time_range видим (каталог)")
+	assert.False(t, visByName["car_number"], "car_number скрыт (каталог)")
+	assert.False(t, visByName["unload_place"], "unload_place скрыт (каталог)")
+	assert.False(t, visByName["status"], "status скрыт (каталог)")
+	assert.False(t, visByName["company"], "company скрыт (каталог)")
+	assert.False(t, visByName["application_id"], "application_id скрыт (каталог)")
+}

@@ -421,6 +421,15 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 				slog.Error("не удалось создать факт-поле таблицы", "table_id", table.ID, "field", f.Name, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating fact fields")
 			}
+			// GORM v2 при Create игнорирует zero-value bool, БД применяет
+			// default:true вместо явного false. Дофикс через Update.
+			if !f.IsVisible {
+				if err := tx.Model(&models.TableFieldFact{}).
+					Where("id = ?", tff.ID).
+					Update("is_visible", false).Error; err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error setting fact field visibility")
+				}
+			}
 		}
 		return nil
 	})
@@ -865,11 +874,87 @@ func (s *systemTableService) seedFactFields(ctx context.Context, tables []models
 					"table_id", t.ID, "field", d.Name, "error", err)
 				continue
 			}
+			// GORM v2 при Create игнорирует zero-value bool, БД применяет
+			// default:true вместо явного false. Дофикс через Update.
+			if !d.IsVisible {
+				if err := s.db.WithContext(ctx).Model(&models.TableFieldFact{}).
+					Where("id = ?", tff.ID).
+					Update("is_visible", false).Error; err != nil {
+					slog.Error("не удалось проставить is_visible=false",
+						"table_id", t.ID, "field", d.Name, "error", err)
+				}
+			}
 			added++
 		}
 	}
 	if added > 0 {
 		slog.Info("досидил факт-поля таблиц (#345)", "added", added)
+	}
+	// Одноразовый фикс: если у таблицы ВСЕ факт-поля is_visible=true и каталог
+	// содержит скрытые - значит сидинг отработал с багом GORM. Применяем каталог.
+	if err := s.fixFactVisibilityFromCatalog(ctx, tables); err != nil {
+		return err
+	}
+	return nil
+}
+
+// fixFactVisibilityFromCatalog исправляет is_visible на каталожное значение
+// для таблиц где ВСЕ факт-поля сейчас true (признак бага из первого PR-B
+// релиза). Идемпотентно: если хоть одно поле уже false - не трогаем.
+func (s *systemTableService) fixFactVisibilityFromCatalog(ctx context.Context, tables []models.SystemTable) error {
+	fixed := 0
+	for _, t := range tables {
+		if !t.ShowFactTable {
+			continue
+		}
+		defaults := getDefaultFactFields(t.TableType)
+		if len(defaults) == 0 {
+			continue
+		}
+		var existing []models.TableFieldFact
+		if err := s.db.WithContext(ctx).
+			Where("table_id = ?", t.ID).
+			Find(&existing).Error; err != nil {
+			continue
+		}
+		allVisible := true
+		for _, f := range existing {
+			if !f.IsVisible {
+				allVisible = false
+				break
+			}
+		}
+		anyShouldBeHidden := false
+		for _, d := range defaults {
+			if !d.IsVisible {
+				anyShouldBeHidden = true
+				break
+			}
+		}
+		if !(allVisible && anyShouldBeHidden) {
+			continue
+		}
+		defByName := make(map[string]bool, len(defaults))
+		for _, d := range defaults {
+			defByName[d.Name] = d.IsVisible
+		}
+		for _, f := range existing {
+			want, ok := defByName[f.FieldName]
+			if !ok || want == f.IsVisible {
+				continue
+			}
+			if err := s.db.WithContext(ctx).Model(&models.TableFieldFact{}).
+				Where("id = ?", f.ID).
+				Update("is_visible", want).Error; err != nil {
+				slog.Error("не удалось fix факт-видимость",
+					"table_id", t.ID, "field", f.FieldName, "error", err)
+				continue
+			}
+			fixed++
+		}
+	}
+	if fixed > 0 {
+		slog.Info("исправил факт-видимость до каталога (#345)", "fixed", fixed)
 	}
 	return nil
 }
