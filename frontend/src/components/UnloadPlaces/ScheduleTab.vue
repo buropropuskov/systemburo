@@ -1,9 +1,8 @@
 <template>
   <div class="schedule-tab">
-    <!-- Заголовок и кнопка добавления -->
-    <div class="schedule-header">
-      <h4 class="schedule-title">
-        Рабочее время
+    <div class="schedule-tab__header-top">
+      <h4 class="schedule-tab__header-title">
+        Режим работы
       </h4>
       <button
         class="add-btn"
@@ -13,20 +12,25 @@
         + Добавить окно
       </button>
     </div>
+    <p class="schedule-tab__hint">
+      Дни без активных окон считаются нерабочими. Круглосуточный режим заменяет
+      обычные окна на 24/7.
+    </p>
 
-    <!-- Список дней -->
-    <div class="days-list">
+    <div class="schedule-grid">
       <div
         v-for="day in 7"
         :key="day"
-        class="day-group"
+        class="schedule-day-card"
       >
-        <!-- Заголовок дня с переключателем -->
-        <div class="day-header">
+        <div class="schedule-day-card__head">
           <span class="day-name">{{ getFullDayName(day - 1) }}</span>
-          <div class="round-control">
-            <span class="round-label">Круглосуточно</span>
-            <label class="round-switch">
+          <label
+            class="round-switch-wrap"
+            :title="'Круглосуточно (24/7)'"
+          >
+            <span class="round-switch-label">24/7</span>
+            <span class="round-switch">
               <input
                 type="checkbox"
                 :checked="hasRoundTheClock(day - 1)"
@@ -34,68 +38,59 @@
                 @change="toggleRoundTheClock(day - 1, $event)"
               >
               <span class="switch-slider" />
-            </label>
-          </div>
+            </span>
+          </label>
         </div>
-
-        <!-- Контент дня -->
-        <div class="day-content">
-          <!-- Если есть активное круглосуточное окно - показываем заглушку -->
+        <div class="schedule-day-card__body">
           <div
             v-if="hasActiveRoundTheClock(day - 1)"
-            class="round-badge"
+            class="slot-badge slot-badge--round"
           >
-            Круглосуточно (24/7)
+            <span class="round-clock-text">круглосуточно</span>
           </div>
-
-          <!-- Иначе показываем все активные окна для этого дня -->
           <div
+            v-for="slot in getActiveSlotsForDay(day - 1)"
             v-else
-            class="slots-wrapper"
+            :key="slot.id"
+            class="slot-badge"
           >
-            <div
-              v-for="slot in getActiveSlotsForDay(day - 1)"
-              :key="slot.id"
-              class="slot-item"
-            >
-              <span class="slot-time">
-                {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
-                <span
-                  v-if="slot.is_next_day"
-                  class="next-mark"
-                >(след. день)</span>
-              </span>
-              <div class="slot-actions">
-                <button
-                  class="icon-btn"
-                  title="Редактировать"
-                  @click="editSlot(slot)"
-                >
-                  <img
-                    src="@/assets/icons/edit.png"
-                    class="icon"
-                  >
-                </button>
-                <button
-                  class="icon-btn"
-                  title="Удалить"
-                  @click="deleteSlot(slot)"
-                >
-                  <img
-                    src="@/assets/icons/trashcan.png"
-                    class="icon"
-                  >
-                </button>
-              </div>
+            <span class="slot-time">
+              {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
+            </span>
+            <div class="slot-badges">
+              <span
+                v-if="slot.is_next_day"
+                class="next-day-badge"
+              >+1</span>
             </div>
-
-            <!-- Пусто -->
-            <div
-              v-if="getActiveSlotsForDay(day - 1).length === 0"
-              class="empty-text"
-            >
-              Нет временных окон
+            <div class="slot-actions">
+              <button
+                class="icon-btn"
+                title="Редактировать"
+                @click="editSlot(slot)"
+              >
+                <img
+                  src="@/assets/icons/edit.png"
+                  class="icon"
+                >
+              </button>
+              <button
+                class="icon-btn"
+                title="Удалить"
+                @click="deleteSlot(slot)"
+              >
+                <img
+                  src="@/assets/icons/trashcan.png"
+                  class="icon"
+                >
+              </button>
             </div>
+          </div>
+          <div
+            v-if="!hasActiveRoundTheClock(day - 1) && getActiveSlotsForDay(day - 1).length === 0"
+            class="schedule-day-card__empty"
+          >
+            нет окон
           </div>
         </div>
       </div>
@@ -604,25 +599,9 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 12px;
   font-size: 13px;
-}
-
-/* Заголовок */
-.schedule-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e6e6e6;
-  margin-bottom: 12px;
-  flex-shrink: 0;
-}
-
-.schedule-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
+  line-height: 1.5;
 }
 
 .add-btn {
@@ -643,31 +622,66 @@ export default {
   cursor: not-allowed;
 }
 
-/* Список дней */
-.days-list {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 4px;
+.schedule-tab__header-top {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.schedule-tab__header-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+}
+
+.schedule-tab__hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
 }
 
-/* Группа дня */
-.day-group {
+.schedule-day-card {
+  background: #fff;
   border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.day-header {
+.schedule-day-card__head {
+  background: #f0f3ff;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e6e6e6;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e6e6e6;
-  border-radius: 12px 12px 0 0;
+  gap: 8px;
+}
+
+.schedule-day-card__body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.schedule-day-card__empty {
+  text-align: center;
+  color: #aaa;
+  font-size: 11px;
+  font-style: italic;
+  padding: 6px 0;
 }
 
 .day-name {
@@ -676,23 +690,25 @@ export default {
   font-size: 13px;
 }
 
-.round-control {
-  display: flex;
+.round-switch-wrap {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  cursor: pointer;
 }
 
-.round-label {
-  font-size: 12px;
-  color: #666;
+.round-switch-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 0.4px;
 }
 
-/* Переключатель */
 .round-switch {
   position: relative;
   display: inline-block;
-  width: 40px;
-  height: 22px;
+  width: 34px;
+  height: 18px;
   cursor: pointer;
 }
 .round-switch input {
@@ -714,8 +730,8 @@ export default {
 .switch-slider:before {
   position: absolute;
   content: '';
-  height: 18px;
-  width: 18px;
+  height: 14px;
+  width: 14px;
   left: 2px;
   bottom: 2px;
   background-color: white;
@@ -726,56 +742,57 @@ input:checked + .switch-slider {
   background-color: #4F5BDF;
 }
 input:checked + .switch-slider:before {
-  transform: translateX(18px);
+  transform: translateX(16px);
 }
 
-/* Контент дня */
-.day-content {
-  padding: 12px 14px;
-}
-
-.round-badge {
-  text-align: center;
-  color: #4F5BDF;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 8px 0;
-  background: #f0f3ff;
-  border-radius: 8px;
-}
-
-.slots-wrapper {
+.slot-badge {
+  position: relative;
+  padding: 6px 8px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e6e6e6;
+  font-size: 11px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
 }
 
-/* Строка окна */
-.slot-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e6e6e6;
+.slot-badge--round {
+  background: #eef0ff;
+  border-color: #c7caf5;
+}
+
+.round-clock-text {
+  font-weight: 500;
+  color: #4F5BDF;
+  font-size: 11px;
 }
 
 .slot-time {
-  font-size: 13px;
+  font-size: 12px;
   color: #333;
+  font-weight: 500;
 }
 
-.next-mark {
-  font-size: 11px;
-  color: #999;
-  margin-left: 4px;
-  font-style: italic;
+.slot-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.next-day-badge {
+  background: #4F5BDF;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 500;
 }
 
 .slot-actions {
   display: flex;
-  gap: 6px;
+  gap: 2px;
+  margin-top: 2px;
 }
 
 .icon-btn {
@@ -793,17 +810,9 @@ input:checked + .switch-slider:before {
   background-color: #e6e6e6;
 }
 .icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   opacity: 0.6;
-}
-
-.empty-text {
-  text-align: center;
-  color: #aaa;
-  font-size: 12px;
-  font-style: italic;
-  padding: 8px 0;
 }
 
 /* Модальное окно */
