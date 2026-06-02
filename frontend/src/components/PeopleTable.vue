@@ -1687,12 +1687,15 @@ export default {
 .detail-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
   min-width: 0;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: #fff;
-  border-radius: 8px;
+  border-radius: 20px;
   border: 1px solid #ececec;
+  text-align: center;
 }
 
 .detail-item__label {

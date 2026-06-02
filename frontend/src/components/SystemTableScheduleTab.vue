@@ -26,16 +26,19 @@
         <div class="schedule-day-card__head">
           <span class="day-name">{{ getFullDayName(day - 1) }}</span>
           <label
-            class="round-switch"
-            :title="'Круглосуточно'"
+            class="round-switch-wrap"
+            :title="'Круглосуточно (24/7)'"
           >
-            <input
-              type="checkbox"
-              :checked="hasRoundTheClock(day - 1)"
-              :disabled="isLoading"
-              @change="toggleRoundTheClock(day - 1, $event)"
-            >
-            <span class="switch-slider" />
+            <span class="round-switch-label">24/7</span>
+            <span class="round-switch">
+              <input
+                type="checkbox"
+                :checked="hasRoundTheClock(day - 1)"
+                :disabled="isLoading"
+                @change="toggleRoundTheClock(day - 1, $event)"
+              >
+              <span class="switch-slider" />
+            </span>
           </label>
         </div>
         <div class="schedule-day-card__body">
@@ -697,6 +700,20 @@ export default {
   font-weight: 600;
   color: #333;
   font-size: 13px;
+}
+
+.round-switch-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.round-switch-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 0.4px;
 }
 
 .round-switch {

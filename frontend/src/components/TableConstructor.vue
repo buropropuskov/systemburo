@@ -211,13 +211,13 @@
                 </span>
               </div>
               <div class="table-info-row">
-                <span class="system-name">{{ selectedTable.table.name }}</span>
                 <span
                   class="current-status-badge"
                   :class="getTableCurrentStatusClass(selectedTable)"
                 >
                   {{ getTableCurrentStatusText(selectedTable) }}
                 </span>
+                <span class="system-name">{{ selectedTable.table.name }}</span>
               </div>
             </div>
             <div class="details-header-actions">
@@ -1355,16 +1355,15 @@ export default {
 }
 
 .tab-btn {
-  padding: 10px 18px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
+  padding: 8px 18px;
+  background: #fff;
+  border: 1px solid transparent;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: #6b7280;
   transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-  border-radius: 8px 8px 0 0;
+  border-radius: 50px;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1376,7 +1375,7 @@ export default {
 
 .tab-btn.active {
   color: #4F5BDF;
-  border-bottom-color: #4F5BDF;
+  border-color: #4F5BDF;
   background: #fff;
 }
 
@@ -1864,14 +1863,22 @@ export default {
 .map-link-group {
   display: flex;
   gap: 12px;
+  align-items: stretch;
+}
+
+/* Input и кнопка одинаковой высоты через height + box-sizing - чтобы кнопка
+   не вылезала выше инпута из-за разного line-height у <a> и <input>. */
+.map-link-group .form-input,
+.map-link-group .map-link-btn {
+  height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
   align-items: center;
 }
 
-/* Стилизуем .form-input в духе .form-input-sm: round borders, паддинги,
-   focus-голубое подсвечивание. */
 .map-link-group .form-input {
   flex: 1;
-  padding: 10px 14px;
+  padding: 0 14px;
   border: 1px solid #e6e6e6;
   border-radius: 12px;
   font-size: 13px;
@@ -1890,7 +1897,7 @@ export default {
 }
 
 .map-link-btn {
-  padding: 10px 18px;
+  padding: 0 18px;
   background: #f0f3ff;
   color: #4F5BDF;
   text-decoration: none;
