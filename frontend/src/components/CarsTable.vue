@@ -504,6 +504,9 @@ export default {
       fieldOrders: {},
       fieldWidths: {},
       fieldPriorities: {},
+      fieldsEnlargedVisibility: {},
+      fieldsEnlargedWidth: {},
+      fieldsEnlargedWeight: {},
       tableFontSize: 14,
       rowDensity: 'normal',
       expandedRows: {},
@@ -1046,6 +1049,11 @@ export default {
     },
 
     isFieldVisible(fieldName) {
+      // В enlarged-режиме - отдельный флаг видимости столбца.
+      if (this.enlarged) {
+        const ev = this.fieldsEnlargedVisibility[fieldName];
+        if (ev === false) return false;
+      }
       // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
       const v = this.fieldsVisibility[fieldName];
       const visible = v === undefined ? true : v;
@@ -1124,7 +1132,16 @@ export default {
       const width = this.fieldWidths[fieldName];
       const style = {};
       if (order !== undefined) style.order = 10 + order;
-      if (!this.enlarged && width !== undefined && width > 0) style.flexGrow = width;
+      if (this.enlarged) {
+        // В enlarged: используем enlarged_width если >0, иначе CSS-дефолт (без inline grow).
+        const ew = this.fieldsEnlargedWidth[fieldName];
+        if (typeof ew === 'number' && ew > 0) style.flexGrow = ew;
+        // enlarged_font_weight - применяем inline если > 0.
+        const eweight = this.fieldsEnlargedWeight[fieldName];
+        if (typeof eweight === 'number' && eweight > 0) style.fontWeight = eweight;
+      } else if (width !== undefined && width > 0) {
+        style.flexGrow = width;
+      }
       return Object.keys(style).length ? style : null;
     },
 
@@ -1138,6 +1155,9 @@ export default {
         const nextOrd = {};
         const nextW = {};
         const nextP = {};
+        const nextEnlVis = {};
+        const nextEnlW = {};
+        const nextEnlWeight = {};
         (data.fields || []).forEach(f => {
           nextVis[f.field_name] = f.is_visible !== false;
           if (typeof f.display_order === 'number') {
@@ -1149,11 +1169,21 @@ export default {
           if (typeof f.priority === 'number' && f.priority > 0) {
             nextP[f.field_name] = f.priority;
           }
+          nextEnlVis[f.field_name] = f.enlarged_is_visible !== false;
+          if (typeof f.enlarged_width === 'number' && f.enlarged_width > 0) {
+            nextEnlW[f.field_name] = f.enlarged_width;
+          }
+          if (typeof f.enlarged_font_weight === 'number' && f.enlarged_font_weight > 0) {
+            nextEnlWeight[f.field_name] = f.enlarged_font_weight;
+          }
         });
         this.fieldsVisibility = nextVis;
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
         this.fieldPriorities = nextP;
+        this.fieldsEnlargedVisibility = nextEnlVis;
+        this.fieldsEnlargedWidth = nextEnlW;
+        this.fieldsEnlargedWeight = nextEnlWeight;
         // Применяем стиль уровня таблицы (#345 фазы 1D+1E).
         const tbl = data.table || {};
         const fs = Number(tbl.font_size);

@@ -552,6 +552,9 @@ export default {
       fieldOrders: {},
       fieldWidths: {},
       fieldPriorities: {},
+      fieldsEnlargedVisibility: {},
+      fieldsEnlargedWidth: {},
+      fieldsEnlargedWeight: {},
       tableFontSize: 14,
       rowDensity: 'normal',
       expandedRows: {},
@@ -777,6 +780,9 @@ export default {
         const nextOrders = {};
         const nextWidths = {};
         const nextPriorities = {};
+        const nextEnlVis = {};
+        const nextEnlW = {};
+        const nextEnlWeight = {};
         (responseData.fields || []).forEach(f => {
           nextVisibility[f.field_name] = f.is_visible !== false;
           if (typeof f.display_order === 'number') {
@@ -788,11 +794,21 @@ export default {
           if (typeof f.priority === 'number' && f.priority > 0) {
             nextPriorities[f.field_name] = f.priority;
           }
+          nextEnlVis[f.field_name] = f.enlarged_is_visible !== false;
+          if (typeof f.enlarged_width === 'number' && f.enlarged_width > 0) {
+            nextEnlW[f.field_name] = f.enlarged_width;
+          }
+          if (typeof f.enlarged_font_weight === 'number' && f.enlarged_font_weight > 0) {
+            nextEnlWeight[f.field_name] = f.enlarged_font_weight;
+          }
         });
         this.fieldsVisibility = nextVisibility;
         this.fieldOrders = nextOrders;
         this.fieldWidths = nextWidths;
         this.fieldPriorities = nextPriorities;
+        this.fieldsEnlargedVisibility = nextEnlVis;
+        this.fieldsEnlargedWidth = nextEnlW;
+        this.fieldsEnlargedWeight = nextEnlWeight;
         const fs = Number(table.font_size);
         if (fs >= 10 && fs <= 24) this.tableFontSize = fs;
         const dens = table.row_density;
@@ -1049,6 +1065,10 @@ export default {
     },
 
     isFieldVisible(fieldName) {
+      if (this.enlarged) {
+        const ev = this.fieldsEnlargedVisibility[fieldName];
+        if (ev === false) return false;
+      }
       // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
       const v = this.fieldsVisibility[fieldName];
       const visible = v === undefined ? true : v;
@@ -1074,7 +1094,14 @@ export default {
       const width = this.fieldWidths[fieldName];
       const style = {};
       if (order !== undefined) style.order = 10 + order;
-      if (!this.enlarged && width !== undefined && width > 0) style.flexGrow = width;
+      if (this.enlarged) {
+        const ew = this.fieldsEnlargedWidth[fieldName];
+        if (typeof ew === 'number' && ew > 0) style.flexGrow = ew;
+        const eweight = this.fieldsEnlargedWeight[fieldName];
+        if (typeof eweight === 'number' && eweight > 0) style.fontWeight = eweight;
+      } else if (width !== undefined && width > 0) {
+        style.flexGrow = width;
+      }
       return Object.keys(style).length ? style : null;
     },
 

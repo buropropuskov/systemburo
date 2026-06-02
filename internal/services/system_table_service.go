@@ -636,6 +636,23 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 				}
 				updates["priority"] = *f.Priority
 			}
+			if f.EnlargedIsVisible != nil {
+				updates["enlarged_is_visible"] = *f.EnlargedIsVisible
+			}
+			if f.EnlargedWidth != nil {
+				if *f.EnlargedWidth < 0 || *f.EnlargedWidth > 100 {
+					return echo.NewHTTPError(http.StatusBadRequest, "enlarged_width должен быть от 0 до 100")
+				}
+				updates["enlarged_width"] = *f.EnlargedWidth
+			}
+			if f.EnlargedFontWeight != nil {
+				switch *f.EnlargedFontWeight {
+				case 0, 400, 500, 600, 700, 800:
+					updates["enlarged_font_weight"] = *f.EnlargedFontWeight
+				default:
+					return echo.NewHTTPError(http.StatusBadRequest, "enlarged_font_weight должен быть 400, 500, 600, 700, 800 или 0")
+				}
+			}
 			result := tx.Model(&models.TableField{}).
 				Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
 				Updates(updates)
@@ -643,6 +660,15 @@ func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req 
 				slog.Error("не удалось обновить столбец",
 					"table_id", tableID, "field", f.FieldName, "error", result.Error)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating field")
+			}
+			// GORM пропускает enlarged_is_visible=false (zero-value bool) -
+			// дофиксим явным Update как для fact-полей.
+			if f.EnlargedIsVisible != nil && !*f.EnlargedIsVisible {
+				if err := tx.Model(&models.TableField{}).
+					Where("table_id = ? AND field_name = ?", tableID, f.FieldName).
+					Update("enlarged_is_visible", false).Error; err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error setting enlarged visibility")
+				}
 			}
 		}
 		return nil
