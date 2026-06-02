@@ -1057,17 +1057,16 @@ export default {
      * - order: 10 + display_order (между фиксированными entry/exit/status/actions).
      * - flex-grow: width из конфига (если задан) - переопределяет дефолт из CSS.
      *
-     * Исключение: в enlarged НЕ задаём inline flex-grow для organization и
-     * status, иначе CSS-правила enlarged-режима (status -> grow 0, organization
-     * -> grow 24) не сработают и анимация перетекания пропадает.
+     * В enlarged НЕ задаём inline flex-grow ни одному столбцу - пусть CSS
+     * пропорционально распределяет освободившееся от status пространство
+     * по всем оставшимся столбцам.
      */
     getColStyle(fieldName) {
       const order = this.fieldOrders[fieldName];
       const width = this.fieldWidths[fieldName];
       const style = {};
       if (order !== undefined) style.order = 10 + order;
-      const skipWidth = this.enlarged && (fieldName === 'organization' || fieldName === 'status');
-      if (!skipWidth && width !== undefined && width > 0) style.flexGrow = width;
+      if (!this.enlarged && width !== undefined && width > 0) style.flexGrow = width;
       return Object.keys(style).length ? style : null;
     },
 
@@ -1521,16 +1520,13 @@ export default {
   font-weight: 700;
 }
 
-/* В enlarged переливаем вес status-col (8) в organization-col (16 -> 24).
-   Остальные пропорции сохраняются. */
+/* В enlarged status-col схлопывается; освободившиеся 8 grow распределяются
+   автоматически по ВСЕМ оставшимся столбцам пропорционально базовым весам -
+   inline flex-grow для них не задаётся (getColStyle пропускает). */
 .selected-table-card.enlarged .status-col {
   flex-grow: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-.selected-table-card.enlarged .organization-col {
-  flex-grow: 24;
 }
 
 .selected-table-card.enlarged .item-data {

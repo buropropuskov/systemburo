@@ -1102,17 +1102,18 @@ export default {
      * - order: 10 + display_order (между фиксированными entry/exit/actions).
      * - flex-grow: width из конфига (если задан) - переопределяет дефолт из CSS.
      *
-     * Исключение: в enlarged-режиме НЕ задаём inline flex-grow для organization
-     * и status, чтобы CSS-правила .enlarged.status-col {grow:0} и
-     * .enlarged.organization-col {grow:25} могли отработать с анимацией.
+     * В enlarged-режиме НЕ задаём inline flex-grow ни для одного столбца -
+     * пусть CSS управляет пропорциями. Это даёт честное распределение
+     * освободившегося status-пространства по ВСЕМ оставшимся столбцам
+     * пропорционально их базовым flex-grow весам, а не "слепляет" всё
+     * в organization.
      */
     getColStyle(fieldName) {
       const order = this.fieldOrders[fieldName];
       const width = this.fieldWidths[fieldName];
       const style = {};
       if (order !== undefined) style.order = 10 + order;
-      const skipWidth = this.enlarged && (fieldName === 'organization' || fieldName === 'status');
-      if (!skipWidth && width !== undefined && width > 0) style.flexGrow = width;
+      if (!this.enlarged && width !== undefined && width > 0) style.flexGrow = width;
       return Object.keys(style).length ? style : null;
     },
 
@@ -1556,16 +1557,15 @@ export default {
   font-weight: 700;
 }
 
-/* В enlarged переливаем вес status-col (7) в organization-col (18 -> 25).
-   Остальные пропорции сохраняются. */
+/* В enlarged status-col схлопывается; освободившиеся 7 grow распределяются
+   автоматически по ВСЕМ оставшимся столбцам пропорционально их базовым
+   весам - getColStyle в enlarged не задаёт inline flex-grow, и CSS-веса
+   снова в силе. organization получит больше всех (она самая широкая),
+   но остальные тоже подрастут пропорционально. */
 .selected-table-card.enlarged .status-col {
   flex-grow: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-.selected-table-card.enlarged .organization-col {
-  flex-grow: 25;
 }
 
 .selected-table-card.enlarged .item-data {
