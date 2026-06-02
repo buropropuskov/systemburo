@@ -274,20 +274,24 @@ h3 {
 
 .header {
   width: 100%;
-  height: 60px;
+  min-height: 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #e6e6e6;
-  padding: 0 20px;
+  padding: 8px 20px;
   position: relative;
   z-index: 100;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .header__title {
   display:flex;
   flex-direction: column;
   gap: 0px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .header__subtitle {
@@ -301,6 +305,8 @@ h3 {
   align-items: center;
   gap: 15px;
   position: relative;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .feedback-btn {
