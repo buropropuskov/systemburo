@@ -43,6 +43,11 @@
           class="appearance-tab__value"
           data-testid="appearance-fontsize-value"
         >{{ fontSize }}px</span>
+        <span
+          class="appearance-tab__preview-badge"
+          :style="{ fontSize: fontSize + 'px' }"
+          data-testid="appearance-fontsize-preview"
+        >Текст</span>
       </div>
     </div>
 
@@ -255,6 +260,27 @@ export default {
   color: #4F5BDF;
   min-width: 48px;
   text-align: right;
+}
+
+/* Live-preview шрифта: бейдж 'Текст' с size = fontSize. Фиксированная
+   ширина 80px рассчитана под max шрифт 24px - гарантирует что бейдж не
+   ломает layout и сам не растягивается. */
+.appearance-tab__preview-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  background: #fafafa;
+  color: #333;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
+  line-height: 1;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .appearance-tab__segment {
