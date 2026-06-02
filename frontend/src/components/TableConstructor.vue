@@ -294,6 +294,10 @@
               <!-- Статус в виде кнопок -->
               <div class="form-group">
                 <label class="detail-label">Статус:</label>
+                <p class="field-hint">
+                  Виден пользователю в шапке таблицы и на главной. "Не активно" /
+                  "На обслуживании" - таблицу нельзя выбрать в новой заявке.
+                </p>
                 <div class="status-toggle">
                   <button 
                     class="status-btn" 
@@ -336,17 +340,22 @@
 
               <div class="settings-section">
                 <label class="section-label">Настройки отображения:</label>
-                
+
                 <div class="checkbox-group">
                   <label class="checkbox-label">
-                    <input 
-                      v-model="selectedTable.table.show_fact_table" 
+                    <input
+                      v-model="selectedTable.table.show_fact_table"
                       type="checkbox"
                       class="checkbox-input"
                       @change="updateTableField('show_fact_table')"
                     >
                     <span class="checkbox-text">Отображать таблицу "по факту"</span>
                   </label>
+                  <p class="field-hint">
+                    Фактовая таблица (синяя плашка сверху основной) показывает
+                    кто реально прошёл/проехал, в отличие от основной "по заявке".
+                    Можно отдельно настроить её колонки и оформление.
+                  </p>
                 </div>
 
                 <div
@@ -383,6 +392,10 @@
               </div>
 
               <div class="instruction-section">
+                <p class="field-hint">
+                  Видна в шапке таблицы по клику на "Инструкция". Здесь пишут
+                  правила прохода/проезда для охранника на этой точке.
+                </p>
                 <div class="section-header-with-actions">
                   <label class="detail-label">Инструкция к таблице:</label>
                   <div
@@ -1568,6 +1581,14 @@ export default {
   font-size: 12px;
   color: #666;
   font-weight: 500;
+}
+
+/* Подсказка под полем настройки - объясняет где видно/зачем нужно. */
+.field-hint {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: #a2a2a2;
+  line-height: 1.5;
 }
 
 .form-input-sm {
