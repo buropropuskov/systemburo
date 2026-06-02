@@ -241,6 +241,10 @@
             <h4 class="section-title">
               Ссылка на локацию на карте
             </h4>
+            <p class="field-hint">
+              Видна водителю в карточке места при подаче заявки - откроется
+              в Яндекс/Google Maps.
+            </p>
             <div class="map-link-group">
               <input 
                 v-model="selectedPlace.map_link" 
@@ -265,17 +269,58 @@
               <h4 class="section-title">
                 Изображение(-я)
               </h4>
+              <p class="field-hint">
+                Снимки места разгрузки - схема проезда, КПП, парковка. Видит
+                водитель в карточке места при подаче заявки.
+              </p>
               <label class="upload-photo-btn">
                 + Загрузить
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  multiple 
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
                   style="display: none"
                   @change="uploadPhotos"
                 >
               </label>
             </div>
+
+            <!-- Drag&drop zone (как в TableConstructorPhotoSection). -->
+            <label
+              class="photo-dropzone"
+              :class="{ 'photo-dropzone--active': isDraggingPhoto }"
+              @dragenter.prevent="isDraggingPhoto = true"
+              @dragover.prevent="isDraggingPhoto = true"
+              @dragleave.prevent="isDraggingPhoto = false"
+              @drop.prevent="onPhotoDrop"
+            >
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                class="photo-dropzone__input"
+                @change="uploadPhotos"
+              >
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                class="photo-dropzone__icon"
+              >
+                <path
+                  d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <div class="photo-dropzone__text">
+                <strong>Перетащите фотографии сюда</strong>
+                <span>или нажмите, чтобы выбрать из обзора</span>
+              </div>
+            </label>
 
             <div class="photos-grid">
               <div
@@ -505,6 +550,7 @@ export default {
       sortField: null,
       sortDirection: 'asc',
       activeTab: 'main',
+      isDraggingPhoto: false,
       notification: {
         show: false,
         message: '',
@@ -788,34 +834,40 @@ export default {
     
     // В методе uploadPhotos, после успешной загрузки, нужно обработать photo_url
 async uploadPhotos(event) {
-  if (!this.selectedPlace) return;
-  
   const files = event.target.files;
   if (!files || files.length === 0) return;
-  
+  await this.uploadPhotoFiles(files);
+  event.target.value = '';
+},
+
+onPhotoDrop(event) {
+  this.isDraggingPhoto = false;
+  const files = event.dataTransfer?.files;
+  if (files && files.length) this.uploadPhotoFiles(files);
+},
+
+async uploadPhotoFiles(files) {
+  if (!this.selectedPlace) return;
   const formData = new FormData();
   for (let i = 0; i < files.length; i++) {
-    formData.append('photos', files[i]);
+    if (!files[i].type || files[i].type.startsWith('image/')) {
+      formData.append('photos', files[i]);
+    }
   }
-  
   try {
     const response = await apiRequest(`/unload-places/${this.selectedPlace.id}/photos`, {
       method: "POST",
       body: formData,
       headers: {},
     });
-    
     if (response.ok) {
       await this.refreshSelectedPlace();
-      
-      // Исправляем URL фотографий, добавляя правильный порт
       if (this.selectedPlace && this.selectedPlace.photos) {
         this.selectedPlace.photos = this.selectedPlace.photos.map(photo => ({
           ...photo,
           photo_url: photo.photo_url
         }));
       }
-      
       this.showNotification("Фотографии успешно загружены", "success");
     } else {
       const errorText = await response.text();
@@ -1416,6 +1468,74 @@ async uploadPhotos(event) {
 .upload-photo-btn:hover {
   background: #4F5BDF;
   color: white;
+}
+
+/* Подсказка под полем настройки. */
+.field-hint {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: #a2a2a2;
+  line-height: 1.5;
+}
+
+/* Drag&drop zone (как в TableConstructorPhotoSection). */
+.photo-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  margin-bottom: 12px;
+  border: 2px dashed #c0c4d8;
+  border-radius: 50px;
+  background: #fafbff;
+  color: #6b7280;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.photo-dropzone:hover {
+  border-color: #4F5BDF;
+  background: #f0f3ff;
+  color: #4F5BDF;
+}
+
+.photo-dropzone--active {
+  border-color: #4F5BDF;
+  background: #e6ebff;
+  color: #4F5BDF;
+}
+
+.photo-dropzone__input {
+  display: none;
+}
+
+.photo-dropzone__icon {
+  color: inherit;
+}
+
+.photo-dropzone__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.photo-dropzone__text strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.photo-dropzone:hover .photo-dropzone__text strong,
+.photo-dropzone--active .photo-dropzone__text strong {
+  color: #4F5BDF;
+}
+
+.photo-dropzone__text span {
+  font-size: 11px;
 }
 
 .photos-grid {
