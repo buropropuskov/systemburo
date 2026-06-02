@@ -190,6 +190,13 @@
               :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
             >
           </div>
+          <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке -
+               без него шапка короче строки на 1 колонку и заголовки уезжают. -->
+          <div
+            v-if="isCompact && hiddenInPortraitFields().length"
+            class="col expand-col"
+            style="order: 9998;"
+          />
           <div
             class="col actions-col"
             style="order: 9999;"
@@ -667,10 +674,15 @@ export default {
     },
 
     // Для внешнего вызова (кнопка Refresh) - тихо, без скачка высоты таблицы.
+    // Заодно перечитываем настройки таблицы (видимость/порядок/ширина/шрифт/
+    // плотность), чтобы изменения админа применились без перезагрузки страницы.
     async loadData() {
       this.refreshing = true;
       try {
-        await this._loadData(true);
+        await Promise.all([
+          this._loadData(true),
+          this.fetchFieldsVisibility(),
+        ]);
       } finally {
         this.refreshing = false;
       }

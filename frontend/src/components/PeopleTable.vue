@@ -201,6 +201,12 @@
               :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
             >
           </div>
+          <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке. -->
+          <div
+            v-if="isCompact && hiddenInPortraitFields().length"
+            class="col expand-col"
+            style="order: 9997;"
+          />
           <div
             class="col status-col"
             style="order: 9998;"
