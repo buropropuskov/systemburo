@@ -1837,17 +1837,36 @@ export default {
   align-items: center;
 }
 
+/* Стилизуем .form-input в духе .form-input-sm: round borders, паддинги,
+   focus-голубое подсвечивание. */
 .map-link-group .form-input {
   flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  font-size: 13px;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.map-link-group .form-input:focus {
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
+}
+
+.map-link-group .form-input::placeholder {
+  color: #c0c0c0;
 }
 
 .map-link-btn {
-  padding: 8px 16px;
+  padding: 10px 18px;
   background: #f0f3ff;
   color: #4F5BDF;
   text-decoration: none;
   border-radius: 30px;
   font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   transition: background-color 0.2s ease;
   border: 1px solid #4F5BDF;
