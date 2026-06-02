@@ -306,7 +306,7 @@ export default {
   padding: 20px;
   margin-bottom: 12px;
   border: 2px dashed #c0c4d8;
-  border-radius: 16px;
+  border-radius: 50px;
   background: #fafbff;
   color: #6b7280;
   cursor: pointer;
@@ -469,7 +469,8 @@ export default {
   color: #a2a2a2;
   background: #f8f9fa;
   border: 1px dashed #e6e6e6;
-  border-radius: 8px;
+  border-radius: 25px;
+  font-size: 15px;
 }
 
 /* Модальное окно */

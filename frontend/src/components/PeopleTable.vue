@@ -1711,7 +1711,6 @@ export default {
 .detail-item {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
   gap: 4px;
   min-width: 0;
@@ -1719,7 +1718,6 @@ export default {
   background: #fff;
   border-radius: 20px;
   border: 1px solid #ececec;
-  text-align: center;
 }
 
 .detail-item__label {

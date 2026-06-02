@@ -420,14 +420,14 @@ export default {
 .columns-tab {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 15px;
   line-height: 1.5;
 }
 
 .columns-tab__header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 15px;
 }
 
 .columns-tab__header-top {

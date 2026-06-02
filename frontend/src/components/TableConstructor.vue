@@ -295,8 +295,8 @@
               <div class="form-group">
                 <label class="detail-label">Статус:</label>
                 <p class="field-hint">
-                  Виден пользователю в шапке таблицы и на главной. "Не активно" /
-                  "На обслуживании" - таблицу нельзя выбрать в новой заявке.
+                  "Не активно" / "На обслуживании" - таблицу нельзя выбрать в
+                  новой заявке. Пользователь видит причину.
                 </p>
                 <div class="status-toggle">
                   <button 
@@ -352,9 +352,9 @@
                     <span class="checkbox-text">Отображать таблицу "по факту"</span>
                   </label>
                   <p class="field-hint">
-                    Фактовая таблица (синяя плашка сверху основной) показывает
-                    кто реально прошёл/проехал, в отличие от основной "по заявке".
-                    Можно отдельно настроить её колонки и оформление.
+                    На странице с основной таблицей отображается таблица
+                    "по факту". В ней отображаются люди/машины, данные которых
+                    заранее не известны.
                   </p>
                 </div>
 
@@ -1467,9 +1467,10 @@ export default {
 .system-name {
   font-size: 12px;
   color: #666;
-  background: #f5f5f5;
-  padding: 2px 8px;
-  border-radius: 4px;
+  background: transparent;
+  padding: 4px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 50px;
 }
 
 .current-status-badge {
@@ -1593,7 +1594,7 @@ export default {
 .form-input-sm {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 13px;
   width: 100%;
   transition: border-color 0.2s;
@@ -1608,7 +1609,7 @@ export default {
 .form-textarea {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 13px;
   width: 100%;
   transition: border-color 0.2s;
@@ -1668,7 +1669,7 @@ export default {
   right: 0;
   background: white;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 15px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 10;
   margin-top: 4px;
@@ -1876,9 +1877,9 @@ export default {
 
 .section-title {
   margin: 0 0 12px 0;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: #000;
 }
 
 .map-link-group {
@@ -1901,7 +1902,7 @@ export default {
   flex: 1;
   padding: 0 14px;
   border: 1px solid #e6e6e6;
-  border-radius: 12px;
+  border-radius: 15px;
   font-size: 13px;
   background: #fff;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
