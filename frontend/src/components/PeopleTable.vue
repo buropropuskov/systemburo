@@ -55,7 +55,7 @@
             v-if="isFieldInDom('last_name')"
             class="col last-name-col"
             :class="fieldColClass('last_name')"
-            :style="getColStyle('last_name')"
+            :style="getColStyle('last_name', true)"
             @click="sortBy('last_name')"
           >
             <p :class="{ 'active-sort': sortField === 'last_name' }">
@@ -71,7 +71,7 @@
             v-if="isFieldInDom('first_name')"
             class="col first-name-col"
             :class="fieldColClass('first_name')"
-            :style="getColStyle('first_name')"
+            :style="getColStyle('first_name', true)"
             @click="sortBy('first_name')"
           >
             <p :class="{ 'active-sort': sortField === 'first_name' }">
@@ -87,7 +87,7 @@
             v-if="isFieldInDom('middle_name')"
             class="col middle-name-col"
             :class="fieldColClass('middle_name')"
-            :style="getColStyle('middle_name')"
+            :style="getColStyle('middle_name', true)"
             @click="sortBy('middle_name')"
           >
             <p :class="{ 'active-sort': sortField === 'middle_name' }">
@@ -103,7 +103,7 @@
             v-if="isFieldInDom('position')"
             class="col position-col"
             :class="fieldColClass('position')"
-            :style="getColStyle('position')"
+            :style="getColStyle('position', true)"
             @click="sortBy('position')"
           >
             <p :class="{ 'active-sort': sortField === 'position' }">
@@ -119,7 +119,7 @@
             v-if="isFieldInDom('citizenship_name')"
             class="col citizenship-col"
             :class="fieldColClass('citizenship_name')"
-            :style="getColStyle('citizenship_name')"
+            :style="getColStyle('citizenship_name', true)"
             @click="sortBy('citizenship_name')"
           >
             <p :class="{ 'active-sort': sortField === 'citizenship_name' }">
@@ -135,7 +135,7 @@
             v-if="isFieldInDom('organization')"
             class="col organization-col"
             :class="fieldColClass('organization')"
-            :style="getColStyle('organization')"
+            :style="getColStyle('organization', true)"
             @click="sortBy('organization')"
           >
             <p :class="{ 'active-sort': sortField === 'organization' }">
@@ -151,7 +151,7 @@
             v-if="isFieldInDom('company')"
             class="col company-col"
             :class="fieldColClass('company')"
-            :style="getColStyle('company')"
+            :style="getColStyle('company', true)"
             @click="sortBy('company')"
           >
             <p :class="{ 'active-sort': sortField === 'company' }">
@@ -167,7 +167,7 @@
             v-if="isFieldInDom('valid_until')"
             class="col date-col"
             :class="fieldColClass('valid_until')"
-            :style="getColStyle('valid_until')"
+            :style="getColStyle('valid_until', true)"
             @click="sortBy('entry_date_to')"
           >
             <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
@@ -183,7 +183,7 @@
             v-if="isFieldInDom('pass_time')"
             class="col time-col"
             :class="fieldColClass('pass_time')"
-            :style="getColStyle('pass_time')"
+            :style="getColStyle('pass_time', true)"
             @click="sortBy('pass_time')"
           >
             <p :class="{ 'active-sort': sortField === 'pass_time' }">
@@ -199,7 +199,7 @@
             v-if="isFieldInDom('application_id')"
             class="col application-col"
             :class="fieldColClass('application_id')"
-            :style="getColStyle('application_id')"
+            :style="getColStyle('application_id', true)"
             @click="sortBy('application_id')"
           >
             <p :class="{ 'active-sort': sortField === 'application_id' }">
@@ -1103,24 +1103,25 @@ export default {
     },
 
     /**
-     * В enlarged-режиме столбцы НЕ удаляем из DOM, а схлопываем через класс
-     * col--collapsed - даёт плавный transition (flex-grow, max-width, opacity).
+     * Столбец ВСЕГДА в DOM - скрытие через класс col--collapsed с transition.
      */
-    isFieldInDom(fieldName) {
-      if (this.enlarged) {
-        if (this.isCompact) {
-          const p = this.fieldPriorities[fieldName];
-          if (typeof p === 'number' && p > this.compactPriorityThreshold) return false;
-        }
-        return true;
-      }
-      return this.isFieldVisible(fieldName);
+    isFieldInDom() {
+      return true;
     },
 
     fieldColClass(fieldName) {
       if (this.enlarged) {
         const ev = this.fieldsEnlargedVisibility[fieldName];
         if (ev === false) return 'col--collapsed';
+      } else {
+        const v = this.fieldsVisibility[fieldName];
+        if (v === false) return 'col--collapsed';
+      }
+      if (this.isCompact) {
+        const p = this.fieldPriorities[fieldName];
+        if (typeof p === 'number' && p > this.compactPriorityThreshold) {
+          return 'col--collapsed';
+        }
       }
       return '';
     },
@@ -1134,7 +1135,7 @@ export default {
      * пропорционально распределяет освободившееся от status пространство
      * по всем оставшимся столбцам.
      */
-    getColStyle(fieldName) {
+    getColStyle(fieldName, isHeader = false) {
       const order = this.fieldOrders[fieldName];
       const width = this.fieldWidths[fieldName];
       const style = {};
@@ -1142,8 +1143,11 @@ export default {
       if (this.enlarged) {
         const ew = this.fieldsEnlargedWidth[fieldName];
         if (typeof ew === 'number' && ew > 0) style.flexGrow = ew;
-        const eweight = this.fieldsEnlargedWeight[fieldName];
-        if (typeof eweight === 'number' && eweight > 0) style.fontWeight = eweight;
+        // enlarged_font_weight - применяется ТОЛЬКО к данным, не к заголовку.
+        if (!isHeader) {
+          const eweight = this.fieldsEnlargedWeight[fieldName];
+          if (typeof eweight === 'number' && eweight > 0) style.fontWeight = eweight;
+        }
       } else if (width !== undefined && width > 0) {
         style.flexGrow = width;
       }

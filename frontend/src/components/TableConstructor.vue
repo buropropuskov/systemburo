@@ -1343,7 +1343,13 @@ export default {
   gap: 6px;
   border-bottom: 1px solid #e6e6e6;
   background: #f8f9fa;
-  padding: 10px 16px 0;
+  padding: 10px 16px;
+}
+
+/* Когда показывается ряд "По факту" - снизу есть свой padding-bottom через
+   --fact, верхний padding общего блока этого хватает. */
+.details-tabs:has(.details-tabs__row--fact) {
+  padding-bottom: 0;
 }
 
 .details-tabs__row {
@@ -1354,7 +1360,7 @@ export default {
 }
 
 .details-tabs__row--fact {
-  padding: 6px 0;
+  padding: 6px 0 10px;
   border-top: 1px dashed #e0e0e0;
   margin-top: 2px;
 }
