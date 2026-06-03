@@ -177,7 +177,7 @@ body.nav-drawer-open {
 }
 
 .form-input-sm {
-  border-radius: 10px !important;
+  border-radius: 15px !important;
 }
 
 .blue {

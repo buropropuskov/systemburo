@@ -44,30 +44,32 @@
           </button>
         </div>
       </div>
-      <p
-        v-if="!enlargedMode"
-        class="columns-tab__hint"
-      >
-        Переставляйте столбцы перетаскиванием за иконку слева. Скрытые столбцы не отображаются в таблице.
-      </p>
-      <p
-        v-if="!enlargedMode"
-        class="columns-tab__hint"
-      >
-        <b>Ширина</b> - относительный вес столбца. Браузер делит доступную ширину
-        видимых столбцов пропорционально этим весам. <b>Приоритет</b> (1-5) -
-        видимость на вертикальном (книжном) экране охранника: 1 - всегда виден,
-        2 - виден на узком экране, 3-5 - скрывается и доступен по кнопке "Подробнее"
-        под строкой.
-      </p>
-      <p
-        v-else
-        class="columns-tab__hint"
-      >
-        Настройки применяются ТОЛЬКО когда у пользователя включён
-        <b>Увеличенный режим</b> в шапке таблицы. <b>Ширина</b> - 0 значит
-        брать обычную. <b>Жирность</b> - 0 значит дефолт (500).
-      </p>
+      <div class="columns-tab__hint-block">
+        <template v-if="!enlargedMode">
+          <p class="columns-tab__hint">
+            Переставляйте столбцы перетаскиванием за иконку слева. Скрытые столбцы не отображаются в таблице.
+          </p>
+          <p class="columns-tab__hint">
+            <b>Ширина</b> - относительный вес столбца. Браузер делит доступную ширину
+            видимых столбцов пропорционально этим весам. <b>Приоритет</b> (1-5) -
+            видимость на вертикальном (книжном) экране охранника: 1 - всегда виден,
+            2 - виден на узком экране, 3-5 - скрывается и доступен по кнопке "Подробнее"
+            под строкой.
+          </p>
+        </template>
+        <template v-else>
+          <p class="columns-tab__hint">
+            Настройки применяются ТОЛЬКО когда у пользователя включён
+            <b>Увеличенный режим</b> в шапке таблицы. <b>Ширина</b> - 0 значит
+            брать обычную. <b>Жирность</b> - 0 значит дефолт (500).
+          </p>
+          <p class="columns-tab__hint">
+            Если строка столбца <b>серая, но с галочкой</b> - значит в
+            <b>Обычном</b> режиме столбец выключен, а в <b>Увеличенном</b> -
+            включён (или наоборот).
+          </p>
+        </template>
+      </div>
     </div>
 
     <div
@@ -209,13 +211,17 @@
           </div>
           <div
             v-else
-            class="columns-tab__priority"
+            class="columns-tab__priority columns-tab__weight"
             :title="'Жирность шрифта в увеличенном режиме. 0 = по умолчанию (500).'"
           >
             <span class="columns-tab__priority-label">Жирность:</span>
+            <span
+              class="columns-tab__weight-preview"
+              :style="{ fontWeight: field.enlarged_font_weight || 500 }"
+            >Текст</span>
             <select
               v-model.number="field.enlarged_font_weight"
-              class="columns-tab__priority-select"
+              class="columns-tab__priority-select columns-tab__weight-select"
               :data-enlarged-weight-field="field.field_name"
             >
               <option :value="0">0</option>
@@ -277,6 +283,7 @@
 import { apiRequest } from '@/api/client';
 import { generateSampleRows } from '@/utils/tableSamples';
 import { useToast } from '@/composables/useToast';
+import { registerDirtyTracker } from '@/utils/dirtyTracker';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
 
@@ -382,9 +389,13 @@ export default {
       immediate: true,
     },
   },
+  mounted() {
+    this._stopDirtyGuard = registerDirtyTracker(() => this.isDirty);
+  },
   beforeUnmount() {
     // На случай если пользователь ушёл с вкладки во время drag.
     this.cleanupPointerListeners();
+    this._stopDirtyGuard?.();
   },
   methods: {
     humanLabel(name) {
@@ -548,6 +559,21 @@ export default {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Защита от прыжков: тайтл фиксируем по более длинному варианту, чтобы
+   toggle "Обычный | Увеличенный" не сдвигался при переключении режима. */
+.columns-tab__title {
+  min-width: 290px;
+}
+
+/* Блок подсказок фиксированной высоты - предотвращает скачки высоты вкладки
+   при смене режима, где у подсказок разная длина текста. */
+.columns-tab__hint-block {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* Toggle "Обычный | Увеличенный" - сегмент-контрол как в Оформление. */
@@ -766,6 +792,30 @@ export default {
 .columns-tab__priority-select:focus {
   outline: none;
   border-color: #4F5BDF;
+}
+
+/* Селект "Жирность" - шире обычного priority-select, чтобы трёхзначные значения
+   (700, 800) не наезжали на стрелочку. */
+.columns-tab__weight-select {
+  width: 56px;
+  padding-right: 6px;
+}
+
+/* Бейдж предпросмотра жирности рядом с селектом.
+   Высота не больше select - paddingи и font-size совпадают с .columns-tab__priority-select. */
+.columns-tab__weight-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 2px 6px;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #000;
+  background: #fff;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .columns-tab__actions {

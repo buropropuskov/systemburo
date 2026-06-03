@@ -1225,7 +1225,7 @@ async uploadPhotoFiles(files) {
   gap: 6px;
   border-bottom: 1px solid #e6e6e6;
   background: #f8f9fa;
-  padding: 10px 16px 0;
+  padding: 10px 16px;
 }
 
 .details-tabs__row {

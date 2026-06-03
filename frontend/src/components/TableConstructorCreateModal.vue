@@ -467,7 +467,7 @@ export default {
 .input-compact {
   padding: 8px 10px;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 15px;
   font-size: 13px;
   background: #fff;
   transition: border-color 0.2s;
