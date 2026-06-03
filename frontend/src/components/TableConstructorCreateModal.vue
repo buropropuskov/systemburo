@@ -4,7 +4,10 @@
       class="modal-overlay"
       @click.self="handleClose"
     >
-      <div class="modal-content horizontal-modal">
+      <div
+        ref="modalContent"
+        class="modal-content horizontal-modal"
+      >
         <div class="modal-header">
           <h3>Создать новую таблицу</h3>
           <button
@@ -202,7 +205,12 @@ export default {
   },
   methods: {
     handleOutsideClick(e) {
-      if (!this.$el.contains(e.target)) {
+      // Через Teleport this.$el остаётся anchor-узлом в исходном месте, а не
+      // содержимым модалки в body - .contains() для него всегда false и любой
+      // клик закрывал dropdown. Проверяем по ref на .modal-content внутри
+      // тела модалки.
+      const root = this.$refs.modalContent
+      if (root && !root.contains(e.target)) {
         this.typeDropdownOpen = false
       }
     },
