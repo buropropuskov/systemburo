@@ -423,20 +423,6 @@
                   rows="4"
                 />
               </div>
-
-              <div class="fields-section">
-                <label class="section-label">Поля таблицы:</label>
-                <div class="fields-list">
-                  <div 
-                    v-for="field in selectedTable.fields" 
-                    :key="field.id"
-                    class="field-item"
-                  >
-                    <span class="field-name">{{ getFieldDisplayName(field.field_name) }}</span>
-                    <span class="field-type">{{ getFieldTypeLabel(field.field_type) }}</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -731,9 +717,9 @@ export default {
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
      * всех зарегистрированных через registerDirtyTracker.
      */
-    switchTab(tab) {
+    async switchTab(tab) {
       if (this.activeTab === tab) return;
-      if (!confirmIfAnyDirty()) return;
+      if (!(await confirmIfAnyDirty())) return;
       this.activeTab = tab;
     },
 
@@ -915,10 +901,10 @@ export default {
   }
 },
     
-    selectTable(table) {
+    async selectTable(table) {
       // Защита от потери: если текущая вкладка settings dirty - спросить.
       if (this.selectedTable && this.selectedTable.table.id !== table.table.id) {
-        if (!confirmIfAnyDirty()) return;
+        if (!(await confirmIfAnyDirty())) return;
       }
       this.selectedTable = JSON.parse(JSON.stringify(table));
       this.originalHint = table.table.fact_table_hint || '';
@@ -995,33 +981,6 @@ export default {
           { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
         ];
       }
-    },
-    
-    getFieldDisplayName(fieldName) {
-      const fields = {
-        'car_number': 'Номер машины',
-        'car_brand': 'Марка',
-        'organization': 'Организация',
-        'unload_place': 'Место разгрузки',
-        'valid_until': 'Действует до',
-        'time_range': 'Время',
-        'status': 'Статус',
-        'last_name': 'Фамилия',
-        'first_name': 'Имя',
-        'middle_name': 'Отчество',
-        'pass_time': 'Время прохода'
-      };
-      return fields[fieldName] || fieldName;
-    },
-    
-    getFieldTypeLabel(fieldType) {
-      const types = {
-        'text': 'Текст',
-        'date': 'Дата',
-        'time': 'Время',
-        'number': 'Число'
-      };
-      return types[fieldType] || fieldType;
     },
     
     getDefaultHint(tableType) {
@@ -1607,7 +1566,7 @@ export default {
 
 /* Подсказка под полем настройки - объясняет где видно/зачем нужно. */
 .field-hint {
-  margin: 4px 0 8px;
+  margin: 4px 0 0;
   font-size: 12px;
   color: #a2a2a2;
   line-height: 1.5;
@@ -1776,7 +1735,7 @@ export default {
 .checkbox-group {
   padding: 12px;
   background: #f8f9ff;
-  border-radius: 10px;
+  border-radius: 20px;
   border: 1px solid #e6e6e6;
 }
 
@@ -1796,6 +1755,7 @@ export default {
 
 .checkbox-text {
   font-size: 13px;
+  font-weight: 500;
   color: #333;
 }
 
@@ -1852,45 +1812,6 @@ export default {
 
 .cancel-btn:hover {
   background: #4b5563;
-}
-
-.fields-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.fields-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 150px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.field-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  background: #f8f9fa;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-}
-
-.field-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: #333;
-}
-
-.field-type {
-  font-size: 11px;
-  color: #666;
-  background: #e9ecef;
-  padding: 2px 8px;
-  border-radius: 12px;
 }
 
 .location-section {
@@ -2189,25 +2110,21 @@ export default {
 }
 
 /* Скроллбары */
-.table-body::-webkit-scrollbar,
-.fields-list::-webkit-scrollbar {
+.table-body::-webkit-scrollbar {
   width: 6px;
 }
 
-.table-body::-webkit-scrollbar-track,
-.fields-list::-webkit-scrollbar-track {
+.table-body::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
 
-.table-body::-webkit-scrollbar-thumb,
-.fields-list::-webkit-scrollbar-thumb {
+.table-body::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
-.table-body::-webkit-scrollbar-thumb:hover,
-.fields-list::-webkit-scrollbar-thumb:hover {
+.table-body::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 

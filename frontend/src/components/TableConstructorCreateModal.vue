@@ -105,18 +105,20 @@
 
             <div class="cells-scroll-container">
               <div class="settings-grid">
-                <div class="setting-item">
-                  <label class="setting-label">
+                <div class="checkbox-group">
+                  <label class="checkbox-label">
                     <input
                       v-model="newTable.show_fact_table"
                       type="checkbox"
-                      class="setting-checkbox"
+                      class="checkbox-input"
                     >
-                    <span class="setting-text">Отображать таблицу "по факту"</span>
+                    <span class="checkbox-text">Отображать таблицу "по факту"</span>
                   </label>
-                  <span class="setting-hint">
-                    Будет показана дополнительная таблица с данными "по факту"
-                  </span>
+                  <p class="field-hint">
+                    На странице с основной таблицей отображается таблица
+                    "по факту". В ней отображаются люди/машины, данные которых
+                    заранее не известны.
+                  </p>
                 </div>
 
                 <div
@@ -138,22 +140,6 @@
                     placeholder="Введите инструкцию для таблицы..."
                     rows="4"
                   />
-                </div>
-
-                <div class="setting-item">
-                  <h5 class="fields-preview-title">
-                    Поля таблицы:
-                  </h5>
-                  <div class="fields-preview">
-                    <div
-                      v-for="field in getTableFields(newTable.table_type)"
-                      :key="field.name"
-                      class="preview-field"
-                    >
-                      <span class="preview-field-name">{{ field.displayName }}</span>
-                      <span class="preview-field-type">{{ field.type }}</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -242,29 +228,6 @@ export default {
 
     getTableTypeLabel(type) {
       return type === 'cars' ? 'Машины' : 'Люди'
-    },
-
-    getTableFields(tableType) {
-      if (tableType === 'cars') {
-        return [
-          { name: 'car_number', displayName: 'Номер машины', type: 'Текст' },
-          { name: 'car_brand', displayName: 'Марка', type: 'Текст' },
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'unload_place', displayName: 'Место разгрузки', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'time_range', displayName: 'Время', type: 'Текст' },
-          { name: 'status', displayName: 'Статус', type: 'Текст' }
-        ]
-      } else {
-        return [
-          { name: 'organization', displayName: 'Организация', type: 'Текст' },
-          { name: 'last_name', displayName: 'Фамилия', type: 'Текст' },
-          { name: 'first_name', displayName: 'Имя', type: 'Текст' },
-          { name: 'middle_name', displayName: 'Отчество', type: 'Текст' },
-          { name: 'valid_until', displayName: 'Действует до', type: 'Дата' },
-          { name: 'pass_time', displayName: 'Время прохода', type: 'Текст' }
-        ]
-      }
     },
 
     getDefaultHint(tableType) {
@@ -377,12 +340,13 @@ export default {
 
 .modal-content {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 35px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: modalAppear 0.3s ease-out;
+  overflow: hidden;
 }
 
 .modal-content.horizontal-modal {
@@ -435,15 +399,18 @@ export default {
 .modal-body-horizontal {
   display: flex;
   height: 400px;
-  overflow: hidden;
 }
 
 .modal-main-info {
-  width: 35%;
+  width: 25%;
   padding: 20px;
   border-right: 1px solid #e6e6e6;
   background: #fafafa;
-  overflow-y: auto;
+  /* visible нужен чтобы выпадающий список "Тип таблицы" не клиппился
+     scroll-контекстом панели и был кликабелен. */
+  overflow: visible;
+  position: relative;
+  z-index: 2;
 }
 
 .main-fields {
@@ -520,8 +487,8 @@ export default {
 }
 
 .select-arrow {
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   transition: transform 0.2s ease;
   transform: rotate(90deg);
 }
@@ -579,7 +546,7 @@ export default {
 }
 
 .modal-cells-section {
-  width: 65%;
+  width: 75%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -616,66 +583,41 @@ export default {
   gap: 8px;
 }
 
-.setting-label {
+/* Чекбокс "Отображать таблицу по факту" - тот же визуальный стиль, что в
+   TableConstructor "Основное", чтобы пользователь видел консистентный UI
+   и до создания таблицы, и при редактировании после. */
+.checkbox-group {
+  padding: 12px;
+  background: #f8f9ff;
+  border-radius: 20px;
+  border: 1px solid #e6e6e6;
+}
+
+.checkbox-label {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
 }
 
-.setting-checkbox {
+.checkbox-input {
   width: 16px;
   height: 16px;
   cursor: pointer;
   accent-color: #4F5BDF;
 }
 
-.setting-text {
+.checkbox-text {
   font-size: 13px;
   font-weight: 500;
   color: #333;
 }
 
-.setting-hint {
-  font-size: 11px;
-  color: #666;
-  line-height: 1.4;
-}
-
-.fields-preview-title {
-  margin: 0 0 8px 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #333;
-}
-
-.fields-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.preview-field {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px;
-  background: #f8f9fa;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
+.field-hint {
+  margin: 4px 0 0;
   font-size: 12px;
-}
-
-.preview-field-name {
-  color: #333;
-}
-
-.preview-field-type {
-  color: #666;
-  font-size: 10px;
-  background: #e9ecef;
-  padding: 2px 6px;
-  border-radius: 4px;
+  color: #a2a2a2;
+  line-height: 1.5;
 }
 
 .modal-footer {

@@ -36,6 +36,7 @@
     </div>
     <ToastContainer />
     <ConfirmDialog />
+    <DirtyConfirmModal />
     <DeleteNotifications />
   </div>
 </template>
@@ -49,6 +50,7 @@ import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
 import ToastContainer from './components/ToastContainer.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
 
 export default {
@@ -59,6 +61,7 @@ export default {
     ScrollTopButton,
     ToastContainer,
     ConfirmDialog,
+    DirtyConfirmModal,
     DeleteNotifications,
   },
   computed: {
@@ -178,6 +181,14 @@ body.nav-drawer-open {
 
 .form-input-sm {
   border-radius: 15px !important;
+}
+
+/* Включает анимацию transition между length и intrinsic-значениями (auto / max-content)
+   для width/height/max-width/min-width. Без этого схлопывание столбца таблицы
+   через max-width: 0 -> auto обратно не анимируется и даёт визуальный скачок
+   при выключении "Увеличенного режима". Chromium 129+, Firefox 132+, Safari 18+. */
+:root {
+  interpolate-size: allow-keywords;
 }
 
 .blue {
