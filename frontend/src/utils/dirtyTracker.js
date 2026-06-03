@@ -1,18 +1,36 @@
 /**
- * Глобальный реестр форм с несохранёнными изменениями.
+ * Глобальный реестр форм с несохранёнными изменениями + красивый confirm-модал.
  *
  * Компонент с формой регистрирует геттер isDirty -> при попытке покинуть
  * страницу (роутер, перезагрузка, переключение вкладок внутри view) показывается
- * confirm. Если ни одной dirty-формы нет - переходы свободные.
+ * красивый Vue-модал (DirtyConfirmModal в App.vue). Для window.beforeunload
+ * браузер показывает свой нативный диалог - кастомный показать нельзя.
  *
  * Использование в Options API:
  *   import { registerDirtyTracker } from '@/utils/dirtyTracker';
  *   mounted() { this._stopGuard = registerDirtyTracker(() => this.isDirty); },
  *   beforeUnmount() { this._stopGuard?.(); }
+ *
+ * Перед навигацией:
+ *   if (!(await confirmIfAnyDirty())) return;
  */
+
+import { reactive } from 'vue';
 
 const trackers = new Map();
 let nextId = 1;
+
+const DEFAULT_MESSAGE = 'У вас есть несохранённые изменения. Покинуть страницу без сохранения?';
+
+/**
+ * Реактивный singleton-стейт для модалки подтверждения. DirtyConfirmModal
+ * монтируется один раз в App.vue, подписан на этот стейт.
+ */
+export const confirmState = reactive({
+  show: false,
+  message: DEFAULT_MESSAGE,
+  resolve: null,
+});
 
 /**
  * Регистрирует геттер isDirty. Возвращает функцию-отписку.
@@ -38,14 +56,35 @@ export function hasAnyDirty() {
 }
 
 /**
- * Если есть dirty-формы - спросить подтверждение. Возвращает true если можно
- * продолжать (нет dirty либо пользователь подтвердил).
+ * Async. Если есть dirty-формы - показывает модал подтверждения, возвращает
+ * Promise<boolean>. true = нет dirty либо пользователь подтвердил выход;
+ * false = пользователь отменил.
+ *
+ * Если есть открытый ранее модал - он перебивается новым (предыдущий
+ * Promise разрешается false, чтобы старый код не висел).
  */
-export function confirmIfAnyDirty(
-  message = 'У вас есть несохранённые изменения. Покинуть страницу без сохранения?',
-) {
-  if (!hasAnyDirty()) return true;
-  return window.confirm(message);
+export function confirmIfAnyDirty(message) {
+  if (!hasAnyDirty()) return Promise.resolve(true);
+  if (confirmState.resolve) {
+    confirmState.resolve(false);
+    confirmState.resolve = null;
+  }
+  return new Promise((resolve) => {
+    confirmState.message = message || DEFAULT_MESSAGE;
+    confirmState.resolve = resolve;
+    confirmState.show = true;
+  });
+}
+
+/**
+ * Вызывается из DirtyConfirmModal кнопками "Подтвердить" / "Отмена".
+ */
+export function resolveDirtyConfirm(value) {
+  if (confirmState.resolve) {
+    confirmState.resolve(value);
+    confirmState.resolve = null;
+  }
+  confirmState.show = false;
 }
 
 let installed = false;

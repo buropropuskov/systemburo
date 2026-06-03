@@ -172,7 +172,7 @@ router.beforeEach(async (to, from, next) => {
   // с pending-правками - спросить подтверждение перед navigation. Применяется
   // ко всем переходам, ВКЛЮЧАЯ программные next() ниже - кроме первого
   // монтирования (from.name === undefined).
-  if (from.name !== undefined && !confirmIfAnyDirty()) {
+  if (from.name !== undefined && !(await confirmIfAnyDirty())) {
     next(false);
     return;
   }
