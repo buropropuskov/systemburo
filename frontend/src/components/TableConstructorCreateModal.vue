@@ -502,7 +502,7 @@ export default {
   justify-content: space-between;
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: 15px;
   background: white;
   cursor: pointer;
   font-size: 13px;

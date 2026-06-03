@@ -599,7 +599,7 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 15px;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -920,7 +920,7 @@ input:checked + .switch-slider:before {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 14px;
   transition: border-color 0.2s;
   background: white;
@@ -941,7 +941,7 @@ input:checked + .switch-slider:before {
   justify-content: space-between;
   padding: 10px 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 10px;
+  border-radius: 15px;
   background: white;
   transition: border-color 0.2s;
 }
