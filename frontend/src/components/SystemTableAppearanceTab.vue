@@ -84,6 +84,7 @@
 <script>
 import { apiRequest } from '@/api/client';
 import { useToast } from '@/composables/useToast';
+import { registerDirtyTracker } from '@/utils/dirtyTracker';
 
 const DEFAULT_FONT_SIZE = 14;
 const DEFAULT_DENSITY = 'normal';
@@ -135,6 +136,12 @@ export default {
       immediate: true,
       deep: true,
     },
+  },
+  mounted() {
+    this._stopDirtyGuard = registerDirtyTracker(() => this.isDirty);
+  },
+  beforeUnmount() {
+    this._stopDirtyGuard?.();
   },
   methods: {
     reset() {

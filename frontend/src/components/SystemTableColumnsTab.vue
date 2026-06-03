@@ -283,6 +283,7 @@
 import { apiRequest } from '@/api/client';
 import { generateSampleRows } from '@/utils/tableSamples';
 import { useToast } from '@/composables/useToast';
+import { registerDirtyTracker } from '@/utils/dirtyTracker';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
 
@@ -388,9 +389,13 @@ export default {
       immediate: true,
     },
   },
+  mounted() {
+    this._stopDirtyGuard = registerDirtyTracker(() => this.isDirty);
+  },
   beforeUnmount() {
     // На случай если пользователь ушёл с вкладки во время drag.
     this.cleanupPointerListeners();
+    this._stopDirtyGuard?.();
   },
   methods: {
     humanLabel(name) {

@@ -7,6 +7,7 @@ import { vPermissionScope } from './directives/permission-scope'
 import bus from './eventBus'
 import { tryRestoreSession } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
+import { installBeforeUnloadGuard } from '@/utils/dirtyTracker'
 import './assets/tokens.css'
 import './assets/forms.css'
 
@@ -28,4 +29,5 @@ await useMaintenanceStore().fetchStatus()
 
 app.use(router)
 await router.isReady()
+installBeforeUnloadGuard()
 app.mount('#app')

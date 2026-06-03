@@ -137,35 +137,35 @@
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'main' }"
-              @click="activeTab = 'main'"
+              @click="switchTab('main')"
             >
               Основное
             </button>
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'schedule' }"
-              @click="activeTab = 'schedule'"
+              @click="switchTab('schedule')"
             >
               Расписание
             </button>
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'location' }"
-              @click="activeTab = 'location'"
+              @click="switchTab('location')"
             >
               Местоположение
             </button>
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'columns' }"
-              @click="activeTab = 'columns'"
+              @click="switchTab('columns')"
             >
               Колонки
             </button>
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'appearance' }"
-              @click="activeTab = 'appearance'"
+              @click="switchTab('appearance')"
             >
               Оформление
             </button>
@@ -178,14 +178,14 @@
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'fact-columns' }"
-              @click="activeTab = 'fact-columns'"
+              @click="switchTab('fact-columns')"
             >
               Колонки
             </button>
             <button
               class="tab-btn"
               :class="{ 'active': activeTab === 'fact-appearance' }"
-              @click="activeTab = 'fact-appearance'"
+              @click="switchTab('fact-appearance')"
             >
               Оформление
             </button>
@@ -592,6 +592,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -723,6 +724,17 @@ export default {
   methods: {
     handleNotification(event) {
       this.showNotification(event.detail.message, event.detail.type);
+    },
+
+    /**
+     * Переключение вкладки с защитой: если на текущей вкладке есть pending
+     * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
+     * всех зарегистрированных через registerDirtyTracker.
+     */
+    switchTab(tab) {
+      if (this.activeTab === tab) return;
+      if (!confirmIfAnyDirty()) return;
+      this.activeTab = tab;
     },
 
     async refreshData() {
@@ -904,6 +916,10 @@ export default {
 },
     
     selectTable(table) {
+      // Защита от потери: если текущая вкладка settings dirty - спросить.
+      if (this.selectedTable && this.selectedTable.table.id !== table.table.id) {
+        if (!confirmIfAnyDirty()) return;
+      }
       this.selectedTable = JSON.parse(JSON.stringify(table));
       this.originalHint = table.table.fact_table_hint || '';
       this.originalInstruction = table.table.instruction || '';

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import LoginComponent from './components/LoginComponent.vue';
@@ -167,6 +168,15 @@ const router = createRouter({
 // в памяти если refresh cookie жив). На F5 guard сразу видит реальное
 // состояние без async гонок.
 router.beforeEach(async (to, from, next) => {
+  // Защита от потери несохранённых изменений: если на странице есть форма
+  // с pending-правками - спросить подтверждение перед navigation. Применяется
+  // ко всем переходам, ВКЛЮЧАЯ программные next() ниже - кроме первого
+  // монтирования (from.name === undefined).
+  if (from.name !== undefined && !confirmIfAnyDirty()) {
+    next(false);
+    return;
+  }
+
   const authStore = useAuthStore();
   const maintenanceStore = useMaintenanceStore();
   const isAuthenticated = authStore.isAuthenticated;
