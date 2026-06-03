@@ -56,8 +56,9 @@
             Выезд
           </div>
           <div
-            v-if="isFieldVisible('car_number')"
+            v-if="isFieldInDom('car_number')"
             class="col number-col"
+            :class="fieldColClass('car_number')"
             :style="getColStyle('car_number')"
             @click="sortBy('car_number')"
           >
@@ -71,8 +72,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('car_brand')"
+            v-if="isFieldInDom('car_brand')"
             class="col brand-col"
+            :class="fieldColClass('car_brand')"
             :style="getColStyle('car_brand')"
             @click="sortBy('car_brand')"
           >
@@ -86,8 +88,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('organization')"
+            v-if="isFieldInDom('organization')"
             class="col organization-col"
+            :class="fieldColClass('organization')"
             :style="getColStyle('organization')"
             @click="sortBy('organization')"
           >
@@ -101,8 +104,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('company')"
+            v-if="isFieldInDom('company')"
             class="col company-col"
+            :class="fieldColClass('company')"
             :style="getColStyle('company')"
             @click="sortBy('company')"
           >
@@ -116,8 +120,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('application_id')"
+            v-if="isFieldInDom('application_id')"
             class="col application-col"
+            :class="fieldColClass('application_id')"
             :style="getColStyle('application_id')"
             @click="sortBy('application_id')"
           >
@@ -131,8 +136,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('unload_place')"
+            v-if="isFieldInDom('unload_place')"
             class="col place-col"
+            :class="fieldColClass('unload_place')"
             :style="getColStyle('unload_place')"
             @click="sortBy('unload_place')"
           >
@@ -146,8 +152,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('valid_until')"
+            v-if="isFieldInDom('valid_until')"
             class="col date-col"
+            :class="fieldColClass('valid_until')"
             :style="getColStyle('valid_until')"
             @click="sortBy('entry_date_to')"
           >
@@ -161,8 +168,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('time_range')"
+            v-if="isFieldInDom('time_range')"
             class="col time-col"
+            :class="fieldColClass('time_range')"
             :style="getColStyle('time_range')"
             @click="sortBy('entry_time')"
           >
@@ -176,8 +184,9 @@
             >
           </div>
           <div
-            v-if="isFieldVisible('status')"
+            v-if="isFieldInDom('status')"
             class="col status-col"
+            :class="fieldColClass('status')"
             :style="getColStyle('status')"
             @click="sortBy('status')"
           >
@@ -271,64 +280,73 @@
                   </button>
                 </div>
                 <div
-                  v-if="isFieldVisible('car_number')"
+                  v-if="isFieldInDom('car_number')"
                   class="col number-col"
+                  :class="fieldColClass('car_number')"
                   :style="getColStyle('car_number')"
                 >
                   {{ item.car_number }}
                 </div>
                 <div
-                  v-if="isFieldVisible('car_brand')"
+                  v-if="isFieldInDom('car_brand')"
                   class="col brand-col"
+                  :class="fieldColClass('car_brand')"
                   :style="getColStyle('car_brand')"
                 >
                   {{ item.car_brand }}
                 </div>
                 <div
-                  v-if="isFieldVisible('organization')"
+                  v-if="isFieldInDom('organization')"
                   class="col organization-col"
+                  :class="fieldColClass('organization')"
                   :style="getColStyle('organization')"
                 >
                   {{ item.organization_name }}
                 </div>
                 <div
-                  v-if="isFieldVisible('company')"
+                  v-if="isFieldInDom('company')"
                   class="col company-col"
+                  :class="fieldColClass('company')"
                   :style="getColStyle('company')"
                 >
                   {{ item.company || '-' }}
                 </div>
                 <div
-                  v-if="isFieldVisible('application_id')"
+                  v-if="isFieldInDom('application_id')"
                   class="col application-col"
+                  :class="fieldColClass('application_id')"
                   :style="getColStyle('application_id')"
                 >
                   {{ item.applicationNumber || '-' }}
                 </div>
                 <div
-                  v-if="isFieldVisible('unload_place')"
+                  v-if="isFieldInDom('unload_place')"
                   class="col place-col"
+                  :class="fieldColClass('unload_place')"
                   :style="getColStyle('unload_place')"
                 >
                   {{ formatUnloadPlaces(item) }}
                 </div>
                 <div
-                  v-if="isFieldVisible('valid_until')"
+                  v-if="isFieldInDom('valid_until')"
                   class="col date-col"
+                  :class="fieldColClass('valid_until')"
                   :style="getColStyle('valid_until')"
                 >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
                 <div
-                  v-if="isFieldVisible('time_range')"
+                  v-if="isFieldInDom('time_range')"
                   class="col time-col"
+                  :class="fieldColClass('time_range')"
                   :style="getColStyle('time_range')"
                 >
                   {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
                 </div>
                 <div
-                  v-if="isFieldVisible('status')"
+                  v-if="isFieldInDom('status')"
                   class="col status-col"
+                  :class="fieldColClass('status')"
                   :style="getColStyle('status')"
                 >
                   <StatusBadge :status="item.status" />
@@ -1049,21 +1067,47 @@ export default {
     },
 
     isFieldVisible(fieldName) {
-      // В enlarged-режиме - отдельный флаг видимости столбца.
+      // Видимость определяется ОТДЕЛЬНО для каждого режима, иначе enlarged
+      // молча "подтягивал" бы обычные настройки is_visible.
       if (this.enlarged) {
         const ev = this.fieldsEnlargedVisibility[fieldName];
         if (ev === false) return false;
+      } else {
+        const v = this.fieldsVisibility[fieldName];
+        const visible = v === undefined ? true : v;
+        if (!visible) return false;
       }
-      // Пока конфиг не загружен - показываем всё (предотвращает мигание при инициализации).
-      const v = this.fieldsVisibility[fieldName];
-      const visible = v === undefined ? true : v;
-      if (!visible) return false;
       // В портретном компактном режиме показываем только столбцы с priority<=threshold.
       if (this.isCompact) {
         const p = this.fieldPriorities[fieldName];
         if (typeof p === 'number' && p > this.compactPriorityThreshold) return false;
       }
       return true;
+    },
+
+    /**
+     * В enlarged-режиме столбцы НЕ удаляем из DOM, а схлопываем через класс
+     * col--collapsed - даёт плавный transition (flex-grow, max-width, opacity).
+     * В обычном режиме - старая логика v-if, столбец удаляется из DOM.
+     */
+    isFieldInDom(fieldName) {
+      if (this.enlarged) {
+        // В enlarged compact-priority всё равно скрывает (DOM-узел не нужен).
+        if (this.isCompact) {
+          const p = this.fieldPriorities[fieldName];
+          if (typeof p === 'number' && p > this.compactPriorityThreshold) return false;
+        }
+        return true;
+      }
+      return this.isFieldVisible(fieldName);
+    },
+
+    fieldColClass(fieldName) {
+      if (this.enlarged) {
+        const ev = this.fieldsEnlargedVisibility[fieldName];
+        if (ev === false) return 'col--collapsed';
+      }
+      return '';
     },
 
     /**
@@ -1605,7 +1649,29 @@ export default {
    конфликта специфичности (раньше .items-body .col перекрывал отдельные
    правила .status-col / .organization-col и данные не анимировались). */
 .selected-table-card .col {
-  transition: font-size 0.4s ease-in-out, flex-grow 0.4s ease-in-out, opacity 0.3s ease-in-out;
+  transition:
+    font-size 0.4s ease-in-out,
+    flex-grow 0.4s ease-in-out,
+    flex-basis 0.4s ease-in-out,
+    max-width 0.4s ease-in-out,
+    min-width 0.4s ease-in-out,
+    padding 0.4s ease-in-out,
+    opacity 0.3s ease-in-out;
+}
+
+/* Скрытый в "Увеличенный режим" столбец - не удаляем из DOM, а схлопываем.
+   Транзишен на .col даёт плавную анимацию ширины/прозрачности. */
+.selected-table-card .col.col--collapsed {
+  flex-grow: 0 !important;
+  flex-basis: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* Пока конфиг не загружен - запрещаем transitions на всех потомках, чтобы
@@ -1626,10 +1692,6 @@ export default {
 
 .selected-table-card.enlarged .items-body .col {
   font-size: 18px;
-}
-
-.selected-table-card.enlarged .items-body .number-col {
-  font-weight: 700;
 }
 
 /* Номер Т/С и Марка - ключевые столбцы, не должны схлопываться по ellipsis

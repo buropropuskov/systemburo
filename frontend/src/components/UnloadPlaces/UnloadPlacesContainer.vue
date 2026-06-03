@@ -106,27 +106,29 @@
         class="details-section"
       >
         <div class="details-tabs">
-          <button 
-            class="tab-btn" 
-            :class="{ 'active': activeTab === 'main' }"
-            @click="activeTab = 'main'"
-          >
-            Основное
-          </button>
-          <button 
-            class="tab-btn" 
-            :class="{ 'active': activeTab === 'schedule' }"
-            @click="activeTab = 'schedule'"
-          >
-            Расписание
-          </button>
-          <button 
-            class="tab-btn" 
-            :class="{ 'active': activeTab === 'route' }"
-            @click="activeTab = 'route'"
-          >
-            Местоположение и маршрут
-          </button>
+          <div class="details-tabs__row">
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'main' }"
+              @click="activeTab = 'main'"
+            >
+              Основное
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'schedule' }"
+              @click="activeTab = 'schedule'"
+            >
+              Расписание
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'route' }"
+              @click="activeTab = 'route'"
+            >
+              Местоположение и маршрут
+            </button>
+          </div>
         </div>
 
         <!-- Вкладка Основное -->
@@ -269,10 +271,6 @@
               <h4 class="section-title">
                 Изображение(-я)
               </h4>
-              <p class="field-hint">
-                Снимки места разгрузки - схема проезда, КПП, парковка. Видит
-                водитель в карточке места при подаче заявки.
-              </p>
               <label class="upload-photo-btn">
                 + Загрузить
                 <input
@@ -284,6 +282,10 @@
                 >
               </label>
             </div>
+            <p class="field-hint">
+              Снимки места разгрузки - схема проезда, КПП, парковка. Видит
+              водитель в карточке места при подаче заявки.
+            </p>
 
             <!-- Drag&drop zone (как в TableConstructorPhotoSection). -->
             <label
@@ -1219,30 +1221,43 @@ async uploadPhotoFiles(files) {
 
 .details-tabs {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
   border-bottom: 1px solid #e6e6e6;
   background: #f8f9fa;
-  padding: 0 20px;
+  padding: 10px 16px 0;
+}
+
+.details-tabs__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
 }
 
 .tab-btn {
-  padding: 12px 24px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
+  padding: 8px 18px;
+  background: #fff;
+  border: 1px solid transparent;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #666;
-  transition: all 0.2s ease;
+  color: #6b7280;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  border-radius: 50px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-btn:hover {
   color: #4F5BDF;
+  background: #eef0ff;
 }
 
 .tab-btn.active {
   color: #4F5BDF;
-  border-bottom-color: #4F5BDF;
+  border-color: #4F5BDF;
+  background: #fff;
 }
 
 .tab-content {
@@ -1451,7 +1466,10 @@ async uploadPhotoFiles(files) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+}
+
+.photos-header .section-title {
+  margin: 0;
 }
 
 .upload-photo-btn {
@@ -1634,7 +1652,8 @@ async uploadPhotoFiles(files) {
   color: #a2a2a2;
   background: #f8f9fa;
   border: 1px dashed #e6e6e6;
-  border-radius: 8px;
+  border-radius: 25px;
+  font-size: 15px;
 }
 
 .no-selection-message {

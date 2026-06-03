@@ -826,7 +826,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 8px;
 }
 
 .columns-tab__preview-title {
