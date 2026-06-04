@@ -27,7 +27,28 @@
                   :key="i"
                   class="dirty-modal__changes-item"
                 >
-                  {{ item }}
+                  <template v-if="typeof item === 'string'">{{ item }}</template>
+                  <template v-else>
+                    <span class="dirty-modal__changes-label">{{ item.label }}</span>
+                    <template v-if="item.from || item.to">
+                      <span class="dirty-modal__changes-value">{{ item.from }}</span>
+                      <svg
+                        class="dirty-modal__changes-arrow"
+                        viewBox="0 0 14 10"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M0.5 5h11.5M8.5 1.5L12.5 5l-4 3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.4"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                      <span class="dirty-modal__changes-value">{{ item.to }}</span>
+                    </template>
+                  </template>
                 </li>
               </ul>
             </div>
@@ -129,15 +150,46 @@ export default {
 
 .dirty-modal__changes-list {
   margin: 0;
-  padding: 0 0 0 18px;
-  list-style: disc;
+  padding: 0;
+  list-style: none;
 }
 
 .dirty-modal__changes-item {
   font-size: 13px;
   color: #4b5563;
   line-height: 1.45;
-  padding: 1px 0;
+  padding: 2px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dirty-modal__changes-item::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  background: #4F5BDF;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.dirty-modal__changes-label {
+  color: #4b5563;
+}
+
+.dirty-modal__changes-value {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.dirty-modal__changes-arrow {
+  width: 14px;
+  height: 10px;
+  color: #111827;
+  flex-shrink: 0;
 }
 
 .dirty-modal__actions {

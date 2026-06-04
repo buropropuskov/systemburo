@@ -726,7 +726,6 @@ export default {
 .table-body {
   flex: 1;
   overflow-y: auto;
-  max-height: 407px;
 }
 
 .table-row {

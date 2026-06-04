@@ -79,7 +79,9 @@ export function hasAnyDirty() {
 }
 
 /**
- * Собирает список изменений со всех dirty-трекеров. Возвращает массив строк.
+ * Собирает список изменений со всех dirty-трекеров. Элемент может быть строкой
+ * (старый формат) или объектом { label, from, to } (новый формат - render со
+ * svg-стрелкой в DirtyConfirmModal).
  */
 function collectAllChanges() {
   const all = [];
@@ -88,9 +90,16 @@ function collectAllChanges() {
       if (!entry.isDirty()) continue;
       if (!entry.getChanges) continue;
       const items = entry.getChanges();
-      if (Array.isArray(items)) {
-        for (const it of items) {
-          if (typeof it === 'string' && it.trim()) all.push(it.trim());
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        if (typeof it === 'string' && it.trim()) {
+          all.push(it.trim());
+        } else if (it && typeof it === 'object' && typeof it.label === 'string' && it.label.trim()) {
+          all.push({
+            label: it.label.trim(),
+            from: it.from != null ? String(it.from) : '',
+            to: it.to != null ? String(it.to) : '',
+          });
         }
       }
     } catch {

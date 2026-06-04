@@ -77,28 +77,31 @@
         </button>
       </div>
       <div
+        v-if="previewFields.length"
         class="appearance-tab__density-preview"
         :class="`appearance-tab__density-preview--${rowDensity}`"
         :style="{ fontSize: fontSize + 'px' }"
         aria-hidden="true"
       >
-        <div class="appearance-tab__density-preview-row appearance-tab__density-preview-row--head">
-          <span>Номер</span>
-          <span>Марка</span>
-          <span>Организация</span>
-          <span>Время</span>
+        <div
+          class="appearance-tab__density-preview-row appearance-tab__density-preview-row--head"
+          :style="{ gridTemplateColumns: previewGridTemplate }"
+        >
+          <span
+            v-for="f in previewFields"
+            :key="`h-${f.field_name}`"
+          >{{ fieldLabel(f) }}</span>
         </div>
-        <div class="appearance-tab__density-preview-row">
-          <span>А123БВ</span>
-          <span>Toyota</span>
-          <span>ООО Ромашка</span>
-          <span>14:30</span>
-        </div>
-        <div class="appearance-tab__density-preview-row">
-          <span>М456ОР</span>
-          <span>Volvo</span>
-          <span>ЗАО Лютик</span>
-          <span>15:00</span>
+        <div
+          v-for="(row, ri) in previewRows"
+          :key="`r-${ri}`"
+          class="appearance-tab__density-preview-row"
+          :style="{ gridTemplateColumns: previewGridTemplate }"
+        >
+          <span
+            v-for="f in previewFields"
+            :key="`${ri}-${f.field_name}`"
+          >{{ cellValue(row, f) }}</span>
         </div>
       </div>
     </div>
@@ -110,9 +113,49 @@
 import { apiRequest } from '@/api/client';
 import { useToast } from '@/composables/useToast';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
+import { generateSampleRows } from '@/utils/tableSamples';
 
 const DEFAULT_FONT_SIZE = 14;
 const DEFAULT_DENSITY = 'normal';
+
+const FIELD_LABELS = {
+  car_number: 'Номер Т/С',
+  car_brand: 'Марка',
+  organization: 'Организация',
+  unload_place: 'Место разгрузки',
+  valid_until: 'Действует до',
+  time_range: 'Время',
+  status: 'Статус',
+  application_id: 'Номер заявки',
+  last_name: 'Фамилия',
+  first_name: 'Имя',
+  middle_name: 'Отчество',
+  pass_time: 'Время прохода',
+  position: 'Должность',
+  citizenship_name: 'Гражданство',
+  company: 'Компания',
+};
+
+const ROW_FIELD_MAP = {
+  car_number: 'car_number',
+  car_brand: 'car_brand',
+  organization: 'organization_name',
+  unload_place: 'unload_place',
+  valid_until: 'entry_date_to',
+  time_range: row => row.entry_time_from && row.entry_time_to
+    ? `${row.entry_time_from} - ${row.entry_time_to}` : '',
+  status: 'status',
+  application_id: 'applicationNumber',
+  last_name: 'last_name',
+  first_name: 'first_name',
+  middle_name: 'middle_name',
+  pass_time: 'pass_time',
+  position: 'position',
+  citizenship_name: 'citizenshipName',
+  company: 'company',
+};
+
+const PREVIEW_MAX_FIELDS = 4;
 
 export default {
   name: 'SystemTableAppearanceTab',
@@ -125,6 +168,8 @@ export default {
     // 'main' - читает/пишет font_size, row_density. 'fact' - font_size_fact,
     // row_density_fact (отдельные настройки для FactTable).
     variant: { type: String, default: 'main' },
+    tableType: { type: String, default: '' },
+    fields: { type: Array, default: () => [] },
   },
   emits: ['update'],
   data() {
@@ -152,6 +197,22 @@ export default {
       return this.fontSize !== this.originalFontSize
         || this.rowDensity !== this.originalDensity;
     },
+    previewFields() {
+      const list = (this.fields || [])
+        .filter(f => f && f.is_visible !== false)
+        .slice()
+        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+      return list.slice(0, PREVIEW_MAX_FIELDS);
+    },
+    previewRows() {
+      if (!this.tableType || !this.previewFields.length) return [];
+      return generateSampleRows(this.tableType, 2);
+    },
+    previewGridTemplate() {
+      const n = this.previewFields.length;
+      if (n <= 1) return '1fr';
+      return Array(n).fill('1fr').join(' ');
+    },
   },
   watch: {
     table: {
@@ -172,15 +233,32 @@ export default {
     this._stopDirtyGuard?.();
   },
   methods: {
+    fieldLabel(field) {
+      return FIELD_LABELS[field.field_name] || field.label || field.field_name;
+    },
+    cellValue(row, field) {
+      const mapper = ROW_FIELD_MAP[field.field_name];
+      if (typeof mapper === 'function') return mapper(row) || '';
+      if (typeof mapper === 'string') return row[mapper] ?? '';
+      return row[field.field_name] ?? '';
+    },
     buildChangesList() {
-      const prefix = this.variant === 'fact' ? 'Оформление "По факту": ' : 'Оформление: ';
+      const prefix = this.variant === 'fact' ? 'Оформление "По факту"' : 'Оформление';
       const out = [];
       if (this.fontSize !== this.originalFontSize) {
-        out.push(`${prefix}размер шрифта ${this.originalFontSize}px -> ${this.fontSize}px`);
+        out.push({
+          label: `${prefix}: размер шрифта`,
+          from: `${this.originalFontSize}px`,
+          to: `${this.fontSize}px`,
+        });
       }
       if (this.rowDensity !== this.originalDensity) {
         const label = v => this.densityOptions.find(o => o.value === v)?.label || v;
-        out.push(`${prefix}плотность строк ${label(this.originalDensity)} -> ${label(this.rowDensity)}`);
+        out.push({
+          label: `${prefix}: плотность строк`,
+          from: label(this.originalDensity),
+          to: label(this.rowDensity),
+        });
       }
       return out;
     },
@@ -429,13 +507,18 @@ export default {
 
 .appearance-tab__density-preview-row {
   display: grid;
-  grid-template-columns: 90px 110px 1fr 80px;
   gap: 12px;
   align-items: center;
   padding: 6px 14px;
   color: #4b5563;
   border-bottom: 1px solid #f3f4f6;
   transition: padding 0.25s ease, min-height 0.25s ease;
+}
+
+.appearance-tab__density-preview-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .appearance-tab__density-preview-row:last-child {

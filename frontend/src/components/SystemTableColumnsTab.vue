@@ -46,37 +46,36 @@
       </div>
       <div class="columns-tab__hint-block">
         <template v-if="!enlargedMode">
-          <div class="columns-tab__hint-grid">
-            <div class="columns-tab__hint-card">
-              <span class="columns-tab__hint-badge">Порядок</span>
-              <span class="columns-tab__hint-text">перетащите за иконку слева</span>
-            </div>
-            <div class="columns-tab__hint-card">
-              <span class="columns-tab__hint-badge">Ширина</span>
-              <span class="columns-tab__hint-text">относительный вес, делит ширину пропорционально</span>
-            </div>
-            <div class="columns-tab__hint-card">
-              <span class="columns-tab__hint-badge">Приоритет 1-5</span>
-              <span class="columns-tab__hint-text">1 - всегда виден на портретном экране, 3-5 - под кнопкой "Подробнее"</span>
-            </div>
+          <div class="columns-tab__hint">
+            <span class="columns-tab__hint-badge">Порядок</span>
+            <span class="columns-tab__hint-text">перетащите за иконку слева</span>
           </div>
+          <div class="columns-tab__hint">
+            <span class="columns-tab__hint-badge">Ширина</span>
+            <span class="columns-tab__hint-text"><strong>относительный вес</strong>, делит ширину пропорционально</span>
+          </div>
+          <div class="columns-tab__hint">
+            <span class="columns-tab__hint-badge">Приоритет 1-5</span>
+            <span class="columns-tab__hint-text"><strong>1</strong> - всегда виден, <strong>3-5</strong> - под "Подробнее"</span>
+          </div>
+          <p class="columns-tab__hint-note">
+            <strong>Портретный экран</strong> - узкий вертикальный экран (телефон), где не помещаются все столбцы.
+          </p>
         </template>
         <template v-else>
-          <div class="columns-tab__hint-grid">
-            <div class="columns-tab__hint-card">
-              <span class="columns-tab__hint-badge">Применение</span>
-              <span class="columns-tab__hint-text">только когда пользователь включил Увеличенный режим</span>
-            </div>
-            <div class="columns-tab__hint-card">
-              <span class="columns-tab__hint-badge">Ширина 0</span>
-              <span class="columns-tab__hint-text">взять обычную</span>
-            </div>
-            <div class="columns-tab__hint-card">
-              <span class="columns-tab__hint-badge">Жирность 0</span>
-              <span class="columns-tab__hint-text">дефолт 500</span>
-            </div>
+          <div class="columns-tab__hint">
+            <span class="columns-tab__hint-badge">Применение</span>
+            <span class="columns-tab__hint-text">только когда пользователь включил Увеличенный режим</span>
           </div>
-          <p class="columns-tab__hint-foot">
+          <div class="columns-tab__hint">
+            <span class="columns-tab__hint-badge">Ширина <strong>0</strong></span>
+            <span class="columns-tab__hint-text">взять обычную ширину столбца</span>
+          </div>
+          <div class="columns-tab__hint">
+            <span class="columns-tab__hint-badge">Жирность <strong>0</strong></span>
+            <span class="columns-tab__hint-text">дефолтная жирность <strong>500</strong></span>
+          </div>
+          <p class="columns-tab__hint-note">
             Серая строка с галочкой - столбец выключен в обычном режиме, но включён в увеличенном (или наоборот).
           </p>
         </template>
@@ -672,51 +671,53 @@ export default {
 }
 
 .columns-tab__hint {
-  margin: 0;
-  font-size: 13px;
-  color: #6b7280;
-  line-height: 1.5;
-}
-
-.columns-tab__hint-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
-}
-
-.columns-tab__hint-card {
-  background: #f8f9ff;
-  border: 1px solid #eef0ff;
-  border-radius: 10px;
-  padding: 8px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.45;
 }
 
 .columns-tab__hint-badge {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
   background: #4F5BDF;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.columns-tab__hint-badge strong {
+  font-weight: 700;
+  margin: 0 2px;
 }
 
 .columns-tab__hint-text {
-  font-size: 12px;
-  color: #4b5563;
-  line-height: 1.35;
+  min-width: 0;
 }
 
-.columns-tab__hint-foot {
+.columns-tab__hint-text strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.columns-tab__hint-note {
   margin: 4px 0 0;
+  padding-top: 6px;
+  border-top: 1px dashed #e6e6e6;
   font-size: 12px;
   color: #6b7280;
   line-height: 1.4;
+}
+
+.columns-tab__hint-note strong {
+  color: #4F5BDF;
+  font-weight: 600;
 }
 
 .columns-tab__empty {
