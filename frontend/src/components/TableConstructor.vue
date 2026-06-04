@@ -508,6 +508,8 @@
           <SystemTableAppearanceTab
             :table-id="selectedTable.table.id"
             :table="selectedTable.table"
+            :table-type="selectedTable.table.table_type"
+            :fields="selectedTable.fields || []"
             @update="refreshSelectedTable"
           />
         </div>
@@ -534,6 +536,8 @@
           <SystemTableAppearanceTab
             :table-id="selectedTable.table.id"
             :table="selectedTable.table"
+            :table-type="selectedTable.table.table_type"
+            :fields="selectedTable.fact_fields || []"
             variant="fact"
             @update="refreshSelectedTable"
           />

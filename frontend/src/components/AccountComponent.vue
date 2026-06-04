@@ -57,89 +57,46 @@
       <AccountSettings v-if="isBuroPropuskov" />
     </div>
 
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Учётные записи пользователей"
-      anchor-id="users"
-    >
-      <UserControl
-        :all-users="allUsers"
-        class="dashboard-card dashboard-card-animated"
-        @fetch-users="fetchAllUsers"
-        @user-updated="handleUserUpdated"
-      />
-    </CollapsibleSection>
-
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Управление организациями"
-      anchor-id="organizations"
-    >
-      <OrganizationsManagement class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Управление компаниями"
-      anchor-id="companies"
-    >
-      <CompaniesManagement class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Управление местами разгрузки"
-      anchor-id="unload_place"
-    >
-      <UnloadPlacesContainer class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Форматы номеров"
-      anchor-id="number"
-    >
-      <NumberFormat class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Гражданства"
-      anchor-id="citizenships"
-    >
-      <CitizenshipManagement class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Марки автомобилей"
-      anchor-id="marks"
-    >
-      <MarksManagement class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Таблицы системы"
-      anchor-id="tables"
-    >
-      <TableConstructor class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Типы пользователей"
-      anchor-id="user_types"
-    >
-      <UserTypes class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Вложения заявок (бланки)"
-      anchor-id="attachments"
-    >
-      <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
-    <CollapsibleSection
-      v-if="isBuroPropuskov"
-      title="Принимающие заявки"
-      anchor-id="approvers"
-    >
-      <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
-    </CollapsibleSection>
+    <template v-if="isBuroPropuskov">
+      <section id="users" class="account-section">
+        <UserControl
+          :all-users="allUsers"
+          class="dashboard-card dashboard-card-animated"
+          @fetch-users="fetchAllUsers"
+          @user-updated="handleUserUpdated"
+        />
+      </section>
+      <section id="organizations" class="account-section">
+        <OrganizationsManagement class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="companies" class="account-section">
+        <CompaniesManagement class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="unload_place" class="account-section">
+        <UnloadPlacesContainer class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="number" class="account-section">
+        <NumberFormat class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="citizenships" class="account-section">
+        <CitizenshipManagement class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="marks" class="account-section">
+        <MarksManagement class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="tables" class="account-section">
+        <TableConstructor class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="user_types" class="account-section">
+        <UserTypes class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="attachments" class="account-section">
+        <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
+      </section>
+      <section id="approvers" class="account-section">
+        <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
+      </section>
+    </template>
   </div>
 </template>
 
@@ -161,7 +118,6 @@ import CitizenshipManagement from './CitizenshipManagement.vue';
 import MarksManagement from './MarksManagement.vue';
 import AttachmentsManagement from './AttachmentsManagement.vue';
 import ApplicationApprovers from './ApplicationApprovers.vue';
-import CollapsibleSection from './ui/CollapsibleSection.vue';
 import { SkeletonTransition, SkeletonBlock } from '@/components/ui';
 
 export default {
@@ -181,7 +137,6 @@ export default {
     MarksManagement,
     AttachmentsManagement,
     ApplicationApprovers,
-    CollapsibleSection,
     SkeletonTransition,
     SkeletonBlock,
   },
