@@ -560,7 +560,7 @@
 
     <!-- Модальное окно создания таблицы -->
     <TableConstructorCreateModal
-      v-if="showAddModal"
+      :show="showAddModal"
       @created="onTableCreated"
       @close="showAddModal = false"
     />

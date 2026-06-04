@@ -1711,17 +1711,6 @@ export default {
   min-width: 110px;
 }
 
-/* В enlarged status-col схлопывается; освободившиеся 7 grow распределяются
-   автоматически по ВСЕМ оставшимся столбцам пропорционально их базовым
-   весам - getColStyle в enlarged не задаёт inline flex-grow, и CSS-веса
-   снова в силе. organization получит больше всех (она самая широкая),
-   но остальные тоже подрастут пропорционально. */
-.selected-table-card.enlarged .status-col {
-  flex-grow: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .selected-table-card.enlarged .item-data {
   min-height: 36px;
 }

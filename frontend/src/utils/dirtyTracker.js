@@ -1,14 +1,25 @@
 /**
  * Глобальный реестр форм с несохранёнными изменениями + красивый confirm-модал.
  *
- * Компонент с формой регистрирует геттер isDirty -> при попытке покинуть
- * страницу (роутер, перезагрузка, переключение вкладок внутри view) показывается
- * красивый Vue-модал (DirtyConfirmModal в App.vue). Для window.beforeunload
- * браузер показывает свой нативный диалог - кастомный показать нельзя.
+ * Компонент с формой регистрирует геттер isDirty (и опционально getChanges) -
+ * при попытке покинуть страницу (роутер, перезагрузка, переключение вкладок
+ * внутри view) показывается красивый Vue-модал (DirtyConfirmModal в App.vue)
+ * со списком изменений. Для window.beforeunload браузер показывает свой
+ * нативный диалог - кастомный показать нельзя.
  *
  * Использование в Options API:
  *   import { registerDirtyTracker } from '@/utils/dirtyTracker';
- *   mounted() { this._stopGuard = registerDirtyTracker(() => this.isDirty); },
+ *   // короткая форма (как раньше):
+ *   mounted() {
+ *     this._stopGuard = registerDirtyTracker(() => this.isDirty);
+ *   }
+ *   // расширенная с описанием изменений:
+ *   mounted() {
+ *     this._stopGuard = registerDirtyTracker({
+ *       isDirty: () => this.isDirty,
+ *       getChanges: () => ['Изменена ширина "Марка"', 'Скрыта "Организация"'],
+ *     });
+ *   }
  *   beforeUnmount() { this._stopGuard?.(); }
  *
  * Перед навигацией:
@@ -29,15 +40,27 @@ const DEFAULT_MESSAGE = 'У вас есть несохранённые изме�
 export const confirmState = reactive({
   show: false,
   message: DEFAULT_MESSAGE,
+  changes: [],
   resolve: null,
 });
 
 /**
- * Регистрирует геттер isDirty. Возвращает функцию-отписку.
+ * Регистрирует трекер. Аргумент:
+ *  - функция: () => boolean (backward-compat, без списка изменений)
+ *  - объект:  { isDirty: () => boolean, getChanges?: () => string[] }
+ * Возвращает функцию-отписку.
  */
-export function registerDirtyTracker(getterFn) {
+export function registerDirtyTracker(arg) {
+  const entry = typeof arg === 'function'
+    ? { isDirty: arg, getChanges: null }
+    : { isDirty: arg?.isDirty, getChanges: arg?.getChanges ?? null };
+
+  if (typeof entry.isDirty !== 'function') {
+    throw new Error('registerDirtyTracker: isDirty must be a function');
+  }
+
   const id = nextId++;
-  trackers.set(id, getterFn);
+  trackers.set(id, entry);
   return () => trackers.delete(id);
 }
 
@@ -45,14 +68,36 @@ export function registerDirtyTracker(getterFn) {
  * Есть ли хотя бы одна форма с несохранёнными изменениями?
  */
 export function hasAnyDirty() {
-  for (const get of trackers.values()) {
+  for (const entry of trackers.values()) {
     try {
-      if (get()) return true;
+      if (entry.isDirty()) return true;
     } catch {
       /* геттер мог обратиться к удалённому компоненту - игнорируем */
     }
   }
   return false;
+}
+
+/**
+ * Собирает список изменений со всех dirty-трекеров. Возвращает массив строк.
+ */
+function collectAllChanges() {
+  const all = [];
+  for (const entry of trackers.values()) {
+    try {
+      if (!entry.isDirty()) continue;
+      if (!entry.getChanges) continue;
+      const items = entry.getChanges();
+      if (Array.isArray(items)) {
+        for (const it of items) {
+          if (typeof it === 'string' && it.trim()) all.push(it.trim());
+        }
+      }
+    } catch {
+      /* пропускаем сломанные трекеры */
+    }
+  }
+  return all;
 }
 
 /**
@@ -71,6 +116,7 @@ export function confirmIfAnyDirty(message) {
   }
   return new Promise((resolve) => {
     confirmState.message = message || DEFAULT_MESSAGE;
+    confirmState.changes = collectAllChanges();
     confirmState.resolve = resolve;
     confirmState.show = true;
   });
