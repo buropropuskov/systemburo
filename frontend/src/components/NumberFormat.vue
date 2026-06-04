@@ -1201,6 +1201,7 @@ export default {
 }
 
 .table-footer {
+  margin-top: auto;
   padding: 6px 20px;
   border-top: 1px solid #e6e6e6;
   text-align: end;

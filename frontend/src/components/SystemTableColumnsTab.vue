@@ -46,27 +46,38 @@
       </div>
       <div class="columns-tab__hint-block">
         <template v-if="!enlargedMode">
-          <p class="columns-tab__hint">
-            Переставляйте столбцы перетаскиванием за иконку слева. Скрытые столбцы не отображаются в таблице.
-          </p>
-          <p class="columns-tab__hint">
-            <b>Ширина</b> - относительный вес столбца. Браузер делит доступную ширину
-            видимых столбцов пропорционально этим весам. <b>Приоритет</b> (1-5) -
-            видимость на вертикальном (книжном) экране охранника: 1 - всегда виден,
-            2 - виден на узком экране, 3-5 - скрывается и доступен по кнопке "Подробнее"
-            под строкой.
-          </p>
+          <div class="columns-tab__hint-grid">
+            <div class="columns-tab__hint-card">
+              <span class="columns-tab__hint-badge">Порядок</span>
+              <span class="columns-tab__hint-text">перетащите за иконку слева</span>
+            </div>
+            <div class="columns-tab__hint-card">
+              <span class="columns-tab__hint-badge">Ширина</span>
+              <span class="columns-tab__hint-text">относительный вес, делит ширину пропорционально</span>
+            </div>
+            <div class="columns-tab__hint-card">
+              <span class="columns-tab__hint-badge">Приоритет 1-5</span>
+              <span class="columns-tab__hint-text">1 - всегда виден на портретном экране, 3-5 - под кнопкой "Подробнее"</span>
+            </div>
+          </div>
         </template>
         <template v-else>
-          <p class="columns-tab__hint">
-            Настройки применяются ТОЛЬКО когда у пользователя включён
-            <b>Увеличенный режим</b> в шапке таблицы. <b>Ширина</b> - 0 значит
-            брать обычную. <b>Жирность</b> - 0 значит дефолт (500).
-          </p>
-          <p class="columns-tab__hint">
-            Если строка столбца <b>серая, но с галочкой</b> - значит в
-            <b>Обычном</b> режиме столбец выключен, а в <b>Увеличенном</b> -
-            включён (или наоборот).
+          <div class="columns-tab__hint-grid">
+            <div class="columns-tab__hint-card">
+              <span class="columns-tab__hint-badge">Применение</span>
+              <span class="columns-tab__hint-text">только когда пользователь включил Увеличенный режим</span>
+            </div>
+            <div class="columns-tab__hint-card">
+              <span class="columns-tab__hint-badge">Ширина 0</span>
+              <span class="columns-tab__hint-text">взять обычную</span>
+            </div>
+            <div class="columns-tab__hint-card">
+              <span class="columns-tab__hint-badge">Жирность 0</span>
+              <span class="columns-tab__hint-text">дефолт 500</span>
+            </div>
+          </div>
+          <p class="columns-tab__hint-foot">
+            Серая строка с галочкой - столбец выключен в обычном режиме, но включён в увеличенном (или наоборот).
           </p>
         </template>
       </div>
@@ -390,7 +401,10 @@ export default {
     },
   },
   mounted() {
-    this._stopDirtyGuard = registerDirtyTracker(() => this.isDirty);
+    this._stopDirtyGuard = registerDirtyTracker({
+      isDirty: () => this.isDirty,
+      getChanges: () => this.buildChangesList(),
+    });
   },
   beforeUnmount() {
     // На случай если пользователь ушёл с вкладки во время drag.
@@ -400,6 +414,50 @@ export default {
   methods: {
     humanLabel(name) {
       return FIELD_LABELS[name] || name;
+    },
+    buildChangesList() {
+      const prefix = this.variant === 'fact' ? 'Колонки "По факту": ' : 'Колонки: ';
+      const out = [];
+      const visDiff = this.localFields.filter(
+        f => this.originalVisibility[f.field_name] !== f.is_visible,
+      );
+      if (visDiff.length) {
+        const names = visDiff.slice(0, 3).map(f => `"${this.humanLabel(f.field_name)}"`).join(', ');
+        const more = visDiff.length > 3 ? ` и ещё ${visDiff.length - 3}` : '';
+        out.push(`${prefix}изменена видимость ${names}${more}`);
+      }
+      const orderChanged = this.localFields.some(
+        (f, i) => this.originalOrder[i] !== f.field_name,
+      );
+      if (orderChanged) out.push(`${prefix}изменён порядок столбцов`);
+      const widthDiff = this.localFields.filter(
+        f => this.originalWidth[f.field_name] !== f.width,
+      );
+      if (widthDiff.length) out.push(`${prefix}изменена ширина (${widthDiff.length})`);
+      const priorityDiff = this.localFields.filter(
+        f => this.originalPriority[f.field_name] !== f.priority,
+      );
+      if (priorityDiff.length) out.push(`${prefix}изменён приоритет (${priorityDiff.length})`);
+      const enlPrefix = this.variant === 'fact'
+        ? 'Увеличенный (По факту): '
+        : 'Увеличенный режим: ';
+      const enlVisDiff = this.localFields.filter(
+        f => this.originalEnlargedVisibility[f.field_name] !== f.enlarged_is_visible,
+      );
+      if (enlVisDiff.length) {
+        const names = enlVisDiff.slice(0, 3).map(f => `"${this.humanLabel(f.field_name)}"`).join(', ');
+        const more = enlVisDiff.length > 3 ? ` и ещё ${enlVisDiff.length - 3}` : '';
+        out.push(`${enlPrefix}изменена видимость ${names}${more}`);
+      }
+      const enlWDiff = this.localFields.filter(
+        f => this.originalEnlargedWidth[f.field_name] !== f.enlarged_width,
+      );
+      if (enlWDiff.length) out.push(`${enlPrefix}изменена ширина (${enlWDiff.length})`);
+      const enlWeightDiff = this.localFields.filter(
+        f => this.originalEnlargedWeight[f.field_name] !== f.enlarged_font_weight,
+      );
+      if (enlWeightDiff.length) out.push(`${enlPrefix}изменена жирность (${enlWeightDiff.length})`);
+      return out;
     },
     reset() {
       const sorted = [...(this.fields || [])].sort((a, b) => {
@@ -618,6 +676,47 @@ export default {
   font-size: 13px;
   color: #6b7280;
   line-height: 1.5;
+}
+
+.columns-tab__hint-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.columns-tab__hint-card {
+  background: #f8f9ff;
+  border: 1px solid #eef0ff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.columns-tab__hint-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  background: #4F5BDF;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.columns-tab__hint-text {
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.35;
+}
+
+.columns-tab__hint-foot {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
 .columns-tab__empty {

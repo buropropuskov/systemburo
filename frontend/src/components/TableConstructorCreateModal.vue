@@ -1,13 +1,15 @@
 <template>
   <Teleport to="body">
-    <div
-      class="modal-overlay"
-      @click.self="handleClose"
-    >
+    <transition name="modal-fade">
       <div
-        ref="modalContent"
-        class="modal-content horizontal-modal"
+        v-if="show"
+        class="modal-overlay"
+        @click.self="handleClose"
       >
+        <div
+          ref="modalContent"
+          class="modal-content horizontal-modal"
+        >
         <div class="modal-header">
           <h3>Создать новую таблицу</h3>
           <button
@@ -164,7 +166,8 @@
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -177,7 +180,18 @@ export default {
   components: {
     TextConstructor
   },
+  props: {
+    show: { type: Boolean, default: false }
+  },
   emits: ['created', 'close'],
+  watch: {
+    show(v) {
+      if (!v) {
+        this.resetForm()
+        this.typeDropdownOpen = false
+      }
+    }
+  },
   data() {
     return {
       newTable: {

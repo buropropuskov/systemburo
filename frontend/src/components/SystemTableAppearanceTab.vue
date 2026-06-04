@@ -76,6 +76,31 @@
           {{ opt.label }}
         </button>
       </div>
+      <div
+        class="appearance-tab__density-preview"
+        :class="`appearance-tab__density-preview--${rowDensity}`"
+        :style="{ fontSize: fontSize + 'px' }"
+        aria-hidden="true"
+      >
+        <div class="appearance-tab__density-preview-row appearance-tab__density-preview-row--head">
+          <span>Номер</span>
+          <span>Марка</span>
+          <span>Организация</span>
+          <span>Время</span>
+        </div>
+        <div class="appearance-tab__density-preview-row">
+          <span>А123БВ</span>
+          <span>Toyota</span>
+          <span>ООО Ромашка</span>
+          <span>14:30</span>
+        </div>
+        <div class="appearance-tab__density-preview-row">
+          <span>М456ОР</span>
+          <span>Volvo</span>
+          <span>ЗАО Лютик</span>
+          <span>15:00</span>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -138,12 +163,27 @@ export default {
     },
   },
   mounted() {
-    this._stopDirtyGuard = registerDirtyTracker(() => this.isDirty);
+    this._stopDirtyGuard = registerDirtyTracker({
+      isDirty: () => this.isDirty,
+      getChanges: () => this.buildChangesList(),
+    });
   },
   beforeUnmount() {
     this._stopDirtyGuard?.();
   },
   methods: {
+    buildChangesList() {
+      const prefix = this.variant === 'fact' ? 'Оформление "По факту": ' : 'Оформление: ';
+      const out = [];
+      if (this.fontSize !== this.originalFontSize) {
+        out.push(`${prefix}размер шрифта ${this.originalFontSize}px -> ${this.fontSize}px`);
+      }
+      if (this.rowDensity !== this.originalDensity) {
+        const label = v => this.densityOptions.find(o => o.value === v)?.label || v;
+        out.push(`${prefix}плотность строк ${label(this.originalDensity)} -> ${label(this.rowDensity)}`);
+      }
+      return out;
+    },
     reset() {
       const fs = Number(this.table?.[this.fontSizeKey]);
       this.fontSize = fs >= 10 && fs <= 24 ? fs : DEFAULT_FONT_SIZE;
@@ -377,5 +417,52 @@ export default {
 
 .appearance-tab__status--error {
   color: #c62828;
+}
+
+.appearance-tab__density-preview {
+  margin-top: 14px;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.appearance-tab__density-preview-row {
+  display: grid;
+  grid-template-columns: 90px 110px 1fr 80px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 14px;
+  color: #4b5563;
+  border-bottom: 1px solid #f3f4f6;
+  transition: padding 0.25s ease, min-height 0.25s ease;
+}
+
+.appearance-tab__density-preview-row:last-child {
+  border-bottom: none;
+}
+
+.appearance-tab__density-preview-row--head {
+  background: #f8f9ff;
+  color: #4F5BDF;
+  font-weight: 600;
+}
+
+.appearance-tab__density-preview--compact .appearance-tab__density-preview-row {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  min-height: 28px;
+}
+
+.appearance-tab__density-preview--normal .appearance-tab__density-preview-row {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  min-height: 36px;
+}
+
+.appearance-tab__density-preview--spacious .appearance-tab__density-preview-row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  min-height: 50px;
 }
 </style>

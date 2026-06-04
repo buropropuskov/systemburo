@@ -6,13 +6,12 @@
   >
     <button
       type="button"
-      class="collapsible-section__toggle"
+      class="collapsible-section__bar"
       :aria-expanded="!collapsed"
       :aria-controls="contentId"
-      :title="collapsed ? `Развернуть: ${title}` : `Свернуть: ${title}`"
-      :aria-label="collapsed ? `Развернуть: ${title}` : `Свернуть: ${title}`"
       @click="collapsed = !collapsed"
     >
+      <span class="collapsible-section__title">{{ title }}</span>
       <svg
         class="collapsible-section__chevron"
         :class="{ rotated: !collapsed }"
@@ -87,39 +86,47 @@ export default {
   position: relative;
 }
 
-/* Кнопка-chevron в правом верхнем углу секции - не дублирует существующий
-   заголовок внутри слота, остаётся над ним. */
-.collapsible-section__toggle {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  z-index: 5;
-  display: inline-flex;
+.collapsible-section__bar {
+  width: 100%;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid #e6e6e6;
+  justify-content: space-between;
+  padding: 14px 20px;
   background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 16px;
   cursor: pointer;
-  border-radius: 8px;
-  color: #6e7280;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  color: #1f2937;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.collapsible-section__toggle:hover {
-  background: #eef0ff;
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+.collapsible-section__bar:hover {
+  background: #f8f9ff;
+  border-color: #c5cbf4;
 }
 
-.collapsible-section__toggle:focus-visible {
+.collapsible-section__bar:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.25);
 }
 
+.collapsible-section:not(.is-collapsed) .collapsible-section__bar {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.collapsible-section__title {
+  flex: 1;
+}
+
 .collapsible-section__chevron {
+  flex-shrink: 0;
+  color: #6e7280;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -137,6 +144,12 @@ export default {
 }
 
 .collapsible-section.is-collapsed .collapsible-section__content {
+  display: none;
+}
+
+/* Внутри CollapsibleSection заголовок секции живёт в полосе-шапке -
+   убираем дубликаты-заголовки в Management-компонентах. */
+.collapsible-section :deep(.management-title) {
   display: none;
 }
 </style>
