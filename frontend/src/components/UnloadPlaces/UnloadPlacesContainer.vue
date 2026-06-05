@@ -1124,8 +1124,8 @@ async uploadPhotoFiles(files) {
 
 .table-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  max-height: 407px;
 }
 
 .table-row {

@@ -47,13 +47,22 @@ export const confirmState = reactive({
 /**
  * Регистрирует трекер. Аргумент:
  *  - функция: () => boolean (backward-compat, без списка изменений)
- *  - объект:  { isDirty: () => boolean, getChanges?: () => string[] }
+ *  - объект:  { isDirty: () => boolean, getChanges?: () => string[], save?: () => Promise<void> }
+ *
+ * save - опциональный async-callback, который сохраняет ВСЕ изменения этого
+ * трекера. Используется кнопкой "Сохранить все изменения" в DirtyConfirmModal -
+ * вызывается последовательно у всех dirty-трекеров перед продолжением навигации.
+ *
  * Возвращает функцию-отписку.
  */
 export function registerDirtyTracker(arg) {
   const entry = typeof arg === 'function'
-    ? { isDirty: arg, getChanges: null }
-    : { isDirty: arg?.isDirty, getChanges: arg?.getChanges ?? null };
+    ? { isDirty: arg, getChanges: null, save: null }
+    : {
+      isDirty: arg?.isDirty,
+      getChanges: arg?.getChanges ?? null,
+      save: typeof arg?.save === 'function' ? arg.save : null,
+    };
 
   if (typeof entry.isDirty !== 'function') {
     throw new Error('registerDirtyTracker: isDirty must be a function');
@@ -140,6 +149,25 @@ export function resolveDirtyConfirm(value) {
     confirmState.resolve = null;
   }
   confirmState.show = false;
+}
+
+/**
+ * Последовательно сохраняет все dirty-трекеры, у которых задан save-callback.
+ * Возвращает true если все save прошли без ошибок (можно продолжить навигацию),
+ * false если хотя бы один упал (нужно остаться, ошибка ушла в toast у трекера).
+ */
+export async function saveAllDirty() {
+  for (const entry of trackers.values()) {
+    try {
+      if (!entry.isDirty()) continue;
+      if (!entry.save) continue;
+      await entry.save();
+      if (entry.isDirty()) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 let installed = false;

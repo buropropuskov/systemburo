@@ -136,12 +136,19 @@ const FIELD_LABELS = {
   company: 'Компания',
 };
 
+function formatIsoDate(iso) {
+  if (typeof iso !== 'string' || iso.length !== 10) return iso || '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}.${m}.${y}`;
+}
+
 const ROW_FIELD_MAP = {
   car_number: 'car_number',
   car_brand: 'car_brand',
   organization: 'organization_name',
   unload_place: 'unload_place',
-  valid_until: 'entry_date_to',
+  valid_until: row => formatIsoDate(row.entry_date_to),
   time_range: row => row.entry_time_from && row.entry_time_to
     ? `${row.entry_time_from} - ${row.entry_time_to}` : '',
   status: 'status',
@@ -227,6 +234,7 @@ export default {
     this._stopDirtyGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => this.buildChangesList(),
+      save: () => this.save(),
     });
   },
   beforeUnmount() {
@@ -526,8 +534,8 @@ export default {
 }
 
 .appearance-tab__density-preview-row--head {
-  background: #f8f9ff;
-  color: #4F5BDF;
+  background: #f9fafb;
+  color: #4b5563;
   font-weight: 600;
 }
 
