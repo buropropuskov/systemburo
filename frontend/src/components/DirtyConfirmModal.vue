@@ -56,15 +56,24 @@
           <div class="dirty-modal__actions">
             <button
               class="dirty-modal__btn dirty-modal__btn--cancel"
+              :disabled="savingAll"
               @click="onCancel"
             >
               Остаться
             </button>
             <button
               class="dirty-modal__btn dirty-modal__btn--confirm"
+              :disabled="savingAll"
               @click="onConfirm"
             >
               Уйти без сохранения
+            </button>
+            <button
+              class="dirty-modal__btn dirty-modal__btn--save"
+              :disabled="savingAll"
+              @click="onSaveAll"
+            >
+              {{ savingAll ? 'Сохраняем...' : 'Сохранить все изменения' }}
             </button>
           </div>
         </div>
@@ -74,12 +83,12 @@
 </template>
 
 <script>
-import { confirmState, resolveDirtyConfirm } from '@/utils/dirtyTracker';
+import { confirmState, resolveDirtyConfirm, saveAllDirty } from '@/utils/dirtyTracker';
 
 export default {
   name: 'DirtyConfirmModal',
   data() {
-    return { confirmState };
+    return { confirmState, savingAll: false };
   },
   methods: {
     onConfirm() {
@@ -87,6 +96,16 @@ export default {
     },
     onCancel() {
       resolveDirtyConfirm(false);
+    },
+    async onSaveAll() {
+      if (this.savingAll) return;
+      this.savingAll = true;
+      try {
+        const ok = await saveAllDirty();
+        if (ok) resolveDirtyConfirm(true);
+      } finally {
+        this.savingAll = false;
+      }
     },
   },
 };
@@ -220,14 +239,30 @@ export default {
 }
 
 .dirty-modal__btn--confirm {
+  background: #fff;
+  color: #c62828;
+  border-color: #e6e6e6;
+}
+
+.dirty-modal__btn--confirm:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.dirty-modal__btn--save {
   background: #4F5BDF;
   color: #fff;
   border-color: #4F5BDF;
 }
 
-.dirty-modal__btn--confirm:hover {
+.dirty-modal__btn--save:hover:not(:disabled) {
   background: #3a45c4;
   border-color: #3a45c4;
+}
+
+.dirty-modal__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .dirty-fade-enter-active,

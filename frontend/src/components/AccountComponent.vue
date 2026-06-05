@@ -291,6 +291,10 @@ export default {
  padding: 15px 0;
 }
 
+.account-section {
+  margin-top: 25px;
+}
+
 .applications-wrapper {
   position: relative;
 }

@@ -48,35 +48,41 @@
         <template v-if="!enlargedMode">
           <div class="columns-tab__hint">
             <span class="columns-tab__hint-badge">Порядок</span>
-            <span class="columns-tab__hint-text">перетащите за иконку слева</span>
+            <span class="columns-tab__hint-dash">-</span>
+            <span class="columns-tab__hint-text">очерёдность столбцов в таблице. Перетащите за иконку слева, чтобы переставить.</span>
           </div>
           <div class="columns-tab__hint">
             <span class="columns-tab__hint-badge">Ширина</span>
-            <span class="columns-tab__hint-text"><strong>относительный вес</strong>, делит ширину пропорционально</span>
+            <span class="columns-tab__hint-dash">-</span>
+            <span class="columns-tab__hint-text">размер столбца в таблице. Определяет сколько пространства занимает среди остальных видимых.</span>
           </div>
           <div class="columns-tab__hint">
             <span class="columns-tab__hint-badge">Приоритет 1-5</span>
-            <span class="columns-tab__hint-text"><strong>1</strong> - всегда виден, <strong>3-5</strong> - под "Подробнее"</span>
+            <span class="columns-tab__hint-dash">-</span>
+            <span class="columns-tab__hint-text">управляет порядком скрытия столбцов в портретном режиме. <strong>1</strong> - всегда виден, <strong>3-5</strong> - скрывается первым под кнопку "Подробнее".</span>
           </div>
           <p class="columns-tab__hint-note">
-            <strong>Портретный экран</strong> - узкий вертикальный экран (телефон), где не помещаются все столбцы.
+            <strong>Портретный режим</strong> - формат таблицы, когда ширины не хватает на все столбцы одновременно. Бывает на телефонах в вертикальной ориентации, в разделённых экранах и в узких окнах десктопа.
           </p>
         </template>
         <template v-else>
           <div class="columns-tab__hint">
             <span class="columns-tab__hint-badge">Применение</span>
-            <span class="columns-tab__hint-text">только когда пользователь включил Увеличенный режим</span>
+            <span class="columns-tab__hint-dash">-</span>
+            <span class="columns-tab__hint-text">настройки работают только когда пользователь сам включил Увеличенный режим в просмотре таблицы.</span>
           </div>
           <div class="columns-tab__hint">
             <span class="columns-tab__hint-badge">Ширина <strong>0</strong></span>
-            <span class="columns-tab__hint-text">взять обычную ширину столбца</span>
+            <span class="columns-tab__hint-dash">-</span>
+            <span class="columns-tab__hint-text">значение <strong>0</strong> означает "взять ширину из вкладки Обычный". Любое другое число задаёт собственную ширину для увеличенного режима.</span>
           </div>
           <div class="columns-tab__hint">
             <span class="columns-tab__hint-badge">Жирность <strong>0</strong></span>
-            <span class="columns-tab__hint-text">дефолтная жирность <strong>500</strong></span>
+            <span class="columns-tab__hint-dash">-</span>
+            <span class="columns-tab__hint-text">значение <strong>0</strong> означает наследовать дефолтную жирность (<strong>500</strong>). Значения от <strong>100</strong> до <strong>900</strong> задают свою.</span>
           </div>
           <p class="columns-tab__hint-note">
-            Серая строка с галочкой - столбец выключен в обычном режиме, но включён в увеличенном (или наоборот).
+            Серая строка с галочкой - столбец отключён в обычном режиме.
           </p>
         </template>
       </div>
@@ -403,6 +409,7 @@ export default {
     this._stopDirtyGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => this.buildChangesList(),
+      save: () => this.save(),
     });
   },
   beforeUnmount() {
@@ -627,7 +634,7 @@ export default {
 /* Блок подсказок фиксированной высоты - предотвращает скачки высоты вкладки
    при смене режима, где у подсказок разная длина текста. */
 .columns-tab__hint-block {
-  min-height: 96px;
+  min-height: 140px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -697,8 +704,14 @@ export default {
   margin: 0 2px;
 }
 
+.columns-tab__hint-dash {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
 .columns-tab__hint-text {
   min-width: 0;
+  flex: 1;
 }
 
 .columns-tab__hint-text strong {
