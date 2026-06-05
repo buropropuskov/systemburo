@@ -24,6 +24,7 @@ func AllModels() []interface{} {
 		&models.MarkHistory{},
 		&models.UnloadPlace{},
 		&models.SystemTable{},
+		&models.SystemTableHistory{},
 
 		// Users (depends on UserType, Organization, Company)
 		&models.User{},

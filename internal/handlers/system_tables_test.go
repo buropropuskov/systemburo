@@ -146,6 +146,47 @@ func TestSystemTables_ArchiveAndRestore(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestSystemTables_History(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create -> +1 history entry (created)
+	body := `{"name":"hist_table","display_name":"Hist Table","table_type":"cars"}`
+	rec := testutil.POST(t, e, "/system-tables", body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Update -> +1 history entry (updated)
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID),
+		`{"display_name":"Hist Table v2"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Delete -> +1 (archived)
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Restore -> +1 (restored)
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/restore", tableID), "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// GET history - 4 записи в порядке убывания времени.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/history", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 4)
+
+	// Самая свежая запись - restored, дальше archived, updated, created.
+	wantActions := []string{"restored", "archived", "updated", "created"}
+	for i, want := range wantActions {
+		assert.Equal(t, want, items[i]["action_type"], "history[%d].action_type", i)
+		assert.NotEmpty(t, items[i]["user_name"], "history[%d].user_name", i)
+	}
+}
+
 func TestSystemTables_DuplicateName(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

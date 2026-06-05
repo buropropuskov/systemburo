@@ -301,6 +301,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.PUT("/:id", st.Update)
 	stg.DELETE("/:id", st.Delete)
 	stg.POST("/:id/restore", st.Restore)
+	stg.GET("/:id/history", st.GetHistory)
 	stg.GET("/name/:name", st.GetByName)
 	stg.GET("/:id/time-slots", st.GetTimeSlots)
 	stg.POST("/:id/time-slots", st.AddTimeSlot)
