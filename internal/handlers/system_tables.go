@@ -21,17 +21,19 @@ func NewSystemTableHandler(service services.SystemTableService) *SystemTableHand
 }
 
 // GetAll godoc
-// @Summary      Получение всех системных таблиц
-// @Description  Возвращает все активные системные таблицы с полями, слотами, фото и текущим статусом (open/closed)
+// @Summary      Получение системных таблиц
+// @Description  По умолчанию возвращает только активные. include_archived=true возвращает только архивные (мягко удалённые).
 // @Tags         system-tables
 // @Produce      json
 // @Security     BearerAuth
+// @Param        include_archived query bool false "Вернуть архивные таблицы вместо активных"
 // @Success      200 {array} models.SystemTableWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /system-tables [get]
 func (h *SystemTableHandler) GetAll(c echo.Context) error {
-	tables, err := h.service.GetAll(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	tables, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -141,7 +143,7 @@ func (h *SystemTableHandler) Update(c echo.Context) error {
 
 // Delete godoc
 // @Summary      Удаление системной таблицы
-// @Description  Мягкое удаление (is_active=false). Проверяет привязки к организациям и компаниям
+// @Description  Мягкое удаление (is_active=false) - таблица уходит в архив. Проверяет привязки к организациям и компаниям
 // @Tags         system-tables
 // @Produce      json
 // @Security     BearerAuth
@@ -160,6 +162,29 @@ func (h *SystemTableHandler) Delete(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Системная таблица успешно удалена")
+}
+
+// Restore godoc
+// @Summary      Восстановление системной таблицы из архива
+// @Description  Возвращает таблицу из архива (is_active=false -> true)
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {string} string "Системная таблица восстановлена"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{id}/restore [post]
+func (h *SystemTableHandler) Restore(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Системная таблица восстановлена")
 }
 
 // UpdateFields godoc

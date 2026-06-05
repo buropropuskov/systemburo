@@ -89,6 +89,63 @@ func TestSystemTables_CRUD(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestSystemTables_ArchiveAndRestore(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create table
+	body := `{"name":"arch_table","display_name":"Arch Table","table_type":"cars"}`
+	rec := testutil.POST(t, e, "/system-tables", body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Archive via DELETE (soft delete)
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Default GetAll - архивная таблица не должна быть в списке
+	rec = testutil.GET(t, e, "/system-tables", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	for _, m := range testutil.ParseSlice(t, rec) {
+		tbl := m["table"].(map[string]interface{})
+		assert.NotEqual(t, float64(tableID), tbl["id"], "archived table must NOT be in active list")
+	}
+
+	// GetAll?include_archived=true - архивная таблица ДОЛЖНА быть
+	rec = testutil.GET(t, e, "/system-tables?include_archived=true", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	found := false
+	for _, m := range testutil.ParseSlice(t, rec) {
+		tbl := m["table"].(map[string]interface{})
+		if int(tbl["id"].(float64)) == tableID {
+			found = true
+			assert.Equal(t, false, tbl["is_active"], "include_archived must return is_active=false rows")
+			break
+		}
+	}
+	assert.True(t, found, "archived table must appear in include_archived=true list")
+
+	// Restore - возвращаем из архива
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/restore", tableID), "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Повторный restore - 400 (уже не в архиве)
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/restore", tableID), "", h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// После restore таблица снова в активном списке
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Restore несуществующей - 404
+	rec = testutil.POST(t, e, "/system-tables/999999/restore", "", h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 func TestSystemTables_DuplicateName(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

@@ -24,12 +24,13 @@ var allowedImageTypes = []string{
 
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
 type SystemTableService interface {
-	GetAll(ctx context.Context) ([]models.SystemTableWithDetails, error)
+	GetAll(ctx context.Context, includeArchived bool) ([]models.SystemTableWithDetails, error)
 	GetByID(ctx context.Context, id int) (*models.SystemTableWithDetails, error)
 	GetByName(ctx context.Context, name string) (*models.SystemTableWithDetails, error)
 	Create(ctx context.Context, req models.CreateSystemTableRequest) (int, error)
 	Update(ctx context.Context, id int, req models.UpdateSystemTableRequest) error
 	Delete(ctx context.Context, id int) error
+	Restore(ctx context.Context, id int) error
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, tableID int) ([]models.SystemTableTimeSlot, error)
@@ -156,8 +157,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 	}, nil
 }
 
-// GetAll возвращает все активные системные таблицы с полями, слотами и фотографиями.
-func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWithDetails, error) {
+// GetAll возвращает системные таблицы с полями, слотами и фотографиями.
+// includeArchived=true возвращает только архивные (is_active=false), false - только активные.
+func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) ([]models.SystemTableWithDetails, error) {
 	tables := make([]models.SystemTable, 0)
 	if err := s.db.WithContext(ctx).
 		Preload("Fields", func(db *gorm.DB) *gorm.DB {
@@ -172,7 +174,7 @@ func (s *systemTableService) GetAll(ctx context.Context) ([]models.SystemTableWi
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order("is_main DESC, uploaded_at DESC")
 		}).
-		Where("is_active = ?", true).
+		Where("is_active = ?", !includeArchived).
 		Order("display_name").
 		Find(&tables).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system tables")
@@ -595,14 +597,39 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 		Where("id = ?", id).
 		Update("is_active", false)
 	if result.Error != nil {
-		slog.Error("не ��далось удалить системную таблицу", "id", id, "error", result.Error)
+		slog.Error("не удалось удалить системную таблицу", "id", id, "error", result.Error)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting system table")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
 	}
 
-	slog.Info("сист��мная таблица удалена (мягко)", "id", id)
+	slog.Info("системная таблица удалена (мягко)", "id", id)
+	return nil
+}
+
+// Restore восстанавливает мягко удалённую системную таблицу (is_active=false -> true).
+func (s *systemTableService) Restore(ctx context.Context, id int) error {
+	var table models.SystemTable
+	if err := s.db.WithContext(ctx).Where("id = ?", id).First(&table).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table")
+	}
+	if table.IsActive {
+		return echo.NewHTTPError(http.StatusBadRequest, "Таблица не в архиве")
+	}
+
+	result := s.db.WithContext(ctx).Model(&models.SystemTable{}).
+		Where("id = ?", id).
+		Update("is_active", true)
+	if result.Error != nil {
+		slog.Error("не удалось восстановить системную таблицу", "id", id, "error", result.Error)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring system table")
+	}
+
+	slog.Info("системная таблица восстановлена из архива", "id", id)
 	return nil
 }
 
