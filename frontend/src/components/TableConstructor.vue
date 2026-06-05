@@ -5,11 +5,19 @@
         Таблицы системы
       </h3>
       <div class="header-controls">
+        <button
+          class="archive-header-button"
+          :class="{ active: showArchive }"
+          @click="toggleArchiveView"
+        >
+          {{ showArchive ? 'Активные' : 'Архив' }}
+        </button>
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск таблиц...'"
         />
         <button
+          v-if="!showArchive"
           class="add-header-button"
           @click="showAddModal = true"
         >
@@ -84,11 +92,14 @@
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="table in sortedTables" 
-              :key="table.table.id" 
+            <div
+              v-for="table in sortedTables"
+              :key="table.table.id"
               class="table-row"
-              :class="{'selected': selectedTable && selectedTable.table.id === table.table.id}"
+              :class="{
+                'selected': selectedTable && selectedTable.table.id === table.table.id,
+                'inactive': !table.table.is_active,
+              }"
               @click="selectTable(table)"
             >
               <div class="table-col id-col">
@@ -100,6 +111,10 @@
                   :title="table.table.display_name"
                 >
                   {{ table.table.display_name }}
+                  <span
+                    v-if="!table.table.is_active"
+                    class="inactive-badge"
+                  >(архив)</span>
                 </span>
               </div>
               <div class="table-col type-col">
@@ -122,7 +137,9 @@
           </div>
 
           <div class="table-footer">
-            <span class="items-count">Всего таблиц: {{ filteredTables.length }}</span>
+            <span class="items-count">
+              {{ showArchive ? 'В архиве' : 'Всего таблиц' }}: {{ filteredTables.length }}
+            </span>
           </div>
         </div>
       </div>
@@ -132,7 +149,10 @@
         v-if="selectedTable"
         class="details-section"
       >
-        <div class="details-tabs">
+        <div
+          v-if="selectedTable.table.is_active"
+          class="details-tabs"
+        >
           <div class="details-tabs__row">
             <button
               class="tab-btn"
@@ -221,13 +241,26 @@
               </div>
             </div>
             <div class="details-header-actions">
+              <span
+                v-if="!selectedTable.table.is_active"
+                class="archive-badge"
+              >В архиве</span>
               <button
+                v-if="selectedTable.table.is_active"
                 class="action-btn view-btn"
                 @click="openTable"
               >
                 Открыть
               </button>
               <button
+                v-if="!selectedTable.table.is_active"
+                class="action-btn restore-btn"
+                @click="restoreTable(selectedTable)"
+              >
+                Восстановить
+              </button>
+              <button
+                v-if="selectedTable.table.is_active"
                 class="delete-icon-btn"
                 @click="confirmDeleteTable(selectedTable)"
               >
@@ -609,6 +642,7 @@ export default {
       originalHint: '',
       originalInstruction: '',
       tableTypeDropdownOpen: false,
+      showArchive: false,
     };
   },
   computed: {
@@ -715,7 +749,10 @@ export default {
     
     async fetchTables() {
       try {
-        const response = await apiRequest("/system-tables", {
+        const url = this.showArchive
+          ? '/system-tables?include_archived=true'
+          : '/system-tables';
+        const response = await apiRequest(url, {
         });
         if (response.ok) {
           const data = await response.json();
@@ -724,6 +761,39 @@ export default {
       } catch (error) {
         console.error("Error fetching system tables:", error);
         useDeletionsStore().notify({ prefix: 'Ошибка при ', bold: 'загрузке таблиц', type: 'error' });
+      }
+    },
+
+    async toggleArchiveView() {
+      if (!(await confirmIfAnyDirty())) return;
+      this.showArchive = !this.showArchive;
+      this.selectedTable = null;
+      this.activeTab = 'main';
+      await this.refreshData();
+    },
+
+    async restoreTable(tableObj) {
+      try {
+        const response = await apiRequest(`/system-tables/${tableObj.table.id}/restore`, {
+          method: 'POST',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          let message = errorText;
+          try {
+            message = JSON.parse(errorText).message || errorText;
+          } catch { /* not JSON */ }
+          useDeletionsStore().notify({ prefix: 'Ошибка восстановления: ', bold: message, type: 'error' });
+          return;
+        }
+        const restoredName = tableObj.table.display_name;
+        // После restore таблица уходит из архивного списка - убираем её локально.
+        this.tables = this.tables.filter(t => t.table.id !== tableObj.table.id);
+        this.selectedTable = null;
+        useDeletionsStore().notify({ prefix: 'Таблица ', bold: restoredName, suffix: ' восстановлена' });
+      } catch (error) {
+        console.error('Error restoring table:', error);
+        useDeletionsStore().notify({ prefix: 'Ошибка ', bold: 'сети', type: 'error' });
       }
     },
     
@@ -1056,6 +1126,67 @@ export default {
 
 .add-header-button:hover {
   background: #3a45b2;
+}
+
+.archive-header-button {
+  padding: 2px 16px;
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #e6e6e6;
+  border-radius: 50px;
+  cursor: pointer;
+  font-size: 0.7em;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.archive-header-button:hover {
+  background: #e9ecef;
+  border-color: #ccc;
+}
+
+.archive-header-button.active {
+  background: #6b7280;
+  color: white;
+  border-color: #6b7280;
+}
+
+.table-row.inactive {
+  background: #fafafa;
+  color: #6b7280;
+}
+
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: #a2a2a2;
+  font-style: italic;
+}
+
+.archive-badge {
+  background: #6b7280;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.restore-btn {
+  padding: 8px 16px;
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.restore-btn:hover {
+  background: #0da271;
 }
 
 .content-container {
