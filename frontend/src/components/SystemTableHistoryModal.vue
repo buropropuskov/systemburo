@@ -2,63 +2,73 @@
   <div
     class="modal-overlay"
     data-testid="system-table-history-modal"
-    @click.self="$emit('close')"
   >
     <div class="modal-content">
-      <h3 class="modal-title">
-        История таблицы «{{ table.display_name }}»
-      </h3>
-      <div
-        v-if="isLoading"
-        class="loader"
-      >
-        Загрузка...
-      </div>
-      <div
-        v-else-if="!groups.length"
-        class="empty"
-      >
-        История пуста
-      </div>
-      <ul
-        v-else
-        class="history-list"
-      >
-        <li
-          v-for="(g, gi) in groups"
-          :key="gi"
-          class="history-item"
+      <div class="modal-header">
+        <h3 class="modal-title">
+          История таблицы «{{ table.display_name }}»
+        </h3>
+        <button
+          class="modal-close"
+          aria-label="Закрыть"
+          @click="$emit('close')"
         >
-          <div class="history-row">
-            <span
-              class="history-badge"
-              :class="`history-badge--${g.action_type}`"
-            >{{ actionLabel(g.action_type) }}</span>
-            <span class="history-user">{{ g.user_name || 'Система' }}</span>
-            <span class="history-time">{{ formatDate(g.created_at) }}</span>
-          </div>
-          <button
-            v-if="g.entries.length > 1 || hasDetails(g.entries[0])"
-            class="history-toggle"
-            @click="toggle(gi)"
+          ×
+        </button>
+      </div>
+      <div class="modal-body">
+        <div
+          v-if="isLoading"
+          class="loader"
+        >
+          Загрузка...
+        </div>
+        <div
+          v-else-if="!groups.length"
+          class="empty"
+        >
+          История пуста
+        </div>
+        <ul
+          v-else
+          class="history-list"
+        >
+          <li
+            v-for="(g, gi) in groups"
+            :key="gi"
+            class="history-item"
           >
-            {{ expanded[gi] ? 'Свернуть' : `Раскрыть (${g.entries.length})` }}
-          </button>
-          <ul
-            v-if="expanded[gi]"
-            class="history-details"
-          >
-            <li
-              v-for="entry in g.entries"
-              :key="entry.id"
-              class="history-detail-row"
+            <div class="history-row">
+              <span
+                class="history-badge"
+                :class="`history-badge--${g.action_type}`"
+              >{{ actionLabel(g.action_type) }}</span>
+              <span class="history-user">{{ g.user_name || 'Система' }}</span>
+              <span class="history-time">{{ formatDate(g.created_at) }}</span>
+            </div>
+            <button
+              v-if="g.entries.length > 1 || hasDetails(g.entries[0])"
+              class="history-toggle"
+              @click="toggle(gi)"
             >
-              <pre>{{ formatDetails(entry.details) }}</pre>
-            </li>
-          </ul>
-        </li>
-      </ul>
-      <div class="modal-actions">
+              {{ expanded[gi] ? 'Свернуть' : `Раскрыть (${g.entries.length})` }}
+            </button>
+            <ul
+              v-if="expanded[gi]"
+              class="history-details"
+            >
+              <li
+                v-for="entry in g.entries"
+                :key="entry.id"
+                class="history-detail-row"
+              >
+                <pre>{{ formatDetails(entry.details) }}</pre>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+      <div class="modal-footer">
         <button
           class="lk-btn"
           @click="$emit('close')"
@@ -126,8 +136,15 @@ export default {
   },
   mounted() {
     this.load();
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape') this.$emit('close');
+    },
     async load() {
       this.isLoading = true;
       try {
@@ -172,27 +189,66 @@ export default {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 11000;
 }
 
 .modal-content {
   background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  width: 600px;
-  max-width: 92vw;
-  max-height: 80vh;
-  overflow-y: auto;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #fff;
 }
 
 .modal-title {
-  margin: 0 0 16px;
-  font-size: 18px;
+  margin: 0;
+  font-size: 22px;
   font-weight: 600;
   color: #1f2937;
+}
+
+.modal-close {
+  background: transparent;
+  border: 0;
+  font-size: 28px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 32px;
+  border-top: 1px solid #e6e6e6;
+  background: #fff;
 }
 
 .loader,
@@ -299,12 +355,6 @@ export default {
   color: #4b5563;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
 }
 
 .lk-btn {
