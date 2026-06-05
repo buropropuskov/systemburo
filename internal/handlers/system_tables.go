@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -13,11 +14,27 @@ import (
 // SystemTableHandler -- HTTP-обработчики системных таблиц.
 type SystemTableHandler struct {
 	service services.SystemTableService
+	history services.SystemTableHistoryService
 }
 
 // NewSystemTableHandler создаёт новый экземпляр обработчика системных таблиц.
-func NewSystemTableHandler(service services.SystemTableService) *SystemTableHandler {
-	return &SystemTableHandler{service: service}
+// history может быть nil - тогда логирование действий отключено.
+func NewSystemTableHandler(service services.SystemTableService, history services.SystemTableHistoryService) *SystemTableHandler {
+	return &SystemTableHandler{service: service, history: history}
+}
+
+// logAction пишет запись в историю если сервис подключён. Безопасно вызывать с nil-историей.
+func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tableID int, actionType string, details interface{}) {
+	if h.history == nil {
+		return
+	}
+	var userID *int
+	if v := c.Get("user_id"); v != nil {
+		if id, ok := v.(int); ok && id > 0 {
+			userID = &id
+		}
+	}
+	_ = h.history.Log(ctx, tableID, userID, actionType, details)
 }
 
 // GetAll godoc
@@ -106,6 +123,11 @@ func (h *SystemTableHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	h.logAction(c.Request().Context(), c, id, models.SystemTableActionCreated, map[string]interface{}{
+		"name":         req.Name,
+		"display_name": req.DisplayName,
+		"table_type":   req.TableType,
+	})
 	return RespondSuccess(c, map[string]interface{}{
 		"id":      id,
 		"message": "Системная таблица успешно создана",
@@ -138,6 +160,7 @@ func (h *SystemTableHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
 	}
+	h.logAction(c.Request().Context(), c, id, models.SystemTableActionUpdated, req)
 	return RespondMessage(c, "Системная таблица успешно обновлена")
 }
 
@@ -161,6 +184,7 @@ func (h *SystemTableHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
+	h.logAction(c.Request().Context(), c, id, models.SystemTableActionArchived, nil)
 	return RespondMessage(c, "Системная таблица успешно удалена")
 }
 
@@ -184,7 +208,35 @@ func (h *SystemTableHandler) Restore(c echo.Context) error {
 	if err := h.service.Restore(c.Request().Context(), id); err != nil {
 		return err
 	}
+	h.logAction(c.Request().Context(), c, id, models.SystemTableActionRestored, nil)
 	return RespondMessage(c, "Системная таблица восстановлена")
+}
+
+// GetHistory godoc
+// @Summary      История изменений системной таблицы
+// @Description  Возвращает все CRUD-действия над таблицей (created/updated/archived/restored/columns/appearance)
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {array} models.SystemTableHistoryItem
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/history [get]
+func (h *SystemTableHandler) GetHistory(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	if h.history == nil {
+		return RespondSuccess(c, []models.SystemTableHistoryItem{})
+	}
+	items, err := h.history.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
 
 // UpdateFields godoc
@@ -213,6 +265,10 @@ func (h *SystemTableHandler) UpdateFields(c echo.Context) error {
 	if err := h.service.UpdateFields(c.Request().Context(), id, req); err != nil {
 		return err
 	}
+	h.logAction(c.Request().Context(), c, id, models.SystemTableActionColumnsUpdated, map[string]interface{}{
+		"variant": "main",
+		"fields":  req.Fields,
+	})
 	return RespondMessage(c, "Видимость столбцов обновлена")
 }
 
@@ -242,6 +298,10 @@ func (h *SystemTableHandler) UpdateFactFields(c echo.Context) error {
 	if err := h.service.UpdateFactFields(c.Request().Context(), id, req); err != nil {
 		return err
 	}
+	h.logAction(c.Request().Context(), c, id, models.SystemTableActionColumnsUpdated, map[string]interface{}{
+		"variant": "fact",
+		"fields":  req.Fields,
+	})
 	return RespondMessage(c, "Видимость столбцов FactTable обновлена")
 }
 

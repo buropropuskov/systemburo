@@ -54,7 +54,7 @@ var tables = []string{
 	"companies_unload_places", "organization_unload_places",
 	"unload_place_time_slots", "unload_place_photos", "unload_places",
 	"table_fields", "table_field_facts", "companies_tables", "organization_tables",
-	"system_table_trash_histories",
+	"system_table_trash_histories", "system_table_histories",
 	"system_table_time_slots", "system_table_photos", "system_tables",
 	"license_plate_format_cells", "license_plate_formats",
 	"citizenships",
@@ -146,7 +146,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, "./uploads")
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
-	systemTableHandler := handlers.NewSystemTableHandler(systemTableService)
+	systemTableHistoryService := services.NewSystemTableHistoryService(db)
+	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, systemTableHistoryService)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
