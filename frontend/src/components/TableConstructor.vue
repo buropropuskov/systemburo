@@ -246,6 +246,12 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                class="action-btn history-btn"
+                @click="historyTable = selectedTable.table"
+              >
+                История
+              </button>
+              <button
                 v-if="selectedTable.table.is_active"
                 class="action-btn view-btn"
                 @click="openTable"
@@ -601,6 +607,13 @@
       @created="onTableCreated"
       @close="showAddModal = false"
     />
+
+    <!-- Модалка истории таблицы -->
+    <SystemTableHistoryModal
+      v-if="historyTable"
+      :table="historyTable"
+      @close="historyTable = null"
+    />
   </div>
 </template>
 
@@ -616,6 +629,7 @@ import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
 import SystemTableAppearanceTab from './SystemTableAppearanceTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
 import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
+import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
 
 export default {
   name: 'TableConstructor',
@@ -627,7 +641,8 @@ export default {
     SystemTableColumnsTab,
     SystemTableAppearanceTab,
     TableConstructorCreateModal,
-    TableConstructorPhotoSection
+    TableConstructorPhotoSection,
+    SystemTableHistoryModal,
   },
   data() {
     return {
@@ -643,6 +658,7 @@ export default {
       originalInstruction: '',
       tableTypeDropdownOpen: false,
       showArchive: false,
+      historyTable: null,
     };
   },
   computed: {
@@ -1187,6 +1203,22 @@ export default {
 
 .restore-btn:hover {
   background: #0da271;
+}
+
+.history-btn {
+  padding: 8px 16px;
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.history-btn:hover {
+  background: #eef0ff;
 }
 
 .content-container {
