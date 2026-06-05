@@ -111,7 +111,7 @@
 
 <script>
 import { apiRequest } from '@/api/client';
-import { useToast } from '@/composables/useToast';
+import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
 import { generateSampleRows } from '@/utils/tableSamples';
 
@@ -166,9 +166,6 @@ const PREVIEW_MAX_FIELDS = 4;
 
 export default {
   name: 'SystemTableAppearanceTab',
-  setup() {
-    return { toast: useToast() };
-  },
   props: {
     tableId: { type: Number, required: true },
     table: { type: Object, required: true },
@@ -296,10 +293,10 @@ export default {
         }
         this.originalFontSize = fs;
         this.originalDensity = this.rowDensity;
-        this.toast.success('Оформление сохранено');
+        useDeletionsStore().notify({ prefix: 'Оформление ', bold: 'сохранено' });
         this.$emit('update');
       } catch (e) {
-        this.toast.error(`Ошибка сохранения: ${e.message}`);
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения: ', bold: e.message, type: 'error' });
       } finally {
         this.saving = false;
       }

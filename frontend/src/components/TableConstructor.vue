@@ -568,21 +568,13 @@
       @created="onTableCreated"
       @close="showAddModal = false"
     />
-
-    <!-- Уведомления -->
-    <div
-      v-if="notification.show"
-      class="notification"
-      :class="notification.type"
-    >
-      <span class="notification-message">{{ notification.message }}</span>
-    </div>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { useDeletionsStore } from '@/stores/deletions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -617,11 +609,6 @@ export default {
       originalHint: '',
       originalInstruction: '',
       tableTypeDropdownOpen: false,
-      notification: {
-        show: false,
-        message: '',
-        type: 'info'
-      }
     };
   },
   computed: {
@@ -679,19 +666,13 @@ export default {
   },
   mounted() {
     this.refreshData();
-    
-    // Слушаем события уведомлений от дочерних компонентов
-    window.addEventListener('show-notification', this.handleNotification);
-    
+
     // Закрываем dropdown при клике вне них
     document.addEventListener('click', (e) => {
       if (!this.$el.contains(e.target)) {
         this.tableTypeDropdownOpen = false;
       }
     });
-  },
-  beforeUnmount() {
-    window.removeEventListener('show-notification', this.handleNotification);
   },
   watch: {
     // Если активна вкладка фактовой таблицы, а пользователь снял галочку
@@ -712,10 +693,6 @@ export default {
     },
   },
   methods: {
-    handleNotification(event) {
-      this.showNotification(event.detail.message, event.detail.type);
-    },
-
     /**
      * Переключение вкладки с защитой: если на текущей вкладке есть pending
      * правки - сначала спросить подтверждение. confirmIfAnyDirty опрашивает
@@ -746,7 +723,7 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching system tables:", error);
-        this.showNotification("Ошибка при загрузке таблиц", "error");
+        useDeletionsStore().notify({ prefix: 'Ошибка при ', bold: 'загрузке таблиц', type: 'error' });
       }
     },
     
@@ -789,7 +766,7 @@ export default {
       if (newTable) {
         this.selectTable(newTable);
       }
-      this.showNotification("Таблица успешно создана", "success");
+      useDeletionsStore().notify({ prefix: 'Таблица ', bold: result.display_name || 'создана', suffix: result.display_name ? ' создана' : '' });
     },
 
     async updateTable(field) {
@@ -836,21 +813,21 @@ export default {
         if (response.ok) {
           if (field === 'fact_table_hint') {
             this.originalHint = this.selectedTable.table.fact_table_hint || '';
-            this.showNotification("Подсказка успешно сохранена", "success");
+            useDeletionsStore().notify({ prefix: 'Подсказка ', bold: 'сохранена' });
           } else if (field === 'instruction') {
             this.originalInstruction = this.selectedTable.table.instruction || '';
-            this.showNotification("Инструкция успешно сохранена", "success");
+            useDeletionsStore().notify({ prefix: 'Инструкция ', bold: 'сохранена' });
           } else {
-            this.showNotification("Изменения сохранены", "success");
+            useDeletionsStore().notify({ prefix: 'Изменения ', bold: 'сохранены' });
           }
           await this.refreshSelectedTable();
         } else {
           const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при обновлении", "error");
+          useDeletionsStore().notify({ prefix: 'Ошибка при обновлении: ', bold: errorText || 'неизвестная', type: 'error' });
         }
       } catch (error) {
         console.error("Error updating table:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Ошибка ', bold: 'сети', type: 'error' });
       }
     },
     
@@ -881,27 +858,26 @@ export default {
     console.log("Response headers:", response.headers);
     
     if (response.ok) {
+      const deletedName = table.table.display_name;
       this.selectedTable = null;
       this.activeTab = 'main';
       await this.refreshData();
-      this.showNotification("Таблица успешно удалена", "success");
+      useDeletionsStore().notify({ prefix: 'Таблица ', bold: deletedName, suffix: ' удалена' });
     } else {
-      // Получаем текст ошибки
       const errorText = await response.text();
       console.error("Error response text:", errorText);
-      
-      // Пробуем распарсить как JSON, если это возможно
+      let message = errorText;
       try {
         const errorJson = JSON.parse(errorText);
-        this.showNotification(errorJson.message || errorText, "error");
+        message = errorJson.message || errorText;
       } catch {
-        // Если не JSON, показываем как текст
-        this.showNotification(errorText, "error");
+        // оставляем сырой текст
       }
+      useDeletionsStore().notify({ prefix: 'Ошибка удаления: ', bold: message, type: 'error' });
     }
   } catch (error) {
     console.error("Error deleting system table:", error);
-    this.showNotification("Ошибка сети", "error");
+    useDeletionsStore().notify({ prefix: 'Ошибка ', bold: 'сети', type: 'error' });
   }
 },
     
@@ -1026,22 +1002,6 @@ export default {
         this.updateTable('table_type');
       }
     },
-    
-    showNotification(message, type = 'info') {
-      this.notification = {
-        show: true,
-        message,
-        type
-      };
-      
-      setTimeout(() => {
-        this.hideNotification();
-      }, 3000);
-    },
-    
-    hideNotification() {
-      this.notification.show = false;
-    }
   },
 }
 </script>
@@ -2065,52 +2025,6 @@ export default {
 .modal-fade-leave-to .modal-content {
   opacity: 0;
   transform: scale(0.8) translateY(-20px);
-}
-
-/* Стили для уведомлений */
-.notification {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100%);
-  padding: 12px 24px;
-  border-radius: 0 0 8px 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 10000;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideDown 0.3s ease-out forwards;
-  min-width: 300px;
-}
-
-.notification.success {
-  background: #10b981;
-}
-
-.notification.error {
-  background: #ef4444;
-}
-
-.notification.warning {
-  background: #f59e0b;
-}
-
-.notification.info {
-  background: #3b82f6;
-}
-
-.notification-message {
-  font-size: 0.9em;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateX(-50%) translateY(-100%);
-  }
-  to {
-    transform: translateX(-50%) translateY(0);
-  }
 }
 
 /* Скроллбары */

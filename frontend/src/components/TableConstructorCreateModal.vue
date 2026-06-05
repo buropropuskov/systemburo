@@ -173,6 +173,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 import TextConstructor from './TextConstructor.vue'
 
 export default {
@@ -262,17 +263,13 @@ export default {
 
     async createTable() {
       if (!this.newTable.name.trim() || !this.newTable.display_name.trim()) {
-        window.dispatchEvent(new CustomEvent('show-notification', {
-          detail: { message: 'Заполните все обязательные поля', type: 'warning' }
-        }))
+        useDeletionsStore().notify({ prefix: 'Заполните ', bold: 'обязательные поля', type: 'error' });
         return
       }
 
       const nameRegex = /^[a-z0-9_]+$/
       if (!nameRegex.test(this.newTable.name)) {
-        window.dispatchEvent(new CustomEvent('show-notification', {
-          detail: { message: 'Системное имя может содержать только латинские буквы, цифры и подчеркивания', type: 'warning' }
-        }))
+        useDeletionsStore().notify({ prefix: 'Системное имя: только ', bold: 'латиница, цифры, _', type: 'error' });
         return
       }
 
@@ -295,14 +292,10 @@ export default {
           } catch {
             // не JSON — используем текст как есть
           }
-          window.dispatchEvent(new CustomEvent('show-notification', {
-            detail: { message, type: 'error' }
-          }))
+          useDeletionsStore().notify({ prefix: 'Ошибка создания: ', bold: message, type: 'error' });
         }
       } catch (error) {
-        window.dispatchEvent(new CustomEvent('show-notification', {
-          detail: { message: 'Ошибка сети: ' + error.message, type: 'error' }
-        }))
+        useDeletionsStore().notify({ prefix: 'Ошибка сети: ', bold: error.message, type: 'error' });
       }
     },
 
