@@ -151,6 +151,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 
 export default {
   name: 'TableConstructorPhotoSection',
@@ -254,7 +255,10 @@ export default {
     },
 
     dispatchNotification(message, type) {
-      window.dispatchEvent(new CustomEvent('show-notification', { detail: { message, type } }));
+      const opts = type === 'error'
+        ? { prefix: '', bold: message, type: 'error' }
+        : { prefix: '', bold: message };
+      useDeletionsStore().notify(opts);
     }
   }
 }

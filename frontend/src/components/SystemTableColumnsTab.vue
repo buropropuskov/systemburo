@@ -298,7 +298,7 @@
 <script>
 import { apiRequest } from '@/api/client';
 import { generateSampleRows } from '@/utils/tableSamples';
-import { useToast } from '@/composables/useToast';
+import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
@@ -324,9 +324,6 @@ const FIELD_LABELS = {
 export default {
   name: 'SystemTableColumnsTab',
   components: { CarsTable, PeopleTable },
-  setup() {
-    return { toast: useToast() };
-  },
   props: {
     tableId: { type: Number, required: true },
     tableType: { type: String, required: true },
@@ -572,7 +569,7 @@ export default {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.message || `HTTP ${response.status}`);
         }
-        this.toast.success('Настройки столбцов сохранены');
+        useDeletionsStore().notify({ prefix: 'Настройки столбцов ', bold: 'сохранены' });
         this.originalVisibility = Object.fromEntries(
           this.localFields.map(f => [f.field_name, f.is_visible]),
         );
@@ -594,7 +591,7 @@ export default {
         );
         this.$emit('update');
       } catch (e) {
-        this.toast.error(`Ошибка сохранения: ${e.message}`);
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения: ', bold: e.message, type: 'error' });
       } finally {
         this.saving = false;
       }
@@ -634,7 +631,7 @@ export default {
 /* Блок подсказок фиксированной высоты - предотвращает скачки высоты вкладки
    при смене режима, где у подсказок разная длина текста. */
 .columns-tab__hint-block {
-  min-height: 140px;
+  min-height: 100px;
   display: flex;
   flex-direction: column;
   gap: 6px;

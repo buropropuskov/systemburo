@@ -5,6 +5,7 @@
         v-for="item in store.items"
         :key="item.id"
         class="del-card"
+        :class="{ 'del-card--error': item.type === 'error' }"
       >
         <div class="del-row">
           <span class="del-text">
@@ -21,7 +22,7 @@
         <div class="del-track">
           <div
             class="del-fill"
-            :style="{ width: item.progress + '%', background: colorFor(item.progress) }"
+            :style="{ width: item.progress + '%', background: barColorFor(item) }"
           />
         </div>
       </div>
@@ -38,8 +39,10 @@ const store = useDeletionsStore();
 onMounted(() => store.loadDurations());
 
 // Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
-function colorFor(progress) {
-  const t = Math.min(1, Math.max(0, (100 - progress) / 100));
+// Для type=error всегда красный - нет семантики "истекает".
+function barColorFor(item) {
+  if (item.type === 'error') return 'rgb(255, 102, 104)';
+  const t = Math.min(1, Math.max(0, (100 - item.progress) / 100));
   const green = [52, 199, 89];
   const red = [255, 102, 104];
   const c = green.map((g, i) => Math.round(g + (red[i] - g) * t));
@@ -63,6 +66,7 @@ function colorFor(progress) {
 .del-card {
   background: #fff;
   border: 1px solid #e6e6e6;
+  border-left-width: 4px;
   border-radius: 15px;
   padding: 14px 16px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
@@ -70,6 +74,10 @@ function colorFor(progress) {
   width: max-content;
   min-width: 300px;
   max-width: calc(100vw - 40px);
+}
+
+.del-card--error {
+  border-left-color: rgb(255, 102, 104);
 }
 
 .del-row {
