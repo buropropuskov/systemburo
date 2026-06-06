@@ -83,14 +83,15 @@ function barColorFor(item) {
 }
 
 .del-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 11px;
+  font-weight: 500;
+  color: #15803d;
   margin-bottom: 4px;
+  letter-spacing: 0.02em;
 }
 
 .del-title--error {
-  color: #c62828;
+  color: #b91c1c;
 }
 
 .del-row {
