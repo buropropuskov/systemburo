@@ -53,12 +53,15 @@ type UserInfoResponse struct {
 	ID             int     `json:"id"`
 	Username       string  `json:"username"`
 	IsActive       bool    `json:"is_active"`
+	IsBanned       bool    `json:"is_banned"`
+	IsSuperAdmin   bool    `json:"is_super_admin"`
 	Organization   *string `json:"organization"`
 	OrganizationID *int    `json:"organization_id"`
 	Company        *string `json:"company"`
 	CompanyID      *int    `json:"company_id"`
 	TypeID         int     `json:"type_id"`
 	UserType       string  `json:"user_type"`
+	RoleID         *int    `json:"role_id"`
 	LastName       *string `json:"last_name"`
 	FirstName      *string `json:"first_name"`
 	MiddleName     *string `json:"middle_name"`
