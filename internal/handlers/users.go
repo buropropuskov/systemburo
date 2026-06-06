@@ -55,7 +55,8 @@ func (h *UsersHandler) Create(c echo.Context) error {
 // @Router       /users/all [get]
 func (h *UsersHandler) GetAll(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
-	result, err := h.service.GetAll(c.Request().Context(), typeID)
+	includeArchived := c.QueryParam("include_archived") == "true"
+	result, err := h.service.GetAll(c.Request().Context(), typeID, includeArchived)
 	if err != nil {
 		return err
 	}
@@ -194,7 +195,7 @@ func (h *UsersHandler) UpdateCompany(c echo.Context) error {
 }
 
 // Delete godoc
-// @Summary      Удаление пользователя
+// @Summary      Архивация пользователя (soft-delete)
 // @Tags         users
 // @Accept       json
 // @Produce      json
@@ -211,5 +212,26 @@ func (h *UsersHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), typeID, username); err != nil {
 		return err
 	}
-	return RespondMessage(c, "User deleted successfully")
+	return RespondMessage(c, "User archived successfully")
+}
+
+// Restore godoc
+// @Summary      Восстановление пользователя из архива
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path   string true "Имя пользователя"
+// @Success      200 {object} map[string]string "message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users/{username}/restore [post]
+func (h *UsersHandler) Restore(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	username := c.Param("username")
+	if err := h.service.Restore(c.Request().Context(), typeID, username); err != nil {
+		return err
+	}
+	return RespondMessage(c, "User restored successfully")
 }

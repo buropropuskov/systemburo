@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -18,8 +19,9 @@ import (
 type UserService interface {
 	// Create создаёт нового пользователя (admin-only).
 	Create(ctx context.Context, callerTypeID int, req models.RegisterRequest) error
-	// GetAll в��звращает список всех ��ользователей с организацией, компанией и типом.
-	GetAll(ctx context.Context, callerTypeID int) ([]models.UserInfoResponse, error)
+	// GetAll возвращает список пользователей с организацией, компанией и типом.
+	// includeArchived=false отдаёт только активных (is_active=true).
+	GetAll(ctx context.Context, callerTypeID int, includeArchived bool) ([]models.UserInfoResponse, error)
 	// UpdateType обновляет тип пользователя.
 	UpdateType(ctx context.Context, callerTypeID int, username string, req models.UpdateUserTypeRequest) error
 	// UpdatePassword обновляет пароль пользователя.
@@ -30,8 +32,10 @@ type UserService interface {
 	UpdateOrganization(ctx context.Context, callerTypeID int, username string, req models.UpdateUserOrganizationRequest) error
 	// UpdateCompany обновляе�� компан��ю пользователя.
 	UpdateCompany(ctx context.Context, callerTypeID int, username string, req models.UpdateUserCompanyRequest) error
-	// Delete удаляет пользователя по username.
+	// Delete архивирует пользователя по username (soft-delete: is_active=false).
 	Delete(ctx context.Context, callerTypeID int, username string) error
+	// Restore восстанавливает архивного пользователя (is_active=true).
+	Restore(ctx context.Context, callerTypeID int, username string) error
 }
 
 type userService struct {
@@ -102,16 +106,17 @@ func (s *userService) Create(ctx context.Context, callerTypeID int, req models.R
 	return nil
 }
 
-// GetAll возвращает всех пользователей с JOIN на организацию, компанию и тип.
-func (s *userService) GetAll(ctx context.Context, callerTypeID int) ([]models.UserInfoResponse, error) {
+// GetAll возвращает пользователей с JOIN на организацию, компанию и тип.
+// По умолчанию только активные; includeArchived=true добавляет архивных.
+func (s *userService) GetAll(ctx context.Context, callerTypeID int, includeArchived bool) ([]models.UserInfoResponse, error) {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return nil, err
 	}
 
 	result := make([]models.UserInfoResponse, 0)
-	err := s.db.WithContext(ctx).
+	q := s.db.WithContext(ctx).
 		Table("users u").
-		Select(`u.id, u.username,
+		Select(`u.id, u.username, u.is_active,
 			o.name as organization, u.organization_id,
 			c.name as company, u.company_id,
 			u.type_id, ut.name as user_type,
@@ -119,10 +124,11 @@ func (s *userService) GetAll(ctx context.Context, callerTypeID int) ([]models.Us
 			u.position, u.email, u.phone`).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
-		Joins("LEFT JOIN user_types ut ON u.type_id = ut.id").
-		Order("u.username").
-		Scan(&result).Error
-	if err != nil {
+		Joins("LEFT JOIN user_types ut ON u.type_id = ut.id")
+	if !includeArchived {
+		q = q.Where("u.is_active = ?", true)
+	}
+	if err := q.Order("u.username").Scan(&result).Error; err != nil {
 		slog.Error("не удалось получить список пользователей", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
 	}
@@ -307,19 +313,48 @@ func (s *userService) UpdateCompany(ctx context.Context, callerTypeID int, usern
 	return nil
 }
 
-// Delete удаляет пользователя по username.
+// Delete архивирует пользователя (soft-delete: is_active=false). Строка остаётся,
+// поэтому ссылки заявок (sender_user_id и др.) не осиротевают; login/refresh
+// блокируются по is_active, активные refresh-токены отзываются.
 func (s *userService) Delete(ctx context.Context, callerTypeID int, username string) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
+	return s.setActive(ctx, username, false)
+}
 
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Where("username = ?", username).
-		Delete(&models.User{}).Error; err != nil {
-		slog.Error("не удалось удалить пользователя", "username", username, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting user")
+// Restore восстанавливает архивного пользователя (is_active=true).
+func (s *userService) Restore(ctx context.Context, callerTypeID int, username string) error {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return err
 	}
+	return s.setActive(ctx, username, true)
+}
 
-	return nil
+func (s *userService) setActive(ctx context.Context, username string, active bool) error {
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "User not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user")
+	}
+	if user.IsActive == active {
+		return nil // no-op
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).Where("id = ?", user.ID).Update("is_active", active).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user")
+		}
+		if !active {
+			// Отзываем активные refresh-токены: существующая сессия гаснет в пределах
+			// TTL access-токена (login/refresh уже блокируются по is_active).
+			if err := tx.Model(&models.RefreshToken{}).
+				Where("user_id = ? AND is_revoked = ?", user.ID, false).
+				Updates(map[string]any{"is_revoked": true, "revoked_at": time.Now().UTC()}).Error; err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error revoking tokens")
+			}
+		}
+		return nil
+	})
 }
