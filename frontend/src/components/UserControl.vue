@@ -210,6 +210,12 @@
                   Права доступа
                 </button>
                 <button
+                  class="lk-button lk-button--secondary"
+                  @click="openRolesGroups"
+                >
+                  Роль и группы
+                </button>
+                <button
                   class="delete-icon-btn"
                   @click="confirmDeleteUser(selectedUser)"
                 >
@@ -688,6 +694,13 @@
       :current-user-name="currentUserName"
       @close="historyForUser = null"
     />
+
+    <UserPermissionsModal
+      :show="showRolesGroupsModal"
+      :user="selectedUser"
+      @close="showRolesGroupsModal = false"
+      @updated="onRolesGroupsUpdated"
+    />
   </div>
 </template>
 
@@ -706,6 +719,7 @@ import PasswordInput from './ui/PasswordInput.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
+import UserPermissionsModal from './admin/UserPermissionsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { getUserPermissions, updateUserPermissions, getPermissionTree } from '@/api/permissions';
 
@@ -717,7 +731,8 @@ export default {
     PasswordInput,
     ConfirmationModal,
     BaseDropdown,
-    UserHistoryModal
+    UserHistoryModal,
+    UserPermissionsModal
   },
   props: {
     allUsers: {
@@ -736,6 +751,7 @@ export default {
       refreshing: false,
       selectedUser: null,
       historyForUser: null,
+      showRolesGroupsModal: false,
       currentUserName: '',
       deleteConfirmUser: null,
       showArchive: false,
@@ -937,6 +953,15 @@ export default {
 
     openHistory(user) {
       this.historyForUser = user;
+    },
+
+    openRolesGroups() {
+      this.showRolesGroupsModal = true;
+    },
+
+    onRolesGroupsUpdated() {
+      // Роль/группы/блокировка изменились - перечитываем список (модалка сама шлёт close).
+      this.$emit('fetch-users');
     },
 
     async fetchCurrentUser() {

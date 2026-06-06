@@ -136,10 +136,10 @@ func (s *userService) GetAll(ctx context.Context, callerTypeID int, includeArchi
 	result := make([]models.UserInfoResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("users u").
-		Select(`u.id, u.username, u.is_active,
+		Select(`u.id, u.username, u.is_active, u.is_banned, u.is_super_admin,
 			o.name as organization, u.organization_id,
 			c.name as company, u.company_id,
-			u.type_id, ut.name as user_type,
+			u.type_id, ut.name as user_type, u.role_id,
 			u.last_name, u.first_name, u.middle_name,
 			u.position, u.email, u.phone`).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
