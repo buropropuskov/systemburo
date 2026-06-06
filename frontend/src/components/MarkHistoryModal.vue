@@ -1,4 +1,5 @@
 <template>
+  <Teleport to="body">
   <div class="modal-overlay" data-testid="mark-history-modal" @click.self="$emit('close')">
     <div class="modal-content">
       <h3 class="modal-title">История марки «{{ mark.name }}»</h3>
@@ -26,6 +27,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script>

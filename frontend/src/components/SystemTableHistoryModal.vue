@@ -1,8 +1,9 @@
 <template>
-  <div
-    class="modal-overlay"
-    data-testid="system-table-history-modal"
-  >
+  <Teleport to="body">
+    <div
+      class="modal-overlay"
+      data-testid="system-table-history-modal"
+    >
     <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">
@@ -77,7 +78,8 @@
         </button>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script>

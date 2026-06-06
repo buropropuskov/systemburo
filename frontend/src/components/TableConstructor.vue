@@ -5,19 +5,19 @@
         Таблицы системы
       </h3>
       <div class="header-controls">
-        <button
-          class="archive-header-button"
-          :class="{ active: showArchive }"
-          @click="toggleArchiveView"
-        >
-          {{ showArchive ? 'Активные' : 'Архив' }}
-        </button>
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск таблиц...'"
         />
         <button
-          v-if="!showArchive"
           class="add-header-button"
           @click="showAddModal = true"
         >
@@ -614,6 +614,18 @@
       :table="historyTable"
       @close="historyTable = null"
     />
+
+    <!-- Подтверждение удаления таблицы -->
+    <ConfirmationModal
+      :show="!!deleteConfirmTable"
+      title="Удаление таблицы"
+      :message="deleteConfirmTable ? `Удалить таблицу &quot;${deleteConfirmTable.table.display_name}&quot;? Её можно будет восстановить из архива.` : ''"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performDeleteTable"
+      @cancel="deleteConfirmTable = null"
+    />
   </div>
 </template>
 
@@ -630,6 +642,8 @@ import SystemTableAppearanceTab from './SystemTableAppearanceTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
 import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
 import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
 
 export default {
   name: 'TableConstructor',
@@ -643,6 +657,8 @@ export default {
     TableConstructorCreateModal,
     TableConstructorPhotoSection,
     SystemTableHistoryModal,
+    ConfirmationModal,
+    BaseDropdown,
   },
   data() {
     return {
@@ -659,6 +675,11 @@ export default {
       tableTypeDropdownOpen: false,
       showArchive: false,
       historyTable: null,
+      deleteConfirmTable: null,
+      archiveOptions: [
+        { label: 'Активные', value: 'active' },
+        { label: 'Архив', value: 'archive' },
+      ],
     };
   },
   computed: {
@@ -780,9 +801,11 @@ export default {
       }
     },
 
-    async toggleArchiveView() {
+    async onArchiveModeChange(value) {
+      const wantArchive = value === 'archive';
+      if (wantArchive === this.showArchive) return;
       if (!(await confirmIfAnyDirty())) return;
-      this.showArchive = !this.showArchive;
+      this.showArchive = wantArchive;
       this.selectedTable = null;
       this.activeTab = 'main';
       await this.refreshData();
@@ -847,12 +870,20 @@ export default {
     
     async onTableCreated(result) {
       this.showAddModal = false;
+      // Новая таблица всегда активна - если юзер был в архиве, переключаем на Активные,
+      // чтобы он увидел созданную (иначе она "пропала бы" из списка).
+      if (this.showArchive) {
+        this.showArchive = false;
+      }
       await this.refreshData();
       const newTable = this.tables.find(t => t.table.id === result.id);
       if (newTable) {
         this.selectTable(newTable);
       }
-      useDeletionsStore().notify({ prefix: 'Таблица ', bold: result.display_name || 'создана', suffix: result.display_name ? ' создана' : '' });
+      useDeletionsStore().notify({
+        bold: result.display_name || 'Таблица',
+        suffix: result.display_name ? ' создана' : '',
+      });
     },
 
     async updateTable(field) {
@@ -899,21 +930,30 @@ export default {
         if (response.ok) {
           if (field === 'fact_table_hint') {
             this.originalHint = this.selectedTable.table.fact_table_hint || '';
-            useDeletionsStore().notify({ prefix: 'Подсказка ', bold: 'сохранена' });
           } else if (field === 'instruction') {
             this.originalInstruction = this.selectedTable.table.instruction || '';
-            useDeletionsStore().notify({ prefix: 'Инструкция ', bold: 'сохранена' });
-          } else {
-            useDeletionsStore().notify({ prefix: 'Изменения ', bold: 'сохранены' });
           }
+          const fieldPhrases = {
+            display_name: { bold: 'Наименование таблицы', suffix: ' изменено' },
+            table_type: { bold: 'Тип таблицы', suffix: ' изменён' },
+            show_fact_table: { bold: 'Отображение таблицы по факту', suffix: ' изменено' },
+            fact_table_hint: { bold: 'Подсказка', suffix: ' изменена' },
+            instruction: { bold: 'Инструкция', suffix: ' изменена' },
+            map_link: { bold: 'Ссылка на карту', suffix: ' изменена' },
+            status: { bold: 'Статус', suffix: ' изменён' },
+            status_comment: { bold: 'Комментарий статуса', suffix: ' изменён' },
+            location_description: { bold: 'Описание местоположения', suffix: ' изменено' },
+          };
+          const phrase = fieldPhrases[field] || { bold: 'Изменения', suffix: ' сохранены' };
+          useDeletionsStore().notify(phrase);
           await this.refreshSelectedTable();
         } else {
           const errorText = await response.text();
-          useDeletionsStore().notify({ prefix: 'Ошибка при обновлении: ', bold: errorText || 'неизвестная', type: 'error' });
+          useDeletionsStore().notify({ prefix: 'Не удалось обновить: ', bold: errorText || 'неизвестная ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error updating table:", error);
-        useDeletionsStore().notify({ prefix: 'Ошибка ', bold: 'сети', type: 'error' });
+        useDeletionsStore().notify({ prefix: 'Не удалось подключиться: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
     
@@ -930,42 +970,42 @@ export default {
       this.updateTable('status');
     },
     
-    async confirmDeleteTable(table) {
-  if (!confirm(`Вы уверены, что хотите удалить таблицу "${table.table.display_name}"?`)) return;
-  
-  try {
-    console.log("Deleting table ID:", table.table.id);
-    
-    const response = await apiRequest(`/system-tables/${table.table.id}`, {
-      method: "DELETE",
-    });
-    
-    console.log("Response status:", response.status);
-    console.log("Response headers:", response.headers);
-    
-    if (response.ok) {
-      const deletedName = table.table.display_name;
-      this.selectedTable = null;
-      this.activeTab = 'main';
-      await this.refreshData();
-      useDeletionsStore().notify({ prefix: 'Таблица ', bold: deletedName, suffix: ' удалена' });
-    } else {
-      const errorText = await response.text();
-      console.error("Error response text:", errorText);
-      let message = errorText;
+    confirmDeleteTable(table) {
+      // Открываем ConfirmationModal вместо window.confirm. Реальный delete делает performDeleteTable.
+      this.deleteConfirmTable = table;
+    },
+
+    async performDeleteTable() {
+      const table = this.deleteConfirmTable;
+      this.deleteConfirmTable = null;
+      if (!table) return;
       try {
-        const errorJson = JSON.parse(errorText);
-        message = errorJson.message || errorText;
-      } catch {
-        // оставляем сырой текст
+        const response = await apiRequest(`/system-tables/${table.table.id}`, {
+          method: "DELETE",
+        });
+        if (response.ok) {
+          const deletedName = table.table.display_name;
+          this.selectedTable = null;
+          this.activeTab = 'main';
+          await this.refreshData();
+          useDeletionsStore().notify({ bold: deletedName, suffix: ' удалена' });
+        } else {
+          const errorText = await response.text();
+          console.error('Error response text:', errorText);
+          let message = errorText;
+          try {
+            const errorJson = JSON.parse(errorText);
+            message = errorJson.message || errorText;
+          } catch {
+            // оставляем сырой текст
+          }
+          useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: message, type: 'error' });
+        }
+      } catch (error) {
+        console.error('Error deleting system table:', error);
+        useDeletionsStore().notify({ prefix: 'Не удалось подключиться: ', bold: 'нет связи с сервером', type: 'error' });
       }
-      useDeletionsStore().notify({ prefix: 'Ошибка удаления: ', bold: message, type: 'error' });
-    }
-  } catch (error) {
-    console.error("Error deleting system table:", error);
-    useDeletionsStore().notify({ prefix: 'Ошибка ', bold: 'сети', type: 'error' });
-  }
-},
+    },
     
     async selectTable(table) {
       // Защита от потери: если текущая вкладка settings dirty - спросить.
@@ -1144,27 +1184,8 @@ export default {
   background: #3a45b2;
 }
 
-.archive-header-button {
-  padding: 2px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.7em;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.archive-header-button:hover {
-  background: #e9ecef;
-  border-color: #ccc;
-}
-
-.archive-header-button.active {
-  background: #6b7280;
-  color: white;
-  border-color: #6b7280;
+.archive-dropdown {
+  min-width: 130px;
 }
 
 .table-row.inactive {
