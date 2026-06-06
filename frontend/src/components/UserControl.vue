@@ -454,119 +454,38 @@
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Организация <span class="required">*</span></label>
-                  <div
-                    class="custom-select"
-                    @click="toggleNewUserOrgDropdown"
-                  >
-                    <div class="select-trigger">
-                      <span>{{ getOrganizationName(newUser.organization_id) || 'Не выбрано' }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="select-arrow"
-                        :class="{ 'open': newUserOrgDropdownOpen }"
-                        width="12"
-                        height="12"
-                      >
-                    </div>
-                    <transition name="dropdown">
-                      <div
-                        v-if="newUserOrgDropdownOpen"
-                        class="select-dropdown"
-                      >
-                        <div
-                          class="select-option"
-                          :class="{ 'selected': newUser.organization_id === null }"
-                          @click="selectNewUserOrg(null)"
-                        >
-                          Не выбрано
-                        </div>
-                        <div
-                          v-for="org in organizations"
-                          :key="org.id"
-                          class="select-option"
-                          :class="{ 'selected': newUser.organization_id === org.id }"
-                          @click="selectNewUserOrg(org)"
-                        >
-                          {{ org.name }}
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
+                  <BaseDropdown
+                    :model-value="newUser.organization_id"
+                    :options="orgOptionsWithNone"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Не выбрано"
+                    searchable
+                    @update:model-value="onSelectNewUserOrg"
+                  />
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Компания <span class="required">*</span></label>
-                  <div
-                    class="custom-select"
-                    @click="toggleNewUserCompanyDropdown"
-                  >
-                    <div class="select-trigger">
-                      <span>{{ getCompanyName(newUser.company_id) || 'Не выбрано' }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="select-arrow"
-                        :class="{ 'open': newUserCompanyDropdownOpen }"
-                        width="12"
-                        height="12"
-                      >
-                    </div>
-                    <transition name="dropdown">
-                      <div
-                        v-if="newUserCompanyDropdownOpen"
-                        class="select-dropdown"
-                      >
-                        <div
-                          class="select-option"
-                          :class="{ 'selected': newUser.company_id === null }"
-                          @click="selectNewUserCompany(null)"
-                        >
-                          Не выбрано
-                        </div>
-                        <div
-                          v-for="comp in companies"
-                          :key="comp.id"
-                          class="select-option"
-                          :class="{ 'selected': newUser.company_id === comp.id }"
-                          @click="selectNewUserCompany(comp)"
-                        >
-                          {{ comp.name }}
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
+                  <BaseDropdown
+                    :model-value="newUser.company_id"
+                    :options="companyOptionsWithNone"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Не выбрано"
+                    searchable
+                    @update:model-value="onSelectNewUserCompany"
+                  />
                 </div>
                 <div class="input-group full">
                   <label class="input-label">Тип пользователя <span class="required">*</span></label>
-                  <div
-                    class="custom-select"
-                    @click="toggleNewUserTypeDropdown"
-                  >
-                    <div class="select-trigger">
-                      <span>{{ getUserTypeName(newUser.type_id) || 'Выберите тип' }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="select-arrow"
-                        :class="{ 'open': newUserTypeDropdownOpen }"
-                        width="12"
-                        height="12"
-                      >
-                    </div>
-                    <transition name="dropdown">
-                      <div
-                        v-if="newUserTypeDropdownOpen"
-                        class="select-dropdown"
-                      >
-                        <div
-                          v-for="type in userTypes"
-                          :key="type.id"
-                          class="select-option"
-                          :class="{ 'selected': newUser.type_id === type.id }"
-                          @click="selectNewUserType(type)"
-                        >
-                          {{ type.name }}
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
+                  <BaseDropdown
+                    :model-value="newUser.type_id"
+                    :options="userTypes"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Выберите тип"
+                    @update:model-value="onSelectNewUserType"
+                  />
                 </div>
                 <div class="input-group half">
                   <label class="input-label">Фамилия</label>
@@ -772,9 +691,6 @@ export default {
       userTypes: [],
       sortField: null,
       sortDirection: 'desc',
-      newUserTypeDropdownOpen: false,
-      newUserOrgDropdownOpen: false,
-      newUserCompanyDropdownOpen: false,
       newUser: {
         username: '',
         password: '',
@@ -798,6 +714,13 @@ export default {
   computed: {
     ...mapState(useOrganizationsStore, { organizations: 'items' }),
     ...mapState(useCompaniesStore, { companies: 'items' }),
+    // Опции с пунктом "Не выбрано" (null) для дропдаунов создания - орг/компания опциональны.
+    orgOptionsWithNone() {
+      return [{ id: null, name: 'Не выбрано' }, ...this.organizations];
+    },
+    companyOptionsWithNone() {
+      return [{ id: null, name: 'Не выбрано' }, ...this.companies];
+    },
     filteredUsers() {
       const searchTerm = this.userSearch.toLowerCase();
       return this.allUsers
@@ -887,15 +810,8 @@ export default {
       this.fetchUserTypes()
     ]);
   },
-  beforeUnmount() {
-    document.removeEventListener('click', this.handleClickOutside);
-  },
   mounted() {
     this.fetchAllUsers();
-    
-    // Добавляем обработчики для закрытия дропдаунов при клике вне
-    document.addEventListener('click', this.handleClickOutside);
-    
     // Восстанавливаем черновик при монтировании
     this.loadDraft();
   },
@@ -935,55 +851,11 @@ export default {
       }
     },
 
-    handleClickOutside(event) {
-      if (!event.target.closest('.custom-select')) {
-        this.newUserTypeDropdownOpen = false;
-        this.newUserOrgDropdownOpen = false;
-        this.newUserCompanyDropdownOpen = false;
-      }
-    },
-    
     formatUserName(user) {
       const formatted = formatShortName(user);
       return formatted || '-';
     },
-    
-    getOrganizationName(id) {
-      if (!id) return null;
-      const org = this.organizations.find(o => o.id === id);
-      return org ? org.name : null;
-    },
-    
-    getCompanyName(id) {
-      if (!id) return null;
-      const comp = this.companies.find(c => c.id === id);
-      return comp ? comp.name : null;
-    },
-    
-    getUserTypeName(id) {
-      if (!id) return null;
-      const type = this.userTypes.find(t => t.id === id);
-      return type ? type.name : null;
-    },
-    
-    toggleNewUserTypeDropdown() {
-      this.newUserTypeDropdownOpen = !this.newUserTypeDropdownOpen;
-      this.newUserOrgDropdownOpen = false;
-      this.newUserCompanyDropdownOpen = false;
-    },
-    
-    toggleNewUserOrgDropdown() {
-      this.newUserOrgDropdownOpen = !this.newUserOrgDropdownOpen;
-      this.newUserTypeDropdownOpen = false;
-      this.newUserCompanyDropdownOpen = false;
-    },
-    
-    toggleNewUserCompanyDropdown() {
-      this.newUserCompanyDropdownOpen = !this.newUserCompanyDropdownOpen;
-      this.newUserTypeDropdownOpen = false;
-      this.newUserOrgDropdownOpen = false;
-    },
-    
+
     onSelectOrganization(id) {
       this.selectedUser.organization_id = id;
       this.updateUserOrganization(this.selectedUser);
@@ -998,22 +870,19 @@ export default {
       this.selectedUser.type_id = id;
       this.updateUserType(this.selectedUser);
     },
-    
-    selectNewUserType(type) {
-      this.newUser.type_id = type.id;
-      this.newUserTypeDropdownOpen = false;
-      this.saveDraft();
-    },
-    
-    selectNewUserOrg(org) {
-      this.newUser.organization_id = org ? org.id : null;
-      this.newUserOrgDropdownOpen = false;
+
+    onSelectNewUserType(id) {
+      this.newUser.type_id = id;
       this.saveDraft();
     },
 
-    selectNewUserCompany(comp) {
-      this.newUser.company_id = comp ? comp.id : null;
-      this.newUserCompanyDropdownOpen = false;
+    onSelectNewUserOrg(id) {
+      this.newUser.organization_id = id;
+      this.saveDraft();
+    },
+
+    onSelectNewUserCompany(id) {
+      this.newUser.company_id = id;
       this.saveDraft();
     },
     
@@ -1817,85 +1686,6 @@ export default {
   text-align: center;
   padding: 15px;
   color: #666;
-}
-
-/* Стили для кастомного селекта */
-.custom-select {
-  position: relative;
-  cursor: pointer;
-}
-
-.select-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  background: white;
-  transition: border-color 0.2s;
-  font-size: 14px;
-}
-
-.select-trigger:hover {
-  border-color: #4F5BDF;
-}
-
-.select-arrow {
-  transition: transform 0.2s ease;
-}
-
-.select-arrow.open {
-  transform: rotate(90deg);
-}
-
-.select-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-  z-index: 1000;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.select-option {
-  padding: 8px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background 0.2s;
-  font-size: 14px;
-}
-
-.select-option:last-child {
-  border-bottom: none;
-}
-
-.select-option:hover {
-  background: #f5f7ff;
-  color: #4F5BDF;
-}
-
-.select-option.selected {
-  background: #f0f3ff;
-  color: #4F5BDF;
-  font-weight: 500;
-}
-
-/* Анимации дропдауна */
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
 }
 
 /* Модальное окно */
