@@ -5,6 +5,14 @@
         Управление марками автомобилей
       </h3>
       <div class="header-controls">
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск марок...'"
@@ -23,30 +31,45 @@
       </div>
     </div>
 
-    <div class="filter-tabs">
-      <button
-        class="filter-tab"
-        :class="{ active: filter === 'active' }"
-        @click="filter = 'active'"
-      >
-        Активные
-      </button>
-      <button
-        class="filter-tab"
-        :class="{ active: filter === 'archived' }"
-        @click="filter = 'archived'"
-      >
-        Архив
-      </button>
+    <div
+      v-if="isLoading && !marks.length"
+      class="marks-loading"
+    >
+      <LoaderSpinner label="Загрузка марок..." />
     </div>
 
-    <div class="table-wrap">
+    <div
+      v-else
+      class="table-wrap"
+    >
       <table class="marks-table">
         <thead>
           <tr>
-            <th class="th-id">ID</th>
-            <th>Наименование</th>
-            <th class="th-actions">Действия</th>
+            <th
+              class="th-id sortable"
+              @click="sortBy('id')"
+            >
+              <span :class="{ 'active-sort': sortField === 'id' }">ID</span>
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
+              >
+            </th>
+            <th
+              class="sortable"
+              @click="sortBy('name')"
+            >
+              <span :class="{ 'active-sort': sortField === 'name' }">Наименование</span>
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
+              >
+            </th>
+            <th class="th-actions">
+              Действия
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -54,11 +77,19 @@
             v-for="m in filteredMarks"
             :key="m.id"
             data-testid="marks-row"
+            :class="{ inactive: !m.is_active }"
           >
             <td>{{ m.id }}</td>
-            <td>{{ m.name }}</td>
+            <td>
+              <span class="mark-name">{{ m.name }}</span>
+              <span
+                v-if="!m.is_active"
+                class="inactive-badge"
+              >(архив)</span>
+            </td>
             <td class="actions">
               <button
+                v-if="m.is_active"
                 class="link-btn"
                 data-testid="marks-edit"
                 @click="openEditModal(m)"
@@ -76,7 +107,7 @@
                 v-if="m.is_active"
                 class="link-btn danger"
                 data-testid="marks-archive"
-                @click="onArchive(m)"
+                @click="onArchiveClick(m)"
               >
                 В архив
               </button>
@@ -91,7 +122,12 @@
             </td>
           </tr>
           <tr v-if="!filteredMarks.length && !isLoading">
-            <td colspan="3" class="empty">Марок не найдено</td>
+            <td
+              colspan="3"
+              class="empty"
+            >
+              {{ emptyText }}
+            </td>
           </tr>
         </tbody>
       </table>
@@ -99,67 +135,89 @@
 
     <!-- Add / Edit modal -->
     <Teleport to="body">
-      <div
-        v-if="modalMode"
-        class="modal-overlay"
-        data-testid="marks-modal"
-        @click.self="closeModal"
-      >
-        <div class="modal-content small-modal">
-          <div class="modal-header">
-            <h3>{{ modalMode === 'add' ? 'Новая марка' : 'Переименование марки' }}</h3>
-            <button
-              class="modal-close"
-              data-testid="marks-modal-close"
-              @click="closeModal"
-            >
-              ×
-            </button>
-          </div>
-
-          <div class="modal-body">
-            <div class="form-group">
-              <label class="form-label">Название марки</label>
-              <input
-                v-model.trim="form.name"
-                type="text"
-                placeholder="Например, Toyota"
-                maxlength="100"
-                class="form-input"
-                data-testid="marks-input-name"
-                @keyup.enter="onSubmit"
+      <transition name="modal-fade">
+        <div
+          v-if="modalMode"
+          class="modal-overlay"
+          data-testid="marks-modal"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
+          <div
+            class="marks-modal"
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <h3>{{ modalMode === 'add' ? 'Новая марка' : 'Переименование марки' }}</h3>
+              <button
+                class="modal-close"
+                aria-label="Закрыть"
+                data-testid="marks-modal-close"
+                @click="requestCloseModal"
               >
+                ×
+              </button>
             </div>
-            <div v-if="error" class="form-error">
-              {{ error }}
-            </div>
-          </div>
 
-          <div class="modal-footer">
-            <button
-              class="modal-cancel"
-              data-testid="marks-modal-cancel"
-              @click="closeModal"
-            >
-              Отмена
-            </button>
-            <button
-              class="modal-confirm"
-              :disabled="!form.name || isSubmitting"
-              data-testid="marks-modal-save"
-              @click="onSubmit"
-            >
-              {{ modalMode === 'add' ? 'Добавить' : 'Сохранить' }}
-            </button>
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Название марки</label>
+                <input
+                  v-model.trim="form.name"
+                  type="text"
+                  placeholder="Например, Toyota"
+                  maxlength="100"
+                  class="lk-input"
+                  data-testid="marks-input-name"
+                  @keyup.enter="onSubmit"
+                >
+              </div>
+              <div
+                v-if="error"
+                class="form-error"
+              >
+                {{ error }}
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                class="lk-button lk-button--ghost"
+                data-testid="marks-modal-cancel"
+                @click="requestCloseModal"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!form.name || isSubmitting"
+                data-testid="marks-modal-save"
+                @click="onSubmit"
+              >
+                {{ modalMode === 'add' ? 'Добавить' : 'Сохранить' }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <MarkHistoryModal
       v-if="historyForMark"
       :mark="historyForMark"
+      :current-user-name="currentUserName"
       @close="historyForMark = null"
+    />
+
+    <ConfirmationModal
+      :show="!!archiveConfirmMark"
+      title="Архивация марки"
+      :message="archiveConfirmMark ? `Архивировать марку «${archiveConfirmMark.name}»? Её можно будет восстановить из архива.` : ''"
+      confirm-text="В архив"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performArchive"
+      @cancel="archiveConfirmMark = null"
     />
   </div>
 </template>
@@ -168,7 +226,13 @@
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import MarkHistoryModal from './MarkHistoryModal.vue';
-import { useUiStore } from '@/stores/ui';
+import ConfirmationModal from './ConfirmationModal.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import { apiRequest } from '@/api/client';
 import {
   listMarks,
   createMark,
@@ -179,77 +243,171 @@ import {
 
 export default {
   name: 'MarksManagement',
-  components: { SearchComponent, RefreshButton, MarkHistoryModal },
+  components: { SearchComponent, RefreshButton, MarkHistoryModal, ConfirmationModal, BaseDropdown, LoaderSpinner },
+  setup() {
+    // Колбэк закрытия присваивается в created - нужен доступ к this с проверкой dirty.
+    const overlay = { close: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
+    return { onOverlayMousedown, onOverlayMouseup, overlay };
+  },
   data() {
     return {
       marks: [],
       searchQuery: '',
-      filter: 'active',
+      showArchive: false,
+      sortField: null,
+      sortDirection: 'asc',
       isLoading: false,
       modalMode: null, // 'add' | 'edit' | null
       editingId: null,
+      originalName: '',
       form: { name: '' },
       error: '',
       isSubmitting: false,
       historyForMark: null,
+      currentUserName: '',
+      archiveConfirmMark: null,
+      archiveOptions: [
+        { label: 'Активные', value: 'active' },
+        { label: 'Архив', value: 'archive' },
+      ],
     };
   },
   computed: {
     filteredMarks() {
       const q = this.searchQuery.trim().toLowerCase();
-      const filtered = this.marks.filter(m =>
-        this.filter === 'archived' ? !m.is_active : m.is_active,
-      );
-      if (!q) return filtered;
-      return filtered.filter(m => m.name.toLowerCase().includes(q));
+      let list = this.marks.filter(m => (this.showArchive ? !m.is_active : m.is_active));
+      if (q) {
+        list = list.filter(m => m.name.toLowerCase().includes(q) || String(m.id).includes(q));
+      }
+      return this.sortList(list);
     },
+    emptyText() {
+      if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
+      return this.showArchive ? 'В архиве пусто' : 'Марок пока нет';
+    },
+    isFormDirty() {
+      if (!this.modalMode) return false;
+      return this.form.name.trim() !== (this.originalName || '');
+    },
+  },
+  created() {
+    this.overlay.close = () => { this.requestCloseModal(); };
   },
   mounted() {
     this.refresh();
+    this.fetchCurrentUser();
+    this._stopGuard = registerDirtyTracker({
+      isDirty: () => this.isFormDirty,
+      getChanges: () => (this.modalMode === 'add'
+        ? [`Новая марка: "${this.form.name.trim()}"`]
+        : [{ label: 'Название марки', from: this.originalName, to: this.form.name.trim() }]),
+      save: async () => { await this.onSubmit(); },
+    });
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    this._stopGuard?.();
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.modalMode) this.requestCloseModal();
+    },
+    sortList(list) {
+      const arr = [...list];
+      if (!this.sortField) {
+        return arr.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return arr.sort((a, b) => {
+        if (this.sortField === 'id') {
+          return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
+        }
+        const r = a.name.localeCompare(b.name);
+        return this.sortDirection === 'asc' ? r : -r;
+      });
+    },
+    sortBy(field) {
+      if (this.sortField === field) {
+        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortField = field;
+        this.sortDirection = 'asc';
+      }
+    },
     async refresh() {
       this.isLoading = true;
       try {
         const data = await listMarks({ includeArchived: true });
         this.marks = Array.isArray(data) ? data : [];
       } catch {
-        useUiStore().error('Не удалось загрузить марки');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'марки', type: 'error' });
       } finally {
         this.isLoading = false;
       }
     },
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
+      }
+    },
+    onArchiveModeChange(value) {
+      this.showArchive = value === 'archive';
+    },
     openAddModal() {
       this.modalMode = 'add';
       this.editingId = null;
+      this.originalName = '';
       this.form.name = '';
       this.error = '';
     },
     openEditModal(mark) {
       this.modalMode = 'edit';
       this.editingId = mark.id;
+      this.originalName = mark.name;
       this.form.name = mark.name;
       this.error = '';
     },
-    closeModal() {
+    async requestCloseModal() {
+      if (this.isFormDirty) {
+        const ok = await confirmIfAnyDirty();
+        if (!ok) return;
+      }
+      this.forceCloseModal();
+    },
+    forceCloseModal() {
       this.modalMode = null;
       this.editingId = null;
+      this.originalName = '';
       this.form.name = '';
       this.error = '';
     },
     async onSubmit() {
-      if (!this.form.name.trim()) return;
+      const name = this.form.name.trim();
+      if (!name || this.isSubmitting) return;
+      // Редактирование без изменений - просто закрыть, не дёргать API.
+      if (this.modalMode === 'edit' && name === this.originalName) {
+        this.forceCloseModal();
+        return;
+      }
       this.isSubmitting = true;
       this.error = '';
       try {
         if (this.modalMode === 'add') {
-          await createMark({ name: this.form.name });
-          useUiStore().success('Марка создана');
+          await createMark({ name });
+          useDeletionsStore().notify({ prefix: 'Марка ', bold: name, suffix: ' создана' });
         } else {
-          await renameMark(this.editingId, { name: this.form.name });
-          useUiStore().success('Марка переименована');
+          await renameMark(this.editingId, { name });
+          useDeletionsStore().notify({ prefix: 'Марка переименована в ', bold: name });
         }
-        this.closeModal();
+        this.forceCloseModal();
         await this.refresh();
       } catch (e) {
         this.error = e?.message || 'Не удалось сохранить';
@@ -257,22 +415,28 @@ export default {
         this.isSubmitting = false;
       }
     },
-    async onArchive(mark) {
+    onArchiveClick(mark) {
+      this.archiveConfirmMark = mark;
+    },
+    async performArchive() {
+      const mark = this.archiveConfirmMark;
+      this.archiveConfirmMark = null;
+      if (!mark) return;
       try {
         await archiveMark(mark.id);
-        useUiStore().success('Марка архивирована');
+        useDeletionsStore().notify({ prefix: 'Марка ', bold: mark.name, suffix: ' архивирована' });
         await this.refresh();
-      } catch {
-        useUiStore().error('Не удалось архивировать');
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
     async onRestore(mark) {
       try {
         await restoreMark(mark.id);
-        useUiStore().success('Марка восстановлена');
+        useDeletionsStore().notify({ prefix: 'Марка ', bold: mark.name, suffix: ' восстановлена из архива' });
         await this.refresh();
-      } catch {
-        useUiStore().error('Не удалось восстановить');
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
     openHistory(mark) {
@@ -292,6 +456,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .management-title {
@@ -305,30 +471,13 @@ export default {
   align-items: center;
 }
 
-.filter-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.filter-tab {
-  padding: 6px 14px;
-  border-radius: 16px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.filter-tab.active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+.archive-dropdown {
+  width: 150px;
 }
 
 .table-wrap {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 15px;
   overflow: hidden;
 }
 
@@ -339,7 +488,7 @@ export default {
 
 .marks-table th,
 .marks-table td {
-  padding: 10px 12px;
+  padding: 10px 14px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   font-size: 14px;
@@ -351,12 +500,53 @@ export default {
   color: #666;
 }
 
+.marks-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.marks-table th.sortable span {
+  vertical-align: middle;
+}
+
+.marks-table th .active-sort {
+  color: var(--color-primary);
+}
+
+.sort-icon {
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  opacity: 0.35;
+  vertical-align: middle;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.sort-icon.sorted {
+  opacity: 1;
+}
+
+.sort-icon.desc {
+  transform: rotate(180deg);
+}
+
 .th-id {
-  width: 60px;
+  width: 70px;
 }
 
 .th-actions {
   width: 320px;
+}
+
+.marks-table tr.inactive td {
+  color: #9aa0a6;
+  background: #fafafa;
+}
+
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #9aa0a6;
 }
 
 .actions {
@@ -383,6 +573,13 @@ export default {
   padding: 30px 0;
 }
 
+.marks-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 50px 0;
+}
+
 .add-header-button {
   padding: 8px 16px;
   background: #4F5BDF;
@@ -402,6 +599,7 @@ export default {
   background: #3a45b2;
 }
 
+/* Модалка добавления/переименования */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -418,14 +616,11 @@ export default {
   -webkit-backdrop-filter: blur(0.1px);
 }
 
-.small-modal {
-  max-width: 400px;
-}
-
-.modal-content {
+.marks-modal {
   width: 100%;
+  max-width: 440px;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
@@ -434,9 +629,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid #e6e6e6;
-  background: #fff;
 }
 
 .modal-header h3 {
@@ -447,26 +641,28 @@ export default {
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s;
+  font-size: 24px;
+  line-height: 1;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s;
 }
 
 .modal-close:hover {
   color: #333;
+  background: #f5f5f5;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -484,22 +680,6 @@ export default {
   font-weight: 500;
 }
 
-.form-input {
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 0.9em;
-  transition: border-color 0.2s;
-  background: #fff;
-  width: 100%;
-  height: 35px;
-}
-
-.form-input:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
 .form-error {
   color: #d73a3a;
   font-size: 0.85em;
@@ -509,45 +689,29 @@ export default {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 16px 20px;
+  padding: 16px 24px;
   border-top: 1px solid #e6e6e6;
-  background: #fff;
 }
 
-.modal-cancel {
-  padding: 8px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.25s ease;
 }
 
-.modal-cancel:hover {
-  background: #e9ecef;
+.modal-fade-enter-active .marks-modal,
+.modal-fade-leave-active .marks-modal {
+  transition: all 0.25s ease;
 }
 
-.modal-confirm {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  background: rgba(0, 0, 0, 0);
 }
 
-.modal-confirm:hover {
-  background: #3a45b2;
-}
-
-.modal-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.modal-fade-enter-from .marks-modal,
+.modal-fade-leave-to .marks-modal {
+  opacity: 0;
+  transform: translateY(20px);
 }
 </style>

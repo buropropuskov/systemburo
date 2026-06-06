@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -19,7 +20,7 @@ type MarkService interface {
 	Update(ctx context.Context, id int, req models.UpdateMarkRequest, userID int) error
 	Archive(ctx context.Context, id int, userID int) error
 	Restore(ctx context.Context, id int, userID int) error
-	GetHistory(ctx context.Context, id int) ([]models.MarkHistory, error)
+	GetHistory(ctx context.Context, id int) ([]models.MarkHistoryItem, error)
 }
 
 type markService struct {
@@ -139,13 +140,44 @@ func (s *markService) setActive(ctx context.Context, id int, active bool, userID
 	})
 }
 
-func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHistory, error) {
-	history := make([]models.MarkHistory, 0)
+func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHistoryItem, error) {
+	type row struct {
+		ID         int       `gorm:"column:id"`
+		MarkID     int       `gorm:"column:mark_id"`
+		ActionType string    `gorm:"column:action_type"`
+		OldValue   *string   `gorm:"column:old_value"`
+		NewValue   *string   `gorm:"column:new_value"`
+		UserID     *int      `gorm:"column:user_id"`
+		UserName   string    `gorm:"column:user_name"`
+		Comment    *string   `gorm:"column:comment"`
+		CreatedAt  time.Time `gorm:"column:created_at"`
+	}
+	var rows []row
 	if err := s.db.WithContext(ctx).
-		Where("mark_id = ?", id).
-		Order("created_at DESC").
-		Find(&history).Error; err != nil {
+		Table("mark_histories AS h").
+		Select(`h.id, h.mark_id, h.action_type, h.old_value, h.new_value, h.user_id, h.comment,
+			COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '') AS user_name,
+			h.created_at`).
+		Joins("LEFT JOIN users u ON u.id = h.user_id").
+		Where("h.mark_id = ?", id).
+		Order("h.created_at DESC").
+		Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории")
 	}
-	return history, nil
+
+	items := make([]models.MarkHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.MarkHistoryItem{
+			ID:         r.ID,
+			MarkID:     r.MarkID,
+			ActionType: r.ActionType,
+			OldValue:   r.OldValue,
+			NewValue:   r.NewValue,
+			UserID:     r.UserID,
+			UserName:   r.UserName,
+			Comment:    r.Comment,
+			CreatedAt:  r.CreatedAt,
+		})
+	}
+	return items, nil
 }
