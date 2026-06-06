@@ -132,6 +132,12 @@
               </div>
             </div>
             <div class="details-header-actions">
+              <button
+                class="lk-button lk-button--secondary"
+                @click="openHistory(selectedType)"
+              >
+                История
+              </button>
               <span
                 v-if="selectedType.is_system"
                 class="system-badge"
@@ -299,6 +305,13 @@
       @confirm="deleteType"
       @cancel="cancelDelete"
     />
+
+    <UserTypeHistoryModal
+      v-if="historyForType"
+      :user-type="historyForType"
+      :current-user-name="currentUserName"
+      @close="historyForType = null"
+    />
   </div>
 </template>
 
@@ -307,6 +320,7 @@ import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
+import UserTypeHistoryModal from './UserTypeHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
@@ -315,7 +329,8 @@ export default {
   components: {
     SearchComponent,
     RefreshButton,
-    ConfirmationModal
+    ConfirmationModal,
+    UserTypeHistoryModal
   },
   setup() {
     // Holder: useOverlayClose требует колбэк в setup, а closeModal - метод
@@ -340,7 +355,9 @@ export default {
       sortField: null,
       sortDirection: 'asc',
       nameError: '',
-      isLoading: false
+      isLoading: false,
+      historyForType: null,
+      currentUserName: ''
     };
   },
   computed: {
@@ -410,6 +427,7 @@ export default {
   },
   mounted() {
     this.refreshData();
+    this.fetchCurrentUser();
     this.overlayCloser.fn = () => this.closeModal();
     document.addEventListener('keydown', this.onKeydown);
     this._stopDirty = registerDirtyTracker({
@@ -584,6 +602,21 @@ export default {
         code: ''
       };
       this.nameError = '';
+    },
+    openHistory(type) {
+      this.historyForType = type;
+    },
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
+      }
     }
   }
 };
