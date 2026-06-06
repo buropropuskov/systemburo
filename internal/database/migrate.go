@@ -292,6 +292,14 @@ func Seed(db *gorm.DB) error {
 		return fmt.Errorf("failed to create partial unique index on organizations.name: %w", err)
 	}
 
+	// Companies: то же, что и для organizations (#412).
+	if err := db.Exec("DROP INDEX IF EXISTS idx_companies_name").Error; err != nil {
+		return fmt.Errorf("failed to drop idx_companies_name: %w", err)
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_companies_name_active ON companies (name) WHERE is_active = true").Error; err != nil {
+		return fmt.Errorf("failed to create partial unique index on companies.name: %w", err)
+	}
+
 	// Seed default tab permissions
 	if db.Migrator().HasTable("permissions") {
 		var permCount int64
