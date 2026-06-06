@@ -19,7 +19,7 @@ type Dependencies struct {
 	UserTypes           *handlers.UserTypesHandler
 	Attachments         *handlers.AttachmentHandler
 	LPF                 *handlers.LicensePlateFormatHandler
-	Citizenship        *handlers.CitizenshipHandler
+	Citizenship         *handlers.CitizenshipHandler
 	Organization        *handlers.OrganizationHandler
 	Company             *handlers.CompanyHandler
 	Users               *handlers.UsersHandler
@@ -163,6 +163,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	utm.POST("", userTypes.Create)
 	utm.PUT("/:id", userTypes.Update)
 	utm.DELETE("/:id", userTypes.Delete)
+	utm.GET("/:id/history", userTypes.GetHistory)
 
 	// Гражданства
 	csg := protected.Group("/citizenships")

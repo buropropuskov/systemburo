@@ -59,6 +59,7 @@ var tables = []string{
 	"license_plate_format_cells", "license_plate_formats",
 	"citizenships",
 	"companies_users", "organization_users",
+	"user_histories", "user_type_histories",
 	"refresh_tokens", "users",
 	"roles",
 	"companies", "organizations", "user_types",

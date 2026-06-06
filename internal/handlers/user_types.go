@@ -55,11 +55,12 @@ func (h *UserTypesHandler) GetAll(c echo.Context) error {
 // @Router       /user-types-management [post]
 func (h *UserTypesHandler) Create(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
+	userID, _ := c.Get("user_id").(int)
 	var req services.CreateUserTypeRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	id, err := h.service.Create(c.Request().Context(), typeID, req)
+	id, err := h.service.Create(c.Request().Context(), typeID, userID, req)
 	if err != nil {
 		return err
 	}
@@ -85,6 +86,7 @@ func (h *UserTypesHandler) Create(c echo.Context) error {
 // @Router       /user-types-management/{id} [put]
 func (h *UserTypesHandler) Update(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
+	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
@@ -93,7 +95,7 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.Update(c.Request().Context(), typeID, id, req); err != nil {
+	if err := h.service.Update(c.Request().Context(), typeID, userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Тип пользователя успешно обновлен")
@@ -114,12 +116,36 @@ func (h *UserTypesHandler) Update(c echo.Context) error {
 // @Router       /user-types-management/{id} [delete]
 func (h *UserTypesHandler) Delete(c echo.Context) error {
 	typeID := c.Get("type_id").(int)
+	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
 	}
-	if err := h.service.Delete(c.Request().Context(), typeID, id); err != nil {
+	if err := h.service.Delete(c.Request().Context(), typeID, userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Тип пользователя успешно удален")
+}
+
+// GetHistory godoc
+// @Summary      История изменений типа пользователя
+// @Tags         user-types-management
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID типа пользователя"
+// @Success      200 {array} models.UserTypeHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /user-types-management/{id}/history [get]
+func (h *UserTypesHandler) GetHistory(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
+	}
+	items, err := h.service.GetHistory(c.Request().Context(), typeID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
