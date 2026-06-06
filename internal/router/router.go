@@ -232,6 +232,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cg.PUT("/:id", comp.Update)
 	cg.DELETE("/:id", comp.Delete)
 	cg.POST("/:id/restore", comp.Restore)
+	cg.GET("/:id/history", comp.GetHistory)
 	cg.GET("/with-users", comp.GetWithUsers)
 	cg.GET("/with-users-extended", comp.GetWithUsersExtended)
 	cg.GET("/:id/users", comp.GetUsers)

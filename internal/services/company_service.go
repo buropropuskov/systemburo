@@ -23,17 +23,20 @@ type CompanyService interface {
 	// GetWithUsersExtended возвращает компании с количеством пользователей и местами разгрузки.
 	GetWithUsersExtended(ctx context.Context, includeArchived bool) ([]CompanyWithUsersExtendedResponse, error)
 
-	// Create создаёт новую компанию. Требуются права buropropuskov.
-	Create(ctx context.Context, username string, req CreateCompanyRequest) (*models.Company, error)
+	// Create создаёт новую компанию. callerUserID - актор для аудита. Требуются права buropropuskov.
+	Create(ctx context.Context, username string, callerUserID int, req CreateCompanyRequest) (*models.Company, error)
 
-	// Update обновляет название компании. Требуются права buropropuskov.
-	Update(ctx context.Context, username string, companyID int, req CreateCompanyRequest) (*models.Company, error)
+	// Update обновляет название компании. callerUserID - актор для аудита. Требуются права buropropuskov.
+	Update(ctx context.Context, username string, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error)
 
-	// Delete архивирует компанию (soft-delete). Нельзя при активных пользователях. Требуются права buropropuskov.
-	Delete(ctx context.Context, username string, companyID int) error
+	// Delete архивирует компанию (soft-delete). callerUserID - актор. Нельзя при активных пользователях. Требуются права buropropuskov.
+	Delete(ctx context.Context, username string, callerUserID, companyID int) error
 
-	// Restore восстанавливает компанию из архива. Требуются права buropropuskov.
-	Restore(ctx context.Context, username string, companyID int) error
+	// Restore восстанавливает компанию из архива. callerUserID - актор. Требуются права buropropuskov.
+	Restore(ctx context.Context, username string, callerUserID, companyID int) error
+
+	// GetHistory возвращает историю изменений компании. Требуются права buropropuskov.
+	GetHistory(ctx context.Context, username string, companyID int) ([]models.CompanyHistoryItem, error)
 
 	// GetUsers возвращает ответственных пользователей компании.
 	GetUsers(ctx context.Context, companyID int) ([]CompanyUserResponse, error)
@@ -132,12 +135,13 @@ type CompanyUserResponse struct {
 // --- Реализация ---
 
 type companyService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	history CompanyHistoryService
 }
 
 // NewCompanyService создаёт экземпляр сервиса компаний.
 func NewCompanyService(db *gorm.DB) CompanyService {
-	return &companyService{db: db}
+	return &companyService{db: db, history: NewCompanyHistoryService(db)}
 }
 
 // GetAll возвращает список всех компаний.
@@ -222,7 +226,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 }
 
 // Create создаёт новую компанию (admin-only).
-func (s *companyService) Create(ctx context.Context, username string, req CreateCompanyRequest) (*models.Company, error) {
+func (s *companyService) Create(ctx context.Context, username string, callerUserID int, req CreateCompanyRequest) (*models.Company, error) {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return nil, err
 	}
@@ -242,11 +246,12 @@ func (s *companyService) Create(ctx context.Context, username string, req Create
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")
 	}
 	slog.Info("компания создана", "id", company.ID, "name", company.Name)
+	s.history.Log(ctx, company.ID, &callerUserID, models.CompanyActionCreated, map[string]any{"name": company.Name})
 	return &company, nil
 }
 
 // Update обновляет название компании (admin-only).
-func (s *companyService) Update(ctx context.Context, username string, companyID int, req CreateCompanyRequest) (*models.Company, error) {
+func (s *companyService) Update(ctx context.Context, username string, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error) {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return nil, err
 	}
@@ -277,13 +282,14 @@ func (s *companyService) Update(ctx context.Context, username string, companyID 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
 	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
+	s.history.Log(ctx, companyID, &callerUserID, models.CompanyActionRenamed, map[string]any{"name": company.Name})
 	return &company, nil
 }
 
 // Delete архивирует компанию (soft-delete: is_active=false). Строка остаётся,
 // FK заявок/сотрудников/машин не осиротевают. Блокируется при активных
 // пользователях компании (как у организаций, #412).
-func (s *companyService) Delete(ctx context.Context, username string, companyID int) error {
+func (s *companyService) Delete(ctx context.Context, username string, callerUserID, companyID int) error {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return err
 	}
@@ -314,12 +320,13 @@ func (s *companyService) Delete(ctx context.Context, username string, companyID 
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving company")
 	}
 	slog.Info("компания архивирована", "id", companyID)
+	s.history.Log(ctx, companyID, &callerUserID, models.CompanyActionArchived, nil)
 	return nil
 }
 
 // Restore восстанавливает компанию из архива (is_active=true). Конфликт активного
 // имени -> 400.
-func (s *companyService) Restore(ctx context.Context, username string, companyID int) error {
+func (s *companyService) Restore(ctx context.Context, username string, callerUserID, companyID int) error {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return err
 	}
@@ -350,7 +357,16 @@ func (s *companyService) Restore(ctx context.Context, username string, companyID
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring company")
 	}
 	slog.Info("компания восстановлена", "id", companyID)
+	s.history.Log(ctx, companyID, &callerUserID, models.CompanyActionRestored, nil)
 	return nil
+}
+
+// GetHistory возвращает историю изменений компании (admin-only).
+func (s *companyService) GetHistory(ctx context.Context, username string, companyID int) ([]models.CompanyHistoryItem, error) {
+	if err := s.checkAdmin(ctx, username); err != nil {
+		return nil, err
+	}
+	return s.history.GetHistory(ctx, companyID)
 }
 
 // GetUsers возвращает ответственных пользователей компании.
