@@ -136,7 +136,33 @@ func (h *OrganizationHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return RespondMessage(c, "Organization deleted")
+	return RespondMessage(c, "Organization archived")
+}
+
+// Restore godoc
+// @Summary      Восстановить организацию из архива
+// @Tags         organizations
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID организации"
+// @Success      200 {string} string "Organization restored"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/{id}/restore [post]
+func (h *OrganizationHandler) Restore(c echo.Context) error {
+	username := c.Get("username").(string)
+	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
+		return err
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
+	}
+	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Organization restored")
 }
 
 // GetWithUsers godoc
@@ -151,7 +177,8 @@ func (h *OrganizationHandler) Delete(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/with-users [get]
 func (h *OrganizationHandler) GetWithUsers(c echo.Context) error {
-	orgs, err := h.service.GetWithUsers(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	orgs, err := h.service.GetWithUsers(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -170,7 +197,8 @@ func (h *OrganizationHandler) GetWithUsers(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/with-users-extended [get]
 func (h *OrganizationHandler) GetWithUsersExtended(c echo.Context) error {
-	orgs, err := h.service.GetWithUsersExtended(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	orgs, err := h.service.GetWithUsersExtended(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}

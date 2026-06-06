@@ -100,7 +100,91 @@ func TestOrganizations_Delete(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	msg := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "Organization deleted", msg)
+	assert.Equal(t, "Organization archived", msg)
+
+	// Архивная организация исчезает из списка по умолчанию, но видна с include_archived.
+	def := testutil.ParseSlice(t, testutil.GET(t, e, "/organizations/with-users", testutil.AuthHeader(token)))
+	for _, o := range def {
+		assert.NotEqual(t, float64(orgID), o["id"], "архивная организация не должна быть в списке по умолчанию")
+	}
+	arch := testutil.ParseSlice(t, testutil.GET(t, e, "/organizations/with-users?include_archived=true", testutil.AuthHeader(token)))
+	var foundArchived bool
+	for _, o := range arch {
+		if int(o["id"].(float64)) == orgID {
+			foundArchived = true
+			assert.Equal(t, false, o["is_active"])
+		}
+	}
+	assert.True(t, foundArchived, "архивная организация должна быть видна с include_archived")
+}
+
+func TestOrganizations_Restore(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"To Restore"}`, testutil.AuthHeader(token)))
+	orgID := int(created["id"].(float64))
+
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", orgID), testutil.AuthHeader(token)).Code)
+
+	rec := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/restore", orgID), "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "Organization restored", testutil.ParseMessage(t, rec))
+
+	// После восстановления снова в списке по умолчанию.
+	def := testutil.ParseSlice(t, testutil.GET(t, e, "/organizations/with-users", testutil.AuthHeader(token)))
+	var found bool
+	for _, o := range def {
+		if int(o["id"].(float64)) == orgID {
+			found = true
+			assert.Equal(t, true, o["is_active"])
+		}
+	}
+	assert.True(t, found, "восстановленная организация должна быть в списке по умолчанию")
+}
+
+func TestOrganizations_Restore_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "regularuser", "pass123", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/restore", td.OrgID), "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestOrganizations_Restore_NameConflict_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	// Создаём «Конфликт», архивируем, создаём новую активную «Конфликт».
+	first := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Конфликт"}`, testutil.AuthHeader(token)))
+	firstID := int(first["id"].(float64))
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", firstID), testutil.AuthHeader(token)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations", `{"name":"Конфликт"}`, testutil.AuthHeader(token)).Code)
+
+	// Восстановление первой невозможно - активное имя занято.
+	rec := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/restore", firstID), "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestOrganizations_Create_DuplicateActiveName_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations", `{"name":"Dup Org"}`, testutil.AuthHeader(token)).Code)
+	rec := testutil.POST(t, e, "/organizations", `{"name":"Dup Org"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestOrganizations_Delete_WithUsers_Fails(t *testing.T) {
