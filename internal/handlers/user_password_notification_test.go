@@ -38,6 +38,7 @@ func TestUserService_UpdatePassword_CreatesNotification(t *testing.T) {
 	err := userSvc.UpdatePassword(
 		context.Background(),
 		6, // callerTypeID admin
+		0, // callerUserID (для аудита)
 		target.Username,
 		models.UpdatePasswordRequest{Password: "newpassword12345"},
 	)
@@ -82,6 +83,7 @@ func TestUserService_UpdatePassword_NonAdmin_NoNotification(t *testing.T) {
 	err := userSvc.UpdatePassword(
 		context.Background(),
 		1, // обычный юзер -> Forbidden
+		0, // callerUserID (для аудита)
 		target.Username,
 		models.UpdatePasswordRequest{Password: "newpass12345"},
 	)

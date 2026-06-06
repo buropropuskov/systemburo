@@ -17,38 +17,54 @@ import (
 
 // UserService — интерфейс бизнес-логики управления пользователями (admin-only).
 type UserService interface {
-	// Create создаёт нового пользователя (admin-only).
-	Create(ctx context.Context, callerTypeID int, req models.RegisterRequest) error
+	// Create создаёт нового пользователя (admin-only). callerUserID - id админа для аудита.
+	Create(ctx context.Context, callerTypeID, callerUserID int, req models.RegisterRequest) error
 	// GetAll возвращает список пользователей с организацией, компанией и типом.
 	// includeArchived=false отдаёт только активных (is_active=true).
 	GetAll(ctx context.Context, callerTypeID int, includeArchived bool) ([]models.UserInfoResponse, error)
 	// UpdateType обновляет тип пользователя.
-	UpdateType(ctx context.Context, callerTypeID int, username string, req models.UpdateUserTypeRequest) error
+	UpdateType(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserTypeRequest) error
 	// UpdatePassword обновляет пароль пользователя.
-	UpdatePassword(ctx context.Context, callerTypeID int, username string, req models.UpdatePasswordRequest) error
+	UpdatePassword(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdatePasswordRequest) error
 	// UpdateInfo обновляет ФИО, должность, email и телефон пользователя.
-	UpdateInfo(ctx context.Context, callerTypeID int, username string, req models.UpdateUserInfoRequest) error
-	// UpdateOrganization обновляе�� организацию пользовате��я.
-	UpdateOrganization(ctx context.Context, callerTypeID int, username string, req models.UpdateUserOrganizationRequest) error
-	// UpdateCompany обновляе�� компан��ю пользователя.
-	UpdateCompany(ctx context.Context, callerTypeID int, username string, req models.UpdateUserCompanyRequest) error
+	UpdateInfo(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserInfoRequest) error
+	// UpdateOrganization обновляет организацию пользователя.
+	UpdateOrganization(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserOrganizationRequest) error
+	// UpdateCompany обновляет компанию пользователя.
+	UpdateCompany(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserCompanyRequest) error
 	// Delete архивирует пользователя по username (soft-delete: is_active=false).
-	Delete(ctx context.Context, callerTypeID int, username string) error
+	Delete(ctx context.Context, callerTypeID, callerUserID int, username string) error
 	// Restore восстанавливает архивного пользователя (is_active=true).
-	Restore(ctx context.Context, callerTypeID int, username string) error
+	Restore(ctx context.Context, callerTypeID, callerUserID int, username string) error
+	// GetHistory возвращает историю действий над пользователем (по username).
+	GetHistory(ctx context.Context, callerTypeID int, username string) ([]models.UserHistoryItem, error)
 }
 
 type userService struct {
 	db                  *gorm.DB
 	notificationService NotificationService
+	history             UserHistoryService
 }
 
 // NewUserService создаёт новый экземпляр сервиса управления пользователями.
 // notificationService может быть nil — в этом случае уведомления просто
 // не будут создаваться (legacy совместимость в местах, где notification
 // не подключён). Триггерные методы проверяют nil перед использованием.
+// История аудита создаётся внутри из db (сигнатура конструктора не меняется).
 func NewUserService(db *gorm.DB, notificationService NotificationService) UserService {
-	return &userService{db: db, notificationService: notificationService}
+	return &userService{
+		db:                  db,
+		notificationService: notificationService,
+		history:             NewUserHistoryService(db),
+	}
+}
+
+// targetUserID резолвит id пользователя по username для записи в историю.
+// Возвращает 0, если не найден (тогда лог пропускается).
+func (s *userService) targetUserID(ctx context.Context, username string) int {
+	var id int
+	s.db.WithContext(ctx).Table("users").Select("id").Where("username = ?", username).Scan(&id)
+	return id
 }
 
 // checkAdmin проверяет, что вызывающий пользователь является администратором
@@ -74,7 +90,7 @@ func (s *userService) checkAdmin(ctx context.Context, typeID int) error {
 //
 // Пользователь может быть привязан к организации, компании или к обеим сразу.
 // Хотя бы одно из двух поле должно быть > 0. Значение 0 означает "не привязан".
-func (s *userService) Create(ctx context.Context, callerTypeID int, req models.RegisterRequest) error {
+func (s *userService) Create(ctx context.Context, callerTypeID, callerUserID int, req models.RegisterRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
@@ -103,6 +119,10 @@ func (s *userService) Create(ctx context.Context, callerTypeID int, req models.R
 		slog.Error("не удалось создать пользователя", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating user")
 	}
+	s.history.Log(ctx, user.ID, &callerUserID, models.UserActionCreated, map[string]any{
+		"username": user.Username,
+		"type_id":  user.TypeID,
+	})
 	return nil
 }
 
@@ -137,7 +157,7 @@ func (s *userService) GetAll(ctx context.Context, callerTypeID int, includeArchi
 }
 
 // UpdateType обновляет type_id пользователя с проверкой существования типа.
-func (s *userService) UpdateType(ctx context.Context, callerTypeID int, username string, req models.UpdateUserTypeRequest) error {
+func (s *userService) UpdateType(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserTypeRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
@@ -162,13 +182,16 @@ func (s *userService) UpdateType(ctx context.Context, callerTypeID int, username
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user type")
 	}
 
+	if id := s.targetUserID(ctx, username); id != 0 {
+		s.history.Log(ctx, id, &callerUserID, models.UserActionTypeChanged, map[string]any{"type_id": req.TypeID})
+	}
 	return nil
 }
 
 // UpdatePassword хеширует и обновляет пароль пользователя.
 // После смены пароля все refresh_tokens юзера отзываются - иначе старые
 // сессии (возможно скомпрометированные) продолжили бы жить до истечения TTL.
-func (s *userService) UpdatePassword(ctx context.Context, callerTypeID int, username string, req models.UpdatePasswordRequest) error {
+func (s *userService) UpdatePassword(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdatePasswordRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
@@ -192,6 +215,9 @@ func (s *userService) UpdatePassword(ctx context.Context, callerTypeID int, user
 			Model(&models.RefreshToken{}).
 			Where("user_id = ? AND is_revoked = false", user.ID).
 			Update("is_revoked", true)
+
+		// Аудит: факт сброса пароля без значения.
+		s.history.Log(ctx, user.ID, &callerUserID, models.UserActionPasswordReset, nil)
 
 		// Уведомление о смене пароля. Сейчас UpdatePassword вызывается только
 		// admin'ом (manager/buropropuskov) — даже если username совпадает с
@@ -259,7 +285,7 @@ func (s *userService) notifyPasswordChanged(ctx context.Context, target *models.
 }
 
 // UpdateInfo обновляет персональные данные пользователя.
-func (s *userService) UpdateInfo(ctx context.Context, callerTypeID int, username string, req models.UpdateUserInfoRequest) error {
+func (s *userService) UpdateInfo(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserInfoRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
@@ -278,11 +304,34 @@ func (s *userService) UpdateInfo(ctx context.Context, callerTypeID int, username
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user info")
 	}
 
+	if id := s.targetUserID(ctx, username); id != 0 {
+		// В детали пишем только переданные (non-nil) поля - иначе история покажет "поле: -".
+		details := map[string]any{}
+		if req.LastName != nil {
+			details["last_name"] = *req.LastName
+		}
+		if req.FirstName != nil {
+			details["first_name"] = *req.FirstName
+		}
+		if req.MiddleName != nil {
+			details["middle_name"] = *req.MiddleName
+		}
+		if req.Position != nil {
+			details["position"] = *req.Position
+		}
+		if req.Email != nil {
+			details["email"] = *req.Email
+		}
+		if req.Phone != nil {
+			details["phone"] = *req.Phone
+		}
+		s.history.Log(ctx, id, &callerUserID, models.UserActionUpdated, details)
+	}
 	return nil
 }
 
 // UpdateOrganization обновляет organization_id пользователя.
-func (s *userService) UpdateOrganization(ctx context.Context, callerTypeID int, username string, req models.UpdateUserOrganizationRequest) error {
+func (s *userService) UpdateOrganization(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserOrganizationRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
@@ -294,11 +343,14 @@ func (s *userService) UpdateOrganization(ctx context.Context, callerTypeID int, 
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 
+	if id := s.targetUserID(ctx, username); id != 0 {
+		s.history.Log(ctx, id, &callerUserID, models.UserActionOrgChanged, map[string]any{"organization_id": req.OrganizationID})
+	}
 	return nil
 }
 
 // UpdateCompany обновляет company_id пользователя.
-func (s *userService) UpdateCompany(ctx context.Context, callerTypeID int, username string, req models.UpdateUserCompanyRequest) error {
+func (s *userService) UpdateCompany(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdateUserCompanyRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
@@ -310,28 +362,31 @@ func (s *userService) UpdateCompany(ctx context.Context, callerTypeID int, usern
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
 
+	if id := s.targetUserID(ctx, username); id != 0 {
+		s.history.Log(ctx, id, &callerUserID, models.UserActionCompanyChanged, map[string]any{"company_id": req.CompanyID})
+	}
 	return nil
 }
 
 // Delete архивирует пользователя (soft-delete: is_active=false). Строка остаётся,
 // поэтому ссылки заявок (sender_user_id и др.) не осиротевают; login/refresh
 // блокируются по is_active, активные refresh-токены отзываются.
-func (s *userService) Delete(ctx context.Context, callerTypeID int, username string) error {
+func (s *userService) Delete(ctx context.Context, callerTypeID, callerUserID int, username string) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
-	return s.setActive(ctx, username, false)
+	return s.setActive(ctx, username, false, callerUserID)
 }
 
 // Restore восстанавливает архивного пользователя (is_active=true).
-func (s *userService) Restore(ctx context.Context, callerTypeID int, username string) error {
+func (s *userService) Restore(ctx context.Context, callerTypeID, callerUserID int, username string) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
 		return err
 	}
-	return s.setActive(ctx, username, true)
+	return s.setActive(ctx, username, true, callerUserID)
 }
 
-func (s *userService) setActive(ctx context.Context, username string, active bool) error {
+func (s *userService) setActive(ctx context.Context, username string, active bool, callerUserID int) error {
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -342,7 +397,7 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 	if user.IsActive == active {
 		return nil // no-op
 	}
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.User{}).Where("id = ?", user.ID).Update("is_active", active).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user")
 		}
@@ -356,5 +411,25 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	action := models.UserActionRestored
+	if !active {
+		action = models.UserActionArchived
+	}
+	s.history.Log(ctx, user.ID, &callerUserID, action, nil)
+	return nil
+}
+
+// GetHistory возвращает историю действий над пользователем по username (admin-only).
+func (s *userService) GetHistory(ctx context.Context, callerTypeID int, username string) ([]models.UserHistoryItem, error) {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return nil, err
+	}
+	id := s.targetUserID(ctx, username)
+	if id == 0 {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "User not found")
+	}
+	return s.history.GetHistory(ctx, id)
 }

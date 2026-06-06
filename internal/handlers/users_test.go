@@ -439,6 +439,47 @@ func TestUsers_ArchivedCannotLogin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestUsers_History(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	testutil.RegisterUser(t, e, "histtarget", "password123", 1, td.OrgID, td.CompanyID)
+
+	// renter type_id для смены типа
+	rec := testutil.GET(t, e, "/user-types-management", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var renterID int
+	for _, ut := range testutil.ParseSlice(t, rec) {
+		if ut["code"] == "renter" {
+			renterID = int(ut["id"].(float64))
+			break
+		}
+	}
+	require.Greater(t, renterID, 0)
+
+	// Действия, которые должны попасть в историю: смена типа + архивация.
+	testutil.PUT(t, e, "/users/histtarget/type", fmt.Sprintf(`{"type_id":%d}`, renterID), h)
+	testutil.DELETE(t, e, "/users/histtarget", h)
+
+	rec = testutil.GET(t, e, "/users/histtarget/history", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	hist := testutil.ParseSlice(t, rec)
+	require.GreaterOrEqual(t, len(hist), 2, "история должна содержать type_changed + archived")
+
+	actions := map[string]bool{}
+	for _, item := range hist {
+		actions[item["action_type"].(string)] = true
+		assert.NotEmpty(t, item["actor_name"], "actor_name должен быть заполнен именем админа")
+	}
+	assert.True(t, actions["type_changed"], "ожидалась запись type_changed")
+	assert.True(t, actions["archived"], "ожидалась запись archived")
+}
+
 func TestUsers_Delete_Unauthorized(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

@@ -262,6 +262,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.PUT("/users/:username/company", users.UpdateCompany)
 	protected.DELETE("/users/:username", users.Delete)
 	protected.POST("/users/:username/restore", users.Restore)
+	protected.GET("/users/:username/history", users.GetHistory)
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
