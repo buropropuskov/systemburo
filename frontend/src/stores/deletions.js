@@ -55,10 +55,13 @@ export const useDeletionsStore = defineStore('deletions', () => {
     durationsLoaded = true;
   }
 
-  function enqueue({ prefix = '', bold = '', suffix = '', onConfirm, onUndo, showUndo = true, duration, type = 'success' }) {
+  const DEFAULT_TITLES = { success: 'Успешно', error: 'Ошибка' };
+
+  function enqueue({ prefix = '', bold = '', suffix = '', onConfirm, onUndo, showUndo = true, duration, type = 'success', title }) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const ms = duration || deleteDuration.value;
-    items.value.push({ id, prefix, bold, suffix, progress: 100, showUndo, type });
+    const resolvedTitle = title === '' ? '' : title || DEFAULT_TITLES[type] || '';
+    items.value.push({ id, title: resolvedTitle, prefix, bold, suffix, progress: 100, showUndo, type });
     callbacks.set(id, { onConfirm, onUndo });
     const step = 100 / (Math.max(ms, TICK_MS) / TICK_MS);
     const timer = setInterval(() => tick(id, step), TICK_MS);
@@ -67,10 +70,10 @@ export const useDeletionsStore = defineStore('deletions', () => {
   }
 
   // Информационное уведомление в том же стиле (без отмены), напр. о восстановлении.
-  // type: 'success' (по умолчанию, зелёный -> красный прогресс) или 'error'
-  // (красный левый бордер, без зелёной фазы прогресса).
-  function notify({ prefix = '', bold = '', suffix = '', duration, type = 'success' }) {
-    return enqueue({ prefix, bold, suffix, showUndo: false, duration: duration || restoreDuration.value, type });
+  // type: 'success' (по умолчанию, зелёный -> красный прогресс) или 'error'.
+  // title: явный заголовок ("Успешно"/"Ошибка" по дефолту от type, пустая строка = без заголовка).
+  function notify({ prefix = '', bold = '', suffix = '', duration, type = 'success', title }) {
+    return enqueue({ prefix, bold, suffix, showUndo: false, duration: duration || restoreDuration.value, type, title });
   }
 
   function tick(id, step) {

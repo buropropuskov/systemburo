@@ -7,6 +7,13 @@
         class="del-card"
         :class="{ 'del-card--error': item.type === 'error' }"
       >
+        <div
+          v-if="item.title"
+          class="del-title"
+          :class="{ 'del-title--error': item.type === 'error' }"
+        >
+          {{ item.title }}
+        </div>
         <div class="del-row">
           <span class="del-text">
             {{ item.prefix }}<strong>{{ item.bold }}</strong>{{ item.suffix }}
@@ -66,7 +73,6 @@ function barColorFor(item) {
 .del-card {
   background: #fff;
   border: 1px solid #e6e6e6;
-  border-left-width: 4px;
   border-radius: 15px;
   padding: 14px 16px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
@@ -76,8 +82,15 @@ function barColorFor(item) {
   max-width: calc(100vw - 40px);
 }
 
-.del-card--error {
-  border-left-color: rgb(255, 102, 104);
+.del-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.del-title--error {
+  color: #c62828;
 }
 
 .del-row {
