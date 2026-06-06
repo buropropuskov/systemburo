@@ -97,6 +97,10 @@
                   :title="type.name"
                 >
                   {{ type.name }}
+                  <span
+                    v-if="type.is_system"
+                    class="system-badge"
+                  >системный</span>
                 </span>
               </div>
               <div class="table-col users-col">
@@ -128,7 +132,12 @@
               </div>
             </div>
             <div class="details-header-actions">
+              <span
+                v-if="selectedType.is_system"
+                class="system-badge"
+              >системный</span>
               <button
+                v-else
                 class="delete-icon-btn"
                 @click="confirmDeleteType(selectedType)"
               >
@@ -145,11 +154,13 @@
               <div class="form-column">
                 <div class="form-group compact">
                   <label class="detail-label">Наименование типа:</label>
-                  <input 
-                    v-model="selectedType.name" 
+                  <input
+                    v-model="selectedType.name"
                     class="form-input-sm"
                     placeholder="Название типа"
                     autocomplete="off"
+                    :disabled="selectedType.is_system"
+                    :title="selectedType.is_system ? 'Системный тип нельзя переименовать' : ''"
                     @change="updateTypeName"
                   >
                 </div>
@@ -192,9 +203,13 @@
         <div
           v-if="showAddModal"
           class="modal-overlay"
-          @click.self="closeModal"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
         >
-          <div class="modal-content">
+          <div
+            class="modal-content"
+            @mousedown.stop
+          >
             <div class="modal-header">
               <h3 class="modal-title">
                 Создать новый тип пользователя
@@ -255,15 +270,14 @@
           
             <div class="modal-footer">
               <button
-                class="modal-btn modal-btn--cancel"
+                class="lk-button lk-button--ghost"
                 @click="closeModal"
               >
                 Отмена
               </button>
-              <button 
-                class="modal-btn modal-btn--confirm" 
+              <button
+                class="lk-button lk-button--primary"
                 :disabled="!isFormValid"
-                :class="{'modal-btn--disabled': !isFormValid}"
                 @click="createType"
               >
                 Создать
@@ -285,15 +299,6 @@
       @confirm="deleteType"
       @cancel="cancelDelete"
     />
-
-    <!-- Уведомления -->
-    <div
-      v-if="notification.show"
-      class="notification"
-      :class="notification.type"
-    >
-      <span class="notification-message">{{ notification.message }}</span>
-    </div>
   </div>
 </template>
 
@@ -302,12 +307,22 @@ import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import { registerDirtyTracker } from '@/utils/dirtyTracker';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
     ConfirmationModal
+  },
+  setup() {
+    // Holder: useOverlayClose требует колбэк в setup, а closeModal - метод
+    // (сбрасывает форму). Привязываем метод в mounted через holder.
+    const overlayCloser = { fn: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlayCloser.fn());
+    return { onOverlayMousedown, onOverlayMouseup, overlayCloser };
   },
   data() {
     return {
@@ -325,11 +340,6 @@ export default {
       sortField: null,
       sortDirection: 'asc',
       nameError: '',
-      notification: {
-        show: false,
-        message: '',
-        type: 'info'
-      },
       isLoading: false
     };
   },
@@ -400,8 +410,27 @@ export default {
   },
   mounted() {
     this.refreshData();
+    this.overlayCloser.fn = () => this.closeModal();
+    document.addEventListener('keydown', this.onKeydown);
+    this._stopDirty = registerDirtyTracker({
+      isDirty: () => this.showAddModal && Boolean(this.newType.name.trim() || this.newType.code.trim()),
+      getChanges: () => [`Новый тип: ${this.newType.name || this.newType.code}`],
+      save: async () => {
+        // Бросаем, если форма невалидна: иначе DirtyConfirmModal посчитает
+        // сохранение успешным и уведёт со страницы, потеряв ввод.
+        if (!this.isFormValid) throw new Error('Форма типа заполнена некорректно');
+        await this.createType();
+      },
+    });
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
+    this._stopDirty?.();
   },
   methods: {
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.showAddModal) this.closeModal();
+    },
     validateSystemName() {
       const nameRegex = /^[a-z0-9_]*$/;
       if (!nameRegex.test(this.newType.code)) {
@@ -428,25 +457,26 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching user types:", error);
-        this.showNotification("Ошибка при загрузке типов пользователей", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'типы пользователей', type: 'error' });
       }
     },
     async createType() {
       if (!this.isFormValid) {
-        this.showNotification("Заполните все обязательные поля корректно", "warning");
+        useDeletionsStore().notify({ prefix: 'Не удалось создать: ', bold: 'заполните поля корректно', type: 'error' });
         return;
       }
-      
+
       if (this.isLoading) return;
-      
+
       this.isLoading = true;
-      
+      const createdName = this.newType.name;
+
       try {
         const response = await apiRequest("/user-types-management", {
           method: "POST",
           body: JSON.stringify(this.newType),
         });
-        
+
         if (response.ok) {
           this.newType = {
             name: '',
@@ -454,14 +484,14 @@ export default {
           };
           this.showAddModal = false;
           await this.refreshData();
-          this.showNotification("Тип пользователя успешно создан", "success");
+          useDeletionsStore().notify({ prefix: 'Тип ', bold: createdName, suffix: ' создан' });
         } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при создании типа пользователя", "error");
+          const err = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось создать: ', bold: err.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error creating user type:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось создать: ', bold: 'нет связи с сервером', type: 'error' });
       } finally {
         this.isLoading = false;
       }
@@ -480,25 +510,29 @@ export default {
             code: type.code
           }),
         });
-        
+
         if (response.ok) {
-          this.showNotification("Тип пользователя успешно обновлен", "success");
+          useDeletionsStore().notify({ prefix: 'Изменения сохранены в ', bold: type.name });
           await this.refreshData();
         } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при обновлении типа пользователя", "error");
+          const err = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить: ', bold: err.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error updating user type:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
     confirmDeleteType(type) {
-      if (type.users_count > 0) {
-        this.showNotification("Нельзя удалить тип, к которому привязаны пользователи", "warning");
+      if (type.is_system) {
+        useDeletionsStore().notify({ prefix: 'Нельзя удалить ', bold: type.name, suffix: ' - системный тип', type: 'error' });
         return;
       }
-      
+      if (type.users_count > 0) {
+        useDeletionsStore().notify({ prefix: 'Нельзя удалить тип ', bold: type.name, suffix: ': есть привязанные пользователи', type: 'error' });
+        return;
+      }
+
       this.typeToDelete = type;
       this.showDeleteModal = true;
     },
@@ -517,18 +551,19 @@ export default {
         });
         
         if (response.ok) {
+          const deletedName = this.typeToDelete.name;
           this.selectedType = null;
           this.showDeleteModal = false;
           this.typeToDelete = null;
           await this.refreshData();
-          this.showNotification("Тип пользователя успешно удален", "success");
+          useDeletionsStore().notify({ prefix: 'Тип ', bold: deletedName, suffix: ' удалён' });
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении типа пользователя", "error");
+          useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: error.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error deleting user type:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
     selectType(type) {
@@ -549,21 +584,6 @@ export default {
         code: ''
       };
       this.nameError = '';
-    },
-    showNotification(message, type = 'info') {
-      this.notification = {
-        show: true,
-        message,
-        type
-      };
-      
-      setTimeout(() => {
-        this.hideNotification();
-      }, 3000);
-    },
-    
-    hideNotification() {
-      this.notification.show = false;
     }
   }
 };
@@ -830,7 +850,19 @@ export default {
   color: #666;
   background: #f0f4ff;
   padding: 4px 8px;
-  border-radius: 12px;
+  border-radius: 999px;
+}
+
+.system-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
 }
 
 .details-header-actions {
@@ -895,7 +927,7 @@ export default {
 .form-input-sm {
   padding:5px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 0.8em;
   height: 35px;
   transition: border-color 0.2s ease;
@@ -983,7 +1015,7 @@ export default {
 
 .modal-content {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 30px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
@@ -1056,7 +1088,7 @@ export default {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 0.9em;
   transition: all 0.2s ease;
   background: #fff;
@@ -1086,45 +1118,6 @@ export default {
   border-top: 1px solid #f0f0f0;
 }
 
-.modal-btn {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  min-width: 80px;
-}
-
-.modal-btn--cancel {
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e0e0e0;
-}
-
-.modal-btn--cancel:hover {
-  background: #e9ecef;
-  border-color: #ccc;
-}
-
-.modal-btn--confirm {
-  background: #4F5BDF;
-  color: white;
-}
-
-.modal-btn--confirm:hover:not(.modal-btn--disabled) {
-  background: #3a45b2;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(79, 91, 223, 0.3);
-}
-
-.modal-btn--disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: none !important;
-}
 
 /* Анимации для модального окна */
 .modal-fade-enter-active,
@@ -1160,51 +1153,6 @@ export default {
 }
 
 /* Стили для уведомлений */
-.notification {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100%);
-  padding: 12px 24px;
-  border-radius: 0 0 8px 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 10000;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideDown 0.3s ease-out forwards;
-  min-width: 300px;
-}
-
-.notification.success {
-  background: #10b981;
-}
-
-.notification.error {
-  background: #ef4444;
-}
-
-.notification.warning {
-  background: #f59e0b;
-}
-
-.notification.info {
-  background: #3b82f6;
-}
-
-.notification-message {
-  font-size: 0.9em;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateX(-50%) translateY(-100%);
-  }
-  to {
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
 @media (max-width: 768px) {
   .content-container {
     flex-direction: column;
@@ -1238,22 +1186,6 @@ export default {
   .form-input-sm,
   .form-input {
     width: 100% !important;
-  }
-  
-  .notification {
-    left: 20px;
-    right: 20px;
-    transform: translateY(-100%);
-    min-width: auto;
-  }
-  
-  @keyframes slideDown {
-    from {
-      transform: translateY(-100%);
-    }
-    to {
-      transform: translateY(0);
-    }
   }
 }
 </style>
