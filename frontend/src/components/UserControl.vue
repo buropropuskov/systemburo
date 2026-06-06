@@ -10,7 +10,7 @@
           :title="'Поиск пользователей...'"
         />
         <button
-          class="create-btn"
+          class="lk-button lk-button--primary"
           @click="openCreateModal"
         >
           Создать
@@ -178,7 +178,7 @@
             </div>
             <div class="details-header-actions">
               <button
-                class="access-rights-btn"
+                class="lk-button lk-button--secondary"
                 @click="openPermissions(selectedUser)"
               >
                 <img
@@ -1286,21 +1286,6 @@ export default {
   gap: 8px;
 }
 
-.create-btn {
-  padding: 8px 16px;
-  background-color: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s;
-}
-
-.create-btn:hover {
-  background-color: #3a45b2;
-}
-
 .users-container {
   display: flex;
   height: fit-content;
@@ -1510,27 +1495,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.access-rights-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border: 1px solid #4F5BDF;
-  border-radius: 50px;
-  background-color: #FFF;
-  color: #000;
-  font-size: 12px;
-  cursor: pointer;
-  width: 130px;
-  height: 30px;
-  transition: background-color 0.2s;
-  padding: 0 5px;
-}
-
-.access-rights-btn:hover {
-  background-color: #f0f2ff;
 }
 
 .access-icon {
