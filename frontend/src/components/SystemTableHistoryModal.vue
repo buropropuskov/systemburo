@@ -12,13 +12,115 @@
       >
         <div class="modal-header">
           <h3>История таблицы «{{ table.display_name }}»</h3>
-          <button
-            class="close-btn"
-            aria-label="Закрыть"
-            @click="close"
-          >
-            ×
-          </button>
+          <div class="header-actions">
+            <button
+              class="export-btn"
+              :disabled="filteredHistory.length === 0 || isExporting"
+              @click="exportToExcel"
+            >
+              <img
+                v-if="!isExporting"
+                src="@/assets/icons/export.png"
+                class="export-icon"
+              >
+              <span v-if="!isExporting">Экспорт</span>
+              <div
+                v-else
+                class="export-loader"
+              />
+            </button>
+            <button
+              class="close-btn"
+              aria-label="Закрыть"
+              @click="close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div class="history-filters">
+          <div class="filter-row">
+            <div class="search-filter">
+              <span class="filter-label">Поиск:</span>
+              <input
+                v-model="searchQuery"
+                type="text"
+                class="search-input"
+                placeholder="Поиск по пользователю, действию..."
+              >
+            </div>
+
+            <div class="user-filter">
+              <span class="filter-label">Пользователь:</span>
+              <div
+                class="custom-select"
+                @click="toggleUserDropdown"
+              >
+                <div class="select-trigger">
+                  <span class="selected-value">{{ selectedUserName }}</span>
+                  <img
+                    src="@/assets/icons/arrow.png"
+                    class="select-arrow"
+                    :class="{ 'arrow-open': userDropdownOpen }"
+                  >
+                </div>
+                <transition name="fade">
+                  <div
+                    v-if="userDropdownOpen"
+                    class="select-dropdown"
+                  >
+                    <div
+                      class="select-option"
+                      :class="{ 'selected': selectedUserId === null }"
+                      @click.stop="selectUser(null)"
+                    >
+                      Все пользователи
+                    </div>
+                    <div
+                      v-for="user in uniqueUsers"
+                      :key="user.id"
+                      class="select-option"
+                      :class="{ 'selected': selectedUserId === user.id }"
+                      @click.stop="selectUser(user.id)"
+                    >
+                      {{ user.name }}
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+
+            <div class="date-filter">
+              <span class="filter-label">Период:</span>
+              <input
+                v-model="dateFrom"
+                type="date"
+                class="date-input"
+              >
+              <span class="date-separator">-</span>
+              <input
+                v-model="dateTo"
+                type="date"
+                class="date-input"
+              >
+            </div>
+
+            <div class="sort-filter">
+              <span class="filter-label">Сортировка:</span>
+              <button
+                class="sort-btn"
+                @click="toggleSortOrder"
+              >
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{ 'sort-asc': sortOrder === 'asc' }"
+                >
+                <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="modal-content">
@@ -30,7 +132,7 @@
           </div>
 
           <div
-            v-else-if="!history.length"
+            v-else-if="filteredHistory.length === 0"
             class="history-empty"
           >
             История пуста
@@ -41,7 +143,7 @@
             class="history-timeline"
           >
             <div
-              v-for="(item, index) in history"
+              v-for="(item, index) in filteredHistory"
               :key="item.id"
               class="history-item"
             >
@@ -50,7 +152,7 @@
                 :class="getActionClass(item.action_type)"
               />
               <div
-                v-if="index < history.length - 1"
+                v-if="index < filteredHistory.length - 1"
                 class="timeline-line"
               />
 
@@ -65,10 +167,10 @@
                 </div>
 
                 <div
-                  v-if="getActionDetails(item)"
+                  v-if="getActionComment(item)"
                   class="action-comment"
                 >
-                  {{ getActionDetails(item) }}
+                  {{ getActionComment(item) }}
                 </div>
               </div>
             </div>
@@ -83,17 +185,41 @@
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import ExcelJS from 'exceljs';
 
+const ACTION_TEXTS = {
+  created: 'Таблица создана',
+  updated: 'Изменены данные таблицы',
+  archived: 'Таблица архивирована',
+  restored: 'Таблица восстановлена из архива',
+  columns_updated: 'Изменены столбцы',
+  appearance_updated: 'Изменено оформление',
+};
+
+const ACTION_DOT_CLASS = {
+  created: 'dot-create',
+  updated: 'dot-update',
+  archived: 'dot-deactivate',
+  restored: 'dot-activate',
+  columns_updated: 'dot-update',
+  appearance_updated: 'dot-update',
+};
+
+// Читаемые лейблы для полей в details (updated).
 const FIELD_LABELS = {
-  display_name: 'наименование',
-  table_type: 'тип таблицы',
-  show_fact_table: 'отображение таблицы по факту',
-  fact_table_hint: 'подсказка',
-  instruction: 'инструкция',
-  map_link: 'ссылка на карту',
-  status: 'статус',
-  status_comment: 'комментарий статуса',
-  location_description: 'описание местоположения',
+  display_name: 'Наименование',
+  table_type: 'Тип таблицы',
+  show_fact_table: 'Показывать таблицу по факту',
+  fact_table_hint: 'Подсказка для FactTable',
+  instruction: 'Инструкция',
+  map_link: 'Ссылка на карту',
+  status: 'Статус',
+  status_comment: 'Комментарий статуса',
+  location_description: 'Описание местоположения',
+  font_size: 'Размер шрифта',
+  row_density: 'Плотность строк',
+  font_size_fact: 'Размер шрифта (По факту)',
+  row_density_fact: 'Плотность строк (По факту)',
 };
 
 const TYPE_LABELS = {
@@ -101,11 +227,24 @@ const TYPE_LABELS = {
   people: 'Люди',
 };
 
+const DENSITY_LABELS = {
+  compact: 'Компактная',
+  normal: 'Стандартная',
+  spacious: 'Просторная',
+};
+
+const STATUS_LABELS = {
+  active: 'Активна',
+  maintenance: 'На обслуживании',
+  closed: 'Закрыта',
+};
+
 export default {
   name: 'SystemTableHistoryModal',
   components: { LoaderSpinner },
   props: {
     table: { type: Object, required: true },
+    currentUserName: { type: String, default: '' },
   },
   emits: ['close'],
   setup(_, { emit }) {
@@ -116,13 +255,114 @@ export default {
     return {
       loading: false,
       history: [],
+      sortOrder: 'desc',
+      searchQuery: '',
+      selectedUserId: null,
+      dateFrom: '',
+      dateTo: '',
+      userDropdownOpen: false,
+      isExporting: false,
     };
+  },
+  computed: {
+    uniqueUsers() {
+      const users = new Map();
+      this.history.forEach((item) => {
+        if (item.user_id && !users.has(item.user_id)) {
+          users.set(item.user_id, {
+            id: item.user_id,
+            name: item.user_name || 'Система',
+          });
+        }
+      });
+      return Array.from(users.values()).sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    selectedUserName() {
+      if (this.selectedUserId === null) return 'Все пользователи';
+      const user = this.uniqueUsers.find((u) => u.id === this.selectedUserId);
+      return user ? user.name : 'Все пользователи';
+    },
+
+    filteredHistory() {
+      let filtered = [...this.history];
+
+      if (this.searchQuery && this.searchQuery.trim() !== '') {
+        const query = this.searchQuery.toLowerCase().trim();
+        filtered = filtered.filter((item) => {
+          const userName = (item.user_name || '').toLowerCase();
+          const actionText = this.getActionText(item).toLowerCase();
+          const comment = this.getActionComment(item).toLowerCase();
+          return userName.includes(query)
+            || actionText.includes(query)
+            || comment.includes(query);
+        });
+      }
+
+      if (this.selectedUserId) {
+        filtered = filtered.filter((item) => item.user_id === this.selectedUserId);
+      }
+
+      if (this.dateFrom) {
+        const fromDate = new Date(this.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filtered = filtered.filter((item) => new Date(item.created_at) >= fromDate);
+      }
+
+      if (this.dateTo) {
+        const toDate = new Date(this.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter((item) => new Date(item.created_at) <= toDate);
+      }
+
+      return filtered.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+      });
+    },
+
+    formattedCurrentDateTime() {
+      const now = new Date();
+      return now.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(',', '');
+    },
+
+    currentUserDisplayName() {
+      if (!this.currentUserName) return 'Пользователь';
+      const parts = this.currentUserName.split(' ').filter((p) => p && p !== 'null' && p !== 'undefined');
+      return parts.length > 0 ? parts.join(' ') : 'Пользователь';
+    },
+
+    safeTableName() {
+      const name = this.table.display_name || `id_${this.table.id}`;
+      return name.replace(/[\\/:"*?<>|]/g, '_').replace(/\s+/g, '_');
+    },
+
+    exportData() {
+      return this.filteredHistory.map((item) => ({
+        'Дата и время': this.formatDateTime(item.created_at),
+        'Пользователь': item.user_name || 'Система',
+        'Действие': this.getActionText(item),
+        'Детали': this.getActionComment(item),
+        'Тип действия': item.action_type,
+        'ID записи': item.id,
+      }));
+    },
   },
   mounted() {
     this.loadHistory();
+    document.addEventListener('click', this.handleClickOutside);
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
@@ -131,6 +371,12 @@ export default {
     },
     close() {
       this.$emit('close');
+    },
+    handleClickOutside(event) {
+      const select = this.$el && this.$el.querySelector ? this.$el.querySelector('.custom-select') : null;
+      if (select && !select.contains(event.target)) {
+        this.userDropdownOpen = false;
+      }
     },
 
     async loadHistory() {
@@ -149,67 +395,58 @@ export default {
     },
 
     getActionClass(actionType) {
-      const classes = {
-        created: 'dot-create',
-        updated: 'dot-update',
-        archived: 'dot-archive',
-        restored: 'dot-restore',
-        columns_updated: 'dot-update',
-        appearance_updated: 'dot-update',
-      };
-      return classes[actionType] || 'dot-default';
+      return ACTION_DOT_CLASS[actionType] || 'dot-default';
     },
 
     getActionText(item) {
-      const texts = {
-        created: 'Таблица создана',
-        updated: 'Данные таблицы изменены',
-        archived: 'Таблица архивирована',
-        restored: 'Таблица восстановлена из архива',
-        columns_updated: 'Изменены столбцы',
-        appearance_updated: 'Изменено оформление',
-      };
-      return texts[item.action_type] || item.action_type;
+      return ACTION_TEXTS[item.action_type] || item.action_type;
     },
 
-    getActionDetails(item) {
+    /**
+     * Читаемые детали для timeline. Берём только реально заданные поля из details,
+     * пустые/null/false-нерелевантные не показываем.
+     */
+    getActionComment(item) {
       const d = item.details;
       if (!d || typeof d !== 'object') return '';
 
       switch (item.action_type) {
         case 'created': {
           const parts = [];
-          if (d.display_name) parts.push(`Наименование: "${d.display_name}"`);
-          if (d.name) parts.push(`Системное имя: "${d.name}"`);
+          if (d.display_name) parts.push(`Наименование: ${d.display_name}`);
+          if (d.name) parts.push(`Системное имя: ${d.name}`);
           if (d.table_type) parts.push(`Тип: ${TYPE_LABELS[d.table_type] || d.table_type}`);
           return parts.join(' / ');
         }
         case 'updated': {
-          const keys = Object.keys(d).filter(k => k !== 'is_active');
-          if (!keys.length) return '';
-          const parts = keys.map(k => {
-            const label = FIELD_LABELS[k] || k;
-            let val = d[k];
-            if (val === null || val === undefined || val === '') return `${label}: -`;
-            if (typeof val === 'boolean') val = val ? 'да' : 'нет';
-            if (typeof val === 'string' && val.length > 60) val = `${val.slice(0, 60)}...`;
-            return `${label}: ${val}`;
-          });
+          const parts = [];
+          for (const [key, raw] of Object.entries(d)) {
+            if (raw === null || raw === undefined || raw === '') continue;
+            const label = FIELD_LABELS[key] || key;
+            parts.push(`${label}: ${this.formatFieldValue(key, raw)}`);
+          }
           return parts.join(' / ');
         }
         case 'columns_updated': {
           const variant = d.variant === 'fact' ? 'По факту' : 'Основная таблица';
           const count = Array.isArray(d.fields) ? d.fields.length : 0;
-          return `${variant}, столбцов: ${count}`;
+          return `${variant}. Изменено столбцов: ${count}`;
         }
         case 'appearance_updated':
-          return '';
         case 'archived':
         case 'restored':
-          return '';
         default:
           return '';
       }
+    },
+
+    formatFieldValue(key, value) {
+      if (typeof value === 'boolean') return value ? 'да' : 'нет';
+      if (key === 'table_type') return TYPE_LABELS[value] || value;
+      if (key === 'row_density' || key === 'row_density_fact') return DENSITY_LABELS[value] || value;
+      if (key === 'status') return STATUS_LABELS[value] || value;
+      const s = String(value);
+      return s.length > 80 ? `${s.slice(0, 80)}...` : s;
     },
 
     formatDateTime(s) {
@@ -221,7 +458,122 @@ export default {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        second: '2-digit',
       }).replace(',', '');
+    },
+
+    toggleSortOrder() {
+      this.sortOrder = this.sortOrder === 'desc' ? 'asc' : 'desc';
+    },
+
+    toggleUserDropdown() {
+      this.userDropdownOpen = !this.userDropdownOpen;
+    },
+
+    selectUser(userId) {
+      this.selectedUserId = userId;
+      this.userDropdownOpen = false;
+    },
+
+    async exportToExcel() {
+      if (this.filteredHistory.length === 0) return;
+      this.isExporting = true;
+      try {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet(`Istoriya_${this.safeTableName}`);
+
+        const headers = ['Дата и время', 'Пользователь', 'Действие', 'Детали', 'Тип действия', 'ID записи'];
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 25;
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
+          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          };
+        });
+
+        this.exportData.forEach((item, index) => {
+          const row = worksheet.addRow([
+            item['Дата и время'],
+            item['Пользователь'],
+            item['Действие'],
+            item['Детали'],
+            item['Тип действия'],
+            item['ID записи'],
+          ]);
+          row.height = 20;
+          const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+          row.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+            cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
+            cell.alignment = { vertical: 'middle', wrapText: true };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            };
+          });
+        });
+
+        const lastDataRow = this.exportData.length;
+        const cols = headers.length;
+        for (let row = 1; row <= lastDataRow + 1; row++) {
+          const rightCell = worksheet.getCell(row, cols);
+          rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
+          const leftCell = worksheet.getCell(row, 1);
+          leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+        for (let col = 1; col <= cols; col++) {
+          const topCell = worksheet.getCell(1, col);
+          topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
+          const bottomCell = worksheet.getCell(lastDataRow + 1, col);
+          bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+        }
+
+        worksheet.addRow([]);
+        const infoRow1 = worksheet.addRow(['Отчёт сформировал:', this.currentUserDisplayName]);
+        const infoRow2 = worksheet.addRow(['Дата формирования:', this.formattedCurrentDateTime]);
+        [infoRow1, infoRow2].forEach((row) => {
+          row.eachCell((cell) => {
+            cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+              right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            };
+          });
+        });
+
+        worksheet.columns = [
+          { width: 22 },
+          { width: 30 },
+          { width: 30 },
+          { width: 60 },
+          { width: 22 },
+          { width: 12 },
+        ];
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.download = `Istoriya_tablitsy_${this.safeTableName}_${this.formattedCurrentDateTime.replace(/[.:,]/g, '-')}.xlsx`;
+        a.href = url;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error exporting history to Excel:', error);
+      } finally {
+        this.isExporting = false;
+      }
     },
   },
 };
@@ -262,14 +614,8 @@ export default {
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .modal-header {
@@ -285,6 +631,52 @@ export default {
   font-size: 18px;
   font-weight: 600;
   color: #333;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 32px;
+}
+
+.export-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.export-loader {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e6e6e6;
+  border-top: 2px solid #4F5BDF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 .close-btn {
@@ -307,10 +699,182 @@ export default {
   color: #333;
 }
 
+.history-filters {
+  padding: 15px 25px;
+  border-bottom: 1px solid #e6e6e6;
+  background-color: #fafafa;
+}
+
+.filter-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-filter,
+.user-filter,
+.date-filter,
+.sort-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 12px;
+  color: #a2a2a2;
+  white-space: nowrap;
+}
+
+.search-input {
+  padding: 6px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 12px;
+  width: 200px;
+  height: 32px;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4F5BDF;
+  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
+}
+
+.custom-select {
+  position: relative;
+  width: 200px;
+  cursor: pointer;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  height: 32px;
+}
+
+.select-trigger:hover {
+  border-color: #4F5BDF;
+  background: #f5f5f5;
+}
+
+.selected-value {
+  font-size: 12px;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.select-arrow {
+  width: 8px;
+  height: 8px;
+  transition: transform 0.2s ease;
+}
+
+.select-arrow.arrow-open {
+  transform: rotate(90deg);
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.select-option {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #000;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.select-option:hover {
+  background-color: #f0f3ff;
+}
+
+.select-option.selected {
+  background-color: #f0f3ff;
+  font-weight: 500;
+}
+
+.date-input {
+  padding: 6px 8px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 12px;
+  width: 120px;
+  height: 32px;
+}
+
+.date-separator {
+  color: #a2a2a2;
+  font-size: 12px;
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 32px;
+  width: 170px;
+}
+
+.sort-btn:hover {
+  background: #f5f5f5;
+  border-color: #4F5BDF;
+}
+
+.sort-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.sort-icon.sort-asc {
+  transform: rotate(180deg);
+}
+
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  flex: 1;
+  max-height: calc(80vh - 180px);
+  position: relative;
 }
 
 .history-loading,
@@ -318,102 +882,115 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
-  color: #6b7280;
-  font-size: 14px;
+  padding: 40px;
+  color: #a2a2a2;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .history-timeline {
   position: relative;
-  padding-left: 32px;
+  padding-left: 20px;
+  min-height: 100px;
 }
 
 .history-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
   position: relative;
-  padding-bottom: 22px;
 }
 
 .history-item:last-child {
-  padding-bottom: 0;
+  margin-bottom: 0;
 }
 
 .timeline-dot {
-  position: absolute;
-  left: -28px;
-  top: 4px;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #6b7280;
-  box-shadow: 0 0 0 3px #fff, 0 0 0 4px #e6e6e6;
+  flex-shrink: 0;
+  margin-top: 4px;
   z-index: 1;
-}
-
-.timeline-dot.dot-create,
-.timeline-dot.dot-restore {
-  background: #10b981;
-}
-
-.timeline-dot.dot-update {
-  background: #f59e0b;
-}
-
-.timeline-dot.dot-archive {
-  background: #6b7280;
-}
-
-.timeline-dot.dot-default {
-  background: #9ca3af;
+  position: relative;
 }
 
 .timeline-line {
   position: absolute;
-  left: -22px;
+  left: 4px;
   top: 18px;
-  bottom: -4px;
   width: 2px;
+  height: calc(100% + 2px);
   background: #e6e6e6;
 }
 
+.dot-create { background: #4F5BDF; }
+.dot-update { background: #f59e0b; }
+.dot-activate { background: #10b981; }
+.dot-deactivate { background: #6b7280; }
+.dot-default { background: #9ca3af; }
+
 .history-content {
-  background: #fafafa;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  padding: 12px 14px;
+  flex: 1;
+  min-width: 0;
 }
 
 .history-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .user-name {
+  font-weight: 500;
+  color: #333;
   font-size: 13px;
-  font-weight: 600;
-  color: #1f2937;
 }
 
 .action-time {
-  font-size: 12px;
   color: #a2a2a2;
-  white-space: nowrap;
+  font-size: 11px;
 }
 
 .action-text {
-  font-size: 14px;
-  color: #1f2937;
-  font-weight: 500;
-  line-height: 1.4;
+  color: #666;
+  font-size: 12px;
+  margin-bottom: 2px;
 }
 
 .action-comment {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #4b5563;
-  line-height: 1.4;
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid #e6e6e6;
   word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .search-filter,
+  .user-filter,
+  .date-filter,
+  .sort-filter {
+    width: 100%;
+  }
+  .custom-select,
+  .search-input,
+  .date-input,
+  .sort-btn {
+    width: 100%;
+  }
+  .date-input {
+    width: calc(50% - 20px);
+  }
 }
 </style>

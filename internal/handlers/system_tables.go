@@ -160,8 +160,60 @@ func (h *SystemTableHandler) Update(c echo.Context) error {
 	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
 		return err
 	}
-	h.logAction(c.Request().Context(), c, id, models.SystemTableActionUpdated, req)
+	// В history-details пишем только реально заданные поля - чтобы UI не показывал
+	// "статус: -" для полей, которые юзер не трогал.
+	details := buildUpdateDetails(req)
+	if len(details) > 0 {
+		h.logAction(c.Request().Context(), c, id, models.SystemTableActionUpdated, details)
+	}
 	return RespondMessage(c, "Системная таблица успешно обновлена")
+}
+
+// buildUpdateDetails преобразует UpdateSystemTableRequest в map с только не-nil
+// полями (через json-tag-имена), чтобы запись в history содержала только реально
+// изменённые значения.
+func buildUpdateDetails(req models.UpdateSystemTableRequest) map[string]interface{} {
+	out := map[string]interface{}{}
+	if req.DisplayName != nil {
+		out["display_name"] = *req.DisplayName
+	}
+	if req.TableType != nil {
+		out["table_type"] = *req.TableType
+	}
+	if req.ShowFactTable != nil {
+		out["show_fact_table"] = *req.ShowFactTable
+	}
+	if req.FactTableHint != nil {
+		out["fact_table_hint"] = *req.FactTableHint
+	}
+	if req.Instruction != nil {
+		out["instruction"] = *req.Instruction
+	}
+	if req.MapLink != nil {
+		out["map_link"] = *req.MapLink
+	}
+	if req.Status != nil {
+		out["status"] = *req.Status
+	}
+	if req.StatusComment != nil {
+		out["status_comment"] = *req.StatusComment
+	}
+	if req.LocationDescription != nil {
+		out["location_description"] = *req.LocationDescription
+	}
+	if req.FontSize != nil {
+		out["font_size"] = *req.FontSize
+	}
+	if req.RowDensity != nil {
+		out["row_density"] = *req.RowDensity
+	}
+	if req.FontSizeFact != nil {
+		out["font_size_fact"] = *req.FontSizeFact
+	}
+	if req.RowDensityFact != nil {
+		out["row_density_fact"] = *req.RowDensityFact
+	}
+	return out
 }
 
 // Delete godoc
