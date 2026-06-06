@@ -776,6 +776,17 @@
         </div>
       </transition>
     </Teleport>
+
+    <ConfirmationModal
+      :show="!!deleteConfirmUser"
+      title="Удаление пользователя"
+      :message="deleteConfirmUser ? `Удалить учётную запись «${deleteConfirmUser.username}»? Действие необратимо.` : ''"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performDeleteUser"
+      @cancel="deleteConfirmUser = null"
+    />
   </div>
 </template>
 
@@ -791,6 +802,8 @@ import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PermissionTree from './PermissionTree.vue';
 import PasswordInput from './ui/PasswordInput.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
+import { useDeletionsStore } from '@/stores/deletions';
 import { getUserPermissions, updateUserPermissions, getPermissionTree } from '@/api/permissions';
 
 export default {
@@ -798,7 +811,8 @@ export default {
     SearchComponent,
     RefreshButton,
     PermissionTree,
-    PasswordInput
+    PasswordInput,
+    ConfirmationModal
   },
   props: {
     allUsers: {
@@ -816,6 +830,7 @@ export default {
       userSearch: '',
       refreshing: false,
       selectedUser: null,
+      deleteConfirmUser: null,
       showNewPass: false,
       currentLanguage: '',
       isCapsLockOn: false,
@@ -1181,15 +1196,16 @@ export default {
         });
 
         if (response.ok) {
+          const createdName = this.newUser.username;
           this.handleUserCreated();
-          alert("Пользователь успешно создан");
+          useDeletionsStore().notify({ prefix: 'Пользователь ', bold: createdName, suffix: ' создан' });
         } else {
           const errorData = await response.json();
-          alert(errorData.message || "Ошибка при создании пользователя");
+          useDeletionsStore().notify({ prefix: 'Не удалось создать пользователя: ', bold: errorData.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Ошибка сети при создании пользователя:", error);
-        alert("Не удалось создать пользователя");
+        useDeletionsStore().notify({ prefix: 'Не удалось создать пользователя: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
     
@@ -1211,42 +1227,48 @@ export default {
 
         if (!response.ok) {
           const errorData = await response.json();
-          alert(errorData.message || "Ошибка при обновлении информации");
+          useDeletionsStore().notify({ prefix: 'Не удалось обновить данные: ', bold: errorData.message || 'ошибка', type: 'error' });
           this.$emit('fetch-users');
         } else {
           this.$emit('user-updated', user);
         }
       } catch (error) {
         console.error("Ошибка сети при обновлении информации:", error);
-        alert("Не удалось обновить информацию о пользователе");
+        useDeletionsStore().notify({ prefix: 'Не удалось обновить данные: ', bold: 'нет связи с сервером', type: 'error' });
         this.$emit('fetch-users');
       }
     },
     
-    async confirmDeleteUser(user) {
-      if (confirm(`Вы уверены, что хотите удалить аккаунт «${user.username}»?`)) {
-        try {
-          const response = await apiRequest(`/users/${user.username}`,
-            {
-              method: "DELETE",
-            }
-          );
+    confirmDeleteUser(user) {
+      // Открываем ConfirmationModal вместо window.confirm. Реальное удаление - performDeleteUser.
+      this.deleteConfirmUser = user;
+    },
 
-          if (response.ok) {
-            alert("Пользователь успешно удален");
-            this.selectedUser = null;
-            this.$emit('fetch-users');
-            // user_count меняется - подтягиваем оба представления.
-            this.refreshOrganizations();
-            this.refreshCompanies();
-          } else {
-            const errorData = await response.json();
-            alert(errorData.message || "Ошибка при удалении пользователя");
+    async performDeleteUser() {
+      const user = this.deleteConfirmUser;
+      this.deleteConfirmUser = null;
+      if (!user) return;
+      try {
+        const response = await apiRequest(`/users/${user.username}`,
+          {
+            method: "DELETE",
           }
-        } catch (error) {
-          console.error("Ошибка сети при удалении пользователя:", error);
-          alert("Не удалось удалить пользователя");
+        );
+
+        if (response.ok) {
+          this.selectedUser = null;
+          this.$emit('fetch-users');
+          // user_count меняется - подтягиваем оба представления.
+          this.refreshOrganizations();
+          this.refreshCompanies();
+          useDeletionsStore().notify({ prefix: 'Пользователь ', bold: user.username, suffix: ' удалён' });
+        } else {
+          const errorData = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось удалить пользователя: ', bold: errorData.message || 'ошибка', type: 'error' });
         }
+      } catch (error) {
+        console.error("Ошибка сети при удалении пользователя:", error);
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить пользователя: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
     
@@ -1292,7 +1314,7 @@ export default {
 
         if (!response.ok) {
           const errorData = await response.json();
-          alert(errorData.message || "Ошибка при обновлении типа пользователя");
+          useDeletionsStore().notify({ prefix: 'Не удалось сменить тип: ', bold: errorData.message || 'ошибка', type: 'error' });
           this.$emit('fetch-users');
         } else {
           const type = this.userTypes.find(t => t.id === user.type_id);
@@ -1301,7 +1323,7 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка сети при обновлении типа пользователя:", error);
-        alert("Не удалось обновить тип пользователя");
+        useDeletionsStore().notify({ prefix: 'Не удалось сменить тип: ', bold: 'нет связи с сервером', type: 'error' });
         this.$emit('fetch-users');
       }
     },
@@ -1317,7 +1339,7 @@ export default {
 
         if (!response.ok) {
           const errorData = await response.json();
-          alert(errorData.message || "Ошибка при обновлении организации");
+          useDeletionsStore().notify({ prefix: 'Не удалось сменить организацию: ', bold: errorData.message || 'ошибка', type: 'error' });
           this.$emit('fetch-users');
         } else {
           const org = this.organizations.find(o => o.id === user.organization_id);
@@ -1326,7 +1348,7 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка сети при обновлении организации:", error);
-        alert("Не удалось обновить организацию пользователя");
+        useDeletionsStore().notify({ prefix: 'Не удалось сменить организацию: ', bold: 'нет связи с сервером', type: 'error' });
         this.$emit('fetch-users');
       }
     },
@@ -1342,7 +1364,7 @@ export default {
 
         if (!response.ok) {
           const errorData = await response.json();
-          alert(errorData.message || "Ошибка при обновлении компании");
+          useDeletionsStore().notify({ prefix: 'Не удалось сменить компанию: ', bold: errorData.message || 'ошибка', type: 'error' });
           this.$emit('fetch-users');
         } else {
           const comp = this.companies.find(c => c.id === user.company_id);
@@ -1351,14 +1373,14 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка сети при обновлении компании:", error);
-        alert("Не удалось обновить компанию пользователя");
+        useDeletionsStore().notify({ prefix: 'Не удалось сменить компанию: ', bold: 'нет связи с сервером', type: 'error' });
         this.$emit('fetch-users');
       }
     },
     
     async changeUserPassword(user) {
       if (!user.newPassword) {
-        alert("Введите новый пароль");
+        useDeletionsStore().notify({ bold: 'Введите новый пароль', type: 'error' });
         return;
       }
 
@@ -1371,16 +1393,16 @@ export default {
         );
 
         if (response.ok) {
-          alert("Пароль успешно изменен");
           user.newPassword = "";
           this.$emit('fetch-users');
+          useDeletionsStore().notify({ prefix: 'Пароль пользователя ', bold: user.username, suffix: ' изменён' });
         } else {
           const errorData = await response.json();
-          alert(errorData.message || "Ошибка при изменении пароля");
+          useDeletionsStore().notify({ prefix: 'Не удалось изменить пароль: ', bold: errorData.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Ошибка сети при изменении пароля:", error);
-        alert("Не удалось изменить пароль");
+        useDeletionsStore().notify({ prefix: 'Не удалось изменить пароль: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
     
