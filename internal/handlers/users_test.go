@@ -336,14 +336,14 @@ func TestUsers_Delete(t *testing.T) {
 	}
 	require.True(t, found, "targetuser should exist before deletion")
 
-	// Delete
+	// Delete (soft-delete: архивация)
 	rec = testutil.DELETE(t, e, "/users/targetuser", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	deleteResp := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "User deleted successfully", deleteResp)
+	assert.Equal(t, "User archived successfully", deleteResp)
 
-	// Verify gone
+	// Verify gone из активного списка
 	rec = testutil.GET(t, e, "/users/all", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	users = testutil.ParseSlice(t, rec)
@@ -351,6 +351,92 @@ func TestUsers_Delete(t *testing.T) {
 	for _, u := range users {
 		assert.NotEqual(t, "targetuser", u["username"])
 	}
+}
+
+func TestUsers_SoftDeleteAndRestore(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	testutil.RegisterUser(t, e, "softtarget", "password123", 1, td.OrgID, td.CompanyID)
+
+	// Архивация
+	rec := testutil.DELETE(t, e, "/users/softtarget", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Не виден в активном списке
+	rec = testutil.GET(t, e, "/users/all", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	for _, u := range testutil.ParseSlice(t, rec) {
+		assert.NotEqual(t, "softtarget", u["username"])
+	}
+
+	// Виден с include_archived=true и is_active=false (строка не удалена физически)
+	rec = testutil.GET(t, e, "/users/all?include_archived=true", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	foundArchived := false
+	for _, u := range testutil.ParseSlice(t, rec) {
+		if u["username"] == "softtarget" {
+			foundArchived = true
+			assert.Equal(t, false, u["is_active"])
+		}
+	}
+	assert.True(t, foundArchived, "архивный пользователь должен возвращаться с include_archived=true")
+
+	// Восстановление
+	rec = testutil.POST(t, e, "/users/softtarget/restore", "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "User restored successfully", testutil.ParseMessage(t, rec))
+
+	// Снова в активном списке, is_active=true
+	rec = testutil.GET(t, e, "/users/all", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	foundActive := false
+	for _, u := range testutil.ParseSlice(t, rec) {
+		if u["username"] == "softtarget" {
+			foundActive = true
+			assert.Equal(t, true, u["is_active"])
+		}
+	}
+	assert.True(t, foundActive, "восстановленный пользователь должен быть в активном списке")
+}
+
+func TestUsers_ArchivedCannotLogin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	testutil.RegisterUser(t, e, "logintarget", "password123", 1, td.OrgID, td.CompanyID)
+
+	// До архивации login работает
+	rec := testutil.POST(t, e, "/login", `{"username":"logintarget","password":"password123"}`, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Архивируем
+	rec = testutil.DELETE(t, e, "/users/logintarget", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Архивный не может войти даже с верным паролем - 403 "отключена" (пароль проверен)
+	rec = testutil.POST(t, e, "/login", `{"username":"logintarget","password":"password123"}`, nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Неверный пароль архивного - всё ещё 401 (не раскрываем статус)
+	rec = testutil.POST(t, e, "/login", `{"username":"logintarget","password":"wrongpass"}`, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	// После восстановления login снова работает
+	rec = testutil.POST(t, e, "/users/logintarget/restore", "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	rec = testutil.POST(t, e, "/login", `{"username":"logintarget","password":"password123"}`, nil)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestUsers_Delete_Unauthorized(t *testing.T) {

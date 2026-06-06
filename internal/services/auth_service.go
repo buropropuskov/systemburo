@@ -211,6 +211,13 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
 	}
 
+	// Архивная учётка (is_active=false): пароль верный, аутентификация прошла,
+	// но доступа нет - токен не выдаём. Пользователь видит, что учётка отключена.
+	if !user.IsActive {
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "account disabled")
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена. Обратитесь к администратору.")
+	}
+
 	// Успешный вход - сбрасываем счётчик неудачных попыток и lock.
 	// Также апдейтим last_login_at для аудита активности.
 	now := time.Now().UTC()
@@ -278,6 +285,11 @@ func (s *authService) RefreshToken(ctx context.Context, req models.RefreshTokenR
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	}
+
+	// Архивная учётка не может обновлять токены - существующая сессия гаснет.
+	if !user.IsActive {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена")
 	}
 
 	// Ищем запись без фильтра is_revoked - чтобы отличить "не существует" от
