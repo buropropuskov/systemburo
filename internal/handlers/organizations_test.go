@@ -157,6 +157,30 @@ func TestOrganizations_Restore_Forbidden(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+func TestOrganizations_History(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Ист Орг"}`, h))
+	id := int(created["id"].(float64))
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", id), `{"name":"Ист Орг 2"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", id), h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, fmt.Sprintf("/organizations/%d/restore", id), "", h).Code)
+
+	hist := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/history", id), h))
+	require.Len(t, hist, 4)
+	// Новые сверху: restored, archived, renamed, created.
+	assert.Equal(t, "restored", hist[0]["action_type"])
+	assert.Equal(t, "archived", hist[1]["action_type"])
+	assert.Equal(t, "renamed", hist[2]["action_type"])
+	assert.Equal(t, "created", hist[3]["action_type"])
+	assert.NotEmpty(t, hist[0]["actor_name"])
+}
+
 func TestOrganizations_Restore_NameConflict_Fails(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

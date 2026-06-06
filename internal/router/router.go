@@ -214,6 +214,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.PUT("/:id", org.Update)
 	orgg.DELETE("/:id", org.Delete)
 	orgg.POST("/:id/restore", org.Restore)
+	orgg.GET("/:id/history", org.GetHistory)
 	orgg.GET("/with-users", org.GetWithUsers)
 	orgg.GET("/with-users-extended", org.GetWithUsersExtended)
 	orgg.GET("/:id/users", org.GetOrganizationUsers)

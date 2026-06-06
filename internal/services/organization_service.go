@@ -17,17 +17,20 @@ type OrganizationService interface {
 	// GetAll возвращает список активных организаций (id, name) - для выпадающих списков.
 	GetAll(ctx context.Context) ([]OrganizationInfoResponse, error)
 
-	// Create создаёт новую организацию. Требует права buropropuskov.
-	Create(ctx context.Context, req CreateOrganizationRequest) (*OrganizationInfoResponse, error)
+	// Create создаёт новую организацию. callerUserID - актор для аудита.
+	Create(ctx context.Context, callerUserID int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error)
 
-	// Update обновляет название организации по ID. Требует права buropropuskov.
-	Update(ctx context.Context, id int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error)
+	// Update обновляет название организации по ID. callerUserID - актор для аудита.
+	Update(ctx context.Context, callerUserID, id int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error)
 
 	// Delete архивирует организацию (soft-delete). Нельзя при активных пользователях.
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, callerUserID, id int) error
 
 	// Restore восстанавливает организацию из архива.
-	Restore(ctx context.Context, id int) error
+	Restore(ctx context.Context, callerUserID, id int) error
+
+	// GetHistory возвращает историю изменений организации.
+	GetHistory(ctx context.Context, id int) ([]models.OrganizationHistoryItem, error)
 
 	// GetWithUsers возвращает организации с количеством пользователей. includeArchived добавляет архивные.
 	GetWithUsers(ctx context.Context, includeArchived bool) ([]OrganizationWithUsersResponse, error)
@@ -138,12 +141,13 @@ type MyOrganizationResponse struct {
 // --- Реализация ---
 
 type organizationService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	history OrganizationHistoryService
 }
 
 // NewOrganizationService создаёт новый экземпляр сервиса организаций.
 func NewOrganizationService(db *gorm.DB) OrganizationService {
-	return &organizationService{db: db}
+	return &organizationService{db: db, history: NewOrganizationHistoryService(db)}
 }
 
 // CheckAdminPermissions проверяет, что пользователь имеет тип buropropuskov.
@@ -184,7 +188,7 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 }
 
 // Create создаёт новую организацию.
-func (s *organizationService) Create(ctx context.Context, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
+func (s *organizationService) Create(ctx context.Context, callerUserID int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
 	var active int64
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
 		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
@@ -200,11 +204,12 @@ func (s *organizationService) Create(ctx context.Context, req CreateOrganization
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating organization")
 	}
 	slog.Info("организация создана", "id", org.ID, "name", org.Name)
+	s.history.Log(ctx, org.ID, &callerUserID, models.OrganizationActionCreated, map[string]any{"name": org.Name})
 	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name}, nil
 }
 
 // Update обновляет название организации по ID.
-func (s *organizationService) Update(ctx context.Context, id int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
+func (s *organizationService) Update(ctx context.Context, callerUserID, id int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
 	var org models.Organization
 	if err := s.db.WithContext(ctx).First(&org, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -232,6 +237,7 @@ func (s *organizationService) Update(ctx context.Context, id int, req CreateOrga
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 	slog.Info("организация обновлена", "id", id, "name", req.Name)
+	s.history.Log(ctx, id, &callerUserID, models.OrganizationActionRenamed, map[string]any{"name": req.Name})
 	return &OrganizationInfoResponse{ID: id, Name: req.Name}, nil
 }
 
@@ -239,7 +245,7 @@ func (s *organizationService) Update(ctx context.Context, id int, req CreateOrga
 // поэтому FK заявок/сотрудников/машин не осиротевают. Блокируется при наличии
 // АКТИВНЫХ пользователей в этой организации (их некуда переназначить из активного
 // списка). Исторические заявки/сотрудники/машины архив не блокируют.
-func (s *organizationService) Delete(ctx context.Context, id int) error {
+func (s *organizationService) Delete(ctx context.Context, callerUserID, id int) error {
 	var org models.Organization
 	if err := s.db.WithContext(ctx).First(&org, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -268,12 +274,13 @@ func (s *organizationService) Delete(ctx context.Context, id int) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving organization")
 	}
 	slog.Info("организация архивирована", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.OrganizationActionArchived, nil)
 	return nil
 }
 
 // Restore восстанавливает организацию из архива (is_active=true). Если активная
 // организация с таким именем уже есть - конфликт (partial unique), вернём 400.
-func (s *organizationService) Restore(ctx context.Context, id int) error {
+func (s *organizationService) Restore(ctx context.Context, callerUserID, id int) error {
 	var org models.Organization
 	if err := s.db.WithContext(ctx).First(&org, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -300,7 +307,13 @@ func (s *organizationService) Restore(ctx context.Context, id int) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring organization")
 	}
 	slog.Info("организация восстановлена", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.OrganizationActionRestored, nil)
 	return nil
+}
+
+// GetHistory возвращает историю изменений организации.
+func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.OrganizationHistoryItem, error) {
+	return s.history.GetHistory(ctx, id)
 }
 
 // GetWithUsers возвращает организации с количеством привязанных пользователей.
