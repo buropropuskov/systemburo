@@ -280,6 +280,18 @@ func Seed(db *gorm.DB) error {
 		slog.Info("backfilled user_types.is_system", "count", result.RowsAffected)
 	}
 
+	// Organizations: глобальный uniqueIndex по name заменяем на partial unique
+	// (только среди активных), чтобы архивная организация не блокировала создание
+	// новой активной с тем же именем (#412). Идемпотентно. Ошибку возвращаем (не
+	// логируем молча): от этого индекса зависит уникальность имён - провал должен
+	// быть громким.
+	if err := db.Exec("DROP INDEX IF EXISTS idx_organizations_name").Error; err != nil {
+		return fmt.Errorf("failed to drop idx_organizations_name: %w", err)
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_organizations_name_active ON organizations (name) WHERE is_active = true").Error; err != nil {
+		return fmt.Errorf("failed to create partial unique index on organizations.name: %w", err)
+	}
+
 	// Seed default tab permissions
 	if db.Migrator().HasTable("permissions") {
 		var permCount int64

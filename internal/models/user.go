@@ -32,7 +32,11 @@ type User struct {
 
 type Organization struct {
 	ID   int    `json:"id"`
-	Name string `gorm:"uniqueIndex;size:100" json:"name"`
+	Name string `gorm:"size:100" json:"name"`
+	// IsActive - архивный флаг (soft-delete). Уникальность name обеспечивается
+	// partial unique index (WHERE is_active=true) в migrate.go, а не gorm-тегом,
+	// чтобы архивная запись не блокировала создание новой активной с тем же именем.
+	IsActive bool `gorm:"default:true;index" json:"is_active"`
 }
 
 type Company struct {
