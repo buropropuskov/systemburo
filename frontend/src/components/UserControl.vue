@@ -5,6 +5,14 @@
         Учётные записи пользователей
       </h3>
       <div class="search-container">
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="userSearch"
           :title="'Поиск пользователей...'"
@@ -120,12 +128,19 @@
             v-for="user in sortedUsers" 
             :key="user.username" 
             class="user-item"
-            :class="{'selected': selectedUser && selectedUser.username === user.username}"
+            :class="{
+              'selected': selectedUser && selectedUser.username === user.username,
+              'inactive': user.is_active === false,
+            }"
             @click="selectUser(user)"
           >
             <div class="user-row">
               <div class="user-col login-col">
                 <span class="user-login">{{ user.username }}</span>
+                <span
+                  v-if="user.is_active === false"
+                  class="inactive-badge"
+                >(архив)</span>
               </div>
               <div class="user-col name-col">
                 {{ formatUserName(user) }}
@@ -157,7 +172,7 @@
           </div>
         </div>
         <div class="users-footer">
-          <span class="items-count">Всего пользователей: {{ sortedUsers.length }}</span>
+          <span class="items-count">{{ showArchive ? 'В архиве' : 'Всего пользователей' }}: {{ sortedUsers.length }}</span>
         </div>
       </div>
       
@@ -177,25 +192,36 @@
               </p>
             </div>
             <div class="details-header-actions">
-              <button
-                class="lk-button lk-button--secondary"
-                @click="openPermissions(selectedUser)"
-              >
-                <img
-                  src="@/assets/icons/access.png"
-                  class="access-icon"
+              <template v-if="selectedUser.is_active !== false">
+                <button
+                  class="lk-button lk-button--secondary"
+                  @click="openPermissions(selectedUser)"
                 >
-                Права доступа
-              </button>
-              <button
-                class="delete-icon-btn"
-                @click="confirmDeleteUser(selectedUser)"
-              >
-                <img
-                  src="@/assets/icons/delete.png"
-                  class="delete-icon"
+                  <img
+                    src="@/assets/icons/access.png"
+                    class="access-icon"
+                  >
+                  Права доступа
+                </button>
+                <button
+                  class="delete-icon-btn"
+                  @click="confirmDeleteUser(selectedUser)"
                 >
-              </button>
+                  <img
+                    src="@/assets/icons/delete.png"
+                    class="delete-icon"
+                  >
+                </button>
+              </template>
+              <template v-else>
+                <span class="archive-badge">В архиве</span>
+                <button
+                  class="lk-button lk-button--primary"
+                  @click="restoreUser(selectedUser)"
+                >
+                  Восстановить
+                </button>
+              </template>
             </div>
           </div>
           
@@ -692,6 +718,11 @@ export default {
       refreshing: false,
       selectedUser: null,
       deleteConfirmUser: null,
+      showArchive: false,
+      archiveOptions: [
+        { value: 'active', label: 'Активные' },
+        { value: 'archive', label: 'Архив' },
+      ],
       showNewPass: false,
       currentLanguage: '',
       isCapsLockOn: false,
@@ -731,6 +762,7 @@ export default {
     filteredUsers() {
       const searchTerm = this.userSearch.toLowerCase();
       return this.allUsers
+        .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
         .filter(user => {
           return (
             user.username.toLowerCase().includes(searchTerm) ||
@@ -855,6 +887,30 @@ export default {
         ]);
       } finally {
         this.refreshing = false;
+      }
+    },
+
+    onArchiveModeChange(value) {
+      this.showArchive = value === 'archive';
+      this.selectedUser = null;
+    },
+
+    async restoreUser(user) {
+      try {
+        const response = await apiRequest(`/users/${user.username}/restore`, { method: 'POST' });
+        if (response.ok) {
+          this.selectedUser = null;
+          this.$emit('fetch-users');
+          this.refreshOrganizations();
+          this.refreshCompanies();
+          useDeletionsStore().notify({ prefix: 'Пользователь ', bold: user.username, suffix: ' восстановлен из архива' });
+        } else {
+          const errorData = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: errorData.message || 'ошибка', type: 'error' });
+        }
+      } catch (error) {
+        console.error('Ошибка сети при восстановлении пользователя:', error);
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: 'нет связи с сервером', type: 'error' });
       }
     },
 
@@ -1327,6 +1383,32 @@ export default {
   font-weight: 500;
   background: #e8eafe;
   color: #4F5BDF;
+}
+
+.archive-dropdown {
+  min-width: 140px;
+}
+
+.user-item.inactive {
+  background: #fafafa;
+  color: #9aa0a6;
+}
+
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #9aa0a6;
+  font-style: italic;
+}
+
+.archive-badge {
+  background: #6b7280;
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 /* Заголовок таблицы */
