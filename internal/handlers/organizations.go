@@ -64,7 +64,8 @@ func (h *OrganizationHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	org, err := h.service.Create(c.Request().Context(), req)
+	userID, _ := c.Get("user_id").(int)
+	org, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,8 @@ func (h *OrganizationHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	org, err := h.service.Update(c.Request().Context(), id, req)
+	userID, _ := c.Get("user_id").(int)
+	org, err := h.service.Update(c.Request().Context(), userID, id, req)
 	if err != nil {
 		return err
 	}
@@ -133,7 +135,8 @@ func (h *OrganizationHandler) Delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
 	}
 
-	if err := h.service.Delete(c.Request().Context(), id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Organization archived")
@@ -159,10 +162,37 @@ func (h *OrganizationHandler) Restore(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
 	}
-	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Restore(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Organization restored")
+}
+
+// GetHistory godoc
+// @Summary      История изменений организации
+// @Tags         organizations
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID организации"
+// @Success      200 {array} models.OrganizationHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /organizations/{id}/history [get]
+func (h *OrganizationHandler) GetHistory(c echo.Context) error {
+	username := c.Get("username").(string)
+	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
+		return err
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
+	}
+	items, err := h.service.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
 
 // GetWithUsers godoc

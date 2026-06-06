@@ -18,6 +18,7 @@ func AllModels() []interface{} {
 		&models.UserType{},
 		&models.UserTypeHistory{},
 		&models.Organization{},
+		&models.OrganizationHistory{},
 		&models.Company{},
 		&models.Citizenship{},
 		&models.LicensePlateFormat{},
