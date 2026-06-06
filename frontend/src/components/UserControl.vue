@@ -192,6 +192,12 @@
               </p>
             </div>
             <div class="details-header-actions">
+              <button
+                class="lk-button lk-button--secondary"
+                @click="openHistory(selectedUser)"
+              >
+                История
+              </button>
               <template v-if="selectedUser.is_active !== false">
                 <button
                   class="lk-button lk-button--secondary"
@@ -672,6 +678,16 @@
       @confirm="performDeleteUser"
       @cancel="deleteConfirmUser = null"
     />
+
+    <UserHistoryModal
+      v-if="historyForUser"
+      :user="historyForUser"
+      :organizations="organizations"
+      :companies="companies"
+      :user-types="userTypes"
+      :current-user-name="currentUserName"
+      @close="historyForUser = null"
+    />
   </div>
 </template>
 
@@ -689,6 +705,7 @@ import PermissionTree from './PermissionTree.vue';
 import PasswordInput from './ui/PasswordInput.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import UserHistoryModal from './UserHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { getUserPermissions, updateUserPermissions, getPermissionTree } from '@/api/permissions';
 
@@ -699,7 +716,8 @@ export default {
     PermissionTree,
     PasswordInput,
     ConfirmationModal,
-    BaseDropdown
+    BaseDropdown,
+    UserHistoryModal
   },
   props: {
     allUsers: {
@@ -717,6 +735,8 @@ export default {
       userSearch: '',
       refreshing: false,
       selectedUser: null,
+      historyForUser: null,
+      currentUserName: '',
       deleteConfirmUser: null,
       showArchive: false,
       archiveOptions: [
@@ -846,7 +866,8 @@ export default {
     await Promise.all([
       this.fetchOrganizations(),
       this.fetchCompanies(),
-      this.fetchUserTypes()
+      this.fetchUserTypes(),
+      this.fetchCurrentUser()
     ]);
   },
   mounted() {
@@ -911,6 +932,23 @@ export default {
       } catch (error) {
         console.error('Ошибка сети при восстановлении пользователя:', error);
         useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: 'нет связи с сервером', type: 'error' });
+      }
+    },
+
+    openHistory(user) {
+      this.historyForUser = user;
+    },
+
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
 
