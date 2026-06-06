@@ -131,7 +131,7 @@ func (h *MarkHandler) Restore(c echo.Context) error {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID марки"
-// @Success      200 {array} models.MarkHistory
+// @Success      200 {array} models.MarkHistoryItem
 // @Router       /marks/{id}/history [get]
 func (h *MarkHandler) GetHistory(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))

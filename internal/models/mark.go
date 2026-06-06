@@ -38,6 +38,21 @@ const (
 	MarkActionRestored = "restored"
 )
 
+// MarkHistoryItem - элемент истории марки с именем пользователя для UI.
+// UserName собирается через COALESCE(ФИО, username) при выборке (LEFT JOIN users),
+// чтобы timeline показывал кто сделал действие, а не только user_id.
+type MarkHistoryItem struct {
+	ID         int       `json:"id"`
+	MarkID     int       `json:"mark_id"`
+	ActionType string    `json:"action_type"`
+	OldValue   *string   `json:"old_value,omitempty"`
+	NewValue   *string   `json:"new_value,omitempty"`
+	UserID     *int      `json:"user_id,omitempty"`
+	UserName   string    `json:"user_name"`
+	Comment    *string   `json:"comment,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 // CreateMarkRequest - запрос на создание марки.
 type CreateMarkRequest struct {
 	Name string `json:"name" validate:"required,min=1,max=100"`
