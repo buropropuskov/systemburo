@@ -3,141 +3,123 @@
     <div
       class="modal-overlay"
       data-testid="system-table-history-modal"
+      @mousedown="onOverlayMousedown"
+      @mouseup="onOverlayMouseup"
     >
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">
-          История таблицы «{{ table.display_name }}»
-        </h3>
-        <button
-          class="modal-close"
-          aria-label="Закрыть"
-          @click="$emit('close')"
-        >
-          ×
-        </button>
-      </div>
-      <div class="modal-body">
-        <div
-          v-if="isLoading"
-          class="loader"
-        >
-          Загрузка...
-        </div>
-        <div
-          v-else-if="!groups.length"
-          class="empty"
-        >
-          История пуста
-        </div>
-        <ul
-          v-else
-          class="history-list"
-        >
-          <li
-            v-for="(g, gi) in groups"
-            :key="gi"
-            class="history-item"
+      <div
+        class="system-table-history-modal"
+        @mousedown.stop
+      >
+        <div class="modal-header">
+          <h3>История таблицы «{{ table.display_name }}»</h3>
+          <button
+            class="close-btn"
+            aria-label="Закрыть"
+            @click="close"
           >
-            <div class="history-row">
-              <span
-                class="history-badge"
-                :class="`history-badge--${g.action_type}`"
-              >{{ actionLabel(g.action_type) }}</span>
-              <span class="history-user">{{ g.user_name || 'Система' }}</span>
-              <span class="history-time">{{ formatDate(g.created_at) }}</span>
+            ×
+          </button>
+        </div>
+
+        <div class="modal-content">
+          <div
+            v-if="loading"
+            class="history-loading"
+          >
+            <LoaderSpinner label="Загрузка истории..." />
+          </div>
+
+          <div
+            v-else-if="!history.length"
+            class="history-empty"
+          >
+            История пуста
+          </div>
+
+          <div
+            v-else
+            class="history-timeline"
+          >
+            <div
+              v-for="(item, index) in history"
+              :key="item.id"
+              class="history-item"
+            >
+              <div
+                class="timeline-dot"
+                :class="getActionClass(item.action_type)"
+              />
+              <div
+                v-if="index < history.length - 1"
+                class="timeline-line"
+              />
+
+              <div class="history-content">
+                <div class="history-header">
+                  <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                  <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                </div>
+
+                <div class="action-text">
+                  {{ getActionText(item) }}
+                </div>
+
+                <div
+                  v-if="getActionDetails(item)"
+                  class="action-comment"
+                >
+                  {{ getActionDetails(item) }}
+                </div>
+              </div>
             </div>
-            <button
-              v-if="g.entries.length > 1 || hasDetails(g.entries[0])"
-              class="history-toggle"
-              @click="toggle(gi)"
-            >
-              {{ expanded[gi] ? 'Свернуть' : `Раскрыть (${g.entries.length})` }}
-            </button>
-            <ul
-              v-if="expanded[gi]"
-              class="history-details"
-            >
-              <li
-                v-for="entry in g.entries"
-                :key="entry.id"
-                class="history-detail-row"
-              >
-                <pre>{{ formatDetails(entry.details) }}</pre>
-              </li>
-            </ul>
-          </li>
-        </ul>
+          </div>
+        </div>
       </div>
-      <div class="modal-footer">
-        <button
-          class="lk-btn"
-          @click="$emit('close')"
-        >
-          Закрыть
-        </button>
-      </div>
-    </div>
     </div>
   </Teleport>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
 
-const ACTION_LABELS = {
-  created: 'Создана',
-  updated: 'Изменена',
-  archived: 'Архивирована',
-  restored: 'Восстановлена',
-  columns_updated: 'Столбцы',
-  appearance_updated: 'Оформление',
+const FIELD_LABELS = {
+  display_name: 'наименование',
+  table_type: 'тип таблицы',
+  show_fact_table: 'отображение таблицы по факту',
+  fact_table_hint: 'подсказка',
+  instruction: 'инструкция',
+  map_link: 'ссылка на карту',
+  status: 'статус',
+  status_comment: 'комментарий статуса',
+  location_description: 'описание местоположения',
 };
 
-// Окно для слипания соседних записей одного юзера и одного типа.
-const GROUP_WINDOW_MS = 60_000;
+const TYPE_LABELS = {
+  cars: 'Машины',
+  people: 'Люди',
+};
 
 export default {
   name: 'SystemTableHistoryModal',
+  components: { LoaderSpinner },
   props: {
     table: { type: Object, required: true },
   },
   emits: ['close'],
+  setup(_, { emit }) {
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+    return { onOverlayMousedown, onOverlayMouseup };
+  },
   data() {
     return {
+      loading: false,
       history: [],
-      isLoading: false,
-      expanded: {},
     };
   },
-  computed: {
-    groups() {
-      // Склеиваем соседние записи одного user_id + action_type в окно 60с.
-      const out = [];
-      for (const h of this.history) {
-        const tail = out[out.length - 1];
-        const sameType = tail && tail.action_type === h.action_type;
-        const sameUser = tail && tail.user_id === h.user_id;
-        const close = tail && Math.abs(
-          new Date(tail.created_at).getTime() - new Date(h.created_at).getTime(),
-        ) <= GROUP_WINDOW_MS;
-        if (sameType && sameUser && close) {
-          tail.entries.push(h);
-        } else {
-          out.push({
-            action_type: h.action_type,
-            user_id: h.user_id,
-            user_name: h.user_name,
-            created_at: h.created_at,
-            entries: [h],
-          });
-        }
-      }
-      return out;
-    },
-  },
   mounted() {
-    this.load();
+    this.loadHistory();
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
@@ -145,42 +127,101 @@ export default {
   },
   methods: {
     onKeydown(e) {
-      if (e.key === 'Escape') this.$emit('close');
+      if (e.key === 'Escape') this.close();
     },
-    async load() {
-      this.isLoading = true;
+    close() {
+      this.$emit('close');
+    },
+
+    async loadHistory() {
+      this.loading = true;
       try {
         const response = await apiRequest(`/system-tables/${this.table.id}/history`);
         if (response.ok) {
           const data = await response.json();
           this.history = Array.isArray(data) ? data : [];
         }
-      } catch (e) {
-        console.error('Error loading history:', e);
+      } catch (error) {
+        console.error('Error loading system table history:', error);
       } finally {
-        this.isLoading = false;
+        this.loading = false;
       }
     },
-    toggle(gi) {
-      this.expanded = { ...this.expanded, [gi]: !this.expanded[gi] };
+
+    getActionClass(actionType) {
+      const classes = {
+        created: 'dot-create',
+        updated: 'dot-update',
+        archived: 'dot-archive',
+        restored: 'dot-restore',
+        columns_updated: 'dot-update',
+        appearance_updated: 'dot-update',
+      };
+      return classes[actionType] || 'dot-default';
     },
-    hasDetails(entry) {
-      return entry && entry.details && Object.keys(entry.details).length > 0;
+
+    getActionText(item) {
+      const texts = {
+        created: 'Таблица создана',
+        updated: 'Данные таблицы изменены',
+        archived: 'Таблица архивирована',
+        restored: 'Таблица восстановлена из архива',
+        columns_updated: 'Изменены столбцы',
+        appearance_updated: 'Изменено оформление',
+      };
+      return texts[item.action_type] || item.action_type;
     },
-    actionLabel(t) {
-      return ACTION_LABELS[t] || t;
+
+    getActionDetails(item) {
+      const d = item.details;
+      if (!d || typeof d !== 'object') return '';
+
+      switch (item.action_type) {
+        case 'created': {
+          const parts = [];
+          if (d.display_name) parts.push(`Наименование: "${d.display_name}"`);
+          if (d.name) parts.push(`Системное имя: "${d.name}"`);
+          if (d.table_type) parts.push(`Тип: ${TYPE_LABELS[d.table_type] || d.table_type}`);
+          return parts.join(' / ');
+        }
+        case 'updated': {
+          const keys = Object.keys(d).filter(k => k !== 'is_active');
+          if (!keys.length) return '';
+          const parts = keys.map(k => {
+            const label = FIELD_LABELS[k] || k;
+            let val = d[k];
+            if (val === null || val === undefined || val === '') return `${label}: -`;
+            if (typeof val === 'boolean') val = val ? 'да' : 'нет';
+            if (typeof val === 'string' && val.length > 60) val = `${val.slice(0, 60)}...`;
+            return `${label}: ${val}`;
+          });
+          return parts.join(' / ');
+        }
+        case 'columns_updated': {
+          const variant = d.variant === 'fact' ? 'По факту' : 'Основная таблица';
+          const count = Array.isArray(d.fields) ? d.fields.length : 0;
+          return `${variant}, столбцов: ${count}`;
+        }
+        case 'appearance_updated':
+          return '';
+        case 'archived':
+        case 'restored':
+          return '';
+        default:
+          return '';
+      }
     },
-    formatDate(s) {
+
+    formatDateTime(s) {
       if (!s) return '';
-      return new Date(s).toLocaleString('ru-RU');
-    },
-    formatDetails(d) {
-      if (!d) return '';
-      try {
-        return JSON.stringify(d, null, 2);
-      } catch {
-        return String(d);
-      }
+      const d = new Date(s);
+      return d.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).replace(',', '');
     },
   },
 };
@@ -189,188 +230,190 @@ export default {
 <style scoped>
 .modal-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 11000;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 12000;
+  backdrop-filter: blur(0.1px);
+  -webkit-backdrop-filter: blur(0.1px);
+  animation: fadeIn 0.2s ease-out;
 }
 
-.modal-content {
-  background: #fff;
-  width: 100vw;
-  height: 100vh;
-  max-width: none;
-  max-height: none;
-  border-radius: 0;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.system-table-history-modal {
+  background: white;
+  border-radius: 30px;
+  width: 900px;
+  max-width: 95%;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .modal-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 20px 32px;
+  align-items: center;
+  padding: 15px 25px;
   border-bottom: 1px solid #e6e6e6;
-  background: #fff;
 }
 
-.modal-title {
+.modal-header h3 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: #333;
 }
 
-.modal-close {
-  background: transparent;
-  border: 0;
-  font-size: 28px;
-  line-height: 1;
-  color: #6b7280;
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #a2a2a2;
   cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 8px;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.modal-close:hover {
-  background: #f3f4f6;
-  color: #1f2937;
-}
-
-.modal-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 24px 32px;
-}
-
-.modal-footer {
+  width: 32px;
+  height: 32px;
   display: flex;
-  justify-content: flex-end;
-  padding: 16px 32px;
-  border-top: 1px solid #e6e6e6;
-  background: #fff;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
 }
 
-.loader,
-.empty {
-  text-align: center;
+.close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.modal-content {
+  padding: 20px 25px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.history-loading,
+.history-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
   color: #6b7280;
-  padding: 20px 0;
+  font-size: 14px;
 }
 
-.history-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.history-timeline {
+  position: relative;
+  padding-left: 32px;
 }
 
 .history-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #e6e6e6;
+  position: relative;
+  padding-bottom: 22px;
 }
 
 .history-item:last-child {
-  border-bottom: 0;
+  padding-bottom: 0;
 }
 
-.history-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.history-badge {
-  display: inline-flex;
-  align-items: center;
-  background: #4F5BDF;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 50px;
-}
-
-.history-badge--archived {
+.timeline-dot {
+  position: absolute;
+  left: -28px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   background: #6b7280;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 4px #e6e6e6;
+  z-index: 1;
 }
 
-.history-badge--restored {
+.timeline-dot.dot-create,
+.timeline-dot.dot-restore {
   background: #10b981;
 }
 
-.history-badge--columns_updated,
-.history-badge--appearance_updated,
-.history-badge--updated {
+.timeline-dot.dot-update {
   background: #f59e0b;
 }
 
-.history-badge--created {
-  background: #10b981;
+.timeline-dot.dot-archive {
+  background: #6b7280;
 }
 
-.history-user {
+.timeline-dot.dot-default {
+  background: #9ca3af;
+}
+
+.timeline-line {
+  position: absolute;
+  left: -22px;
+  top: 18px;
+  bottom: -4px;
+  width: 2px;
+  background: #e6e6e6;
+}
+
+.history-content {
+  background: #fafafa;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.user-name {
   font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.action-time {
+  font-size: 12px;
+  color: #a2a2a2;
+  white-space: nowrap;
+}
+
+.action-text {
+  font-size: 14px;
   color: #1f2937;
   font-weight: 500;
+  line-height: 1.4;
 }
 
-.history-time {
-  font-size: 12px;
-  color: #6b7280;
-  margin-left: auto;
-}
-
-.history-toggle {
+.action-comment {
   margin-top: 6px;
-  background: transparent;
-  border: 0;
-  color: #4F5BDF;
   font-size: 12px;
-  cursor: pointer;
-  padding: 0;
-}
-
-.history-toggle:hover {
-  text-decoration: underline;
-}
-
-.history-details {
-  list-style: none;
-  padding: 8px 0 0;
-  margin: 0;
-}
-
-.history-detail-row {
-  background: #f9fafb;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-top: 6px;
-}
-
-.history-detail-row pre {
-  margin: 0;
-  font-size: 11px;
   color: #4b5563;
-  white-space: pre-wrap;
+  line-height: 1.4;
   word-break: break-word;
-}
-
-.lk-btn {
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 0;
-  background: #4F5BDF;
-  color: #fff;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.lk-btn:hover {
-  background: #3a45b2;
 }
 </style>
