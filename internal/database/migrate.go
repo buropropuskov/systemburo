@@ -255,16 +255,28 @@ func Seed(db *gorm.DB) error {
 	if count == 0 {
 		slog.Info("seeding user_types")
 		types := []models.UserType{
-			{Name: "Пользователь", Code: "user"},
-			{Name: "Арендатор", Code: "renter"},
-			{Name: "Подрядчик", Code: "contractor"},
-			{Name: "Охранник", Code: "security"},
-			{Name: "Руководитель", Code: "manager"},
-			{Name: "Бюро пропусков", Code: "buropropuskov"},
+			{Name: "Пользователь", Code: "user", IsSystem: true},
+			{Name: "Арендатор", Code: "renter", IsSystem: true},
+			{Name: "Подрядчик", Code: "contractor", IsSystem: true},
+			{Name: "Охранник", Code: "security", IsSystem: true},
+			{Name: "Руководитель", Code: "manager", IsSystem: true},
+			{Name: "Бюро пропусков", Code: "buropropuskov", IsSystem: true},
 		}
 		if err := db.Create(&types).Error; err != nil {
 			return err
 		}
+	}
+
+	// Backfill is_system для уже засеянных БД (staging/prod): эти code используются
+	// в авторизации (internal/auth/permissions.go), их нельзя удалять/переименовывать.
+	// Идемпотентно: повторный прогон не меняет уже помеченные строки.
+	if result := db.Model(&models.UserType{}).
+		Where("code IN ? AND is_system = ?",
+			[]string{"user", "renter", "contractor", "security", "manager", "buropropuskov"}, false).
+		Update("is_system", true); result.Error != nil {
+		slog.Error("failed to backfill user_types.is_system", "error", result.Error)
+	} else if result.RowsAffected > 0 {
+		slog.Info("backfilled user_types.is_system", "count", result.RowsAffected)
 	}
 
 	// Seed default tab permissions

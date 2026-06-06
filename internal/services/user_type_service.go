@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -14,6 +15,7 @@ type UserTypeWithCount struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
 	Code       string `json:"code"`
+	IsSystem   bool   `json:"is_system"`
 	UsersCount int64  `json:"users_count"`
 }
 
@@ -69,6 +71,25 @@ func (s *userTypeService) checkAdmin(ctx context.Context, typeID int) error {
 	return nil
 }
 
+// typeFlags возвращает признак системного типа и факт его существования.
+func (s *userTypeService) typeFlags(ctx context.Context, id int) (isSystem bool, found bool, err error) {
+	var row struct {
+		IsSystem bool
+	}
+	err = s.db.WithContext(ctx).
+		Table("user_types").
+		Select("is_system").
+		Where("id = ?", id).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, echo.NewHTTPError(http.StatusInternalServerError, "Error checking user type")
+	}
+	return row.IsSystem, true, nil
+}
+
 // GetAllWithCount возвращает все типы пользователей с количеством связанных пользователей.
 func (s *userTypeService) GetAllWithCount(ctx context.Context, typeID int) ([]UserTypeWithCount, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
@@ -78,9 +99,9 @@ func (s *userTypeService) GetAllWithCount(ctx context.Context, typeID int) ([]Us
 	result := make([]UserTypeWithCount, 0)
 	err := s.db.WithContext(ctx).
 		Table("user_types ut").
-		Select("ut.id, ut.name, ut.code, COUNT(u.username) as users_count").
+		Select("ut.id, ut.name, ut.code, ut.is_system, COUNT(u.username) as users_count").
 		Joins("LEFT JOIN users u ON ut.id = u.type_id").
-		Group("ut.id, ut.name, ut.code").
+		Group("ut.id, ut.name, ut.code, ut.is_system").
 		Order("ut.name").
 		Scan(&result).Error
 	if err != nil {
@@ -127,13 +148,16 @@ func (s *userTypeService) Update(ctx context.Context, typeID int, id int, req Up
 		return err
 	}
 
-	// Проверяем существование типа
-	var count int64
-	if err := s.db.WithContext(ctx).Table("user_types").Where("id = ?", id).Count(&count).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking user type existence")
+	// Проверяем существование типа и его системность одним запросом
+	isSystem, found, err := s.typeFlags(ctx, id)
+	if err != nil {
+		return err
 	}
-	if count == 0 {
+	if !found {
 		return echo.NewHTTPError(http.StatusNotFound, "User type not found")
+	}
+	if isSystem {
+		return echo.NewHTTPError(http.StatusBadRequest, "Системный тип пользователя нельзя переименовать")
 	}
 
 	if err := s.db.WithContext(ctx).Table("user_types").Where("id = ?", id).Update("name", req.Name).Error; err != nil {
@@ -149,6 +173,18 @@ func (s *userTypeService) Update(ctx context.Context, typeID int, id int, req Up
 func (s *userTypeService) Delete(ctx context.Context, typeID int, id int) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
+	}
+
+	// Системные типы (их code используется в авторизации) удалять запрещено.
+	isSystem, found, err := s.typeFlags(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return echo.NewHTTPError(http.StatusNotFound, "User type not found")
+	}
+	if isSystem {
+		return echo.NewHTTPError(http.StatusBadRequest, "Системный тип пользователя нельзя удалить")
 	}
 
 	// Проверяем, есть ли пользователи с этим типом

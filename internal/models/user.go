@@ -3,31 +3,31 @@ package models
 import "time"
 
 type User struct {
-	ID                int          `json:"id"`
-	Username          string       `gorm:"uniqueIndex;size:100" json:"username"`
-	Password          string       `gorm:"size:255" json:"-"`
-	OrganizationID    *int         `json:"organization_id"`
-	Organization      Organization `json:"organization,omitempty"`
-	CompanyID         *int         `json:"company_id"`
-	Company           Company      `json:"company,omitempty"`
-	TypeID            int          `gorm:"default:1" json:"type_id"`
-	UserType          UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
-	RoleID            *int         `json:"role_id"`
-	Role              *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
-	IsSuperAdmin      bool         `gorm:"default:false;index" json:"is_super_admin"`
-	IsActive          bool         `gorm:"default:true;index" json:"is_active"`
-	IsBanned          bool         `gorm:"default:false;index" json:"is_banned"`
-	BannedAt          *time.Time   `json:"banned_at,omitempty"`
-	BannedBy          *int         `json:"banned_by,omitempty"`
-	LastName          *string      `gorm:"size:100" json:"last_name"`
-	FirstName         *string      `gorm:"size:100" json:"first_name"`
-	MiddleName        *string      `gorm:"size:100" json:"middle_name"`
-	Position          *string      `gorm:"size:100;column:position" json:"position"`
-	Email             *string      `gorm:"size:100" json:"email"`
-	Phone             *string      `gorm:"size:20" json:"phone"`
-	LastLoginAt       *time.Time   `json:"last_login_at,omitempty"`
-	FailedLoginCount  int          `gorm:"default:0" json:"-"`
-	LockedUntil       *time.Time   `json:"-"`
+	ID               int          `json:"id"`
+	Username         string       `gorm:"uniqueIndex;size:100" json:"username"`
+	Password         string       `gorm:"size:255" json:"-"`
+	OrganizationID   *int         `json:"organization_id"`
+	Organization     Organization `json:"organization,omitempty"`
+	CompanyID        *int         `json:"company_id"`
+	Company          Company      `json:"company,omitempty"`
+	TypeID           int          `gorm:"default:1" json:"type_id"`
+	UserType         UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
+	RoleID           *int         `json:"role_id"`
+	Role             *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	IsSuperAdmin     bool         `gorm:"default:false;index" json:"is_super_admin"`
+	IsActive         bool         `gorm:"default:true;index" json:"is_active"`
+	IsBanned         bool         `gorm:"default:false;index" json:"is_banned"`
+	BannedAt         *time.Time   `json:"banned_at,omitempty"`
+	BannedBy         *int         `json:"banned_by,omitempty"`
+	LastName         *string      `gorm:"size:100" json:"last_name"`
+	FirstName        *string      `gorm:"size:100" json:"first_name"`
+	MiddleName       *string      `gorm:"size:100" json:"middle_name"`
+	Position         *string      `gorm:"size:100;column:position" json:"position"`
+	Email            *string      `gorm:"size:100" json:"email"`
+	Phone            *string      `gorm:"size:20" json:"phone"`
+	LastLoginAt      *time.Time   `json:"last_login_at,omitempty"`
+	FailedLoginCount int          `gorm:"default:0" json:"-"`
+	LockedUntil      *time.Time   `json:"-"`
 }
 
 type Organization struct {
@@ -44,6 +44,9 @@ type UserType struct {
 	ID   int    `json:"id"`
 	Name string `gorm:"size:50" json:"name"`
 	Code string `gorm:"uniqueIndex;size:20" json:"code"`
+	// IsSystem помечает встроенные типы, чьи code используются в авторизации
+	// (internal/auth/permissions.go). Такие типы нельзя переименовать или удалить.
+	IsSystem bool `gorm:"default:false" json:"is_system"`
 }
 
 // --- Users management DTOs ---
