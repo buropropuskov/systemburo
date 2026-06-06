@@ -147,10 +147,17 @@
                 </span>
               </div>
               <div class="user-col type-col">
-                {{ user.user_type || '-' }}
+                <span
+                  v-if="user.user_type"
+                  class="type-badge"
+                >{{ user.user_type }}</span>
+                <span v-else>-</span>
               </div>
             </div>
           </div>
+        </div>
+        <div class="users-footer">
+          <span class="items-count">Всего пользователей: {{ sortedUsers.length }}</span>
         </div>
       </div>
       
@@ -1313,6 +1320,30 @@ export default {
   width: 70%;
 }
 
+.users-footer {
+  padding: 6px 16px;
+  border-top: 1px solid #e6e6e6;
+  text-align: right;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+
+.users-footer .items-count {
+  font-size: 12px;
+  color: #a2a2a2;
+  font-weight: 500;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #e8eafe;
+  color: #4F5BDF;
+}
+
 /* Заголовок таблицы */
 .users-header {
   border-bottom: 1px solid #e6e6e6;
@@ -1567,7 +1598,7 @@ export default {
 .form-input-sm {
   padding: 6px 10px;
   border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 14px;
   width: 100%;
   height: 32px;
@@ -1596,7 +1627,7 @@ export default {
 .password-input-sm {
   padding: 6px 10px;
   border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 14px;
   height: 32px;
   width: 150px;
@@ -1828,7 +1859,7 @@ export default {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 12px;
+  border-radius: 15px;
   font-size: 14px;
   transition: border-color 0.2s ease;
   background: #fff;
