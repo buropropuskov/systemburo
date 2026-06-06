@@ -36,9 +36,11 @@ func main() {
 		log.Fatalf("DB connection failed: %v", err)
 	}
 
-	// Убедимся что организация и компания существуют
+	// Убедимся что организация и компания существуют.
+	// У organizations теперь partial unique по name (WHERE is_active=true) - в
+	// ON CONFLICT нужно указать тот же предикат, иначе арбитр-индекс не найдётся.
 	var orgID, compID int
-	db.Raw("INSERT INTO organizations (name) VALUES ('Бюро пропусков') ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id").Scan(&orgID)
+	db.Raw("INSERT INTO organizations (name) VALUES ('Бюро пропусков') ON CONFLICT (name) WHERE is_active = true DO UPDATE SET name = EXCLUDED.name RETURNING id").Scan(&orgID)
 	db.Raw("INSERT INTO companies (name) VALUES ('Бюро пропусков') ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id").Scan(&compID)
 
 	// type_id=6 = buropropuskov
