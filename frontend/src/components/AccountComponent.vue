@@ -223,7 +223,8 @@ export default {
     },
     async fetchAllUsers() {
       try {
-        const response = await apiRequest("/users/all", {
+        // include_archived=true: UserControl фильтрует активных/архивных клиентски (переключатель).
+        const response = await apiRequest("/users/all?include_archived=true", {
           method: "GET",
         });
 
