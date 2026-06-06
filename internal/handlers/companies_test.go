@@ -112,7 +112,87 @@ func TestCompanies_Delete(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	msg := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "Company deleted", msg)
+	assert.Equal(t, "Company archived", msg)
+
+	// Архивная компания скрыта из списка по умолчанию, видна с include_archived.
+	def := testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users", testutil.AuthHeader(token)))
+	for _, c := range def {
+		assert.NotEqual(t, float64(compID), c["id"], "архивная компания не должна быть в списке по умолчанию")
+	}
+	arch := testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users?include_archived=true", testutil.AuthHeader(token)))
+	var found bool
+	for _, c := range arch {
+		if int(c["id"].(float64)) == compID {
+			found = true
+			assert.Equal(t, false, c["is_active"])
+		}
+	}
+	assert.True(t, found, "архивная компания должна быть видна с include_archived")
+}
+
+func TestCompanies_Restore(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"To Restore"}`, testutil.AuthHeader(token)))
+	compID := int(created["id"].(float64))
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", compID), testutil.AuthHeader(token)).Code)
+
+	rec := testutil.POST(t, e, fmt.Sprintf("/companies/%d/restore", compID), "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "Company restored", testutil.ParseMessage(t, rec))
+
+	def := testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users", testutil.AuthHeader(token)))
+	var found bool
+	for _, c := range def {
+		if int(c["id"].(float64)) == compID {
+			found = true
+			assert.Equal(t, true, c["is_active"])
+		}
+	}
+	assert.True(t, found, "восстановленная компания должна быть в списке по умолчанию")
+}
+
+func TestCompanies_Restore_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "regularuser", "pass123", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, fmt.Sprintf("/companies/%d/restore", td.CompanyID), "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestCompanies_Restore_NameConflict_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	first := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Конфликт Ко"}`, testutil.AuthHeader(token)))
+	firstID := int(first["id"].(float64))
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", firstID), testutil.AuthHeader(token)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies", `{"name":"Конфликт Ко"}`, testutil.AuthHeader(token)).Code)
+
+	rec := testutil.POST(t, e, fmt.Sprintf("/companies/%d/restore", firstID), "", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCompanies_Create_DuplicateActiveName_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies", `{"name":"Dup Co"}`, testutil.AuthHeader(token)).Code)
+	rec := testutil.POST(t, e, "/companies", `{"name":"Dup Co"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestCompanies_Delete_WithUsers_Fails(t *testing.T) {

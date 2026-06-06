@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -16,11 +17,11 @@ type CompanyService interface {
 	// GetAll возвращает список всех компаний, отсортированных по имени.
 	GetAll(ctx context.Context) ([]models.Company, error)
 
-	// GetWithUsers возвращает компании с количеством привязанных пользователей.
-	GetWithUsers(ctx context.Context) ([]CompanyWithUsersResponse, error)
+	// GetWithUsers возвращает компании с количеством пользователей. includeArchived добавляет архивные.
+	GetWithUsers(ctx context.Context, includeArchived bool) ([]CompanyWithUsersResponse, error)
 
 	// GetWithUsersExtended возвращает компании с количеством пользователей и местами разгрузки.
-	GetWithUsersExtended(ctx context.Context) ([]CompanyWithUsersExtendedResponse, error)
+	GetWithUsersExtended(ctx context.Context, includeArchived bool) ([]CompanyWithUsersExtendedResponse, error)
 
 	// Create создаёт новую компанию. Требуются права buropropuskov.
 	Create(ctx context.Context, username string, req CreateCompanyRequest) (*models.Company, error)
@@ -28,8 +29,11 @@ type CompanyService interface {
 	// Update обновляет название компании. Требуются права buropropuskov.
 	Update(ctx context.Context, username string, companyID int, req CreateCompanyRequest) (*models.Company, error)
 
-	// Delete удаляет компанию. Нельзя удалить если есть пользователи. Требуются права buropropuskov.
+	// Delete архивирует компанию (soft-delete). Нельзя при активных пользователях. Требуются права buropropuskov.
 	Delete(ctx context.Context, username string, companyID int) error
+
+	// Restore восстанавливает компанию из архива. Требуются права buropropuskov.
+	Restore(ctx context.Context, username string, companyID int) error
 
 	// GetUsers возвращает ответственных пользователей компании.
 	GetUsers(ctx context.Context, companyID int) ([]CompanyUserResponse, error)
@@ -85,6 +89,7 @@ type UpdateCompanyTablesRequest struct {
 type CompanyWithUsersResponse struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`
+	IsActive  bool   `json:"is_active"`
 	UserCount int64  `json:"user_count"`
 }
 
@@ -107,6 +112,7 @@ type CompanyTableResponse struct {
 type CompanyWithUsersExtendedResponse struct {
 	ID           int                          `json:"id"`
 	Name         string                       `json:"name"`
+	IsActive     bool                         `json:"is_active"`
 	UserCount    *int64                       `json:"user_count"`
 	UnloadPlaces []CompanyUnloadPlaceResponse `json:"unload_places"`
 }
@@ -137,7 +143,7 @@ func NewCompanyService(db *gorm.DB) CompanyService {
 // GetAll возвращает список всех компаний.
 func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 	companies := make([]models.Company, 0)
-	if err := s.db.WithContext(ctx).Order("name").Find(&companies).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("name").Find(&companies).Error; err != nil {
 		slog.Error("не удалось получить компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching companies")
 	}
@@ -145,16 +151,18 @@ func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 }
 
 // GetWithUsers возвращает компании с количеством привязанных пользователей.
-func (s *companyService) GetWithUsers(ctx context.Context) ([]CompanyWithUsersResponse, error) {
+func (s *companyService) GetWithUsers(ctx context.Context, includeArchived bool) ([]CompanyWithUsersResponse, error) {
 	result := make([]CompanyWithUsersResponse, 0)
-	err := s.db.WithContext(ctx).
+	q := s.db.WithContext(ctx).
 		Table("companies c").
-		Select("c.id, c.name, COUNT(u.id) as user_count").
+		Select("c.id, c.name, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.company_id = c.id").
-		Group("c.id").
-		Order("c.name").
-		Scan(&result).Error
-	if err != nil {
+		Group("c.id, c.name, c.is_active").
+		Order("c.name")
+	if !includeArchived {
+		q = q.Where("c.is_active = ?", true)
+	}
+	if err := q.Scan(&result).Error; err != nil {
 		slog.Error("не удалось получить компании с пользователями", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching companies")
 	}
@@ -162,22 +170,25 @@ func (s *companyService) GetWithUsers(ctx context.Context) ([]CompanyWithUsersRe
 }
 
 // GetWithUsersExtended возвращает компании с пользователями и местами разгрузки.
-func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWithUsersExtendedResponse, error) {
+func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchived bool) ([]CompanyWithUsersExtendedResponse, error) {
 	// Получаем базовые данные компаний с количеством пользователей
 	type companyRow struct {
 		ID        int
 		Name      string
+		IsActive  bool
 		UserCount *int64
 	}
 	companies := make([]companyRow, 0)
-	err := s.db.WithContext(ctx).
+	q := s.db.WithContext(ctx).
 		Table("companies c").
-		Select("c.id, c.name, COUNT(u.id) as user_count").
+		Select("c.id, c.name, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.company_id = c.id").
-		Group("c.id, c.name").
-		Order("c.name").
-		Scan(&companies).Error
-	if err != nil {
+		Group("c.id, c.name, c.is_active").
+		Order("c.name")
+	if !includeArchived {
+		q = q.Where("c.is_active = ?", true)
+	}
+	if err := q.Scan(&companies).Error; err != nil {
 		slog.Error("не удалось получить расширенную информацию о компаниях", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching companies")
 	}
@@ -201,6 +212,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context) ([]CompanyWit
 		result = append(result, CompanyWithUsersExtendedResponse{
 			ID:           c.ID,
 			Name:         c.Name,
+			IsActive:     c.IsActive,
 			UserCount:    c.UserCount,
 			UnloadPlaces: places,
 		})
@@ -215,7 +227,16 @@ func (s *companyService) Create(ctx context.Context, username string, req Create
 		return nil, err
 	}
 
-	company := models.Company{Name: req.Name}
+	var active int64
+	if err := s.db.WithContext(ctx).Model(&models.Company{}).
+		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
+	}
+	if active > 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Компания с таким названием уже существует")
+	}
+
+	company := models.Company{Name: req.Name, IsActive: true}
 	if err := s.db.WithContext(ctx).Create(&company).Error; err != nil {
 		slog.Error("не удалось создать компанию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")
@@ -232,7 +253,22 @@ func (s *companyService) Update(ctx context.Context, username string, companyID 
 
 	var company models.Company
 	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
-		return nil, echo.NewHTTPError(http.StatusNotFound, "Company not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Company not found")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company")
+	}
+	if !company.IsActive {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя переименовать архивную компанию")
+	}
+
+	var dup int64
+	if err := s.db.WithContext(ctx).Model(&models.Company{}).
+		Where("name = ? AND is_active = ? AND id <> ?", req.Name, true, companyID).Count(&dup).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
+	}
+	if dup > 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Компания с таким названием уже существует")
 	}
 
 	company.Name = req.Name
@@ -244,26 +280,76 @@ func (s *companyService) Update(ctx context.Context, username string, companyID 
 	return &company, nil
 }
 
-// Delete удаляет компанию с проверкой отсутствия привязанных пользователей.
+// Delete архивирует компанию (soft-delete: is_active=false). Строка остаётся,
+// FK заявок/сотрудников/машин не осиротевают. Блокируется при активных
+// пользователях компании (как у организаций, #412).
 func (s *companyService) Delete(ctx context.Context, username string, companyID int) error {
 	if err := s.checkAdmin(ctx, username); err != nil {
 		return err
 	}
 
-	// Проверяем наличие пользователей у компании
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("company_id = ?", companyID).Count(&count).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking users")
+	var company models.Company
+	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Company not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company")
 	}
-	if count > 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Cannot delete company with users")
+	if !company.IsActive {
+		return nil // уже в архиве
 	}
 
-	if err := s.db.WithContext(ctx).Delete(&models.Company{}, companyID).Error; err != nil {
-		slog.Error("не удалось удалить компанию", "id", companyID, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting company")
+	var activeUsers int64
+	if err := s.db.WithContext(ctx).Model(&models.User{}).
+		Where("company_id = ? AND is_active = ?", companyID, true).Count(&activeUsers).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking users")
 	}
-	slog.Info("компания удалена", "id", companyID)
+	if activeUsers > 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Нельзя архивировать компанию с активными пользователями")
+	}
+
+	if err := s.db.WithContext(ctx).Model(&models.Company{}).
+		Where("id = ?", companyID).Update("is_active", false).Error; err != nil {
+		slog.Error("не удалось архивировать компанию", "id", companyID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving company")
+	}
+	slog.Info("компания архивирована", "id", companyID)
+	return nil
+}
+
+// Restore восстанавливает компанию из архива (is_active=true). Конфликт активного
+// имени -> 400.
+func (s *companyService) Restore(ctx context.Context, username string, companyID int) error {
+	if err := s.checkAdmin(ctx, username); err != nil {
+		return err
+	}
+
+	var company models.Company
+	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Company not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company")
+	}
+	if company.IsActive {
+		return nil // уже активна
+	}
+
+	var active int64
+	if err := s.db.WithContext(ctx).Model(&models.Company{}).
+		Where("name = ? AND is_active = ? AND id <> ?", company.Name, true, companyID).Count(&active).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
+	}
+	if active > 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Активная компания с таким названием уже существует - переименуйте перед восстановлением")
+	}
+
+	if err := s.db.WithContext(ctx).Model(&models.Company{}).
+		Where("id = ?", companyID).Update("is_active", true).Error; err != nil {
+		slog.Error("не удалось восстановить компанию", "id", companyID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring company")
+	}
+	slog.Info("компания восстановлена", "id", companyID)
 	return nil
 }
 

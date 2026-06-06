@@ -50,7 +50,8 @@ func (h *CompanyHandler) GetAll(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /companies/with-users [get]
 func (h *CompanyHandler) GetWithUsers(c echo.Context) error {
-	companies, err := h.service.GetWithUsers(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	companies, err := h.service.GetWithUsers(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -69,7 +70,8 @@ func (h *CompanyHandler) GetWithUsers(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /companies/with-users-extended [get]
 func (h *CompanyHandler) GetWithUsersExtended(c echo.Context) error {
-	companies, err := h.service.GetWithUsersExtended(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	companies, err := h.service.GetWithUsersExtended(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -163,7 +165,30 @@ func (h *CompanyHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
 		return err
 	}
-	return RespondMessage(c, "Company deleted")
+	return RespondMessage(c, "Company archived")
+}
+
+// Restore godoc
+// @Summary      Восстановить компанию из архива
+// @Tags         companies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {string} string "Company restored"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/{id}/restore [post]
+func (h *CompanyHandler) Restore(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	if err := h.service.Restore(c.Request().Context(), username, id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Company restored")
 }
 
 // GetUsers godoc
