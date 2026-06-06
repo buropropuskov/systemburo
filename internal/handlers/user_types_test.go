@@ -322,6 +322,58 @@ func TestUserTypes_GetAll_IncludesIsSystem(t *testing.T) {
 	assert.True(t, checkedCustom, "custom_type не найден")
 }
 
+func TestUserTypes_History(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// create -> renamed -> deleted, каждое действие пишется в историю.
+	rec := testutil.POST(t, e, "/user-types-management", `{"name":"Ист тип","code":"hist_type"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	id := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/user-types-management/%d", id),
+		`{"name":"Ист тип 2","code":"hist_type"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// История после create+rename: 2 записи, новые сверху.
+	rec = testutil.GET(t, e, fmt.Sprintf("/user-types-management/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	hist := testutil.ParseSlice(t, rec)
+	require.Len(t, hist, 2)
+	assert.Equal(t, "renamed", hist[0]["action_type"])
+	assert.Equal(t, "created", hist[1]["action_type"])
+	// actor проставлен (имя или username админа, не пусто).
+	assert.NotEmpty(t, hist[0]["actor_name"])
+
+	// Удаление логируется; история переживает удаление типа.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/user-types-management/%d", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/user-types-management/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	hist = testutil.ParseSlice(t, rec)
+	require.Len(t, hist, 3)
+	assert.Equal(t, "deleted", hist[0]["action_type"])
+}
+
+func TestUserTypes_History_Forbidden_NonAdmin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "regularuser", "password123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.GET(t, e, "/user-types-management/1/history", h)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
 func TestUserTypes_GetAll_IncludesUsersCount(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

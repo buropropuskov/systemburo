@@ -16,6 +16,7 @@ func AllModels() []interface{} {
 		// Core (no FK dependencies)
 		&models.SystemSetting{},
 		&models.UserType{},
+		&models.UserTypeHistory{},
 		&models.Organization{},
 		&models.Company{},
 		&models.Citizenship{},

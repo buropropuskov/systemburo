@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -35,21 +37,24 @@ type UpdateUserTypeRequest struct {
 type UserTypeService interface {
 	// GetAllWithCount возвращает все типы пользователей с количеством пользователей каждого типа.
 	GetAllWithCount(ctx context.Context, typeID int) ([]UserTypeWithCount, error)
-	// Create создаёт новый тип пользователя и возвращает его ID.
-	Create(ctx context.Context, typeID int, req CreateUserTypeRequest) (int, error)
-	// Update обновляет имя типа пользователя по ID.
-	Update(ctx context.Context, typeID int, id int, req UpdateUserTypeRequest) error
-	// Delete удаляет тип пользователя по ID, если с ним не связаны пользователи.
-	Delete(ctx context.Context, typeID int, id int) error
+	// Create создаёт новый тип пользователя и возвращает его ID. callerUserID - актор для аудита.
+	Create(ctx context.Context, typeID, callerUserID int, req CreateUserTypeRequest) (int, error)
+	// Update обновляет имя типа пользователя по ID. callerUserID - актор для аудита.
+	Update(ctx context.Context, typeID, callerUserID, id int, req UpdateUserTypeRequest) error
+	// Delete удаляет тип пользователя по ID, если с ним не связаны пользователи. callerUserID - актор для аудита.
+	Delete(ctx context.Context, typeID, callerUserID, id int) error
+	// GetHistory возвращает историю изменений типа пользователя.
+	GetHistory(ctx context.Context, typeID, id int) ([]models.UserTypeHistoryItem, error)
 }
 
 type userTypeService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	history UserTypeHistoryService
 }
 
 // NewUserTypeService создаёт новый экземпляр сервиса управления типами пользователей.
 func NewUserTypeService(db *gorm.DB) UserTypeService {
-	return &userTypeService{db: db}
+	return &userTypeService{db: db, history: NewUserTypeHistoryService(db)}
 }
 
 // checkAdmin проверяет, что пользователь с данным type_id является администратором
@@ -112,7 +117,7 @@ func (s *userTypeService) GetAllWithCount(ctx context.Context, typeID int) ([]Us
 }
 
 // Create создаёт новый тип пользователя. Возвращает ошибку, если тип с таким кодом уже существует.
-func (s *userTypeService) Create(ctx context.Context, typeID int, req CreateUserTypeRequest) (int, error) {
+func (s *userTypeService) Create(ctx context.Context, typeID, callerUserID int, req CreateUserTypeRequest) (int, error) {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return 0, err
 	}
@@ -139,11 +144,15 @@ func (s *userTypeService) Create(ctx context.Context, typeID int, req CreateUser
 	}
 
 	slog.Info("тип пользователя создан", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.UserTypeActionCreated, map[string]any{
+		"name": req.Name,
+		"code": req.Code,
+	})
 	return id, nil
 }
 
 // Update обновляет имя типа пользователя. Возвращает ошибку, если тип не найден.
-func (s *userTypeService) Update(ctx context.Context, typeID int, id int, req UpdateUserTypeRequest) error {
+func (s *userTypeService) Update(ctx context.Context, typeID, callerUserID, id int, req UpdateUserTypeRequest) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
 	}
@@ -166,24 +175,36 @@ func (s *userTypeService) Update(ctx context.Context, typeID int, id int, req Up
 	}
 
 	slog.Info("тип пользователя обновлён", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.UserTypeActionRenamed, map[string]any{"name": req.Name})
 	return nil
 }
 
 // Delete удаляет тип пользователя. Возвращает ошибку, если с типом связаны пользователи.
-func (s *userTypeService) Delete(ctx context.Context, typeID int, id int) error {
+func (s *userTypeService) Delete(ctx context.Context, typeID, callerUserID, id int) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
 	}
 
-	// Системные типы (их code используется в авторизации) удалять запрещено.
-	isSystem, found, err := s.typeFlags(ctx, id)
-	if err != nil {
-		return err
+	// Снимок name/code до удаления - для деталей аудита (после удаления строки нет).
+	var snapshot struct {
+		Name     string
+		Code     string
+		IsSystem bool
 	}
-	if !found {
+	err := s.db.WithContext(ctx).
+		Table("user_types").
+		Select("name, code, is_system").
+		Where("id = ?", id).
+		Take(&snapshot).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return echo.NewHTTPError(http.StatusNotFound, "User type not found")
 	}
-	if isSystem {
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking user type")
+	}
+
+	// Системные типы (их code используется в авторизации) удалять запрещено.
+	if snapshot.IsSystem {
 		return echo.NewHTTPError(http.StatusBadRequest, "Системный тип пользователя нельзя удалить")
 	}
 
@@ -202,5 +223,17 @@ func (s *userTypeService) Delete(ctx context.Context, typeID int, id int) error 
 	}
 
 	slog.Info("тип пользователя удалён", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.UserTypeActionDeleted, map[string]any{
+		"name": snapshot.Name,
+		"code": snapshot.Code,
+	})
 	return nil
+}
+
+// GetHistory возвращает историю изменений типа пользователя (admin-only).
+func (s *userTypeService) GetHistory(ctx context.Context, typeID, id int) ([]models.UserTypeHistoryItem, error) {
+	if err := s.checkAdmin(ctx, typeID); err != nil {
+		return nil, err
+	}
+	return s.history.GetHistory(ctx, id)
 }
