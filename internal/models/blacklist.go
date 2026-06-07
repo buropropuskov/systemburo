@@ -56,11 +56,12 @@ type CreateVehicleBlacklistRequest struct {
 }
 
 // VehicleBlacklistHistoryItem - элемент истории для API (с именем пользователя).
+// Details игнорируется swag-ом (json.RawMessage он не резолвит) - как в SystemTableHistoryItem.
 type VehicleBlacklistHistoryItem struct {
 	ID         int             `json:"id"`
 	EntityID   int             `json:"entity_id"`
 	ActionType string          `json:"action_type"`
-	Details    json.RawMessage `json:"details,omitempty"`
+	Details    json.RawMessage `json:"details,omitempty" swaggerignore:"true"`
 	UserID     *int            `json:"user_id,omitempty"`
 	UserName   string          `json:"user_name"`
 	CreatedAt  time.Time       `json:"created_at"`
