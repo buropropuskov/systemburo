@@ -304,6 +304,15 @@ func Seed(db *gorm.DB) error {
 		return fmt.Errorf("failed to create partial unique index on companies.name: %w", err)
 	}
 
+	// Marks: тот же баг, что и #412 - глобальный uniqueIndex по name не давал
+	// пересоздать активную марку при наличии архивной с тем же именем (#FF-marks).
+	if err := db.Exec("DROP INDEX IF EXISTS idx_marks_name").Error; err != nil {
+		return fmt.Errorf("failed to drop idx_marks_name: %w", err)
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_marks_name_active ON marks (name) WHERE is_active = true").Error; err != nil {
+		return fmt.Errorf("failed to create partial unique index on marks.name: %w", err)
+	}
+
 	// Чёрный список машин: уникальность (car_number, mark_id) только среди активных
 	// записей (#443), чтобы снятая запись не мешала повторно добавить ту же машину.
 	// Индекс по LOWER(TRIM(car_number)) - чтобы инвариант совпадал с регистронезависимым

@@ -5,12 +5,15 @@ package handlers_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
+
+	"github.com/labstack/echo/v4"
 )
 
 func uniqMarkName(prefix string) string {
@@ -94,6 +97,43 @@ func TestMarkService_CRUD(t *testing.T) {
 
 	db.Where("mark_id = ?", mark.ID).Delete(&models.MarkHistory{})
 	db.Delete(&models.Mark{}, mark.ID)
+}
+
+func TestMarkService_PartialUnique_ArchivedNameReusable(t *testing.T) {
+	// #FF-marks: partial-unique только среди активных - архивную марку можно
+	// пересоздать активной с тем же именем; восстановление при конфликте даёт 409.
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewMarkService(db)
+	userID, _, cleanup := setupMWUser(t, db, true, false)
+	defer cleanup()
+	ctx := context.Background()
+
+	name := uniqMarkName("partial")
+	first, err := svc.Create(ctx, models.CreateMarkRequest{Name: name}, userID)
+	if err != nil {
+		t.Fatalf("create first: %v", err)
+	}
+	if err := svc.Archive(ctx, first.ID, userID); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	// Создание активной с тем же именем при архивной - должно пройти (был баг 409).
+	second, err := svc.Create(ctx, models.CreateMarkRequest{Name: name}, userID)
+	if err != nil {
+		t.Fatalf("expected reuse of archived name to succeed, got: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Error("expected a new mark, got same id")
+	}
+
+	// Восстановление архивной при существующей активной - 409, а не 500.
+	err = svc.Restore(ctx, first.ID, userID)
+	if he, ok := err.(*echo.HTTPError); !ok || he.Code != http.StatusConflict {
+		t.Errorf("expected 409 conflict on restore with active duplicate, got %v", err)
+	}
+
+	db.Where("mark_id IN (?, ?)", first.ID, second.ID).Delete(&models.MarkHistory{})
+	db.Delete(&models.Mark{}, []int{first.ID, second.ID})
 }
 
 func TestMarkService_UpdateSameNameIsNoop(t *testing.T) {
