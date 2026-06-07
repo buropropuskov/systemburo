@@ -28,6 +28,9 @@ export const useCompaniesStore = defineStore('companies', {
   },
 
   actions: {
+    /**
+     * Загружает базовый список { id, name } (используется UserControl/dropdown).
+     */
     async fetchCompanies() {
       try {
         const response = await apiRequest('/companies')
@@ -78,6 +81,7 @@ export const useCompaniesStore = defineStore('companies', {
     /**
      * @param {{ name: string }} payload
      * @param {{ includeArchived?: boolean }} [opts]
+     * @returns {Promise<{ ok: boolean, data?: object, message?: string }>}
      */
     async createCompany(payload, { includeArchived = false } = {}) {
       try {

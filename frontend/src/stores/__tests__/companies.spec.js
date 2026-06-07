@@ -76,6 +76,17 @@ describe('companies store', () => {
       expect(store.itemsWithUsers).toHaveLength(1)
       expect(store.isLoading).toBe(false)
     })
+
+    it('пробрасывает include_archived в расширенный список при refresh(true)', async () => {
+      apiRequest
+        .mockResolvedValueOnce(okJson([{ id: 1, name: 'A' }]))
+        .mockResolvedValueOnce(okJson([{ id: 1, name: 'A', user_count: 0, is_active: false }]))
+      const store = useCompaniesStore()
+
+      await store.refresh(true)
+
+      expect(apiRequest).toHaveBeenCalledWith('/companies/with-users-extended?include_archived=true')
+    })
   })
 
   describe('createCompany', () => {
