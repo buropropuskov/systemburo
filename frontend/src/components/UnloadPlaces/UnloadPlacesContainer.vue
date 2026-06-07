@@ -172,6 +172,12 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                class="action-btn history-btn"
+                @click="openHistory(selectedPlace)"
+              >
+                История
+              </button>
+              <button
                 v-if="selectedPlace.is_active"
                 class="action-btn archive-action-btn"
                 @click="confirmDeletePlace(selectedPlace)"
@@ -586,6 +592,13 @@
       @confirm="performDeletePhoto"
       @cancel="deleteConfirmPhoto = null"
     />
+
+    <UnloadPlaceHistoryModal
+      v-if="historyPlace"
+      :unload-place="historyPlace"
+      :current-user-name="currentUserName"
+      @close="historyPlace = null"
+    />
   </div>
 </template>
 
@@ -598,6 +611,7 @@ import SearchComponent from '../SearchComponent.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
 import ScheduleTab from './ScheduleTab.vue';
+import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 
 export default {
   components: {
@@ -605,7 +619,8 @@ export default {
     RefreshButton,
     ConfirmationModal,
     BaseDropdown,
-    ScheduleTab
+    ScheduleTab,
+    UnloadPlaceHistoryModal
   },
   setup() {
     // Колбэк закрытия присваивается в created (нужен доступ к this).
@@ -643,7 +658,9 @@ export default {
       isDraggingPhoto: false,
       refreshing: false,
       deleteConfirmPlace: null,
-      deleteConfirmPhoto: null
+      deleteConfirmPhoto: null,
+      historyPlace: null,
+      currentUserName: ''
     };
   },
   computed: {
@@ -718,6 +735,7 @@ export default {
   },
   mounted() {
     this.refreshData();
+    this.fetchCurrentUser();
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
@@ -970,6 +988,23 @@ export default {
       } catch (error) {
         console.error("Error restoring unload place:", error);
         useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: 'ошибка сети', type: 'error' });
+      }
+    },
+
+    openHistory(place) {
+      this.historyPlace = place;
+    },
+
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
 
@@ -1513,6 +1548,16 @@ async uploadPhotoFiles(files) {
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+}
+
+.history-btn {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.history-btn:hover {
+  background: #eef0ff;
 }
 
 .archive-action-btn {
