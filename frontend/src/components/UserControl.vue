@@ -201,19 +201,13 @@
               <template v-if="selectedUser.is_active !== false">
                 <button
                   class="lk-button lk-button--secondary"
-                  @click="openPermissions(selectedUser)"
+                  @click="openAccess(selectedUser)"
                 >
                   <img
                     src="@/assets/icons/access.png"
                     class="access-icon"
                   >
                   Права доступа
-                </button>
-                <button
-                  class="lk-button lk-button--secondary"
-                  @click="openRolesGroups"
-                >
-                  Роль и группы
                 </button>
                 <button
                   class="delete-icon-btn"
@@ -612,68 +606,6 @@
       </transition>
     </Teleport>
 
-    <!-- Модальное окно прав доступа -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showPermissionsModal"
-          class="modal-overlay"
-          @click.self="showPermissionsModal = false"
-        >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                Права: {{ selectedUserForPermissions ? selectedUserForPermissions.username : '' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="showPermissionsModal = false"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                >
-                  <path
-                    d="M13 1L1 13M1 1L13 13"
-                    stroke="#666"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <PermissionTree
-                :tree="permissionTree"
-                :selected="userPermissions"
-                @change="onPermissionChange"
-              />
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="modal-btn modal-btn--cancel"
-                @click="showPermissionsModal = false"
-              >
-                Отмена
-              </button>
-              <button
-                :disabled="savingPermissions"
-                class="modal-btn modal-btn--confirm"
-                :class="{'modal-btn--disabled': savingPermissions}"
-                @click="savePermissions"
-              >
-                {{ savingPermissions ? 'Сохранение...' : 'Сохранить' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
-
     <ConfirmationModal
       :show="!!deleteConfirmUser"
       title="Удаление пользователя"
@@ -695,11 +627,11 @@
       @close="historyForUser = null"
     />
 
-    <UserPermissionsModal
-      :show="showRolesGroupsModal"
-      :user="selectedUser"
-      @close="showRolesGroupsModal = false"
-      @updated="onRolesGroupsUpdated"
+    <UserAccessModal
+      v-if="accessUser"
+      :user="accessUser"
+      @close="accessUser = null"
+      @updated="onAccessUpdated"
     />
   </div>
 </template>
@@ -714,25 +646,22 @@ import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 import { formatShortName } from '@/utils/formatName'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
-import PermissionTree from './PermissionTree.vue';
 import PasswordInput from './ui/PasswordInput.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
-import UserPermissionsModal from './admin/UserPermissionsModal.vue';
+import UserAccessModal from './admin/UserAccessModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
-import { getUserPermissions, updateUserPermissions, getPermissionTree } from '@/api/permissions';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
-    PermissionTree,
     PasswordInput,
     ConfirmationModal,
     BaseDropdown,
     UserHistoryModal,
-    UserPermissionsModal
+    UserAccessModal
   },
   props: {
     allUsers: {
@@ -751,7 +680,7 @@ export default {
       refreshing: false,
       selectedUser: null,
       historyForUser: null,
-      showRolesGroupsModal: false,
+      accessUser: null,
       currentUserName: '',
       deleteConfirmUser: null,
       showArchive: false,
@@ -777,12 +706,7 @@ export default {
         type_id: null,
         organization_id: null,
         company_id: null
-      },
-      permissionTree: [],
-      userPermissions: {},
-      showPermissionsModal: false,
-      selectedUserForPermissions: null,
-      savingPermissions: false
+      }
     };
   },
   computed: {
@@ -955,12 +879,12 @@ export default {
       this.historyForUser = user;
     },
 
-    openRolesGroups() {
-      this.showRolesGroupsModal = true;
+    openAccess(user) {
+      this.accessUser = user;
     },
 
-    onRolesGroupsUpdated() {
-      // Роль/группы/блокировка изменились - перечитываем список (модалка сама шлёт close).
+    onAccessUpdated() {
+      // Роль/группы/блокировка/индивидуальные права изменились - перечитываем список.
       this.$emit('fetch-users');
     },
 
@@ -1327,46 +1251,6 @@ export default {
       } else {
         this.sortField = field;
         this.sortDirection = 'desc';
-      }
-    },
-
-    async openPermissions(user) {
-      this.selectedUserForPermissions = user;
-      this.showPermissionsModal = true;
-      try {
-        const [treeData, permsData] = await Promise.all([
-          getPermissionTree(),
-          getUserPermissions(user.id),
-        ]);
-        this.permissionTree = Array.isArray(treeData) ? treeData : [];
-        this.userPermissions = {};
-        if (Array.isArray(permsData)) {
-          permsData.forEach(p => { this.userPermissions[p.key] = p.value; });
-        }
-      } catch (e) {
-        console.error('Ошибка загрузки прав:', e);
-      }
-    },
-
-    onPermissionChange(key, value) {
-      this.userPermissions[key] = value;
-    },
-
-    async savePermissions() {
-      if (!this.selectedUserForPermissions) return;
-      this.savingPermissions = true;
-      const permissions = Object.entries(this.userPermissions).map(([key, value]) => ({ key, value }));
-      try {
-        const result = await updateUserPermissions(this.selectedUserForPermissions.id, { permissions });
-        if (result && result.message) {
-          console.error('Ошибка сохранения прав:', result.message);
-        } else {
-          this.showPermissionsModal = false;
-        }
-      } catch (e) {
-        console.error('Ошибка сохранения прав:', e);
-      } finally {
-        this.savingPermissions = false;
       }
     }
   }
