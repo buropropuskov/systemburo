@@ -265,8 +265,8 @@
           v-if="activeTab === 'schedule'"
           class="tab-content"
         >
-          <ScheduleTab
-            :place-id="selectedPlace.id"
+          <WorkScheduleTab
+            :resource-url="'/unload-places/' + selectedPlace.id"
             :time-slots="selectedPlace.time_slots"
             :readonly="isArchivedView"
             @update="refreshSelectedPlace"
@@ -610,7 +610,7 @@ import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
-import ScheduleTab from './ScheduleTab.vue';
+import WorkScheduleTab from '../WorkScheduleTab.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 
 export default {
@@ -619,7 +619,7 @@ export default {
     RefreshButton,
     ConfirmationModal,
     BaseDropdown,
-    ScheduleTab,
+    WorkScheduleTab,
     UnloadPlaceHistoryModal
   },
   setup() {

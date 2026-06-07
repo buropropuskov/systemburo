@@ -228,15 +228,31 @@
         </div>
       </transition>
     </Teleport>
+
+    <ConfirmationModal
+      :show="!!deleteConfirmSlot"
+      title="Удаление временного окна"
+      message="Удалить это временное окно?"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      @confirm="performDeleteSlot"
+      @cancel="deleteConfirmSlot = null"
+    />
   </div>
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
+import { apiRequest } from '@/api/client';
+import { useDeletionsStore } from '@/stores/deletions';
+import ConfirmationModal from './ConfirmationModal.vue';
+
 export default {
-  name: 'ScheduleTab',
+  name: 'WorkScheduleTab',
+  components: { ConfirmationModal },
   props: {
-    placeId: { type: Number, required: true },
+    // Базовый URL ресурса-владельца окон, например '/system-tables/12' или
+    // '/unload-places/5'. Компонент достраивает '/time-slots[/{id}]'.
+    resourceUrl: { type: String, required: true },
     timeSlots: { type: Array, required: true },
     readonly: { type: Boolean, default: false },
   },
@@ -251,6 +267,7 @@ export default {
       modalCloseTime: '',
       dayDropdownOpen: false,
       timeConflictError: '',
+      deleteConfirmSlot: null,
       fullDayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
     };
   },
@@ -317,8 +334,8 @@ export default {
       return this.timeSlots.filter(
         s => s.day_of_week === day &&
              s.is_active &&
-             !(s.open_time.slice(0,5) === '00:00' && 
-               s.close_time.slice(0,5) === '23:59' && 
+             !(s.open_time.slice(0,5) === '00:00' &&
+               s.close_time.slice(0,5) === '23:59' &&
                !s.is_next_day)
       );
     },
@@ -406,7 +423,7 @@ export default {
           if (existingRoundSlot) {
             // Если окно уже существует, просто активируем его
             await this.updateSlotActivity(existingRoundSlot.id, true);
-            
+
             // Деактивируем все остальные окна для этого дня
             const otherSlots = this.getAllSlotsForDay(day).filter(
               s => s.id !== existingRoundSlot.id
@@ -417,7 +434,7 @@ export default {
           } else {
             // Создаем новое круглосуточное окно
             await this.createSlot(day, '00:00', '23:59', false);
-            
+
             // Деактивируем все существующие окна для этого дня
             const existingSlots = this.getAllSlotsForDay(day);
             for (const slot of existingSlots) {
@@ -439,11 +456,11 @@ export default {
 
           // Активируем все остальные окна для этого дня
           const otherSlots = this.getAllSlotsForDay(day).filter(
-            s => !(s.open_time.slice(0,5) === '00:00' && 
-                   s.close_time.slice(0,5) === '23:59' && 
+            s => !(s.open_time.slice(0,5) === '00:00' &&
+                   s.close_time.slice(0,5) === '23:59' &&
                    !s.is_next_day)
           );
-          
+
           for (const slot of otherSlots) {
             await this.updateSlotActivity(slot.id, true);
           }
@@ -452,14 +469,14 @@ export default {
         this.$emit('update');
       } catch (e) {
         console.error(e);
-        alert('Ошибка при изменении режима');
+        useDeletionsStore().notify({ prefix: 'Не удалось изменить ', bold: 'режим работы', type: 'error' });
       } finally {
         this.isLoading = false;
       }
     },
 
     async updateSlotActivity(slotId, isActive) {
-      const response = await apiRequest(`/unload-places/${this.placeId}/time-slots/${slotId}`,
+      const response = await apiRequest(`${this.resourceUrl}/time-slots/${slotId}`,
         {
           method: 'PUT',
           body: JSON.stringify({ is_active: isActive }),
@@ -523,8 +540,8 @@ export default {
         }
 
         const url = this.editingSlotId
-          ? `/unload-places/${this.placeId}/time-slots/${this.editingSlotId}`
-          : `/unload-places/${this.placeId}/time-slots`;
+          ? `${this.resourceUrl}/time-slots/${this.editingSlotId}`
+          : `${this.resourceUrl}/time-slots`;
 
         const method = this.editingSlotId ? 'PUT' : 'POST';
 
@@ -548,29 +565,35 @@ export default {
         this.$emit('update');
       } catch (e) {
         console.error(e);
-        alert('Ошибка при сохранении: ' + e.message);
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить окно: ', bold: e.message || 'ошибка', type: 'error' });
       } finally {
         this.isLoading = false;
       }
     },
 
-    async deleteSlot(slot) {
-      if (!confirm('Удалить это временное окно?')) return;
-      
+    deleteSlot(slot) {
+      this.deleteConfirmSlot = slot;
+    },
+
+    async performDeleteSlot() {
+      const slot = this.deleteConfirmSlot;
+      this.deleteConfirmSlot = null;
+      if (!slot) return;
+
       this.isLoading = true;
       try {
         await this.deleteTimeSlot(slot.id);
         this.$emit('update');
       } catch (e) {
         console.error(e);
-        alert('Ошибка при удалении');
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: 'временное окно', type: 'error' });
       } finally {
         this.isLoading = false;
       }
     },
 
     async deleteTimeSlot(slotId) {
-      const response = await apiRequest(`/unload-places/${this.placeId}/time-slots/${slotId}`, {
+      const response = await apiRequest(`${this.resourceUrl}/time-slots/${slotId}`, {
         method: 'DELETE',
       });
 
@@ -580,7 +603,7 @@ export default {
     },
 
     async createSlot(day, open, close, isNextDay) {
-      const response = await apiRequest(`/unload-places/${this.placeId}/time-slots`, {
+      const response = await apiRequest(`${this.resourceUrl}/time-slots`, {
         method: 'POST',
         body: JSON.stringify({
           day_of_week: day,
@@ -1097,7 +1120,7 @@ input:checked + .switch-slider:before {
     align-items: flex-start;
     gap: 8px;
   }
-  
+
   .time-fields {
     flex-direction: column;
     gap: 10px;
