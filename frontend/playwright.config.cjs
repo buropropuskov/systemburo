@@ -2,6 +2,9 @@ const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './e2e/tests',
+  // Прогрев холодного vite dev-сервера до старта тестов (см. e2e/global-setup.cjs) -
+  // иначе первые параллельные навигации шарда проигрывают 5s-таймауту toHaveURL.
+  globalSetup: require.resolve('./e2e/global-setup.cjs'),
   timeout: 30000,
   retries: 1,
   // Пропущенные спеки - полагаются на отсутствующий /register endpoint
