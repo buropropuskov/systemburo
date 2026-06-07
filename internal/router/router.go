@@ -46,6 +46,7 @@ type Dependencies struct {
 	BugReport           *handlers.BugReportHandler
 	Maintenance         *handlers.MaintenanceHandler
 	Marks               *handlers.MarkHandler
+	VehicleBlacklist    *handlers.VehicleBlacklistHandler
 	AttachmentTemplates *handlers.AttachmentTemplateHandler
 	AttachmentBlanks    *handlers.AttachmentBlankHandler
 	Trash               *handlers.TrashHandler
@@ -96,6 +97,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	bugReport := d.BugReport
 	maintenance := d.Maintenance
 	marks := d.Marks
+	vehicleBlacklist := d.VehicleBlacklist
 	attachmentTemplates := d.AttachmentTemplates
 	attachmentBlanks := d.AttachmentBlanks
 	trash := d.Trash
@@ -188,6 +190,18 @@ func Setup(e *echo.Echo, d Dependencies) {
 	marksGroup.POST("/:id/archive", marks.Archive)
 	marksGroup.POST("/:id/restore", marks.Restore)
 	marksGroup.GET("/:id/history", marks.GetHistory)
+
+	// Чёрный список машин (#443). POST/DELETE/restore защищены page.admin.blacklist.
+	// GET списка/истории и /check открыты любым авторизованным: фронт рендерит
+	// страницу даже без права, а /check нужен всем при подаче заявки.
+	requireBlacklist := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageBlacklist)
+	vblGroup := protected.Group("/vehicle-blacklist")
+	vblGroup.GET("", vehicleBlacklist.GetAll)
+	vblGroup.GET("/check", vehicleBlacklist.Check)
+	vblGroup.GET("/:id/history", vehicleBlacklist.GetHistory)
+	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
+	vblGroup.DELETE("/:id", vehicleBlacklist.Delete, requireBlacklist)
+	vblGroup.POST("/:id/restore", vehicleBlacklist.Restore, requireBlacklist)
 
 	// Attachment Excel-templates (#183) - вложенные ручки под /attachments/:id/...
 	attRoot := protected.Group("/attachments")

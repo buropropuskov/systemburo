@@ -46,6 +46,7 @@ var tables = []string{
 	"feedback", "application_items", "items",
 	"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",
 	"car_unload_places", "cars_history", "cars",
+	"vehicle_blacklist_histories", "vehicle_blacklists",
 	"attachments",
 	"unique_employees_history", "unique_cars_history",
 	"unique_employees", "unique_cars", "unique_attachments",
@@ -130,6 +131,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	// Create maintenance service early so authHandler can get it.
 	maintenanceService := services.NewMaintenanceService(db)
 	markService := services.NewMarkService(db)
+	vehicleBlacklistHistoryService := services.NewVehicleBlacklistHistoryService(db)
+	vehicleBlacklistService := services.NewVehicleBlacklistService(db, vehicleBlacklistHistoryService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)
@@ -170,6 +173,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
+	vehicleBlacklistHandler := handlers.NewVehicleBlacklistHandler(vehicleBlacklistService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
@@ -213,6 +217,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		BugReport:           bugReportHandler,
 		Maintenance:         maintenanceHandler,
 		Marks:               markHandler,
+		VehicleBlacklist:    vehicleBlacklistHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
 		Trash:               trashHandler,
