@@ -101,6 +101,35 @@ func TestUnloadPlaces_CRUD(t *testing.T) {
 	assert.True(t, found, "восстановленное место должно быть в дефолтном списке")
 }
 
+func TestUnloadPlaces_History(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Ист Место"}`, h))
+	id := int(created["id"].(float64))
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/unload-places/%d", id), `{"name":"Ист Место 2"}`, h).Code)
+	// Смена только статуса (без имени) не должна попадать в историю как переименование.
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/unload-places/%d", id), `{"status":"maintenance"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d", id), h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/restore", id), "", h).Code)
+
+	hist := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/history", id), h))
+	require.Len(t, hist, 4)
+	// Новые сверху: restored, archived, renamed, created.
+	assert.Equal(t, "restored", hist[0]["action_type"])
+	assert.Equal(t, "archived", hist[1]["action_type"])
+	assert.Equal(t, "renamed", hist[2]["action_type"])
+	assert.Equal(t, "created", hist[3]["action_type"])
+	assert.NotEmpty(t, hist[0]["actor_name"])
+	assert.NotEmpty(t, hist[3]["actor_name"])
+	assert.Equal(t, "Ист Место 2", hist[2]["details"].(map[string]interface{})["name"])
+	assert.Equal(t, "Ист Место", hist[3]["details"].(map[string]interface{})["name"])
+}
+
 func TestUnloadPlaces_GetByID_NotFound(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

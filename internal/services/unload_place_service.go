@@ -66,13 +66,17 @@ type UnloadPlaceWithDetails struct {
 }
 
 // UnloadPlaceService -- интерфейс бизнес-логики мест разгрузки.
+// В мутациях callerUserID - актор для аудита (#413).
 type UnloadPlaceService interface {
 	GetAll(ctx context.Context, includeArchived bool) ([]UnloadPlaceWithDetails, error)
 	GetByID(ctx context.Context, id int) (*UnloadPlaceWithDetails, error)
-	Create(ctx context.Context, req CreateUnloadPlaceRequest) (int, error)
-	Update(ctx context.Context, id int, req UpdateUnloadPlaceRequest) error
-	Delete(ctx context.Context, id int) error
-	Restore(ctx context.Context, id int) error
+	Create(ctx context.Context, callerUserID int, req CreateUnloadPlaceRequest) (int, error)
+	Update(ctx context.Context, callerUserID, id int, req UpdateUnloadPlaceRequest) error
+	Delete(ctx context.Context, callerUserID, id int) error
+	Restore(ctx context.Context, callerUserID, id int) error
+
+	// GetHistory возвращает историю изменений места разгрузки (новые сверху).
+	GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error)
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, placeID int) ([]models.UnloadPlaceTimeSlot, error)
@@ -87,12 +91,13 @@ type UnloadPlaceService interface {
 }
 
 type unloadPlaceService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	history UnloadPlaceHistoryService
 }
 
 // NewUnloadPlaceService создаёт реализацию UnloadPlaceService.
 func NewUnloadPlaceService(db *gorm.DB) UnloadPlaceService {
-	return &unloadPlaceService{db: db}
+	return &unloadPlaceService{db: db, history: NewUnloadPlaceHistoryService(db)}
 }
 
 // computeUnloadPlaceStatus определяет текущий статус (open/closed) по расписанию.
@@ -201,7 +206,7 @@ func (s *unloadPlaceService) GetByID(ctx context.Context, id int) (*UnloadPlaceW
 }
 
 // Create создаёт новое место разгрузки.
-func (s *unloadPlaceService) Create(ctx context.Context, req CreateUnloadPlaceRequest) (int, error) {
+func (s *unloadPlaceService) Create(ctx context.Context, callerUserID int, req CreateUnloadPlaceRequest) (int, error) {
 	status := "active"
 	if req.Status != nil {
 		status = *req.Status
@@ -222,11 +227,13 @@ func (s *unloadPlaceService) Create(ctx context.Context, req CreateUnloadPlaceRe
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error creating unload place")
 	}
 	slog.Info("место разгрузки создано", "id", place.ID)
+	s.history.Log(ctx, place.ID, &callerUserID, models.UnloadPlaceActionCreated, map[string]any{"name": place.Name})
 	return place.ID, nil
 }
 
-// Update обновляет место разгрузки по ID.
-func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloadPlaceRequest) error {
+// Update обновляет место разгрузки по ID. Переименование логируется в историю;
+// смена статуса/описания/ссылки аудитом этого среза не покрывается.
+func (s *unloadPlaceService) Update(ctx context.Context, callerUserID, id int, req UpdateUnloadPlaceRequest) error {
 	var place models.UnloadPlace
 	if err := s.db.WithContext(ctx).First(&place, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -263,6 +270,9 @@ func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloa
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки обновлено", "id", id)
+	if req.Name != nil && *req.Name != place.Name {
+		s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionRenamed, map[string]any{"name": *req.Name})
+	}
 	return nil
 }
 
@@ -271,7 +281,7 @@ func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloa
 // машины планируются на место только через орг/компания-привязку, поэтому после
 // отвязки новые car_unload_places не появятся, а существующие переживут архив
 // (soft-delete не сиротит). Отдельный блок по car_unload_places не нужен.
-func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
+func (s *unloadPlaceService) Delete(ctx context.Context, callerUserID, id int) error {
 	// Проверяем привязку к организациям
 	var orgCount int64
 	if err := s.db.WithContext(ctx).
@@ -321,11 +331,12 @@ func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки архивировано", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionArchived, nil)
 	return nil
 }
 
 // Restore восстанавливает архивное место разгрузки (is_active=true).
-func (s *unloadPlaceService) Restore(ctx context.Context, id int) error {
+func (s *unloadPlaceService) Restore(ctx context.Context, callerUserID, id int) error {
 	result := s.db.WithContext(ctx).
 		Model(&models.UnloadPlace{}).
 		Where("id = ?", id).
@@ -338,5 +349,11 @@ func (s *unloadPlaceService) Restore(ctx context.Context, id int) error {
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки восстановлено", "id", id)
+	s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionRestored, nil)
 	return nil
+}
+
+// GetHistory возвращает историю изменений места разгрузки.
+func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error) {
+	return s.history.GetHistory(ctx, id)
 }

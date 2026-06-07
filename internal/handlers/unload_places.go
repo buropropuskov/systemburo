@@ -101,7 +101,8 @@ func (h *UnloadPlaceHandler) Create(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	id, err := h.service.Create(c.Request().Context(), req)
+	userID, _ := c.Get("user_id").(int)
+	id, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -135,7 +136,8 @@ func (h *UnloadPlaceHandler) Update(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Update(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Место разгрузки успешно обновлено")
@@ -159,7 +161,8 @@ func (h *UnloadPlaceHandler) Delete(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if err := h.service.Delete(c.Request().Context(), id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Место разгрузки архивировано")
@@ -181,10 +184,36 @@ func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Restore(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Место разгрузки восстановлено")
+}
+
+// GetHistory возвращает историю изменений места разгрузки. Без отдельного
+// admin-гейта - намеренно, как и весь CRUD мест разгрузки (в отличие от
+// org/company, где история под buropropuskov): доступ управляется группой protected.
+// @Summary      История изменений места разгрузки
+// @Description  Возвращает аудит создания/переименования/архивации/восстановления места разгрузки
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {array} models.UnloadPlaceHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/history [get]
+func (h *UnloadPlaceHandler) GetHistory(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	items, err := h.service.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
 
 // --- Временные слоты ---
