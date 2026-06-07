@@ -68,6 +68,34 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.find('.bl-details-title').text()).toBe('Запись 1');
   });
 
+  it('кнопка "Создать запись" эмитит create', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Создать запись');
+    await btn.trigger('click');
+    expect(wrapper.emitted('create')).toBeTruthy();
+  });
+
+  it('кнопка "Снять с ЧС" эмитит archive с активной записью', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Снять с ЧС');
+    await btn.trigger('click');
+    expect(wrapper.emitted('archive')[0][0].id).toBe(1);
+  });
+
+  it('кнопка "Вернуть в ЧС" эмитит restore для архивной записи', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    wrapper.vm.onArchiveModeChange('archive');
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Вернуть в ЧС');
+    await btn.trigger('click');
+    expect(wrapper.emitted('restore')[0][0].id).toBe(3);
+  });
+
   it('пустой список показывает empty-state', async () => {
     const wrapper = mountBase({ apiList: vi.fn().mockResolvedValue([]) });
     await flushPromises();

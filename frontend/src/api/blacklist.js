@@ -16,3 +16,40 @@ export async function listPersonBlacklist({ includeArchived = false } = {}) {
   const res = await apiRequest(`/person-blacklist${qs}`);
   return res.json();
 }
+
+/**
+ * Мутация с пробросом ошибки: apiRequest не кидает на 4xx (возвращает {message}),
+ * поэтому проверяем res.ok сами - иначе 409/400 проглотились бы как успех.
+ */
+async function mutate(path, { method = 'POST', body } = {}) {
+  const res = await apiRequest(path, { method, ...(body && { body: JSON.stringify(body) }) });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error((data && data.message) || `Ошибка запроса (${res.status})`);
+  }
+  return data;
+}
+
+export function createVehicleBlacklist({ car_number, mark_id, reason }) {
+  return mutate('/vehicle-blacklist', { body: { car_number, mark_id, reason } });
+}
+
+export function archiveVehicleBlacklist(id) {
+  return mutate(`/vehicle-blacklist/${id}`, { method: 'DELETE' });
+}
+
+export function restoreVehicleBlacklist(id) {
+  return mutate(`/vehicle-blacklist/${id}/restore`);
+}
+
+export function createPersonBlacklist({ last_name, first_name, middle_name, reason }) {
+  return mutate('/person-blacklist', { body: { last_name, first_name, middle_name, reason } });
+}
+
+export function archivePersonBlacklist(id) {
+  return mutate(`/person-blacklist/${id}`, { method: 'DELETE' });
+}
+
+export function restorePersonBlacklist(id) {
+  return mutate(`/person-blacklist/${id}/restore`);
+}

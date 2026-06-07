@@ -14,6 +14,12 @@
           v-model="searchQuery"
           :title="searchPlaceholder"
         />
+        <button
+          class="lk-button lk-button--primary"
+          @click="$emit('create')"
+        >
+          Создать запись
+        </button>
         <RefreshButton
           :loading="isLoading"
           @refresh="fetchData"
@@ -74,10 +80,26 @@
           <h3 class="bl-details-title">
             {{ getPrimaryText(selected) }}
           </h3>
-          <span
-            v-if="!selected.is_active"
-            class="bl-archive-pill"
-          >В архиве</span>
+          <div class="bl-details-actions">
+            <span
+              v-if="!selected.is_active"
+              class="bl-archive-pill"
+            >В архиве</span>
+            <button
+              v-if="selected.is_active"
+              class="lk-button lk-button--danger"
+              @click="$emit('archive', selected)"
+            >
+              Снять с ЧС
+            </button>
+            <button
+              v-else
+              class="lk-button lk-button--secondary"
+              @click="$emit('restore', selected)"
+            >
+              Вернуть в ЧС
+            </button>
+          </div>
         </div>
         <div class="bl-details-body">
           <div
@@ -111,7 +133,8 @@ import { useDeletionsStore } from '@/stores/deletions';
  * Базовая вкладка чёрного списка (#443): шапка (архив-режим, поиск, обновление),
  * список слева + панель деталей справа. Сущность-специфика (тексты строк, поля
  * деталей, API-метод) приходит через props - так машины и люди переиспользуют один
- * layout. Запись и действия (создание/архив/история) - в следующих срезах.
+ * layout. Действия create/archive/restore эмитятся наружу (обработка - в обёртке);
+ * история - отдельный срез.
  */
 export default {
   name: 'BlacklistTabBase',
@@ -123,7 +146,7 @@ export default {
     getPrimaryText: { type: Function, required: true },
     getDetailRows: { type: Function, required: true },
   },
-  emits: ['count'],
+  emits: ['count', 'create', 'archive', 'restore'],
   data() {
     return {
       items: [],
@@ -162,8 +185,8 @@ export default {
         const data = await this.apiList({ includeArchived: true });
         this.items = Array.isArray(data) ? data : [];
         this.$emit('count', this.items.filter((i) => i.is_active).length);
-        if (this.selected && !this.items.some((i) => i.id === this.selected.id)) {
-          this.selected = null;
+        if (this.selected) {
+          this.selected = this.items.find((i) => i.id === this.selected.id) || null;
         }
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: this.emptyNoun, type: 'error' });
@@ -320,6 +343,12 @@ export default {
   font-size: 0.75em;
   font-weight: 500;
   white-space: nowrap;
+}
+
+.bl-details-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .bl-details-body {
