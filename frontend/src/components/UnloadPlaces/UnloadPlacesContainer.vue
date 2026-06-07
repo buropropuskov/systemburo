@@ -516,27 +516,41 @@
       </transition>
     </Teleport>
 
-    <!-- Уведомления -->
-    <div
-      v-if="notification.show"
-      class="notification"
-      :class="notification.type"
-    >
-      <span class="notification-message">{{ notification.message }}</span>
-    </div>
+    <ConfirmationModal
+      :show="!!deleteConfirmPlace"
+      title="Удаление места разгрузки"
+      :message="deleteConfirmPlace ? `Удалить место разгрузки «${deleteConfirmPlace.name}»?` : ''"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      @confirm="performDeletePlace"
+      @cancel="deleteConfirmPlace = null"
+    />
+
+    <ConfirmationModal
+      :show="!!deleteConfirmPhoto"
+      title="Удаление фотографии"
+      message="Удалить эту фотографию?"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      @confirm="performDeletePhoto"
+      @cancel="deleteConfirmPhoto = null"
+    />
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
+import ConfirmationModal from '../ConfirmationModal.vue';
 import ScheduleTab from './ScheduleTab.vue';
 
 export default {
   components: {
     SearchComponent,
     RefreshButton,
+    ConfirmationModal,
     ScheduleTab
   },
   data() {
@@ -553,11 +567,8 @@ export default {
       sortDirection: 'asc',
       activeTab: 'main',
       isDraggingPhoto: false,
-      notification: {
-        show: false,
-        message: '',
-        type: 'info'
-      }
+      deleteConfirmPlace: null,
+      deleteConfirmPhoto: null
     };
   },
   computed: {
@@ -613,18 +624,8 @@ export default {
   },
   mounted() {
     this.refreshData();
-    
-    // Слушаем события уведомлений от дочерних компонентов
-    window.addEventListener('show-notification', this.handleNotification);
-  },
-  beforeUnmount() {
-    window.removeEventListener('show-notification', this.handleNotification);
   },
   methods: {
-    handleNotification(event) {
-      this.showNotification(event.detail.message, event.detail.type);
-    },
-    
     async refreshData() {
       await this.fetchUnloadPlaces();
     },
@@ -646,7 +647,7 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching unload places:", error);
-        this.showNotification("Ошибка при загрузке мест разгрузки", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'места разгрузки', type: 'error' });
       }
     },
     
@@ -684,15 +685,17 @@ export default {
     }
   } catch (error) {
     console.error("Error refreshing place:", error);
+    useDeletionsStore().notify({ prefix: 'Не удалось обновить ', bold: 'данные места разгрузки', type: 'error' });
   }
 },
     
     async addPlace() {
       if (!this.newPlaceName.trim()) {
-        this.showNotification("Введите название места разгрузки", "warning");
+        useDeletionsStore().notify({ prefix: 'Не удалось добавить: ', bold: 'введите название места', type: 'error' });
         return;
       }
-      
+      const name = this.newPlaceName.trim();
+
       try {
         const response = await apiRequest("/unload-places", {
           method: "POST",
@@ -716,14 +719,14 @@ export default {
             this.selectPlace(newPlace);
           }
           
-          this.showNotification("Место разгрузки успешно добавлено", "success");
+          useDeletionsStore().notify({ prefix: 'Место разгрузки ', bold: name, suffix: ' создано' });
         } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при добавлении места разгрузки", "error");
+          const err = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось добавить место разгрузки: ', bold: err.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error adding unload place:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось добавить место разгрузки: ', bold: 'ошибка сети', type: 'error' });
       }
     },
     
@@ -761,16 +764,16 @@ export default {
             this.unloadPlaces[index] = { ...place };
           }
           
-          this.showNotification("Место разгрузки успешно обновлено", "success");
+          useDeletionsStore().notify({ prefix: 'Изменения сохранены в ', bold: place.name });
         } else {
-          const errorText = await response.text();
+          const err = await response.json();
           this.revertPlaceChanges(place);
-          this.showNotification(errorText || "Ошибка при обновлении места разгрузки", "error");
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить: ', bold: err.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error updating unload place:", error);
         this.revertPlaceChanges(place);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить: ', bold: 'ошибка сети', type: 'error' });
       }
     },
     
@@ -791,26 +794,32 @@ export default {
       this.updatePlace(this.selectedPlace);
     },
     
-    async confirmDeletePlace(place) {
-      if (!confirm(`Вы уверены, что хотите удалить место разгрузки "${place.name}"?`)) return;
-      
+    confirmDeletePlace(place) {
+      this.deleteConfirmPlace = place;
+    },
+
+    async performDeletePlace() {
+      const place = this.deleteConfirmPlace;
+      this.deleteConfirmPlace = null;
+      if (!place) return;
+
       try {
         const response = await apiRequest(`/unload-places/${place.id}`, {
           method: "DELETE",
         });
-        
+
         if (response.ok) {
           this.selectedPlace = null;
           this.activeTab = 'main';
           await this.refreshData();
-          this.showNotification("Место разгрузки успешно удалено", "success");
+          useDeletionsStore().notify({ prefix: 'Место разгрузки ', bold: place.name, suffix: ' удалено' });
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при удалении места разгрузки", "error");
+          useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: error.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error deleting unload place:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: 'ошибка сети', type: 'error' });
       }
     },
     
@@ -870,37 +879,43 @@ async uploadPhotoFiles(files) {
           photo_url: photo.photo_url
         }));
       }
-      this.showNotification("Фотографии успешно загружены", "success");
+      useDeletionsStore().notify({ prefix: 'Фотографии загружены в ', bold: this.selectedPlace.name });
     } else {
-      const errorText = await response.text();
-      this.showNotification(errorText || "Ошибка при загрузке фото", "error");
+      const err = await response.json();
+      useDeletionsStore().notify({ prefix: 'Не удалось загрузить фото: ', bold: err.message || 'ошибка', type: 'error' });
     }
   } catch (error) {
     console.error("Error uploading photos:", error);
-    this.showNotification("Ошибка сети", "error");
+    useDeletionsStore().notify({ prefix: 'Не удалось загрузить фото: ', bold: 'ошибка сети', type: 'error' });
   }
 },
     
-    async deletePhoto(photo) {
-      if (!confirm(`Удалить фотографию?`)) return;
-      
+    deletePhoto(photo) {
+      this.deleteConfirmPhoto = photo;
+    },
+
+    async performDeletePhoto() {
+      const photo = this.deleteConfirmPhoto;
+      this.deleteConfirmPhoto = null;
+      if (!photo || !this.selectedPlace) return;
+
       try {
         const response = await apiRequest(`/unload-places/${this.selectedPlace.id}/photos/${photo.id}`,
           {
             method: "DELETE",
           }
         );
-        
+
         if (response.ok) {
           await this.refreshSelectedPlace();
-          this.showNotification("Фотография удалена", "success");
+          useDeletionsStore().notify({ prefix: 'Фотография удалена из ', bold: this.selectedPlace.name });
         } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при удалении фото", "error");
+          const err = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось удалить фото: ', bold: err.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error deleting photo:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить фото: ', bold: 'ошибка сети', type: 'error' });
       }
     },
     
@@ -914,14 +929,14 @@ async uploadPhotoFiles(files) {
         
         if (response.ok) {
           await this.refreshSelectedPlace();
-          this.showNotification("Главная фотография установлена", "success");
+          useDeletionsStore().notify({ prefix: 'Главная фотография установлена для ', bold: this.selectedPlace.name });
         } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при установке главной фотографии", "error");
+          const err = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось установить главное фото: ', bold: err.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
         console.error("Error setting main photo:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось установить главное фото: ', bold: 'ошибка сети', type: 'error' });
       }
     },
     
@@ -959,21 +974,6 @@ async uploadPhotoFiles(files) {
       return place.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
     },
     
-    showNotification(message, type = 'info') {
-      this.notification = {
-        show: true,
-        message,
-        type
-      };
-      
-      setTimeout(() => {
-        this.hideNotification();
-      }, 3000);
-    },
-    
-    hideNotification() {
-      this.notification.show = false;
-    }
   }
 };
 </script>
@@ -1901,52 +1901,6 @@ async uploadPhotoFiles(files) {
   transform: scale(0.8) translateY(-20px);
 }
 
-/* Стили для уведомлений */
-.notification {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100%);
-  padding: 12px 24px;
-  border-radius: 0 0 8px 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 10000;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideDown 0.3s ease-out forwards;
-  min-width: 300px;
-}
-
-.notification.success {
-  background: #10b981;
-}
-
-.notification.error {
-  background: #ef4444;
-}
-
-.notification.warning {
-  background: #f59e0b;
-}
-
-.notification.info {
-  background: #3b82f6;
-}
-
-.notification-message {
-  font-size: 0.9em;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateX(-50%) translateY(-100%);
-  }
-  to {
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
 /* Скроллбары */
 .table-body::-webkit-scrollbar,
 .photos-grid::-webkit-scrollbar,
@@ -2013,22 +1967,6 @@ async uploadPhotoFiles(files) {
   .modal-content {
     width: 95%;
     max-height: 80vh;
-  }
-  
-  .notification {
-    left: 20px;
-    right: 20px;
-    transform: translateY(-100%);
-    min-width: auto;
-  }
-  
-  @keyframes slideDown {
-    from {
-      transform: translateY(-100%);
-    }
-    to {
-      transform: translateY(0);
-    }
   }
 }
 
