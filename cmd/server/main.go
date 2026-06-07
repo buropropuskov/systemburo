@@ -155,6 +155,7 @@ func main() {
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
 	banCheckService := services.NewBanCheckService(db, 30*time.Second)
+	userService.SetBanCache(banCheckService) // архив/restore мгновенно сбрасывают кэш блокировок
 	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService)
 	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService)
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
