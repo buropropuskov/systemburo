@@ -128,6 +128,18 @@ func (s *markService) setActive(ctx context.Context, id int, active bool, userID
 	if existing.IsActive == active {
 		return nil // no-op
 	}
+	if active {
+		// Partial-unique теперь только среди активных: при восстановлении проверяем,
+		// что нет активной марки с тем же именем - иначе Update упал бы 500 вместо 409.
+		var cnt int64
+		if err := s.db.WithContext(ctx).Model(&models.Mark{}).
+			Where("name = ? AND is_active = ? AND id <> ?", existing.Name, true, id).Count(&cnt).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки имени марки")
+		}
+		if cnt > 0 {
+			return echo.NewHTTPError(http.StatusConflict, "Активная марка с таким именем уже существует")
+		}
+	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&existing).Update("is_active", active).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления марки")

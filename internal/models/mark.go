@@ -8,7 +8,7 @@ import "time"
 // поэтому переименование/архивация не ломает историю.
 type Mark struct {
 	ID              int       `json:"id"`
-	Name            string    `gorm:"size:100;uniqueIndex" json:"name"`
+	Name            string    `gorm:"size:100" json:"name"`
 	IsActive        bool      `gorm:"default:true;index" json:"is_active"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
