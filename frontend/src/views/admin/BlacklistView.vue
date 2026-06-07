@@ -14,10 +14,12 @@
     <div class="blacklist-card">
       <VehicleBlacklistTab
         v-show="activeTab === 'vehicles'"
+        :current-user-name="currentUserName"
         @count="vehicleCount = $event"
       />
       <PersonBlacklistTab
         v-show="activeTab === 'persons'"
+        :current-user-name="currentUserName"
         @count="personCount = $event"
       />
     </div>
@@ -28,11 +30,13 @@
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import VehicleBlacklistTab from '@/components/admin/blacklist/VehicleBlacklistTab.vue';
 import PersonBlacklistTab from '@/components/admin/blacklist/PersonBlacklistTab.vue';
+import { apiRequest } from '@/api/client';
 
 /**
  * Страница "Чёрный список" (#443): две вкладки (Машины / Люди) со счётчиками
  * активных записей. Обе вкладки смонтированы (v-show), чтобы счётчики
- * подтягивались сразу. Создание/история/архив-действия - в следующих срезах.
+ * подтягивались сразу. Имя текущего пользователя грузим один раз тут и
+ * прокидываем в обе вкладки - для подписи в Excel-экспорте истории.
  */
 export default {
   name: 'BlacklistView',
@@ -42,6 +46,7 @@ export default {
       activeTab: 'vehicles',
       vehicleCount: 0,
       personCount: 0,
+      currentUserName: '',
     };
   },
   computed: {
@@ -50,6 +55,21 @@ export default {
         { key: 'vehicles', label: `Машины (${this.vehicleCount})` },
         { key: 'persons', label: `Люди (${this.personCount})` },
       ];
+    },
+  },
+  mounted() {
+    this.fetchCurrentUser();
+  },
+  methods: {
+    async fetchCurrentUser() {
+      try {
+        const res = await apiRequest('/users/me');
+        const data = await res.json();
+        const parts = [data.last_name, data.first_name, data.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || data.username || '';
+      } catch {
+        this.currentUserName = '';
+      }
     },
   },
 };

@@ -5,6 +5,7 @@ class AdminPermissionGroupsPage {
     this.createButton = page.getByRole('button', { name: '+ Создать группу' });
     this.cards = page.locator('.permission-groups .cards .card');
     this.emptyState = page.locator('.permission-groups .empty');
+    this.loadingIndicator = page.locator('.permission-groups .loading');
 
     // Модалка имеет класс .rename-modal в AdminPermissionGroups.vue,
     // h3 - "Новая группа прав" (create) или "Имя и описание" (edit).
@@ -49,6 +50,10 @@ class AdminPermissionGroupsPage {
   async goto() {
     await this.page.goto('/admin/permission-groups');
     await this.title.waitFor({ state: 'visible' });
+    // Дожидаемся завершения загрузки списка (спиннер исчез). Без этого assert
+    // карточки упирается в 5с-таймаут expect, пока под нагрузкой CI ещё идёт
+    // GET /permission-groups - источник флака shard 4 (#413/#437).
+    await this.loadingIndicator.waitFor({ state: 'hidden' });
   }
 
   card(name) {

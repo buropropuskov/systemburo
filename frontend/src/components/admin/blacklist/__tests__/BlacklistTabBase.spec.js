@@ -96,6 +96,15 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.emitted('restore')[0][0].id).toBe(3);
   });
 
+  it('кнопка "История" эмитит history с выбранной записью', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'История');
+    await btn.trigger('click');
+    expect(wrapper.emitted('history')[0][0].id).toBe(1);
+  });
+
   it('пустой список показывает empty-state', async () => {
     const wrapper = mountBase({ apiList: vi.fn().mockResolvedValue([]) });
     await flushPromises();
