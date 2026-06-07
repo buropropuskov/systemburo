@@ -63,3 +63,23 @@ export async function getPersonBlacklistHistory(id) {
   const res = await apiRequest(`/person-blacklist/${id}/history`);
   return res.json();
 }
+
+/**
+ * Проверка машины в активном ЧС по номеру и марке (#443).
+ * Возвращает { is_blacklisted, reason } - см. wrapJsonUnwrap.
+ */
+export async function checkVehicleBlacklist({ car_number, mark_id }) {
+  const qs = new URLSearchParams({ car_number, mark_id: String(mark_id) });
+  const res = await apiRequest(`/vehicle-blacklist/check?${qs.toString()}`);
+  return res.json();
+}
+
+/**
+ * Проверка человека в активном ЧС по ФИО (#443).
+ * Совпадение строгое: фамилия + имя + отчество (пустое отчество матчит только пустое).
+ */
+export async function checkPersonBlacklist({ last_name, first_name, middle_name = '' }) {
+  const qs = new URLSearchParams({ last_name, first_name, middle_name: middle_name || '' });
+  const res = await apiRequest(`/person-blacklist/check?${qs.toString()}`);
+  return res.json();
+}

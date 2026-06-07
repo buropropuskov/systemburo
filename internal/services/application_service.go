@@ -178,6 +178,7 @@ type AttachmentContentData struct {
 type VehicleInput struct {
 	CarNumber    string  `json:"car_number"`
 	CarBrand     string  `json:"car_brand"`
+	MarkID       *int    `json:"mark_id"`
 	UnloadPlace  *string `json:"unload_place"`
 	UnloadPlaces []int   `json:"unload_places"`
 }
@@ -465,11 +466,19 @@ type applicationService struct {
 	db                  *gorm.DB
 	permissionService   PermissionService
 	notificationService NotificationService
+	vehicleBlacklist    VehicleBlacklistService
+	personBlacklist     PersonBlacklistService
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
-func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService) ApplicationService {
-	return &applicationService{db: db, permissionService: permSvc, notificationService: notifSvc}
+func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService, vehicleBL VehicleBlacklistService, personBL PersonBlacklistService) ApplicationService {
+	return &applicationService{
+		db:                  db,
+		permissionService:   permSvc,
+		notificationService: notifSvc,
+		vehicleBlacklist:    vehicleBL,
+		personBlacklist:     personBL,
+	}
 }
 
 // --- Основные методы ---
@@ -929,6 +938,48 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 	}, nil
 }
 
+// validateBlacklist проверяет машины и людей заявки против активного ЧС (#443).
+// Машины матчатся по номеру + mark_id (как и фронтовый /check); машины без mark_id
+// ("по факту"/свободная марка) пропускаем - по mark_id в ЧС они попасть не могут.
+// Люди - строгое совпадение ФИО. Возвращает 409 при первом совпадении.
+func (s *applicationService) validateBlacklist(ctx context.Context, req CompleteApplicationRequest) error {
+	for _, att := range req.Attachments {
+		if att.Data.Vehicles != nil {
+			for _, v := range *att.Data.Vehicles {
+				if v.MarkID == nil {
+					continue
+				}
+				res, err := s.vehicleBlacklist.Check(ctx, v.CarNumber, *v.MarkID)
+				if err != nil {
+					return err
+				}
+				if res.IsBlacklisted {
+					return echo.NewHTTPError(http.StatusConflict,
+						fmt.Sprintf("Машина %s %s в чёрном списке: %s", v.CarNumber, v.CarBrand, res.Reason))
+				}
+			}
+		}
+		if att.Data.Employees != nil {
+			for _, e := range *att.Data.Employees {
+				middleName := ""
+				if e.MiddleName != nil {
+					middleName = *e.MiddleName
+				}
+				res, err := s.personBlacklist.Check(ctx, e.LastName, e.FirstName, middleName)
+				if err != nil {
+					return err
+				}
+				if res.IsBlacklisted {
+					fio := strings.TrimSpace(fmt.Sprintf("%s %s %s", e.LastName, e.FirstName, middleName))
+					return echo.NewHTTPError(http.StatusConflict,
+						fmt.Sprintf("Человек %s в чёрном списке: %s", fio, res.Reason))
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
 func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest) (*CompleteApplicationResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
@@ -941,6 +992,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}
 	if len(req.Attachments) == 0 {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
+	}
+
+	// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком
+	// до старта транзакции - на случай обхода фронтовой проверки.
+	if err := s.validateBlacklist(ctx, req); err != nil {
+		return nil, err
 	}
 
 	tx := s.db.WithContext(ctx).Begin()

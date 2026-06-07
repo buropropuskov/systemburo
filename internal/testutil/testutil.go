@@ -120,7 +120,6 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, &config.Config{
@@ -137,6 +136,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, vehicleBlacklistHistoryService)
 	personBlacklistHistoryService := services.NewPersonBlacklistHistoryService(db)
 	personBlacklistService := services.NewPersonBlacklistService(db, personBlacklistHistoryService)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)

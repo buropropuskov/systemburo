@@ -251,6 +251,21 @@
           </p>
         </div>
       </div>
+      <div
+        v-if="blacklistInfo"
+        class="blacklist-warning"
+        data-testid="vehicle-blacklist-warning"
+      >
+        <div class="warning-text">
+          <p class="warning-title">
+            Машина в чёрном списке
+          </p>
+          <p class="warning-details">
+            Причина: {{ blacklistInfo.reason || 'не указана' }}<br>
+            Добавить эту машину в заявку нельзя.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Места разгрузки -->
@@ -322,6 +337,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { checkVehicleBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useFormValidation } from '@/composables/useFormValidation'
@@ -376,6 +392,7 @@ export default {
 
             return [
                 { check: !vm.activeCarInfo || vm.isNumberByFact, message: 'На этот автомобиль уже есть активная заявка' },
+                { check: !vm.blacklistInfo, message: 'Машина в чёрном списке' },
                 { check: (vm.isNumberByFact && vm.isMarkByFact) || !hasInactiveSelected, message: 'Невозможно выбрать неактивные места разгрузки' },
                 { check: vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
                 {
@@ -428,7 +445,10 @@ export default {
             },
             // Новые поля для проверки активных заявок
             activeCarInfo: null,
-            checkingTimeout: null
+            checkingTimeout: null,
+            // Проверка ЧС (#443): null или { is_blacklisted, reason }
+            blacklistInfo: null,
+            blacklistTimeout: null
         }
     },
     computed: {
@@ -454,6 +474,7 @@ export default {
             deep: true,
             handler() {
                 this.checkVehicleActive();
+                this.checkBlacklist();
             }
         }
     },
@@ -477,6 +498,9 @@ export default {
     beforeUnmount() {
         if (this.checkingTimeout) {
             clearTimeout(this.checkingTimeout);
+        }
+        if (this.blacklistTimeout) {
+            clearTimeout(this.blacklistTimeout);
         }
     },
     methods: {
@@ -518,6 +542,34 @@ export default {
                 } catch (error) {
                     console.error('Ошибка при проверке активности авто:', error);
                     this.activeCarInfo = null;
+                }
+            }, 500);
+        },
+
+        // Проверка машины в чёрном списке (#443): номер + mark_id, как и серверный гард.
+        // "По факту" не проверяем - нет конкретного номера/марки для совпадения.
+        checkBlacklist() {
+            if (this.blacklistTimeout) {
+                clearTimeout(this.blacklistTimeout);
+            }
+
+            if (this.isNumberByFact || this.isMarkByFact || !this.selectedMarkId ||
+                !this.selectedFormat || !this.numberParts.every(part => part)) {
+                this.blacklistInfo = null;
+                return;
+            }
+
+            const plateNumber = this.numberParts.join(' ');
+            const markId = this.selectedMarkId;
+
+            this.blacklistTimeout = setTimeout(async () => {
+                try {
+                    const res = await checkVehicleBlacklist({ car_number: plateNumber, mark_id: markId });
+                    this.blacklistInfo = res && res.is_blacklisted ? res : null;
+                } catch (error) {
+                    // Тихо: фоновая проверка не блокирует ввод; серверный гард - бэкстоп.
+                    console.error('Ошибка при проверке ЧС машины:', error);
+                    this.blacklistInfo = null;
                 }
             }, 500);
         },
@@ -777,6 +829,7 @@ export default {
             this.isNumberByFact = false;
             this.isMarkByFact = false;
             this.activeCarInfo = null;
+            this.blacklistInfo = null;
         },
 
         clearVehicleForm() {
@@ -790,6 +843,7 @@ export default {
             this.selectedExistingCars = [];
             this.editingVehicle = null;
             this.activeCarInfo = null;
+            this.blacklistInfo = null;
         },
 
         openExistingCarsModal() {
@@ -886,6 +940,10 @@ export default {
 
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
             }
+
+            // Перепроверяем ЧС для редактируемой машины (для "по факту" watcher
+            // numberParts не сработает - сбросит/обновит баннер явно).
+            this.checkBlacklist();
         },
 
         cancelEdit() {
@@ -935,6 +993,7 @@ export default {
             this.markSearch = '';
 
             this.checkVehicleActive();
+            this.checkBlacklist();
         },
         
         toggleFormatDropdown() {
@@ -1122,6 +1181,23 @@ export default {
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
+}
+
+.blacklist-warning {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    background: #fff5f5;
+    border: 1px solid #f5c2c7;
+    border-radius: 10px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.blacklist-warning .warning-title,
+.blacklist-warning .warning-details {
+    color: #b02a37;
 }
 
 .format__dropdown {
