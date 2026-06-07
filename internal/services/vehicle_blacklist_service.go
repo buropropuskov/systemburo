@@ -1,0 +1,279 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"systemburo/internal/models"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
+)
+
+// VehicleBlacklistService - бизнес-логика чёрного списка автомобилей (#443).
+//
+// Create/Restore каскадно деактивируют совпадающие cars (status 1 -> 0) в одной
+// транзакции; Archive (снятие) восстанавливает status=1 только тем cars, у которых
+// есть активная заявка. Все каскады пишут cars_history и историю самой записи.
+type VehicleBlacklistService interface {
+	GetAll(ctx context.Context, includeArchived bool) ([]models.VehicleBlacklist, error)
+	GetByID(ctx context.Context, id int) (*models.VehicleBlacklist, error)
+	Create(ctx context.Context, req models.CreateVehicleBlacklistRequest, userID int) (*models.VehicleBlacklist, error)
+	// Archive - снятие из чёрного списка (soft-delete): is_active=false + восстановление
+	// status=1 у совпадающих cars с активной заявкой.
+	Archive(ctx context.Context, id int, userID int) error
+	// Restore - повторное добавление архивной записи в список: is_active=true +
+	// повторная деактивация совпадающих активных cars.
+	Restore(ctx context.Context, id int, userID int) error
+	// Check - заблокирована ли машина (number+mark) активной записью.
+	Check(ctx context.Context, carNumber string, markID int) (models.VehicleBlacklistCheckResult, error)
+	GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error)
+}
+
+type vehicleBlacklistService struct {
+	db      *gorm.DB
+	history VehicleBlacklistHistoryService
+}
+
+// NewVehicleBlacklistService создаёт реализацию.
+func NewVehicleBlacklistService(db *gorm.DB, history VehicleBlacklistHistoryService) VehicleBlacklistService {
+	return &vehicleBlacklistService{db: db, history: history}
+}
+
+func (s *vehicleBlacklistService) GetAll(ctx context.Context, includeArchived bool) ([]models.VehicleBlacklist, error) {
+	items := make([]models.VehicleBlacklist, 0)
+	q := s.db.WithContext(ctx).Order("created_at DESC")
+	if !includeArchived {
+		q = q.Where("is_active = ?", true)
+	}
+	if err := q.Find(&items).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения чёрного списка")
+	}
+	return items, nil
+}
+
+func (s *vehicleBlacklistService) GetByID(ctx context.Context, id int) (*models.VehicleBlacklist, error) {
+	var e models.VehicleBlacklist
+	if err := s.db.WithContext(ctx).First(&e, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Запись чёрного списка не найдена")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения записи чёрного списка")
+	}
+	return &e, nil
+}
+
+func (s *vehicleBlacklistService) Create(ctx context.Context, req models.CreateVehicleBlacklistRequest, userID int) (*models.VehicleBlacklist, error) {
+	var mark models.Mark
+	if err := s.db.WithContext(ctx).First(&mark, req.MarkID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Марка не найдена")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения марки")
+	}
+
+	entry := models.VehicleBlacklist{
+		CarNumber:       strings.TrimSpace(req.CarNumber),
+		MarkID:          req.MarkID,
+		MarkName:        mark.Name,
+		Reason:          strings.TrimSpace(req.Reason),
+		IsActive:        true,
+		CreatedByUserID: &userID,
+	}
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&entry).Error; err != nil {
+			return err
+		}
+		deactivated, err := s.deactivateMatchingCars(ctx, tx, entry, userID)
+		if err != nil {
+			return err
+		}
+		details := map[string]interface{}{
+			"car_number":       entry.CarNumber,
+			"mark_name":        entry.MarkName,
+			"reason":           entry.Reason,
+			"cars_deactivated": deactivated,
+		}
+		return s.history.Log(ctx, tx, entry.ID, &userID, models.BlacklistActionCreated, details)
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, echo.NewHTTPError(http.StatusConflict, "Эта машина уже в чёрном списке")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка добавления в чёрный список")
+	}
+	return &entry, nil
+}
+
+func (s *vehicleBlacklistService) Archive(ctx context.Context, id int, userID int) error {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !e.IsActive {
+		return nil // уже снята - no-op
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.VehicleBlacklist{}).Where("id = ?", e.ID).Update("is_active", false).Error; err != nil {
+			return err
+		}
+		reactivated, err := s.reactivateMatchingCars(ctx, tx, *e, userID)
+		if err != nil {
+			return err
+		}
+		details := map[string]interface{}{
+			"car_number":       e.CarNumber,
+			"mark_name":        e.MarkName,
+			"cars_reactivated": reactivated,
+		}
+		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionArchived, details)
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка снятия из чёрного списка")
+	}
+	return nil
+}
+
+func (s *vehicleBlacklistService) Restore(ctx context.Context, id int, userID int) error {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if e.IsActive {
+		return nil // уже активна - no-op
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.VehicleBlacklist{}).Where("id = ?", e.ID).Update("is_active", true).Error; err != nil {
+			return err
+		}
+		deactivated, err := s.deactivateMatchingCars(ctx, tx, *e, userID)
+		if err != nil {
+			return err
+		}
+		details := map[string]interface{}{
+			"car_number":       e.CarNumber,
+			"mark_name":        e.MarkName,
+			"cars_deactivated": deactivated,
+		}
+		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionRestored, details)
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			return echo.NewHTTPError(http.StatusConflict, "Эта машина уже в активном чёрном списке")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка возврата в чёрный список")
+	}
+	return nil
+}
+
+func (s *vehicleBlacklistService) Check(ctx context.Context, carNumber string, markID int) (models.VehicleBlacklistCheckResult, error) {
+	var e models.VehicleBlacklist
+	err := s.db.WithContext(ctx).
+		Where("is_active = ?", true).
+		Where("LOWER(TRIM(car_number)) = LOWER(TRIM(?))", carNumber).
+		Where("mark_id = ?", markID).
+		First(&e).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.VehicleBlacklistCheckResult{IsBlacklisted: false}, nil
+		}
+		return models.VehicleBlacklistCheckResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
+	}
+	return models.VehicleBlacklistCheckResult{IsBlacklisted: true, Reason: e.Reason}, nil
+}
+
+func (s *vehicleBlacklistService) GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error) {
+	return s.history.GetHistory(ctx, id)
+}
+
+// deactivateMatchingCars деактивирует (status 1 -> 0) активные cars, совпадающие с записью
+// по номеру и марке, и пишет cars_history. Возвращает число затронутых машин.
+// Совпадение по марке: c.mark_id ИЛИ имя (mark_name/устаревший car_brand) - чтобы покрыть
+// и новые (mark_id), и легаси (только car_brand) машины.
+func (s *vehicleBlacklistService) deactivateMatchingCars(ctx context.Context, tx *gorm.DB, e models.VehicleBlacklist, userID int) (int, error) {
+	var ids []int
+	if err := tx.WithContext(ctx).
+		Table("cars c").
+		Where("LOWER(TRIM(c.car_number)) = LOWER(TRIM(?))", e.CarNumber).
+		Where("(c.mark_id = ? OR (c.mark_id IS NULL AND LOWER(TRIM(COALESCE(c.mark_name, c.car_brand))) = LOWER(TRIM(?))))", e.MarkID, e.MarkName).
+		Where("c.status = ?", 1).
+		Where("c.is_purged = ?", false).
+		Pluck("c.id", &ids).Error; err != nil {
+		return 0, err
+	}
+	now := time.Now().UTC()
+	comment := fmt.Sprintf("Автомобиль %s %s добавлен в чёрный список: %s", e.CarNumber, e.MarkName, e.Reason)
+	for _, id := range ids {
+		if err := tx.Model(&models.Car{}).Where("id = ?", id).
+			Updates(map[string]interface{}{"status": 0, "date_removed": now}).Error; err != nil {
+			return 0, err
+		}
+		hist := models.CarHistory{CarID: id, UserID: &userID, ActionType: "blacklisted", Comment: &comment, CreatedAt: now}
+		if err := tx.Create(&hist).Error; err != nil {
+			return 0, err
+		}
+	}
+	return len(ids), nil
+}
+
+// reactivateMatchingCars восстанавливает status=1 у деактивированных (status=0) cars,
+// совпадающих с записью, у которых есть активная заявка (confirmation='Согласовано',
+// application.status в рабочих статусах) И не истёк пропуск (дата актуальна). Машины без
+// активной заявки или с просроченным пропуском остаются деактивированными. Совпадение по
+// марке - как в deactivateMatchingCars (mark_id, для легаси - имя).
+func (s *vehicleBlacklistService) reactivateMatchingCars(ctx context.Context, tx *gorm.DB, e models.VehicleBlacklist, userID int) (int, error) {
+	var ids []int
+	if err := tx.WithContext(ctx).
+		Table("cars c").
+		Joins("JOIN attachments a ON c.attachment_id = a.id").
+		Joins("JOIN applications app ON a.application_id = app.id").
+		Where("LOWER(TRIM(c.car_number)) = LOWER(TRIM(?))", e.CarNumber).
+		Where("(c.mark_id = ? OR (c.mark_id IS NULL AND LOWER(TRIM(COALESCE(c.mark_name, c.car_brand))) = LOWER(TRIM(?))))", e.MarkID, e.MarkName).
+		Where("c.status = ?", 0).
+		Where("c.is_purged = ?", false).
+		Where("app.confirmation = ?", models.ConfirmationApproved).
+		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+		// "дата актуальна" из ТЗ: не возрождаем просроченный пропуск. NULLIF защищает
+		// от пустой строки в entry_date_to (иначе ''::date упадёт).
+		Where("(NULLIF(TRIM(c.entry_date_to), '') IS NULL OR (NULLIF(TRIM(c.entry_date_to), ''))::date >= CURRENT_DATE)").
+		Pluck("c.id", &ids).Error; err != nil {
+		return 0, err
+	}
+	now := time.Now().UTC()
+	comment := fmt.Sprintf("Автомобиль %s %s снят с чёрного списка", e.CarNumber, e.MarkName)
+	for _, id := range ids {
+		if err := tx.Model(&models.Car{}).Where("id = ?", id).
+			Updates(map[string]interface{}{"status": 1, "date_removed": nil}).Error; err != nil {
+			return 0, err
+		}
+		hist := models.CarHistory{CarID: id, UserID: &userID, ActionType: "unblacklisted", Comment: &comment, CreatedAt: now}
+		if err := tx.Create(&hist).Error; err != nil {
+			return 0, err
+		}
+	}
+	return len(ids), nil
+}
+
+// isUniqueViolation распознаёт нарушение partial unique index (повторное добавление
+// активной записи) по pg-коду 23505. TranslateError в gorm-конфигах не включён, поэтому
+// проверяем сам *pgconn.PgError; gorm.ErrDuplicatedKey и строковый матч - фолбэки на
+// случай другого драйвера/обёртки.
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	return strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "duplicate key value")
+}

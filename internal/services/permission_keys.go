@@ -37,6 +37,7 @@ const (
 	KeyPageSystemControl = "page.admin.system_control"
 	KeyPageAdminUsers    = "page.admin.users"
 	KeyPageAdminFeedback = "page.admin.feedback"
+	KeyPageBlacklist     = "page.admin.blacklist"
 )
 
 // Entity-level CRUD keys.
@@ -78,6 +79,7 @@ func AllStaticKeys() []string {
 		KeyPageSystemControl,
 		KeyPageAdminUsers,
 		KeyPageAdminFeedback,
+		KeyPageBlacklist,
 		KeyEntityCarsRead,
 		KeyEntityCarsWrite,
 		KeyEntityCarsDelete,

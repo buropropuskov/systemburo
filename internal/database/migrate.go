@@ -25,6 +25,8 @@ func AllModels() []interface{} {
 		&models.LicensePlateFormat{},
 		&models.Mark{},
 		&models.MarkHistory{},
+		&models.VehicleBlacklist{},
+		&models.VehicleBlacklistHistory{},
 		&models.UnloadPlace{},
 		&models.SystemTable{},
 		&models.SystemTableHistory{},
@@ -300,6 +302,19 @@ func Seed(db *gorm.DB) error {
 	}
 	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_companies_name_active ON companies (name) WHERE is_active = true").Error; err != nil {
 		return fmt.Errorf("failed to create partial unique index on companies.name: %w", err)
+	}
+
+	// Чёрный список машин: уникальность (car_number, mark_id) только среди активных
+	// записей (#443), чтобы снятая запись не мешала повторно добавить ту же машину.
+	// Индекс по LOWER(TRIM(car_number)) - чтобы инвариант совпадал с регистронезависимым
+	// матчем в Check/каскаде (иначе "A123"/"a123" - два активных дубля). DROP+CREATE,
+	// чтобы переопределить старую (raw-column) версию индекса. Идемпотентно. Ошибку
+	// возвращаем громко - от индекса зависит инвариант дублей.
+	if err := db.Exec("DROP INDEX IF EXISTS uidx_vehicle_blacklists_active").Error; err != nil {
+		return fmt.Errorf("failed to drop uidx_vehicle_blacklists_active: %w", err)
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_vehicle_blacklists_active ON vehicle_blacklists (LOWER(TRIM(car_number)), mark_id) WHERE is_active = true").Error; err != nil {
+		return fmt.Errorf("failed to create partial unique index on vehicle_blacklists: %w", err)
 	}
 
 	// Seed default tab permissions
