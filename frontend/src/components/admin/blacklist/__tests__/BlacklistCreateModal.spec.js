@@ -5,7 +5,6 @@ import BlacklistCreateModal from '../BlacklistCreateModal.vue';
 // BaseModal использует Teleport - стабим, чтобы не тянуть портал в тест.
 const stubs = {
   BaseModal: { template: '<div><slot /><slot name="actions" /></div>' },
-  BaseDropdown: true,
 };
 
 function mountModal(props = {}) {
