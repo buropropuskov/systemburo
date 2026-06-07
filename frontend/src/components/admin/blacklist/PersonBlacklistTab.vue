@@ -11,6 +11,7 @@
       @create="showCreate = true"
       @archive="askArchive"
       @restore="doRestore"
+      @history="historyItem = $event"
     />
     <BlacklistCreateModal
       :show="showCreate"
@@ -18,6 +19,12 @@
       :create-fn="createPersonBlacklist"
       @close="showCreate = false"
       @created="onCreated"
+    />
+    <PersonBlacklistHistoryModal
+      v-if="historyItem"
+      :item="historyItem"
+      :current-user-name="currentUserName"
+      @close="historyItem = null"
     />
     <ConfirmationModal
       :show="!!archiveItem"
@@ -35,6 +42,7 @@
 <script>
 import BlacklistTabBase from './BlacklistTabBase.vue';
 import BlacklistCreateModal from './BlacklistCreateModal.vue';
+import PersonBlacklistHistoryModal from './PersonBlacklistHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import {
   listPersonBlacklist,
@@ -51,10 +59,13 @@ import { useDeletionsStore } from '@/stores/deletions';
  */
 export default {
   name: 'PersonBlacklistTab',
-  components: { BlacklistTabBase, BlacklistCreateModal, ConfirmationModal },
+  components: { BlacklistTabBase, BlacklistCreateModal, PersonBlacklistHistoryModal, ConfirmationModal },
+  props: {
+    currentUserName: { type: String, default: '' },
+  },
   emits: ['count'],
   data() {
-    return { showCreate: false, archiveItem: null };
+    return { showCreate: false, archiveItem: null, historyItem: null };
   },
   computed: {
     archiveMessage() {
