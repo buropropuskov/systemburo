@@ -137,6 +137,10 @@ describe('organizations store', () => {
       const result = await store.updateOrganization(1, { name: 'Renamed' })
 
       expect(result.ok).toBe(true)
+      expect(apiRequest).toHaveBeenNthCalledWith(1, '/organizations/1', {
+        method: 'PUT',
+        body: JSON.stringify({ name: 'Renamed' }),
+      })
       expect(store.items[0].name).toBe('Renamed')
     })
   })
@@ -152,6 +156,7 @@ describe('organizations store', () => {
       const result = await store.deleteOrganization(1)
 
       expect(result.ok).toBe(true)
+      expect(apiRequest).toHaveBeenNthCalledWith(1, '/organizations/1', { method: 'DELETE' })
       expect(store.items).toEqual([])
     })
   })

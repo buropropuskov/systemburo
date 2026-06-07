@@ -211,14 +211,12 @@
             </div>
 
             <template v-if="selectedOrganization.is_active">
-              <!-- Компонент мест разгрузки -->
               <SelectUnloadPlaces
                 :entity="selectedOrganization"
                 :entity-type="'organization'"
                 @places-updated="handlePlacesUpdated"
               />
 
-              <!-- Компонент таблиц по умолчанию -->
               <SelectTables
                 :entity="selectedOrganization"
                 :entity-type="'organization'"
@@ -652,6 +650,7 @@ export default {
       }
     },
 
+    // Всегда тянем с архивными: режим фильтруется на клиенте, рефетча при смене не нужно.
     handleUsersUpdated() {
       this.fetchOrganizationsWithUsers(true);
     },
