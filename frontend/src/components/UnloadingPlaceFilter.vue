@@ -146,7 +146,7 @@ export default {
 
                 if (response.ok) {
                     const data = await response.json();
-                    this.unloadingPlaces = data.filter(place => place.is_active !== false);
+                    this.unloadingPlaces = data;
                     this.updateSelectedName();
                 } else {
                     console.error("Ошибка при загрузке мест разгрузки");
@@ -307,7 +307,7 @@ export default {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid #e6e6e6;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 14px;
     outline: none;
     transition: border-color 0.2s;
