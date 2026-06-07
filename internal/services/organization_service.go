@@ -399,7 +399,7 @@ func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID in
 		Table("users u").
 		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position, ou.is_primary, ou.required_approval").
 		Joins("INNER JOIN organization_users ou ON u.id = ou.user_id").
-		Where("ou.organization_id = ?", orgID).
+		Where("ou.organization_id = ? AND u.is_active = ?", orgID, true).
 		Order("ou.is_primary DESC, u.last_name, u.first_name").
 		Scan(&users).Error
 	if err != nil {

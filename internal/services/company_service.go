@@ -376,7 +376,7 @@ func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]Company
 		Table("users u").
 		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position, cu.is_primary, cu.required_approval").
 		Joins("INNER JOIN companies_users cu ON u.id = cu.user_id").
-		Where("cu.company_id = ?", companyID).
+		Where("cu.company_id = ? AND u.is_active = ?", companyID, true).
 		Order("cu.is_primary DESC, u.last_name, u.first_name").
 		Scan(&users).Error
 	if err != nil {

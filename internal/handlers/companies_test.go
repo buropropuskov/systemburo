@@ -360,6 +360,28 @@ func TestCompanies_UpdateUsers(t *testing.T) {
 	assert.Equal(t, true, users[0]["required_approval"])
 }
 
+func TestCompanies_GetUsers_ExcludesArchived(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterUser(t, e, "archcompuser", "pass123", 1, td.OrgID, td.CompanyID)
+	body := `{"users":[{"username":"archcompuser","is_primary":true}]}`
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), body, testutil.AuthHeader(token)).Code)
+
+	// До архива ответственный в списке.
+	users := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(token)))
+	require.Len(t, users, 1)
+
+	// Архивируем юзера - должен исчезнуть из ответственных.
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, "/users/archcompuser", testutil.AuthHeader(token)).Code)
+
+	users = testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), testutil.AuthHeader(token)))
+	assert.Len(t, users, 0)
+}
+
 func TestCompanies_UpdateUsers_MultiplePrimary_Fails(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
