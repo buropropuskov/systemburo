@@ -66,13 +66,39 @@ func TestUnloadPlaces_CRUD(t *testing.T) {
 	assert.Equal(t, "Updated Place", getResp["name"])
 	assert.Equal(t, "maintenance", getResp["status"])
 
-	// Delete
+	// Delete = архив (soft-delete)
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d", placeID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// Verify deleted (404)
-	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h)
-	assert.Equal(t, http.StatusNotFound, rec.Code)
+	// Архивное место скрыто из дефолтного списка
+	def := testutil.ParseSlice(t, testutil.GET(t, e, "/unload-places", h))
+	for _, p := range def {
+		assert.NotEqual(t, float64(placeID), p["id"], "архивное место не должно быть в дефолтном списке")
+	}
+
+	// ...но видно с include_archived (is_active=false)
+	arch := testutil.ParseSlice(t, testutil.GET(t, e, "/unload-places?include_archived=true", h))
+	var found bool
+	for _, p := range arch {
+		if int(p["id"].(float64)) == placeID {
+			found = true
+			assert.Equal(t, false, p["is_active"])
+		}
+	}
+	assert.True(t, found, "архивное место должно быть видно с include_archived")
+
+	// Restore возвращает в дефолтный список
+	rec = testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/restore", placeID), "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	def = testutil.ParseSlice(t, testutil.GET(t, e, "/unload-places", h))
+	found = false
+	for _, p := range def {
+		if int(p["id"].(float64)) == placeID {
+			found = true
+			assert.Equal(t, true, p["is_active"])
+		}
+	}
+	assert.True(t, found, "восстановленное место должно быть в дефолтном списке")
 }
 
 func TestUnloadPlaces_GetByID_NotFound(t *testing.T) {

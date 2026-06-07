@@ -33,11 +33,11 @@ type UpdateUnloadPlaceRequest struct {
 
 // CreateTimeSlotRequest -- тело запроса на создание временного слота.
 type CreateTimeSlotRequest struct {
-	DayOfWeek int     `json:"day_of_week" validate:"min=0,max=6"`
-	OpenTime  string  `json:"open_time" validate:"required"`
-	CloseTime string  `json:"close_time" validate:"required"`
-	IsNextDay *bool   `json:"is_next_day"`
-	IsActive  *bool   `json:"is_active"`
+	DayOfWeek int    `json:"day_of_week" validate:"min=0,max=6"`
+	OpenTime  string `json:"open_time" validate:"required"`
+	CloseTime string `json:"close_time" validate:"required"`
+	IsNextDay *bool  `json:"is_next_day"`
+	IsActive  *bool  `json:"is_active"`
 }
 
 // UpdateTimeSlotRequest -- тело запроса на обновление временного слота.
@@ -67,11 +67,12 @@ type UnloadPlaceWithDetails struct {
 
 // UnloadPlaceService -- интерфейс бизнес-логики мест разгрузки.
 type UnloadPlaceService interface {
-	GetAll(ctx context.Context) ([]UnloadPlaceWithDetails, error)
+	GetAll(ctx context.Context, includeArchived bool) ([]UnloadPlaceWithDetails, error)
 	GetByID(ctx context.Context, id int) (*UnloadPlaceWithDetails, error)
 	Create(ctx context.Context, req CreateUnloadPlaceRequest) (int, error)
 	Update(ctx context.Context, id int, req UpdateUnloadPlaceRequest) error
 	Delete(ctx context.Context, id int) error
+	Restore(ctx context.Context, id int) error
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, placeID int) ([]models.UnloadPlaceTimeSlot, error)
@@ -168,9 +169,13 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 }
 
 // GetAll возвращает все места разгрузки с расписанием и фотографиями.
-func (s *unloadPlaceService) GetAll(ctx context.Context) ([]UnloadPlaceWithDetails, error) {
+func (s *unloadPlaceService) GetAll(ctx context.Context, includeArchived bool) ([]UnloadPlaceWithDetails, error) {
 	places := make([]models.UnloadPlace, 0)
-	if err := s.db.WithContext(ctx).Order("name").Find(&places).Error; err != nil {
+	q := s.db.WithContext(ctx).Order("name")
+	if !includeArchived {
+		q = q.Where("is_active = ?", true)
+	}
+	if err := q.Find(&places).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching unload places")
 	}
 
@@ -299,22 +304,35 @@ func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 		return echo.NewHTTPError(http.StatusBadRequest, msg)
 	}
 
-	// Получаем URL фотографий для удаления файлов
-	var photoURLs []string
-	s.db.WithContext(ctx).
-		Model(&models.UnloadPlacePhoto{}).
-		Where("unload_place_id = ?", id).
-		Pluck("photo_url", &photoURLs)
-
-	result := s.db.WithContext(ctx).Delete(&models.UnloadPlace{}, id)
+	// Архив (soft-delete): фото/слоты НЕ удаляем физически - запись можно восстановить.
+	result := s.db.WithContext(ctx).
+		Model(&models.UnloadPlace{}).
+		Where("id = ?", id).
+		Update("is_active", false)
 	if result.Error != nil {
-		slog.Error("не удалось удалить место разгрузки", "id", id, "error", result.Error)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting unload place")
+		slog.Error("не удалось архивировать место разгрузки", "id", id, "error", result.Error)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving unload place")
 	}
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
-	slog.Info("место разгрузки удалено", "id", id)
+	slog.Info("место разгрузки архивировано", "id", id)
 	return nil
 }
 
+// Restore восстанавливает архивное место разгрузки (is_active=true).
+func (s *unloadPlaceService) Restore(ctx context.Context, id int) error {
+	result := s.db.WithContext(ctx).
+		Model(&models.UnloadPlace{}).
+		Where("id = ?", id).
+		Update("is_active", true)
+	if result.Error != nil {
+		slog.Error("не удалось восстановить место разгрузки", "id", id, "error", result.Error)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring unload place")
+	}
+	if result.RowsAffected == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+	slog.Info("место разгрузки восстановлено", "id", id)
+	return nil
+}
