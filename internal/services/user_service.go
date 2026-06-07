@@ -441,6 +441,11 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 	if user.IsActive == active {
 		return nil // no-op
 	}
+	// Архив = мгновенный офбординг (BanCheck даёт 403), поэтому супер-админа,
+	// как и при бане, архивировать нельзя - иначе админ может вырубить владельца.
+	if !active && user.IsSuperAdmin {
+		return echo.NewHTTPError(http.StatusForbidden, "Нельзя архивировать супер-администратора")
+	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.User{}).Where("id = ?", user.ID).Update("is_active", active).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user")

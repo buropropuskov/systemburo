@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -46,6 +47,12 @@ func (s *BanCheckService) Status(ctx context.Context, userID int) (banned, activ
 
 	var user models.User
 	if err := s.db.WithContext(ctx).Select("id, is_banned, is_active").First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Несуществующий юзер (напр. валидный JWT на удалённую запись) -
+			// трактуем как inactive, чтобы middleware дал 403, а не fail-open.
+			return false, false, nil
+		}
+		// Транзиентная ошибка БД - active=true, caller делает fail-open.
 		return false, true, err
 	}
 	s.cache.Store(userID, banEntry{

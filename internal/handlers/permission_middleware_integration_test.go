@@ -360,6 +360,47 @@ func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
 	}
 }
 
+func TestBanCheck_InvalidationAfterArchiveReflectsImmediately(t *testing.T) {
+	// Архив через userService должен инвалидировать кэш блокировок, чтобы
+	// следующий же запрос архивного юзера дал 403 без ожидания TTL.
+	_, db, _ := testutil.SetupTestApp(t)
+	banCache := services.NewBanCheckService(db, time.Hour)
+	userSvc := services.NewUserService(db, nil)
+	userSvc.SetBanCache(banCache)
+
+	targetID, _, cleanup := setupMWUser(t, db, false, false)
+	defer cleanup()
+	var target models.User
+	if err := db.First(&target, targetID).Error; err != nil {
+		t.Fatalf("load target: %v", err)
+	}
+
+	var adminTypeID int
+	if err := db.Table("user_types").Select("id").Where("code = ?", "buropropuskov").Row().Scan(&adminTypeID); err != nil {
+		t.Fatalf("find admin type: %v", err)
+	}
+
+	// 1. Прогреваем кэш - active=true.
+	_, active, err := banCache.Status(context.Background(), targetID)
+	if err != nil || !active {
+		t.Fatalf("expected active before archive (active=%v err=%v)", active, err)
+	}
+
+	// 2. Архивируем через сервис - должен сбросить кэш.
+	if err := userSvc.Delete(context.Background(), adminTypeID, adminTypeID, target.Username); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	// 3. Сразу читаем - active=false (кэш сброшен, идём в БД) даже при часовом TTL.
+	_, active, err = banCache.Status(context.Background(), targetID)
+	if err != nil {
+		t.Fatalf("status after archive: %v", err)
+	}
+	if active {
+		t.Errorf("expected active=false immediately after archive (cache invalidated)")
+	}
+}
+
 func TestAccessDenialService_ArchiveOlderThan(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewAccessDenialService(db)
