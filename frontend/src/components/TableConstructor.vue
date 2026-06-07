@@ -471,8 +471,8 @@
           v-if="activeTab === 'schedule'"
           class="tab-content"
         >
-          <SystemTableScheduleTab 
-            :table-id="selectedTable.table.id"
+          <WorkScheduleTab
+            :resource-url="'/system-tables/' + selectedTable.table.id"
             :time-slots="selectedTable.time_slots"
             @update="refreshSelectedTable"
           />
@@ -636,7 +636,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
-import SystemTableScheduleTab from './SystemTableScheduleTab.vue';
+import WorkScheduleTab from './WorkScheduleTab.vue';
 import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
 import SystemTableAppearanceTab from './SystemTableAppearanceTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
@@ -651,7 +651,7 @@ export default {
     SearchComponent,
     RefreshButton,
     TextConstructor,
-    SystemTableScheduleTab,
+    WorkScheduleTab,
     SystemTableColumnsTab,
     SystemTableAppearanceTab,
     TableConstructorCreateModal,
