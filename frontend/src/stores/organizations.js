@@ -49,10 +49,12 @@ export const useOrganizationsStore = defineStore('organizations', {
     /**
      * Загружает расширенный список с user_count (для OrganizationsManagement).
      * Каждый элемент дополняется originalName для трекинга изменений inline.
+     * @param {boolean} includeArchived - включить архивные организации (is_active=false)
      */
-    async fetchOrganizationsWithUsers() {
+    async fetchOrganizationsWithUsers(includeArchived = false) {
       try {
-        const response = await apiRequest('/organizations/with-users-extended')
+        const qs = includeArchived ? '?include_archived=true' : ''
+        const response = await apiRequest(`/organizations/with-users-extended${qs}`)
         if (response.ok) {
           const data = await response.json()
           this.itemsWithUsers = data.map(org => ({
@@ -69,13 +71,14 @@ export const useOrganizationsStore = defineStore('organizations', {
     /**
      * Полная синхронизация: подтягивает оба представления параллельно.
      * Вызывается после CUD-операций, чтобы все потребители увидели свежие данные.
+     * @param {boolean} includeArchived - тянуть ли архивные в расширенный список
      */
-    async refresh() {
+    async refresh(includeArchived = false) {
       this.isLoading = true
       try {
         await Promise.all([
           this.fetchOrganizations(),
-          this.fetchOrganizationsWithUsers(),
+          this.fetchOrganizationsWithUsers(includeArchived),
         ])
       } finally {
         this.isLoading = false
@@ -86,9 +89,10 @@ export const useOrganizationsStore = defineStore('organizations', {
      * Создаёт организацию и обновляет state. Возвращает созданную сущность,
      * чтобы вызывающий мог автоматически выбрать её в UI.
      * @param {{ name: string }} payload
+     * @param {{ includeArchived?: boolean }} [opts] - сохранить режим архива при рефреше
      * @returns {Promise<{ ok: boolean, data?: object, message?: string }>}
      */
-    async createOrganization(payload) {
+    async createOrganization(payload, { includeArchived = false } = {}) {
       try {
         const response = await apiRequest('/organizations', {
           method: 'POST',
@@ -96,7 +100,7 @@ export const useOrganizationsStore = defineStore('organizations', {
         })
         if (response.ok) {
           const data = await response.json()
-          await this.refresh()
+          await this.refresh(includeArchived)
           return { ok: true, data }
         }
         const error = await response.json().catch(() => ({}))
@@ -111,15 +115,16 @@ export const useOrganizationsStore = defineStore('organizations', {
      * Обновляет организацию. После успеха перечитывает оба списка.
      * @param {number} id
      * @param {{ name: string }} payload
+     * @param {{ includeArchived?: boolean }} [opts]
      */
-    async updateOrganization(id, payload) {
+    async updateOrganization(id, payload, { includeArchived = false } = {}) {
       try {
         const response = await apiRequest(`/organizations/${id}`, {
           method: 'PUT',
           body: JSON.stringify(payload),
         })
         if (response.ok) {
-          await this.refresh()
+          await this.refresh(includeArchived)
           return { ok: true }
         }
         const error = await response.json().catch(() => ({}))
@@ -131,22 +136,45 @@ export const useOrganizationsStore = defineStore('organizations', {
     },
 
     /**
-     * Удаляет организацию. После успеха перечитывает оба списка.
+     * Архивирует организацию (soft-delete, is_active=false). После успеха перечитывает списки.
      * @param {number} id
+     * @param {{ includeArchived?: boolean }} [opts]
      */
-    async deleteOrganization(id) {
+    async deleteOrganization(id, { includeArchived = false } = {}) {
       try {
         const response = await apiRequest(`/organizations/${id}`, {
           method: 'DELETE',
         })
         if (response.ok) {
-          await this.refresh()
+          await this.refresh(includeArchived)
           return { ok: true }
         }
         const error = await response.json().catch(() => ({}))
         return { ok: false, message: error.message }
       } catch (err) {
         console.error('Error deleting organization:', err)
+        return { ok: false, message: 'Ошибка сети' }
+      }
+    },
+
+    /**
+     * Восстанавливает организацию из архива (is_active=true). После успеха перечитывает списки.
+     * @param {number} id
+     * @param {{ includeArchived?: boolean }} [opts]
+     */
+    async restoreOrganization(id, { includeArchived = false } = {}) {
+      try {
+        const response = await apiRequest(`/organizations/${id}/restore`, {
+          method: 'POST',
+        })
+        if (response.ok) {
+          await this.refresh(includeArchived)
+          return { ok: true }
+        }
+        const error = await response.json().catch(() => ({}))
+        return { ok: false, message: error.message }
+      } catch (err) {
+        console.error('Error restoring organization:', err)
         return { ok: false, message: 'Ошибка сети' }
       }
     },
