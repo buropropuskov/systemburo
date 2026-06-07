@@ -9,11 +9,14 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// BanCheck блокирует забаненных пользователей на КАЖДОМ protected-запросе.
+// BanCheck блокирует забаненных И архивных пользователей на КАЖДОМ
+// protected-запросе.
 //
-// Без этого middleware забаненный юзер с валидным access-токеном может
-// работать до истечения exp - это окно опасно для API-only клиентов
-// (без фронт-полинга /permissions/my).
+// Без этого middleware юзер с валидным access-токеном продолжает работать до
+// истечения exp - это окно опасно для API-only клиентов (без фронт-полинга
+// /permissions/my). Архив (is_active=false) трактуем как мгновенный офбординг
+// наравне с баном: login/refresh уже блокируются по is_active, здесь закрываем
+// окно живого access-токена.
 //
 // Должен стоять после JWTAuth (нужен user_id в context).
 func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
@@ -23,7 +26,7 @@ func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
 			if userID == 0 {
 				return next(c)
 			}
-			banned, err := svc.IsBanned(c.Request().Context(), userID)
+			banned, active, err := svc.Status(c.Request().Context(), userID)
 			if err != nil {
 				// Ошибка БД на горячем пути - пропускаем (fail-open),
 				// иначе любой временный сбой положит весь API. Логируем.
@@ -32,6 +35,9 @@ func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
 			}
 			if banned {
 				return echo.NewHTTPError(http.StatusForbidden, "Учётная запись заблокирована")
+			}
+			if !active {
+				return echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена")
 			}
 			return next(c)
 		}

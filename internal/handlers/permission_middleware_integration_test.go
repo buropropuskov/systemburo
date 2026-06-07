@@ -293,6 +293,36 @@ func TestBanCheck_DeniesBannedUser(t *testing.T) {
 	}
 }
 
+func TestBanCheck_DeniesArchivedUser(t *testing.T) {
+	// Архивный (is_active=false) юзер с живым access-токеном должен получать 403
+	// на каждом запросе - офбординг не ждёт истечения токена.
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewBanCheckService(db, time.Minute)
+
+	userID, _, cleanup := setupMWUser(t, db, false, false)
+	defer cleanup()
+	if err := db.Model(&models.User{}).Where("id = ?", userID).Update("is_active", false).Error; err != nil {
+		t.Fatalf("archive user: %v", err)
+	}
+
+	e := echo.New()
+	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
+		func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				c.Set("user_id", userID)
+				return next(c)
+			}
+		},
+		middleware.BanCheck(svc),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for archived user, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
 func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
 	// Регресс на issue #271: после Ban() кэш ban-чекера должен инвалидироваться,
 	// чтобы следующий же запрос забаненного юзера получил 403 без ожидания TTL.

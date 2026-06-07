@@ -23,6 +23,7 @@ type BanCheckService struct {
 
 type banEntry struct {
 	banned    bool
+	active    bool
 	expiresAt time.Time
 }
 
@@ -31,25 +32,34 @@ func NewBanCheckService(db *gorm.DB, ttl time.Duration) *BanCheckService {
 	return &BanCheckService{db: db, ttl: ttl}
 }
 
-// IsBanned возвращает true если у пользователя is_banned=true.
-// На cache miss или истёкшую запись делает один SELECT.
-func (s *BanCheckService) IsBanned(ctx context.Context, userID int) (bool, error) {
+// Status возвращает (banned, active) пользователя на горячем пути.
+// Архивный (is_active=false) юзер блокируется так же мгновенно, как забаненный,
+// чтобы офбординг не дожидался истечения access-токена. На cache miss/истёкшую
+// запись делает один SELECT; при ошибке БД отдаёт active=true (caller fail-open).
+func (s *BanCheckService) Status(ctx context.Context, userID int) (banned, active bool, err error) {
 	if v, ok := s.cache.Load(userID); ok {
 		entry := v.(banEntry)
 		if time.Now().Before(entry.expiresAt) {
-			return entry.banned, nil
+			return entry.banned, entry.active, nil
 		}
 	}
 
 	var user models.User
-	if err := s.db.WithContext(ctx).Select("id, is_banned").First(&user, userID).Error; err != nil {
-		return false, err
+	if err := s.db.WithContext(ctx).Select("id, is_banned, is_active").First(&user, userID).Error; err != nil {
+		return false, true, err
 	}
 	s.cache.Store(userID, banEntry{
 		banned:    user.IsBanned,
+		active:    user.IsActive,
 		expiresAt: time.Now().Add(s.ttl),
 	})
-	return user.IsBanned, nil
+	return user.IsBanned, user.IsActive, nil
+}
+
+// IsBanned - обратная совместимость (используется в интеграционных тестах).
+func (s *BanCheckService) IsBanned(ctx context.Context, userID int) (bool, error) {
+	banned, _, err := s.Status(ctx, userID)
+	return banned, err
 }
 
 // Invalidate сбрасывает кэш для конкретного пользователя.

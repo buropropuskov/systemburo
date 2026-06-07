@@ -38,12 +38,16 @@ type UserService interface {
 	Restore(ctx context.Context, callerTypeID, callerUserID int, username string) error
 	// GetHistory возвращает историю действий над пользователем (по username).
 	GetHistory(ctx context.Context, callerTypeID int, username string) ([]models.UserHistoryItem, error)
+	// SetBanCache подключает кэш блокировок, чтобы архив/восстановление мгновенно
+	// сбрасывали его (офбординг без ожидания TTL). Опционально (может не вызываться).
+	SetBanCache(banCache *BanCheckService)
 }
 
 type userService struct {
 	db                  *gorm.DB
 	notificationService NotificationService
 	history             UserHistoryService
+	banCache            *BanCheckService
 }
 
 // NewUserService создаёт новый экземпляр сервиса управления пользователями.
@@ -57,6 +61,12 @@ func NewUserService(db *gorm.DB, notificationService NotificationService) UserSe
 		notificationService: notificationService,
 		history:             NewUserHistoryService(db),
 	}
+}
+
+// SetBanCache подключает кэш блокировок (опционально, после конструирования -
+// в main.go banCheckService создаётся позже userService).
+func (s *userService) SetBanCache(banCache *BanCheckService) {
+	s.banCache = banCache
 }
 
 // targetUserID резолвит id пользователя по username для записи в историю.
@@ -453,6 +463,12 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 		action = models.UserActionArchived
 	}
 	s.history.Log(ctx, user.ID, &callerUserID, action, nil)
+
+	// Сбрасываем кэш блокировок, чтобы архив/восстановление подействовали мгновенно
+	// (BanCheck на следующем запросе перечитает is_active, не дожидаясь TTL).
+	if s.banCache != nil {
+		s.banCache.Invalidate(user.ID)
+	}
 	return nil
 }
 
