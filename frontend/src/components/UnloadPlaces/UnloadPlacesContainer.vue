@@ -5,6 +5,14 @@
         Управление местами разгрузки
       </h3>
       <div class="header-controls">
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск мест разгрузки...'"
@@ -72,7 +80,10 @@
               v-for="place in sortedUnloadPlaces" 
               :key="place.id" 
               class="table-row"
-              :class="{'selected': selectedPlace && selectedPlace.id === place.id}"
+              :class="{
+                'selected': selectedPlace && selectedPlace.id === place.id,
+                'inactive': !place.is_active
+              }"
               @click="selectPlace(place)"
             >
               <div class="table-col id-col">
@@ -84,6 +95,10 @@
                   :title="place.name"
                 >
                   {{ place.name }}
+                  <span
+                    v-if="!place.is_active"
+                    class="inactive-badge"
+                  >(архив)</span>
                 </span>
               </div>
               <div class="table-col status-col">
@@ -98,7 +113,7 @@
           </div>
 
           <div class="table-footer">
-            <span class="items-count">Всего мест разгрузки: {{ filteredUnloadPlaces.length }}</span>
+            <span class="items-count">{{ showArchive ? 'В архиве' : 'Всего мест разгрузки' }}: {{ filteredUnloadPlaces.length }}</span>
           </div>
         </div>
       </div>
@@ -152,14 +167,23 @@
               </span>
             </div>
             <div class="details-header-actions">
+              <span
+                v-if="!selectedPlace.is_active"
+                class="archive-badge"
+              >В архиве</span>
               <button
-                class="delete-icon-btn"
+                v-if="selectedPlace.is_active"
+                class="action-btn archive-action-btn"
                 @click="confirmDeletePlace(selectedPlace)"
               >
-                <img
-                  src="@/assets/icons/delete.png"
-                  class="delete-icon"
-                >
+                В архив
+              </button>
+              <button
+                v-else
+                class="action-btn restore-btn"
+                @click="onRestore(selectedPlace)"
+              >
+                Восстановить
               </button>
             </div>
           </div>
@@ -167,22 +191,24 @@
           <div class="details-body">
             <div class="detail-group">
               <label class="detail-label">Наименование:</label>
-              <input 
-                v-model="selectedPlace.name" 
+              <input
+                v-model="selectedPlace.name"
                 class="form-input"
                 placeholder="Введите название места"
                 autocomplete="off"
+                :disabled="isArchivedView"
                 @change="updatePlace(selectedPlace)"
               >
             </div>
 
             <div class="detail-group">
               <label class="detail-label">Описание:</label>
-              <textarea 
-                v-model="selectedPlace.description" 
+              <textarea
+                v-model="selectedPlace.description"
                 class="form-textarea"
                 placeholder="Введите описание"
                 rows="2"
+                :disabled="isArchivedView"
                 @change="updatePlace(selectedPlace)"
               />
             </div>
@@ -191,16 +217,18 @@
             <div class="detail-group">
               <label class="detail-label">Статус:</label>
               <div class="status-toggle">
-                <button 
-                  class="status-btn" 
+                <button
+                  class="status-btn"
                   :class="{ 'active': selectedPlace.status === 'active' }"
+                  :disabled="isArchivedView"
                   @click="setPlaceStatus('active')"
                 >
                   Активно
                 </button>
-                <button 
-                  class="status-btn" 
+                <button
+                  class="status-btn"
                   :class="{ 'active': selectedPlace.status === 'inactive' }"
+                  :disabled="isArchivedView"
                   @click="setPlaceStatus('inactive')"
                 >
                   Не активно
@@ -214,11 +242,12 @@
               class="detail-group"
             >
               <label class="detail-label">Причина:</label>
-              <textarea 
-                v-model="selectedPlace.status_comment" 
+              <textarea
+                v-model="selectedPlace.status_comment"
                 class="form-textarea"
                 placeholder="Укажите причину закрытия"
                 rows="2"
+                :disabled="isArchivedView"
                 @change="updatePlace(selectedPlace)"
               />
             </div>
@@ -230,9 +259,10 @@
           v-if="activeTab === 'schedule'"
           class="tab-content"
         >
-          <ScheduleTab 
+          <ScheduleTab
             :place-id="selectedPlace.id"
             :time-slots="selectedPlace.time_slots"
+            :readonly="isArchivedView"
             @update="refreshSelectedPlace"
           />
         </div>
@@ -251,11 +281,12 @@
               в Яндекс/Google Maps.
             </p>
             <div class="map-link-group">
-              <input 
-                v-model="selectedPlace.map_link" 
+              <input
+                v-model="selectedPlace.map_link"
                 class="form-input"
                 placeholder="https://maps.google.com/..."
                 autocomplete="off"
+                :disabled="isArchivedView"
                 @change="updatePlace(selectedPlace)"
               >
               <a 
@@ -274,7 +305,10 @@
               <h4 class="section-title">
                 Изображение(-я)
               </h4>
-              <label class="upload-photo-btn">
+              <label
+                v-if="!isArchivedView"
+                class="upload-photo-btn"
+              >
                 + Загрузить
                 <input
                   type="file"
@@ -292,6 +326,7 @@
 
             <!-- Drag&drop zone (как в TableConstructorPhotoSection). -->
             <label
+              v-if="!isArchivedView"
               class="photo-dropzone"
               :class="{ 'photo-dropzone--active': isDraggingPhoto }"
               @dragenter.prevent="isDraggingPhoto = true"
@@ -343,7 +378,10 @@
                     :alt="photo.file_name"
                   >
                 </div>
-                <div class="photo-actions">
+                <div
+                  v-if="!isArchivedView"
+                  class="photo-actions"
+                >
                   <button
                     v-if="!photo.is_main"
                     class="photo-main-btn"
@@ -395,7 +433,7 @@
       <div class="no-results-icon">
         📍
       </div>
-      <p>Места разгрузки не найдены</p>
+      <p>{{ emptyText }}</p>
     </div>
 
     <!-- Модальное окно добавления места -->
@@ -531,9 +569,9 @@
 
     <ConfirmationModal
       :show="!!deleteConfirmPlace"
-      title="Удаление места разгрузки"
-      :message="deleteConfirmPlace ? `Удалить место разгрузки «${deleteConfirmPlace.name}»?` : ''"
-      confirm-text="Удалить"
+      title="Архивация места разгрузки"
+      :message="deleteConfirmPlace ? `Архивировать место разгрузки «${deleteConfirmPlace.name}»? Его можно будет восстановить из архива.` : ''"
+      confirm-text="В архив"
       cancel-text="Отмена"
       @confirm="performDeletePlace"
       @cancel="deleteConfirmPlace = null"
@@ -558,6 +596,7 @@ import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
+import BaseDropdown from '../ui/BaseDropdown.vue';
 import ScheduleTab from './ScheduleTab.vue';
 
 export default {
@@ -565,6 +604,7 @@ export default {
     SearchComponent,
     RefreshButton,
     ConfirmationModal,
+    BaseDropdown,
     ScheduleTab
   },
   setup() {
@@ -585,6 +625,11 @@ export default {
   data() {
     return {
       searchQuery: '',
+      showArchive: false,
+      archiveOptions: [
+        { label: 'Активные', value: 'active' },
+        { label: 'Архив', value: 'archive' },
+      ],
       newPlaceName: '',
       newPlaceDescription: '',
       unloadPlaces: [],
@@ -602,11 +647,22 @@ export default {
     };
   },
   computed: {
+    isArchivedView() {
+      return !!this.selectedPlace && !this.selectedPlace.is_active;
+    },
+    emptyText() {
+      if (this.searchQuery) return 'Ничего не найдено по фильтру';
+      return this.showArchive ? 'В архиве пусто' : 'Места разгрузки пока нет';
+    },
     filteredUnloadPlaces() {
-      if (!this.searchQuery) return this.unloadPlaces;
+      // Тянем активные и архивные одним запросом, режим фильтрует на клиенте.
+      const byMode = this.unloadPlaces.filter(place =>
+        this.showArchive ? !place.is_active : place.is_active
+      );
+      if (!this.searchQuery) return byMode;
       const query = this.searchQuery.toLowerCase();
-      return this.unloadPlaces.filter(place => 
-        place.name.toLowerCase().includes(query) || 
+      return byMode.filter(place =>
+        place.name.toLowerCase().includes(query) ||
         place.id.toString().includes(query)
       );
     },
@@ -695,7 +751,7 @@ export default {
     
     async fetchUnloadPlaces() {
       try {
-        const response = await apiRequest("/unload-places", {
+        const response = await apiRequest("/unload-places?include_archived=true", {
         });
         if (response.ok) {
           const data = await response.json();
@@ -794,7 +850,11 @@ export default {
     },
     
     async updatePlace(place) {
-      const hasChanges = 
+      // Архивную запись редактировать нельзя - бэкенд PUT её не блокирует,
+      // поэтому страхуемся тут (в UI поля и так disabled).
+      if (!place.is_active) return;
+
+      const hasChanges =
         place.name !== place.originalName ||
         place.description !== place.originalDescription ||
         place.map_link !== place.originalMapLink ||
@@ -875,17 +935,44 @@ export default {
           this.selectedPlace = null;
           this.activeTab = 'main';
           await this.refreshData();
-          useDeletionsStore().notify({ prefix: 'Место разгрузки ', bold: place.name, suffix: ' удалено' });
+          useDeletionsStore().notify({ prefix: 'Место разгрузки ', bold: place.name, suffix: ' архивировано' });
         } else {
           const error = await response.json();
-          useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: error.message || 'ошибка', type: 'error' });
+          useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: error.message || 'ошибка', type: 'error' });
         }
       } catch (error) {
-        console.error("Error deleting unload place:", error);
-        useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: 'ошибка сети', type: 'error' });
+        console.error("Error archiving unload place:", error);
+        useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: 'ошибка сети', type: 'error' });
       }
     },
     
+    onArchiveModeChange(value) {
+      this.showArchive = value === 'archive';
+      this.selectedPlace = null;
+      this.activeTab = 'main';
+    },
+
+    async onRestore(place) {
+      try {
+        const response = await apiRequest(`/unload-places/${place.id}/restore`, {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          this.selectedPlace = null;
+          this.activeTab = 'main';
+          await this.refreshData();
+          useDeletionsStore().notify({ prefix: 'Место разгрузки ', bold: place.name, suffix: ' восстановлено из архива' });
+        } else {
+          const err = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: err.message || 'ошибка', type: 'error' });
+        }
+      } catch (error) {
+        console.error("Error restoring unload place:", error);
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: 'ошибка сети', type: 'error' });
+      }
+    },
+
     selectPlace(place) {
       this.selectedPlace = { ...place };
       this.activeTab = 'main';
@@ -1074,6 +1161,10 @@ async uploadPhotoFiles(files) {
   gap: 12px;
 }
 
+.archive-dropdown {
+  min-width: 130px;
+}
+
 .add-header-button {
   padding: 8px 16px;
   background: #4F5BDF;
@@ -1208,6 +1299,22 @@ async uploadPhotoFiles(files) {
 
 .table-row.selected {
   background-color: #f8f9ff;
+}
+
+.table-row.inactive {
+  background: #fafafa;
+  color: #6b7280;
+}
+
+.table-row.inactive .id-value {
+  color: #6b7280;
+}
+
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: #a2a2a2;
+  font-style: italic;
 }
 
 .table-col {
@@ -1384,27 +1491,48 @@ async uploadPhotoFiles(files) {
   gap: 10px;
 }
 
-.delete-icon-btn {
-  outline: none;
+.archive-badge {
+  background: #6b7280;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.action-btn {
+  padding: 8px 16px;
   border: none;
-  width: 30px;
-  height: 30px;
-  padding: 5px;
-  border-radius: 10px;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s, border-color 0.2s;
   display: flex;
-  align-items:center;
+  align-items: center;
   justify-content: center;
-  transition: .2s;
+  white-space: nowrap;
 }
 
-.delete-icon {
-  width: 20px;
-  height: 20px;
+.archive-action-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
 }
 
-.delete-icon-btn:hover {
-  background-color: #e6e6e6;
-  cursor:pointer;
+.archive-action-btn:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.restore-btn {
+  background: #10b981;
+  color: #fff;
+}
+
+.restore-btn:hover {
+  background: #0da271;
 }
 
 .details-body {
@@ -1438,6 +1566,18 @@ async uploadPhotoFiles(files) {
 .form-input:focus {
   border-color: #4F5BDF;
   outline: none;
+}
+
+.form-input:disabled,
+.form-textarea:disabled {
+  background: #f8fafc;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.status-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .form-textarea {
@@ -1475,7 +1615,7 @@ async uploadPhotoFiles(files) {
   color: #666;
 }
 
-.status-btn:hover {
+.status-btn:hover:not(:disabled) {
   border-color: #4F5BDF;
   color: #4F5BDF;
 }

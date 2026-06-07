@@ -5,6 +5,7 @@
         Режим работы
       </h4>
       <button
+        v-if="!readonly"
         class="add-btn"
         :disabled="isLoading"
         @click="openAddModal"
@@ -34,7 +35,7 @@
               <input
                 type="checkbox"
                 :checked="hasRoundTheClock(day - 1)"
-                :disabled="isLoading"
+                :disabled="isLoading || readonly"
                 @change="toggleRoundTheClock(day - 1, $event)"
               >
               <span class="switch-slider" />
@@ -63,7 +64,10 @@
                 class="next-day-badge"
               >+1</span>
             </div>
-            <div class="slot-actions">
+            <div
+              v-if="!readonly"
+              class="slot-actions"
+            >
               <button
                 class="icon-btn"
                 title="Редактировать"
@@ -234,6 +238,7 @@ export default {
   props: {
     placeId: { type: Number, required: true },
     timeSlots: { type: Array, required: true },
+    readonly: { type: Boolean, default: false },
   },
   emits: ['update'],
   data() {
