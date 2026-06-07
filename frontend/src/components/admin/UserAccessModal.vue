@@ -42,13 +42,13 @@
         </div>
 
         <RolesGroupsPanel
-          v-if="activeTab === 'roles'"
+          v-show="activeTab === 'roles'"
           :user="user"
           @updated="$emit('updated')"
           @close="close"
         />
         <IndividualPermissionsPanel
-          v-else
+          v-show="activeTab === 'individual'"
           :user="user"
           @updated="$emit('updated')"
           @close="close"

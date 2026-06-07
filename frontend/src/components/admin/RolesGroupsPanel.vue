@@ -259,10 +259,12 @@ export default {
       this.actionLoading = true;
       try {
         await banUser(this.user.id);
+        useDeletionsStore().notify({ prefix: 'Пользователь ', bold: this.user.username, suffix: ' заблокирован' });
         this.$emit('updated');
         this.$emit('close');
       } catch (e) {
         console.error('Ошибка бана:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'заблокировать пользователя', type: 'error' });
       } finally {
         this.actionLoading = false;
       }
@@ -272,10 +274,12 @@ export default {
       this.actionLoading = true;
       try {
         await unbanUser(this.user.id);
+        useDeletionsStore().notify({ prefix: 'Пользователь ', bold: this.user.username, suffix: ' разблокирован' });
         this.$emit('updated');
         this.$emit('close');
       } catch (e) {
         console.error('Ошибка разбана:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'разблокировать пользователя', type: 'error' });
       } finally {
         this.actionLoading = false;
       }
@@ -287,15 +291,18 @@ export default {
     async confirmMerge() {
       this.saving = true;
       try {
+        const name = this.mergeName.trim();
         await mergePermissionGroups({
           user_id: this.user.id,
           source_group_ids: Array.from(this.selectedGroupIds),
-          new_group_name: this.mergeName.trim(),
+          new_group_name: name,
         });
         await this.fetchAll();
         this.mergeOpen = false;
+        useDeletionsStore().notify({ prefix: 'Группа ', bold: name, suffix: ' создана слиянием' });
       } catch (e) {
         console.error('Ошибка слияния:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'слить группы', type: 'error' });
       } finally {
         this.saving = false;
       }
