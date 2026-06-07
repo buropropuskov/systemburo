@@ -115,6 +115,12 @@ const routes = [
     meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.users' }
   },
   {
+    path: '/admin/blacklist',
+    name: 'AdminBlacklist',
+    component: () => import('./views/admin/BlacklistView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.blacklist' }
+  },
+  {
     path: '/admin/permission-groups',
     name: 'AdminPermissionGroups',
     component: () => import('./views/admin/AdminPermissionGroups.vue'),
