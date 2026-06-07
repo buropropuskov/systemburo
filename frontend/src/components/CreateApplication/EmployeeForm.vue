@@ -147,8 +147,8 @@
             <div class="completion__position-header">
               <label class="input__label">Должность <span class="required">*</span></label>
             </div>
-            <input 
-              v-model="position" 
+            <input
+              v-model="position"
               class="name__input"
               placeholder="Введите должность"
               :disabled="editingEmployee && editingEmployee.isExisting"
@@ -156,7 +156,21 @@
             >
           </div>
         </div>
-                
+
+        <div
+          v-if="blacklistInfo"
+          class="blacklist-warning"
+          data-testid="person-blacklist-warning"
+        >
+          <p class="warning-title">
+            Человек в чёрном списке
+          </p>
+          <p class="warning-details">
+            Причина: {{ blacklistInfo.reason || 'не указана' }}<br>
+            Добавить этого человека в заявку нельзя.
+          </p>
+        </div>
+
         <div class="completion__name-row">
           <div class="completion__passport">
             <div class="completion__passport-header">
@@ -351,6 +365,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { checkPersonBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
@@ -401,6 +416,7 @@ export default {
             return [
                 { check: !!vm.lastName.trim(), message: 'фамилию' },
                 { check: !!vm.firstName.trim(), message: 'имя' },
+                { check: !vm.blacklistInfo, message: 'Человек в чёрном списке' },
                 { check: !!vm.position.trim(), message: 'должность' },
                 { check: !!vm.selectedCitizenship, message: 'гражданство' },
                 { check: !!vm.passportSeriesNumber.trim(), message: 'паспортные данные' },
@@ -470,7 +486,10 @@ export default {
                 text: '',
                 x: 0,
                 y: 0
-            }
+            },
+            // Проверка ЧС (#443): null или { is_blacklisted, reason }
+            blacklistInfo: null,
+            blacklistTimeout: null
         }
     },
     computed: {
@@ -505,6 +524,11 @@ export default {
             });
         }
     },
+    watch: {
+        lastName() { this.checkBlacklist(); },
+        firstName() { this.checkBlacklist(); },
+        middleName() { this.checkBlacklist(); }
+    },
     async mounted() {
         await Promise.all([
             this.loadCitizenships(),
@@ -520,6 +544,11 @@ export default {
                 this.isPermissionDropdownOpen = false;
             }
         });
+    },
+    beforeUnmount() {
+        if (this.blacklistTimeout) {
+            clearTimeout(this.blacklistTimeout);
+        }
     },
     methods: {
         async loadCitizenships() {
@@ -734,6 +763,33 @@ export default {
                 .split(' ')
                 .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                 .join(' ');
+        },
+
+        // Проверка человека в чёрном списке (#443): строгое совпадение ФИО,
+        // как и серверный гард. Отчество опционально.
+        checkBlacklist() {
+            if (this.blacklistTimeout) {
+                clearTimeout(this.blacklistTimeout);
+            }
+
+            const last = this.lastName.trim();
+            const first = this.firstName.trim();
+            if (!last || !first) {
+                this.blacklistInfo = null;
+                return;
+            }
+            const middle = this.middleName.trim();
+
+            this.blacklistTimeout = setTimeout(async () => {
+                try {
+                    const res = await checkPersonBlacklist({ last_name: last, first_name: first, middle_name: middle });
+                    this.blacklistInfo = res && res.is_blacklisted ? res : null;
+                } catch (error) {
+                    // Тихо: фоновая проверка не блокирует ввод; серверный гард - бэкстоп.
+                    console.error('Ошибка при проверке ЧС человека:', error);
+                    this.blacklistInfo = null;
+                }
+            }, 500);
         },
 
         togglePassageTable(table) {
@@ -1697,5 +1753,28 @@ export default {
 .dropdown-leave-to {
     opacity: 0;
     transform: translateY(-10px);
+}
+
+.blacklist-warning {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    background: #fff5f5;
+    border: 1px solid #f5c2c7;
+    border-radius: 10px;
+}
+
+.blacklist-warning .warning-title {
+    font-weight: 600;
+    color: #b02a37;
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.blacklist-warning .warning-details {
+    color: #b02a37;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
 }
 </style>

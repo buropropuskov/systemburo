@@ -168,7 +168,6 @@ func main() {
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
@@ -180,6 +179,7 @@ func main() {
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, vehicleBlacklistHistoryService)
 	personBlacklistHistoryService := services.NewPersonBlacklistHistoryService(db)
 	personBlacklistService := services.NewPersonBlacklistService(db, personBlacklistHistoryService)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)
