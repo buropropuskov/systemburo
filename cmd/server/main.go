@@ -178,6 +178,8 @@ func main() {
 	markService := services.NewMarkService(db)
 	vehicleBlacklistHistoryService := services.NewVehicleBlacklistHistoryService(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, vehicleBlacklistHistoryService)
+	personBlacklistHistoryService := services.NewPersonBlacklistHistoryService(db)
+	personBlacklistService := services.NewPersonBlacklistService(db, personBlacklistHistoryService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)
@@ -217,6 +219,7 @@ func main() {
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
 	vehicleBlacklistHandler := handlers.NewVehicleBlacklistHandler(vehicleBlacklistService)
+	personBlacklistHandler := handlers.NewPersonBlacklistHandler(personBlacklistService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
@@ -271,6 +274,7 @@ func main() {
 		Maintenance:         maintenanceHandler,
 		Marks:               markHandler,
 		VehicleBlacklist:    vehicleBlacklistHandler,
+		PersonBlacklist:     personBlacklistHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
 		Trash:               trashHandler,
