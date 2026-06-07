@@ -5,13 +5,22 @@
         Управление компаниями
       </h3>
       <div class="header-controls">
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск компаний...'"
         />
         <button
           class="add-header-button"
-          @click="showAddModal = true"
+          data-testid="companies-add-btn"
+          @click="openAddModal"
         >
           Добавить
         </button>
@@ -34,13 +43,13 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'id',
                   'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
+                }"
               >
             </div>
             <div
@@ -50,13 +59,13 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'name',
                   'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
+                }"
               >
             </div>
             <div
@@ -66,23 +75,27 @@
               <p :class="{ 'active-sort': sortField === 'user_count' }">
                 Пользователи
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'user_count',
                   'desc': sortField === 'user_count' && sortDirection === 'desc'
-                }" 
+                }"
               >
             </div>
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="comp in sortedCompanies" 
-              :key="comp.id" 
+            <div
+              v-for="comp in sortedCompanies"
+              :key="comp.id"
               class="table-row"
-              :class="{'selected': selectedCompany && selectedCompany.id === comp.id}"
+              data-testid="companies-row"
+              :class="{
+                'selected': selectedCompany && selectedCompany.id === comp.id,
+                'inactive': !comp.is_active
+              }"
               @click="selectCompany(comp)"
             >
               <div class="table-col id-col">
@@ -94,6 +107,10 @@
                   :title="comp.name"
                 >
                   {{ comp.name }}
+                  <span
+                    v-if="!comp.is_active"
+                    class="inactive-badge"
+                  >(архив)</span>
                 </span>
               </div>
               <div class="table-col users-col">
@@ -102,10 +119,25 @@
                 </span>
               </div>
             </div>
+
+            <div
+              v-if="!sortedCompanies.length && !isLoading"
+              class="no-results-inline"
+            >
+              {{ emptyText }}
+            </div>
+            <div
+              v-if="isLoading && !companiesWithUsers.length"
+              class="companies-loading"
+            >
+              <LoaderSpinner label="Загрузка компаний..." />
+            </div>
           </div>
 
           <div class="table-footer">
-            <span class="items-count">Всего компаний: {{ filteredCompanies.length }}</span>
+            <span class="items-count">
+              {{ showArchive ? 'В архиве' : 'Всего компаний' }}: {{ sortedCompanies.length }}
+            </span>
           </div>
         </div>
       </div>
@@ -114,73 +146,100 @@
       <div
         v-if="selectedCompany"
         class="details-section"
+        data-testid="companies-details"
       >
         <div class="details-content">
           <div class="details-header">
             <div class="details-title-wrapper">
               <h3 class="details-title">
-                {{ selectedCompany.name }}
+                {{ originalSelectedName }}
               </h3>
             </div>
             <div class="details-header-actions">
+              <span
+                v-if="!selectedCompany.is_active"
+                class="archive-badge"
+              >В архиве</span>
               <button
-                class="delete-icon-btn"
-                @click="confirmDeleteCompany(selectedCompany)"
+                v-if="selectedCompany.is_active"
+                class="action-btn archive-action-btn"
+                data-testid="companies-archive"
+                @click="onArchiveClick(selectedCompany)"
               >
-                <img
-                  src="@/assets/icons/delete.png"
-                  class="delete-icon"
-                >
+                В архив
+              </button>
+              <button
+                v-else
+                class="action-btn restore-btn"
+                data-testid="companies-restore"
+                @click="onRestore(selectedCompany)"
+              >
+                Восстановить
               </button>
             </div>
           </div>
-          
+
           <div class="details-body">
-            <div class="details-grid-two-columns">
-              <!-- Левый столбец -->
-              <div class="details-column">
-                <div class="detail-group">
-                  <label class="detail-label">Наименование:</label>
-                  <input 
-                    v-model="selectedCompany.name" 
-                    class="form-input-sm"
-                    placeholder="Введите название компании"
-                    autocomplete="off"
-                    @change="saveCompany(selectedCompany)"
-                  >
-                </div>
-              </div>
-              
-              <!-- Правый столбец -->
-              <div class="details-column">
-                <!-- Пустой столбец для выравнивания -->
-              </div>
+            <label class="field-label">Наименование</label>
+            <div class="name-edit-row">
+              <input
+                v-model.trim="selectedCompany.name"
+                type="text"
+                class="lk-input"
+                maxlength="100"
+                placeholder="Введите название компании"
+                autocomplete="off"
+                :disabled="!selectedCompany.is_active || isSavingName"
+                data-testid="companies-detail-name"
+                @keyup.enter="saveSelectedName"
+              >
+              <button
+                v-if="selectedCompany.is_active"
+                class="lk-button lk-button--primary"
+                :disabled="!isDetailsDirty || isSavingName"
+                data-testid="companies-save-name"
+                @click="saveSelectedName"
+              >
+                Сохранить
+              </button>
+            </div>
+            <div
+              v-if="detailError"
+              class="form-error"
+            >
+              {{ detailError }}
             </div>
 
-            <!-- Компонент мест разгрузки -->
-            <SelectUnloadPlaces
-              :entity="selectedCompany"
-              :entity-type="'company'"
-              @places-updated="handlePlacesUpdated"
-            />
+            <template v-if="selectedCompany.is_active">
+              <SelectUnloadPlaces
+                :entity="selectedCompany"
+                :entity-type="'company'"
+                @places-updated="handlePlacesUpdated"
+              />
 
-            <!-- Компонент таблиц по умолчанию -->
-            <SelectTables
-              :entity="selectedCompany"
-              :entity-type="'company'"
-              @tables-updated="handleTablesUpdated"
-            />
+              <SelectTables
+                :entity="selectedCompany"
+                :entity-type="'company'"
+                @tables-updated="handleTablesUpdated"
+              />
+            </template>
+            <p
+              v-else
+              class="archive-hint"
+            >
+              Восстановите компанию, чтобы редактировать места разгрузки, таблицы и ответственных.
+            </p>
           </div>
         </div>
       </div>
-      
+
       <!-- Правая часть - ответственные лица -->
       <div
         class="responsible-section"
         :class="{'with-details': selectedCompany}"
       >
         <div
-          v-if="selectedCompany"
+          v-if="selectedCompany && selectedCompany.is_active"
           class="responsible-content"
         >
           <ResponsibleUsersSection
@@ -193,74 +252,96 @@
           v-else
           class="no-selection-message"
         >
-          <p>Выберите компанию для просмотра</p>
+          <p v-if="!selectedCompany">
+            Выберите компанию для просмотра
+          </p>
+          <p v-else>
+            Ответственные доступны после восстановления
+          </p>
         </div>
       </div>
-    </div>
-
-    <div
-      v-if="filteredCompanies.length === 0"
-      class="no-results"
-    >
-      <div class="no-results-icon">
-        🏭
-      </div>
-      <p>Компании не найдены</p>
     </div>
 
     <!-- Модальное окно добавления -->
     <Teleport to="body">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="showAddModal = false"
-      >
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Добавить компанию</h3>
-            <button
-              class="modal-close"
-              @click="showAddModal = false"
-            >
-              ×
-            </button>
-          </div>
-          <div class="modal-body">
-            <input
-              v-model="newCompanyName"
-              placeholder="Введите название компании"
-              class="modal-input"
-              @keyup.enter="addCompany"
-            >
-          </div>
-          <div class="modal-footer">
-            <button
-              class="modal-cancel"
-              @click="showAddModal = false"
-            >
-              Отмена
-            </button>
-            <button
-              class="modal-confirm"
-              @click="addCompany"
-            >
-              Добавить
-            </button>
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          data-testid="companies-modal"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
+          <div
+            class="companies-modal"
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <h3>Новая компания</h3>
+              <button
+                class="modal-close"
+                aria-label="Закрыть"
+                data-testid="companies-modal-close"
+                @click="requestCloseAdd"
+              >
+                ×
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Название компании</label>
+                <input
+                  ref="nameInput"
+                  v-model.trim="addForm.name"
+                  type="text"
+                  placeholder="Введите название компании"
+                  maxlength="100"
+                  class="lk-input"
+                  data-testid="companies-input-name"
+                  @keyup.enter="submitAdd"
+                >
+              </div>
+              <div
+                v-if="addError"
+                class="form-error"
+              >
+                {{ addError }}
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                class="lk-button lk-button--ghost"
+                data-testid="companies-modal-cancel"
+                @click="requestCloseAdd"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!addForm.name || isAdding"
+                data-testid="companies-modal-save"
+                @click="submitAdd"
+              >
+                Создать
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
-    <!-- Модальное окно подтверждения удаления -->
+    <!-- Модальное окно подтверждения архивации -->
     <ConfirmationModal
-      :show="showDeleteModal"
-      title="Подтверждение удаления"
-      :message="deleteMessage"
-      confirm-text="Удалить"
+      :show="!!archiveConfirmComp"
+      title="Архивация компании"
+      :message="archiveConfirmComp ? `Архивировать компанию «${archiveConfirmComp.name}»? Её можно будет восстановить из архива.` : ''"
+      confirm-text="В архив"
       cancel-text="Отмена"
-      :confirm-button-style="{ background: '#ff4444', borderColor: '#ff4444' }"
-      @confirm="removeCompany"
-      @cancel="cancelDelete"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performArchive"
+      @cancel="archiveConfirmComp = null"
     />
   </div>
 </template>
@@ -268,32 +349,55 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { useCompaniesStore } from '@/stores/companies';
+import { useDeletionsStore } from '@/stores/deletions';
+import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ResponsibleUsersSection from './ResponsibleUsersSection.vue';
 import SelectUnloadPlaces from './SelectUnloadPlaces.vue';
 import SelectTables from './SelectTables.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
 
 export default {
+  name: 'CompaniesManagement',
   components: {
     SearchComponent,
     RefreshButton,
     ResponsibleUsersSection,
     SelectUnloadPlaces,
     SelectTables,
-    ConfirmationModal
+    ConfirmationModal,
+    BaseDropdown,
+    LoaderSpinner,
+  },
+  setup() {
+    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
+    const overlay = { close: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
+    return { onOverlayMousedown, onOverlayMouseup, overlay };
   },
   data() {
     return {
       searchQuery: '',
-      newCompanyName: '',
+      showArchive: false,
       showAddModal: false,
-      showDeleteModal: false,
+      addForm: { name: '' },
+      addError: '',
+      isAdding: false,
       selectedCompany: null,
-      companyToDelete: null,
+      originalSelectedName: '',
+      detailError: '',
+      isSavingName: false,
+      archiveConfirmComp: null,
       sortField: null,
-      sortDirection: 'asc'
+      sortDirection: 'asc',
+      archiveOptions: [
+        { label: 'Активные', value: 'active' },
+        { label: 'Архив', value: 'archive' },
+      ],
     };
   },
   computed: {
@@ -302,23 +406,26 @@ export default {
       isLoading: 'isLoading',
     }),
     filteredCompanies() {
-      if (!this.searchQuery) return this.companiesWithUsers;
+      const byMode = this.companiesWithUsers.filter(comp =>
+        this.showArchive ? !comp.is_active : comp.is_active
+      );
+      if (!this.searchQuery) return byMode;
       const query = this.searchQuery.toLowerCase();
-      return this.companiesWithUsers.filter(comp => 
-        comp.name.toLowerCase().includes(query) || 
+      return byMode.filter(comp =>
+        comp.name.toLowerCase().includes(query) ||
         comp.id.toString().includes(query)
       );
     },
     sortedCompanies() {
       const companies = [...this.filteredCompanies];
-      
+
       if (!this.sortField) {
         return companies.sort((a, b) => a.name.localeCompare(b.name));
       }
-      
+
       return companies.sort((a, b) => {
         let valueA, valueB;
-        
+
         switch (this.sortField) {
           case 'id':
             valueA = a.id;
@@ -335,7 +442,7 @@ export default {
           default:
             return 0;
         }
-        
+
         if (valueA < valueB) {
           return this.sortDirection === 'asc' ? -1 : 1;
         }
@@ -345,9 +452,21 @@ export default {
         return 0;
       });
     },
-    deleteMessage() {
-      return `Вы точно хотите удалить компанию "${this.companyToDelete?.name}"?`;
-    }
+    emptyText() {
+      if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
+      return this.showArchive ? 'В архиве пусто' : 'Компаний пока нет';
+    },
+    isAddDirty() {
+      return this.showAddModal && this.addForm.name.trim() !== '';
+    },
+    isDetailsDirty() {
+      return !!this.selectedCompany
+        && this.selectedCompany.is_active
+        && this.selectedCompany.name.trim() !== this.originalSelectedName;
+    },
+    isDirty() {
+      return this.isAddDirty || this.isDetailsDirty;
+    },
   },
   watch: {
     showAddModal(newVal) {
@@ -358,88 +477,170 @@ export default {
       }
     }
   },
+  created() {
+    this.overlay.close = () => { this.requestCloseAdd(); };
+  },
   mounted() {
     this.refreshData();
+    this._stopGuard = registerDirtyTracker({
+      isDirty: () => this.isDirty,
+      getChanges: () => {
+        if (this.isAddDirty) return [`Новая компания: "${this.addForm.name.trim()}"`];
+        if (this.isDetailsDirty) {
+          return [{ label: 'Наименование', from: this.originalSelectedName, to: this.selectedCompany.name.trim() }];
+        }
+        return [];
+      },
+      save: async () => {
+        if (this.isAddDirty) await this.submitAdd();
+        if (this.isDetailsDirty) await this.saveSelectedName();
+      },
+    });
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    this._stopGuard?.();
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    ...mapActions(useCompaniesStore, ['refresh', 'createCompany', 'updateCompany', 'deleteCompany', 'fetchCompaniesWithUsers']),
+    ...mapActions(useCompaniesStore, [
+      'refresh',
+      'createCompany',
+      'updateCompany',
+      'deleteCompany',
+      'restoreCompany',
+      'fetchCompaniesWithUsers',
+    ]),
+
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
+    },
 
     async refreshData() {
-      await this.refresh();
+      // Тянем и архивные тоже - переключение режима фильтрует на клиенте без рефетча.
+      await this.refresh(true);
+      this.syncSelected();
     },
 
-    async addCompany() {
-      if (!this.newCompanyName.trim()) {
-        this.showNotification("Введите название компании", "warning");
-        return;
-      }
-
-      if (this.isLoading) return;
-
-      const result = await this.createCompany({
-        name: this.newCompanyName.trim(),
-      });
-
-      if (result.ok) {
-        this.newCompanyName = '';
-        this.showAddModal = false;
-        // Автоматически выбираем новую компанию
-        const createdComp = this.companiesWithUsers.find(comp => comp.id === result.data.id);
-        if (createdComp) {
-          this.selectedCompany = { ...createdComp };
-        }
-        this.showNotification("Компания успешно создана", "success");
-      } else {
-        this.showNotification(result.message || "Ошибка при создании компании", "error");
-      }
-    },
-
-    async saveCompany(comp) {
-      if (comp.name === comp.originalName) return;
-
-      const result = await this.updateCompany(comp.id, { name: comp.name });
-
-      if (result.ok) {
-        this.showNotification("Компания успешно обновлена", "success");
-      } else {
-        comp.name = comp.originalName;
-        this.showNotification(result.message || "Ошибка при обновлении компании", "error");
-      }
-    },
-
-    confirmDeleteCompany(comp) {
-      if (comp.user_count > 0) {
-        this.showNotification("Нельзя удалить компанию с пользователями", "warning");
-        return;
-      }
-
-      this.companyToDelete = comp;
-      this.showDeleteModal = true;
-    },
-
-    cancelDelete() {
-      this.showDeleteModal = false;
-      this.companyToDelete = null;
-    },
-
-    async removeCompany() {
-      if (!this.companyToDelete) return;
-
-      const result = await this.deleteCompany(this.companyToDelete.id);
-
-      if (result.ok) {
+    syncSelected() {
+      if (!this.selectedCompany) return;
+      const fresh = this.companiesWithUsers.find(c => c.id === this.selectedCompany.id);
+      const visible = fresh && (this.showArchive ? !fresh.is_active : fresh.is_active);
+      if (fresh && visible && !this.isDetailsDirty) {
+        this.selectedCompany = { ...fresh };
+        this.originalSelectedName = fresh.name;
+      } else if (!visible) {
         this.selectedCompany = null;
-        this.showDeleteModal = false;
-        this.companyToDelete = null;
-        this.showNotification("Компания успешно удалена", "success");
-      } else {
-        this.showNotification(result.message || "Ошибка при удалении компании", "error");
       }
     },
 
-    selectCompany(comp) {
-      this.selectedCompany = { ...comp };
+    async onArchiveModeChange(value) {
+      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      this.showArchive = value === 'archive';
+      this.selectedCompany = null;
+      this.detailError = '';
     },
+
+    openAddModal() {
+      this.showAddModal = true;
+      this.addForm.name = '';
+      this.addError = '';
+    },
+
+    async requestCloseAdd() {
+      if (this.isAddDirty && !(await confirmIfAnyDirty())) return;
+      this.forceCloseAdd();
+    },
+
+    forceCloseAdd() {
+      this.showAddModal = false;
+      this.addForm.name = '';
+      this.addError = '';
+    },
+
+    async submitAdd() {
+      const name = this.addForm.name.trim();
+      if (!name || this.isAdding) return;
+      this.isAdding = true;
+      this.addError = '';
+
+      const result = await this.createCompany({ name }, { includeArchived: true });
+
+      if (result.ok) {
+        this.forceCloseAdd();
+        if (this.showArchive) this.showArchive = false;
+        const created = this.companiesWithUsers.find(comp => comp.id === result.data.id);
+        if (created) {
+          this.selectedCompany = { ...created };
+          this.originalSelectedName = created.name;
+        }
+        useDeletionsStore().notify({ prefix: 'Компания ', bold: name, suffix: ' создана' });
+      } else {
+        this.addError = result.message || 'Не удалось создать компанию';
+      }
+      this.isAdding = false;
+    },
+
+    async selectCompany(comp) {
+      if (this.selectedCompany && this.selectedCompany.id === comp.id) return;
+      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      this.selectedCompany = { ...comp };
+      this.originalSelectedName = comp.name;
+      this.detailError = '';
+    },
+
+    async saveSelectedName() {
+      if (!this.isDetailsDirty || this.isSavingName) return;
+      const name = this.selectedCompany.name.trim();
+      this.isSavingName = true;
+      this.detailError = '';
+
+      const result = await this.updateCompany(this.selectedCompany.id, { name }, { includeArchived: true });
+
+      if (result.ok) {
+        this.originalSelectedName = name;
+        this.selectedCompany.name = name;
+        useDeletionsStore().notify({ prefix: 'Изменения сохранены в ', bold: name });
+      } else {
+        this.detailError = result.message || 'Не удалось сохранить';
+      }
+      this.isSavingName = false;
+    },
+
+    onArchiveClick(comp) {
+      this.archiveConfirmComp = comp;
+    },
+
+    async performArchive() {
+      const comp = this.archiveConfirmComp;
+      this.archiveConfirmComp = null;
+      if (!comp) return;
+
+      const result = await this.deleteCompany(comp.id, { includeArchived: true });
+
+      if (result.ok) {
+        if (this.selectedCompany && this.selectedCompany.id === comp.id && !this.showArchive) {
+          this.selectedCompany = null;
+        }
+        useDeletionsStore().notify({ prefix: 'Компания ', bold: comp.name, suffix: ' архивирована' });
+      } else {
+        useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: result.message || 'ошибка', type: 'error' });
+      }
+    },
+
+    async onRestore(comp) {
+      const result = await this.restoreCompany(comp.id, { includeArchived: true });
+
+      if (result.ok) {
+        if (this.selectedCompany && this.selectedCompany.id === comp.id && this.showArchive) {
+          this.selectedCompany = null;
+        }
+        useDeletionsStore().notify({ prefix: 'Компания ', bold: comp.name, suffix: ' восстановлена из архива' });
+      } else {
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: result.message || 'ошибка', type: 'error' });
+      }
+    },
+
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -448,41 +649,19 @@ export default {
         this.sortDirection = 'asc';
       }
     },
+
+    // Всегда тянем с архивными: режим фильтруется на клиенте, рефетча при смене не нужно.
     handleUsersUpdated() {
-      this.fetchCompaniesWithUsers();
+      this.fetchCompaniesWithUsers(true);
     },
+
     handlePlacesUpdated() {
-      this.fetchCompaniesWithUsers();
+      this.fetchCompaniesWithUsers(true);
     },
+
     handleTablesUpdated() {
-      this.fetchCompaniesWithUsers();
+      this.fetchCompaniesWithUsers(true);
     },
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
-    }
   }
 };
 </script>
@@ -517,6 +696,10 @@ export default {
   gap: 12px;
 }
 
+.archive-dropdown {
+  min-width: 130px;
+}
+
 .add-header-button {
   padding: 8px 16px;
   background: #4F5BDF;
@@ -538,7 +721,7 @@ export default {
 
 .content-container {
   display: flex;
-  height: 400px;
+  height: 450px;
   width: 100%;
 }
 
@@ -643,7 +826,17 @@ export default {
 }
 
 .table-row.selected {
-  background-color: #f0f2ff;;
+  background-color: #f0f2ff;
+}
+
+.table-row.inactive {
+  background: #fafafa;
+  color: #6b7280;
+}
+
+.table-row.inactive .id-value,
+.table-row.inactive .count-value {
+  color: #6b7280;
 }
 
 .table-row:last-child {
@@ -683,6 +876,27 @@ export default {
   display: block;
 }
 
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: #a2a2a2;
+  font-style: italic;
+}
+
+.no-results-inline {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a2a2a2;
+  width: 100%;
+}
+
+.companies-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
+
 .table-footer {
   margin-top: auto;
   padding: 6px 20px;
@@ -714,12 +928,14 @@ export default {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 10px;
+  gap: 12px;
 }
 
 .details-title-wrapper {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .details-title {
@@ -727,82 +943,93 @@ export default {
   color: #000;
   font-size: 1.2em;
   font-weight: 600;
+  word-break: break-word;
 }
 
 .details-header-actions {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
-.delete-icon-btn {
+.archive-badge {
+  background: #6b7280;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.action-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 0;
-  transition: opacity 0.2s;
-  border-radius: 6px;
+  white-space: nowrap;
 }
 
-.delete-icon-btn:hover {
-  background-color: #fee;
-  opacity: 0.8;
+.archive-action-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
 }
 
-.delete-icon {
-  width: 20px;
-  height: 20px;
+.archive-action-btn:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.restore-btn {
+  background: #10b981;
+  color: #fff;
+}
+
+.restore-btn:hover {
+  background: #0da271;
 }
 
 .details-body {
   display: flex;
   flex-direction: column;
+  gap: 12px;
   padding-bottom: 15px;
 }
 
-.details-grid-two-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.details-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.detail-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-label {
+.field-label {
   font-size: 0.85em;
+  color: #666;
+  font-weight: 500;
+}
+
+.name-edit-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.name-edit-row .lk-input {
+  flex: 1;
+}
+
+.form-error {
+  color: #d73a3a;
+  font-size: 0.85em;
+}
+
+.archive-hint {
+  margin: 8px 0 0;
   color: #a2a2a2;
-  font-weight: 400;
-}
-
-.form-input-sm {
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  font-size: 0.8em;
-  width: 100%;
-  height: 32px;
-  transition: border-color 0.2s ease;
-  background: #fff;
-}
-
-.form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
+  font-size: 0.85em;
+  line-height: 1.5;
 }
 
 .responsible-section {
@@ -826,26 +1053,10 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100%;
+  padding: 0 16px;
 }
 
-.no-results {
-  text-align: center;
-  padding: 40px 20px;
-  color: #a2a2a2;
-  width: 100%;
-}
-
-.no-results-icon {
-  font-size: 3em;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.no-results p {
-  margin: 0;
-  font-size: 1.1em;
-}
-
+/* Модалка создания (эталон: radius 30px, lk-* классы) */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -857,105 +1068,103 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 20px;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
 }
 
-.modal-content {
+.companies-modal {
+  width: 100%;
+  max-width: 440px;
   background: #fff;
-  border-radius: 12px;
-  padding: 0;
-  width: 400px;
-  max-width: 90%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid #e6e6e6;
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1.2em;
+  font-size: 1.1em;
   font-weight: 600;
+  color: #000;
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
   width: 30px;
   height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 24px;
+  line-height: 1;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s;
 }
 
 .modal-close:hover {
   color: #333;
+  background: #f5f5f5;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.modal-input {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 1em;
-  transition: border-color 0.2s ease;
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.modal-input:focus {
-  border-color: #4F5BDF;
-  outline: none;
+.form-label {
+  font-size: 0.85em;
+  color: #666;
+  font-weight: 500;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 20px;
+  gap: 10px;
+  padding: 16px 24px;
   border-top: 1px solid #e6e6e6;
 }
 
-.modal-cancel {
-  padding: 10px 20px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.25s ease;
 }
 
-.modal-cancel:hover {
-  background: #e9ecef;
+.modal-fade-enter-active .companies-modal,
+.modal-fade-leave-active .companies-modal {
+  transition: all 0.25s ease;
 }
 
-.modal-confirm {
-  padding: 10px 20px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  background: rgba(0, 0, 0, 0);
 }
 
-.modal-confirm:hover {
-  background: #3a45b2;
+.modal-fade-enter-from .companies-modal,
+.modal-fade-leave-to .companies-modal {
+  opacity: 0;
+  transform: translateY(20px);
 }
 
 @media (max-width: 968px) {
@@ -963,21 +1172,17 @@ export default {
     flex-direction: column;
     height: auto;
   }
-  
+
   .table-section,
   .details-section,
   .responsible-section {
     width: 100% !important;
   }
-  
+
   .table-section {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
     height: 255px;
-  }
-  
-  .details-grid-two-columns {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -989,45 +1194,45 @@ export default {
     height: auto;
     padding: 16px;
   }
-  
+
   .header-controls {
     width: 100%;
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .add-header-button {
     justify-content: center;
   }
-  
+
   .table-header,
   .table-row {
     padding: 0 16px;
   }
-  
+
   .id-col {
     width: 20%;
   }
-  
+
   .name-col {
     width: 50%;
   }
-  
+
   .users-col {
     width: 30%;
   }
-  
+
   .details-section,
   .responsible-content {
     padding: 16px;
   }
-  
+
   .details-header {
     flex-direction: column;
     gap: 12px;
     align-items: flex-start;
   }
-  
+
   .details-header-actions {
     align-self: flex-end;
   }

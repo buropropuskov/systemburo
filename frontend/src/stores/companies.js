@@ -40,9 +40,13 @@ export const useCompaniesStore = defineStore('companies', {
       }
     },
 
-    async fetchCompaniesWithUsers() {
+    /**
+     * @param {boolean} includeArchived - включить архивные компании (is_active=false)
+     */
+    async fetchCompaniesWithUsers(includeArchived = false) {
       try {
-        const response = await apiRequest('/companies/with-users-extended')
+        const qs = includeArchived ? '?include_archived=true' : ''
+        const response = await apiRequest(`/companies/with-users-extended${qs}`)
         if (response.ok) {
           const data = await response.json()
           this.itemsWithUsers = data.map(comp => ({
@@ -56,12 +60,15 @@ export const useCompaniesStore = defineStore('companies', {
       }
     },
 
-    async refresh() {
+    /**
+     * @param {boolean} includeArchived
+     */
+    async refresh(includeArchived = false) {
       this.isLoading = true
       try {
         await Promise.all([
           this.fetchCompanies(),
-          this.fetchCompaniesWithUsers(),
+          this.fetchCompaniesWithUsers(includeArchived),
         ])
       } finally {
         this.isLoading = false
@@ -70,8 +77,9 @@ export const useCompaniesStore = defineStore('companies', {
 
     /**
      * @param {{ name: string }} payload
+     * @param {{ includeArchived?: boolean }} [opts]
      */
-    async createCompany(payload) {
+    async createCompany(payload, { includeArchived = false } = {}) {
       try {
         const response = await apiRequest('/companies', {
           method: 'POST',
@@ -79,7 +87,7 @@ export const useCompaniesStore = defineStore('companies', {
         })
         if (response.ok) {
           const data = await response.json()
-          await this.refresh()
+          await this.refresh(includeArchived)
           return { ok: true, data }
         }
         const error = await response.json().catch(() => ({}))
@@ -93,15 +101,16 @@ export const useCompaniesStore = defineStore('companies', {
     /**
      * @param {number} id
      * @param {{ name: string }} payload
+     * @param {{ includeArchived?: boolean }} [opts]
      */
-    async updateCompany(id, payload) {
+    async updateCompany(id, payload, { includeArchived = false } = {}) {
       try {
         const response = await apiRequest(`/companies/${id}`, {
           method: 'PUT',
           body: JSON.stringify(payload),
         })
         if (response.ok) {
-          await this.refresh()
+          await this.refresh(includeArchived)
           return { ok: true }
         }
         const error = await response.json().catch(() => ({}))
@@ -113,21 +122,45 @@ export const useCompaniesStore = defineStore('companies', {
     },
 
     /**
+     * Архивирует компанию (soft-delete, is_active=false).
      * @param {number} id
+     * @param {{ includeArchived?: boolean }} [opts]
      */
-    async deleteCompany(id) {
+    async deleteCompany(id, { includeArchived = false } = {}) {
       try {
         const response = await apiRequest(`/companies/${id}`, {
           method: 'DELETE',
         })
         if (response.ok) {
-          await this.refresh()
+          await this.refresh(includeArchived)
           return { ok: true }
         }
         const error = await response.json().catch(() => ({}))
         return { ok: false, message: error.message }
       } catch (err) {
         console.error('Error deleting company:', err)
+        return { ok: false, message: 'Ошибка сети' }
+      }
+    },
+
+    /**
+     * Восстанавливает компанию из архива (is_active=true).
+     * @param {number} id
+     * @param {{ includeArchived?: boolean }} [opts]
+     */
+    async restoreCompany(id, { includeArchived = false } = {}) {
+      try {
+        const response = await apiRequest(`/companies/${id}/restore`, {
+          method: 'POST',
+        })
+        if (response.ok) {
+          await this.refresh(includeArchived)
+          return { ok: true }
+        }
+        const error = await response.json().catch(() => ({}))
+        return { ok: false, message: error.message }
+      } catch (err) {
+        console.error('Error restoring company:', err)
         return { ok: false, message: 'Ошибка сети' }
       }
     },
