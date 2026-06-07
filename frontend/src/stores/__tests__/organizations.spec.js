@@ -62,6 +62,15 @@ describe('organizations store', () => {
         { id: 1, name: 'Acme', user_count: 5, originalName: 'Acme' },
       ])
     })
+
+    it('добавляет include_archived при includeArchived=true', async () => {
+      apiRequest.mockResolvedValue(okJson([{ id: 1, name: 'Acme', user_count: 5, is_active: false }]))
+      const store = useOrganizationsStore()
+
+      await store.fetchOrganizationsWithUsers(true)
+
+      expect(apiRequest).toHaveBeenCalledWith('/organizations/with-users-extended?include_archived=true')
+    })
   })
 
   describe('refresh', () => {
@@ -144,6 +153,32 @@ describe('organizations store', () => {
 
       expect(result.ok).toBe(true)
       expect(store.items).toEqual([])
+    })
+  })
+
+  describe('restoreOrganization', () => {
+    it('восстанавливает из архива и обновляет state', async () => {
+      apiRequest
+        .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
+        .mockResolvedValueOnce(okJson([{ id: 1, name: 'Back' }]))
+        .mockResolvedValueOnce(okJson([{ id: 1, name: 'Back', user_count: 0 }]))
+
+      const store = useOrganizationsStore()
+      const result = await store.restoreOrganization(1, { includeArchived: true })
+
+      expect(result.ok).toBe(true)
+      expect(apiRequest).toHaveBeenNthCalledWith(1, '/organizations/1/restore', { method: 'POST' })
+      expect(store.items[0].name).toBe('Back')
+    })
+
+    it('возвращает ошибку при неуспешном ответе', async () => {
+      apiRequest.mockResolvedValueOnce(errJson({ message: 'нельзя' }, 409))
+      const store = useOrganizationsStore()
+
+      const result = await store.restoreOrganization(1)
+
+      expect(result).toEqual({ ok: false, message: 'нельзя' })
+      expect(apiRequest).toHaveBeenCalledTimes(1)
     })
   })
 
