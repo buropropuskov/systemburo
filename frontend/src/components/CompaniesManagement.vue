@@ -161,6 +161,13 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                class="action-btn history-btn"
+                data-testid="companies-history"
+                @click="openHistory(selectedCompany)"
+              >
+                История
+              </button>
+              <button
                 v-if="selectedCompany.is_active"
                 class="action-btn archive-action-btn"
                 data-testid="companies-archive"
@@ -343,11 +350,19 @@
       @confirm="performArchive"
       @cancel="archiveConfirmComp = null"
     />
+
+    <CompanyHistoryModal
+      v-if="historyComp"
+      :company="historyComp"
+      :current-user-name="currentUserName"
+      @close="historyComp = null"
+    />
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from 'pinia';
+import { apiRequest } from '@/api/client';
 import { useCompaniesStore } from '@/stores/companies';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
@@ -360,6 +375,7 @@ import SelectTables from './SelectTables.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import CompanyHistoryModal from './CompanyHistoryModal.vue';
 
 export default {
   name: 'CompaniesManagement',
@@ -372,6 +388,7 @@ export default {
     ConfirmationModal,
     BaseDropdown,
     LoaderSpinner,
+    CompanyHistoryModal,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -392,6 +409,8 @@ export default {
       detailError: '',
       isSavingName: false,
       archiveConfirmComp: null,
+      historyComp: null,
+      currentUserName: '',
       sortField: null,
       sortDirection: 'asc',
       archiveOptions: [
@@ -482,6 +501,7 @@ export default {
   },
   mounted() {
     this.refreshData();
+    this.fetchCurrentUser();
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => {
@@ -638,6 +658,23 @@ export default {
         useDeletionsStore().notify({ prefix: 'Компания ', bold: comp.name, suffix: ' восстановлена из архива' });
       } else {
         useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: result.message || 'ошибка', type: 'error' });
+      }
+    },
+
+    openHistory(comp) {
+      this.historyComp = comp;
+    },
+
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
 
@@ -975,6 +1012,16 @@ export default {
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+}
+
+.history-btn {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.history-btn:hover {
+  background: #eef0ff;
 }
 
 .archive-action-btn {
