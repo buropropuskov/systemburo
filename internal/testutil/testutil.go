@@ -47,6 +47,7 @@ var tables = []string{
 	"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",
 	"car_unload_places", "cars_history", "cars",
 	"vehicle_blacklist_histories", "vehicle_blacklists",
+	"person_blacklist_histories", "person_blacklists",
 	"attachments",
 	"unique_employees_history", "unique_cars_history",
 	"unique_employees", "unique_cars", "unique_attachments",
@@ -133,6 +134,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	markService := services.NewMarkService(db)
 	vehicleBlacklistHistoryService := services.NewVehicleBlacklistHistoryService(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, vehicleBlacklistHistoryService)
+	personBlacklistHistoryService := services.NewPersonBlacklistHistoryService(db)
+	personBlacklistService := services.NewPersonBlacklistService(db, personBlacklistHistoryService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)
@@ -174,6 +177,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
 	vehicleBlacklistHandler := handlers.NewVehicleBlacklistHandler(vehicleBlacklistService)
+	personBlacklistHandler := handlers.NewPersonBlacklistHandler(personBlacklistService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
@@ -218,6 +222,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Maintenance:         maintenanceHandler,
 		Marks:               markHandler,
 		VehicleBlacklist:    vehicleBlacklistHandler,
+		PersonBlacklist:     personBlacklistHandler,
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
 		Trash:               trashHandler,

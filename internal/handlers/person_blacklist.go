@@ -1,0 +1,143 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"systemburo/internal/models"
+	"systemburo/internal/services"
+
+	"github.com/labstack/echo/v4"
+)
+
+// PersonBlacklistHandler - HTTP-обработчики чёрного списка людей (#443).
+type PersonBlacklistHandler struct {
+	service services.PersonBlacklistService
+}
+
+// NewPersonBlacklistHandler создаёт обработчик.
+func NewPersonBlacklistHandler(service services.PersonBlacklistService) *PersonBlacklistHandler {
+	return &PersonBlacklistHandler{service: service}
+}
+
+// GetAll godoc
+// @Summary      Список чёрного списка людей
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        include_archived query bool false "Включать снятые записи"
+// @Success      200 {array} models.PersonBlacklist
+// @Router       /person-blacklist [get]
+func (h *PersonBlacklistHandler) GetAll(c echo.Context) error {
+	includeArchived := c.QueryParam("include_archived") == "true"
+	items, err := h.service.GetAll(c.Request().Context(), includeArchived)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
+// Create godoc
+// @Summary      Добавить человека в чёрный список
+// @Tags         person-blacklist
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.CreatePersonBlacklistRequest true "Данные записи"
+// @Success      201 {object} models.PersonBlacklist
+// @Router       /person-blacklist [post]
+func (h *PersonBlacklistHandler) Create(c echo.Context) error {
+	var req models.CreatePersonBlacklistRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	userID, _ := c.Get("user_id").(int)
+	entry, err := h.service.Create(c.Request().Context(), req, userID)
+	if err != nil {
+		return err
+	}
+	return RespondCreated(c, entry)
+}
+
+// Delete godoc
+// @Summary      Снять человека с чёрного списка (архивация)
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID записи"
+// @Success      200 {string} string "Человек снят с чёрного списка"
+// @Router       /person-blacklist/{id} [delete]
+func (h *PersonBlacklistHandler) Delete(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Archive(c.Request().Context(), id, userID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Человек снят с чёрного списка")
+}
+
+// Restore godoc
+// @Summary      Вернуть человека в чёрный список
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID записи"
+// @Success      200 {string} string "Человек возвращён в чёрный список"
+// @Router       /person-blacklist/{id}/restore [post]
+func (h *PersonBlacklistHandler) Restore(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Restore(c.Request().Context(), id, userID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Человек возвращён в чёрный список")
+}
+
+// Check godoc
+// @Summary      Проверить, в чёрном ли списке человек
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        last_name query string true "Фамилия"
+// @Param        first_name query string true "Имя"
+// @Param        middle_name query string false "Отчество"
+// @Success      200 {object} models.PersonBlacklistCheckResult
+// @Router       /person-blacklist/check [get]
+func (h *PersonBlacklistHandler) Check(c echo.Context) error {
+	lastName := c.QueryParam("last_name")
+	firstName := c.QueryParam("first_name")
+	if lastName == "" || firstName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "last_name и first_name обязательны")
+	}
+	res, err := h.service.Check(c.Request().Context(), lastName, firstName, c.QueryParam("middle_name"))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
+// GetHistory godoc
+// @Summary      История записи чёрного списка людей
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID записи"
+// @Success      200 {array} models.PersonBlacklistHistoryItem
+// @Router       /person-blacklist/{id}/history [get]
+func (h *PersonBlacklistHandler) GetHistory(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	history, err := h.service.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, history)
+}

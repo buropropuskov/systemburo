@@ -27,6 +27,8 @@ func AllModels() []interface{} {
 		&models.MarkHistory{},
 		&models.VehicleBlacklist{},
 		&models.VehicleBlacklistHistory{},
+		&models.PersonBlacklist{},
+		&models.PersonBlacklistHistory{},
 		&models.UnloadPlace{},
 		&models.SystemTable{},
 		&models.SystemTableHistory{},
@@ -315,6 +317,16 @@ func Seed(db *gorm.DB) error {
 	}
 	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_vehicle_blacklists_active ON vehicle_blacklists (LOWER(TRIM(car_number)), mark_id) WHERE is_active = true").Error; err != nil {
 		return fmt.Errorf("failed to create partial unique index on vehicle_blacklists: %w", err)
+	}
+
+	// Чёрный список людей: уникальность ФИО только среди активных (#443). COALESCE по
+	// отчеству - иначе NULL/пустое отчество плодит дубли (в обычном unique index NULL-ы
+	// считаются различными). Нормализация LOWER(TRIM) совпадает с Check/каскадом.
+	if err := db.Exec("DROP INDEX IF EXISTS uidx_person_blacklists_active").Error; err != nil {
+		return fmt.Errorf("failed to drop uidx_person_blacklists_active: %w", err)
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_person_blacklists_active ON person_blacklists (LOWER(TRIM(last_name)), LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name, '')))) WHERE is_active = true").Error; err != nil {
+		return fmt.Errorf("failed to create partial unique index on person_blacklists: %w", err)
 	}
 
 	// Seed default tab permissions

@@ -47,6 +47,7 @@ type Dependencies struct {
 	Maintenance         *handlers.MaintenanceHandler
 	Marks               *handlers.MarkHandler
 	VehicleBlacklist    *handlers.VehicleBlacklistHandler
+	PersonBlacklist     *handlers.PersonBlacklistHandler
 	AttachmentTemplates *handlers.AttachmentTemplateHandler
 	AttachmentBlanks    *handlers.AttachmentBlankHandler
 	Trash               *handlers.TrashHandler
@@ -98,6 +99,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	maintenance := d.Maintenance
 	marks := d.Marks
 	vehicleBlacklist := d.VehicleBlacklist
+	personBlacklist := d.PersonBlacklist
 	attachmentTemplates := d.AttachmentTemplates
 	attachmentBlanks := d.AttachmentBlanks
 	trash := d.Trash
@@ -202,6 +204,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
 	vblGroup.DELETE("/:id", vehicleBlacklist.Delete, requireBlacklist)
 	vblGroup.POST("/:id/restore", vehicleBlacklist.Restore, requireBlacklist)
+
+	// Чёрный список людей (#443). Та же permission page.admin.blacklist (одна страница).
+	pblGroup := protected.Group("/person-blacklist")
+	pblGroup.GET("", personBlacklist.GetAll)
+	pblGroup.GET("/check", personBlacklist.Check)
+	pblGroup.GET("/:id/history", personBlacklist.GetHistory)
+	pblGroup.POST("", personBlacklist.Create, requireBlacklist)
+	pblGroup.DELETE("/:id", personBlacklist.Delete, requireBlacklist)
+	pblGroup.POST("/:id/restore", personBlacklist.Restore, requireBlacklist)
 
 	// Attachment Excel-templates (#183) - вложенные ручки под /attachments/:id/...
 	attRoot := protected.Group("/attachments")
