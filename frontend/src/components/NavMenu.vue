@@ -262,6 +262,12 @@
               >
                 Настройки
               </div>
+              <div
+                class="dropdown-item"
+                @click="navigateToAdminBlacklist"
+              >
+                Чёрный список
+              </div>
             </div>
           </transition>
         </div>
@@ -482,6 +488,10 @@ export default {
     },
     navigateToAdminSettings() {
       this.$router.push('/admin/settings');
+      this.closeAllDropdowns();
+    },
+    navigateToAdminBlacklist() {
+      this.$router.push('/admin/blacklist');
       this.closeAllDropdowns();
     },
     navigateToCenter() {

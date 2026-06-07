@@ -26,6 +26,7 @@ export const ALL_PERMISSION_KEYS = [
   { value: 'page.admin.system_control', description: 'Системное управление (техработы)' },
   { value: 'page.admin.users', description: 'Управление пользователями' },
   { value: 'page.admin.feedback', description: 'Обратная связь' },
+  { value: 'page.admin.blacklist', description: 'Чёрный список (машины и люди)' },
 
   { value: 'entity.cars.read', description: 'Просмотр автомобилей' },
   { value: 'entity.cars.write', description: 'Создание и редактирование автомобилей' },
