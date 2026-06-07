@@ -175,6 +175,9 @@ func (s *userService) UpdateType(ctx context.Context, callerTypeID, callerUserID
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type")
 	}
 
+	var oldType int
+	s.db.WithContext(ctx).Table("users").Where("username = ?", username).Select("type_id").Row().Scan(&oldType)
+
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
@@ -182,8 +185,10 @@ func (s *userService) UpdateType(ctx context.Context, callerTypeID, callerUserID
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user type")
 	}
 
-	if id := s.targetUserID(ctx, username); id != 0 {
-		s.history.Log(ctx, id, &callerUserID, models.UserActionTypeChanged, map[string]any{"type_id": req.TypeID})
+	if req.TypeID != oldType {
+		if id := s.targetUserID(ctx, username); id != 0 {
+			s.history.Log(ctx, id, &callerUserID, models.UserActionTypeChanged, map[string]any{"old": oldType, "new": req.TypeID})
+		}
 	}
 	return nil
 }
@@ -290,6 +295,22 @@ func (s *userService) UpdateInfo(ctx context.Context, callerTypeID, callerUserID
 		return err
 	}
 
+	// Снимок старых значений до апдейта - чтобы в историю писать дифф "старое -> новое"
+	// и только по реально изменившимся полям (фронт шлёт все поля каждый раз).
+	var prev struct {
+		LastName   string
+		FirstName  string
+		MiddleName string
+		Position   string
+		Email      string
+		Phone      string
+	}
+	s.db.WithContext(ctx).
+		Table("users").
+		Where("username = ?", username).
+		Select("last_name", "first_name", "middle_name", "position", "email", "phone").
+		Scan(&prev)
+
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
@@ -305,27 +326,22 @@ func (s *userService) UpdateInfo(ctx context.Context, callerTypeID, callerUserID
 	}
 
 	if id := s.targetUserID(ctx, username); id != 0 {
-		// В детали пишем только переданные (non-nil) поля - иначе история покажет "поле: -".
+		// Только изменившиеся поля, как {old, new}. Если ничего не поменялось - не логируем.
 		details := map[string]any{}
-		if req.LastName != nil {
-			details["last_name"] = *req.LastName
+		diff := func(key string, np *string, old string) {
+			if np != nil && *np != old {
+				details[key] = map[string]any{"old": old, "new": *np}
+			}
 		}
-		if req.FirstName != nil {
-			details["first_name"] = *req.FirstName
+		diff("last_name", req.LastName, prev.LastName)
+		diff("first_name", req.FirstName, prev.FirstName)
+		diff("middle_name", req.MiddleName, prev.MiddleName)
+		diff("position", req.Position, prev.Position)
+		diff("email", req.Email, prev.Email)
+		diff("phone", req.Phone, prev.Phone)
+		if len(details) > 0 {
+			s.history.Log(ctx, id, &callerUserID, models.UserActionUpdated, details)
 		}
-		if req.MiddleName != nil {
-			details["middle_name"] = *req.MiddleName
-		}
-		if req.Position != nil {
-			details["position"] = *req.Position
-		}
-		if req.Email != nil {
-			details["email"] = *req.Email
-		}
-		if req.Phone != nil {
-			details["phone"] = *req.Phone
-		}
-		s.history.Log(ctx, id, &callerUserID, models.UserActionUpdated, details)
 	}
 	return nil
 }
@@ -336,6 +352,13 @@ func (s *userService) UpdateOrganization(ctx context.Context, callerTypeID, call
 		return err
 	}
 
+	var prev struct{ OrganizationID *int }
+	s.db.WithContext(ctx).Table("users").Where("username = ?", username).Select("organization_id").Scan(&prev)
+	oldVal := 0
+	if prev.OrganizationID != nil {
+		oldVal = *prev.OrganizationID
+	}
+
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
@@ -343,8 +366,10 @@ func (s *userService) UpdateOrganization(ctx context.Context, callerTypeID, call
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 
-	if id := s.targetUserID(ctx, username); id != 0 {
-		s.history.Log(ctx, id, &callerUserID, models.UserActionOrgChanged, map[string]any{"organization_id": req.OrganizationID})
+	if req.OrganizationID != oldVal {
+		if id := s.targetUserID(ctx, username); id != 0 {
+			s.history.Log(ctx, id, &callerUserID, models.UserActionOrgChanged, map[string]any{"old": prev.OrganizationID, "new": req.OrganizationID})
+		}
 	}
 	return nil
 }
@@ -355,6 +380,13 @@ func (s *userService) UpdateCompany(ctx context.Context, callerTypeID, callerUse
 		return err
 	}
 
+	var prev struct{ CompanyID *int }
+	s.db.WithContext(ctx).Table("users").Where("username = ?", username).Select("company_id").Scan(&prev)
+	oldVal := 0
+	if prev.CompanyID != nil {
+		oldVal = *prev.CompanyID
+	}
+
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
@@ -362,8 +394,10 @@ func (s *userService) UpdateCompany(ctx context.Context, callerTypeID, callerUse
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
 
-	if id := s.targetUserID(ctx, username); id != 0 {
-		s.history.Log(ctx, id, &callerUserID, models.UserActionCompanyChanged, map[string]any{"company_id": req.CompanyID})
+	if req.CompanyID != oldVal {
+		if id := s.targetUserID(ctx, username); id != 0 {
+			s.history.Log(ctx, id, &callerUserID, models.UserActionCompanyChanged, map[string]any{"old": prev.CompanyID, "new": req.CompanyID})
+		}
 	}
 	return nil
 }

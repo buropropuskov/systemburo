@@ -2,6 +2,7 @@
   <Teleport to="body">
     <div
       class="modal-overlay"
+      :class="{ 'modal-leaving': leaving }"
       data-testid="user-history-modal"
       @mousedown="onOverlayMousedown"
       @mouseup="onOverlayMouseup"
@@ -232,9 +233,11 @@ export default {
     currentUserName: { type: String, default: '' },
   },
   emits: ['close'],
-  setup(_, { emit }) {
-    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
-    return { onOverlayMousedown, onOverlayMouseup };
+  setup() {
+    // close() (с leave-анимацией) присваивается в created - чтобы overlay-клик уходил через неё.
+    const overlay = { close: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
+    return { onOverlayMousedown, onOverlayMouseup, overlay };
   },
   data() {
     return {
@@ -247,6 +250,7 @@ export default {
       dateTo: '',
       userDropdownOpen: false,
       isExporting: false,
+      leaving: false,
     };
   },
   computed: {
@@ -341,6 +345,9 @@ export default {
       }));
     },
   },
+  created() {
+    this.overlay.close = () => this.close();
+  },
   mounted() {
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
@@ -355,10 +362,14 @@ export default {
       if (e.key === 'Escape') this.close();
     },
     close() {
-      this.$emit('close');
+      // leave-анимация: ставим флаг, эмитим close после её завершения.
+      if (this.leaving) return;
+      this.leaving = true;
+      setTimeout(() => this.$emit('close'), 250);
     },
     handleClickOutside(event) {
-      const select = this.$el && this.$el.querySelector ? this.$el.querySelector('.custom-select') : null;
+      // Контент в Teleport -> ищем дропдаун в body (this.$el под Teleport = якорь-коммент).
+      const select = document.querySelector('.user-history-modal .custom-select');
       if (select && !select.contains(event.target)) {
         this.userDropdownOpen = false;
       }
@@ -371,6 +382,8 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.history = Array.isArray(data) ? data : [];
+        } else {
+          useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'историю пользователя', type: 'error' });
         }
       } catch (error) {
         console.error('Error loading user history:', error);
@@ -424,17 +437,24 @@ export default {
         case 'updated': {
           const parts = [];
           for (const [key, raw] of Object.entries(d)) {
-            if (raw === null || raw === undefined || raw === '') continue;
             const label = FIELD_LABELS[key] || key;
-            parts.push(`${label}: ${this.formatFieldValue(raw)}`);
+            if (this.isDiff(raw)) {
+              parts.push(`${label}: ${this.fieldOrDash(raw.old)} → ${this.fieldOrDash(raw.new)}`);
+            } else if (raw !== null && raw !== undefined && raw !== '') {
+              // старый формат записей (снапшот значения без old/new)
+              parts.push(`${label}: ${this.formatFieldValue(raw)}`);
+            }
           }
           return parts.join(' / ');
         }
         case 'type_changed':
+          if (this.isDiff(d)) return `${this.typeName(d.old)} → ${this.typeName(d.new)}`;
           return `Новый тип: ${this.typeName(d.type_id)}`;
         case 'org_changed':
+          if (this.isDiff(d)) return `${this.orgName(d.old)} → ${this.orgName(d.new)}`;
           return `Новая организация: ${this.orgName(d.organization_id)}`;
         case 'company_changed':
+          if (this.isDiff(d)) return `${this.companyName(d.old)} → ${this.companyName(d.new)}`;
           return `Новая компания: ${this.companyName(d.company_id)}`;
         case 'password_reset':
         case 'archived':
@@ -442,6 +462,15 @@ export default {
         default:
           return '';
       }
+    },
+
+    isDiff(v) {
+      return v !== null && typeof v === 'object' && ('old' in v || 'new' in v);
+    },
+
+    fieldOrDash(value) {
+      if (value === null || value === undefined || value === '') return '—';
+      return this.formatFieldValue(value);
     },
 
     formatFieldValue(value) {
@@ -618,6 +647,25 @@ export default {
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+/* Анимация закрытия: класс modal-leaving вешается на overlay перед эмитом close. */
+.modal-overlay.modal-leaving {
+  animation: fadeOut 0.25s ease-in forwards;
+}
+
+.modal-overlay.modal-leaving .user-history-modal {
+  animation: slideDown 0.25s ease-in forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(20px); opacity: 0; }
 }
 
 .modal-header {

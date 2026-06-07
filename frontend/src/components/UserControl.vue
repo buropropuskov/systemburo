@@ -1703,6 +1703,12 @@ export default {
   color: #a2a2a2;
 }
 
+/* Значения дропдаунов (Организация/Компания/Тип) в деталях - как обычный текст,
+   вровень с соседними инпутами (а не полужирным весом BaseDropdown по умолчанию). */
+.detail-group :deep(.base-dropdown__text) {
+  font-weight: 400;
+}
+
 /* Уменьшенные инпуты */
 .form-input-sm {
   padding: 6px 10px;
