@@ -53,3 +53,13 @@ export function archivePersonBlacklist(id) {
 export function restorePersonBlacklist(id) {
   return mutate(`/person-blacklist/${id}/restore`);
 }
+
+export async function getVehicleBlacklistHistory(id) {
+  const res = await apiRequest(`/vehicle-blacklist/${id}/history`);
+  return res.json();
+}
+
+export async function getPersonBlacklistHistory(id) {
+  const res = await apiRequest(`/person-blacklist/${id}/history`);
+  return res.json();
+}

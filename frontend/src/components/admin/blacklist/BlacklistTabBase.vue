@@ -86,6 +86,12 @@
               class="bl-archive-pill"
             >В архиве</span>
             <button
+              class="lk-button lk-button--ghost"
+              @click="$emit('history', selected)"
+            >
+              История
+            </button>
+            <button
               v-if="selected.is_active"
               class="lk-button lk-button--danger"
               @click="$emit('archive', selected)"
@@ -146,7 +152,7 @@ export default {
     getPrimaryText: { type: Function, required: true },
     getDetailRows: { type: Function, required: true },
   },
-  emits: ['count', 'create', 'archive', 'restore'],
+  emits: ['count', 'create', 'archive', 'restore', 'history'],
   data() {
     return {
       items: [],
