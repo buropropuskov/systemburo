@@ -45,6 +45,7 @@ func NewUnloadPlaceHandler(service services.UnloadPlaceService, maxFileSize int6
 // @Tags         unload-places
 // @Produce      json
 // @Security     BearerAuth
+// @Param        include_archived query bool false "Включить архивные места"
 // @Success      200 {array} services.UnloadPlaceWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError

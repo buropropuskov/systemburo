@@ -113,6 +113,18 @@ func TestUnloadPlaces_GetByID_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestUnloadPlaces_Restore_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/unload-places/99999/restore", "", h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

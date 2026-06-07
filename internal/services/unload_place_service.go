@@ -266,7 +266,11 @@ func (s *unloadPlaceService) Update(ctx context.Context, id int, req UpdateUnloa
 	return nil
 }
 
-// Delete удаляет место разгрузки с проверкой зависимостей организаций и компаний.
+// Delete архивирует место разгрузки (soft-delete). Блокируется, если место
+// привязано к организациям/компаниям - это и есть гейт активных зависимостей:
+// машины планируются на место только через орг/компания-привязку, поэтому после
+// отвязки новые car_unload_places не появятся, а существующие переживут архив
+// (soft-delete не сиротит). Отдельный блок по car_unload_places не нужен.
 func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 	// Проверяем привязку к организациям
 	var orgCount int64
@@ -304,7 +308,7 @@ func (s *unloadPlaceService) Delete(ctx context.Context, id int) error {
 		return echo.NewHTTPError(http.StatusBadRequest, msg)
 	}
 
-	// Архив (soft-delete): фото/слоты НЕ удаляем физически - запись можно восстановить.
+	// Фото/слоты не трогаем - restore должен вернуть запись целой.
 	result := s.db.WithContext(ctx).
 		Model(&models.UnloadPlace{}).
 		Where("id = ?", id).
