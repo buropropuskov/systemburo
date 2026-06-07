@@ -40,10 +40,19 @@
 <script setup>
 import { onMounted } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useAuthStore } from '@/stores/auth';
 
 const store = useDeletionsStore();
+const auth = useAuthStore();
 
-onMounted(() => store.loadDurations());
+// Длительности тянем только под аутентификацией. Этот компонент смонтирован в App.vue
+// всегда, в т.ч. на публичных /maintenance, /500 и логине, где /settings/notifications
+// отдаёт 401; client.js на 401 пробует refresh и при провале делает router.push('/'),
+// сбивая юзера с публичной страницы (флак e2e /maintenance, /500). Залогиненному
+// durations подтянутся при заходе на списки (Cars/People/Trash).
+onMounted(() => {
+  if (auth.isAuthenticated) store.loadDurations();
+});
 
 // Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
 // Для type=error всегда красный - нет семантики "истекает".
