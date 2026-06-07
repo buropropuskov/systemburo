@@ -560,21 +560,27 @@ export default {
 
 <style scoped>
 .marks-container {
-  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e6e6e6;
+  overflow: hidden;
 }
 
 .management-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  height: 50px;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .management-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #000;
 }
 
 .header-controls {
@@ -592,8 +598,6 @@ export default {
   display: flex;
   height: 500px;
   width: 100%;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
   overflow: hidden;
 }
 
@@ -1049,6 +1053,17 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    height: auto;
+    padding: 16px;
+  }
+  .header-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
   .content-container {
     flex-direction: column;
     height: auto;
