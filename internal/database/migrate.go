@@ -30,6 +30,7 @@ func AllModels() []interface{} {
 		&models.PersonBlacklist{},
 		&models.PersonBlacklistHistory{},
 		&models.UnloadPlace{},
+		&models.UnloadPlaceHistory{},
 		&models.SystemTable{},
 		&models.SystemTableHistory{},
 

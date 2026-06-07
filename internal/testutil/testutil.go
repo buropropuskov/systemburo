@@ -54,6 +54,7 @@ var tables = []string{
 	"application_reads", "application_viewers", "application_approvers", "application_responsible_users",
 	"application_status_history", "application_history", "applications",
 	"companies_unload_places", "organization_unload_places",
+	"unload_place_histories",
 	"unload_place_time_slots", "unload_place_photos", "unload_places",
 	"table_fields", "table_field_facts", "companies_tables", "organization_tables",
 	"system_table_trash_histories", "system_table_histories",
