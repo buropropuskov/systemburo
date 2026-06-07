@@ -274,6 +274,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.GET("/:id", up.GetByID)
 	upg.PUT("/:id", up.Update)
 	upg.DELETE("/:id", up.Delete)
+	upg.POST("/:id/restore", up.Restore)
 	upg.GET("/:id/time-slots", up.GetTimeSlots)
 	upg.POST("/:id/time-slots", up.AddTimeSlot)
 	upg.PUT("/:place_id/time-slots/:slot_id", up.UpdateTimeSlot)

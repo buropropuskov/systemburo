@@ -45,12 +45,14 @@ func NewUnloadPlaceHandler(service services.UnloadPlaceService, maxFileSize int6
 // @Tags         unload-places
 // @Produce      json
 // @Security     BearerAuth
+// @Param        include_archived query bool false "Включить архивные места"
 // @Success      200 {array} services.UnloadPlaceWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /unload-places [get]
 func (h *UnloadPlaceHandler) GetAll(c echo.Context) error {
-	places, err := h.service.GetAll(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	places, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -160,7 +162,29 @@ func (h *UnloadPlaceHandler) Delete(c echo.Context) error {
 	if err := h.service.Delete(c.Request().Context(), id); err != nil {
 		return err
 	}
-	return RespondMessage(c, "Место разгрузки успешно удалено")
+	return RespondMessage(c, "Место разгрузки архивировано")
+}
+
+// Restore восстанавливает архивное место разгрузки.
+// @Summary      Восстановление места разгрузки из архива
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {string} string "Место разгрузки восстановлено"
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/restore [post]
+func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Место разгрузки восстановлено")
 }
 
 // --- Временные слоты ---
