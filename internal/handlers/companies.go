@@ -99,7 +99,8 @@ func (h *CompanyHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	company, err := h.service.Create(c.Request().Context(), username, req)
+	userID, _ := c.Get("user_id").(int)
+	company, err := h.service.Create(c.Request().Context(), username, userID, req)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,8 @@ func (h *CompanyHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	company, err := h.service.Update(c.Request().Context(), username, id, req)
+	userID, _ := c.Get("user_id").(int)
+	company, err := h.service.Update(c.Request().Context(), username, userID, id, req)
 	if err != nil {
 		return err
 	}
@@ -162,7 +164,8 @@ func (h *CompanyHandler) Delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
 	}
 
-	if err := h.service.Delete(c.Request().Context(), username, id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Delete(c.Request().Context(), username, userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company archived")
@@ -185,10 +188,34 @@ func (h *CompanyHandler) Restore(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
 	}
-	if err := h.service.Restore(c.Request().Context(), username, id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Restore(c.Request().Context(), username, userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company restored")
+}
+
+// GetHistory godoc
+// @Summary      История изменений компании
+// @Tags         companies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {array} models.CompanyHistoryItem
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/{id}/history [get]
+func (h *CompanyHandler) GetHistory(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	items, err := h.service.GetHistory(c.Request().Context(), username, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
 
 // GetUsers godoc
