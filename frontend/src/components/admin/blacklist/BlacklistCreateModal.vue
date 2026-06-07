@@ -7,57 +7,130 @@
   >
     <div class="bl-create">
       <template v-if="type === 'vehicle'">
-        <FormField
-          label="Формат номера"
-          :required="true"
-        >
-          <BaseDropdown
-            :model-value="selectedFormatId"
-            :options="formatOptions"
-            label-key="name"
-            value-key="id"
-            placeholder="Выберите формат"
-            @update:model-value="onFormatChange"
-          />
-        </FormField>
-        <FormField
-          label="Номер"
-          :required="true"
-        >
-          <div
-            v-if="selectedFormat"
-            class="bl-plate"
-          >
-            <input
-              v-for="(cell, i) in selectedFormat.cells"
-              :key="i"
-              :value="numberParts[i]"
-              class="lk-input bl-plate-cell"
-              :style="{ width: cellWidth(cell) }"
-              :maxlength="cell.max_length"
-              :placeholder="placeholder(cell)"
-              @input="onPartInput(i, $event, cell)"
-              @blur="onPartBlur(i, cell)"
-            >
+        <div class="completion__format">
+          <div class="format__header">
+            <label class="format__label">Формат номеров <span class="required">*</span></label>
           </div>
-          <span
-            v-else
-            class="bl-hint"
-          >Сначала выберите формат</span>
-        </FormField>
-        <FormField
-          label="Марка"
-          :required="true"
-        >
-          <BaseDropdown
-            v-model="markId"
-            :options="marks"
-            label-key="name"
-            value-key="id"
-            :searchable="true"
-            placeholder="Выберите марку"
-          />
-        </FormField>
+          <div class="format__dropdown">
+            <button
+              class="dropdown__button"
+              @click="toggleFormatDropdown"
+            >
+              <div class="button__content">
+                <span class="button__text">{{ selectedFormatText }}</span>
+                <img
+                  src="@/assets/icons/arrow.png"
+                  class="button__arrow"
+                  :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                >
+              </div>
+            </button>
+            <transition name="dropdown">
+              <div
+                v-if="isFormatDropdownOpen"
+                class="dropdown__menu"
+              >
+                <div
+                  v-for="format in formats"
+                  :key="format.format.id"
+                  class="dropdown__item"
+                  @click="selectFormat(format)"
+                >
+                  <span class="item__text">{{ format.format.name }}</span>
+                </div>
+                <div
+                  v-if="!formats.length"
+                  class="dropdown__item"
+                >
+                  <span class="item__text">Нет форматов</span>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <div class="completion__fields">
+          <div class="completion__number">
+            <div class="completion__number-header">
+              <label class="input__label">Номер Т/С <span class="required">*</span></label>
+            </div>
+            <div
+              v-if="selectedFormat"
+              class="number__field"
+            >
+              <input
+                v-for="(cell, index) in selectedFormat.cells"
+                :key="index"
+                v-model="numberParts[index]"
+                class="number__input"
+                :placeholder="getPlaceholder(cell)"
+                :maxlength="cell.max_length"
+                :style="{ width: getInputWidth(cell) }"
+                @input="validatePart(index, $event, cell)"
+                @blur="formatPart(index, cell)"
+              >
+            </div>
+            <div
+              v-else
+              class="no-format-message"
+            >
+              Выберите формат номера
+            </div>
+          </div>
+
+          <div class="completion__mark">
+            <div class="completion__mark-header">
+              <label class="input__label">Марка Т/С <span class="required">*</span></label>
+            </div>
+            <div class="mark__field">
+              <div class="mark__dropdown">
+                <button
+                  class="mark__dropdown-button"
+                  @click="toggleMarkDropdown"
+                >
+                  <div class="mark__button-content">
+                    <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="mark__button-arrow"
+                      :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                    >
+                  </div>
+                </button>
+                <transition name="dropdown">
+                  <div
+                    v-if="isMarkDropdownOpen"
+                    class="mark__dropdown-menu"
+                  >
+                    <div class="mark__search">
+                      <input
+                        v-model="markSearch"
+                        class="mark__search-input"
+                        placeholder="Поиск марки..."
+                      >
+                    </div>
+                    <div class="mark__dropdown-list">
+                      <div
+                        v-for="mark in filteredMarks"
+                        :key="mark.id"
+                        class="mark__dropdown-item"
+                        @click="selectMark(mark)"
+                      >
+                        <span class="mark__item-text">{{ mark.name }}</span>
+                      </div>
+                      <div
+                        v-if="!filteredMarks.length"
+                        class="mark__dropdown-empty"
+                      >
+                        Марки не найдены
+                      </div>
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
 
       <template v-else>
@@ -131,7 +204,6 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
-import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import FormField from '@/components/ui/FormField.vue';
 import { apiRequest } from '@/api/client';
 import { listMarks } from '@/api/marks';
@@ -139,13 +211,13 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
 
 /**
  * Модалка добавления записи в чёрный список (#443). Тип определяет форму: 'vehicle' -
- * формат номера + поячеечный ввод (как в VehicleForm) + марка; 'person' - ФИО.
+ * формат номера + поячеечный ввод + марка (визуально как VehicleForm); 'person' - ФИО.
  * Создание делегируется через prop createFn (API-метод сущности); ошибка сервера
  * (409 дубль / 400) показывается инлайн.
  */
 export default {
   name: 'BlacklistCreateModal',
-  components: { BaseModal, BaseDropdown, FormField },
+  components: { BaseModal, FormField },
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },
@@ -156,8 +228,12 @@ export default {
     return {
       formats: [],
       selectedFormatId: null,
+      isFormatDropdownOpen: false,
       marks: [],
       markId: null,
+      selectedMark: '',
+      isMarkDropdownOpen: false,
+      markSearch: '',
       numberParts: [],
       lastName: '',
       firstName: '',
@@ -171,11 +247,16 @@ export default {
     title() {
       return this.type === 'vehicle' ? 'Добавить машину в чёрный список' : 'Добавить человека в чёрный список';
     },
-    formatOptions() {
-      return this.formats.map((f) => ({ id: f.format.id, name: f.format.name }));
-    },
     selectedFormat() {
       return this.formats.find((f) => f.format.id === this.selectedFormatId) || null;
+    },
+    selectedFormatText() {
+      return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
+    },
+    filteredMarks() {
+      const q = this.markSearch.trim().toLowerCase();
+      if (!q) return this.marks;
+      return this.marks.filter((m) => m.name.toLowerCase().includes(q));
     },
     canSubmit() {
       if (!this.reason.trim()) return false;
@@ -190,15 +271,27 @@ export default {
     show(open) {
       if (open) {
         this.resetForm();
-        if (this.type === 'vehicle') this.loadVehicleData();
+        if (this.type === 'vehicle') {
+          this.loadVehicleData();
+          document.addEventListener('click', this.onDocumentClick);
+        }
+      } else {
+        document.removeEventListener('click', this.onDocumentClick);
       }
     },
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.onDocumentClick);
   },
   methods: {
     resetForm() {
       this.selectedFormatId = null;
       this.formats = [];
+      this.isFormatDropdownOpen = false;
       this.markId = null;
+      this.selectedMark = '';
+      this.isMarkDropdownOpen = false;
+      this.markSearch = '';
       this.numberParts = [];
       this.lastName = '';
       this.firstName = '';
@@ -213,7 +306,7 @@ export default {
         const data = await res.json();
         this.formats = Array.isArray(data) ? data : [];
         const def = this.formats.find((f) => f.format.is_default) || this.formats[0];
-        if (def) this.onFormatChange(def.format.id);
+        if (def) this.selectFormat(def);
       } catch {
         this.formError = 'Не удалось загрузить форматы номеров';
       }
@@ -225,23 +318,44 @@ export default {
         this.formError = 'Не удалось загрузить марки';
       }
     },
-    onFormatChange(id) {
-      this.selectedFormatId = id;
+    onDocumentClick(e) {
+      if (!e.target.closest('.format__dropdown')) this.isFormatDropdownOpen = false;
+      if (!e.target.closest('.mark__dropdown')) this.isMarkDropdownOpen = false;
+    },
+    toggleFormatDropdown() {
+      this.isFormatDropdownOpen = !this.isFormatDropdownOpen;
+      this.isMarkDropdownOpen = false;
+    },
+    selectFormat(format) {
+      this.selectedFormatId = format.format.id;
       this.numberParts = initializeNumberParts(this.selectedFormat);
+      this.isFormatDropdownOpen = false;
     },
-    onPartInput(i, event, cell) {
-      this.numberParts[i] = validatePartValue(event.target.value, cell);
+    toggleMarkDropdown() {
+      this.isMarkDropdownOpen = !this.isMarkDropdownOpen;
+      this.isFormatDropdownOpen = false;
     },
-    onPartBlur(i, cell) {
-      this.numberParts[i] = formatPartValue(this.numberParts[i], cell);
+    selectMark(mark) {
+      this.markId = mark.id;
+      this.selectedMark = mark.name;
+      this.isMarkDropdownOpen = false;
+      this.markSearch = '';
     },
-    placeholder(cell) {
-      if (cell.cell_type === 'numbers') return '0'.repeat(cell.max_length || 1);
-      if (cell.cell_type === 'letters') return 'А';
-      return 'А0';
+    validatePart(index, event, cell) {
+      const value = validatePartValue(event.target.value, cell);
+      this.numberParts[index] = value;
+      event.target.value = value;
     },
-    cellWidth(cell) {
-      return `${Math.max(2, cell.max_length || 2) * 16 + 20}px`;
+    formatPart(index, cell) {
+      this.numberParts[index] = formatPartValue(this.numberParts[index], cell);
+    },
+    getPlaceholder(cell) {
+      if (cell.cell_type === 'numbers') return '0'.repeat(cell.max_length);
+      return 'A'.repeat(cell.max_length);
+    },
+    getInputWidth(cell) {
+      const width = Math.max(50, (cell.max_length || 2) * 25);
+      return `${width}px`;
     },
     close() {
       if (this.saving) return;
@@ -256,7 +370,7 @@ export default {
         let displayName;
         if (this.type === 'vehicle') {
           const carNumber = this.numberParts.join(' ').trim();
-          const markName = (this.marks.find((m) => m.id === this.markId) || {}).name || '';
+          const markName = (this.marks.find((m) => m.id === this.markId) || {}).name || this.selectedMark || '';
           payload = { car_number: carNumber, mark_id: this.markId, reason: this.reason.trim() };
           displayName = [carNumber, markName].filter(Boolean).join(' ');
         } else {
@@ -282,30 +396,333 @@ export default {
 
 <style scoped>
 .bl-create {
-  padding: 20px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
-.bl-plate {
+/* Формат номера + номер + марка - визуально идентично VehicleForm */
+.input__label {
+  font-size: 13px;
+  color: #a2a2a2;
+}
+
+.required {
+  color: #ff4444;
+}
+
+.completion__format {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 15px;
 }
 
-.bl-plate-cell {
+.format__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+}
+
+.format__label {
+  font-size: 13px;
+  color: #a2a2a2;
+}
+
+.format__dropdown {
+  position: relative;
+}
+
+.dropdown__button {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #e6e6e6;
+  background-color: #fff;
+  border-radius: 15px;
+  outline: none;
+  cursor: pointer;
+  padding: 0 15px;
+  transition: border-color 0.2s;
+}
+
+.dropdown__button:hover {
+  border-color: #4f5bdf;
+}
+
+.button__content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.button__text {
+  font-size: 14px;
+  color: #000;
+  font-weight: 500;
+  display: block;
+}
+
+.button__arrow {
+  width: 10px;
+  height: 10px;
+  transition: transform 0.2s;
+  transform: rotate(90deg);
+  flex-shrink: 0;
+}
+
+.button__arrow--open {
+  transform: rotate(-90deg);
+}
+
+.dropdown__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  margin-top: 5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dropdown__item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown__item:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.dropdown__item:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.item__text {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.completion__fields {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.completion__number,
+.completion__mark {
+  flex: 1;
+}
+
+.completion__number-header,
+.completion__mark-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 5px;
+}
+
+.number__field {
+  max-width: 202px;
+  min-width: 202px;
+  height: 40px;
+  display: flex;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.number__input {
+  border: none;
+  height: 100%;
+  outline: none;
   text-align: center;
+  font-size: 14px;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
   text-transform: uppercase;
 }
 
-.bl-hint {
-  color: var(--color-text-muted, #999);
+.number__input:not(:last-child) {
+  border-right: 1px solid #e6e6e6;
+}
+
+.number__input::placeholder {
+  color: #a2a2a2;
+  font-size: 12px;
+  text-transform: none;
+}
+
+.number__input:focus {
+  background-color: #f8f8f8;
+}
+
+.no-format-message {
+  font-size: 12px;
+  color: #a2a2a2;
+  text-align: center;
+  padding: 10px;
+  background: #f8f8f8;
+  border-radius: 10px;
+  border: 1px solid #e6e6e6;
+}
+
+.mark__field {
+  width: 100%;
+  height: 40px;
+  position: relative;
+}
+
+.mark__dropdown {
+  width: 100%;
+  height: 100%;
+}
+
+.mark__dropdown-button {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #e6e6e6;
+  background-color: #fff;
+  border-radius: 15px;
+  outline: none;
+  cursor: pointer;
+  padding: 0 15px;
+  transition: border-color 0.2s;
+}
+
+.mark__dropdown-button:hover {
+  border-color: #4f5bdf;
+}
+
+.mark__button-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.mark__button-text {
+  font-size: 14px;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  display: block;
+}
+
+.mark__button-arrow {
+  width: 10px;
+  height: 10px;
+  transition: transform 0.2s;
+  transform: rotate(90deg);
+  flex-shrink: 0;
+}
+
+.mark__button-arrow--open {
+  transform: rotate(-90deg);
+}
+
+.mark__dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  margin-top: 5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 220px;
+  overflow: hidden;
+}
+
+.mark__search {
+  padding: 10px;
+  border-bottom: 1px solid #e6e6e6;
+}
+
+.mark__search-input {
+  width: 100%;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  padding: 5px 10px;
+  outline: none;
+  font-size: 14px;
+}
+
+.mark__dropdown-list {
+  max-height: 144px;
+  overflow-y: auto;
+}
+
+.mark__dropdown-item {
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.mark__dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.mark__dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.mark__item-text {
+  font-size: 14px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mark__dropdown-empty {
+  padding: 10px 15px;
   font-size: 13px;
+  color: #a2a2a2;
+  text-align: center;
 }
 
 .bl-form-error {
   color: var(--color-danger, #dc3545);
   font-size: 13px;
+  margin-top: 4px;
+}
+
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>
