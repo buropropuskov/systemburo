@@ -15,7 +15,10 @@
         >
           Добавить
         </button>
-        <RefreshButton @refresh="refreshData" />
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="refreshData"
+        />
       </div>
     </div>
 
@@ -401,9 +404,14 @@
         <div
           v-if="showAddModal"
           class="modal-overlay"
-          @click.self="closeModal"
+          @mousedown="onAddOverlayMousedown"
+          @mouseup="onAddOverlayMouseup"
         >
-          <div class="modal-content">
+          <div
+            class="modal-content"
+            @mousedown.stop
+            @click.stop
+          >
             <div class="modal-header">
               <h3 class="modal-title">
                 Добавить место разгрузки
@@ -478,9 +486,14 @@
         <div
           v-if="showPhotoModal"
           class="modal-overlay"
-          @click.self="showPhotoModal = false"
+          @mousedown="onPhotoOverlayMousedown"
+          @mouseup="onPhotoOverlayMouseup"
         >
-          <div class="modal-content photo-view-modal">
+          <div
+            class="modal-content photo-view-modal"
+            @mousedown.stop
+            @click.stop
+          >
             <div class="modal-header">
               <h3 class="modal-title">
                 {{ viewingPhoto?.file_name }}
@@ -541,6 +554,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
@@ -552,6 +566,21 @@ export default {
     RefreshButton,
     ConfirmationModal,
     ScheduleTab
+  },
+  setup() {
+    // Колбэк закрытия присваивается в created (нужен доступ к this).
+    const addOverlay = { close: () => {} };
+    const photoOverlay = { close: () => {} };
+    const add = useOverlayClose(() => addOverlay.close());
+    const photo = useOverlayClose(() => photoOverlay.close());
+    return {
+      onAddOverlayMousedown: add.onOverlayMousedown,
+      onAddOverlayMouseup: add.onOverlayMouseup,
+      onPhotoOverlayMousedown: photo.onOverlayMousedown,
+      onPhotoOverlayMouseup: photo.onOverlayMouseup,
+      addOverlay,
+      photoOverlay
+    };
   },
   data() {
     return {
@@ -567,6 +596,7 @@ export default {
       sortDirection: 'asc',
       activeTab: 'main',
       isDraggingPhoto: false,
+      refreshing: false,
       deleteConfirmPlace: null,
       deleteConfirmPhoto: null
     };
@@ -615,19 +645,52 @@ export default {
   },
   watch: {
     showAddModal(newVal) {
+      this.syncBodyScroll();
       if (newVal) {
         this.$nextTick(() => {
           this.$refs.nameInput?.focus();
         });
       }
+    },
+    showPhotoModal() {
+      this.syncBodyScroll();
     }
+  },
+  created() {
+    this.addOverlay.close = () => { this.closeModal(); };
+    this.photoOverlay.close = () => { this.showPhotoModal = false; };
   },
   mounted() {
     this.refreshData();
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
+    document.body.style.overflow = '';
   },
   methods: {
+    // Скролл body блокируется, пока открыта ЛЮБАЯ из модалок (не залипает при
+    // закрытии одной, если вдруг открыта другая).
+    syncBodyScroll() {
+      document.body.style.overflow = (this.showAddModal || this.showPhotoModal) ? 'hidden' : '';
+    },
+
+    onKeydown(e) {
+      if (e.key !== 'Escape') return;
+      if (this.showPhotoModal) {
+        this.showPhotoModal = false;
+      } else if (this.showAddModal) {
+        this.closeModal();
+      }
+    },
+
     async refreshData() {
-      await this.fetchUnloadPlaces();
+      this.refreshing = true;
+      try {
+        await this.fetchUnloadPlaces();
+      } finally {
+        this.refreshing = false;
+      }
     },
     
     async fetchUnloadPlaces() {
@@ -1365,7 +1428,7 @@ async uploadPhotoFiles(files) {
 .form-input {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 14px;
   width: 100%;
   transition: border-color 0.2s ease;
@@ -1380,7 +1443,7 @@ async uploadPhotoFiles(files) {
 .form-textarea {
   padding: 8px 12px;
   border: 1px solid #e6e6e6;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 14px;
   width: 100%;
   transition: border-color 0.2s ease;
@@ -1714,7 +1777,7 @@ async uploadPhotoFiles(files) {
 
 .modal-content {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 30px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
@@ -1758,7 +1821,7 @@ async uploadPhotoFiles(files) {
   border: none;
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1808,7 +1871,7 @@ async uploadPhotoFiles(files) {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 15px;
   font-size: 0.9em;
   transition: border-color 0.2s ease;
   background: #fff;
@@ -1836,7 +1899,7 @@ async uploadPhotoFiles(files) {
 .modal-btn {
   padding: 8px 20px;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   cursor: pointer;
   font-size: 0.85em;
   font-weight: 500;
