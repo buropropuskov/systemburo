@@ -144,6 +144,14 @@
               >В архиве</span>
               <button
                 v-if="selectedAttachment.is_active"
+                class="action-btn template-btn"
+                data-testid="attachment-template-btn"
+                @click="showTemplateEditor = true"
+              >
+                Excel-бланк
+              </button>
+              <button
+                v-if="selectedAttachment.is_active"
                 class="action-btn archive-action-btn"
                 data-testid="attachment-archive"
                 @click="onArchiveClick(selectedAttachment)"
@@ -162,61 +170,75 @@
           </div>
 
           <div class="details-body">
-            <label class="field-label">Наименование вложения</label>
-            <input
-              v-model="form.display_name"
-              type="text"
-              class="lk-input"
-              maxlength="255"
-              placeholder="Название вложения"
-              :disabled="!selectedAttachment.is_active || isSaving"
-              data-testid="attachment-detail-name"
-              @keyup.enter="saveSelected"
-            >
+            <div class="form-row">
+              <div class="form-group">
+                <label class="field-label">Наименование вложения</label>
+                <input
+                  v-model="form.display_name"
+                  type="text"
+                  class="lk-input"
+                  maxlength="255"
+                  placeholder="Название вложения"
+                  :disabled="!selectedAttachment.is_active || isSaving"
+                  data-testid="attachment-detail-name"
+                  @keyup.enter="saveSelected"
+                >
+              </div>
 
-            <label class="field-label">Системное имя</label>
-            <input
-              :value="form.name"
-              type="text"
-              class="lk-input"
-              disabled
-              title="Системное имя задаётся при создании и не меняется"
-              data-testid="attachment-detail-system-name"
-            >
-            <span class="field-hint">Системное имя задаётся при создании и не изменяется</span>
+              <div class="form-group">
+                <label class="field-label">Системное имя</label>
+                <input
+                  :value="form.name"
+                  type="text"
+                  class="lk-input"
+                  disabled
+                  title="Системное имя задаётся при создании и не меняется"
+                  data-testid="attachment-detail-system-name"
+                >
+                <span class="field-hint">Системное имя задаётся при создании и не изменяется</span>
+              </div>
+            </div>
 
-            <label class="field-label">Заголовок</label>
-            <input
-              v-model="form.title"
-              type="text"
-              class="lk-input"
-              maxlength="255"
-              placeholder="АВТОЗАЯВКИ"
-              :disabled="!selectedAttachment.is_active || isSaving"
-              data-testid="attachment-detail-title"
-              @input="form.title = form.title.toUpperCase()"
-              @keyup.enter="saveSelected"
-            >
-            <span class="field-hint">Отображается в заголовке категории (всегда в верхнем регистре)</span>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="field-label">Заголовок</label>
+                <input
+                  v-model="form.title"
+                  type="text"
+                  class="lk-input"
+                  maxlength="255"
+                  placeholder="АВТОЗАЯВКИ"
+                  :disabled="!selectedAttachment.is_active || isSaving"
+                  data-testid="attachment-detail-title"
+                  @input="form.title = form.title.toUpperCase()"
+                  @keyup.enter="saveSelected"
+                >
+                <span class="field-hint">Отображается в заголовке категории (всегда в верхнем регистре)</span>
+              </div>
 
-            <label class="field-label">Тип вложения</label>
-            <BaseDropdown
-              class="type-dropdown"
-              :model-value="form.attachment_type"
-              :options="typeOptions"
-              label-key="label"
-              value-key="value"
-              :disabled="!selectedAttachment.is_active || isSaving"
-              @update:model-value="form.attachment_type = $event"
-            />
+              <div class="form-group">
+                <label class="field-label">Тип вложения</label>
+                <BaseDropdown
+                  class="type-dropdown"
+                  :model-value="form.attachment_type"
+                  :options="typeOptions"
+                  label-key="label"
+                  value-key="value"
+                  :disabled="!selectedAttachment.is_active || isSaving"
+                  @update:model-value="form.attachment_type = $event"
+                />
+              </div>
+            </div>
 
-            <label class="field-label">Инструкция к вложению</label>
-            <TextConstructor
-              v-model="form.instruction"
-              :disabled="!selectedAttachment.is_active"
-              placeholder="Введите инструкцию для вложения..."
-              rows="6"
-            />
+            <div class="form-group">
+              <label class="field-label">Инструкция к вложению</label>
+              <TextConstructor
+                v-model="form.instruction"
+                :disabled="!selectedAttachment.is_active"
+                placeholder="Введите инструкцию для вложения..."
+                rows="6"
+              />
+            </div>
 
             <div
               v-if="detailError"
@@ -247,24 +269,12 @@
                 />
               </div>
 
-              <div class="details-subsection">
-                <div class="subsection-header">
-                  <span class="subsection-title">Excel-бланк</span>
-                  <button
-                    class="lk-button lk-button--secondary"
-                    data-testid="attachment-template-btn"
-                    @click="showTemplateEditor = true"
-                  >
-                    Настроить бланк
-                  </button>
-                </div>
-                <AttachmentTemplateEditor
-                  :key="`te-${selectedAttachment.id}`"
-                  :show="showTemplateEditor"
-                  :unique-attachment-id="selectedAttachment.id"
-                  @close="showTemplateEditor = false"
-                />
-              </div>
+              <AttachmentTemplateEditor
+                :key="`te-${selectedAttachment.id}`"
+                :show="showTemplateEditor"
+                :unique-attachment-id="selectedAttachment.id"
+                @close="showTemplateEditor = false"
+              />
             </template>
 
             <div class="details-meta">
@@ -1143,6 +1153,18 @@ export default {
   background: #0da271;
 }
 
+.template-btn {
+  background: #fff;
+  color: #333;
+  border: 1px solid #e6e6e6;
+}
+
+.template-btn:hover:not(:disabled) {
+  border-color: #4F5BDF;
+  color: #4F5BDF;
+  background: #f7f8ff;
+}
+
 .details-body {
   display: flex;
   flex-direction: column;
@@ -1162,12 +1184,24 @@ export default {
   line-height: 1.4;
 }
 
-.details-body .lk-input {
-  max-width: 360px;
+/* Деталь в 2 колонки (как до 416-2), но с .lk-input 15px вместо легаси .form-input-sm */
+.form-row {
+  display: flex;
+  gap: 16px;
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.details-body .lk-input,
 .type-dropdown {
-  max-width: 360px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .details-actions {
@@ -1180,20 +1214,6 @@ export default {
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid #eef0f4;
-}
-
-.subsection-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.subsection-title {
-  font-size: 0.95em;
-  font-weight: 600;
-  color: #333;
 }
 
 .details-meta {
@@ -1395,6 +1415,10 @@ export default {
   }
   .table-body {
     max-height: 300px;
+  }
+  .form-row {
+    flex-direction: column;
+    gap: 8px;
   }
   .details-body .lk-input,
   .type-dropdown {
