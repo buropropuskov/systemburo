@@ -103,7 +103,7 @@ describe('BlacklistTabBase', () => {
     await flushPromises();
     await wrapper.findAll('.bl-row')[0].trigger('click');
     expect(wrapper.find('.bl-details-icon').exists()).toBe(true);
-    expect(wrapper.find('.bl-details-icon').attributes('src')).toBe('/icons/car.png');
+    expect(wrapper.find('.bl-details-icon-img').attributes('src')).toBe('/icons/car.png');
   });
 
   it('кнопка "Создать запись" эмитит create', async () => {
@@ -114,11 +114,11 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.emitted('create')).toBeTruthy();
   });
 
-  it('кнопка "Снять с ЧС" эмитит archive с активной записью', async () => {
+  it('кнопка "Убрать из ЧС" эмитит archive с активной записью', async () => {
     const wrapper = mountBase();
     await flushPromises();
     await wrapper.findAll('.bl-row')[0].trigger('click');
-    const btn = wrapper.findAll('button').find((b) => b.text() === 'Снять с ЧС');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Убрать из ЧС');
     await btn.trigger('click');
     expect(wrapper.emitted('archive')[0][0].id).toBe(1);
   });

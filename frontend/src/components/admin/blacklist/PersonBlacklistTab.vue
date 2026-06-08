@@ -34,9 +34,9 @@
     />
     <ConfirmationModal
       :show="!!archiveItem"
-      title="Снятие с чёрного списка"
+      title="Убрать из чёрного списка"
       :message="archiveMessage"
-      confirm-text="Снять"
+      confirm-text="Убрать"
       cancel-text="Отмена"
       :confirm-button-style="{ background: '#dc3545', borderColor: '#dc3545' }"
       @confirm="doArchive"
@@ -86,7 +86,7 @@ export default {
   computed: {
     archiveMessage() {
       return this.archiveItem
-        ? `Снять «${this.primaryText(this.archiveItem)}» с чёрного списка? Совпадающие сотрудники с активной заявкой снова станут активными.`
+        ? `Убрать «${this.primaryText(this.archiveItem)}» из чёрного списка? Совпадающие сотрудники с активной заявкой снова станут активными.`
         : '';
     },
   },
@@ -148,10 +148,10 @@ export default {
       if (!item) return;
       try {
         await archivePersonBlacklist(item.id);
-        useDeletionsStore().notify({ prefix: 'Человек ', bold: this.primaryText(item), suffix: ' снят с чёрного списка' });
+        useDeletionsStore().notify({ prefix: 'Человек ', bold: this.primaryText(item), suffix: ' убран из чёрного списка' });
         await this.$refs.base.fetchData();
       } catch (e) {
-        useDeletionsStore().notify({ prefix: 'Не удалось снять: ', bold: e?.message || 'ошибка', type: 'error' });
+        useDeletionsStore().notify({ prefix: 'Не удалось убрать: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
     async doRestore(item) {

@@ -455,7 +455,9 @@ export default {
         'delete': 'dot-delete',
         'activate': 'dot-activate',
         'deactivate': 'dot-deactivate',
-        'restore': 'dot-restore'
+        'restore': 'dot-restore',
+        'blacklisted': 'dot-delete',
+        'unblacklisted': 'dot-activate'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -473,7 +475,9 @@ export default {
         'delete': 'Сотрудник удалён',
         'activate': 'Сотрудник введён в работу',
         'deactivate': 'Сотрудник выведен из работы',
-        'restore': 'Сотрудник восстановлен'
+        'restore': 'Сотрудник восстановлен',
+        'blacklisted': 'Добавлен в чёрный список',
+        'unblacklisted': 'Снят с чёрного списка'
       };
       
       let text = texts[item.action_type] || item.action_type;

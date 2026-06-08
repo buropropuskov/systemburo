@@ -81,12 +81,16 @@
       >
         <div class="bl-details-header">
           <div class="bl-details-heading">
-            <img
+            <div
               v-if="entityIcon"
-              :src="entityIcon"
-              alt=""
               class="bl-details-icon"
             >
+              <img
+                :src="entityIcon"
+                alt=""
+                class="bl-details-icon-img"
+              >
+            </div>
             <h3 class="bl-details-title">
               {{ getPrimaryText(selected) }}
             </h3>
@@ -112,7 +116,7 @@
               class="lk-button lk-button--danger"
               @click="$emit('archive', selected)"
             >
-              Снять с ЧС
+              Убрать из ЧС
             </button>
             <button
               v-else
@@ -445,9 +449,16 @@ export default {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  padding: 7px;
   border-radius: 50%;
   background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bl-details-icon-img {
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 
