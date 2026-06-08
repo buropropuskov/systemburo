@@ -10,6 +10,7 @@ import {
   updateCitizenship,
   archiveCitizenship,
   restoreCitizenship,
+  getCitizenshipHistory,
 } from '../citizenships'
 
 // apiRequest разворачивает envelope: на успехе json() = data, на ошибке = { message }.
@@ -90,6 +91,20 @@ describe('api/citizenships', () => {
       apiRequest.mockResolvedValue(okJson('ok'))
       await restoreCitizenship(5)
       expect(apiRequest).toHaveBeenCalledWith('/citizenships/5/restore', { method: 'POST' })
+    })
+  })
+
+  describe('getCitizenshipHistory', () => {
+    it('GET /citizenships/{id}/history возвращает массив записей', async () => {
+      apiRequest.mockResolvedValue(okJson([{ id: 1, action_type: 'created' }]))
+      const data = await getCitizenshipHistory(5)
+      expect(apiRequest).toHaveBeenCalledWith('/citizenships/5/history')
+      expect(data).toEqual([{ id: 1, action_type: 'created' }])
+    })
+
+    it('бросает при ошибке загрузки, а не считает успехом', async () => {
+      apiRequest.mockResolvedValue(errJson('Сервер недоступен', 500))
+      await expect(getCitizenshipHistory(5)).rejects.toThrow('Сервер недоступен')
     })
   })
 })
