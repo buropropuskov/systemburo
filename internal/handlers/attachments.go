@@ -96,11 +96,12 @@ func (h *AttachmentHandler) GetByID(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments [post]
 func (h *AttachmentHandler) Create(c echo.Context) error {
+	userID := GetUserID(c)
 	var req models.CreateUniqueAttachmentRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	resp, err := h.service.Create(c.Request().Context(), req)
+	resp, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -121,6 +122,7 @@ func (h *AttachmentHandler) Create(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments/{id} [put]
 func (h *AttachmentHandler) Update(c echo.Context) error {
+	userID := GetUserID(c)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
@@ -129,7 +131,7 @@ func (h *AttachmentHandler) Update(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
+	if err := h.service.Update(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Вложение успешно обновлено")
@@ -148,11 +150,12 @@ func (h *AttachmentHandler) Update(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments/{id} [delete]
 func (h *AttachmentHandler) Delete(c echo.Context) error {
+	userID := GetUserID(c)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
 	}
-	if err := h.service.Delete(c.Request().Context(), id); err != nil {
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Вложение успешно удалено")
@@ -171,12 +174,37 @@ func (h *AttachmentHandler) Delete(c echo.Context) error {
 // @Failure      401 {object} models.HTTPError
 // @Router       /attachments/{id}/restore [put]
 func (h *AttachmentHandler) Restore(c echo.Context) error {
+	userID := GetUserID(c)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
 	}
-	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+	if err := h.service.Restore(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Вложение успешно восстановлено")
+}
+
+// GetHistory godoc
+// @Summary      История изменений шаблона вложения
+// @Description  Возвращает аудит создания/изменения/архивации/восстановления шаблона вложения (новые сверху)
+// @Tags         attachments
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID шаблона вложения"
+// @Success      200 {array} models.UniqueAttachmentHistoryItem
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /attachments/{id}/history [get]
+func (h *AttachmentHandler) GetHistory(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid attachment ID")
+	}
+	items, err := h.service.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
 }
