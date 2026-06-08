@@ -437,7 +437,9 @@ export default {
         'update': 'dot-update',
         'delete': 'dot-delete',
         'activate': 'dot-activate',
-        'deactivate': 'dot-deactivate'
+        'deactivate': 'dot-deactivate',
+        'blacklisted': 'dot-delete',
+        'unblacklisted': 'dot-activate'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -455,7 +457,9 @@ export default {
         'delete': 'Автомобиль удалён',
         'activate': 'Автомобиль введён в работу',
         'deactivate': 'Автомобиль выведен из работы',
-        'restore': 'Автомобиль восстановлен'
+        'restore': 'Автомобиль восстановлен',
+        'blacklisted': 'Добавлен в чёрный список',
+        'unblacklisted': 'Снят с чёрного списка'
       };
       
       let text = texts[item.action_type] || item.action_type;
