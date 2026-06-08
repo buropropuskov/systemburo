@@ -2,39 +2,39 @@
   <div class="attachments-management-container dashboard-card">
     <div class="management-header">
       <h3 class="management-title">
-        Вложения заявок (бланки)
+        Вложения заявок
       </h3>
       <div class="header-controls">
-        <button 
-          class="archive-header-button" 
-          :class="{ active: showArchive }"
-          @click="toggleArchiveView"
-        >
-          {{ showArchive ? 'Активные' : 'Архив' }}
-        </button>
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск вложений...'"
         />
-        
         <button
           class="add-header-button"
-          @click="showAddModal = true"
+          data-testid="attachment-add-btn"
+          @click="openAddModal"
         >
           Создать вложение
         </button>
         <RefreshButton
-          :loading="refreshing"
-          @refresh="refreshData"
+          :loading="isLoading"
+          @refresh="refresh"
         />
       </div>
     </div>
 
     <div class="content-container">
-      <!-- Левая часть - список вложений -->
       <div
         class="table-section"
-        :class="{'with-details': selectedAttachment}"
+        :class="{ 'with-details': selectedAttachment }"
       >
         <div class="table-container">
           <div class="table-header">
@@ -45,13 +45,10 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'id',
-                  'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
               >
             </div>
             <div
@@ -61,271 +58,222 @@
               <p :class="{ 'active-sort': sortField === 'display_name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'display_name',
-                  'desc': sortField === 'display_name' && sortDirection === 'desc'
-                }" 
-              >
-            </div>
-            <div
-              class="header-col type-col"
-              @click="sortBy('attachment_type')"
-            >
-              <p :class="{ 'active-sort': sortField === 'attachment_type' }">
-                Тип
-              </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'attachment_type',
-                  'desc': sortField === 'attachment_type' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'display_name', desc: sortField === 'display_name' && sortDirection === 'desc' }"
               >
             </div>
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="attachment in sortedAttachments" 
-              :key="attachment.id" 
+            <div
+              v-for="a in filteredAttachments"
+              :key="a.id"
               class="table-row"
+              data-testid="attachment-row"
               :class="{
-                'selected': selectedAttachment && selectedAttachment.id === attachment.id,
-                'inactive': !attachment.is_active
+                selected: selectedAttachment && selectedAttachment.id === a.id,
+                inactive: !a.is_active,
               }"
-              @click="selectAttachment(attachment)"
+              @click="selectAttachment(a)"
             >
               <div class="table-col id-col">
-                <span class="cell-content id-value">{{ attachment.id }}</span>
+                <span class="cell-content id-value">{{ a.id }}</span>
               </div>
               <div class="table-col name-col">
                 <span
                   class="truncate-text"
-                  :title="attachment.display_name"
+                  :title="a.display_name"
                 >
-                  {{ attachment.display_name }}
+                  {{ a.display_name }}
                   <span
-                    v-if="!attachment.is_active"
+                    class="type-badge"
+                    :class="a.attachment_type"
+                  >{{ typeLabel(a.attachment_type) }}</span>
+                  <span
+                    v-if="!a.is_active"
                     class="inactive-badge"
                   >(архив)</span>
                 </span>
               </div>
-              <div class="table-col type-col">
-                <span
-                  class="type-badge"
-                  :class="attachment.attachment_type"
-                >
-                  {{ getAttachmentTypeLabel(attachment.attachment_type) }}
-                </span>
-              </div>
+            </div>
+
+            <div
+              v-if="!filteredAttachments.length && !isLoading"
+              class="no-results"
+            >
+              {{ emptyText }}
+            </div>
+            <div
+              v-if="isLoading && !items.length"
+              class="attachments-loading"
+            >
+              <LoaderSpinner label="Загрузка вложений..." />
             </div>
           </div>
 
           <div class="table-footer">
             <span class="items-count">
-              {{ showArchive ? 'В архиве' : 'Всего активных' }}: {{ filteredAttachments.length }}
+              {{ showArchive ? 'В архиве' : 'Всего вложений' }}: {{ filteredAttachments.length }}
             </span>
           </div>
         </div>
       </div>
 
-      <!-- Правая часть - детали вложения -->
       <div
         v-if="selectedAttachment"
         class="details-section"
+        data-testid="attachment-details"
       >
-        <div class="details-content">
+        <div class="tab-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <div class="attachment-info-title">
-                <h3 class="details-title">
-                  {{ selectedAttachment.display_name }}
-                </h3>
-                <span
-                  class="attachment-type-badge"
-                  :class="selectedAttachment.attachment_type"
-                >
-                  {{ getAttachmentTypeLabel(selectedAttachment.attachment_type) }}
-                </span>
-                <span
-                  v-if="!selectedAttachment.is_active"
-                  class="archive-badge"
-                >В архиве</span>
-              </div>
-              <div class="attachment-info-row">
-                <span class="system-name">{{ selectedAttachment.name }}</span>
-              </div>
+              <h3 class="details-title">
+                {{ original.display_name }}
+              </h3>
+              <span
+                class="type-badge details-type-badge"
+                :class="selectedAttachment.attachment_type"
+              >{{ typeLabel(selectedAttachment.attachment_type) }}</span>
             </div>
             <div class="details-header-actions">
+              <span
+                v-if="!selectedAttachment.is_active"
+                class="archive-badge"
+              >В архиве</span>
               <button
                 v-if="selectedAttachment.is_active"
-                class="action-btn excel-btn"
-                @click="showTemplateEditor = true"
+                class="action-btn archive-action-btn"
+                data-testid="attachment-archive"
+                @click="onArchiveClick(selectedAttachment)"
               >
-                Excel-бланк
+                В архив
               </button>
               <button
-                v-if="!selectedAttachment.is_active"
+                v-else
                 class="action-btn restore-btn"
-                @click="restoreAttachment(selectedAttachment)"
+                data-testid="attachment-restore"
+                @click="onRestore(selectedAttachment)"
               >
                 Восстановить
               </button>
-              <button
-                v-if="selectedAttachment.is_active"
-                class="delete-icon-btn"
-                @click="confirmDeleteAttachment(selectedAttachment)"
-              >
-                <img
-                  src="@/assets/icons/delete.png"
-                  class="delete-icon"
-                >
-              </button>
             </div>
           </div>
-          
+
           <div class="details-body">
-            <div class="compact-form">
-              <div class="form-row">
-                <div class="form-group compact">
-                  <label class="detail-label">Наименование вложения:</label>
-                  <input 
-                    v-model="selectedAttachment.display_name" 
-                    class="form-input-sm"
-                    :disabled="!selectedAttachment.is_active"
-                    placeholder="Название вложения"
-                    autocomplete="off"
-                    @change="updateAttachmentDisplayName"
-                  >
-                </div>
-                <div class="form-group compact">
-                  <label class="detail-label">Системное имя:</label>
-                  <input 
-                    v-model="selectedAttachment.name" 
-                    class="form-input-sm"
-                    :disabled="!selectedAttachment.is_active"
-                    placeholder="avtozayavka"
-                    autocomplete="off"
-                    @change="updateAttachmentName"
-                  >
-                  <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-                </div>
-              </div>
+            <label class="field-label">Наименование вложения</label>
+            <input
+              v-model="form.display_name"
+              type="text"
+              class="lk-input"
+              maxlength="255"
+              placeholder="Название вложения"
+              :disabled="!selectedAttachment.is_active || isSaving"
+              data-testid="attachment-detail-name"
+              @keyup.enter="saveSelected"
+            >
 
-              <div class="form-row">
-                <div class="form-group compact">
-                  <label class="detail-label">Заголовок:</label>
-                  <input 
-                    v-model="selectedAttachment.title" 
-                    class="form-input-sm"
-                    :disabled="!selectedAttachment.is_active"
-                    placeholder="АВТОЗАЯВКИ"
-                    autocomplete="off"
-                    @change="updateAttachmentTitle"
-                  >
-                  <span class="form-hint">Отображается в заголовке категории (всегда в верхнем регистре)</span>
-                </div>
-                
-                <div class="form-group compact">
-                  <label class="detail-label">Тип вложения:</label>
-                  <div class="custom-select">
-                    <div 
-                      class="select-header" 
-                      :class="{ 'disabled': !selectedAttachment.is_active }"
-                      @click="selectedAttachment.is_active && toggleAttachmentTypeDropdown()"
-                    >
-                      <span class="select-value">{{ getAttachmentTypeLabel(selectedAttachment.attachment_type) }}</span>
-                      <img 
-                        v-if="selectedAttachment.is_active"
-                        src="@/assets/icons/arrow.png" 
-                        class="select-arrow" 
-                        :class="{ rotated: attachmentTypeDropdownOpen }" 
-                      >
-                    </div>
-                    <transition name="dropdown-fade">
-                      <div
-                        v-if="attachmentTypeDropdownOpen"
-                        class="select-dropdown"
-                      >
-                        <div 
-                          class="select-option"
-                          :class="{ active: selectedAttachment.attachment_type === 'cars' }"
-                          @click="selectAttachmentType('cars')"
-                        >
-                          Машины
-                        </div>
-                        <div 
-                          class="select-option"
-                          :class="{ active: selectedAttachment.attachment_type === 'people' }"
-                          @click="selectAttachmentType('people')"
-                        >
-                          Люди
-                        </div>
-                        <div 
-                          class="select-option"
-                          :class="{ active: selectedAttachment.attachment_type === 'items' }"
-                          @click="selectAttachmentType('items')"
-                        >
-                          ТМЦ
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
-                </div>
-              </div>
+            <label class="field-label">Системное имя</label>
+            <input
+              :value="form.name"
+              type="text"
+              class="lk-input"
+              disabled
+              title="Системное имя задаётся при создании и не меняется"
+              data-testid="attachment-detail-system-name"
+            >
+            <span class="field-hint">Системное имя задаётся при создании и не изменяется</span>
 
-              <div class="instruction-section">
-                <div class="section-header-with-actions">
-                  <label class="detail-label">Инструкция к вложению:</label>
-                  <div
-                    v-if="instructionHasChanges && selectedAttachment.is_active"
-                    class="editor-actions"
-                  >
-                    <button
-                      class="compact-btn cancel-btn"
-                      @click="cancelInstructionEdit"
-                    >
-                      Отмена
-                    </button>
-                    <button
-                      class="compact-btn save-btn"
-                      @click="saveInstruction"
-                    >
-                      Сохранить
-                    </button>
-                  </div>
-                </div>
-                <TextConstructor
-                  ref="instructionConstructor"
-                  v-model="selectedAttachment.instruction"
-                  :disabled="!selectedAttachment.is_active"
-                  placeholder="Введите инструкцию для вложения..."
-                  rows="8"
+            <label class="field-label">Заголовок</label>
+            <input
+              v-model="form.title"
+              type="text"
+              class="lk-input"
+              maxlength="255"
+              placeholder="АВТОЗАЯВКИ"
+              :disabled="!selectedAttachment.is_active || isSaving"
+              data-testid="attachment-detail-title"
+              @input="form.title = form.title.toUpperCase()"
+              @keyup.enter="saveSelected"
+            >
+            <span class="field-hint">Отображается в заголовке категории (всегда в верхнем регистре)</span>
+
+            <label class="field-label">Тип вложения</label>
+            <BaseDropdown
+              class="type-dropdown"
+              :model-value="form.attachment_type"
+              :options="typeOptions"
+              label-key="label"
+              value-key="value"
+              :disabled="!selectedAttachment.is_active || isSaving"
+              @update:model-value="form.attachment_type = $event"
+            />
+
+            <label class="field-label">Инструкция к вложению</label>
+            <TextConstructor
+              v-model="form.instruction"
+              :disabled="!selectedAttachment.is_active"
+              placeholder="Введите инструкцию для вложения..."
+              rows="6"
+            />
+
+            <div
+              v-if="detailError"
+              class="form-error"
+            >
+              {{ detailError }}
+            </div>
+
+            <div
+              v-if="selectedAttachment.is_active"
+              class="details-actions"
+            >
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!isDetailsDirty || isSaving"
+                data-testid="attachment-save"
+                @click="saveSelected"
+              >
+                Сохранить
+              </button>
+            </div>
+
+            <template v-if="selectedAttachment.is_active">
+              <div class="details-subsection">
+                <AttachmentCustomFields
+                  :key="`cf-${selectedAttachment.id}`"
+                  :unique-attachment-id="selectedAttachment.id"
                 />
               </div>
 
-              <!-- Дополнительные поля (#183) -->
-              <AttachmentCustomFields
-                v-if="selectedAttachment.is_active"
-                :unique-attachment-id="selectedAttachment.id"
-              />
+              <div class="details-subsection">
+                <div class="subsection-header">
+                  <span class="subsection-title">Excel-бланк</span>
+                  <button
+                    class="lk-button lk-button--secondary"
+                    data-testid="attachment-template-btn"
+                    @click="showTemplateEditor = true"
+                  >
+                    Настроить бланк
+                  </button>
+                </div>
+                <AttachmentTemplateEditor
+                  :key="`te-${selectedAttachment.id}`"
+                  :show="showTemplateEditor"
+                  :unique-attachment-id="selectedAttachment.id"
+                  @close="showTemplateEditor = false"
+                />
+              </div>
+            </template>
 
-              <!-- Excel-бланк (#183) -->
-              <AttachmentTemplateEditor
-                v-if="selectedAttachment.is_active"
-                :show="showTemplateEditor"
-                :unique-attachment-id="selectedAttachment.id"
-                @close="showTemplateEditor = false"
-              />
+            <div class="details-meta">
+              <span>ID: {{ selectedAttachment.id }}</span>
+              <span v-if="selectedAttachment.created_at">Создано: {{ formatDate(selectedAttachment.created_at) }}</span>
             </div>
           </div>
         </div>
       </div>
-
       <div
         v-else
         class="no-selection-message"
@@ -334,667 +282,341 @@
       </div>
     </div>
 
-    <div
-      v-if="filteredAttachments.length === 0"
-      class="no-results"
-    >
-      <div class="no-results-icon">
-        {{ showArchive ? '🗄️' : '📄' }}
-      </div>
-      <p>{{ showArchive ? 'Архив пуст' : 'Вложения не найдены' }}</p>
-    </div>
-
-    <!-- Модальное окно создания вложения -->
+    <!-- Модалка создания -->
     <Teleport to="body">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="closeAddModal"
-      >
-        <div class="modal-content horizontal-modal">
-          <div class="modal-header">
-            <h3>Создать новое вложение</h3>
-            <button
-              class="modal-close"
-              @click="closeAddModal"
-            >
-              ×
-            </button>
-          </div>
-        
-          <div class="modal-body-horizontal">
-            <!-- Левая часть - основная информация -->
-            <div class="modal-main-info">
-              <div class="main-fields">
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Наименование вложения *</label>
-                  <input
-                    v-model="newAttachment.display_name"
-                    placeholder="Автозаявка"
-                    class="input-compact"
-                    :class="{ 'has-duplicate': duplicateCheck.display_name }"
-                    @input="checkExistingAttachments"
-                  >
-                  <div
-                    v-if="duplicateCheck.display_name"
-                    class="duplicate-alert"
-                  >
-                    <p>Найдено похожее вложение:</p>
-                    <div
-                      class="duplicate-item"
-                      @click="restoreDuplicate(duplicateCheck.display_name)"
-                    >
-                      <span>{{ duplicateCheck.display_name.display_name }}</span>
-                      <span class="duplicate-status">(в архиве)</span>
-                    </div>
-                  </div>
-                </div>
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          data-testid="attachment-modal"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
+          <div
+            class="attachment-modal"
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <h3>Новое вложение</h3>
+              <button
+                class="modal-close"
+                aria-label="Закрыть"
+                data-testid="attachment-modal-close"
+                @click="requestCloseAdd"
+              >
+                ×
+              </button>
+            </div>
 
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Тип вложения *</label>
-                  <div class="custom-select">
-                    <div
-                      class="select-header"
-                      @click="toggleNewAttachmentTypeDropdown"
-                    >
-                      <span class="select-value">{{ getAttachmentTypeLabel(newAttachment.attachment_type) }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="select-arrow"
-                        :class="{ rotated: newAttachmentTypeDropdownOpen }"
-                      >
-                    </div>
-                    <transition name="dropdown-fade">
-                      <div
-                        v-if="newAttachmentTypeDropdownOpen"
-                        class="select-dropdown"
-                      >
-                        <div 
-                          class="select-option"
-                          :class="{ active: newAttachment.attachment_type === 'cars' }"
-                          @click="selectNewAttachmentType('cars')"
-                        >
-                          Машины
-                        </div>
-                        <div 
-                          class="select-option"
-                          :class="{ active: newAttachment.attachment_type === 'people' }"
-                          @click="selectNewAttachmentType('people')"
-                        >
-                          Люди
-                        </div>
-                        <div 
-                          class="select-option"
-                          :class="{ active: newAttachment.attachment_type === 'items' }"
-                          @click="selectNewAttachmentType('items')"
-                        >
-                          ТМЦ
-                        </div>
-                      </div>
-                    </transition>
-                  </div>
-                </div>
-              
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Системное имя *</label>
-                  <input
-                    v-model="newAttachment.name"
-                    placeholder="avtozayavka"
-                    class="input-compact"
-                    :class="{ 'has-duplicate': duplicateCheck.name, 'has-error': nameError }"
-                    @input="validateSystemName"
-                    @blur="checkExistingAttachments"
-                  >
-                  <span class="form-hint">Латинские буквы, цифры и подчеркивания</span>
-                  <span
-                    v-if="nameError"
-                    class="form-error"
-                  >{{ nameError }}</span>
-                  <div
-                    v-if="duplicateCheck.name"
-                    class="duplicate-alert"
-                  >
-                    <p>Найдено вложение с таким системным именем:</p>
-                    <div
-                      class="duplicate-item"
-                      @click="restoreDuplicate(duplicateCheck.name)"
-                    >
-                      <span>{{ duplicateCheck.name.display_name }}</span>
-                      <span class="duplicate-status">(в архиве)</span>
-                    </div>
-                  </div>
-                </div>
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Наименование вложения</label>
+                <input
+                  v-model="addForm.display_name"
+                  type="text"
+                  class="lk-input"
+                  maxlength="255"
+                  placeholder="Автозаявка"
+                  data-testid="attachment-input-display-name"
+                  @keyup.enter="submitAdd"
+                >
+              </div>
 
-                <div class="form-group-compact">
-                  <label class="form-label-compact">Заголовок *</label>
-                  <input
-                    v-model="newAttachment.title"
-                    placeholder="АВТОЗАЯВКИ"
-                    class="input-compact"
-                    :class="{ 'has-duplicate': duplicateCheck.title }"
-                    @input="checkExistingAttachments"
-                  >
-                  <span class="form-hint">Отображается в заголовке категории</span>
-                  <div
-                    v-if="duplicateCheck.title"
-                    class="duplicate-alert"
-                  >
-                    <p>Найдено вложение с таким заголовком:</p>
-                    <div
-                      class="duplicate-item"
-                      @click="restoreDuplicate(duplicateCheck.title)"
-                    >
-                      <span>{{ duplicateCheck.title.display_name }}</span>
-                      <span class="duplicate-status">(в архиве)</span>
-                    </div>
-                  </div>
-                </div>
+              <div class="form-group">
+                <label class="form-label">Системное имя</label>
+                <input
+                  v-model="addForm.name"
+                  type="text"
+                  class="lk-input"
+                  :class="{ 'input-error': !!nameError }"
+                  maxlength="255"
+                  placeholder="avtozayavka"
+                  data-testid="attachment-input-name"
+                  @input="onNameInput"
+                >
+                <span class="field-hint">Латинские буквы, цифры и подчёркивания</span>
+                <span
+                  v-if="nameError"
+                  class="form-error"
+                >{{ nameError }}</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Заголовок</label>
+                <input
+                  v-model="addForm.title"
+                  type="text"
+                  class="lk-input"
+                  maxlength="255"
+                  placeholder="АВТОЗАЯВКИ"
+                  data-testid="attachment-input-title"
+                  @input="addForm.title = addForm.title.toUpperCase()"
+                  @keyup.enter="submitAdd"
+                >
+                <span class="field-hint">Отображается в заголовке категории (в верхнем регистре)</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Тип вложения</label>
+                <BaseDropdown
+                  :model-value="addForm.attachment_type"
+                  :options="typeOptions"
+                  label-key="label"
+                  value-key="value"
+                  @update:model-value="addForm.attachment_type = $event"
+                />
+              </div>
+
+              <div
+                v-if="archivedDuplicate"
+                class="duplicate-hint"
+                data-testid="attachment-duplicate-hint"
+              >
+                <span>В архиве уже есть вложение <b>{{ archivedDuplicate.display_name }}</b> с такими данными.</span>
+                <button
+                  class="lk-button lk-button--secondary"
+                  :disabled="isAdding"
+                  @click="restoreDuplicate(archivedDuplicate)"
+                >
+                  Восстановить из архива
+                </button>
+              </div>
+
+              <div
+                v-if="addError"
+                class="form-error"
+              >
+                {{ addError }}
               </div>
             </div>
 
-            <!-- Правая часть - инструкция -->
-            <div class="modal-cells-section">
-              <div class="cells-header-compact">
-                <h4 class="cells-title-compact">
-                  Инструкция к вложению
-                </h4>
-              </div>
-            
-              <div class="cells-scroll-container">
-                <div class="settings-grid">
-                  <div class="setting-item">
-                    <TextConstructor
-                      v-model="newAttachment.instruction"
-                      placeholder="Введите инструкцию для вложения..."
-                      rows="12"
-                    />
-                    <span class="setting-hint">
-                      Инструкция будет отображаться при выборе данного вложения
-                    </span>
-                  </div>
-
-                  <div class="setting-item">
-                    <h5 class="fields-preview-title">
-                      Предварительный просмотр:
-                    </h5>
-                    <div class="preview-card">
-                      <div class="preview-header">
-                        <div class="preview-title">
-                          {{ newAttachment.title || 'ЗАГОЛОВОК' }}
-                        </div>
-                      </div>
-                      <div class="preview-attachment">
-                        <span class="preview-attachment-name">
-                          {{ newAttachment.display_name || 'Название вложения' }}
-                        </span>
-                      </div>
-                      <button class="preview-add-btn">
-                        Добавить
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="modal-footer">
+              <button
+                class="lk-button lk-button--ghost"
+                data-testid="attachment-modal-cancel"
+                @click="requestCloseAdd"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!addValid || isAdding"
+                data-testid="attachment-modal-save"
+                @click="submitAdd"
+              >
+                Создать
+              </button>
             </div>
-          </div>
-        
-          <div class="modal-footer">
-            <button
-              class="modal-cancel"
-              @click="closeAddModal"
-            >
-              Отмена
-            </button>
-            <button
-              class="modal-confirm"
-              @click="createAttachment"
-            >
-              Создать
-            </button>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
-    <!-- Уведомления -->
-    <div
-      v-if="notification.show"
-      class="notification"
-      :class="notification.type"
-    >
-      <span class="notification-message">{{ notification.message }}</span>
-    </div>
+    <ConfirmationModal
+      :show="!!archiveConfirm"
+      title="Архивация вложения"
+      :message="archiveConfirm ? `Переместить вложение «${archiveConfirm.display_name}» в архив? Его можно будет восстановить.` : ''"
+      confirm-text="В архив"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performArchive"
+      @cancel="archiveConfirm = null"
+    />
   </div>
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
-import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
+import RefreshButton from './RefreshButton.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
-import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AttachmentCustomFields from './admin/AttachmentCustomFields.vue';
+import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import {
+  listAllAttachments,
+  createAttachment,
+  updateAttachment,
+  archiveAttachment,
+  restoreAttachment,
+} from '@/api/attachments';
+
+const SYSTEM_NAME_RE = /^[a-z0-9_]*$/;
+
+function emptyForm() {
+  return { display_name: '', name: '', title: '', attachment_type: 'cars', instruction: '' };
+}
 
 export default {
   name: 'AttachmentsManagement',
   components: {
     SearchComponent,
     RefreshButton,
+    ConfirmationModal,
     TextConstructor,
-    AttachmentTemplateEditor,
+    BaseDropdown,
+    LoaderSpinner,
     AttachmentCustomFields,
+    AttachmentTemplateEditor,
+  },
+  setup() {
+    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
+    const overlay = { close: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
+    return { onOverlayMousedown, onOverlayMouseup, overlay, deletions: useDeletionsStore() };
   },
   data() {
     return {
+      items: [],
       searchQuery: '',
-      refreshing: false,
-      newAttachment: {
-        name: '',
-        display_name: '',
-        title: '',
-        attachment_type: 'cars',
-        instruction: '',
-        is_active: true
-      },
-      attachments: [], // Все вложения (активные и архивные)
-      showAddModal: false,
-      selectedAttachment: null,
+      showArchive: false,
       sortField: null,
       sortDirection: 'asc',
-      nameError: '',
-      originalInstruction: '',
-      attachmentTypeDropdownOpen: false,
-      newAttachmentTypeDropdownOpen: false,
-      notification: {
-        show: false,
-        message: '',
-        type: 'info'
-      },
-      showArchive: false,
+      isLoading: false,
+      selectedAttachment: null,
+      form: emptyForm(),
+      original: emptyForm(),
+      detailError: '',
+      isSaving: false,
       showTemplateEditor: false,
-      duplicateCheck: {
-        display_name: null,
-        name: null,
-        title: null
-      }
+      showAddModal: false,
+      addForm: { display_name: '', name: '', title: '', attachment_type: 'cars' },
+      addError: '',
+      nameError: '',
+      isAdding: false,
+      archiveConfirm: null,
+      archiveOptions: [
+        { label: 'Активные', value: 'active' },
+        { label: 'Архив', value: 'archive' },
+      ],
+      typeOptions: [
+        { label: 'Машины', value: 'cars' },
+        { label: 'Люди', value: 'people' },
+        { label: 'ТМЦ', value: 'items' },
+      ],
     };
   },
   computed: {
     filteredAttachments() {
-      let filtered = this.attachments;
-      
-      // Фильтр по активности
-      if (this.showArchive) {
-        filtered = filtered.filter(attachment => !attachment.is_active);
-      } else {
-        filtered = filtered.filter(attachment => attachment.is_active);
+      const q = this.searchQuery.trim().toLowerCase();
+      let list = this.items.filter(a => (this.showArchive ? !a.is_active : a.is_active));
+      if (q) {
+        list = list.filter(a =>
+          (a.display_name || '').toLowerCase().includes(q)
+          || (a.name || '').toLowerCase().includes(q)
+          || (a.title || '').toLowerCase().includes(q)
+          || String(a.id).includes(q));
       }
-      
-      // Поиск
-      if (!this.searchQuery) return filtered;
-      
-      const query = this.searchQuery.toLowerCase();
-      return filtered.filter(attachment => 
-        attachment.display_name?.toLowerCase().includes(query) || 
-        attachment.name?.toLowerCase().includes(query) ||
-        attachment.title?.toLowerCase().includes(query) ||
-        attachment.id?.toString().includes(query)
-      );
+      return this.sortList(list);
     },
-    sortedAttachments() {
-      const attachments = [...this.filteredAttachments];
-      
-      if (!this.sortField) {
-        return attachments.sort((a, b) => a.display_name.localeCompare(b.display_name));
-      }
-      
-      return attachments.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (this.sortField) {
-          case 'id':
-            valueA = a.id;
-            valueB = b.id;
-            break;
-          case 'display_name':
-            valueA = a.display_name;
-            valueB = b.display_name;
-            break;
-          case 'attachment_type':
-            valueA = a.attachment_type;
-            valueB = b.attachment_type;
-            break;
-          default:
-            return 0;
-        }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
+    emptyText() {
+      if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
+      return this.showArchive ? 'В архиве пусто' : 'Вложений пока нет';
     },
-    instructionHasChanges() {
-      return this.selectedAttachment && this.selectedAttachment.instruction !== this.originalInstruction;
+    // Архивный дубль по любому из уникальных полей - предлагаем восстановить
+    // вместо создания нового (иначе у активного и архивного совпадут имена).
+    archivedDuplicate() {
+      const dn = this.addForm.display_name.trim().toLowerCase();
+      const nm = this.addForm.name.trim().toLowerCase();
+      const tt = this.addForm.title.trim().toUpperCase();
+      if (!dn && !nm && !tt) return null;
+      return this.items.find(a => !a.is_active && (
+        (dn && (a.display_name || '').toLowerCase() === dn)
+        || (nm && (a.name || '').toLowerCase() === nm)
+        || (tt && (a.title || '').toUpperCase() === tt)
+      )) || null;
     },
-    allInactiveAttachments() {
-      return this.attachments.filter(attachment => !attachment.is_active);
-    }
+    addValid() {
+      const f = this.addForm;
+      return f.display_name.trim() !== ''
+        && f.name.trim() !== ''
+        && f.title.trim() !== ''
+        && !this.nameError;
+    },
+    isAddDirty() {
+      if (!this.showAddModal) return false;
+      const f = this.addForm;
+      return f.display_name.trim() !== '' || f.name.trim() !== '' || f.title.trim() !== '';
+    },
+    isDetailsDirty() {
+      const s = this.selectedAttachment;
+      if (!s || !s.is_active) return false;
+      const f = this.form;
+      const o = this.original;
+      return f.display_name.trim() !== o.display_name
+        || f.title.trim() !== o.title
+        || f.attachment_type !== o.attachment_type
+        || (f.instruction || '') !== (o.instruction || '');
+    },
+    isDirty() {
+      return this.isAddDirty || this.isDetailsDirty;
+    },
+  },
+  created() {
+    this.overlay.close = () => { this.requestCloseAdd(); };
   },
   mounted() {
-    this.refreshData();
-    document.addEventListener('click', (e) => {
-      if (!this.$el.contains(e.target)) {
-        this.attachmentTypeDropdownOpen = false;
-        this.newAttachmentTypeDropdownOpen = false;
-      }
+    this.refresh();
+    this._stopGuard = registerDirtyTracker({
+      isDirty: () => this.isDirty,
+      getChanges: () => {
+        if (this.isAddDirty) return [`Новое вложение: "${this.addForm.display_name.trim() || this.addForm.name.trim()}"`];
+        if (this.isDetailsDirty) {
+          const f = this.form;
+          const o = this.original;
+          const ch = [];
+          if (f.display_name.trim() !== o.display_name) {
+            ch.push({ label: 'Наименование', from: o.display_name, to: f.display_name.trim() });
+          }
+          if (f.title.trim() !== o.title) {
+            ch.push({ label: 'Заголовок', from: o.title, to: f.title.trim() });
+          }
+          if (f.attachment_type !== o.attachment_type) {
+            ch.push({ label: 'Тип', from: this.typeLabel(o.attachment_type), to: this.typeLabel(f.attachment_type) });
+          }
+          if ((f.instruction || '') !== (o.instruction || '')) {
+            ch.push({ label: 'Инструкция', from: '', to: 'изменена' });
+          }
+          return ch;
+        }
+        return [];
+      },
+      save: async () => {
+        if (this.isAddDirty) await this.submitAdd();
+        if (this.isDetailsDirty) await this.saveSelected();
+      },
     });
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    this._stopGuard?.();
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    validateSystemName() {
-      const nameRegex = /^[a-z0-9_]*$/;
-      if (!nameRegex.test(this.newAttachment.name)) {
-        this.nameError = "Только латинские буквы, цифры и подчеркивания";
-      } else {
-        this.nameError = '';
-      }
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
-    
-    async checkExistingAttachments() {
-      // Проверяем наличие совпадений только среди неактивных вложений
-      const inactiveAttachments = this.allInactiveAttachments;
-      
-      // Сброс предыдущих проверок
-      this.duplicateCheck = {
-        display_name: null,
-        name: null,
-        title: null
-      };
-      
-      if (this.newAttachment.display_name) {
-        const duplicate = inactiveAttachments.find(a => 
-          a.display_name.toLowerCase() === this.newAttachment.display_name.toLowerCase()
-        );
-        if (duplicate) {
-          this.duplicateCheck.display_name = duplicate;
+    typeLabel(type) {
+      const o = this.typeOptions.find(t => t.value === type);
+      return o ? o.label : type;
+    },
+    sortList(list) {
+      const arr = [...list];
+      if (!this.sortField) {
+        return arr.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+      }
+      return arr.sort((a, b) => {
+        if (this.sortField === 'id') {
+          return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
         }
-      }
-      
-      if (this.newAttachment.name) {
-        const duplicate = inactiveAttachments.find(a => 
-          a.name.toLowerCase() === this.newAttachment.name.toLowerCase()
-        );
-        if (duplicate) {
-          this.duplicateCheck.name = duplicate;
-        }
-      }
-      
-      if (this.newAttachment.title) {
-        const duplicate = inactiveAttachments.find(a => 
-          a.title.toUpperCase() === this.newAttachment.title.toUpperCase()
-        );
-        if (duplicate) {
-          this.duplicateCheck.title = duplicate;
-        }
-      }
+        const r = (a.display_name || '').localeCompare(b.display_name || '');
+        return this.sortDirection === 'asc' ? r : -r;
+      });
     },
-    
-    async restoreDuplicate(attachment) {
-      if (confirm(`Восстановить архивное вложение "${attachment.display_name}"?`)) {
-        await this.restoreAttachment(attachment);
-        this.duplicateCheck = {
-          display_name: null,
-          name: null,
-          title: null
-        };
-        this.newAttachment = {
-          name: '',
-          display_name: '',
-          title: '',
-          attachment_type: 'cars',
-          instruction: '',
-          is_active: true
-        };
-        this.showAddModal = false;
-      }
-    },
-    
-    async refreshData() {
-      this.refreshing = true;
-      try {
-        await this.fetchAllAttachments();
-      } finally {
-        this.refreshing = false;
-      }
-    },
-    
-    async fetchAllAttachments() {
-      try {
-        const response = await apiRequest("/attachments/all", {
-        });
-        if (response.ok) {
-          const data = await response.json();
-          this.attachments = data;
-        }
-      } catch (error) {
-        console.error("Error fetching all attachments:", error);
-        this.showNotification("Ошибка при загрузке вложений", "error");
-      }
-    },
-    
-    toggleArchiveView() {
-      this.showArchive = !this.showArchive;
-      this.selectedAttachment = null;
-    },
-    
-    async createAttachment() {
-      // Проверяем, есть ли совпадения среди неактивных вложений
-      const hasDuplicates = Object.values(this.duplicateCheck).some(item => item !== null);
-      
-      if (hasDuplicates) {
-        const duplicateNames = Object.values(this.duplicateCheck)
-          .filter(item => item !== null)
-          .map(item => item.display_name)
-          .join(', ');
-        
-        if (!confirm(`Найдены архивные вложения: ${duplicateNames}. Восстановить их вместо создания нового?`)) {
-          // Пользователь отказался восстанавливать, продолжаем создание
-        } else {
-          // Восстанавливаем все найденные дубликаты
-          for (const duplicate of Object.values(this.duplicateCheck)) {
-            if (duplicate) {
-              await this.restoreAttachment(duplicate);
-            }
-          }
-          this.closeAddModal();
-          return;
-        }
-      }
-      
-      // Стандартная валидация
-      if (!this.newAttachment.name.trim() || !this.newAttachment.display_name.trim() || !this.newAttachment.title.trim()) {
-        this.showNotification("Заполните все обязательные поля", "warning");
-        return;
-      }
-      
-      const nameRegex = /^[a-z0-9_]+$/;
-      if (!nameRegex.test(this.newAttachment.name)) {
-        this.showNotification("Системное имя может содержать только латинские буквы, цифры и подчеркивания", "warning");
-        return;
-      }
-      
-      // Проверка существования среди активных вложений
-      const activeAttachments = this.attachments.filter(a => a.is_active);
-      const existingName = activeAttachments.find(a => a.name === this.newAttachment.name);
-      if (existingName) {
-        this.showNotification("Вложение с таким системным именем уже существует", "warning");
-        return;
-      }
-      
-      this.newAttachment.title = this.newAttachment.title.toUpperCase();
-      
-      try {
-        const response = await apiRequest("/attachments", {
-          method: "POST",
-          body: JSON.stringify(this.newAttachment),
-        });
-        
-        if (response.ok) {
-          this.newAttachment = {
-            name: '',
-            display_name: '',
-            title: '',
-            attachment_type: 'cars',
-            instruction: '',
-            is_active: true
-          };
-          this.duplicateCheck = {
-            display_name: null,
-            name: null,
-            title: null
-          };
-          this.showAddModal = false;
-          await this.refreshData();
-          this.showNotification("Вложение успешно создано", "success");
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при создании вложения", "error");
-        }
-      } catch (error) {
-        console.error("Error creating attachment:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    async updateAttachment(attachment, field = null) {
-      if (!attachment.is_active) {
-        this.showNotification("Невозможно редактировать архивное вложение", "warning");
-        return;
-      }
-      
-      try {
-        const response = await apiRequest(`/attachments/${attachment.id}`, {
-          method: "PUT",
-          body: JSON.stringify(attachment),
-        });
-        
-        if (response.ok) {
-          let message = "Вложение успешно обновлено";
-          if (field === 'display_name') {
-            message = "Наименование успешно изменено";
-          } else if (field === 'name') {
-            message = "Системное имя успешно изменено";
-          } else if (field === 'title') {
-            message = "Заголовок успешно изменен";
-          } else if (field === 'attachment_type') {
-            message = "Тип вложения успешно изменен";
-          } else if (field === 'instruction') {
-            message = "Инструкция успешно изменена";
-          }
-          
-          this.showNotification(message, "success");
-          await this.refreshData();
-          this.originalInstruction = attachment.instruction || '';
-        } else {
-          const errorText = await response.text();
-          this.showNotification(errorText || "Ошибка при обновлении вложения", "error");
-        }
-      } catch (error) {
-        console.error("Error updating attachment:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    async updateAttachmentDisplayName() {
-      if (this.selectedAttachment && this.selectedAttachment.is_active) {
-        await this.updateAttachment(this.selectedAttachment, 'display_name');
-      }
-    },
-    
-    async updateAttachmentName() {
-      if (this.selectedAttachment && this.selectedAttachment.is_active) {
-        const nameRegex = /^[a-z0-9_]+$/;
-        if (!nameRegex.test(this.selectedAttachment.name)) {
-          this.showNotification("Системное имя может содержать только латинские буквы, цифры и подчеркивания", "warning");
-          return;
-        }
-        await this.updateAttachment(this.selectedAttachment, 'name');
-      }
-    },
-    
-    async updateAttachmentTitle() {
-      if (this.selectedAttachment && this.selectedAttachment.is_active) {
-        this.selectedAttachment.title = this.selectedAttachment.title.toUpperCase();
-        await this.updateAttachment(this.selectedAttachment, 'title');
-      }
-    },
-    
-    async confirmDeleteAttachment(attachment) {
-      if (!attachment.is_active) {
-        this.showNotification("Вложение уже находится в архиве", "warning");
-        return;
-      }
-      
-      if (!confirm(`Переместить вложение "${attachment.display_name}" в архив?`)) return;
-      
-      try {
-        const response = await apiRequest(`/attachments/${attachment.id}`, {
-          method: "DELETE",
-        });
-        
-        if (response.ok) {
-          this.selectedAttachment = null;
-          await this.refreshData();
-          this.showNotification("Вложение перемещено в архив", "success");
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при архивировании вложения", "error");
-        }
-      } catch (error) {
-        console.error("Error archiving attachment:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    async restoreAttachment(attachment) {
-      try {
-        const response = await apiRequest(`/attachments/${attachment.id}/restore`, {
-          method: "PUT",
-        });
-        
-        if (response.ok) {
-          await this.refreshData();
-          
-          // Если восстанавливаем выбранное вложение, обновляем его
-          if (this.selectedAttachment && this.selectedAttachment.id === attachment.id) {
-            this.selectedAttachment.is_active = true;
-          }
-          
-          this.showNotification("Вложение успешно восстановлено", "success");
-          
-          // Если находимся в архиве и восстанавливаем, переключаемся на активные
-          if (this.showArchive) {
-            this.showArchive = false;
-          }
-        } else {
-          const error = await response.json();
-          this.showNotification(error.message || "Ошибка при восстановлении вложения", "error");
-        }
-      } catch (error) {
-        console.error("Error restoring attachment:", error);
-        this.showNotification("Ошибка сети", "error");
-      }
-    },
-    
-    selectAttachment(attachment) {
-      this.showTemplateEditor = false;
-      this.selectedAttachment = JSON.parse(JSON.stringify(attachment));
-      this.originalInstruction = attachment.instruction || '';
-    },
-    
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1003,84 +625,175 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-    
-    getAttachmentTypeLabel(type) {
-      switch(type) {
-        case 'cars': return 'Машины';
-        case 'people': return 'Люди';
-        case 'items': return 'ТМЦ';
-        default: return type;
-      }
+    formatDate(s) {
+      if (!s) return '';
+      return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
-    
-    saveInstruction() {
-      if (this.selectedAttachment && this.selectedAttachment.is_active) {
-        this.updateAttachment(this.selectedAttachment, 'instruction');
-      }
-    },
-    
-    cancelInstructionEdit() {
-      if (this.selectedAttachment) {
-        this.selectedAttachment.instruction = this.originalInstruction;
-      }
-    },
-    
-    toggleAttachmentTypeDropdown() {
-      if (this.selectedAttachment && this.selectedAttachment.is_active) {
-        this.attachmentTypeDropdownOpen = !this.attachmentTypeDropdownOpen;
-      }
-    },
-    
-    selectAttachmentType(type) {
-      if (this.selectedAttachment && this.selectedAttachment.is_active) {
-        this.selectedAttachment.attachment_type = type;
-        this.attachmentTypeDropdownOpen = false;
-        this.updateAttachment(this.selectedAttachment, 'attachment_type');
-      }
-    },
-    
-    toggleNewAttachmentTypeDropdown() {
-      this.newAttachmentTypeDropdownOpen = !this.newAttachmentTypeDropdownOpen;
-    },
-    
-    selectNewAttachmentType(type) {
-      this.newAttachment.attachment_type = type;
-      this.newAttachmentTypeDropdownOpen = false;
-    },
-    
-    closeAddModal() {
-      this.showAddModal = false;
-      this.newAttachment = {
-        name: '',
-        display_name: '',
-        title: '',
-        attachment_type: 'cars',
-        instruction: '',
-        is_active: true
+    syncSelectedFrom(fresh) {
+      this.selectedAttachment = { ...fresh };
+      const vals = {
+        display_name: fresh.display_name ?? '',
+        name: fresh.name ?? '',
+        title: fresh.title ?? '',
+        attachment_type: fresh.attachment_type ?? 'cars',
+        instruction: fresh.instruction ?? '',
       };
-      this.duplicateCheck = {
-        display_name: null,
-        name: null,
-        title: null
-      };
+      this.form = { ...vals };
+      this.original = { ...vals };
+      this.showTemplateEditor = false;
+    },
+    async refresh() {
+      this.isLoading = true;
+      try {
+        const data = await listAllAttachments();
+        this.items = Array.isArray(data) ? data : [];
+        if (this.selectedAttachment) {
+          const fresh = this.items.find(a => a.id === this.selectedAttachment.id);
+          const visible = fresh && (this.showArchive ? !fresh.is_active : fresh.is_active);
+          if (fresh && visible && !this.isDetailsDirty) {
+            this.syncSelectedFrom(fresh);
+          } else if (!visible) {
+            this.selectedAttachment = null;
+          }
+        }
+      } catch {
+        this.deletions.notify({ prefix: 'Не удалось загрузить ', bold: 'вложения', type: 'error' });
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async onArchiveModeChange(value) {
+      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      this.showArchive = value === 'archive';
+      this.selectedAttachment = null;
+      this.detailError = '';
+    },
+    async selectAttachment(a) {
+      if (this.selectedAttachment && this.selectedAttachment.id === a.id) return;
+      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      this.syncSelectedFrom(a);
+      this.detailError = '';
+    },
+    async saveSelected() {
+      if (!this.isDetailsDirty || this.isSaving) return;
+      const displayName = this.form.display_name.trim();
+      const title = this.form.title.trim().toUpperCase();
+      if (!displayName || !title) {
+        this.detailError = 'Заполните наименование и заголовок';
+        return;
+      }
+      this.isSaving = true;
+      this.detailError = '';
+      try {
+        await updateAttachment(this.selectedAttachment.id, {
+          attachmentType: this.form.attachment_type,
+          name: this.form.name,
+          displayName,
+          title,
+          instruction: this.form.instruction || null,
+        });
+        this.deletions.notify({ prefix: 'Изменения сохранены в ', bold: displayName });
+        this.form.display_name = displayName;
+        this.form.title = title;
+        this.original = { ...this.form };
+        await this.refresh();
+      } catch (e) {
+        this.detailError = e?.message || 'Не удалось сохранить';
+      } finally {
+        this.isSaving = false;
+      }
+    },
+    openAddModal() {
+      this.showAddModal = true;
+      this.addForm = { display_name: '', name: '', title: '', attachment_type: 'cars' };
+      this.addError = '';
       this.nameError = '';
     },
-    
-    showNotification(message, type = 'info') {
-      this.notification = {
-        show: true,
-        message,
-        type
-      };
-      
-      setTimeout(() => {
-        this.hideNotification();
-      }, 3000);
+    async requestCloseAdd() {
+      if (this.isAddDirty && !(await confirmIfAnyDirty())) return;
+      this.forceCloseAdd();
     },
-    
-    hideNotification() {
-      this.notification.show = false;
-    }
+    forceCloseAdd() {
+      this.showAddModal = false;
+      this.addForm = { display_name: '', name: '', title: '', attachment_type: 'cars' };
+      this.addError = '';
+      this.nameError = '';
+    },
+    onNameInput() {
+      this.addForm.name = this.addForm.name.toLowerCase();
+      this.nameError = SYSTEM_NAME_RE.test(this.addForm.name)
+        ? ''
+        : 'Только латинские буквы, цифры и подчёркивания';
+    },
+    async submitAdd() {
+      const displayName = this.addForm.display_name.trim();
+      const name = this.addForm.name.trim();
+      const title = this.addForm.title.trim().toUpperCase();
+      if (!this.addValid || this.isAdding) return;
+      this.isAdding = true;
+      this.addError = '';
+      try {
+        await createAttachment({
+          attachmentType: this.addForm.attachment_type,
+          name,
+          displayName,
+          title,
+          instruction: null,
+        });
+        this.deletions.notify({ prefix: 'Вложение ', bold: displayName, suffix: ' создано' });
+        this.forceCloseAdd();
+        await this.refresh();
+      } catch (e) {
+        this.addError = e?.message || 'Не удалось создать вложение';
+      } finally {
+        this.isAdding = false;
+      }
+    },
+    async restoreDuplicate(a) {
+      if (this.isAdding) return;
+      this.isAdding = true;
+      try {
+        await restoreAttachment(a.id);
+        this.deletions.notify({ prefix: 'Вложение ', bold: a.display_name, suffix: ' восстановлено из архива' });
+        this.forceCloseAdd();
+        this.showArchive = false;
+        await this.refresh();
+      } catch (e) {
+        this.addError = e?.message || 'Не удалось восстановить вложение';
+      } finally {
+        this.isAdding = false;
+      }
+    },
+    onArchiveClick(a) {
+      this.archiveConfirm = a;
+    },
+    async performArchive() {
+      const a = this.archiveConfirm;
+      this.archiveConfirm = null;
+      if (!a) return;
+      try {
+        await archiveAttachment(a.id);
+        this.deletions.notify({ prefix: 'Вложение ', bold: a.display_name, suffix: ' архивировано' });
+        if (this.selectedAttachment && this.selectedAttachment.id === a.id && !this.showArchive) {
+          this.selectedAttachment = null;
+        }
+        await this.refresh();
+      } catch (e) {
+        this.deletions.notify({ prefix: 'Не удалось архивировать: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    async onRestore(a) {
+      try {
+        await restoreAttachment(a.id);
+        this.deletions.notify({ prefix: 'Вложение ', bold: a.display_name, suffix: ' восстановлено из архива' });
+        if (this.selectedAttachment && this.selectedAttachment.id === a.id && this.showArchive) {
+          this.selectedAttachment = null;
+        }
+        await this.refresh();
+      } catch (e) {
+        this.deletions.notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
   },
 };
 </script>
@@ -1091,9 +804,6 @@ export default {
   border-radius: 16px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
-  width: 100%;
-  height: 500px;
-  position: relative;
 }
 
 .management-header {
@@ -1103,67 +813,32 @@ export default {
   padding: 0 20px;
   border-bottom: 1px solid #e6e6e6;
   height: 50px;
+  gap: 12px;
 }
 
 .management-title {
-  font-size: 1.2em;
   margin: 0;
+  font-size: 1.2em;
   font-weight: 600;
   color: #000;
 }
 
 .header-controls {
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
 }
 
-.add-header-button {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+.archive-dropdown {
+  min-width: 130px;
 }
 
-.add-header-button:hover {
-  background: #3a45b2;
-}
-
-.archive-header-button {
-  padding: 2px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.7em;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.archive-header-button:hover {
-  background: #e9ecef;
-  border-color: #ccc;
-}
-
-.archive-header-button.active {
-  background: #6b7280;
-  color: white;
-  border-color: #6b7280;
-}
-
+/* Master-detail layout (эталон TableConstructor) */
 .content-container {
   display: flex;
-  height: 450px;
+  height: 540px;
   width: 100%;
+  overflow: hidden;
 }
 
 .table-section {
@@ -1171,10 +846,7 @@ export default {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e6e6e6;
-}
-
-.table-section.with-details {
-  width: 40%;
+  background: #fff;
 }
 
 .table-container {
@@ -1194,58 +866,6 @@ export default {
   align-items: center;
 }
 
-.delete-icon-btn {
-  outline: none;
-  border: none;
-  width: 30px;
-  height: 30px;
-  padding: 5px;
-  border-radius: 10px;
-  display: flex;
-  align-items:center;
-  justify-content: center;
-  transition: .2s;
-  background: #f8f9fa;
-}
-
-.delete-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.delete-icon-btn:hover {
-  background-color: #e6e6e6;
-  cursor:pointer;
-}
-
-.action-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.excel-btn {
-  background: var(--color-primary);
-  color: white;
-}
-
-.excel-btn:hover {
-  background: var(--color-primary-hover);
-}
-
-.restore-btn {
-  background: #10b981;
-  color: white;
-}
-
-.restore-btn:hover {
-  background: #0da271;
-}
-
 .header-col {
   padding: 0 8px;
   font-size: 14px;
@@ -1255,9 +875,13 @@ export default {
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: .2s;
+  transition: 0.2s;
   cursor: pointer;
   user-select: none;
+}
+
+.header-col p {
+  margin: 0;
 }
 
 .header-col:hover {
@@ -1271,7 +895,7 @@ export default {
 .sort-icon {
   width: 12px;
   height: 12px;
-  transition: .2s;
+  transition: 0.2s;
 }
 
 .sort-icon.sorted {
@@ -1288,22 +912,18 @@ export default {
 }
 
 .id-col {
-  width: 15%;
+  width: 25%;
   min-width: 60px;
 }
 
 .name-col {
-  width: 55%;
-  min-width: 200px;
-}
-
-.type-col {
-  width: 30%;
-  min-width: 100px;
+  width: 75%;
+  min-width: 160px;
 }
 
 .table-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -1327,12 +947,8 @@ export default {
 }
 
 .table-row.inactive {
-  opacity: 0.7;
-  background-color: #f9f9f9;
-}
-
-.table-row.inactive:hover {
-  background-color: #f0f0f0;
+  background: #fafafa;
+  color: #6b7280;
 }
 
 .table-row:last-child {
@@ -1353,6 +969,10 @@ export default {
   color: #000;
 }
 
+.table-row.inactive .id-value {
+  color: #6b7280;
+}
+
 .truncate-text {
   white-space: nowrap;
   overflow: hidden;
@@ -1361,45 +981,57 @@ export default {
   display: block;
 }
 
-.inactive-badge {
-  font-size: 0.75em;
-  color: #666;
-  background: #e9ecef;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-left: 5px;
-}
-
+/* Бейдж типа вложения (tonal pill) */
 .type-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8em;
-  font-weight: 600;
+  font-size: 0.7em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+  font-weight: 500;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .type-badge.cars {
-  background: linear-gradient(135deg, #f0f4ff 0%, #f0f4ff 100%);
-  color: #3a4a6e;
-  border: 1px solid #d0d9f0;
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
 .type-badge.people {
-  background: linear-gradient(135deg, #f0ecff 0%, #f0ecff 100%);
-  color: #6d5aa7;
-  border: 1px solid #c6b8f0;
+  background: #dcfce7;
+  color: #15803d;
 }
 
 .type-badge.items {
-  background: linear-gradient(135deg, #f0fff4 0%, #f0fff4 100%);
-  color: #2e7d32;
-  border: 1px solid #c8e6c9;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: #a2a2a2;
+  font-style: italic;
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a2a2a2;
+  width: 100%;
+}
+
+.attachments-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
 }
 
 .table-footer {
-  margin-top: auto;
   padding: 6px 20px;
   border-top: 1px solid #e6e6e6;
-  text-align: end;
+  text-align: right;
   background: #f8fafc;
 }
 
@@ -1409,28 +1041,37 @@ export default {
   font-weight: 500;
 }
 
+/* Details */
 .details-section {
   width: 60%;
-  padding: 15px;
-  overflow-y: auto;
-  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
 }
 
-.details-content {
-  height: 100%;
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #fff;
+  line-height: 1.5;
 }
 
 .details-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
+  gap: 12px;
 }
 
 .details-title-wrapper {
   display: flex;
-  flex-direction: column;
-  gap: 0px;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .details-title {
@@ -1438,313 +1079,138 @@ export default {
   color: #000;
   font-size: 1.2em;
   font-weight: 600;
+  word-break: break-word;
 }
 
-.attachment-info-title {
-  display: flex;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-
-.attachment-info-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 5px;
-}
-
-.system-name {
-  font-size: 0.85em;
-  color: #666;
-  background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
-
-.attachment-type-badge {
-  padding: 3px 12px;
-  border-radius: 16px;
-  font-size: 0.8em;
-  font-weight: 500;
-}
-
-.attachment-type-badge.cars {
-  background: linear-gradient(135deg, #f0f4ff 0%, #f0f4ff 100%);
-  color: #3a4a6e;
-  border: 1px solid #d0d9f0;
-}
-
-.attachment-type-badge.people {
-  background: linear-gradient(135deg, #f0ecff 0%, #f0ecff 100%);
-  color: #6d5aa7;
-  border: 1px solid #c6b8f0;
-}
-
-.attachment-type-badge.items {
-  background: linear-gradient(135deg, #f0fff4 0%, #f0fff4 100%);
-  color: #2e7d32;
-  border: 1px solid #c8e6c9;
-}
-
-.archive-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
+.details-type-badge {
+  margin-left: 0;
   font-size: 0.75em;
-  font-weight: 500;
-  background: #e9ecef;
-  color: #666;
 }
 
 .details-header-actions {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
+}
+
+.archive-badge {
+  background: #6b7280;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.action-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.archive-action-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+
+.archive-action-btn:hover:not(:disabled) {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.restore-btn {
+  background: #10b981;
+  color: #fff;
+}
+
+.restore-btn:hover {
+  background: #0da271;
 }
 
 .details-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
-.compact-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.form-row {
-  display: flex;
-  gap: 16px;
-}
-
-.form-group.compact {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-
-.detail-label {
+.field-label {
   font-size: 0.85em;
-  color: #a2a2a2;
-  font-weight:400;
-}
-
-.form-input-sm {
-  padding:5px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  font-size: 0.8em;
-  height: 35px;
-  transition: border-color 0.2s ease;
-  background: #fff;
-  width: 100%;
-}
-
-.form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.form-input-sm:disabled {
-  background: #f8f9fa;
   color: #666;
-  cursor: not-allowed;
-}
-
-.form-input-sm.has-duplicate {
-  border-color: #f59e0b;
-}
-
-.form-input-sm.has-error {
-  border-color: #ef4444;
-}
-
-.form-hint {
-  font-size: 0.7em;
-  color: #999;
-  margin-top: 2px;
-}
-
-.duplicate-alert {
-  margin-top: 5px;
-  padding: 8px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 6px;
-  font-size: 0.8em;
-}
-
-.duplicate-alert p {
-  margin: 0 0 5px 0;
-  color: #92400e;
   font-weight: 500;
+  margin-top: 6px;
 }
 
-.duplicate-item {
+.field-hint {
+  font-size: 0.78em;
+  color: #a2a2a2;
+  line-height: 1.4;
+}
+
+.details-body .lk-input {
+  max-width: 360px;
+}
+
+.type-dropdown {
+  max-width: 360px;
+}
+
+.details-actions {
   display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.details-subsection {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #eef0f4;
+}
+
+.subsection-header {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.duplicate-item:hover {
-  background: #f0f0f0;
-}
-
-.duplicate-status {
-  font-size: 0.75em;
-  color: #666;
-  font-style: italic;
-}
-
-.custom-select {
-  position: relative;
-  width: 100%;
-}
-
-.select-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  background: white;
-  cursor: pointer;
-  font-size: 0.8em;
-  height: 35px;
-  transition: all 0.2s ease;
-}
-
-.select-header:hover {
-  border-color: #ccc;
-  background: #f8f9fa;
-}
-
-.select-header.disabled {
-  background: #f8f9fa;
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.select-value {
-  color: #000;
-}
-
-.select-arrow {
-  width: 10px;
-  height: 10px;
-  transition: transform 0.2s ease;
-  margin-left: 4px;
-  transform: rotate(90deg);
-}
-
-.select-arrow.rotated {
-  transform: rotate(-90deg);
-}
-
-.select-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  margin-top: 4px;
-  overflow: hidden;
-}
-
-.select-option {
-  padding: 6px 12px;
-  font-size: 0.8em;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  color: #000;
-  border-bottom: 1px solid #f0f0f0;
-  height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.select-option:last-child {
-  border-bottom: none;
-}
-
-.select-option:hover {
-  background: #f0f0f0;
-}
-
-.select-option.active {
-  background: #4F5BDF;
-  color: white;
-}
-
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition: all 0.2s ease;
-}
-
-.dropdown-fade-enter-from,
-.dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-5px);
-}
-
-.instruction-section {
-  background: #f8f9ff;
+  gap: 12px;
   margin-bottom: 10px;
 }
 
-.section-header-with-actions {
+.subsection-title {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #333;
+}
+
+.details-meta {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  height: 23px;
+  gap: 16px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: #a2a2a2;
 }
 
-.editor-actions {
-  display: flex;
-  gap: 5px;
+.form-error {
+  color: #d73a3a;
+  font-size: 0.85em;
 }
 
-.compact-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.6em;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.save-btn {
-  background: #4F5BDF;
-  color: white;
-}
-
-.save-btn:hover {
-  background: #3a45b2;
-}
-
-.cancel-btn {
-  background: #6b7280;
-  color: white;
-}
-
-.cancel-btn:hover {
-  background: #4b5563;
+.input-error {
+  border-color: #d73a3a !important;
 }
 
 .no-selection-message {
@@ -1757,25 +1223,26 @@ export default {
   font-size: 14px;
 }
 
-.no-results {
-  text-align: center;
-  padding: 40px 20px;
-  color: #a2a2a2;
-  width: 100%;
+.add-header-button {
+  padding: 8px 16px;
+  background: #4F5BDF;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
-.no-results-icon {
-  font-size: 3em;
-  margin-bottom: 16px;
-  opacity: 0.5;
+.add-header-button:hover {
+  background: #3a45b2;
 }
 
-.no-results p {
-  margin: 0;
-  font-size: 1.1em;
-}
-
-/* Модальные окна */
+/* Модалка создания */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1792,15 +1259,12 @@ export default {
   -webkit-backdrop-filter: blur(0.1px);
 }
 
-.horizontal-modal {
-  width: 1050px;
-  height: 400px;
-  max-width: 1050px;
-  display: flex;
-  flex-direction: column;
+.attachment-modal {
+  width: 100%;
+  max-width: 480px;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border-radius: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -1808,10 +1272,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 18px 24px;
   border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -1822,355 +1284,121 @@ export default {
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s;
+  font-size: 24px;
+  line-height: 1;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
   border-radius: 50%;
+  transition: all 0.2s;
 }
 
 .modal-close:hover {
+  color: #333;
   background: #f5f5f5;
-  color: #000;
 }
 
-.modal-body-horizontal {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  padding: 0;
-}
-
-.modal-main-info {
-  width: 30%;
-  padding: 16px;
-  border-right: 1px solid #e6e6e6;
-  background: #fafafa;
+.modal-body {
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
-.main-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.form-group-compact {
+.form-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.form-label-compact {
-  font-size: 0.8em;
-  color: #000;
-  font-weight: 500;
-}
-
-.input-compact {
-  padding: 8px 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
+.form-label {
   font-size: 0.85em;
-  background: #fff;
-  transition: border-color 0.2s;
-  height: 32px;
-}
-
-.input-compact:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.input-compact.has-duplicate {
-  border-color: #f59e0b;
-}
-
-.input-compact.has-error {
-  border-color: #ef4444;
-}
-
-.form-error {
-  font-size: 0.7em;
-  color: #ef4444;
-  margin-top: 4px;
-}
-
-.modal-cells-section {
-  width: 70%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.cells-header-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
-}
-
-.cells-title-compact {
-  margin: 0;
-  font-size: 1em;
-  font-weight: 600;
-  color: #000;
-}
-
-.cells-scroll-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-.settings-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.setting-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.setting-hint {
-  font-size: 0.75em;
   color: #666;
-  line-height: 1.4;
-  margin-top: 4px;
-}
-
-.fields-preview-title {
-  margin: 0;
-  font-size: 0.9em;
-  font-weight: 600;
-  color: #000;
-}
-
-.preview-card {
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  padding: 12px;
-  background: #f8f9fa;
-  max-width: 200px;
-}
-
-.preview-header {
-  margin-bottom: 8px;
-}
-
-.preview-title {
-  font-size: 10px;
-  font-weight: bold;
-  color: #a2a2a2;
-  text-transform: uppercase;
-}
-
-.preview-attachment {
-  width: 125px;
-  height: 25px;
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  font-size: 12px;
   font-weight: 500;
-  color: #000;
+}
+
+.duplicate-hint {
   display: flex;
-  align-items: center;
-  padding: 0 8px;
-  background: white;
-  margin-bottom: 8px;
-}
-
-.preview-attachment-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.preview-add-btn {
-  width: 85px;
-  height: 25px;
-  background: rgba(79, 91, 223, 0.4);
-  border: 1px solid #e6e6e6;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 15px;
+  font-size: 0.85em;
+  color: #9a3412;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 16px 24px;
   border-top: 1px solid #e6e6e6;
-  background: #fff;
-  flex-shrink: 0;
 }
 
-.modal-cancel {
-  padding: 8px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.25s ease;
 }
 
-.modal-cancel:hover {
-  background: #e9ecef;
+.modal-fade-enter-active .attachment-modal,
+.modal-fade-leave-active .attachment-modal {
+  transition: all 0.25s ease;
 }
 
-.modal-confirm {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  background: rgba(0, 0, 0, 0);
 }
 
-.modal-confirm:hover {
-  background: #3a45b2;
-}
-
-/* Стили для уведомлений */
-.notification {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100%);
-  padding: 12px 24px;
-  border-radius: 0 0 8px 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 10000;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideDown 0.3s ease-out forwards;
-  min-width: 300px;
-}
-
-.notification.success {
-  background: #10b981;
-}
-
-.notification.error {
-  background: #ef4444;
-}
-
-.notification.warning {
-  background: #f59e0b;
-}
-
-.notification.info {
-  background: #3b82f6;
-}
-
-.notification-message {
-  font-size: 0.9em;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateX(-50%) translateY(-100%);
-  }
-  to {
-    transform: translateX(-50%) translateY(0);
-  }
+.modal-fade-enter-from .attachment-modal,
+.modal-fade-leave-to .attachment-modal {
+  opacity: 0;
+  transform: translateY(20px);
 }
 
 @media (max-width: 768px) {
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    height: auto;
+    padding: 16px;
+  }
+  .header-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
   .content-container {
     flex-direction: column;
     height: auto;
   }
-  
   .table-section,
+  .table-section.with-details,
   .details-section,
   .no-selection-message {
-    width: 100% !important;
-  }
-  
-  .table-section.with-details {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-    height: 255px;
-  }
-  
-  .horizontal-modal {
-    height: auto;
-    max-height: 80vh;
-    width: 95%;
-  }
-  
-  .modal-body-horizontal {
-    flex-direction: column;
-  }
-  
-  .modal-main-info,
-  .modal-cells-section {
     width: 100%;
   }
-  
-  .modal-main-info {
+  .table-section {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
-    padding: 12px;
   }
-  
-  .attachment-info-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+  .table-body {
+    max-height: 300px;
   }
-  
-  .section-header-with-actions {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  
-  .editor-actions {
-    align-self: flex-end;
-  }
-  
-  .notification {
-    left: 20px;
-    right: 20px;
-    transform: translateY(-100%);
-    min-width: auto;
-  }
-  
-  @keyframes slideDown {
-    from {
-      transform: translateY(-100%);
-    }
-    to {
-      transform: translateY(0);
-    }
+  .details-body .lk-input,
+  .type-dropdown {
+    max-width: 100%;
   }
 }
 </style>
