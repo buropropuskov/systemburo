@@ -13,9 +13,18 @@
             :class="{ 'shifted': isMainShifted }"
           >
             <div class="modal-header">
-              <h3 class="modal-title">
-                {{ modalTitle }}
-              </h3>
+              <div class="modal-title-row">
+                <h3 class="modal-title">
+                  {{ modalTitle }}
+                </h3>
+                <span
+                  v-if="isBlacklisted"
+                  class="blacklist-plashka"
+                  :title="blacklistReason || 'В чёрном списке'"
+                >
+                  В ЧС
+                </span>
+              </div>
               <div class="header-actions">
                 <button
                   v-if="showHistoryButton"
@@ -30,6 +39,13 @@
                   @click="openApplication"
                 >
                   <span>Открыть заявку</span>
+                </button>
+                <button
+                  v-if="canManageBlacklist && hasPersonIdentity && !isBlacklisted"
+                  class="blacklist-add-btn"
+                  @click="openAddBlacklist"
+                >
+                  <span>Добавить в ЧС</span>
                 </button>
               </div>
               <button
@@ -355,19 +371,34 @@
     :current-user-name="currentUserName"
     @close="showFullHistoryModal = false"
   />
+
+  <AddToBlacklistModal
+    :show="showAddBlacklist"
+    type="person"
+    :entity-label="personLabel"
+    :saving="savingBlacklist"
+    :error="blacklistError"
+    @close="closeAddBlacklist"
+    @confirm="submitAddBlacklist"
+  />
 </template>
 
 <script>
 import { apiRequest } from '@/api/client';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
+import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
+import { usePermissionsStore } from '@/stores/permissions';
+import { useDeletionsStore } from '@/stores/deletions';
+import { checkPersonBlacklist, createPersonBlacklist } from '@/api/blacklist';
 import ExcelJS from 'exceljs';
 
 export default {
     name: 'EmployeeDetailsModal',
     components: {
         TableInfoModal,
-        EmployeeHistoryModal
+        EmployeeHistoryModal,
+        AddToBlacklistModal
     },
     props: {
         show: {
@@ -408,7 +439,12 @@ export default {
             loadingHistory: false,
             isExporting: false,
             showFullHistoryModal: false,
-            territoryStatus: 0
+            territoryStatus: 0,
+            isBlacklisted: false,
+            blacklistReason: '',
+            showAddBlacklist: false,
+            savingBlacklist: false,
+            blacklistError: ''
         };
     },
     computed: {
@@ -448,6 +484,24 @@ export default {
         },
         showHistorySection() {
             return this.source !== 'employeeslist';
+        },
+        canManageBlacklist() {
+            return usePermissionsStore().hasPermission('page.admin.blacklist');
+        },
+        personLast() {
+            return (this.employee?.last_name || '').trim();
+        },
+        personFirst() {
+            return (this.employee?.first_name || '').trim();
+        },
+        personMiddle() {
+            return (this.employee?.middle_name || '').trim();
+        },
+        personLabel() {
+            return [this.personLast, this.personFirst, this.personMiddle].filter(Boolean).join(' ');
+        },
+        hasPersonIdentity() {
+            return !!this.personLast && !!this.personFirst;
         }
     },
     watch: {
@@ -457,6 +511,7 @@ export default {
             if (val) {
                 this.loadHistory();
                 this.loadEmployeeStatus(); // для EmployeeDetailsModal
+                this.checkBlacklist();
                 // для VehicleDetailsModal: this.loadCarStatus(); this.loadCarHistory();
             } else {
                 this.close(); // вместо this.closeTableDetails()
@@ -469,6 +524,7 @@ export default {
                 if (newVal && this.show) {
                     this.loadHistory();
                     this.loadEmployeeStatus();
+                    this.checkBlacklist();
                 }
             }
         }
@@ -483,7 +539,60 @@ export default {
     }
     this.isMainShifted = false; // принудительно сбрасываем
     this.selectedTable = null;
+    this.showAddBlacklist = false;
 },
+
+        // Статус ЧС по ФИО (зеркалит серверный Check: фамилия+имя+отчество).
+        async checkBlacklist() {
+            this.isBlacklisted = false;
+            this.blacklistReason = '';
+            if (!this.hasPersonIdentity) return;
+            try {
+                const res = await checkPersonBlacklist({
+                    last_name: this.personLast,
+                    first_name: this.personFirst,
+                    middle_name: this.personMiddle,
+                });
+                if (res && res.is_blacklisted) {
+                    this.isBlacklisted = true;
+                    this.blacklistReason = res.reason || '';
+                }
+            } catch {
+                // Молча: статус ЧС - вспомогательная плашка, не критична для карточки.
+            }
+        },
+
+        openAddBlacklist() {
+            this.blacklistError = '';
+            this.showAddBlacklist = true;
+        },
+
+        closeAddBlacklist() {
+            if (this.savingBlacklist) return;
+            this.showAddBlacklist = false;
+        },
+
+        async submitAddBlacklist(reason) {
+            if (this.savingBlacklist) return;
+            this.savingBlacklist = true;
+            this.blacklistError = '';
+            try {
+                await createPersonBlacklist({
+                    last_name: this.personLast,
+                    first_name: this.personFirst,
+                    middle_name: this.personMiddle,
+                    reason,
+                });
+                this.isBlacklisted = true;
+                this.blacklistReason = reason;
+                this.showAddBlacklist = false;
+                useDeletionsStore().notify({ prefix: 'Человек ', bold: this.personLabel, suffix: ' добавлен в чёрный список' });
+            } catch (e) {
+                this.blacklistError = e?.message || 'Не удалось добавить в чёрный список';
+            } finally {
+                this.savingBlacklist = false;
+            }
+        },
 
         togglePassport() {
             this.showFullPassport = !this.showFullPassport;
@@ -857,6 +966,43 @@ export default {
 .history-btn:hover, .application-btn:hover {
     background: #f5f5f5;
     border-color: #4F5BDF;
+}
+
+.blacklist-add-btn {
+    padding: 6px 12px;
+    background: white;
+    border: 1px solid #fecaca;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #dc2626;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.blacklist-add-btn:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+}
+
+.modal-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.blacklist-plashka {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    white-space: nowrap;
 }
 
 .modal-title {
