@@ -59,6 +59,33 @@ func (h *PersonBlacklistHandler) Create(c echo.Context) error {
 	return RespondCreated(c, entry)
 }
 
+// Update godoc
+// @Summary      Редактировать причину записи чёрного списка
+// @Tags         person-blacklist
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID записи"
+// @Param        request body models.UpdateBlacklistReasonRequest true "Новая причина"
+// @Success      200 {object} models.PersonBlacklist
+// @Router       /person-blacklist/{id} [put]
+func (h *PersonBlacklistHandler) Update(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateBlacklistReasonRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	userID, _ := c.Get("user_id").(int)
+	entry, err := h.service.UpdateReason(c.Request().Context(), id, req.Reason, userID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, entry)
+}
+
 // Delete godoc
 // @Summary      Снять человека с чёрного списка (архивация)
 // @Tags         person-blacklist

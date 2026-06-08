@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"systemburo/internal/models"
@@ -240,4 +241,59 @@ func TestVehicleBlacklist_UnblacklistSkipsExpiredPass(t *testing.T) {
 	require.NoError(t, db.First(&after, carID).Error)
 	require.NotNil(t, after.Status)
 	assert.Equal(t, 0, *after.Status, "машина с истёкшим пропуском не должна возрождаться")
+}
+
+// TestVehicleBlacklist_UpdateReason покрывает редактирование причины + лог в историю.
+func TestVehicleBlacklist_UpdateReason(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_UpdReason")
+	svc := newVehicleBlacklistService(db)
+	ctx := context.Background()
+
+	entry, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "U111UU799", MarkID: mark.ID, Reason: "старая причина",
+	}, userID)
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateReason(ctx, entry.ID, "  новая причина  ", userID)
+	require.NoError(t, err)
+	assert.Equal(t, "новая причина", updated.Reason)
+
+	stored, err := svc.GetByID(ctx, entry.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "новая причина", stored.Reason)
+
+	hist, err := svc.GetHistory(ctx, entry.ID)
+	require.NoError(t, err)
+	hasUpdated := false
+	for _, h := range hist {
+		if h.ActionType == models.BlacklistActionUpdated {
+			hasUpdated = true
+		}
+	}
+	assert.True(t, hasUpdated, "ожидали запись истории 'updated'")
+
+	t.Run("пустая причина - 400", func(t *testing.T) {
+		_, err := svc.UpdateReason(ctx, entry.ID, "   ", userID)
+		assertHTTPStatus(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("та же причина - без новой записи истории", func(t *testing.T) {
+		before, _ := svc.GetHistory(ctx, entry.ID)
+		_, err := svc.UpdateReason(ctx, entry.ID, "новая причина", userID)
+		require.NoError(t, err)
+		after, _ := svc.GetHistory(ctx, entry.ID)
+		assert.Equal(t, len(before), len(after), "идентичная причина не должна писать историю")
+	})
+
+	t.Run("нельзя редактировать архивную запись - 400", func(t *testing.T) {
+		require.NoError(t, svc.Archive(ctx, entry.ID, userID))
+		_, err := svc.UpdateReason(ctx, entry.ID, "после архива", userID)
+		assertHTTPStatus(t, err, http.StatusBadRequest)
+	})
 }

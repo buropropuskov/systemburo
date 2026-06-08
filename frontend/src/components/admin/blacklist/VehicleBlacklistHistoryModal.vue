@@ -18,10 +18,13 @@ const ACTION_TEXTS = {
   created: 'Добавлена в чёрный список',
   archived: 'Снята с чёрного списка',
   restored: 'Возвращена в чёрный список',
+  updated: 'Изменена причина',
 };
 
 const FIELD_LABELS = {
   reason: 'Причина',
+  reason_old: 'Было',
+  reason_new: 'Стало',
   cars_deactivated: 'Деактивировано машин',
   cars_reactivated: 'Возвращено машин в оборот',
 };

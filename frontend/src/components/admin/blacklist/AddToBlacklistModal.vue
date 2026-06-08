@@ -21,7 +21,7 @@
           v-model="reason"
           class="lk-textarea"
           rows="3"
-          placeholder="Опишите причину добавления в чёрный список"
+          placeholder="Опишите причину попадания в чёрный список"
         />
       </FormField>
 
@@ -42,11 +42,12 @@
         Отмена
       </button>
       <button
-        class="lk-button lk-button--danger"
+        class="lk-button"
+        :class="isEdit ? 'lk-button--primary' : 'lk-button--danger'"
         :disabled="!reason.trim() || saving"
         @click="confirm"
       >
-        {{ saving ? 'Добавление...' : 'Добавить в ЧС' }}
+        {{ confirmText }}
       </button>
     </template>
   </BaseModal>
@@ -68,7 +69,10 @@ export default {
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },
+    // 'add' - добавление из карточки; 'edit' - редактирование причины из страницы ЧС.
+    mode: { type: String, default: 'add', validator: (v) => ['add', 'edit'].includes(v) },
     entityLabel: { type: String, default: '' },
+    initialReason: { type: String, default: '' },
     saving: { type: Boolean, default: false },
     error: { type: String, default: '' },
     // Открывается из карточки Т/С/сотрудника (z-index 10001) - перекрываем её. Ниже
@@ -80,17 +84,25 @@ export default {
     return { reason: '' };
   },
   computed: {
+    isEdit() {
+      return this.mode === 'edit';
+    },
     title() {
+      if (this.isEdit) return 'Редактировать причину';
       return this.type === 'vehicle' ? 'Добавить машину в чёрный список' : 'Добавить человека в чёрный список';
     },
     entityCaption() {
       return this.type === 'vehicle' ? 'Машина' : 'Человек';
     },
+    confirmText() {
+      if (this.isEdit) return this.saving ? 'Сохранение...' : 'Сохранить';
+      return this.saving ? 'Добавление...' : 'Добавить в ЧС';
+    },
   },
   watch: {
     show(open) {
       if (open) {
-        this.reason = '';
+        this.reason = this.initialReason || '';
         this.$nextTick(() => this.$refs.reasonInput?.focus());
       }
     },

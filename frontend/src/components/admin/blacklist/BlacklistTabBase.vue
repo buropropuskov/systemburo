@@ -113,6 +113,13 @@
             </button>
             <button
               v-if="selected.is_active"
+              class="lk-button lk-button--secondary"
+              @click="$emit('edit', selected)"
+            >
+              Редактировать
+            </button>
+            <button
+              v-if="selected.is_active"
               class="lk-button lk-button--danger"
               @click="$emit('archive', selected)"
             >
@@ -203,7 +210,7 @@ export default {
     // "Открыть карточку" (disabled, пока запись в реестре не найдена).
     lookupCard: { type: Function, default: null },
   },
-  emits: ['count', 'create', 'archive', 'restore', 'history', 'open-card'],
+  emits: ['count', 'create', 'archive', 'restore', 'history', 'open-card', 'edit'],
   data() {
     return {
       items: [],

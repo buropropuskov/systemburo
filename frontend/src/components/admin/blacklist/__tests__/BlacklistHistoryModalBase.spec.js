@@ -80,6 +80,16 @@ describe('BlacklistHistoryModalBase', () => {
     expect(wrapper.vm.getActionComment(history[2])).toBe('Деактивировано машин: 1');
   });
 
+  it('updated: порядок Было -> Стало детерминирован по fieldLabels, не по порядку details', async () => {
+    const wrapper = mountModal({
+      fieldLabels: { reason_old: 'Было', reason_new: 'Стало' },
+    });
+    await flushPromises();
+    // details сознательно в обратном порядке (reason_new раньше) - вывод всё равно "Было / Стало"
+    const item = { action_type: 'updated', details: { reason_new: 'новая', reason_old: 'старая' } };
+    expect(wrapper.vm.getActionComment(item)).toBe('Было: старая / Стало: новая');
+  });
+
   it('цвет точки маппится по типу действия', async () => {
     const wrapper = mountModal();
     await flushPromises();

@@ -14,11 +14,24 @@
       @restore="doRestore"
       @history="historyItem = $event"
       @open-card="openCard"
+      @edit="onEdit"
     >
       <template #header-left>
         <slot name="header-left" />
       </template>
     </BlacklistTabBase>
+    <AddToBlacklistModal
+      :show="!!editItem"
+      type="vehicle"
+      mode="edit"
+      :entity-label="editItem ? primaryText(editItem) : ''"
+      :initial-reason="editItem ? editItem.reason : ''"
+      :saving="savingEdit"
+      :error="editError"
+      :z-index="1000"
+      @close="editItem = null"
+      @confirm="saveEdit"
+    />
     <BlacklistCreateModal
       :show="showCreate"
       type="vehicle"
@@ -57,11 +70,13 @@
 import BlacklistTabBase from './BlacklistTabBase.vue';
 import BlacklistCreateModal from './BlacklistCreateModal.vue';
 import VehicleBlacklistHistoryModal from './VehicleBlacklistHistoryModal.vue';
+import AddToBlacklistModal from './AddToBlacklistModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import {
   listVehicleBlacklist,
   createVehicleBlacklist,
+  updateVehicleBlacklist,
   archiveVehicleBlacklist,
   restoreVehicleBlacklist,
 } from '@/api/blacklist';
@@ -76,13 +91,16 @@ import carIcon from '@/assets/icons/car.png';
  */
 export default {
   name: 'VehicleBlacklistTab',
-  components: { BlacklistTabBase, BlacklistCreateModal, VehicleBlacklistHistoryModal, ConfirmationModal, VehicleDetailsModal },
+  components: { BlacklistTabBase, BlacklistCreateModal, VehicleBlacklistHistoryModal, AddToBlacklistModal, ConfirmationModal, VehicleDetailsModal },
   props: {
     currentUserName: { type: String, default: '' },
   },
   emits: ['count'],
   data() {
-    return { showCreate: false, archiveItem: null, historyItem: null, carIcon, detailsVehicle: null, showDetails: false };
+    return {
+      showCreate: false, archiveItem: null, historyItem: null, carIcon, detailsVehicle: null, showDetails: false,
+      editItem: null, savingEdit: false, editError: '',
+    };
   },
   computed: {
     archiveMessage() {
@@ -133,6 +151,26 @@ export default {
       this.showCreate = false;
       useDeletionsStore().notify({ prefix: 'Машина ', bold: name, suffix: ' добавлена в чёрный список' });
       await this.$refs.base.fetchData();
+    },
+    onEdit(item) {
+      this.editError = '';
+      this.editItem = item;
+    },
+    async saveEdit(reason) {
+      const item = this.editItem;
+      if (!item || this.savingEdit) return;
+      this.savingEdit = true;
+      this.editError = '';
+      try {
+        await updateVehicleBlacklist(item.id, { reason });
+        useDeletionsStore().notify({ prefix: 'Причина обновлена для ', bold: this.primaryText(item) });
+        this.editItem = null;
+        await this.$refs.base.fetchData();
+      } catch (e) {
+        this.editError = e?.message || 'Не удалось сохранить причину';
+      } finally {
+        this.savingEdit = false;
+      }
     },
     askArchive(item) {
       this.archiveItem = item;

@@ -193,6 +193,7 @@ const ACTION_DOT_CLASS = {
   created: 'dot-create',
   archived: 'dot-deactivate',
   restored: 'dot-activate',
+  updated: 'dot-update',
 };
 
 /**
@@ -377,8 +378,11 @@ export default {
       const d = item.details;
       if (!d || typeof d !== 'object') return '';
       const parts = [];
-      for (const [key, raw] of Object.entries(d)) {
-        if (!(key in this.fieldLabels)) continue;
+      // Порядок - по объявлению в fieldLabels (а не по ключам details: jsonb не хранит
+      // порядок, иначе "Стало/Было" показывались бы в произвольном порядке).
+      for (const key of Object.keys(this.fieldLabels)) {
+        if (!(key in d)) continue;
+        const raw = d[key];
         if (raw === null || raw === undefined || raw === '') continue;
         if (typeof raw === 'number' && raw === 0) continue;
         parts.push(`${this.fieldLabels[key]}: ${this.formatFieldValue(raw)}`);

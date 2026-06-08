@@ -35,6 +35,8 @@ type VehicleBlacklistService interface {
 	// CheckByName - проверка по номеру и имени марки (для машин без mark_id, например
 	// выбранных из существующих unique_cars). Совпадение по mark_name, как в каскаде.
 	CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error)
+	// UpdateReason - редактирование причины записи + лог в историю (updated).
+	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error)
 	GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error)
 }
 
@@ -141,6 +143,36 @@ func (s *vehicleBlacklistService) Archive(ctx context.Context, id int, userID in
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка снятия из чёрного списка")
 	}
 	return nil
+}
+
+func (s *vehicleBlacklistService) UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error) {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !e.IsActive {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя редактировать причину архивной записи")
+	}
+	newReason := strings.TrimSpace(reason)
+	if newReason == "" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Причина обязательна")
+	}
+	if newReason == e.Reason {
+		return e, nil // без изменений - не пишем историю
+	}
+	oldReason := e.Reason
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.VehicleBlacklist{}).Where("id = ?", e.ID).Update("reason", newReason).Error; err != nil {
+			return err
+		}
+		details := map[string]interface{}{"reason_old": oldReason, "reason_new": newReason}
+		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
+	})
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления причины")
+	}
+	e.Reason = newReason
+	return e, nil
 }
 
 func (s *vehicleBlacklistService) Restore(ctx context.Context, id int, userID int) error {
