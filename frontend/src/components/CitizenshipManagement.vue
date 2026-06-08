@@ -143,6 +143,13 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                class="action-btn history-btn"
+                data-testid="citizenship-history"
+                @click="openHistory(selectedCitizenship)"
+              >
+                История
+              </button>
+              <button
                 v-if="selectedCitizenship.is_active"
                 class="action-btn archive-action-btn"
                 :disabled="archiveBlocked"
@@ -346,6 +353,13 @@
       @confirm="performArchive"
       @cancel="archiveConfirm = null"
     />
+
+    <CitizenshipHistoryModal
+      v-if="historyForCitizenship"
+      :citizenship="historyForCitizenship"
+      :current-user-name="currentUserName"
+      @close="historyForCitizenship = null"
+    />
   </div>
 </template>
 
@@ -355,9 +369,11 @@ import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import CitizenshipHistoryModal from './CitizenshipHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { apiRequest } from '@/api/client';
 import {
   listCitizenships,
   createCitizenship,
@@ -368,7 +384,7 @@ import {
 
 export default {
   name: 'CitizenshipManagement',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner },
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, CitizenshipHistoryModal },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
     const overlay = { close: () => {} };
@@ -396,6 +412,8 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      historyForCitizenship: null,
+      currentUserName: '',
     };
   },
   computed: {
@@ -442,6 +460,7 @@ export default {
   },
   mounted() {
     this.refresh();
+    this.fetchCurrentUser();
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => {
@@ -634,6 +653,21 @@ export default {
         await this.refresh();
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    openHistory(c) {
+      this.historyForCitizenship = { id: c.id, name: this.original.name || c.name };
+    },
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
   },
@@ -947,6 +981,16 @@ export default {
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.history-btn {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.history-btn:hover {
+  background: #eef0ff;
 }
 
 .archive-action-btn {

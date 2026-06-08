@@ -50,3 +50,10 @@ export async function restoreCitizenship(id) {
   const res = await apiRequest(`/citizenships/${id}/restore`, { method: 'POST' });
   return unwrap(res, 'Не удалось восстановить гражданство');
 }
+
+// История аудита: на успехе envelope разворачивается в массив записей, на 4xx
+// unwrap бросит Error - иначе модалка молча показала бы "История пуста" вместо ошибки.
+export async function getCitizenshipHistory(id) {
+  const res = await apiRequest(`/citizenships/${id}/history`);
+  return unwrap(res, 'Не удалось загрузить историю гражданства');
+}
