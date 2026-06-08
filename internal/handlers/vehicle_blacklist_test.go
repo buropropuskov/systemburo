@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
@@ -384,4 +386,61 @@ func TestVehicleBlacklist_GetAllHistory(t *testing.T) {
 	for i := 1; i < len(all); i++ {
 		assert.False(t, all[i].CreatedAt.After(all[i-1].CreatedAt), "события должны идти от новых к старым")
 	}
+}
+
+// TestBlacklistNormalized_CreateAndBackfill проверяет нормализованную форму (#481):
+// проставляется при Create и добивается бэкфиллом (через Seed) для записей, созданных
+// до появления колонок normalized_*. Канон ловит обход латиницей/нулём/пробелами.
+func TestBlacklistNormalized_CreateAndBackfill(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_Norm")
+	ctx := context.Background()
+
+	// Create заполняет normalized канонической формой (лат O / ноль / пробелы -> кириллица).
+	vEntry, err := newVehicleBlacklistService(db).Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "O123OO 77", MarkID: mark.ID, Reason: "норм",
+	}, userID)
+	require.NoError(t, err)
+	var vGot models.VehicleBlacklist
+	require.NoError(t, db.First(&vGot, vEntry.ID).Error)
+	assert.Equal(t, normalize.Plate("O123OO 77"), vGot.NormalizedNumber)
+	assert.Equal(t, "О123ОО77", vGot.NormalizedNumber)
+
+	pEntry, err := newPersonBlacklistService(db).Create(ctx, models.CreatePersonBlacklistRequest{
+		LastName: "Иванов", FirstName: "Иван", MiddleName: "Иванович", Reason: "норм",
+	}, userID)
+	require.NoError(t, err)
+	var pGot models.PersonBlacklist
+	require.NoError(t, db.First(&pGot, pEntry.ID).Error)
+	assert.Equal(t, "иванов иван иванович", pGot.NormalizedFIO)
+
+	// Бэкфилл: симулируем "старые" записи с пустым normalized (вставка напрямую, минуя
+	// сервис), затем прогоняем Seed - он должен дозаполнить normalized той же функцией.
+	vOld := models.VehicleBlacklist{CarNumber: "A123BC 77", MarkID: mark.ID, MarkName: mark.Name, Reason: "old", IsActive: true}
+	require.NoError(t, db.Create(&vOld).Error)
+	pOld := models.PersonBlacklist{LastName: "Петров", FirstName: "Пётр", Reason: "old", IsActive: true}
+	require.NoError(t, db.Create(&pOld).Error)
+
+	// Предусловие читаем из БД (не из in-memory структуры): колонка реально пуста до бэкфилла.
+	var vPre models.VehicleBlacklist
+	require.NoError(t, db.First(&vPre, vOld.ID).Error)
+	require.Empty(t, vPre.NormalizedNumber, "прямая вставка не заполняет normalized в БД")
+	var pPre models.PersonBlacklist
+	require.NoError(t, db.First(&pPre, pOld.ID).Error)
+	require.Empty(t, pPre.NormalizedFIO)
+
+	require.NoError(t, database.Seed(db))
+
+	// Свежие переменные: переиспользование vGot/pGot добавит их PK как лишнее WHERE-условие.
+	var vBackfilled models.VehicleBlacklist
+	require.NoError(t, db.First(&vBackfilled, vOld.ID).Error)
+	assert.Equal(t, "А123ВС77", vBackfilled.NormalizedNumber, "бэкфилл нормализует номер старой записи")
+	var pBackfilled models.PersonBlacklist
+	require.NoError(t, db.First(&pBackfilled, pOld.ID).Error)
+	assert.Equal(t, "петров петр", pBackfilled.NormalizedFIO, "бэкфилл нормализует ФИО старой записи (ё->е)")
 }
