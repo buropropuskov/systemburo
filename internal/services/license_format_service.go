@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -13,10 +14,11 @@ import (
 
 // LicensePlateFormatService определяет интерфейс бизнес-логики форматов номерных знаков.
 type LicensePlateFormatService interface {
-	GetAll(ctx context.Context) ([]models.LicensePlateFormatWithCells, error)
+	GetAll(ctx context.Context, includeArchived bool) ([]models.LicensePlateFormatWithCells, error)
 	Create(ctx context.Context, req models.CreateLicensePlateFormatRequest) (int, error)
 	Update(ctx context.Context, id int, req models.UpdateLicensePlateFormatRequest) error
 	Delete(ctx context.Context, id int) error
+	Restore(ctx context.Context, id int) error
 }
 
 type licensePlateFormatService struct {
@@ -28,13 +30,15 @@ func NewLicensePlateFormatService(db *gorm.DB) LicensePlateFormatService {
 	return &licensePlateFormatService{db: db}
 }
 
-// GetAll возвращает все активные форматы номерных знаков с ячейками.
-func (s *licensePlateFormatService) GetAll(ctx context.Context) ([]models.LicensePlateFormatWithCells, error) {
+// GetAll возвращает форматы номерных знаков с ячейками.
+// По умолчанию только активные; includeArchived=true добавляет архивные.
+func (s *licensePlateFormatService) GetAll(ctx context.Context, includeArchived bool) ([]models.LicensePlateFormatWithCells, error) {
 	formats := make([]models.LicensePlateFormat, 0)
-	if err := s.db.WithContext(ctx).
-		Where("is_active = ?", true).
-		Order("name").
-		Find(&formats).Error; err != nil {
+	q := s.db.WithContext(ctx).Order("name")
+	if !includeArchived {
+		q = q.Where("is_active = ?", true)
+	}
+	if err := q.Find(&formats).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching license plate formats")
 	}
 
@@ -167,17 +171,51 @@ func (s *licensePlateFormatService) Update(ctx context.Context, id int, req mode
 	})
 }
 
-// Delete удаляет формат номерного знака по ID.
+// Delete архивирует формат номерного знака (soft-delete через is_active=false).
+// Формат по умолчанию архивировать нельзя - сначала нужно назначить другой дефолтный.
+// Формат, используемый машинами (unique_cars.format_id), архивировать можно: машины уже
+// созданы и валидацию прошли, архивный формат лишь скрывается из выбора новых.
 func (s *licensePlateFormatService) Delete(ctx context.Context, id int) error {
-	result := s.db.WithContext(ctx).Delete(&models.LicensePlateFormat{}, id)
-	if result.Error != nil {
-		slog.Error("не удалось удалить формат номеров", "id", id, "error", result.Error)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting license plate format")
+	var format models.LicensePlateFormat
+	if err := s.db.WithContext(ctx).First(&format, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Формат номеров не найден")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения формата номеров")
 	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Формат номеров не найден")
+	if !format.IsActive {
+		return nil // уже в архиве - идемпотентно; проверяем до is_default, иначе архивный дефолт залип бы на 409
 	}
-	slog.Info("формат номеров удалён", "id", id)
+	if format.IsDefault {
+		return echo.NewHTTPError(http.StatusConflict, "Нельзя архивировать формат по умолчанию. Сначала назначьте другой формат по умолчанию")
+	}
+	if err := s.db.WithContext(ctx).Model(&format).Update("is_active", false).Error; err != nil {
+		slog.Error("не удалось архивировать формат номеров", "id", id, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка архивации формата номеров")
+	}
+	slog.Info("формат номеров архивирован", "id", id)
+	return nil
+}
+
+// Restore восстанавливает формат номерного знака из архива (is_active=true).
+func (s *licensePlateFormatService) Restore(ctx context.Context, id int) error {
+	var format models.LicensePlateFormat
+	if err := s.db.WithContext(ctx).First(&format, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Формат номеров не найден")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения формата номеров")
+	}
+	if format.IsActive {
+		return nil // уже активен - идемпотентно
+	}
+	// У форматов нет уникального индекса по name (в отличие от marks/organizations),
+	// поэтому при восстановлении проверка конфликта имени не нужна.
+	if err := s.db.WithContext(ctx).Model(&format).Update("is_active", true).Error; err != nil {
+		slog.Error("не удалось восстановить формат номеров", "id", id, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка восстановления формата номеров")
+	}
+	slog.Info("формат номеров восстановлен", "id", id)
 	return nil
 }
 
