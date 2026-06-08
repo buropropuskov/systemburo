@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -21,22 +22,25 @@ type AttachmentService interface {
 	// GetByID возвращает активный шаблон вложения по ID.
 	GetByID(ctx context.Context, id int) (*models.UniqueAttachment, error)
 	// Create создаёт новый шаблон вложения.
-	Create(ctx context.Context, req models.CreateUniqueAttachmentRequest) (*models.CreateUniqueAttachmentResponse, error)
+	Create(ctx context.Context, userID int, req models.CreateUniqueAttachmentRequest) (*models.CreateUniqueAttachmentResponse, error)
 	// Update обновляет существующий шаблон вложения.
-	Update(ctx context.Context, id int, req models.UpdateUniqueAttachmentRequest) error
+	Update(ctx context.Context, userID, id int, req models.UpdateUniqueAttachmentRequest) error
 	// Delete выполняет мягкое удаление шаблона вложения.
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, userID, id int) error
 	// Restore восстанавливает ранее удалённый шаблон вложения.
-	Restore(ctx context.Context, id int) error
+	Restore(ctx context.Context, userID, id int) error
+	// GetHistory возвращает историю изменений шаблона вложения (новые сверху).
+	GetHistory(ctx context.Context, id int) ([]models.UniqueAttachmentHistoryItem, error)
 }
 
 type attachmentService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	history AttachmentHistoryService
 }
 
 // NewAttachmentService создаёт новый экземпляр AttachmentService.
 func NewAttachmentService(db *gorm.DB) AttachmentService {
-	return &attachmentService{db: db}
+	return &attachmentService{db: db, history: NewAttachmentHistoryService(db)}
 }
 
 // GetActive возвращает все активные шаблоны вложений.
@@ -71,7 +75,7 @@ func (s *attachmentService) GetByID(ctx context.Context, id int) (*models.Unique
 		Where("id = ? AND is_active = ?", id, true).
 		First(&attachment).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, echo.NewHTTPError(http.StatusNotFound, "Attachment not found")
 		}
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
@@ -80,7 +84,7 @@ func (s *attachmentService) GetByID(ctx context.Context, id int) (*models.Unique
 }
 
 // Create создаёт новый шаблон вложения с проверкой уникальности имени.
-func (s *attachmentService) Create(ctx context.Context, req models.CreateUniqueAttachmentRequest) (*models.CreateUniqueAttachmentResponse, error) {
+func (s *attachmentService) Create(ctx context.Context, userID int, req models.CreateUniqueAttachmentRequest) (*models.CreateUniqueAttachmentResponse, error) {
 	// Проверяем уникальность имени среди активных
 	var count int64
 	err := s.db.WithContext(ctx).
@@ -109,73 +113,115 @@ func (s *attachmentService) Create(ctx context.Context, req models.CreateUniqueA
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
 
+	s.history.Log(ctx, attachment.ID, &userID, models.UniqueAttachmentActionCreated, map[string]any{"display_name": req.DisplayName})
 	return &models.CreateUniqueAttachmentResponse{
 		ID:      attachment.ID,
 		Message: "Вложение успешно создано",
 	}, nil
 }
 
-// Update обновляет существующий шаблон вложения.
-func (s *attachmentService) Update(ctx context.Context, id int, req models.UpdateUniqueAttachmentRequest) error {
-	// Проверяем существование среди активных
-	var count int64
-	err := s.db.WithContext(ctx).
-		Model(&models.UniqueAttachment{}).
-		Where("id = ? AND is_active = ?", id, true).
-		Count(&count).Error
+// Update обновляет существующий шаблон вложения и логирует diff изменённых полей.
+func (s *attachmentService) Update(ctx context.Context, userID, id int, req models.UpdateUniqueAttachmentRequest) error {
+	titleUpper := strings.ToUpper(req.Title)
+	var details map[string]any
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Снимок до изменений - для diff в истории. First даёт чистый 404, если нет.
+		var prev models.UniqueAttachment
+		if err := tx.Where("id = ? AND is_active = ?", id, true).First(&prev).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
+		}
+
+		if err := tx.Model(&models.UniqueAttachment{}).
+			Where("id = ?", id).
+			Updates(map[string]interface{}{
+				"attachment_type": req.AttachmentType,
+				"name":            req.Name,
+				"display_name":    req.DisplayName,
+				"title":           titleUpper,
+				"instruction":     req.Instruction,
+			}).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating attachment")
+		}
+		details = buildAttachmentUpdateDetails(prev, req, titleUpper)
+		return nil
+	})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking attachment existence")
-	}
-	if count == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Attachment not found")
+		return err
 	}
 
-	titleUpper := strings.ToUpper(req.Title)
-	result := s.db.WithContext(ctx).
-		Model(&models.UniqueAttachment{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"attachment_type": req.AttachmentType,
-			"name":           req.Name,
-			"display_name":   req.DisplayName,
-			"title":          titleUpper,
-			"instruction":    req.Instruction,
-		})
-	if result.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating attachment")
-	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
+	// Логируем только если что-то реально изменилось - иначе спам "Изменены данные".
+	if len(details) > 0 {
+		s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionUpdated, details)
 	}
 	return nil
 }
 
-// Delete выполняет мягкое удаление шаблона вложения.
-func (s *attachmentService) Delete(ctx context.Context, id int) error {
-	result := s.db.WithContext(ctx).
-		Model(&models.UniqueAttachment{}).
-		Where("id = ?", id).
-		Update("is_active", false)
-	if result.Error != nil {
+// Delete архивирует шаблон вложения (soft-delete через is_active=false).
+func (s *attachmentService) Delete(ctx context.Context, userID, id int) error {
+	var attachment models.UniqueAttachment
+	if err := s.db.WithContext(ctx).First(&attachment, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
+	}
+	if !attachment.IsActive {
+		return nil // уже в архиве - идемпотентно, не дублируем запись истории
+	}
+	if err := s.db.WithContext(ctx).Model(&attachment).Update("is_active", false).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting attachment")
 	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
-	}
+	s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionArchived, nil)
 	return nil
 }
 
-// Restore восстанавливает ранее удалённый шаблон вложения.
-func (s *attachmentService) Restore(ctx context.Context, id int) error {
-	result := s.db.WithContext(ctx).
-		Model(&models.UniqueAttachment{}).
-		Where("id = ?", id).
-		Update("is_active", true)
-	if result.Error != nil {
+// Restore восстанавливает ранее удалённый шаблон вложения (is_active=true).
+func (s *attachmentService) Restore(ctx context.Context, userID, id int) error {
+	var attachment models.UniqueAttachment
+	if err := s.db.WithContext(ctx).First(&attachment, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
+	}
+	if attachment.IsActive {
+		return nil // уже активно - идемпотентно
+	}
+	if err := s.db.WithContext(ctx).Model(&attachment).Update("is_active", true).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring attachment")
 	}
-	if result.RowsAffected == 0 {
-		return echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
-	}
+	s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionRestored, nil)
 	return nil
+}
+
+// GetHistory возвращает историю изменений шаблона вложения (новые сверху).
+func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.UniqueAttachmentHistoryItem, error) {
+	return s.history.GetHistory(ctx, id)
+}
+
+// buildAttachmentUpdateDetails собирает diff изменённых полей шаблона вложения как {old, new}.
+// В результат попадают только реально изменившиеся поля - иначе история засоряется
+// "пустыми" записями (см. ui-history: фильтр неизменённого обязателен). Title сравнивается
+// с уже приведённым к верхнему регистру значением (titleUpper), как его пишет Update.
+func buildAttachmentUpdateDetails(prev models.UniqueAttachment, req models.UpdateUniqueAttachmentRequest, titleUpper string) map[string]any {
+	details := map[string]any{}
+	if prev.AttachmentType != req.AttachmentType {
+		details["attachment_type"] = map[string]any{"old": prev.AttachmentType, "new": req.AttachmentType}
+	}
+	if strPtrVal(prev.Name) != req.Name {
+		details["name"] = map[string]any{"old": strPtrVal(prev.Name), "new": req.Name}
+	}
+	if strPtrVal(prev.DisplayName) != req.DisplayName {
+		details["display_name"] = map[string]any{"old": strPtrVal(prev.DisplayName), "new": req.DisplayName}
+	}
+	if strPtrVal(prev.Title) != titleUpper {
+		details["title"] = map[string]any{"old": strPtrVal(prev.Title), "new": titleUpper}
+	}
+	if strPtrVal(prev.Instruction) != strPtrVal(req.Instruction) {
+		details["instruction"] = map[string]any{"old": strPtrVal(prev.Instruction), "new": strPtrVal(req.Instruction)}
+	}
+	return details
 }

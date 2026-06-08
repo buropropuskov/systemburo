@@ -72,6 +72,7 @@ func AllModels() []interface{} {
 
 		// Unique records
 		&models.UniqueAttachment{},
+		&models.UniqueAttachmentHistory{},
 		&models.UniqueCar{},
 		&models.UniqueCarHistory{},
 		&models.UniqueEmployee{},

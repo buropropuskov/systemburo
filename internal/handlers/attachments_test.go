@@ -371,6 +371,133 @@ func TestAttachments_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// findHistoryByAction возвращает первую запись истории с указанным action_type (или nil).
+// Поиск по action_type, а не по индексу: при близких created_at порядок одинаковых
+// меток нестабилен, поэтому тесты проверяют наличие действия, а не его позицию.
+func findHistoryByAction(items []map[string]interface{}, action string) map[string]interface{} {
+	for _, it := range items {
+		if it["action_type"] == action {
+			return it
+		}
+	}
+	return nil
+}
+
+func TestAttachments_History_Created(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	body := `{"attachment_type":"cars","name":"hist-created","display_name":"История Created","title":"T"}`
+	createRec := testutil.POST(t, e, "/attachments", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, createRec.Code)
+	id := int(testutil.ParseMap(t, createRec)["id"].(float64))
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/history", id), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 1)
+	assert.Equal(t, "created", items[0]["action_type"])
+	details, ok := items[0]["details"].(map[string]interface{})
+	require.True(t, ok, "created details should be an object")
+	assert.Equal(t, "История Created", details["display_name"])
+}
+
+func TestAttachments_History_UpdatedDiff(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	createBody := `{"attachment_type":"cars","name":"hist-upd","display_name":"Было","title":"A"}`
+	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, createRec.Code)
+	id := int(testutil.ParseMap(t, createRec)["id"].(float64))
+
+	// Меняем display_name и attachment_type; title и name оставляем прежними.
+	updateBody := `{"attachment_type":"people","name":"hist-upd","display_name":"Стало","title":"A"}`
+	updRec := testutil.PUT(t, e, fmt.Sprintf("/attachments/%d", id), updateBody, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, updRec.Code)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/history", id), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 2)
+
+	upd := findHistoryByAction(items, "updated")
+	require.NotNil(t, upd)
+	d, ok := upd["details"].(map[string]interface{})
+	require.True(t, ok)
+
+	dn, ok := d["display_name"].(map[string]interface{})
+	require.True(t, ok, "changed display_name must be in diff")
+	assert.Equal(t, "Было", dn["old"])
+	assert.Equal(t, "Стало", dn["new"])
+
+	at, ok := d["attachment_type"].(map[string]interface{})
+	require.True(t, ok, "changed attachment_type must be in diff")
+	assert.Equal(t, "cars", at["old"])
+	assert.Equal(t, "people", at["new"])
+
+	_, hasTitle := d["title"]
+	assert.False(t, hasTitle, "unchanged title must not appear in diff")
+	_, hasName := d["name"]
+	assert.False(t, hasName, "unchanged name must not appear in diff")
+}
+
+func TestAttachments_History_NoChangeNotLogged(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	createBody := `{"attachment_type":"cars","name":"hist-nochange","display_name":"X","title":"Y"}`
+	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, createRec.Code)
+	id := int(testutil.ParseMap(t, createRec)["id"].(float64))
+
+	// Обновляем теми же значениями - diff пустой, история не должна расти.
+	updRec := testutil.PUT(t, e, fmt.Sprintf("/attachments/%d", id), createBody, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, updRec.Code)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/history", id), testutil.AuthHeader(token))
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 1)
+	assert.Equal(t, "created", items[0]["action_type"])
+}
+
+func TestAttachments_History_ArchiveRestore(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	createBody := `{"attachment_type":"items","name":"hist-arch","display_name":"Архивный","title":"Z"}`
+	createRec := testutil.POST(t, e, "/attachments", createBody, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, createRec.Code)
+	id := int(testutil.ParseMap(t, createRec)["id"].(float64))
+
+	delRec := testutil.DELETE(t, e, fmt.Sprintf("/attachments/%d", id), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, delRec.Code)
+	restoreRec := testutil.PUT(t, e, fmt.Sprintf("/attachments/%d/restore", id), "", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, restoreRec.Code)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/attachments/%d/history", id), testutil.AuthHeader(token))
+	items := testutil.ParseSlice(t, rec)
+	require.Len(t, items, 3)
+	assert.NotNil(t, findHistoryByAction(items, "created"))
+	require.NotNil(t, findHistoryByAction(items, "archived"))
+	require.NotNil(t, findHistoryByAction(items, "restored"))
+	// archived/restored без details - omitempty убирает поле из JSON.
+	assert.Nil(t, findHistoryByAction(items, "archived")["details"])
+	assert.Nil(t, findHistoryByAction(items, "restored")["details"])
+}
+
 func TestAttachments_CRUD_FullCycle(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

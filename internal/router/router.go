@@ -159,6 +159,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.PUT("/:id", attachments.Update)
 	att.DELETE("/:id", attachments.Delete)
 	att.PUT("/:id/restore", attachments.Restore)
+	att.GET("/:id/history", attachments.GetHistory)
 	att.GET("/:id", attachments.GetByID)
 
 	// Управление типами пользователей (admin-only)
