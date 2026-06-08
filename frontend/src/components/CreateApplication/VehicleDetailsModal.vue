@@ -526,6 +526,7 @@ export default {
             }
             this.isMainShifted = false;
             this.selectedUnloadPlace = null;
+            this.showAddBlacklist = false;
         },
 
         // Статус ЧС: матч активного списка по номеру+марке (зеркалит серверный CheckByName).
