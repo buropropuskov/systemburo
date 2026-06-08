@@ -3,6 +3,7 @@
     <BlacklistTabBase
       ref="base"
       empty-noun="людей"
+      :entity-icon="userIcon"
       :api-list="listPersonBlacklist"
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
@@ -55,6 +56,7 @@ import {
 } from '@/api/blacklist';
 import { formatDateTime } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
+import userIcon from '@/assets/icons/user.png';
 
 /**
  * Вкладка "Люди" чёрного списка (#443). Конфигурирует BlacklistTabBase под людей
@@ -68,7 +70,7 @@ export default {
   },
   emits: ['count'],
   data() {
-    return { showCreate: false, archiveItem: null, historyItem: null };
+    return { showCreate: false, archiveItem: null, historyItem: null, userIcon };
   },
   computed: {
     archiveMessage() {
@@ -88,7 +90,7 @@ export default {
         { label: 'Фамилия', value: item.last_name },
         { label: 'Имя', value: item.first_name },
         { label: 'Отчество', value: item.middle_name },
-        { label: 'Причина', value: item.reason },
+        { label: 'Причина', value: item.reason, kind: 'reason' },
         { label: 'Добавлен', value: formatDateTime(item.created_at) },
       ];
     },

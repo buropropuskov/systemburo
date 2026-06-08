@@ -80,14 +80,18 @@
         class="bl-details"
       >
         <div class="bl-details-header">
-          <h3 class="bl-details-title">
-            {{ getPrimaryText(selected) }}
-          </h3>
+          <div class="bl-details-heading">
+            <img
+              v-if="entityIcon"
+              :src="entityIcon"
+              alt=""
+              class="bl-details-icon"
+            >
+            <h3 class="bl-details-title">
+              {{ getPrimaryText(selected) }}
+            </h3>
+          </div>
           <div class="bl-details-actions">
-            <span
-              v-if="!selected.is_active"
-              class="bl-archive-pill"
-            >В архиве</span>
             <button
               class="lk-button lk-button--ghost"
               @click="$emit('history', selected)"
@@ -112,13 +116,40 @@
         </div>
         <div class="bl-details-body">
           <div
-            v-for="(row, idx) in getDetailRows(selected)"
-            :key="idx"
-            class="bl-field"
+            class="bl-status-banner"
+            :class="selected.is_active ? 'is-active' : 'is-archived'"
           >
-            <span class="bl-field-label">{{ row.label }}</span>
-            <span class="bl-field-value">{{ row.value || '-' }}</span>
+            <span class="bl-status-dot" />
+            {{ selected.is_active ? 'В чёрном списке' : 'Снято с ЧС - в архиве' }}
           </div>
+
+          <div
+            v-if="reasonRow"
+            class="bl-reason"
+          >
+            <span class="bl-reason-label">{{ reasonRow.label }}</span>
+            <p class="bl-reason-text">
+              {{ reasonRow.value || '-' }}
+            </p>
+          </div>
+
+          <dl
+            v-if="metaRows.length"
+            class="bl-def-list"
+          >
+            <div
+              v-for="(row, idx) in metaRows"
+              :key="idx"
+              class="bl-def-row"
+            >
+              <dt class="bl-def-label">
+                {{ row.label }}
+              </dt>
+              <dd class="bl-def-value">
+                {{ row.value || '-' }}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
       <div
@@ -151,6 +182,7 @@ export default {
   props: {
     searchPlaceholder: { type: String, default: 'Поиск...' },
     emptyNoun: { type: String, default: 'записей' },
+    entityIcon: { type: String, default: '' },
     apiList: { type: Function, required: true },
     getPrimaryText: { type: Function, required: true },
     getDetailRows: { type: Function, required: true },
@@ -182,6 +214,15 @@ export default {
     emptyText() {
       if (this.searchQuery.trim()) return 'Ничего не найдено по фильтру';
       return this.showArchive ? 'В архиве пусто' : `Записей нет`;
+    },
+    detailData() {
+      return this.selected ? this.getDetailRows(this.selected) : [];
+    },
+    reasonRow() {
+      return this.detailData.find((r) => r.kind === 'reason') || null;
+    },
+    metaRows() {
+      return this.detailData.filter((r) => r.kind !== 'reason');
     },
   },
   mounted() {
@@ -345,20 +386,30 @@ export default {
   border-bottom: 1px solid #e6e6e6;
 }
 
+.bl-details-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bl-details-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 7px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  object-fit: contain;
+}
+
 .bl-details-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #000;
-}
-
-.bl-archive-pill {
-  background: #6b7280;
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 0.75em;
-  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -372,23 +423,95 @@ export default {
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.bl-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.bl-status-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.bl-field-label {
+.bl-status-banner.is-active {
+  background: #fdeaea;
+  color: #b91c1c;
+}
+
+.bl-status-banner.is-archived {
+  background: #f1f3f5;
+  color: #475569;
+}
+
+.bl-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bl-status-banner.is-active .bl-status-dot {
+  background: var(--color-danger);
+}
+
+.bl-status-banner.is-archived .bl-status-dot {
+  background: #94a3b8;
+}
+
+.bl-reason {
+  padding: 12px 16px;
+  background: #fdf3f3;
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-danger);
+}
+
+.bl-reason-label {
+  display: block;
+  margin-bottom: 4px;
   font-size: 12px;
-  color: #a2a2a2;
+  font-weight: 600;
+  color: #b91c1c;
 }
 
-.bl-field-value {
+.bl-reason-text {
+  margin: 0;
   font-size: 14px;
-  color: #333;
+  line-height: 1.5;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bl-def-list {
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.bl-def-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  padding: 11px 16px;
+}
+
+.bl-def-row:not(:last-child) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.bl-def-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.bl-def-value {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text);
   white-space: pre-wrap;
   word-break: break-word;
 }
