@@ -20,17 +20,19 @@ func NewLicensePlateFormatHandler(service services.LicensePlateFormatService) *L
 
 // GetAll godoc
 // @Summary      Получить все форматы номерных знаков
-// @Description  Возвращает список всех форматов номерных знаков с их ячейками
+// @Description  Возвращает список форматов номерных знаков с их ячейками. По умолчанию только активные; include_archived=true добавляет архивные.
 // @Tags         license-formats
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
+// @Param        include_archived query bool false "Включить архивные форматы"
 // @Success      200 {array} models.LicensePlateFormatWithCells
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /license-plate-formats [get]
 func (h *LicensePlateFormatHandler) GetAll(c echo.Context) error {
-	formats, err := h.service.GetAll(c.Request().Context())
+	includeArchived := c.QueryParam("include_archived") == "true"
+	formats, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -98,16 +100,18 @@ func (h *LicensePlateFormatHandler) Update(c echo.Context) error {
 }
 
 // Delete godoc
-// @Summary      Удалить формат номерного знака
-// @Description  Удаляет формат номерного знака по указанному ID
+// @Summary      Архивировать формат номерного знака
+// @Description  Архивирует формат (soft-delete, is_active=false). Формат по умолчанию архивировать нельзя.
 // @Tags         license-formats
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID формата"
-// @Success      200 {string} string "Формат номеров успешно удален"
+// @Success      200 {string} string "Формат номеров архивирован"
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
 // @Router       /license-plate-formats/{id} [delete]
 func (h *LicensePlateFormatHandler) Delete(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
@@ -119,5 +123,32 @@ func (h *LicensePlateFormatHandler) Delete(c echo.Context) error {
 		return err
 	}
 
-	return RespondMessage(c, "Формат номеров успешно удален")
+	return RespondMessage(c, "Формат номеров архивирован")
+}
+
+// Restore godoc
+// @Summary      Восстановить формат номерного знака из архива
+// @Description  Возвращает формат из архива (is_active=true)
+// @Tags         license-formats
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID формата"
+// @Success      200 {string} string "Формат номеров восстановлен из архива"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /license-plate-formats/{id}/restore [post]
+func (h *LicensePlateFormatHandler) Restore(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+
+	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+		return err
+	}
+
+	return RespondMessage(c, "Формат номеров восстановлен из архива")
 }

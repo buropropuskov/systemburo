@@ -139,14 +139,14 @@ func TestLicenseFormats_CRUD_Cycle(t *testing.T) {
 	assert.Equal(t, false, format["is_default"])
 	assert.Len(t, cells, 1, "update should replace cells")
 
-	// --- Delete ---
+	// --- Delete (архив) ---
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/license-plate-formats/%d", formatID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	deleteMsg := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "Формат номеров успешно удален", deleteMsg)
+	assert.Equal(t, "Формат номеров архивирован", deleteMsg)
 
-	// --- Read (verify gone) ---
+	// --- Read (архивный формат скрыт из активного списка) ---
 	rec = testutil.GET(t, e, "/license-plate-formats", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	list = testutil.ParseSlice(t, rec)
@@ -249,4 +249,92 @@ func TestLicenseFormats_Create_WithCellDefaults(t *testing.T) {
 	cell := cells[0].(map[string]interface{})
 	assert.Equal(t, "0", cell["padding_char"])
 	assert.Equal(t, "left", cell["padding_side"])
+}
+
+// Архивировать формат по умолчанию нельзя - сначала нужно назначить другой дефолтный.
+func TestLicenseFormats_Archive_BlocksDefault(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"Дефолтный","country_code":"RU","is_default":true,"cells":[]}`
+	rec := testutil.POST(t, e, "/license-plate-formats", body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	formatID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/license-plate-formats/%d", formatID), h)
+	assert.Equal(t, http.StatusConflict, rec.Code, "архив дефолтного формата должен вернуть 409")
+
+	// Формат остался активным.
+	rec = testutil.GET(t, e, "/license-plate-formats", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	list := testutil.ParseSlice(t, rec)
+	require.Len(t, list, 1)
+}
+
+// Архив скрывает формат из активного списка, но возвращается с include_archived;
+// restore возвращает его в активные.
+func TestLicenseFormats_Archive_And_Restore(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"Архивируемый","country_code":"KZ","is_default":false,"cells":[]}`
+	rec := testutil.POST(t, e, "/license-plate-formats", body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	formatID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Архивируем.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/license-plate-formats/%d", formatID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "Формат номеров архивирован", testutil.ParseMessage(t, rec))
+
+	// Повторный архив - идемпотентный no-op (200), а не ошибка.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/license-plate-formats/%d", formatID), h)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Активный список пуст.
+	rec = testutil.GET(t, e, "/license-plate-formats", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, testutil.ParseSlice(t, rec))
+
+	// С include_archived формат виден и помечен is_active=false.
+	rec = testutil.GET(t, e, "/license-plate-formats?include_archived=true", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	list := testutil.ParseSlice(t, rec)
+	require.Len(t, list, 1)
+	assert.Equal(t, false, list[0]["format"].(map[string]interface{})["is_active"])
+
+	// Восстанавливаем.
+	rec = testutil.POST(t, e, fmt.Sprintf("/license-plate-formats/%d/restore", formatID), "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "Формат номеров восстановлен из архива", testutil.ParseMessage(t, rec))
+
+	// Снова в активном списке.
+	rec = testutil.GET(t, e, "/license-plate-formats", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	list = testutil.ParseSlice(t, rec)
+	require.Len(t, list, 1)
+	assert.Equal(t, true, list[0]["format"].(map[string]interface{})["is_active"])
+}
+
+func TestLicenseFormats_Restore_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/license-plate-formats/99999/restore", "", h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
