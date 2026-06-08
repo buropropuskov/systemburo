@@ -153,4 +153,43 @@ describe('LicensePlateFormatHistoryModal', () => {
     const wrapper = await mountWith([]);
     expect(wrapper.find('.history-empty').text()).toBe('История пуста');
   });
+
+  it('visible=true по mounted, overlay отрендерен', async () => {
+    const wrapper = await mountWith([entry()]);
+    expect(wrapper.vm.visible).toBe(true);
+    expect(wrapper.find('.modal-overlay').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('requestClose прячет overlay (visible=false), но НЕ эмитит close сразу', async () => {
+    const wrapper = await mountWith([entry()]);
+    wrapper.vm.requestClose();
+    expect(wrapper.vm.visible).toBe(false);
+    // close эмитится только ПОСЛЕ leave-перехода (@after-leave), не моментально.
+    expect(wrapper.emitted('close')).toBeFalsy();
+    wrapper.unmount();
+  });
+
+  it('close эмитится по завершении leave-перехода (onAfterLeave)', async () => {
+    const wrapper = await mountWith([entry()]);
+    wrapper.vm.onAfterLeave();
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('Escape запускает закрытие через requestClose (visible=false)', async () => {
+    const wrapper = await mountWith([entry()]);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(wrapper.vm.visible).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('клик по overlay (mousedown+mouseup) закрывает через useOverlayClose', async () => {
+    const wrapper = await mountWith([entry()]);
+    const overlay = wrapper.find('.modal-overlay');
+    await overlay.trigger('mousedown');
+    await overlay.trigger('mouseup');
+    expect(wrapper.vm.visible).toBe(false);
+    wrapper.unmount();
+  });
 });
