@@ -4,6 +4,7 @@
       <div
         v-if="show"
         class="base-modal-overlay"
+        :style="{ zIndex }"
         @mousedown="handleOverlayMousedown"
         @mouseup="handleOverlayMouseup"
       >
@@ -80,6 +81,12 @@ export default {
       type: String,
       default: '',
     },
+    // z-index оверлея. Дефолт 1000 (базовый слой модалок). Поднимать, когда модалка
+    // открывается ПОВЕРХ другой модалки с высоким z-index (напр. из карточки Т/С).
+    zIndex: {
+      type: Number,
+      default: 1000,
+    },
   },
   emits: ['close'],
   data() {
@@ -155,7 +162,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  /* z-index задаётся через prop zIndex (:style), дефолт 1000 - базовый слой модалок. */
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
 }

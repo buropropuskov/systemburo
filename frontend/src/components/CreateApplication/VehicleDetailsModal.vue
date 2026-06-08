@@ -15,25 +15,42 @@
             @mousedown.stop
           >
             <div class="modal-header">
-              <h3 class="modal-title">
-                {{ modalTitle }}
-              </h3>
+              <div class="modal-title-row">
+                <h3 class="modal-title">
+                  {{ modalTitle }}
+                </h3>
+                <span
+                  v-if="isBlacklisted"
+                  class="blacklist-plashka"
+                  :title="blacklistReason || 'В чёрном списке'"
+                >
+                  В ЧС
+                </span>
+              </div>
               <div
-                v-if="showCarFeatures"
+                v-if="showCarFeatures || (canManageBlacklist && hasVehicleIdentity)"
                 class="header-actions"
               >
                 <button
+                  v-if="showCarFeatures"
                   class="history-btn"
                   @click="openCarHistory"
                 >
                   <span>Полная история</span>
                 </button>
                 <button
-                  v-if="source !== 'application'"
+                  v-if="showCarFeatures && source !== 'application'"
                   class="application-btn"
                   @click="openApplication"
                 >
                   <span>Открыть заявку</span>
+                </button>
+                <button
+                  v-if="canManageBlacklist && hasVehicleIdentity && !isBlacklisted"
+                  class="blacklist-add-btn"
+                  @click="openAddBlacklist"
+                >
+                  <span>Добавить в ЧС</span>
                 </button>
               </div>
               <button
@@ -319,6 +336,16 @@
     :current-user-name="currentUserName"
     @close="showCarHistoryModal = false"
   />
+
+  <AddToBlacklistModal
+    :show="showAddBlacklist"
+    type="vehicle"
+    :entity-label="vehicleLabel"
+    :saving="savingBlacklist"
+    :error="blacklistError"
+    @close="closeAddBlacklist"
+    @confirm="submitAddBlacklist"
+  />
 </template>
 
 <script>
@@ -326,7 +353,12 @@ import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { usePermissionsStore } from '@/stores/permissions';
+import { useDeletionsStore } from '@/stores/deletions';
+import { listVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
+import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
 
 export default {
@@ -334,7 +366,8 @@ export default {
     components: {
         UnloadPlaceModal,
         CarHistoryModal,
-        LoaderSpinner
+        LoaderSpinner,
+        AddToBlacklistModal
     },
     props: {
         show: {
@@ -390,7 +423,12 @@ export default {
             isExporting: false,
             showCarHistoryModal: false,
             entryChecked: false,
-            exitChecked: false
+            exitChecked: false,
+            isBlacklisted: false,
+            blacklistReason: '',
+            showAddBlacklist: false,
+            savingBlacklist: false,
+            blacklistError: ''
         }
     },
     computed: {
@@ -420,6 +458,23 @@ export default {
         // Только события въезда/выезда
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+        },
+        canManageBlacklist() {
+            return usePermissionsStore().hasPermission('page.admin.blacklist');
+        },
+        vehicleNumber() {
+            return (this.vehicle?.plateNumber || this.vehicle?.car_number || '').trim();
+        },
+        vehicleMark() {
+            return (this.vehicle?.mark || this.vehicle?.car_brand || '').trim();
+        },
+        vehicleLabel() {
+            return [this.vehicleNumber, this.vehicleMark].filter(Boolean).join(' ');
+        },
+        // Добавить в ЧС можно только реальную машину с номером и маркой (не "по факту").
+        hasVehicleIdentity() {
+            const n = this.vehicleNumber.toLowerCase();
+            return !!this.vehicleNumber && !!this.vehicleMark && n !== 'по факту';
         }
     },
     watch: {
@@ -428,6 +483,7 @@ export default {
             handler(newVal) {
                 if (newVal) {
                     this.loadCarStatus();
+                    this.checkBlacklist();
                     if (this.showCarFeatures && this.vehicle?.id) {
                         this.loadCarHistory();
                     }
@@ -445,9 +501,12 @@ export default {
         vehicle: {
             deep: true,
             handler(newVal) {
-                if (newVal && this.show && this.showCarFeatures) {
-                    this.loadCarStatus();
-                    this.loadCarHistory();
+                if (newVal && this.show) {
+                    this.checkBlacklist();
+                    if (this.showCarFeatures) {
+                        this.loadCarStatus();
+                        this.loadCarHistory();
+                    }
                 }
             }
         }
@@ -467,6 +526,62 @@ export default {
             }
             this.isMainShifted = false;
             this.selectedUnloadPlace = null;
+        },
+
+        // Статус ЧС: матч активного списка по номеру+марке (зеркалит серверный CheckByName).
+        async checkBlacklist() {
+            this.isBlacklisted = false;
+            this.blacklistReason = '';
+            if (!this.hasVehicleIdentity) return;
+            try {
+                const list = await listVehicleBlacklist();
+                const arr = Array.isArray(list) ? list : [];
+                const key = (n, m) => `${(n || '').trim().toLowerCase()}|${(m || '').trim().toLowerCase()}`;
+                const want = key(this.vehicleNumber, this.vehicleMark);
+                const hit = arr.find((e) => key(e.car_number, e.mark_name) === want);
+                if (hit) {
+                    this.isBlacklisted = true;
+                    this.blacklistReason = hit.reason || '';
+                }
+            } catch {
+                // Молча: статус ЧС - вспомогательная плашка, не критична для карточки.
+            }
+        },
+
+        openAddBlacklist() {
+            this.blacklistError = '';
+            this.showAddBlacklist = true;
+        },
+
+        closeAddBlacklist() {
+            if (this.savingBlacklist) return;
+            this.showAddBlacklist = false;
+        },
+
+        async submitAddBlacklist(reason) {
+            if (this.savingBlacklist) return;
+            this.savingBlacklist = true;
+            this.blacklistError = '';
+            try {
+                // includeArchived: марка машины могла быть заархивирована, но как ключ
+                // для создания записи ЧС она валидна (сервер резолвит mark_id без фильтра).
+                const marks = await listMarks({ includeArchived: true });
+                const arr = Array.isArray(marks) ? marks : [];
+                const mark = arr.find((m) => (m.name || '').trim().toLowerCase() === this.vehicleMark.toLowerCase());
+                if (!mark) {
+                    this.blacklistError = `Марка "${this.vehicleMark}" не найдена в справочнике. Добавьте через раздел Чёрный список.`;
+                    return;
+                }
+                await createVehicleBlacklist({ car_number: this.vehicleNumber, mark_id: mark.id, reason });
+                this.isBlacklisted = true;
+                this.blacklistReason = reason;
+                this.showAddBlacklist = false;
+                useDeletionsStore().notify({ prefix: 'Машина ', bold: this.vehicleLabel, suffix: ' добавлена в чёрный список' });
+            } catch (e) {
+                this.blacklistError = e?.message || 'Не удалось добавить в чёрный список';
+            } finally {
+                this.savingBlacklist = false;
+            }
         },
 
         showUnloadPlaceDetails(placeId) {
@@ -936,6 +1051,43 @@ export default {
 .history-btn:hover, .application-btn:hover {
   background: #f5f5f5;
   border-color: #4F5BDF;
+}
+
+.blacklist-add-btn {
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #fecaca;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #dc2626;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.blacklist-add-btn:hover {
+  background: #fee2e2;
+  border-color: #dc2626;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.blacklist-plashka {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  white-space: nowrap;
 }
 
 .modal-title {
