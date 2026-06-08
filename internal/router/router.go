@@ -184,6 +184,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	lpfGroup.PUT("/:id", lpf.Update)
 	lpfGroup.DELETE("/:id", lpf.Delete)
 	lpfGroup.POST("/:id/restore", lpf.Restore)
+	lpfGroup.GET("/:id/history", lpf.GetHistory)
 
 	// Марки автомобилей (#185) - справочник с историчностью.
 	marksGroup := protected.Group("/marks")

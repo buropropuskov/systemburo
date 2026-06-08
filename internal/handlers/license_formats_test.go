@@ -338,3 +338,101 @@ func TestLicenseFormats_Restore_NotFound(t *testing.T) {
 	rec := testutil.POST(t, e, "/license-plate-formats/99999/restore", "", h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
+
+// Полный цикл аудита: create/update/archive/restore попадают в историю (новые сверху)
+// с именем актора; update пишет diff изменённых полей и ячеек.
+func TestLicenseFormats_History_FullCycle(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	createBody := `{"name":"История RU","country_code":"RU","is_default":false,"cells":[
+		{"cell_order":1,"cell_type":"letter","min_length":1,"max_length":1}
+	]}`
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/license-plate-formats", createBody, h))
+	id := int(created["id"].(float64))
+
+	// Меняем имя, страну и ячейку - все три должны попасть в diff.
+	updateBody := `{"name":"История KZ","country_code":"KZ","is_default":false,"cells":[
+		{"cell_order":1,"cell_type":"digit","min_length":3,"max_length":3}
+	]}`
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/license-plate-formats/%d", id), updateBody, h).Code)
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/license-plate-formats/%d", id), h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, fmt.Sprintf("/license-plate-formats/%d/restore", id), "", h).Code)
+
+	hist := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/license-plate-formats/%d/history", id), h))
+	require.Len(t, hist, 4)
+	assert.Equal(t, "restored", hist[0]["action_type"])
+	assert.Equal(t, "archived", hist[1]["action_type"])
+	assert.Equal(t, "updated", hist[2]["action_type"])
+	assert.Equal(t, "created", hist[3]["action_type"])
+	assert.NotEmpty(t, hist[0]["actor_name"], "actor_name должен резолвиться в зарегистрированного админа")
+	assert.NotEmpty(t, hist[3]["actor_name"])
+
+	// created хранит имя формата.
+	assert.Equal(t, "История RU", hist[3]["details"].(map[string]interface{})["name"])
+
+	// updated: diff name + country_code + cells как {old,new}; is_default не менялся - его нет.
+	upd := hist[2]["details"].(map[string]interface{})
+	assert.Equal(t, "История RU", upd["name"].(map[string]interface{})["old"])
+	assert.Equal(t, "История KZ", upd["name"].(map[string]interface{})["new"])
+	assert.Equal(t, "RU", upd["country_code"].(map[string]interface{})["old"])
+	assert.Equal(t, "KZ", upd["country_code"].(map[string]interface{})["new"])
+	assert.Contains(t, upd, "cells", "изменение ячеек должно фиксироваться")
+	assert.NotContains(t, upd, "is_default", "неизменённое поле не должно попадать в diff")
+}
+
+// Update без реальных изменений не плодит запись "updated" в истории.
+func TestLicenseFormats_History_NoopUpdate_NotLogged(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"Без изменений","country_code":"RU","is_default":false,"cells":[
+		{"cell_order":1,"cell_type":"digit","min_length":3,"max_length":3}
+	]}`
+	id := int(testutil.ParseMap(t, testutil.POST(t, e, "/license-plate-formats", body, h))["id"].(float64))
+
+	// Тот же payload - diff пустой, "updated" логироваться не должен.
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/license-plate-formats/%d", id), body, h).Code)
+
+	hist := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/license-plate-formats/%d/history", id), h))
+	require.Len(t, hist, 1)
+	assert.Equal(t, "created", hist[0]["action_type"])
+}
+
+// Перестановка ячеек без изменения данных не должна давать ложный diff "cells".
+func TestLicenseFormats_History_CellReorder_NoFalseDiff(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	createBody := `{"name":"Порядок","country_code":"RU","is_default":false,"cells":[
+		{"cell_order":1,"cell_type":"letter","min_length":1,"max_length":1},
+		{"cell_order":2,"cell_type":"digit","min_length":3,"max_length":3}
+	]}`
+	id := int(testutil.ParseMap(t, testutil.POST(t, e, "/license-plate-formats", createBody, h))["id"].(float64))
+
+	// Те же ячейки, но в обратном порядке и без других изменений.
+	reorderBody := `{"name":"Порядок","country_code":"RU","is_default":false,"cells":[
+		{"cell_order":2,"cell_type":"digit","min_length":3,"max_length":3},
+		{"cell_order":1,"cell_type":"letter","min_length":1,"max_length":1}
+	]}`
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/license-plate-formats/%d", id), reorderBody, h).Code)
+
+	hist := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/license-plate-formats/%d/history", id), h))
+	require.Len(t, hist, 1, "перестановка ячеек без изменений не должна логировать updated")
+	assert.Equal(t, "created", hist[0]["action_type"])
+}

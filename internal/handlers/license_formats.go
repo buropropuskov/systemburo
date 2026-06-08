@@ -57,7 +57,8 @@ func (h *LicensePlateFormatHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	id, err := h.service.Create(c.Request().Context(), req)
+	userID, _ := c.Get("user_id").(int)
+	id, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,8 @@ func (h *LicensePlateFormatHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.Update(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Update(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 
@@ -119,7 +121,8 @@ func (h *LicensePlateFormatHandler) Delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 
-	if err := h.service.Delete(c.Request().Context(), id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 
@@ -146,9 +149,36 @@ func (h *LicensePlateFormatHandler) Restore(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 
-	if err := h.service.Restore(c.Request().Context(), id); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Restore(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 
 	return RespondMessage(c, "Формат номеров восстановлен из архива")
+}
+
+// GetHistory godoc
+// @Summary      История изменений формата номерного знака
+// @Description  Возвращает аудит создания/изменения/архивации/восстановления формата (новые сверху)
+// @Tags         license-formats
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID формата"
+// @Success      200 {array} models.LicensePlateFormatHistoryItem
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /license-plate-formats/{id}/history [get]
+func (h *LicensePlateFormatHandler) GetHistory(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+
+	items, err := h.service.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+
+	return RespondSuccess(c, items)
 }
