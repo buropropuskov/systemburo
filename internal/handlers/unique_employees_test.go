@@ -171,3 +171,38 @@ func TestUniqueEmployees_Update_NotFound(t *testing.T) {
 	rec := testutil.PUT(t, e, "/unique-employees/99999", `{"last_name":"X"}`, h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
+
+func TestUniqueEmployees_Lookup(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := fmt.Sprintf(`{"last_name":"Сидоров","first_name":"Семён","middle_name":"Семёнович","passport_series_number":"9999 888777","organization_id":%d}`, td.OrgID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", body, h).Code)
+
+	t.Run("находит по ФИО без учёта регистра/пробелов", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-employees/lookup?last_name=%20сидоров%20&first_name=семён&middle_name=Семёнович", h)
+		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+		resp := testutil.ParseMap(t, rec)
+		assert.Equal(t, "Сидоров", resp["last_name"])
+		assert.Greater(t, int(resp["id"].(float64)), 0)
+	})
+
+	t.Run("404 при несовпадении отчества", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-employees/lookup?last_name=Сидоров&first_name=Семён&middle_name=Петрович", h)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("400 без имени", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-employees/lookup?last_name=Сидоров", h)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("400 без фамилии", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-employees/lookup?first_name=Семён", h)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+}

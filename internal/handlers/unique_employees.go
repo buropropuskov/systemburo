@@ -154,6 +154,35 @@ func (h *UniqueEmployeeHandler) GetHistory(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
+// Lookup godoc
+// @Summary      Найти сотрудника по ФИО
+// @Description  Поиск сотрудника (LOWER/TRIM) для открытия карточки со страницы ЧС. 404 если нет.
+// @Tags         unique-employees
+// @Produce      json
+// @Security     BearerAuth
+// @Param        last_name query string true "Фамилия"
+// @Param        first_name query string true "Имя"
+// @Param        middle_name query string false "Отчество"
+// @Success      200 {object} services.UniqueEmployeeWithRelations
+// @Failure      400 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /unique-employees/lookup [get]
+func (h *UniqueEmployeeHandler) Lookup(c echo.Context) error {
+	lastName := c.QueryParam("last_name")
+	firstName := c.QueryParam("first_name")
+	if lastName == "" || firstName == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "last_name и first_name обязательны")
+	}
+	emp, err := h.service.LookupByFIO(c.Request().Context(), lastName, firstName, c.QueryParam("middle_name"))
+	if err != nil {
+		return err
+	}
+	if emp == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Сотрудник не найден")
+	}
+	return RespondSuccess(c, emp)
+}
+
 // GetOwnershipInfo godoc
 // @Summary      Информация о владельце для сотрудников
 // @Description  Возвращает данные о привязке пользователя к организации/компании

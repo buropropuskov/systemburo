@@ -684,7 +684,9 @@ export default {
             this.loadingHistory = true;
             try {
                 let res;
-                if (this.source === 'employeesview') {
+                // employeesview и blacklist открывают карточку по реестру (unique_employee id),
+                // поэтому история - по ФИО (unified), а не по id реальной записи employees.
+                if (this.source === 'employeesview' || this.source === 'blacklist') {
                     const params = new URLSearchParams({
                         last_name: this.employee.last_name || '',
                         first_name: this.employee.first_name || ''
