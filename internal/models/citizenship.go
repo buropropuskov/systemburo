@@ -22,10 +22,12 @@ type CreateCitizenshipRequest struct {
 }
 
 // UpdateCitizenshipRequest -- запрос на обновление гражданства.
+// is_active намеренно отсутствует: архивацией/восстановлением управляют
+// DELETE (архив) и POST /restore, чтобы действие логировалось в историю и
+// проходило проверку дефолта, а не менялось молча через PUT.
 type UpdateCitizenshipRequest struct {
 	Name           string  `json:"name" validate:"required,min=1,max=100"`
 	Icon           *string `json:"icon"`
-	IsActive       *bool   `json:"is_active"`
 	IsDefault      *bool   `json:"is_default"`
 	PatentRequired *bool   `json:"patent_required"`
 }

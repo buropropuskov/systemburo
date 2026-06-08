@@ -68,8 +68,7 @@ func TestCitizenships_CRUD_Cycle(t *testing.T) {
 	assert.Equal(t, false, list[0]["patent_required"])
 
 	// --- Update ---
-	updateBody := fmt.Sprintf(
-		`{"name":"РФ обновлённое","icon":"🏳️","is_active":true,"is_default":false,"patent_required":true}`)
+	updateBody := `{"name":"РФ обновлённое","icon":"🏳️","is_default":false,"patent_required":true}`
 	rec = testutil.PUT(t, e, fmt.Sprintf("/citizenships/%d", citizenshipID), updateBody, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -86,14 +85,14 @@ func TestCitizenships_CRUD_Cycle(t *testing.T) {
 	assert.Equal(t, false, list[0]["is_default"])
 	assert.Equal(t, true, list[0]["patent_required"])
 
-	// --- Delete ---
+	// --- Delete (архив, soft-delete) ---
 	rec = testutil.DELETE(t, e, fmt.Sprintf("/citizenships/%d", citizenshipID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	deleteResp := testutil.ParseMessage(t, rec)
-	assert.Equal(t, "Гражданство успешно удалено", deleteResp)
+	assert.Equal(t, "Гражданство архивировано", deleteResp)
 
-	// --- Read (verify gone) ---
+	// --- Read (активные не показывают архивное) ---
 	rec = testutil.GET(t, e, "/citizenships", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -249,4 +248,112 @@ func TestCitizenships_Create_DefaultClears_Previous(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, defaultCount)
+}
+
+func TestCitizenships_Archive_Restore_Cycle(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/citizenships", `{"name":"Узбекистан"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	id := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Архив (soft-delete)
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/citizenships/%d", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "Гражданство архивировано", testutil.ParseMessage(t, rec))
+
+	// Активные - пусто, архив виден через include_archived
+	rec = testutil.GET(t, e, "/citizenships", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, testutil.ParseSlice(t, rec))
+
+	rec = testutil.GET(t, e, "/citizenships?include_archived=true", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	list := testutil.ParseSlice(t, rec)
+	require.Len(t, list, 1)
+	assert.Equal(t, false, list[0]["is_active"])
+
+	// Восстановление
+	rec = testutil.POST(t, e, fmt.Sprintf("/citizenships/%d/restore", id), "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "Гражданство восстановлено из архива", testutil.ParseMessage(t, rec))
+
+	rec = testutil.GET(t, e, "/citizenships", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	list = testutil.ParseSlice(t, rec)
+	require.Len(t, list, 1)
+	assert.Equal(t, true, list[0]["is_active"])
+}
+
+func TestCitizenships_Archive_Default_Conflict(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/citizenships", `{"name":"РФ","is_default":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	id := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Дефолтное гражданство архивировать нельзя - 409.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/citizenships/%d", id), h)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+}
+
+func TestCitizenships_History(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/citizenships", `{"name":"Таджикистан","patent_required":false}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	id := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Изменение имени + патента -> запись updated с diff.
+	rec = testutil.PUT(t, e, fmt.Sprintf("/citizenships/%d", id),
+		`{"name":"Республика Таджикистан","patent_required":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Архив + восстановление.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/citizenships/%d", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	rec = testutil.POST(t, e, fmt.Sprintf("/citizenships/%d/restore", id), "", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/citizenships/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	hist := testutil.ParseSlice(t, rec)
+	require.Len(t, hist, 4)
+
+	// Новые сверху: restored, archived, updated, created.
+	assert.Equal(t, "restored", hist[0]["action_type"])
+	assert.Equal(t, "archived", hist[1]["action_type"])
+	assert.Equal(t, "updated", hist[2]["action_type"])
+	assert.Equal(t, "created", hist[3]["action_type"])
+
+	// created - имя в details.
+	created := hist[3]["details"].(map[string]interface{})
+	assert.Equal(t, "Таджикистан", created["name"])
+
+	// updated - diff по name и patent_required.
+	updated := hist[2]["details"].(map[string]interface{})
+	name := updated["name"].(map[string]interface{})
+	assert.Equal(t, "Таджикистан", name["old"])
+	assert.Equal(t, "Республика Таджикистан", name["new"])
+	patent := updated["patent_required"].(map[string]interface{})
+	assert.Equal(t, false, patent["old"])
+	assert.Equal(t, true, patent["new"])
 }
