@@ -380,6 +380,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.PUT("/:id", ue.Update)
 	ueg.DELETE("/:id", ue.Delete)
 	ueg.GET("/ownership-info", ue.GetOwnershipInfo)
+	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
 	ueg.GET("/:id/history", ue.GetHistory)
 
 	// Обратная связь

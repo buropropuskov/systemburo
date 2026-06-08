@@ -142,6 +142,9 @@ type UniqueEmployeeHistoryItem struct {
 type UniqueEmployeeService interface {
 	GetOwnerInfo(ctx context.Context, username string) (*EmployeeOwnerInfo, error)
 	GetAll(ctx context.Context, username string, filterType string) ([]UniqueEmployeeWithRelations, error)
+	// LookupByFIO ищет сотрудника по ФИО (LOWER(TRIM), как ЧС) для открытия карточки со
+	// страницы чёрного списка. Возвращает nil, nil если совпадения нет.
+	LookupByFIO(ctx context.Context, lastName, firstName, middleName string) (*UniqueEmployeeWithRelations, error)
 	Create(ctx context.Context, username string, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Update(ctx context.Context, username string, id int, req NewUniqueEmployeeRequest) (*UniqueEmployeeResponse, error)
 	Delete(ctx context.Context, username string, id int) error
@@ -192,6 +195,37 @@ func (s *uniqueEmployeeService) getEmployeeOwnerInfo(ctx context.Context, userna
 // GetOwnerInfo возвращает информацию о владельце для фильтрации сотрудников.
 func (s *uniqueEmployeeService) GetOwnerInfo(ctx context.Context, username string) (*EmployeeOwnerInfo, error) {
 	return s.getEmployeeOwnerInfo(ctx, username)
+}
+
+// LookupByFIO ищет сотрудника по ФИО без скоупинга по владельцу (вызывается из админ-
+// страницы ЧС). Самый свежий при нескольких совпадениях. nil,nil если нет.
+func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, firstName, middleName string) (*UniqueEmployeeWithRelations, error) {
+	rows := make([]UniqueEmployeeWithRelations, 0, 1)
+	err := s.db.WithContext(ctx).
+		Table("unique_employees ue").
+		Select(`ue.id, ue.last_name, ue.first_name, ue.middle_name,
+			ue.organization_id, ue.company_id, ue.citizenship_id, ue.user_id,
+			ue."position", ue.passport_series_number, ue.patent_number, ue.other_permission, ue.created_at,
+			o.name as organization_name, c.name as company_name, cit.name as citizenship_name`).
+		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
+		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id").
+		Where("LOWER(TRIM(ue.last_name)) = LOWER(TRIM(?))", lastName).
+		Where("LOWER(TRIM(ue.first_name)) = LOWER(TRIM(?))", firstName).
+		Where("LOWER(TRIM(COALESCE(ue.middle_name, ''))) = LOWER(TRIM(?))", middleName).
+		Order("ue.id DESC").
+		Limit(1).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска сотрудника")
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	// Паспорт/патент хранятся зашифрованными - расшифровываем, как в GetAll.
+	rows[0].PassportSeriesNumber = crypto.DecryptOptional(rows[0].PassportSeriesNumber)
+	rows[0].PatentNumber = crypto.DecryptOptional(rows[0].PatentNumber)
+	return &rows[0], nil
 }
 
 // GetAll возвращает список уникальных сотрудников с фильтрацией по типу владельца.
