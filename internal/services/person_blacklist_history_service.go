@@ -19,6 +19,8 @@ type PersonBlacklistHistoryService interface {
 	// Ошибку возвращает: запись - часть транзакции, провал откатывает операцию.
 	Log(ctx context.Context, exec *gorm.DB, entityID int, userID *int, actionType string, details interface{}) error
 	GetHistory(ctx context.Context, entityID int) ([]models.PersonBlacklistHistoryItem, error)
+	// GetAllHistory - весь журнал ЧС людей (все записи, включая удалённые), новые сверху.
+	GetAllHistory(ctx context.Context) ([]models.PersonBlacklistHistoryItem, error)
 }
 
 type personBlacklistHistoryService struct {
@@ -52,6 +54,15 @@ func (s *personBlacklistHistoryService) Log(ctx context.Context, exec *gorm.DB, 
 }
 
 func (s *personBlacklistHistoryService) GetHistory(ctx context.Context, entityID int) ([]models.PersonBlacklistHistoryItem, error) {
+	return s.query(ctx, &entityID)
+}
+
+func (s *personBlacklistHistoryService) GetAllHistory(ctx context.Context) ([]models.PersonBlacklistHistoryItem, error) {
+	return s.query(ctx, nil)
+}
+
+// query читает журнал ЧС людей (новые сверху). entityID == nil - весь журнал.
+func (s *personBlacklistHistoryService) query(ctx context.Context, entityID *int) ([]models.PersonBlacklistHistoryItem, error) {
 	type row struct {
 		ID         int             `gorm:"column:id"`
 		EntityID   int             `gorm:"column:entity_id"`
@@ -61,16 +72,18 @@ func (s *personBlacklistHistoryService) GetHistory(ctx context.Context, entityID
 		UserName   string          `gorm:"column:user_name"`
 		CreatedAt  time.Time       `gorm:"column:created_at"`
 	}
-	var rows []row
-	if err := s.db.WithContext(ctx).
+	q := s.db.WithContext(ctx).
 		Table("person_blacklist_histories AS h").
 		Select(`h.id, h.entity_id, h.action_type, h.details, h.user_id,
 			COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '') AS user_name,
 			h.created_at`).
-		Joins("LEFT JOIN users u ON u.id = h.user_id").
-		Where("h.entity_id = ?", entityID).
-		Order("h.created_at DESC").
-		Scan(&rows).Error; err != nil {
+		Joins("LEFT JOIN users u ON u.id = h.user_id")
+	if entityID != nil {
+		q = q.Where("h.entity_id = ?", *entityID)
+	}
+
+	var rows []row
+	if err := q.Order("h.created_at DESC").Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории чёрного списка")
 	}
 

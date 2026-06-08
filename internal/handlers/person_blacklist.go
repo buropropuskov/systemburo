@@ -168,3 +168,38 @@ func (h *PersonBlacklistHandler) GetHistory(c echo.Context) error {
 	}
 	return RespondSuccess(c, history)
 }
+
+// GetAllHistory godoc
+// @Summary      Весь журнал чёрного списка людей
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.PersonBlacklistHistoryItem
+// @Router       /person-blacklist/history [get]
+func (h *PersonBlacklistHandler) GetAllHistory(c echo.Context) error {
+	history, err := h.service.GetAllHistory(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, history)
+}
+
+// Purge godoc
+// @Summary      Удалить запись чёрного списка людей навсегда
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID записи"
+// @Success      200 {string} string "Запись удалена навсегда"
+// @Router       /person-blacklist/{id}/purge [delete]
+func (h *PersonBlacklistHandler) Purge(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.Purge(c.Request().Context(), id, userID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Запись удалена навсегда")
+}

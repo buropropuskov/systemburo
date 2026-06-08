@@ -1,10 +1,12 @@
 <template>
   <BlacklistHistoryModalBase
-    :title="title"
-    :entity-label="entityLabel"
+    title="История чёрного списка машин"
+    entity-label="mashiny"
     :load-fn="loadFn"
     :action-texts="actionTexts"
     :field-labels="fieldLabels"
+    :entity-label-fn="entityLabelFn"
+    :comment-exclude-keys="commentExcludeKeys"
     :current-user-name="currentUserName"
     @close="$emit('close')"
   />
@@ -12,13 +14,14 @@
 
 <script>
 import BlacklistHistoryModalBase from './BlacklistHistoryModalBase.vue';
-import { getVehicleBlacklistHistory } from '@/api/blacklist';
+import { getAllVehicleBlacklistHistory } from '@/api/blacklist';
 
 const ACTION_TEXTS = {
   created: 'Добавлена в чёрный список',
   archived: 'Снята с чёрного списка',
   restored: 'Возвращена в чёрный список',
   updated: 'Изменена причина',
+  purged: 'Удалена навсегда',
 };
 
 const FIELD_LABELS = {
@@ -29,15 +32,18 @@ const FIELD_LABELS = {
   cars_reactivated: 'Возвращено машин в оборот',
 };
 
+// Лейбл машины и причина-диф рендерятся отдельными блоками - не дублируем их в комментарии.
+const COMMENT_EXCLUDE_KEYS = ['car_number', 'mark_name', 'reason_old', 'reason_new'];
+
 /**
- * Модалка истории записи ЧС машин (#443). Тонкая обёртка над
- * BlacklistHistoryModalBase: задаёт заголовок, словари действий/полей и загрузчик.
+ * Модалка общего журнала ЧС машин (#443): все события всех записей, включая физически
+ * удалённые (лейбл машины берётся из details, а не из самой записи). Тонкая обёртка над
+ * BlacklistHistoryModalBase.
  */
 export default {
   name: 'VehicleBlacklistHistoryModal',
   components: { BlacklistHistoryModalBase },
   props: {
-    item: { type: Object, required: true },
     currentUserName: { type: String, default: '' },
   },
   emits: ['close'],
@@ -48,16 +54,17 @@ export default {
     fieldLabels() {
       return FIELD_LABELS;
     },
-    entityLabel() {
-      return [this.item.car_number, this.item.mark_name].filter(Boolean).join(' ');
-    },
-    title() {
-      return `История машины «${this.entityLabel}»`;
+    commentExcludeKeys() {
+      return COMMENT_EXCLUDE_KEYS;
     },
   },
   methods: {
     loadFn() {
-      return getVehicleBlacklistHistory(this.item.id);
+      return getAllVehicleBlacklistHistory();
+    },
+    entityLabelFn(historyItem) {
+      const d = historyItem.details || {};
+      return [d.car_number, d.mark_name].filter(Boolean).join(' ');
     },
   },
 };

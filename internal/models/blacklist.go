@@ -47,6 +47,9 @@ const (
 	BlacklistActionArchived = "archived"
 	BlacklistActionRestored = "restored"
 	BlacklistActionUpdated  = "updated"
+	// BlacklistActionPurged - запись удалена из архива навсегда. Сама запись удаляется
+	// физически, но событие (с лейблом сущности в details) остаётся в общем журнале ЧС.
+	BlacklistActionPurged = "purged"
 )
 
 // CreateVehicleBlacklistRequest - тело POST /vehicle-blacklist.

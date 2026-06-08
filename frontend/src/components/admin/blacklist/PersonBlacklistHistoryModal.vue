@@ -1,10 +1,12 @@
 <template>
   <BlacklistHistoryModalBase
-    :title="title"
-    :entity-label="entityLabel"
+    title="История чёрного списка людей"
+    entity-label="lyudi"
     :load-fn="loadFn"
     :action-texts="actionTexts"
     :field-labels="fieldLabels"
+    :entity-label-fn="entityLabelFn"
+    :comment-exclude-keys="commentExcludeKeys"
     :current-user-name="currentUserName"
     @close="$emit('close')"
   />
@@ -12,13 +14,14 @@
 
 <script>
 import BlacklistHistoryModalBase from './BlacklistHistoryModalBase.vue';
-import { getPersonBlacklistHistory } from '@/api/blacklist';
+import { getAllPersonBlacklistHistory } from '@/api/blacklist';
 
 const ACTION_TEXTS = {
   created: 'Добавлен в чёрный список',
   archived: 'Снят с чёрного списка',
   restored: 'Возвращён в чёрный список',
   updated: 'Изменена причина',
+  purged: 'Удалён навсегда',
 };
 
 const FIELD_LABELS = {
@@ -29,15 +32,18 @@ const FIELD_LABELS = {
   employees_reactivated: 'Возвращено сотрудников',
 };
 
+// ФИО и причина-диф рендерятся отдельными блоками - не дублируем их в комментарии.
+const COMMENT_EXCLUDE_KEYS = ['full_name', 'reason_old', 'reason_new'];
+
 /**
- * Модалка истории записи ЧС людей (#443). Тонкая обёртка над
- * BlacklistHistoryModalBase: задаёт заголовок, словари действий/полей и загрузчик.
+ * Модалка общего журнала ЧС людей (#443): все события всех записей, включая физически
+ * удалённые (ФИО берётся из details, а не из самой записи). Тонкая обёртка над
+ * BlacklistHistoryModalBase.
  */
 export default {
   name: 'PersonBlacklistHistoryModal',
   components: { BlacklistHistoryModalBase },
   props: {
-    item: { type: Object, required: true },
     currentUserName: { type: String, default: '' },
   },
   emits: ['close'],
@@ -48,16 +54,17 @@ export default {
     fieldLabels() {
       return FIELD_LABELS;
     },
-    entityLabel() {
-      return [this.item.last_name, this.item.first_name, this.item.middle_name].filter(Boolean).join(' ');
-    },
-    title() {
-      return `История человека «${this.entityLabel}»`;
+    commentExcludeKeys() {
+      return COMMENT_EXCLUDE_KEYS;
     },
   },
   methods: {
     loadFn() {
-      return getPersonBlacklistHistory(this.item.id);
+      return getAllPersonBlacklistHistory();
+    },
+    entityLabelFn(historyItem) {
+      const d = historyItem.details || {};
+      return d.full_name || '';
     },
   },
 };

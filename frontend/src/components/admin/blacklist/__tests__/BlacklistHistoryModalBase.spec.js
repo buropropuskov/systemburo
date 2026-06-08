@@ -96,7 +96,52 @@ describe('BlacklistHistoryModalBase', () => {
     expect(wrapper.vm.getActionClass('created')).toBe('dot-create');
     expect(wrapper.vm.getActionClass('archived')).toBe('dot-deactivate');
     expect(wrapper.vm.getActionClass('restored')).toBe('dot-activate');
+    expect(wrapper.vm.getActionClass('updated')).toBe('dot-update');
+    expect(wrapper.vm.getActionClass('purged')).toBe('dot-delete');
     expect(wrapper.vm.getActionClass('unknown')).toBe('dot-default');
+  });
+
+  it('commentExcludeKeys убирает ключи из комментария (рендерятся отдельно)', async () => {
+    const wrapper = mountModal({
+      fieldLabels: { reason: 'Причина', reason_old: 'Было', reason_new: 'Стало' },
+      commentExcludeKeys: ['reason_old', 'reason_new'],
+    });
+    await flushPromises();
+    const item = { action_type: 'updated', details: { reason_old: 'старая', reason_new: 'новая' } };
+    expect(wrapper.vm.getActionComment(item)).toBe('');
+  });
+
+  it('getReasonDiff: для updated возвращает from/to, для прочих - null', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    expect(wrapper.vm.getReasonDiff({ action_type: 'updated', details: { reason_old: 'a', reason_new: 'b' } }))
+      .toEqual({ from: 'a', to: 'b' });
+    expect(wrapper.vm.getReasonDiff({ action_type: 'created', details: { reason: 'x' } })).toBe(null);
+  });
+
+  it('updated рендерит diff со стрелкой (.action-diff), а не текст "Стало:"', async () => {
+    const updated = [{
+      id: 9,
+      action_type: 'updated',
+      user_id: 7,
+      user_name: 'Иванов Иван',
+      created_at: '2026-06-04T10:00:00Z',
+      details: { car_number: 'A1', mark_name: 'BMW', reason_old: 'старая', reason_new: 'новая' },
+    }];
+    const wrapper = mountModal({
+      loadFn: vi.fn().mockResolvedValue(updated),
+      actionTexts: { updated: 'Изменена причина' },
+      fieldLabels: { reason_old: 'Было', reason_new: 'Стало' },
+      commentExcludeKeys: ['car_number', 'mark_name', 'reason_old', 'reason_new'],
+      entityLabelFn: (it) => `${it.details.car_number} ${it.details.mark_name}`,
+    });
+    await flushPromises();
+    expect(wrapper.find('.action-diff').exists()).toBe(true);
+    expect(wrapper.find('.diff-old').text()).toBe('старая');
+    expect(wrapper.find('.diff-new').text()).toBe('новая');
+    expect(wrapper.find('.diff-arrow').exists()).toBe(true);
+    expect(wrapper.find('.history-entity').text()).toBe('A1 BMW');
+    expect(wrapper.text()).not.toContain('Стало:');
   });
 
   it('по умолчанию сортировка desc (новые сверху), toggle переключает на asc', async () => {

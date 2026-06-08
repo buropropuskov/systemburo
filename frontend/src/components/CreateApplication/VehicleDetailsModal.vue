@@ -1084,7 +1084,7 @@ export default {
   padding: 12px 16px;
   background: #fdeaea;
   border: 1px solid #f5b5b5;
-  border-radius: 12px;
+  border-radius: 20px;
 }
 
 .bl-section-head {

@@ -134,13 +134,49 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.emitted('restore')[0][0].id).toBe(3);
   });
 
-  it('кнопка "История" эмитит history с выбранной записью', async () => {
+  it('кнопка "История" в шапке эмитит history-all (общий журнал)', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'История');
+    await btn.trigger('click');
+    expect(wrapper.emitted('history-all')).toBeTruthy();
+  });
+
+  it('в панели деталей нет кнопки "История" (она глобальная в шапке)', async () => {
     const wrapper = mountBase();
     await flushPromises();
     await wrapper.findAll('.bl-row')[0].trigger('click');
-    const btn = wrapper.findAll('button').find((b) => b.text() === 'История');
+    const inActions = wrapper.findAll('.bl-details-actions button').find((b) => b.text() === 'История');
+    expect(inActions).toBeUndefined();
+  });
+
+  it('кнопка "Удалить навсегда" эмитит purge для архивной записи', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    wrapper.vm.onArchiveModeChange('archive');
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Удалить навсегда');
     await btn.trigger('click');
-    expect(wrapper.emitted('history')[0][0].id).toBe(1);
+    expect(wrapper.emitted('purge')[0][0].id).toBe(3);
+  });
+
+  it('у активной записи нет кнопки "Удалить навсегда"', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Удалить навсегда');
+    expect(btn).toBeUndefined();
+  });
+
+  it('кнопка "Редактировать" в строке статуса эмитит edit для активной записи', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('.bl-status-row button').find((b) => b.text() === 'Редактировать');
+    expect(btn).toBeTruthy();
+    await btn.trigger('click');
+    expect(wrapper.emitted('edit')[0][0].id).toBe(1);
   });
 
   it('пустой список показывает empty-state', async () => {
