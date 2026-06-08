@@ -20,8 +20,8 @@ type SystemTable struct {
 
 	// Оформление таблицы (#345). FontSize - размер шрифта строк (px, 10-24).
 	// RowDensity - плотность строк: compact|normal|spacious.
-	FontSize    int    `gorm:"default:14" json:"font_size"`
-	RowDensity  string `gorm:"size:20;default:'normal'" json:"row_density"`
+	FontSize   int    `gorm:"default:14" json:"font_size"`
+	RowDensity string `gorm:"size:20;default:'normal'" json:"row_density"`
 	// То же самое, но для FactTable (отдельные настройки).
 	FontSizeFact   int    `gorm:"default:14" json:"font_size_fact"`
 	RowDensityFact string `gorm:"size:20;default:'normal'" json:"row_density_fact"`
@@ -57,6 +57,9 @@ type SystemTableTimeSlot struct {
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
 }
+
+// GetID возвращает идентификатор слота (контракт timeSlotModel для общего стора).
+func (s SystemTableTimeSlot) GetID() int { return s.ID }
 
 type OrganizationTable struct {
 	ID             int          `json:"id"`
@@ -161,11 +164,11 @@ type UpdateSystemTableRequest struct {
 
 // CreateTimeSlotRequest -- запрос на создание временного слота.
 type CreateTimeSlotRequest struct {
-	DayOfWeek int     `json:"day_of_week" validate:"min=0,max=6"`
-	OpenTime  string  `json:"open_time" validate:"required"`
-	CloseTime string  `json:"close_time" validate:"required"`
-	IsNextDay *bool   `json:"is_next_day"`
-	IsActive  *bool   `json:"is_active"`
+	DayOfWeek int    `json:"day_of_week" validate:"min=0,max=6"`
+	OpenTime  string `json:"open_time" validate:"required"`
+	CloseTime string `json:"close_time" validate:"required"`
+	IsNextDay *bool  `json:"is_next_day"`
+	IsActive  *bool  `json:"is_active"`
 }
 
 // UpdateTimeSlotRequest -- запрос на обновление временного слота (все поля опциональные).
