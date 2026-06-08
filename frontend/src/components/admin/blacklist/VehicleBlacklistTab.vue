@@ -7,11 +7,13 @@
       :api-list="listVehicleBlacklist"
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
+      :lookup-card="lookupCar"
       @count="$emit('count', $event)"
       @create="showCreate = true"
       @archive="askArchive"
       @restore="doRestore"
       @history="historyItem = $event"
+      @open-card="openCard"
     >
       <template #header-left>
         <slot name="header-left" />
@@ -40,6 +42,14 @@
       @confirm="doArchive"
       @cancel="archiveItem = null"
     />
+    <VehicleDetailsModal
+      :show="showDetails"
+      :vehicle="detailsVehicle"
+      :show-car-features="true"
+      source="blacklist"
+      :current-user-name="currentUserName"
+      @close="showDetails = false"
+    />
   </div>
 </template>
 
@@ -48,12 +58,14 @@ import BlacklistTabBase from './BlacklistTabBase.vue';
 import BlacklistCreateModal from './BlacklistCreateModal.vue';
 import VehicleBlacklistHistoryModal from './VehicleBlacklistHistoryModal.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import {
   listVehicleBlacklist,
   createVehicleBlacklist,
   archiveVehicleBlacklist,
   restoreVehicleBlacklist,
 } from '@/api/blacklist';
+import { lookupUniqueCar } from '@/api/cars';
 import { formatDateTime } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
 import carIcon from '@/assets/icons/car.png';
@@ -64,13 +76,13 @@ import carIcon from '@/assets/icons/car.png';
  */
 export default {
   name: 'VehicleBlacklistTab',
-  components: { BlacklistTabBase, BlacklistCreateModal, VehicleBlacklistHistoryModal, ConfirmationModal },
+  components: { BlacklistTabBase, BlacklistCreateModal, VehicleBlacklistHistoryModal, ConfirmationModal, VehicleDetailsModal },
   props: {
     currentUserName: { type: String, default: '' },
   },
   emits: ['count'],
   data() {
-    return { showCreate: false, archiveItem: null, historyItem: null, carIcon };
+    return { showCreate: false, archiveItem: null, historyItem: null, carIcon, detailsVehicle: null, showDetails: false };
   },
   computed: {
     archiveMessage() {
@@ -92,6 +104,30 @@ export default {
         { label: 'Причина', value: item.reason, kind: 'reason' },
         { label: 'Добавлена', value: formatDateTime(item.created_at) },
       ];
+    },
+    // Лукап машины в реестре по номеру+марке записи ЧС -> объект для VehicleDetailsModal
+    // (как CarsView.openCarDetails). null, если машины в реестре нет (кнопка останется disabled).
+    async lookupCar(item) {
+      const car = await lookupUniqueCar({ number: item.car_number, mark: item.mark_name });
+      if (!car) return null;
+      return {
+        id: car.id,
+        plateNumber: car.number,
+        mark: car.mark,
+        formatId: car.format_id || null,
+        organization: car.organization_name || null,
+        organizationId: car.organization_id || null,
+        company: car.company_name || null,
+        companyId: car.company_id || null,
+        isExisting: true,
+        unloadPlaces: [],
+        isActive: car.status,
+      };
+    },
+    openCard(vehicle) {
+      if (!vehicle) return;
+      this.detailsVehicle = vehicle;
+      this.showDetails = true;
     },
     async onCreated(name) {
       this.showCreate = false;

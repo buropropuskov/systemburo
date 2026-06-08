@@ -39,7 +39,7 @@
                   <span>Полная история</span>
                 </button>
                 <button
-                  v-if="showCarFeatures && source !== 'application'"
+                  v-if="showCarFeatures && source !== 'application' && source !== 'blacklist'"
                   class="application-btn"
                   @click="openApplication"
                 >
@@ -436,7 +436,7 @@ export default {
         // "Открыть заявку" - при showCarFeatures и source !== 'application'.
         visibleActionsCount() {
             const history = this.showCarFeatures ? 1 : 0;
-            const application = (this.showCarFeatures && this.source !== 'application') ? 1 : 0;
+            const application = (this.showCarFeatures && this.source !== 'application' && this.source !== 'blacklist') ? 1 : 0;
             return history + application;
         },
         modalTitle() {

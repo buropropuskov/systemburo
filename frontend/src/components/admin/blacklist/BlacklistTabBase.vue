@@ -93,6 +93,15 @@
           </div>
           <div class="bl-details-actions">
             <button
+              v-if="lookupCard"
+              class="lk-button lk-button--secondary"
+              :disabled="cardLoading || !cardEntity"
+              :title="cardButtonTitle"
+              @click="$emit('open-card', cardEntity)"
+            >
+              Открыть карточку
+            </button>
+            <button
               class="lk-button lk-button--ghost"
               @click="$emit('history', selected)"
             >
@@ -186,8 +195,11 @@ export default {
     apiList: { type: Function, required: true },
     getPrimaryText: { type: Function, required: true },
     getDetailRows: { type: Function, required: true },
+    // Опц. async (item) => entity|null. Если задан - в панели появляется кнопка
+    // "Открыть карточку" (disabled, пока запись в реестре не найдена).
+    lookupCard: { type: Function, default: null },
   },
-  emits: ['count', 'create', 'archive', 'restore', 'history'],
+  emits: ['count', 'create', 'archive', 'restore', 'history', 'open-card'],
   data() {
     return {
       items: [],
@@ -195,6 +207,9 @@ export default {
       showArchive: false,
       isLoading: false,
       selected: null,
+      cardEntity: null,
+      cardLoading: false,
+      cardReqId: 0,
       archiveOptions: [
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
@@ -224,6 +239,11 @@ export default {
     metaRows() {
       return this.detailData.filter((r) => r.kind !== 'reason');
     },
+    cardButtonTitle() {
+      if (this.cardLoading) return 'Поиск записи в реестре...';
+      if (!this.cardEntity) return 'Запись в реестре не найдена';
+      return 'Открыть карточку с историей';
+    },
   },
   mounted() {
     this.fetchData();
@@ -247,9 +267,37 @@ export default {
     onArchiveModeChange(value) {
       this.showArchive = value === 'archive';
       this.selected = null;
+      this.cardEntity = null;
+      this.cardLoading = false;
+      this.cardReqId++; // инвалидируем in-flight лукап
     },
     selectItem(item) {
       this.selected = item;
+      this.resolveCard(item);
+    },
+    async resolveCard(item) {
+      this.cardEntity = null;
+      if (!this.lookupCard || !item) {
+        this.cardLoading = false;
+        return;
+      }
+      // Счётчик запросов: применяем результат только последнего лукапа (защита от гонки
+      // при быстром переключении строк - устаревший ответ не сбросит loading и не подставит
+      // чужую запись).
+      const reqId = ++this.cardReqId;
+      this.cardLoading = true;
+      try {
+        const entity = await this.lookupCard(item);
+        if (reqId === this.cardReqId) {
+          this.cardEntity = entity || null;
+          this.cardLoading = false;
+        }
+      } catch {
+        if (reqId === this.cardReqId) {
+          this.cardEntity = null;
+          this.cardLoading = false;
+        }
+      }
     },
   },
 };
