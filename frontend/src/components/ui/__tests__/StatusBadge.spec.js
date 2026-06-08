@@ -12,6 +12,7 @@ describe('StatusBadge', () => {
       ['Активен', 'status-badge--green'],
       ['Неактивен', 'status-badge--gray'],
       ['Отклонено', 'status-badge--red'],
+      ['Чёрный список', 'status-badge--red'],
       ['Непрочитано', 'status-badge--yellow'],
     ])('"%s" renders with class "%s"', (status, expectedClass) => {
       const wrapper = mount(StatusBadge, { props: { status } });
