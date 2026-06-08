@@ -23,6 +23,12 @@
         >
           Создать запись
         </button>
+        <button
+          class="lk-button lk-button--ghost"
+          @click="$emit('history-all')"
+        >
+          История
+        </button>
         <RefreshButton
           :loading="isLoading"
           @refresh="fetchData"
@@ -106,11 +112,37 @@
               Открыть карточку
             </button>
             <button
-              class="lk-button lk-button--ghost"
-              @click="$emit('history', selected)"
+              v-if="selected.is_active"
+              class="lk-button lk-button--danger"
+              @click="$emit('archive', selected)"
             >
-              История
+              Убрать из ЧС
             </button>
+            <template v-else>
+              <button
+                class="lk-button lk-button--secondary"
+                @click="$emit('restore', selected)"
+              >
+                Вернуть в ЧС
+              </button>
+              <button
+                class="lk-button lk-button--danger"
+                @click="$emit('purge', selected)"
+              >
+                Удалить навсегда
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="bl-details-body">
+          <div class="bl-status-row">
+            <div
+              class="bl-status-banner"
+              :class="selected.is_active ? 'is-active' : 'is-archived'"
+            >
+              <span class="bl-status-dot" />
+              {{ selected.is_active ? 'В чёрном списке' : 'Снято с ЧС - в архиве' }}
+            </div>
             <button
               v-if="selected.is_active"
               class="lk-button lk-button--secondary"
@@ -118,29 +150,6 @@
             >
               Редактировать
             </button>
-            <button
-              v-if="selected.is_active"
-              class="lk-button lk-button--danger"
-              @click="$emit('archive', selected)"
-            >
-              Убрать из ЧС
-            </button>
-            <button
-              v-else
-              class="lk-button lk-button--secondary"
-              @click="$emit('restore', selected)"
-            >
-              Вернуть в ЧС
-            </button>
-          </div>
-        </div>
-        <div class="bl-details-body">
-          <div
-            class="bl-status-banner"
-            :class="selected.is_active ? 'is-active' : 'is-archived'"
-          >
-            <span class="bl-status-dot" />
-            {{ selected.is_active ? 'В чёрном списке' : 'Снято с ЧС - в архиве' }}
           </div>
 
           <div
@@ -210,7 +219,7 @@ export default {
     // "Открыть карточку" (disabled, пока запись в реестре не найдена).
     lookupCard: { type: Function, default: null },
   },
-  emits: ['count', 'create', 'archive', 'restore', 'history', 'open-card', 'edit'],
+  emits: ['count', 'create', 'archive', 'restore', 'history-all', 'open-card', 'edit', 'purge'],
   data() {
     return {
       items: [],
@@ -492,11 +501,17 @@ export default {
   gap: 16px;
 }
 
+.bl-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .bl-status-banner {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  align-self: flex-start;
   padding: 6px 14px;
   border-radius: var(--radius-pill);
   font-size: 13px;

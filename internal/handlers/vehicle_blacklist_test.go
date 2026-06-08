@@ -297,3 +297,91 @@ func TestVehicleBlacklist_UpdateReason(t *testing.T) {
 		assertHTTPStatus(t, err, http.StatusBadRequest)
 	})
 }
+
+// TestVehicleBlacklist_Purge: удаление архивной записи навсегда стирает саму запись, но
+// сохраняет историю и пишет событие purged в общий журнал; активную удалять нельзя.
+func TestVehicleBlacklist_Purge(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_Purge")
+	svc := newVehicleBlacklistService(db)
+	ctx := context.Background()
+
+	entry, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "P777PP799", MarkID: mark.ID, Reason: "на удаление",
+	}, userID)
+	require.NoError(t, err)
+
+	// Активную удалять нельзя.
+	assertHTTPStatus(t, svc.Purge(ctx, entry.ID, userID), http.StatusBadRequest)
+
+	require.NoError(t, svc.Archive(ctx, entry.ID, userID))
+	require.NoError(t, svc.Purge(ctx, entry.ID, userID))
+
+	// Сама запись физически удалена.
+	_, err = svc.GetByID(ctx, entry.ID)
+	assertHTTPStatus(t, err, http.StatusNotFound)
+
+	// История по entity_id сохранилась и содержит событие purged.
+	hist, err := svc.GetHistory(ctx, entry.ID)
+	require.NoError(t, err)
+	actions := make([]string, 0, len(hist))
+	for _, h := range hist {
+		actions = append(actions, h.ActionType)
+	}
+	assert.Contains(t, actions, models.BlacklistActionCreated)
+	assert.Contains(t, actions, models.BlacklistActionArchived)
+	assert.Contains(t, actions, models.BlacklistActionPurged)
+}
+
+// TestVehicleBlacklist_GetAllHistory: общий журнал отдаёт события всех записей (включая
+// удалённую) с именем пользователя, новые сверху.
+func TestVehicleBlacklist_GetAllHistory(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_AllHist")
+	svc := newVehicleBlacklistService(db)
+	ctx := context.Background()
+
+	e1, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "H100HH799", MarkID: mark.ID, Reason: "первая",
+	}, userID)
+	require.NoError(t, err)
+	e2, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "H200HH799", MarkID: mark.ID, Reason: "вторая",
+	}, userID)
+	require.NoError(t, err)
+	require.NoError(t, svc.Archive(ctx, e2.ID, userID))
+	require.NoError(t, svc.Purge(ctx, e2.ID, userID))
+
+	all, err := svc.GetAllHistory(ctx)
+	require.NoError(t, err)
+	// created x2, archived x1, purged x1 = минимум 4 события обеих записей.
+	require.GreaterOrEqual(t, len(all), 4)
+
+	var sawE1Created, sawE2Purged bool
+	for _, h := range all {
+		assert.NotEmpty(t, h.UserName, "должно подтягиваться имя пользователя")
+		if h.EntityID == e1.ID && h.ActionType == models.BlacklistActionCreated {
+			sawE1Created = true
+		}
+		if h.EntityID == e2.ID && h.ActionType == models.BlacklistActionPurged {
+			sawE2Purged = true
+		}
+	}
+	assert.True(t, sawE1Created, "журнал должен содержать created первой записи")
+	assert.True(t, sawE2Purged, "журнал должен содержать purged удалённой записи")
+
+	// Новые сверху.
+	for i := 1; i < len(all); i++ {
+		assert.False(t, all[i].CreatedAt.After(all[i-1].CreatedAt), "события должны идти от новых к старым")
+	}
+}

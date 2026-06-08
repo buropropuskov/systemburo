@@ -37,7 +37,12 @@ type VehicleBlacklistService interface {
 	CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error)
 	// UpdateReason - редактирование причины записи + лог в историю (updated).
 	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error)
+	// Purge - удаление архивной записи навсегда: запись удаляется физически, но событие
+	// purged (с лейблом машины) остаётся в общем журнале ЧС. Активную удалять нельзя.
+	Purge(ctx context.Context, id int, userID int) error
 	GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error)
+	// GetAllHistory - весь журнал ЧС машин (все события всех записей, включая удалённые).
+	GetAllHistory(ctx context.Context) ([]models.VehicleBlacklistHistoryItem, error)
 }
 
 type vehicleBlacklistService struct {
@@ -165,7 +170,12 @@ func (s *vehicleBlacklistService) UpdateReason(ctx context.Context, id int, reas
 		if err := tx.Model(&models.VehicleBlacklist{}).Where("id = ?", e.ID).Update("reason", newReason).Error; err != nil {
 			return err
 		}
-		details := map[string]interface{}{"reason_old": oldReason, "reason_new": newReason}
+		details := map[string]interface{}{
+			"car_number": e.CarNumber,
+			"mark_name":  e.MarkName,
+			"reason_old": oldReason,
+			"reason_new": newReason,
+		}
 		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
 	})
 	if err != nil {
@@ -173,6 +183,34 @@ func (s *vehicleBlacklistService) UpdateReason(ctx context.Context, id int, reas
 	}
 	e.Reason = newReason
 	return e, nil
+}
+
+// Purge удаляет архивную запись навсегда. Сначала логируем purged-событие (с лейблом
+// машины в details), затем физически удаляем запись - в одной транзакции. История по
+// entity_id остаётся (FK нет), общий журнал ЧС сохраняет весь жизненный цикл записи.
+func (s *vehicleBlacklistService) Purge(ctx context.Context, id int, userID int) error {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if e.IsActive {
+		return echo.NewHTTPError(http.StatusBadRequest, "Нельзя удалить навсегда активную запись - сначала уберите из чёрного списка")
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		details := map[string]interface{}{
+			"car_number": e.CarNumber,
+			"mark_name":  e.MarkName,
+			"reason":     e.Reason,
+		}
+		if err := s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionPurged, details); err != nil {
+			return err
+		}
+		return tx.Where("id = ?", e.ID).Delete(&models.VehicleBlacklist{}).Error
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка удаления записи чёрного списка")
+	}
+	return nil
 }
 
 func (s *vehicleBlacklistService) Restore(ctx context.Context, id int, userID int) error {
@@ -243,6 +281,10 @@ func (s *vehicleBlacklistService) CheckByName(ctx context.Context, carNumber, ma
 
 func (s *vehicleBlacklistService) GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error) {
 	return s.history.GetHistory(ctx, id)
+}
+
+func (s *vehicleBlacklistService) GetAllHistory(ctx context.Context) ([]models.VehicleBlacklistHistoryItem, error) {
+	return s.history.GetAllHistory(ctx)
 }
 
 // deactivateMatchingCars деактивирует (status 1 -> 0) активные cars, совпадающие с записью

@@ -46,6 +46,10 @@ export function restoreVehicleBlacklist(id) {
   return mutate(`/vehicle-blacklist/${id}/restore`);
 }
 
+export function purgeVehicleBlacklist(id) {
+  return mutate(`/vehicle-blacklist/${id}/purge`, { method: 'DELETE' });
+}
+
 export function createPersonBlacklist({ last_name, first_name, middle_name, reason }) {
   return mutate('/person-blacklist', { body: { last_name, first_name, middle_name, reason } });
 }
@@ -62,6 +66,10 @@ export function restorePersonBlacklist(id) {
   return mutate(`/person-blacklist/${id}/restore`);
 }
 
+export function purgePersonBlacklist(id) {
+  return mutate(`/person-blacklist/${id}/purge`, { method: 'DELETE' });
+}
+
 export async function getVehicleBlacklistHistory(id) {
   const res = await apiRequest(`/vehicle-blacklist/${id}/history`);
   return res.json();
@@ -69,6 +77,18 @@ export async function getVehicleBlacklistHistory(id) {
 
 export async function getPersonBlacklistHistory(id) {
   const res = await apiRequest(`/person-blacklist/${id}/history`);
+  return res.json();
+}
+
+/** Весь журнал ЧС машин (все события всех записей, включая удалённые). */
+export async function getAllVehicleBlacklistHistory() {
+  const res = await apiRequest('/vehicle-blacklist/history');
+  return res.json();
+}
+
+/** Весь журнал ЧС людей (все события всех записей, включая удалённые). */
+export async function getAllPersonBlacklistHistory() {
+  const res = await apiRequest('/person-blacklist/history');
   return res.json();
 }
 

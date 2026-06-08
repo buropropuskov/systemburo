@@ -158,6 +158,13 @@
               />
 
               <div class="history-content">
+                <div
+                  v-if="getEntityLabel(item)"
+                  class="history-entity"
+                >
+                  {{ getEntityLabel(item) }}
+                </div>
+
                 <div class="history-header">
                   <span class="user-name">{{ item.user_name || 'Система' }}</span>
                   <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
@@ -168,7 +175,31 @@
                 </div>
 
                 <div
-                  v-if="getActionComment(item)"
+                  v-if="getReasonDiff(item)"
+                  class="action-diff"
+                >
+                  <span class="diff-old">{{ getReasonDiff(item).from }}</span>
+                  <svg
+                    class="diff-arrow"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M4 12h14M13 6l6 6-6 6"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span class="diff-new">{{ getReasonDiff(item).to }}</span>
+                </div>
+
+                <div
+                  v-else-if="getActionComment(item)"
                   class="action-comment"
                 >
                   {{ getActionComment(item) }}
@@ -194,6 +225,7 @@ const ACTION_DOT_CLASS = {
   archived: 'dot-deactivate',
   restored: 'dot-activate',
   updated: 'dot-update',
+  purged: 'dot-delete',
 };
 
 /**
@@ -215,6 +247,13 @@ export default {
     actionTexts: { type: Object, required: true },
     /** ключ поля details -> лейбл; показываются только присутствующие тут ключи. */
     fieldLabels: { type: Object, default: () => ({}) },
+    /**
+     * Опц. (item) => string - лейбл сущности (номер+марка / ФИО) для общего журнала ЧС.
+     * Берётся из item.details, поэтому показывается и для физически удалённых записей.
+     */
+    entityLabelFn: { type: Function, default: null },
+    /** ключи details, которые НЕ показывать в комментарии (рендерятся отдельно - лейбл, diff). */
+    commentExcludeKeys: { type: Array, default: () => [] },
     currentUserName: { type: String, default: '' },
   },
   emits: ['close'],
@@ -261,7 +300,11 @@ export default {
           const userName = (item.user_name || '').toLowerCase();
           const actionText = this.getActionText(item).toLowerCase();
           const comment = this.getActionComment(item).toLowerCase();
-          return userName.includes(query) || actionText.includes(query) || comment.includes(query);
+          const entity = this.getEntityLabel(item).toLowerCase();
+          const diff = this.getReasonDiff(item);
+          const diffText = diff ? `${diff.from} ${diff.to}`.toLowerCase() : '';
+          return userName.includes(query) || actionText.includes(query)
+            || comment.includes(query) || entity.includes(query) || diffText.includes(query);
         });
       }
 
@@ -312,14 +355,19 @@ export default {
     },
 
     exportData() {
-      return this.filteredHistory.map((item) => ({
-        'Дата и время': this.formatDateTime(item.created_at),
-        Пользователь: item.user_name || 'Система',
-        Действие: this.getActionText(item),
-        Детали: this.getActionComment(item),
-        'Тип действия': item.action_type,
-        'ID записи': item.id,
-      }));
+      const hasEntity = !!this.entityLabelFn;
+      return this.filteredHistory.map((item) => {
+        const row = {
+          'Дата и время': this.formatDateTime(item.created_at),
+          Пользователь: item.user_name || 'Система',
+        };
+        if (hasEntity) row['Объект'] = this.getEntityLabel(item) || '-';
+        row['Действие'] = this.getActionText(item);
+        row['Детали'] = this.getDetailText(item);
+        row['Тип действия'] = item.action_type;
+        row['ID записи'] = item.id;
+        return row;
+      });
     },
   },
   mounted() {
@@ -370,17 +418,44 @@ export default {
       return this.actionTexts[item.action_type] || item.action_type;
     },
 
+    /** Лейбл сущности (номер+марка / ФИО) для строки общего журнала. */
+    getEntityLabel(item) {
+      if (!this.entityLabelFn) return '';
+      try {
+        return this.entityLabelFn(item) || '';
+      } catch {
+        return '';
+      }
+    },
+
+    /**
+     * Диф причины для action=updated: { from, to }. Рендерится отдельной строкой со
+     * стрелкой (#1) вместо текстового "Было: / Стало:". null - если это не правка причины.
+     */
+    getReasonDiff(item) {
+      if (item.action_type !== 'updated') return null;
+      const d = item.details;
+      if (!d || typeof d !== 'object') return null;
+      if (!('reason_old' in d) && !('reason_new' in d)) return null;
+      return {
+        from: d.reason_old ? String(d.reason_old) : '-',
+        to: d.reason_new ? String(d.reason_new) : '-',
+      };
+    },
+
     /**
      * Читаемые детали для timeline. Показываем только ключи из fieldLabels,
-     * пропуская пустые значения и нулевые счётчики (иначе "Деактивировано: 0" - шум).
+     * пропуская пустые значения, нулевые счётчики (иначе "Деактивировано: 0" - шум) и
+     * ключи из commentExcludeKeys (лейбл сущности и причина-диф рендерятся отдельно).
      */
     getActionComment(item) {
       const d = item.details;
       if (!d || typeof d !== 'object') return '';
       const parts = [];
       // Порядок - по объявлению в fieldLabels (а не по ключам details: jsonb не хранит
-      // порядок, иначе "Стало/Было" показывались бы в произвольном порядке).
+      // порядок, иначе поля показывались бы в произвольном порядке).
       for (const key of Object.keys(this.fieldLabels)) {
+        if (this.commentExcludeKeys.includes(key)) continue;
         if (!(key in d)) continue;
         const raw = d[key];
         if (raw === null || raw === undefined || raw === '') continue;
@@ -394,6 +469,17 @@ export default {
       if (typeof value === 'boolean') return value ? 'да' : 'нет';
       const s = String(value);
       return s.length > 80 ? `${s.slice(0, 80)}...` : s;
+    },
+
+    /** Детали для экспорта: комментарий + причина-диф (в Excel стрелку рисовать нечем). */
+    getDetailText(item) {
+      const diff = this.getReasonDiff(item);
+      const comment = this.getActionComment(item);
+      if (diff) {
+        const d = `Причина: ${diff.from} -> ${diff.to}`;
+        return comment ? `${comment} / ${d}` : d;
+      }
+      return comment;
     },
 
     toggleSortOrder() {
@@ -416,7 +502,7 @@ export default {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('История');
 
-        const headers = ['Дата и время', 'Пользователь', 'Действие', 'Детали', 'Тип действия', 'ID записи'];
+        const headers = Object.keys(this.exportData[0]);
         const headerRow = worksheet.addRow(headers);
         headerRow.height = 25;
         headerRow.eachCell((cell) => {
@@ -432,14 +518,7 @@ export default {
         });
 
         this.exportData.forEach((item, index) => {
-          const row = worksheet.addRow([
-            item['Дата и время'],
-            item.Пользователь,
-            item.Действие,
-            item.Детали,
-            item['Тип действия'],
-            item['ID записи'],
-          ]);
+          const row = worksheet.addRow(headers.map((h) => item[h]));
           row.height = 20;
           const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
           row.eachCell((cell) => {
@@ -486,14 +565,16 @@ export default {
           });
         });
 
-        worksheet.columns = [
-          { width: 22 },
-          { width: 30 },
-          { width: 30 },
-          { width: 60 },
-          { width: 22 },
-          { width: 12 },
-        ];
+        const colWidths = {
+          'Дата и время': 22,
+          Пользователь: 30,
+          Объект: 32,
+          Действие: 26,
+          Детали: 60,
+          'Тип действия': 18,
+          'ID записи': 12,
+        };
+        worksheet.columns = headers.map((h) => ({ width: colWidths[h] || 20 }));
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -863,13 +944,23 @@ export default {
 }
 
 .dot-create { background: #4F5BDF; }
+.dot-update { background: #f59e0b; }
 .dot-activate { background: #10b981; }
 .dot-deactivate { background: #6b7280; }
+.dot-delete { background: #dc2626; }
 .dot-default { background: #9ca3af; }
 
 .history-content {
   flex: 1;
   min-width: 0;
+}
+
+.history-entity {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+  word-break: break-word;
 }
 
 .history-header {
@@ -904,6 +995,39 @@ export default {
   padding-left: 6px;
   border-left: 2px solid #e6e6e6;
   word-break: break-word;
+}
+
+.action-diff {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.diff-old,
+.diff-new {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  word-break: break-word;
+}
+
+.diff-old {
+  background: #f1f3f5;
+  color: #6b7280;
+  text-decoration: line-through;
+}
+
+.diff-new {
+  background: #e7f6ec;
+  color: #15803d;
+  font-weight: 500;
+}
+
+.diff-arrow {
+  flex-shrink: 0;
+  color: #9ca3af;
 }
 
 @media (max-width: 768px) {

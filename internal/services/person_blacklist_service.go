@@ -28,7 +28,12 @@ type PersonBlacklistService interface {
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
 	// UpdateReason - редактирование причины записи + лог в историю (updated).
 	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error)
+	// Purge - удаление архивной записи навсегда: запись удаляется физически, но событие
+	// purged (с ФИО) остаётся в общем журнале ЧС. Активную удалять нельзя.
+	Purge(ctx context.Context, id int, userID int) error
 	GetHistory(ctx context.Context, id int) ([]models.PersonBlacklistHistoryItem, error)
+	// GetAllHistory - весь журнал ЧС людей (все события всех записей, включая удалённые).
+	GetAllHistory(ctx context.Context) ([]models.PersonBlacklistHistoryItem, error)
 }
 
 type personBlacklistService struct {
@@ -194,7 +199,11 @@ func (s *personBlacklistService) UpdateReason(ctx context.Context, id int, reaso
 		if err := tx.Model(&models.PersonBlacklist{}).Where("id = ?", e.ID).Update("reason", newReason).Error; err != nil {
 			return err
 		}
-		details := map[string]interface{}{"reason_old": oldReason, "reason_new": newReason}
+		details := map[string]interface{}{
+			"full_name":  personFullName(*e),
+			"reason_old": oldReason,
+			"reason_new": newReason,
+		}
 		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
 	})
 	if err != nil {
@@ -204,8 +213,38 @@ func (s *personBlacklistService) UpdateReason(ctx context.Context, id int, reaso
 	return e, nil
 }
 
+// Purge удаляет архивную запись навсегда. Логируем purged-событие (с ФИО в details),
+// затем физически удаляем запись - в одной транзакции. История по entity_id остаётся.
+func (s *personBlacklistService) Purge(ctx context.Context, id int, userID int) error {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if e.IsActive {
+		return echo.NewHTTPError(http.StatusBadRequest, "Нельзя удалить навсегда активную запись - сначала уберите из чёрного списка")
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		details := map[string]interface{}{
+			"full_name": personFullName(*e),
+			"reason":    e.Reason,
+		}
+		if err := s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionPurged, details); err != nil {
+			return err
+		}
+		return tx.Where("id = ?", e.ID).Delete(&models.PersonBlacklist{}).Error
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка удаления записи чёрного списка")
+	}
+	return nil
+}
+
 func (s *personBlacklistService) GetHistory(ctx context.Context, id int) ([]models.PersonBlacklistHistoryItem, error) {
 	return s.history.GetHistory(ctx, id)
+}
+
+func (s *personBlacklistService) GetAllHistory(ctx context.Context) ([]models.PersonBlacklistHistoryItem, error) {
+	return s.history.GetAllHistory(ctx)
 }
 
 // deactivateMatchingEmployees гасит (status 1 -> 0, date_deleted) активных employees,

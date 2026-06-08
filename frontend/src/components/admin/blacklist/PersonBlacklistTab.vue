@@ -12,7 +12,8 @@
       @create="showCreate = true"
       @archive="askArchive"
       @restore="doRestore"
-      @history="historyItem = $event"
+      @purge="askPurge"
+      @history-all="showHistory = true"
       @open-card="openCard"
       @edit="onEdit"
     >
@@ -40,10 +41,9 @@
       @created="onCreated"
     />
     <PersonBlacklistHistoryModal
-      v-if="historyItem"
-      :item="historyItem"
+      v-if="showHistory"
       :current-user-name="currentUserName"
-      @close="historyItem = null"
+      @close="showHistory = false"
     />
     <ConfirmationModal
       :show="!!archiveItem"
@@ -54,6 +54,16 @@
       :confirm-button-style="{ background: '#dc3545', borderColor: '#dc3545' }"
       @confirm="doArchive"
       @cancel="archiveItem = null"
+    />
+    <ConfirmationModal
+      :show="!!purgeItem"
+      title="Удалить запись навсегда"
+      :message="purgeMessage"
+      confirm-text="Удалить навсегда"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#dc3545', borderColor: '#dc3545' }"
+      @confirm="doPurge"
+      @cancel="purgeItem = null"
     />
     <EmployeeDetailsModal
       :show="showDetails"
@@ -78,6 +88,7 @@ import {
   updatePersonBlacklist,
   archivePersonBlacklist,
   restorePersonBlacklist,
+  purgePersonBlacklist,
 } from '@/api/blacklist';
 import { lookupUniqueEmployee } from '@/api/employees';
 import { formatDateTime } from '@/utils/datetime';
@@ -97,14 +108,19 @@ export default {
   emits: ['count'],
   data() {
     return {
-      showCreate: false, archiveItem: null, historyItem: null, userIcon, detailsEmployee: null, showDetails: false,
-      editItem: null, savingEdit: false, editError: '',
+      showCreate: false, archiveItem: null, showHistory: false, userIcon, detailsEmployee: null, showDetails: false,
+      editItem: null, savingEdit: false, editError: '', purgeItem: null,
     };
   },
   computed: {
     archiveMessage() {
       return this.archiveItem
         ? `Убрать «${this.primaryText(this.archiveItem)}» из чёрного списка? Совпадающие сотрудники с активной заявкой снова станут активными.`
+        : '';
+    },
+    purgeMessage() {
+      return this.purgeItem
+        ? `Удалить «${this.primaryText(this.purgeItem)}» из архива навсегда? Запись исчезнет, но событие останется в общей истории чёрного списка.`
         : '';
     },
   },
@@ -199,6 +215,21 @@ export default {
         await this.$refs.base.fetchData();
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Не удалось вернуть: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    askPurge(item) {
+      this.purgeItem = item;
+    },
+    async doPurge() {
+      const item = this.purgeItem;
+      this.purgeItem = null;
+      if (!item) return;
+      try {
+        await purgePersonBlacklist(item.id);
+        useDeletionsStore().notify({ prefix: 'Человек ', bold: this.primaryText(item), suffix: ' удалён навсегда' });
+        await this.$refs.base.fetchData();
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
   },
