@@ -16,15 +16,18 @@ import (
 // WHERE is_active = true (создаётся в database.Seed), чтобы архивная запись не мешала
 // повторно добавить ту же машину.
 type VehicleBlacklist struct {
-	ID              int       `json:"id"`
-	CarNumber       string    `gorm:"size:50;index" json:"car_number"`
-	MarkID          int       `gorm:"index" json:"mark_id"`
-	MarkName        string    `gorm:"size:100" json:"mark_name"` // снапшот имени марки на момент добавления
-	Reason          string    `gorm:"type:text" json:"reason"`
-	IsActive        bool      `gorm:"default:true;index" json:"is_active"`
-	CreatedByUserID *int      `json:"created_by_user_id,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID        int    `json:"id"`
+	CarNumber string `gorm:"size:50;index" json:"car_number"`
+	MarkID    int    `gorm:"index" json:"mark_id"`
+	MarkName  string `gorm:"size:100" json:"mark_name"` // снапшот имени марки на момент добавления
+	Reason    string `gorm:"type:text" json:"reason"`
+	// NormalizedNumber - каноническая форма номера (normalize.Plate) для нечёткого
+	// поиска возможного обхода ЧС (#481). Заполняется при Create и бэкфиллом в Seed.
+	NormalizedNumber string    `gorm:"size:50" json:"-"`
+	IsActive         bool      `gorm:"default:true;index" json:"is_active"`
+	CreatedByUserID  *int      `json:"created_by_user_id,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // VehicleBlacklistHistory - аудит действий над записью чёрного списка машин.
@@ -89,11 +92,14 @@ type VehicleBlacklistCheckResult struct {
 // Активная запись блокирует подачу заявок и каскадно деактивирует совпадающих employees.
 // Уникальность активных - partial unique index по нормализованному ФИО (см. database.Seed).
 type PersonBlacklist struct {
-	ID              int       `json:"id"`
-	LastName        string    `gorm:"size:100;index" json:"last_name"`
-	FirstName       string    `gorm:"size:100;index" json:"first_name"`
-	MiddleName      *string   `gorm:"size:100" json:"middle_name,omitempty"`
-	Reason          string    `gorm:"type:text" json:"reason"`
+	ID         int     `json:"id"`
+	LastName   string  `gorm:"size:100;index" json:"last_name"`
+	FirstName  string  `gorm:"size:100;index" json:"first_name"`
+	MiddleName *string `gorm:"size:100" json:"middle_name,omitempty"`
+	Reason     string  `gorm:"type:text" json:"reason"`
+	// NormalizedFIO - каноническая форма ФИО (normalize.Name) для нечёткого поиска
+	// возможного обхода ЧС (#481). Заполняется при Create и бэкфиллом в Seed.
+	NormalizedFIO   string    `gorm:"size:300" json:"-"`
 	IsActive        bool      `gorm:"default:true;index" json:"is_active"`
 	CreatedByUserID *int      `json:"created_by_user_id,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`

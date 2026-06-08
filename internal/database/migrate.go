@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"gorm.io/gorm"
 )
@@ -179,6 +180,43 @@ func backfillSuperAdmin(db *gorm.DB) error {
 	return nil
 }
 
+// backfillBlacklistNormalized заполняет normalized_number/normalized_fio у записей
+// чёрного списка, добавленных до появления этих колонок (#481). Использует ту же
+// функцию нормализации, что и сервисы при Create, - иначе эталон в БД разойдётся с
+// нормализацией поискового запроса. Идемпотентно: трогает только пустые значения.
+func backfillBlacklistNormalized(db *gorm.DB) error {
+	var vehicles []models.VehicleBlacklist
+	if err := db.Where("normalized_number = '' OR normalized_number IS NULL").Find(&vehicles).Error; err != nil {
+		return fmt.Errorf("failed to load vehicle_blacklists for normalization backfill: %w", err)
+	}
+	for _, v := range vehicles {
+		if err := db.Model(&models.VehicleBlacklist{}).Where("id = ?", v.ID).
+			Update("normalized_number", normalize.Plate(v.CarNumber)).Error; err != nil {
+			return fmt.Errorf("failed to backfill normalized_number for vehicle_blacklist %d: %w", v.ID, err)
+		}
+	}
+
+	var persons []models.PersonBlacklist
+	if err := db.Where("normalized_fio = '' OR normalized_fio IS NULL").Find(&persons).Error; err != nil {
+		return fmt.Errorf("failed to load person_blacklists for normalization backfill: %w", err)
+	}
+	for _, p := range persons {
+		middle := ""
+		if p.MiddleName != nil {
+			middle = *p.MiddleName
+		}
+		if err := db.Model(&models.PersonBlacklist{}).Where("id = ?", p.ID).
+			Update("normalized_fio", normalize.Name(p.LastName, p.FirstName, middle)).Error; err != nil {
+			return fmt.Errorf("failed to backfill normalized_fio for person_blacklist %d: %w", p.ID, err)
+		}
+	}
+
+	if len(vehicles) > 0 || len(persons) > 0 {
+		slog.Info("backfilled blacklist normalized fields", "vehicles", len(vehicles), "persons", len(persons))
+	}
+	return nil
+}
+
 // fixAttachmentTemplateIndex заменяет UNIQUE индекс на обычный, если GORM
 // создал его при AutoMigrate для belongs-to связи. Несколько шаблонов на
 // одно вложение - штатный сценарий (#183).
@@ -340,6 +378,15 @@ func Seed(db *gorm.DB) error {
 	}
 	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uidx_person_blacklists_active ON person_blacklists (LOWER(TRIM(last_name)), LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name, '')))) WHERE is_active = true").Error; err != nil {
 		return fmt.Errorf("failed to create partial unique index on person_blacklists: %w", err)
+	}
+
+	// Бэкфилл нормализованных полей ЧС (#481): у записей, добавленных до появления
+	// колонок normalized_*, значение пустое. Заполняем той же функцией, что и при
+	// Create, иначе нечёткий поиск (#481) не найдёт старые записи. Идемпотентно -
+	// берём только пустые. Ошибку возвращаем громко: расхождение нормализации тихо
+	// сломало бы поиск возможного обхода ЧС.
+	if err := backfillBlacklistNormalized(db); err != nil {
+		return err
 	}
 
 	// Seed default tab permissions

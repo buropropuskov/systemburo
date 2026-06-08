@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -70,11 +71,15 @@ func (s *personBlacklistService) GetByID(ctx context.Context, id int) (*models.P
 }
 
 func (s *personBlacklistService) Create(ctx context.Context, req models.CreatePersonBlacklistRequest, userID int) (*models.PersonBlacklist, error) {
+	lastName := strings.TrimSpace(req.LastName)
+	firstName := strings.TrimSpace(req.FirstName)
+	middleName := strings.TrimSpace(req.MiddleName)
 	entry := models.PersonBlacklist{
-		LastName:        strings.TrimSpace(req.LastName),
-		FirstName:       strings.TrimSpace(req.FirstName),
+		LastName:        lastName,
+		FirstName:       firstName,
 		MiddleName:      normalizeMiddleName(req.MiddleName),
 		Reason:          strings.TrimSpace(req.Reason),
+		NormalizedFIO:   normalize.Name(lastName, firstName, middleName),
 		IsActive:        true,
 		CreatedByUserID: &userID,
 	}

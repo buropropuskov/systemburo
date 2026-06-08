@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
@@ -87,13 +88,15 @@ func (s *vehicleBlacklistService) Create(ctx context.Context, req models.CreateV
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения марки")
 	}
 
+	carNumber := strings.TrimSpace(req.CarNumber)
 	entry := models.VehicleBlacklist{
-		CarNumber:       strings.TrimSpace(req.CarNumber),
-		MarkID:          req.MarkID,
-		MarkName:        mark.Name,
-		Reason:          strings.TrimSpace(req.Reason),
-		IsActive:        true,
-		CreatedByUserID: &userID,
+		CarNumber:        carNumber,
+		MarkID:           req.MarkID,
+		MarkName:         mark.Name,
+		Reason:           strings.TrimSpace(req.Reason),
+		NormalizedNumber: normalize.Plate(carNumber),
+		IsActive:         true,
+		CreatedByUserID:  &userID,
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
