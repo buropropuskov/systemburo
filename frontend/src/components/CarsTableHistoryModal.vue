@@ -1,242 +1,254 @@
 <template>
   <Teleport to="body">
-    <div
-      class="modal-overlay"
-      @click.self="close"
+    <transition
+      name="modal-fade"
+      @after-leave="onAfterLeave"
     >
-      <div class="cars-history-modal">
-        <div class="modal-header">
-          <h3>История въездов и выездов всех автомобилей</h3>
-          <div class="header-actions">
-            <button
-              class="export-btn"
-              :disabled="filteredHistory.length === 0 || isExporting"
-              @click="exportToExcel"
-            >
-              <img
-                v-if="!isExporting"
-                src="@/assets/icons/export.png"
-                class="export-icon"
-              >
-              <span v-if="!isExporting">Экспорт</span>
-              <div
-                v-else
-                class="export-loader"
-              />
-            </button>
-            <button
-              class="close-btn"
-              @click="close"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div class="history-filters">
-          <div class="filter-row">
-            <div class="search-filter">
-              <span class="filter-label">Поиск:</span>
-              <input 
-                v-model="searchQuery" 
-                type="text" 
-                class="search-input" 
-                placeholder="Поиск по автомобилю, номеру, организации..."
-                @input="applyFilters"
-              >
-            </div>
-            <div class="user-filter">
-              <span class="filter-label">Пользователь:</span>
-              <div
-                class="custom-select"
-                @click="toggleUserDropdown"
-              >
-                <div class="select-trigger">
-                  <span class="selected-value">{{ selectedUserName }}</span>
-                  <img 
-                    src="@/assets/icons/arrow.png" 
-                    class="select-arrow" 
-                    :class="{ 'arrow-open': userDropdownOpen }"
-                  >
-                </div>
-                <transition name="fade">
-                  <div
-                    v-if="userDropdownOpen"
-                    class="select-dropdown"
-                  >
-                    <div 
-                      class="select-option"
-                      :class="{ 'selected': selectedUserId === null }"
-                      @click="selectUser(null)"
-                    >
-                      Все пользователи
-                    </div>
-                    <div 
-                      v-for="user in uniqueUsers" 
-                      :key="user.id"
-                      class="select-option"
-                      :class="{ 'selected': selectedUserId === user.id }"
-                      @click="selectUser(user.id)"
-                    >
-                      {{ user.name }}
-                    </div>
-                  </div>
-                </transition>
-              </div>
-            </div>
-          
-            <div class="car-filter">
-              <span class="filter-label">Автомобиль:</span>
-              <div
-                class="custom-select"
-                @click="toggleCarDropdown"
-              >
-                <div class="select-trigger">
-                  <span class="selected-value">{{ selectedCarName }}</span>
-                  <img 
-                    src="@/assets/icons/arrow.png" 
-                    class="select-arrow" 
-                    :class="{ 'arrow-open': carDropdownOpen }"
-                  >
-                </div>
-                <transition name="fade">
-                  <div
-                    v-if="carDropdownOpen"
-                    class="select-dropdown"
-                  >
-                    <div 
-                      class="select-option"
-                      :class="{ 'selected': selectedCarId === null }"
-                      @click="selectCar(null)"
-                    >
-                      Все автомобили
-                    </div>
-                    <div 
-                      v-for="car in cars" 
-                      :key="car.id"
-                      class="select-option"
-                      :class="{ 'selected': selectedCarId === car.id }"
-                      @click="selectCar(car.id)"
-                    >
-                      {{ formatCarName(car) }}
-                    </div>
-                  </div>
-                </transition>
-              </div>
-            </div>
-          
-            <div class="date-filter">
-              <span class="filter-label">Период:</span>
-              <input 
-                v-model="dateFrom" 
-                type="date" 
-                class="date-input"
-                @change="applyFilters"
-              >
-              <span class="date-separator">—</span>
-              <input 
-                v-model="dateTo" 
-                type="date" 
-                class="date-input"
-                @change="applyFilters"
-              >
-            </div>
-          
-            <div class="sort-filter">
-              <span class="filter-label">Сортировка:</span>
+      <div
+        v-if="visible"
+        class="modal-overlay"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
+      >
+        <div
+          class="cars-history-modal"
+          @mousedown.stop
+        >
+          <div class="modal-header">
+            <h3>История въездов и выездов всех автомобилей</h3>
+            <div class="header-actions">
               <button
-                class="sort-btn"
-                @click="toggleSortOrder"
+                class="export-btn"
+                :disabled="filteredHistory.length === 0 || isExporting"
+                @click="exportToExcel"
               >
                 <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{ 'sort-asc': sortOrder === 'asc' }"
+                  v-if="!isExporting"
+                  src="@/assets/icons/export.png"
+                  class="export-icon"
                 >
-                <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                <span v-if="!isExporting">Экспорт</span>
+                <div
+                  v-else
+                  class="export-loader"
+                />
+              </button>
+              <button
+                class="close-btn"
+                @click="requestClose"
+              >
+                ×
               </button>
             </div>
           </div>
-        </div>
 
-        <div
-          ref="scrollContainer"
-          class="modal-content"
-        >
-          <div
-            v-if="loading"
-            class="history-loading"
-          >
-            <LoaderSpinner label="Загрузка истории…" />
+          <div class="history-filters">
+            <div class="filter-row">
+              <div class="search-filter">
+                <span class="filter-label">Поиск:</span>
+                <input 
+                  v-model="searchQuery" 
+                  type="text" 
+                  class="search-input" 
+                  placeholder="Поиск по автомобилю, номеру, организации..."
+                  @input="applyFilters"
+                >
+              </div>
+              <div class="user-filter">
+                <span class="filter-label">Пользователь:</span>
+                <div
+                  class="custom-select"
+                  @click="toggleUserDropdown"
+                >
+                  <div class="select-trigger">
+                    <span class="selected-value">{{ selectedUserName }}</span>
+                    <img 
+                      src="@/assets/icons/arrow.png" 
+                      class="select-arrow" 
+                      :class="{ 'arrow-open': userDropdownOpen }"
+                    >
+                  </div>
+                  <transition name="fade">
+                    <div
+                      v-if="userDropdownOpen"
+                      class="select-dropdown"
+                    >
+                      <div 
+                        class="select-option"
+                        :class="{ 'selected': selectedUserId === null }"
+                        @click="selectUser(null)"
+                      >
+                        Все пользователи
+                      </div>
+                      <div 
+                        v-for="user in uniqueUsers" 
+                        :key="user.id"
+                        class="select-option"
+                        :class="{ 'selected': selectedUserId === user.id }"
+                        @click="selectUser(user.id)"
+                      >
+                        {{ user.name }}
+                      </div>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+          
+              <div class="car-filter">
+                <span class="filter-label">Автомобиль:</span>
+                <div
+                  class="custom-select"
+                  @click="toggleCarDropdown"
+                >
+                  <div class="select-trigger">
+                    <span class="selected-value">{{ selectedCarName }}</span>
+                    <img 
+                      src="@/assets/icons/arrow.png" 
+                      class="select-arrow" 
+                      :class="{ 'arrow-open': carDropdownOpen }"
+                    >
+                  </div>
+                  <transition name="fade">
+                    <div
+                      v-if="carDropdownOpen"
+                      class="select-dropdown"
+                    >
+                      <div 
+                        class="select-option"
+                        :class="{ 'selected': selectedCarId === null }"
+                        @click="selectCar(null)"
+                      >
+                        Все автомобили
+                      </div>
+                      <div 
+                        v-for="car in cars" 
+                        :key="car.id"
+                        class="select-option"
+                        :class="{ 'selected': selectedCarId === car.id }"
+                        @click="selectCar(car.id)"
+                      >
+                        {{ formatCarName(car) }}
+                      </div>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+          
+              <div class="date-filter">
+                <span class="filter-label">Период:</span>
+                <input 
+                  v-model="dateFrom" 
+                  type="date" 
+                  class="date-input"
+                  @change="applyFilters"
+                >
+                <span class="date-separator">—</span>
+                <input 
+                  v-model="dateTo" 
+                  type="date" 
+                  class="date-input"
+                  @change="applyFilters"
+                >
+              </div>
+          
+              <div class="sort-filter">
+                <span class="filter-label">Сортировка:</span>
+                <button
+                  class="sort-btn"
+                  @click="toggleSortOrder"
+                >
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{ 'sort-asc': sortOrder === 'asc' }"
+                  >
+                  <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                </button>
+              </div>
+            </div>
           </div>
-        
+
           <div
-            v-else-if="filteredHistory.length === 0"
-            class="history-empty"
+            ref="scrollContainer"
+            class="modal-content"
           >
-            История пуста
-          </div>
-        
-          <div
-            v-else
-            class="history-timeline"
-          >
-            <div 
-              v-for="(item, index) in filteredHistory" 
-              :key="item.id" 
-              class="history-item"
+            <div
+              v-if="loading"
+              class="history-loading"
             >
-              <div
-                class="timeline-dot"
-                :class="getActionClass(item.action_type)"
-              />
-              <div
-                v-if="index < filteredHistory.length - 1"
-                class="timeline-line"
-              />
+              <LoaderSpinner label="Загрузка истории…" />
+            </div>
+        
+            <div
+              v-else-if="filteredHistory.length === 0"
+              class="history-empty"
+            >
+              История пуста
+            </div>
+        
+            <div
+              v-else
+              class="history-timeline"
+            >
+              <div 
+                v-for="(item, index) in filteredHistory" 
+                :key="item.id" 
+                class="history-item"
+              >
+                <div
+                  class="timeline-dot"
+                  :class="getActionClass(item.action_type)"
+                />
+                <div
+                  v-if="index < filteredHistory.length - 1"
+                  class="timeline-line"
+                />
             
-              <div class="history-content">
-                <div class="history-header">
-                  <span class="car-info">{{ getCarInfo(item) }}</span>
-                  <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                  <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                </div>
+                <div class="history-content">
+                  <div class="history-header">
+                    <span class="car-info">{{ getCarInfo(item) }}</span>
+                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                  </div>
               
-                <div class="action-text">
-                  {{ getActionText(item) }}
-                </div>
+                  <div class="action-text">
+                    {{ getActionText(item) }}
+                  </div>
               
-                <div
-                  v-if="item.action_type === 'entry' || item.action_type === 'exit'"
-                  class="action-comment"
-                >
-                  {{ getActionComment(item) }}
-                </div>
+                  <div
+                    v-if="item.action_type === 'entry' || item.action_type === 'exit'"
+                    class="action-comment"
+                  >
+                    {{ getActionComment(item) }}
+                  </div>
               
-                <div
-                  v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'"
-                  class="action-comment"
-                >
-                  {{ item.comment }}
-                </div>
+                  <div
+                    v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'"
+                    class="action-comment"
+                  >
+                    {{ item.comment }}
+                  </div>
 
-                <div
-                  v-if="item.table_name"
-                  class="place-name"
-                >
-                  {{ item.table_name }}
+                  <div
+                    v-if="item.table_name"
+                    class="place-name"
+                  >
+                    {{ item.table_name }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
 <script>
+import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 
@@ -258,6 +270,16 @@ export default {
     }
   },
   emits: ['close'],
+  setup(_, { emit }) {
+    // Анимация закрытия: внутренний visible (enter по mounted, leave по requestClose),
+    // emit('close') только ПОСЛЕ leave-перехода (@after-leave) - иначе родитель
+    // размонтирует мгновенно и анимация не проиграется.
+    const visible = ref(false);
+    const requestClose = () => { visible.value = false; };
+    const onAfterLeave = () => emit('close');
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
+    return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
+  },
   data() {
     return {
       loading: false,
@@ -380,15 +402,18 @@ export default {
     }
   },
   mounted() {
+    this.visible = true;
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
-    
+    document.addEventListener('keydown', this.onKeydown);
+
     this.cars.forEach(car => {
       this.carsMap[car.id] = this.formatCarName(car);
     });
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
     formatCarName(car) {
@@ -656,9 +681,9 @@ export default {
       }
     },
 
-    close() {
-      this.$emit('close');
-    }
+    onKeydown(e) {
+      if (e.key === 'Escape') this.requestClose();
+    },
   }
 };
 </script>
@@ -685,12 +710,38 @@ export default {
   z-index: 13000;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
-  animation: fadeIn 0.2s ease-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* Анимация открытия/закрытия (паттерн BaseModal): overlay fade + контент scale */
+.modal-fade-enter-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active .cars-history-modal {
+  animation: modal-scale-in 0.25s ease;
+}
+
+.modal-fade-leave-active .cars-history-modal {
+  animation: modal-scale-out 0.2s ease;
+}
+
+@keyframes modal-scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes modal-scale-out {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.95); opacity: 0; }
 }
 
 .cars-history-modal {
@@ -702,18 +753,6 @@ export default {
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  animation: slideUp 0.2s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .modal-header {
