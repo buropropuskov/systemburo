@@ -444,3 +444,67 @@ func TestBlacklistNormalized_CreateAndBackfill(t *testing.T) {
 	require.NoError(t, db.First(&pBackfilled, pOld.ID).Error)
 	assert.Equal(t, "петров петр", pBackfilled.NormalizedFIO, "бэкфилл нормализует ФИО старой записи (ё->е)")
 }
+
+// TestVehicleBlacklist_FindSimilar: нечёткий поиск возможного обхода (#481) ловит латиничный
+// гомоглиф (тот же нормализованный номер при разных сырых) и опечатку, не ловит далёкий номер,
+// игнорирует архивные. Точную форму ловит Check (409) - здесь только "похожее".
+func TestVehicleBlacklist_FindSimilar(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_Sim")
+	svc := newVehicleBlacklistService(db)
+	ctx := context.Background()
+
+	// Эталон в ЧС: кириллический "А123ВС799".
+	target, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "А123ВС799", MarkID: mark.ID, Reason: "обход",
+	}, userID)
+	require.NoError(t, err)
+	// Далёкая запись - фон, не должна матчить эталонный запрос.
+	_, err = svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "Х999ХХ111", MarkID: mark.ID, Reason: "другая",
+	}, userID)
+	require.NoError(t, err)
+
+	t.Run("латиница-гомоглиф = тот же нормализованный номер (обход) -> sim 1.0 сверху", func(t *testing.T) {
+		// Сырой "A123BC799" латиницей != сырого кириллического эталона (Check бы не сматчил),
+		// но нормализованные формы совпадают - это и есть обход.
+		res, err := svc.FindSimilar(ctx, "A123BC799")
+		require.NoError(t, err)
+		require.NotEmpty(t, res)
+		assert.Equal(t, target.ID, res[0].ID)
+		assert.InDelta(t, 1.0, res[0].Similarity, 1e-9)
+		assert.Equal(t, "обход", res[0].Reason)
+		assert.Contains(t, res[0].MatchedValue, "А123ВС799")
+	})
+
+	t.Run("опечатка в одну цифру -> похоже (>=0.7, <1.0)", func(t *testing.T) {
+		res, err := svc.FindSimilar(ctx, "А124ВС799")
+		require.NoError(t, err)
+		require.NotEmpty(t, res)
+		assert.Equal(t, target.ID, res[0].ID)
+		assert.GreaterOrEqual(t, res[0].Similarity, 0.7)
+		assert.Less(t, res[0].Similarity, 1.0)
+	})
+
+	t.Run("далёкий номер -> эталон не матчится", func(t *testing.T) {
+		res, err := svc.FindSimilar(ctx, "К555КК12")
+		require.NoError(t, err)
+		for _, m := range res {
+			assert.NotEqual(t, target.ID, m.ID)
+		}
+	})
+
+	t.Run("архивная запись не находится", func(t *testing.T) {
+		require.NoError(t, svc.Archive(ctx, target.ID, userID))
+		res, err := svc.FindSimilar(ctx, "A123BC799")
+		require.NoError(t, err)
+		for _, m := range res {
+			assert.NotEqual(t, target.ID, m.ID)
+		}
+	})
+}

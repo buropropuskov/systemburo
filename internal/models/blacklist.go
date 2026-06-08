@@ -85,6 +85,19 @@ type VehicleBlacklistCheckResult struct {
 	Reason        string `json:"reason,omitempty"`
 }
 
+// BlacklistSimilarMatch - похожая (но не точная) активная запись ЧС, найденная нечётким
+// поиском возможного обхода (#481). Точные совпадения сюда НЕ относятся - их ловит жёсткий
+// гард Check (409); здесь кандидаты на предупреждение: опечатка, латинский гомоглиф, ё/е,
+// подмена 0<->О, отсутствие отчества. Similarity - близость [0..1] нормализованного
+// значения записи к нормализованному запросу (1 - совпавшая нормализованная форма).
+// Общий тип vehicle- и person-сервисов; MatchedValue несёт "номер марка" или ФИО.
+type BlacklistSimilarMatch struct {
+	ID           int     `json:"id"`
+	Similarity   float64 `json:"similarity"`
+	MatchedValue string  `json:"matched_value"`
+	Reason       string  `json:"reason,omitempty"`
+}
+
 // PersonBlacklist - запись чёрного списка людей (#443).
 //
 // Совпадение строгое по всем трём полям ФИО; отсутствие отчества (NULL/пусто) считается

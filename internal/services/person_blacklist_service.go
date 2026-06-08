@@ -27,6 +27,11 @@ type PersonBlacklistService interface {
 	Archive(ctx context.Context, id int, userID int) error
 	Restore(ctx context.Context, id int, userID int) error
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
+	// FindSimilar - активные записи ЧС, чьё нормализованное ФИО БЛИЗКО (но не обязательно
+	// равно) нормализованному ФИО заявки: триграммная similarity + word_similarity (учёт
+	// отсутствия отчества), порог 0.7. Слой предупреждения о возможном обходе (#481): точное
+	// совпадение ловит Check (409). Пустой срез - похожих нет.
+	FindSimilar(ctx context.Context, lastName, firstName, middleName string) ([]models.BlacklistSimilarMatch, error)
 	// UpdateReason - редактирование причины записи + лог в историю (updated).
 	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error)
 	// Purge - удаление архивной записи навсегда: запись удаляется физически, но событие
@@ -182,6 +187,64 @@ func (s *personBlacklistService) Check(ctx context.Context, lastName, firstName,
 		return models.PersonBlacklistCheckResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
 	}
 	return models.PersonBlacklistCheckResult{IsBlacklisted: true, Reason: e.Reason}, nil
+}
+
+// FindSimilar ищет активные записи, чьё нормализованное ФИО близко к нормализованному ФИО
+// заявки. Метрика - GREATEST из триграммной similarity и word_similarity в обе стороны:
+//   - similarity ловит опечатку/гомоглиф (нормализованные формы почти равны);
+//   - word_similarity(@q, normalized_fio) ловит "без отчества" в заявке (запрос - подстрока эталона);
+//   - word_similarity(normalized_fio, @q) ловит обратное (отчество добавлено в заявке).
+//
+// Сравниваем по normalized_fio (канон-форма из Create/бэкфилла), порог 0.7. Нормализованно-
+// точную форму не исключаем: совпадение в нормали при различии в сырых данных (латиница) -
+// это и есть обход (Check его не сматчит). Результат - по убыванию близости.
+func (s *personBlacklistService) FindSimilar(ctx context.Context, lastName, firstName, middleName string) ([]models.BlacklistSimilarMatch, error) {
+	q := normalize.Name(lastName, firstName, middleName)
+	if q == "" {
+		return []models.BlacklistSimilarMatch{}, nil
+	}
+	type simRow struct {
+		ID         int
+		LastName   string
+		FirstName  string
+		MiddleName *string
+		Reason     string
+		Sim        float64
+	}
+	var rows []simRow
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT id, last_name, first_name, middle_name, reason, sim FROM (
+			SELECT id, last_name, first_name, middle_name, reason,
+			       GREATEST(
+			         similarity(normalized_fio, @q),
+			         word_similarity(@q, normalized_fio),
+			         word_similarity(normalized_fio, @q)
+			       ) AS sim
+			FROM person_blacklists
+			WHERE is_active = true AND normalized_fio <> ''
+		) t
+		WHERE sim >= @threshold
+		ORDER BY sim DESC, id`,
+		map[string]interface{}{"q": q, "threshold": blacklistSimilarityThreshold},
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска похожих записей чёрного списка")
+	}
+	matches := make([]models.BlacklistSimilarMatch, 0, len(rows))
+	for _, r := range rows {
+		middle := ""
+		if r.MiddleName != nil {
+			middle = *r.MiddleName
+		}
+		label := strings.Join(strings.Fields(r.LastName+" "+r.FirstName+" "+middle), " ")
+		matches = append(matches, models.BlacklistSimilarMatch{
+			ID:           r.ID,
+			Similarity:   r.Sim,
+			MatchedValue: label,
+			Reason:       r.Reason,
+		})
+	}
+	return matches, nil
 }
 
 func (s *personBlacklistService) UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error) {
