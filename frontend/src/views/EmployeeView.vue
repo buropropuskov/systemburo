@@ -216,7 +216,14 @@
                       {{ truncateText(employee.position || 'Не указана', 20) }}
                     </div>
                     <div class="employee-col status-col">
-                      <StatusBadge :status="employee.status ? 'Активен' : 'Неактивен'" />
+                      <StatusBadge
+                        v-if="isEmployeeBlacklisted(employee)"
+                        status="Чёрный список"
+                      />
+                      <StatusBadge
+                        v-else
+                        :status="employee.status ? 'Активен' : 'Неактивен'"
+                      />
                     </div>
                     <div class="employee-col actions-col">
                       <button
@@ -323,6 +330,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
+import { listPersonBlacklist } from '@/api/blacklist';
 
 export default {
     components: {
@@ -341,6 +349,7 @@ export default {
             sortField: null,
             sortDirection: 'desc',
             employeesData: [],
+            blacklistKeys: new Set(),
             searchTimeout: null,
             currentFilter: 'user',
             ownershipInfo: null,
@@ -426,7 +435,8 @@ export default {
     async mounted() {
         await Promise.all([
             this.fetchOwnershipInfo(),
-            this.fetchCitizenships()
+            this.fetchCitizenships(),
+            this.loadBlacklist()
         ]);
         await this.fetchEmployees();
     },
@@ -450,6 +460,31 @@ export default {
             if (this.canEditEmployee(emp)) return '';
             return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
         },
+        async loadBlacklist() {
+            try {
+                const items = await listPersonBlacklist();
+                const list = Array.isArray(items) ? items : [];
+                this.blacklistKeys = new Set(
+                    list.map((e) => this.blacklistKey(e.last_name, e.first_name, e.middle_name))
+                );
+            } catch (error) {
+                console.error('Не удалось загрузить чёрный список людей:', error);
+                this.blacklistKeys = new Set();
+            }
+        },
+
+        // Ключ зеркалит серверный Check: LOWER(TRIM) ФИО, пустое отчество -> пусто.
+        blacklistKey(last, first, middle) {
+            const norm = (v) => (v || '').trim().toLowerCase();
+            return `${norm(last)}|${norm(first)}|${norm(middle)}`;
+        },
+
+        isEmployeeBlacklisted(employee) {
+            return this.blacklistKeys.has(
+                this.blacklistKey(employee.last_name, employee.first_name, employee.middle_name)
+            );
+        },
+
         async fetchEmployees() {
             this.loading = true;
             try {

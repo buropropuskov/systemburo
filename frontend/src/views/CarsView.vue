@@ -230,7 +230,14 @@
                       {{ car.format_name || 'Не указан' }}
                     </div>
                     <div class="car-col status-col">
-                      <StatusBadge :status="car.status ? 'Активна' : 'Неактивна'" />
+                      <StatusBadge
+                        v-if="isCarBlacklisted(car)"
+                        status="Чёрный список"
+                      />
+                      <StatusBadge
+                        v-else
+                        :status="car.status ? 'Активна' : 'Неактивна'"
+                      />
                     </div>
                     <div class="car-col actions-col">
                       <button
@@ -556,6 +563,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
+import { listVehicleBlacklist } from '@/api/blacklist';
 
 export default {
     components: {
@@ -574,6 +582,7 @@ export default {
             sortField: null,
             sortDirection: 'desc',
             carsData: [],
+            blacklistKeys: new Set(),
             searchTimeout: null,
             currentFilter: 'user',
             ownershipInfo: null,
@@ -735,7 +744,8 @@ export default {
         await Promise.all([
             this.fetchOwnershipInfo(),
             this.fetchFormats(),
-            this.loadMarks()
+            this.loadMarks(),
+            this.loadBlacklist()
         ]);
         await this.fetchCars();
         
@@ -794,6 +804,28 @@ export default {
             if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
             if (this.canEditCar(car)) return '';
             return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
+        },
+
+        async loadBlacklist() {
+            try {
+                const items = await listVehicleBlacklist();
+                const list = Array.isArray(items) ? items : [];
+                this.blacklistKeys = new Set(list.map((e) => this.blacklistKey(e.car_number, e.mark_name)));
+            } catch (error) {
+                console.error('Не удалось загрузить чёрный список машин:', error);
+                this.blacklistKeys = new Set();
+            }
+        },
+
+        // Ключ зеркалит серверный CheckByName: LOWER(TRIM) номера и марки. И mark_name в ЧС,
+        // и mark в реестре - снапшоты имени марки; при переименовании марки между событиями
+        // они могут разойтись (edge case, дизайн унаследован от каскада ЧС).
+        blacklistKey(number, mark) {
+            return `${(number || '').trim().toLowerCase()}|${(mark || '').trim().toLowerCase()}`;
+        },
+
+        isCarBlacklisted(car) {
+            return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark));
         },
 
         async fetchCars() {
