@@ -5,28 +5,36 @@
         Управление гражданствами
       </h3>
       <div class="header-controls">
+        <BaseDropdown
+          class="archive-dropdown"
+          :model-value="showArchive ? 'archive' : 'active'"
+          :options="archiveOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="onArchiveModeChange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск гражданств...'"
         />
         <button
           class="add-header-button"
-          @click="showAddModal = true"
+          data-testid="citizenship-add-btn"
+          @click="openAddModal"
         >
           Добавить
         </button>
         <RefreshButton
           :loading="isLoading"
-          @refresh="refreshData"
+          @refresh="refresh"
         />
       </div>
     </div>
 
     <div class="content-container">
-      <!-- Левая часть - таблица гражданств -->
       <div
         class="table-section"
-        :class="{'with-details': selectedCitizenship}"
+        :class="{ 'with-details': selectedCitizenship }"
       >
         <div class="table-container">
           <div class="table-header">
@@ -37,13 +45,10 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'id',
-                  'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
               >
             </div>
             <div
@@ -53,444 +58,437 @@
               <p :class="{ 'active-sort': sortField === 'name' }">
                 Наименование
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'name',
-                  'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
-              >
-            </div>
-            <div
-              class="header-col status-col"
-              @click="sortBy('is_active')"
-            >
-              <p :class="{ 'active-sort': sortField === 'is_active' }">
-                Статус
-              </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'is_active',
-                  'desc': sortField === 'is_active' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'name', desc: sortField === 'name' && sortDirection === 'desc' }"
               >
             </div>
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="citizenship in sortedCitizenships" 
-              :key="citizenship.id" 
+            <div
+              v-for="c in filteredCitizenships"
+              :key="c.id"
               class="table-row"
-              :class="{'selected': selectedCitizenship && selectedCitizenship.id === citizenship.id}"
-              @click="selectCitizenship(citizenship)"
+              data-testid="citizenship-row"
+              :class="{
+                selected: selectedCitizenship && selectedCitizenship.id === c.id,
+                inactive: !c.is_active,
+              }"
+              @click="selectCitizenship(c)"
             >
               <div class="table-col id-col">
-                <span class="cell-content id-value">{{ citizenship.id }}</span>
+                <span class="cell-content id-value">{{ c.id }}</span>
               </div>
               <div class="table-col name-col">
                 <span
                   class="truncate-text"
-                  :title="citizenship.name"
+                  :title="c.name"
                 >
-                  {{ citizenship.name }}
+                  {{ c.name }}
                   <span
-                    v-if="citizenship.is_default"
+                    v-if="c.is_default"
                     class="default-badge"
                   >По умолчанию</span>
+                  <span
+                    v-if="!c.is_active"
+                    class="inactive-badge"
+                  >(архив)</span>
                 </span>
               </div>
-              <div class="table-col status-col">
-                <span
-                  class="status-badge"
-                  :class="citizenship.is_active ? 'active' : 'inactive'"
-                >
-                  {{ citizenship.is_active ? 'Активно' : 'Неактивно' }}
-                </span>
-              </div>
+            </div>
+
+            <div
+              v-if="!filteredCitizenships.length && !isLoading"
+              class="no-results"
+            >
+              {{ emptyText }}
+            </div>
+            <div
+              v-if="isLoading && !items.length"
+              class="citizenship-loading"
+            >
+              <LoaderSpinner label="Загрузка гражданств..." />
             </div>
           </div>
 
           <div class="table-footer">
-            <span class="items-count">Всего гражданств: {{ filteredCitizenships.length }}</span>
+            <span class="items-count">
+              {{ showArchive ? 'В архиве' : 'Всего гражданств' }}: {{ filteredCitizenships.length }}
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Правая часть - детали гражданства -->
       <div
         v-if="selectedCitizenship"
         class="details-section"
+        data-testid="citizenship-details"
       >
-        <div class="details-content">
+        <div class="tab-content">
           <div class="details-header">
             <div class="details-title-wrapper">
               <h3 class="details-title">
-                {{ selectedCitizenship.name }}
+                {{ original.name }}
               </h3>
-              <div class="timestamps-header">
-                <span class="timestamp">Создано: {{ formatDate(selectedCitizenship.created_at) }}</span>
-                <span
-                  v-if="selectedCitizenship.updated_at"
-                  class="timestamp"
-                >Обновлено: {{ formatDate(selectedCitizenship.updated_at) }}</span>
-              </div>
+              <span
+                v-if="original.is_default"
+                class="default-badge details-default-badge"
+              >По умолчанию</span>
             </div>
             <div class="details-header-actions">
+              <span
+                v-if="!selectedCitizenship.is_active"
+                class="archive-badge"
+              >В архиве</span>
               <button
-                class="delete-icon-btn"
-                @click="confirmDeleteCitizenship(selectedCitizenship)"
+                v-if="selectedCitizenship.is_active"
+                class="action-btn archive-action-btn"
+                :disabled="archiveBlocked"
+                :title="archiveBlocked ? 'Сначала назначьте другое гражданство по умолчанию' : ''"
+                data-testid="citizenship-archive"
+                @click="onArchiveClick(selectedCitizenship)"
               >
-                <img
-                  src="@/assets/icons/delete.png"
-                  class="delete-icon"
-                >
+                В архив
+              </button>
+              <button
+                v-else
+                class="action-btn restore-btn"
+                data-testid="citizenship-restore"
+                @click="onRestore(selectedCitizenship)"
+              >
+                Восстановить
               </button>
             </div>
           </div>
-          
+
           <div class="details-body">
-            <div class="compact-form">
-              <div class="form-group compact">
-                <label class="detail-label">Наименование:</label>
-                <input 
-                  v-model="selectedCitizenship.name" 
-                  class="form-input-sm"
-                  placeholder="Название гражданства"
-                  autocomplete="off"
-                  @change="saveCitizenship(selectedCitizenship)"
+            <label class="field-label">Наименование</label>
+            <input
+              v-model.trim="selectedCitizenship.name"
+              type="text"
+              class="lk-input"
+              maxlength="100"
+              placeholder="Название гражданства"
+              :disabled="!selectedCitizenship.is_active || isSaving"
+              data-testid="citizenship-detail-name"
+              @keyup.enter="saveSelected"
+            >
+
+            <div class="checkbox-section">
+              <label class="checkbox-label">
+                <input
+                  v-model="selectedCitizenship.is_default"
+                  type="checkbox"
+                  class="checkbox"
+                  :disabled="!selectedCitizenship.is_active || isSaving"
+                  data-testid="citizenship-detail-default"
                 >
-              </div>
+                <span class="checkbox-text">Гражданство по умолчанию</span>
+              </label>
+              <span class="checkbox-hint">
+                Будет выбрано по умолчанию при создании новых заявок
+              </span>
+            </div>
 
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input
-                    v-model="selectedCitizenship.is_active"
-                    type="checkbox"
-                    class="checkbox"
-                    @change="saveCitizenship(selectedCitizenship)"
-                  >
-                  <span class="checkbox-text">Активное гражданство</span>
-                </label>
-                <span class="checkbox-hint">
-                  Если отключено, это гражданство нельзя будет выбрать при создании заявок
-                </span>
-              </div>
+            <div class="checkbox-section">
+              <label class="checkbox-label">
+                <input
+                  v-model="selectedCitizenship.patent_required"
+                  type="checkbox"
+                  class="checkbox"
+                  :disabled="!selectedCitizenship.is_active || isSaving"
+                  data-testid="citizenship-detail-patent"
+                >
+                <span class="checkbox-text">Требуется патент</span>
+              </label>
+              <span class="checkbox-hint">
+                Для этого гражданства обязателен патент при оформлении заявок
+              </span>
+            </div>
 
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input 
-                    v-model="selectedCitizenship.is_default" 
-                    type="checkbox"
-                    class="checkbox"
-                    @change="handleDefaultCitizenshipChange"
-                  >
-                  <span class="checkbox-text">Гражданство по умолчанию</span>
-                </label>
-                <span class="checkbox-hint">
-                  Это гражданство будет выбрано по умолчанию при создании новых заявок
-                </span>
-              </div>
+            <div
+              v-if="detailError"
+              class="form-error"
+            >
+              {{ detailError }}
+            </div>
 
-              <div class="checkbox-section">
-                <label class="checkbox-label">
-                  <input
-                    v-model="selectedCitizenship.patent_required"
-                    type="checkbox"
-                    class="checkbox"
-                    @change="saveCitizenship(selectedCitizenship)"
-                  >
-                  <span class="checkbox-text">Требуется патент</span>
-                </label>
-                <span class="checkbox-hint">
-                  Для этого гражданства обязателен патент при оформлении заявок
-                </span>
-              </div>
+            <div
+              v-if="selectedCitizenship.is_active"
+              class="details-actions"
+            >
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!isDetailsDirty || isSaving"
+                data-testid="citizenship-save"
+                @click="saveSelected"
+              >
+                Сохранить
+              </button>
+            </div>
+
+            <div class="details-meta">
+              <span>ID: {{ selectedCitizenship.id }}</span>
+              <span v-if="selectedCitizenship.created_at">Создано: {{ formatDate(selectedCitizenship.created_at) }}</span>
             </div>
           </div>
         </div>
       </div>
-      
       <div
         v-else
         class="no-selection-message"
       >
-        <p>Выберите гражданство для просмотра</p>
+        <p>Выберите гражданство для просмотра и редактирования</p>
       </div>
     </div>
 
-    <div
-      v-if="filteredCitizenships.length === 0"
-      class="no-results"
-    >
-      <div class="no-results-icon">
-        🌍
-      </div>
-      <p>Гражданства не найдены</p>
-    </div>
-
-    <!-- Модальное окно добавления гражданства -->
+    <!-- Модалка создания -->
     <Teleport to="body">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="showAddModal = false"
-      >
-        <div class="modal-content small-modal">
-          <div class="modal-header">
-            <h3>Добавить гражданство</h3>
-            <button
-              class="modal-close"
-              @click="showAddModal = false"
-            >
-              ×
-            </button>
-          </div>
-        
-          <div class="modal-body">
-            <div class="form-group">
-              <label class="form-label">Название гражданства</label>
-              <input
-                v-model="newCitizenship.name"
-                placeholder="Российская Федерация"
-                class="form-input"
-                @keyup.enter="addCitizenship"
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          data-testid="citizenship-modal"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
+          <div
+            class="citizenship-modal"
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <h3>Новое гражданство</h3>
+              <button
+                class="modal-close"
+                aria-label="Закрыть"
+                data-testid="citizenship-modal-close"
+                @click="requestCloseAdd"
               >
-            </div>
-          
-            <div class="checkbox-group">
-              <label class="checkbox-label">
-                <input 
-                  v-model="newCitizenship.is_default" 
-                  type="checkbox"
-                  class="checkbox"
-                >
-                <span class="checkbox-text">Гражданство по умолчанию</span>
-              </label>
+                ×
+              </button>
             </div>
 
-            <div class="checkbox-group">
-              <label class="checkbox-label">
-                <input 
-                  v-model="newCitizenship.patent_required" 
-                  type="checkbox"
-                  class="checkbox"
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Название гражданства</label>
+                <input
+                  v-model.trim="addForm.name"
+                  type="text"
+                  placeholder="Например, Российская Федерация"
+                  maxlength="100"
+                  class="lk-input"
+                  data-testid="citizenship-input-name"
+                  @keyup.enter="submitAdd"
                 >
-                <span class="checkbox-text">Требуется патент</span>
-              </label>
+              </div>
+
+              <div class="checkbox-section">
+                <label class="checkbox-label">
+                  <input
+                    v-model="addForm.is_default"
+                    type="checkbox"
+                    class="checkbox"
+                  >
+                  <span class="checkbox-text">Гражданство по умолчанию</span>
+                </label>
+              </div>
+
+              <div class="checkbox-section">
+                <label class="checkbox-label">
+                  <input
+                    v-model="addForm.patent_required"
+                    type="checkbox"
+                    class="checkbox"
+                  >
+                  <span class="checkbox-text">Требуется патент</span>
+                </label>
+              </div>
+
+              <div
+                v-if="addError"
+                class="form-error"
+              >
+                {{ addError }}
+              </div>
             </div>
-          </div>
-        
-          <div class="modal-footer">
-            <button
-              class="modal-cancel"
-              @click="showAddModal = false"
-            >
-              Отмена
-            </button>
-            <button
-              class="modal-confirm"
-              @click="addCitizenship"
-            >
-              Добавить
-            </button>
+
+            <div class="modal-footer">
+              <button
+                class="lk-button lk-button--ghost"
+                data-testid="citizenship-modal-cancel"
+                @click="requestCloseAdd"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!addForm.name || isAdding"
+                data-testid="citizenship-modal-save"
+                @click="submitAdd"
+              >
+                Добавить
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
+
+    <ConfirmationModal
+      :show="!!archiveConfirm"
+      title="Архивация гражданства"
+      :message="archiveConfirm ? `Архивировать гражданство «${archiveConfirm.name}»? Его можно будет восстановить из архива.` : ''"
+      confirm-text="В архив"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performArchive"
+      @cancel="archiveConfirm = null"
+    />
   </div>
 </template>
 
 <script>
-import { mapState, mapActions } from 'pinia';
-import { useCitizenshipsStore } from '@/stores/citizenships';
-import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
+import RefreshButton from './RefreshButton.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import {
+  listCitizenships,
+  createCitizenship,
+  updateCitizenship,
+  archiveCitizenship,
+  restoreCitizenship,
+} from '@/api/citizenships';
 
 export default {
-  components: {
-    SearchComponent,
-    RefreshButton
+  name: 'CitizenshipManagement',
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner },
+  setup() {
+    // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
+    const overlay = { close: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
+    return { onOverlayMousedown, onOverlayMouseup, overlay };
   },
   data() {
     return {
+      items: [],
       searchQuery: '',
-      newCitizenship: {
-        name: '',
-        is_default: false,
-        patent_required: false
-      },
-      showAddModal: false,
-      selectedCitizenship: null,
+      showArchive: false,
       sortField: null,
-      sortDirection: 'asc'
+      sortDirection: 'asc',
+      isLoading: false,
+      selectedCitizenship: null,
+      original: { name: '', is_default: false, patent_required: false },
+      detailError: '',
+      isSaving: false,
+      showAddModal: false,
+      addForm: { name: '', is_default: false, patent_required: false },
+      addError: '',
+      isAdding: false,
+      archiveConfirm: null,
+      archiveOptions: [
+        { label: 'Активные', value: 'active' },
+        { label: 'Архив', value: 'archive' },
+      ],
     };
   },
   computed: {
-    ...mapState(useCitizenshipsStore, {
-      citizenships: 'items',
-      isLoading: 'isLoading',
-    }),
     filteredCitizenships() {
-      if (!this.searchQuery) return this.citizenships;
-      const query = this.searchQuery.toLowerCase();
-      return this.citizenships.filter(citizenship => 
-        citizenship.name.toLowerCase().includes(query) || 
-        citizenship.id.toString().includes(query)
-      );
-    },
-    sortedCitizenships() {
-      const citizenships = [...this.filteredCitizenships];
-      
-      if (!this.sortField) {
-        return citizenships.sort((a, b) => a.name.localeCompare(b.name));
+      const q = this.searchQuery.trim().toLowerCase();
+      let list = this.items.filter(c => (this.showArchive ? !c.is_active : c.is_active));
+      if (q) {
+        list = list.filter(c => c.name.toLowerCase().includes(q) || String(c.id).includes(q));
       }
-      
-      return citizenships.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (this.sortField) {
-          case 'id':
-            valueA = a.id;
-            valueB = b.id;
-            break;
-          case 'name':
-            valueA = a.name;
-            valueB = b.name;
-            break;
-          case 'is_active':
-            valueA = a.is_active;
-            valueB = b.is_active;
-            break;
-          default:
-            return 0;
-        }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
+      return this.sortList(list);
+    },
+    emptyText() {
+      if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
+      return this.showArchive ? 'В архиве пусто' : 'Гражданств пока нет';
+    },
+    isAddDirty() {
+      return this.showAddModal
+        && (this.addForm.name.trim() !== '' || this.addForm.is_default || this.addForm.patent_required);
+    },
+    isDetailsDirty() {
+      const s = this.selectedCitizenship;
+      return !!s
+        && s.is_active
+        && (
+          s.name.trim() !== this.original.name
+          || s.is_default !== this.original.is_default
+          || s.patent_required !== this.original.patent_required
+        );
+    },
+    isDirty() {
+      return this.isAddDirty || this.isDetailsDirty;
+    },
+    // Архив дефолтного гражданства запрещён бэкендом (409). Блокируем и по
+    // персистентному значению (нельзя архивировать действующий дефолт), и по
+    // живому из формы (нельзя архивировать только что отмеченный дефолт, иначе
+    // намерение молча потеряется).
+    archiveBlocked() {
+      const s = this.selectedCitizenship;
+      return !!s && (s.is_default || this.original.is_default);
+    },
+  },
+  created() {
+    this.overlay.close = () => { this.requestCloseAdd(); };
   },
   mounted() {
-    this.refreshData();
+    this.refresh();
+    this._stopGuard = registerDirtyTracker({
+      isDirty: () => this.isDirty,
+      getChanges: () => {
+        if (this.isAddDirty) return [`Новое гражданство: "${this.addForm.name.trim()}"`];
+        if (this.isDetailsDirty) {
+          const s = this.selectedCitizenship;
+          const ch = [];
+          if (s.name.trim() !== this.original.name) {
+            ch.push({ label: 'Наименование', from: this.original.name, to: s.name.trim() });
+          }
+          if (s.is_default !== this.original.is_default) {
+            ch.push({ label: 'По умолчанию', from: this.original.is_default ? 'Да' : 'Нет', to: s.is_default ? 'Да' : 'Нет' });
+          }
+          if (s.patent_required !== this.original.patent_required) {
+            ch.push({ label: 'Требуется патент', from: this.original.patent_required ? 'Да' : 'Нет', to: s.patent_required ? 'Да' : 'Нет' });
+          }
+          return ch;
+        }
+        return [];
+      },
+      save: async () => {
+        if (this.isAddDirty) await this.submitAdd();
+        if (this.isDetailsDirty) await this.saveSelected();
+      },
+    });
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    this._stopGuard?.();
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    ...mapActions(useCitizenshipsStore, {
-      refreshStore: 'refresh',
-      createCitizenship: 'createCitizenship',
-      updateCitizenshipAction: 'updateCitizenship',
-      deleteCitizenshipAction: 'deleteCitizenship',
-    }),
-
-    async refreshData() {
-      await this.refreshStore();
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
-
-    async addCitizenship() {
-      if (!this.newCitizenship.name.trim()) {
-        this.showNotification("Введите название гражданства", "warning");
-        return;
+    sortList(list) {
+      const arr = [...list];
+      if (!this.sortField) {
+        return arr.sort((a, b) => a.name.localeCompare(b.name));
       }
-
-      const result = await this.createCitizenship(this.newCitizenship);
-
-      if (result.ok) {
-        this.newCitizenship = {
-          name: '',
-          is_default: false,
-          patent_required: false
-        };
-        this.showAddModal = false;
-        this.showNotification("Гражданство успешно добавлено", "success");
-      } else {
-        this.showNotification(result.message || "Ошибка при добавлении гражданства", "error");
-      }
-    },
-
-    /**
-     * Сохраняет изменения гражданства через store. Назван saveCitizenship чтобы
-     * не конфликтовать с action'ом updateCitizenship из store.
-     */
-    async saveCitizenship(citizenship) {
-      const payload = {
-        name: citizenship.name,
-        is_active: citizenship.is_active,
-        is_default: citizenship.is_default,
-        patent_required: citizenship.patent_required,
-      };
-
-      const result = await this.updateCitizenshipAction(citizenship.id, payload);
-
-      if (result.ok) {
-        const fresh = this.citizenships.find(c => c.id === citizenship.id);
-        if (fresh) {
-          this.selectedCitizenship = JSON.parse(JSON.stringify(fresh));
+      return arr.sort((a, b) => {
+        if (this.sortField === 'id') {
+          return this.sortDirection === 'asc' ? a.id - b.id : b.id - a.id;
         }
-        this.showNotification("Гражданство успешно обновлено", "success");
-      } else {
-        this.showNotification(result.message || "Ошибка при обновлении гражданства", "error");
-        await this.refreshData();
-      }
-    },
-
-    async handleDefaultCitizenshipChange() {
-      const isDefault = this.selectedCitizenship.is_default;
-
-      try {
-        if (isDefault) {
-          await this.setDefaultCitizenship(this.selectedCitizenship);
-        } else {
-          await this.saveCitizenship(this.selectedCitizenship);
-        }
-      } catch (error) {
-        this.selectedCitizenship.is_default = !isDefault;
-        console.error("Error handling default citizenship change:", error);
-      }
-    },
-
-    async setDefaultCitizenship(citizenship) {
-      const payload = {
-        name: citizenship.name,
-        is_active: citizenship.is_active,
-        is_default: true,
-        patent_required: citizenship.patent_required,
-      };
-
-      const result = await this.updateCitizenshipAction(citizenship.id, payload);
-
-      if (result.ok) {
-        const fresh = this.citizenships.find(c => c.id === citizenship.id);
-        if (fresh) {
-          this.selectedCitizenship = JSON.parse(JSON.stringify(fresh));
-        }
-        this.showNotification("Гражданство по умолчанию успешно установлено", "success");
-      } else {
-        this.showNotification(result.message || "Ошибка при установке гражданства по умолчанию", "error");
-      }
-    },
-
-    async confirmDeleteCitizenship(citizenship) {
-      if (!confirm(`Вы уверены, что хотите удалить гражданство "${citizenship.name}"?`)) return;
-
-      const result = await this.deleteCitizenshipAction(citizenship.id);
-
-      if (result.ok) {
-        this.selectedCitizenship = null;
-        this.showNotification("Гражданство успешно удалено", "success");
-      } else {
-        this.showNotification(result.message || "Ошибка при удалении гражданства", "error");
-      }
-    },
-    selectCitizenship(citizenship) {
-      this.selectedCitizenship = JSON.parse(JSON.stringify(citizenship));
+        const r = a.name.localeCompare(b.name);
+        return this.sortDirection === 'asc' ? r : -r;
+      });
     },
     sortBy(field) {
       if (this.sortField === field) {
@@ -500,37 +498,144 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-    formatDate(dateString) {
-      if (!dateString) return '-';
-      const date = new Date(dateString);
-      return date.toLocaleString('ru-RU');
+    formatDate(s) {
+      if (!s) return '';
+      return new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
-    }
+    syncSelectedFrom(fresh) {
+      this.selectedCitizenship = { ...fresh };
+      this.original = {
+        name: fresh.name,
+        is_default: fresh.is_default,
+        patent_required: fresh.patent_required,
+      };
+    },
+    async refresh() {
+      this.isLoading = true;
+      try {
+        const data = await listCitizenships({ includeArchived: true });
+        this.items = Array.isArray(data) ? data : [];
+        // Подтянуть актуальные поля выбранного гражданства или снять выбор,
+        // если оно больше не видно в текущем фильтре.
+        if (this.selectedCitizenship) {
+          const fresh = this.items.find(c => c.id === this.selectedCitizenship.id);
+          const visible = fresh && (this.showArchive ? !fresh.is_active : fresh.is_active);
+          if (fresh && visible && !this.isDetailsDirty) {
+            this.syncSelectedFrom(fresh);
+          } else if (!visible) {
+            this.selectedCitizenship = null;
+          }
+        }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'гражданства', type: 'error' });
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async onArchiveModeChange(value) {
+      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      this.showArchive = value === 'archive';
+      this.selectedCitizenship = null;
+      this.detailError = '';
+    },
+    async selectCitizenship(c) {
+      if (this.selectedCitizenship && this.selectedCitizenship.id === c.id) return;
+      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      this.syncSelectedFrom(c);
+      this.detailError = '';
+    },
+    async saveSelected() {
+      if (!this.isDetailsDirty || this.isSaving) return;
+      const s = this.selectedCitizenship;
+      const name = s.name.trim();
+      if (!name) {
+        this.detailError = 'Введите название гражданства';
+        return;
+      }
+      this.isSaving = true;
+      this.detailError = '';
+      try {
+        await updateCitizenship(s.id, {
+          name,
+          icon: s.icon ?? null,
+          isDefault: s.is_default,
+          patentRequired: s.patent_required,
+        });
+        useDeletionsStore().notify({ prefix: 'Изменения сохранены в ', bold: name });
+        s.name = name;
+        this.original = { name, is_default: s.is_default, patent_required: s.patent_required };
+        await this.refresh();
+      } catch (e) {
+        this.detailError = e?.message || 'Не удалось сохранить';
+      } finally {
+        this.isSaving = false;
+      }
+    },
+    openAddModal() {
+      this.showAddModal = true;
+      this.addForm = { name: '', is_default: false, patent_required: false };
+      this.addError = '';
+    },
+    async requestCloseAdd() {
+      if (this.isAddDirty && !(await confirmIfAnyDirty())) return;
+      this.forceCloseAdd();
+    },
+    forceCloseAdd() {
+      this.showAddModal = false;
+      this.addForm = { name: '', is_default: false, patent_required: false };
+      this.addError = '';
+    },
+    async submitAdd() {
+      const name = this.addForm.name.trim();
+      if (!name || this.isAdding) return;
+      this.isAdding = true;
+      this.addError = '';
+      try {
+        await createCitizenship({
+          name,
+          isDefault: this.addForm.is_default,
+          patentRequired: this.addForm.patent_required,
+        });
+        useDeletionsStore().notify({ prefix: 'Гражданство ', bold: name, suffix: ' создано' });
+        this.forceCloseAdd();
+        await this.refresh();
+      } catch (e) {
+        this.addError = e?.message || 'Не удалось создать';
+      } finally {
+        this.isAdding = false;
+      }
+    },
+    onArchiveClick(c) {
+      if (this.archiveBlocked) return;
+      this.archiveConfirm = c;
+    },
+    async performArchive() {
+      const c = this.archiveConfirm;
+      this.archiveConfirm = null;
+      if (!c) return;
+      try {
+        await archiveCitizenship(c.id);
+        useDeletionsStore().notify({ prefix: 'Гражданство ', bold: c.name, suffix: ' архивировано' });
+        if (this.selectedCitizenship && this.selectedCitizenship.id === c.id && !this.showArchive) {
+          this.selectedCitizenship = null;
+        }
+        await this.refresh();
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    async onRestore(c) {
+      try {
+        await restoreCitizenship(c.id);
+        useDeletionsStore().notify({ prefix: 'Гражданство ', bold: c.name, suffix: ' восстановлено из архива' });
+        if (this.selectedCitizenship && this.selectedCitizenship.id === c.id && this.showArchive) {
+          this.selectedCitizenship = null;
+        }
+        await this.refresh();
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
   },
 };
 </script>
@@ -541,8 +646,6 @@ export default {
   border-radius: 16px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
-  width: 100%;
-  height: 400px;
 }
 
 .management-header {
@@ -552,56 +655,40 @@ export default {
   padding: 0 20px;
   border-bottom: 1px solid #e6e6e6;
   height: 50px;
+  gap: 12px;
 }
 
 .management-title {
-  font-size: 1.2em;
   margin: 0;
+  font-size: 1.2em;
   font-weight: 600;
   color: #000;
 }
 
 .header-controls {
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
 }
 
-.add-header-button {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+.archive-dropdown {
+  min-width: 130px;
 }
 
-.add-header-button:hover {
-  background: #3a45b2;
-}
-
+/* Master-detail layout (эталон TableConstructor) */
 .content-container {
   display: flex;
-  height: 350px;
+  height: 500px;
   width: 100%;
+  overflow: hidden;
 }
 
-/* Левая часть - таблица */
 .table-section {
   width: 40%;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e6e6e6;
-}
-
-.table-section.with-details {
-  width: 40%;
+  background: #fff;
 }
 
 .table-container {
@@ -630,13 +717,17 @@ export default {
   display: flex;
   align-items: center;
   gap: 5px;
-  transition: .2s;
+  transition: 0.2s;
   cursor: pointer;
   user-select: none;
 }
 
+.header-col p {
+  margin: 0;
+}
+
 .header-col:hover {
-  color: #333;
+  color: #000;
 }
 
 .header-col:hover .sort-icon {
@@ -646,7 +737,7 @@ export default {
 .sort-icon {
   width: 12px;
   height: 12px;
-  transition: .2s;
+  transition: 0.2s;
 }
 
 .sort-icon.sorted {
@@ -658,27 +749,23 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: #000 !important;
   font-weight: 600 !important;
 }
 
 .id-col {
-  width: 15%;
+  width: 25%;
   min-width: 60px;
 }
 
 .name-col {
-  width: 60%;
-  min-width: 200px;
-}
-
-.status-col {
-  width: 25%;
-  min-width: 100px;
+  width: 75%;
+  min-width: 160px;
 }
 
 .table-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -701,6 +788,11 @@ export default {
   background-color: #f8f9ff;
 }
 
+.table-row.inactive {
+  background: #fafafa;
+  color: #6b7280;
+}
+
 .table-row:last-child {
   border-bottom: none;
 }
@@ -719,6 +811,10 @@ export default {
   color: #000;
 }
 
+.table-row.inactive .id-value {
+  color: #6b7280;
+}
+
 .truncate-text {
   white-space: nowrap;
   overflow: hidden;
@@ -731,36 +827,38 @@ export default {
   font-size: 0.7em;
   background: #e0f2fe;
   color: #0369a1;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
   margin-left: 6px;
   font-weight: 500;
+  vertical-align: middle;
 }
 
-.status-badge {
-  font-size: 0.8em;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-weight: 500;
+.inactive-badge {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: #a2a2a2;
+  font-style: italic;
 }
 
-.status-badge.active {
-  background: linear-gradient(135deg, #f0fdf4 0%, #f0fdf4 100%);
-  color: #166534;
-  border: 1px solid #bbf7d0;
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a2a2a2;
+  width: 100%;
 }
 
-.status-badge.inactive {
-  background: linear-gradient(135deg, #fef2f2 0%, #fef2f2 100%);
-  color: #dc2626;
-  border: 1px solid #fecaca;
+.citizenship-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
 }
 
 .table-footer {
-  margin-top: auto;
   padding: 6px 20px;
   border-top: 1px solid #e6e6e6;
-  text-align: end;
+  text-align: right;
   background: #f8fafc;
 }
 
@@ -770,16 +868,21 @@ export default {
   font-weight: 500;
 }
 
-/* Правая часть - детали */
+/* Details */
 .details-section {
   width: 60%;
-  padding: 15px;
-  overflow-y: auto;
-  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
 }
 
-.details-content {
-  height: 100%;
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #fff;
+  line-height: 1.5;
 }
 
 .details-header {
@@ -787,113 +890,106 @@ export default {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 20px;
-  gap: 30px;
+  gap: 12px;
 }
 
 .details-title-wrapper {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  flex: 1;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .details-title {
   margin: 0;
   color: #000;
-  font-size: 1.3em;
+  font-size: 1.2em;
   font-weight: 600;
+  word-break: break-word;
 }
 
-.timestamps-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0px;
-}
-
-.timestamp {
-  font-size: 0.75em;
-  color: #666;
+.details-default-badge {
+  margin-left: 0;
 }
 
 .details-header-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
-.delete-icon-btn {
+.archive-badge {
+  background: #6b7280;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.75em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.action-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 0;
-  transition: opacity 0.2s;
-  border-radius: 6px;
+  white-space: nowrap;
 }
 
-.delete-icon-btn:hover {
-  background-color: #fee;
-  opacity: 0.8;
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.delete-icon {
-  width: 20px;
-  height: 20px;
+.archive-action-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+
+.archive-action-btn:hover:not(:disabled) {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.restore-btn {
+  background: #10b981;
+  color: #fff;
+}
+
+.restore-btn:hover {
+  background: #0da271;
 }
 
 .details-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
-/* Компактная форма */
-.compact-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-bottom: 15px;
-}
-
-.form-group.compact {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.detail-label {
+.field-label {
   font-size: 0.85em;
-  color: #a2a2a2;
-  font-weight:400;
+  color: #666;
+  font-weight: 500;
 }
 
-.form-input-sm {
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 0.95em;
-  height: 35px;
-  transition: border-color 0.2s ease;
-  background: #fff;
-  width: 250px;
-  margin-bottom: 10px;
+.details-body .lk-input {
+  max-width: 320px;
 }
 
-.form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-/* Секции чекбоксов */
 .checkbox-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 10px 14px;
   background: #f8f9ff;
   border-radius: 15px;
   border: 1px solid #e6e6e6;
@@ -918,6 +1014,24 @@ export default {
   line-height: 1.4;
 }
 
+.details-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.details-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #a2a2a2;
+}
+
+.form-error {
+  color: #d73a3a;
+  font-size: 0.85em;
+}
+
 .no-selection-message {
   width: 60%;
   display: flex;
@@ -928,25 +1042,26 @@ export default {
   font-size: 14px;
 }
 
-.no-results {
-  text-align: center;
-  padding: 40px 20px;
-  color: #a2a2a2;
-  width: 100%;
+.add-header-button {
+  padding: 8px 16px;
+  background: #4F5BDF;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
-.no-results-icon {
-  font-size: 3em;
-  margin-bottom: 16px;
-  opacity: 0.5;
+.add-header-button:hover {
+  background: #3a45b2;
 }
 
-.no-results p {
-  margin: 0;
-  font-size: 1.1em;
-}
-
-/* МОДАЛЬНОЕ ОКНО */
+/* Модалка создания */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -963,14 +1078,11 @@ export default {
   -webkit-backdrop-filter: blur(0.1px);
 }
 
-.small-modal {
-  max-width: 400px;
-}
-
-.modal-content {
+.citizenship-modal {
   width: 100%;
+  max-width: 440px;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
@@ -979,9 +1091,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid #e6e6e6;
-  background: #fff;
 }
 
 .modal-header h3 {
@@ -992,26 +1103,28 @@ export default {
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s;
+  font-size: 24px;
+  line-height: 1;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s;
 }
 
 .modal-close:hover {
   color: #333;
+  background: #f5f5f5;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1029,159 +1142,67 @@ export default {
   font-weight: 500;
 }
 
-.form-input {
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 0.9em;
-  transition: border-color 0.2s;
-  background: #fff;
-  width: 100%;
-  height: 35px;
-}
-
-.form-input:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.checkbox-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 16px 20px;
+  padding: 16px 24px;
   border-top: 1px solid #e6e6e6;
-  background: #fff;
 }
 
-.modal-cancel {
-  padding: 8px 16px;
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e6e6e6;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 500;
-  transition: all 0.2s ease;
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.25s ease;
 }
 
-.modal-cancel:hover {
-  background: #e9ecef;
+.modal-fade-enter-active .citizenship-modal,
+.modal-fade-leave-active .citizenship-modal {
+  transition: all 0.25s ease;
 }
 
-.modal-confirm {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85em;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  background: rgba(0, 0, 0, 0);
 }
 
-.modal-confirm:hover {
-  background: #3a45b2;
+.modal-fade-enter-from .citizenship-modal,
+.modal-fade-leave-to .citizenship-modal {
+  opacity: 0;
+  transform: translateY(20px);
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
-  .content-container {
-    flex-direction: column;
-    height: auto;
-  }
-  
-  .table-section,
-  .details-section,
-  .no-selection-message {
-    width: 100% !important;
-  }
-  
-  .table-section.with-details {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-    height: 255px;
-  }
-  
-  .modal-content {
-    max-width: 90%;
-  }
-  
   .management-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
     height: auto;
     padding: 16px;
   }
-  
   .header-controls {
     width: 100%;
     flex-direction: column;
     align-items: stretch;
   }
-  
-  .add-header-button {
-    justify-content: center;
-  }
-
-  .details-header {
+  .content-container {
     flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
+    height: auto;
   }
-
-  .timestamps-header {
-    flex-direction: row;
-    gap: 12px;
-    flex-wrap: wrap;
+  .table-section,
+  .table-section.with-details,
+  .details-section,
+  .no-selection-message {
+    width: 100%;
   }
-}
-
-@media (max-width: 480px) {
-  .table-header {
-    padding: 0 12px;
+  .table-section {
+    border-right: none;
+    border-bottom: 1px solid #e6e6e6;
   }
-  
-  .table-row {
-    padding: 0 12px;
+  .table-body {
+    max-height: 300px;
   }
-  
-  .header-col,
-  .table-col {
-    font-size: 12px;
-  }
-  
-  .details-section {
-    padding: 12px;
-  }
-  
-  .modal-body {
-    padding: 16px;
-  }
-  
-  .modal-footer {
-    padding: 12px 16px;
-  }
-
-  .timestamps-header {
-    flex-direction: column;
-    gap: 2px;
+  .details-body .lk-input {
+    max-width: 100%;
   }
 }
 </style>
