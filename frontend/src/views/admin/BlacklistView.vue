@@ -1,27 +1,40 @@
 <template>
   <section class="blacklist-page">
-    <header class="page-header">
-      <h2 class="page-title">
-        Чёрный список
-      </h2>
-    </header>
-
-    <FilterTabs
-      v-model="activeTab"
-      :tabs="tabs"
-    />
-
     <div class="blacklist-card">
       <VehicleBlacklistTab
         v-show="activeTab === 'vehicles'"
         :current-user-name="currentUserName"
         @count="vehicleCount = $event"
-      />
+      >
+        <template #header-left>
+          <div class="bl-head-left">
+            <h2 class="bl-page-title">
+              Чёрный список
+            </h2>
+            <FilterTabs
+              v-model="activeTab"
+              :tabs="tabs"
+            />
+          </div>
+        </template>
+      </VehicleBlacklistTab>
       <PersonBlacklistTab
         v-show="activeTab === 'persons'"
         :current-user-name="currentUserName"
         @count="personCount = $event"
-      />
+      >
+        <template #header-left>
+          <div class="bl-head-left">
+            <h2 class="bl-page-title">
+              Чёрный список
+            </h2>
+            <FilterTabs
+              v-model="activeTab"
+              :tabs="tabs"
+            />
+          </div>
+        </template>
+      </PersonBlacklistTab>
     </div>
   </section>
 </template>
@@ -52,8 +65,8 @@ export default {
   computed: {
     tabs() {
       return [
-        { key: 'vehicles', label: `Машины (${this.vehicleCount})` },
-        { key: 'persons', label: `Люди (${this.personCount})` },
+        { key: 'vehicles', label: 'Машины', count: this.vehicleCount },
+        { key: 'persons', label: 'Люди', count: this.personCount },
       ];
     },
   },
@@ -78,21 +91,20 @@ export default {
 <style scoped>
 .blacklist-page {
   padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 
-.page-header {
+.bl-head-left {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  min-width: 0;
 }
 
-.page-title {
+.bl-page-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .blacklist-card {

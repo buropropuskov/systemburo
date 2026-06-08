@@ -8,14 +8,23 @@
       :data-testid="`filter-tab-${tab.key}`"
       @click="$emit('update:modelValue', tab.key)"
     >
-      {{ tab.label }}
+      <span class="filter-tab__label">{{ tab.label }}</span>
+      <Badge
+        v-if="tab.count != null"
+        :label="String(tab.count)"
+        size="sm"
+        variant="neutral"
+      />
     </button>
   </div>
 </template>
 
 <script>
+import Badge from '@/components/ui/Badge.vue';
+
 export default {
   name: 'FilterTabs',
+  components: { Badge },
   props: {
     tabs: {
       type: Array,
@@ -43,7 +52,10 @@ export default {
 }
 
 .filter-tab {
-  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
   height: 30px;
   border: 1px solid #e6e6e6;
   background: white;

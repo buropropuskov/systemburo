@@ -2,7 +2,6 @@
   <div>
     <BlacklistTabBase
       ref="base"
-      search-placeholder="Поиск по ФИО..."
       empty-noun="людей"
       :api-list="listPersonBlacklist"
       :get-primary-text="primaryText"
@@ -12,7 +11,11 @@
       @archive="askArchive"
       @restore="doRestore"
       @history="historyItem = $event"
-    />
+    >
+      <template #header-left>
+        <slot name="header-left" />
+      </template>
+    </BlacklistTabBase>
     <BlacklistCreateModal
       :show="showCreate"
       type="person"
