@@ -139,6 +139,13 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                class="action-btn history-btn"
+                data-testid="nf-history"
+                @click="openHistory(selectedFormat)"
+              >
+                История
+              </button>
+              <button
                 v-if="selectedFormat.format.is_active"
                 class="action-btn archive-action-btn"
                 data-testid="nf-archive"
@@ -649,6 +656,13 @@
       @confirm="performArchive"
       @cancel="archiveConfirmFormat = null"
     />
+
+    <LicensePlateFormatHistoryModal
+      v-if="historyForFormat"
+      :format="historyForFormat"
+      :current-user-name="currentUserName"
+      @close="historyForFormat = null"
+    />
   </div>
 </template>
 
@@ -658,6 +672,7 @@ import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import LicensePlateFormatHistoryModal from './LicensePlateFormatHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -683,7 +698,7 @@ const CELL_TYPE_LABELS = {
 
 export default {
   name: 'NumberFormat',
-  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner },
+  components: { SearchComponent, RefreshButton, ConfirmationModal, BaseDropdown, LoaderSpinner, LicensePlateFormatHistoryModal },
   setup() {
     // Колбэки закрытия присваиваются в created - нужен доступ к this (проверка dirty).
     const addOverlay = { close: () => {} };
@@ -720,6 +735,8 @@ export default {
       editingCell: null,
       cellEditError: '',
       archiveConfirmFormat: null,
+      historyForFormat: null,
+      currentUserName: '',
       archiveOptions: [
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
@@ -761,6 +778,7 @@ export default {
   },
   mounted() {
     this.refresh();
+    this.fetchCurrentUser();
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => {
@@ -1049,6 +1067,21 @@ export default {
         await this.refresh();
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    openHistory(item) {
+      this.historyForFormat = item.format;
+    },
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
     getCellTypeLabel(type) {
@@ -1395,6 +1428,16 @@ export default {
   font-weight: 500;
   transition: background 0.2s;
   white-space: nowrap;
+}
+
+.history-btn {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.history-btn:hover {
+  background: #eef0ff;
 }
 
 .archive-action-btn {
