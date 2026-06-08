@@ -1,6 +1,9 @@
 <template>
   <div class="bl-tab">
     <div class="bl-header">
+      <div class="bl-header-left">
+        <slot name="header-left" />
+      </div>
       <div class="bl-header-controls">
         <BaseDropdown
           class="bl-archive-dropdown"
@@ -219,7 +222,7 @@ export default {
 
 .bl-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: 0 20px;
   height: 50px;
@@ -227,10 +230,18 @@ export default {
   gap: 12px;
 }
 
+.bl-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
 .bl-header-controls {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .bl-content {
