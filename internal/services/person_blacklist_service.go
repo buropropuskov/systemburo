@@ -26,6 +26,8 @@ type PersonBlacklistService interface {
 	Archive(ctx context.Context, id int, userID int) error
 	Restore(ctx context.Context, id int, userID int) error
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
+	// UpdateReason - редактирование причины записи + лог в историю (updated).
+	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error)
 	GetHistory(ctx context.Context, id int) ([]models.PersonBlacklistHistoryItem, error)
 }
 
@@ -170,6 +172,36 @@ func (s *personBlacklistService) Check(ctx context.Context, lastName, firstName,
 		return models.PersonBlacklistCheckResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
 	}
 	return models.PersonBlacklistCheckResult{IsBlacklisted: true, Reason: e.Reason}, nil
+}
+
+func (s *personBlacklistService) UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error) {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !e.IsActive {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя редактировать причину архивной записи")
+	}
+	newReason := strings.TrimSpace(reason)
+	if newReason == "" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Причина обязательна")
+	}
+	if newReason == e.Reason {
+		return e, nil // без изменений - не пишем историю
+	}
+	oldReason := e.Reason
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.PersonBlacklist{}).Where("id = ?", e.ID).Update("reason", newReason).Error; err != nil {
+			return err
+		}
+		details := map[string]interface{}{"reason_old": oldReason, "reason_new": newReason}
+		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
+	})
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления причины")
+	}
+	e.Reason = newReason
+	return e, nil
 }
 
 func (s *personBlacklistService) GetHistory(ctx context.Context, id int) ([]models.PersonBlacklistHistoryItem, error) {

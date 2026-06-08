@@ -63,4 +63,27 @@ describe('AddToBlacklistModal', () => {
     await wrapper.setProps({ show: true });
     expect(wrapper.vm.reason).toBe('');
   });
+
+  describe('режим редактирования (mode=edit)', () => {
+    it('заголовок и кнопка - для редактирования', () => {
+      const wrapper = mountModal({ mode: 'edit', type: 'person' });
+      expect(wrapper.vm.title).toBe('Редактировать причину');
+      const btn = wrapper.findAll('button').find((b) => b.text().includes('Сохранить'));
+      expect(btn).toBeTruthy();
+    });
+
+    it('предзаполняет причину из initialReason при открытии', async () => {
+      const wrapper = mountModal({ show: false, mode: 'edit', initialReason: 'прежняя причина' });
+      await wrapper.setProps({ show: true });
+      expect(wrapper.vm.reason).toBe('прежняя причина');
+    });
+
+    it('confirm эмитит изменённую причину', async () => {
+      const wrapper = mountModal({ show: false, mode: 'edit', initialReason: 'старая' });
+      await wrapper.setProps({ show: true });
+      await wrapper.find('textarea').setValue('новая причина');
+      await wrapper.findAll('button').find((b) => b.text().includes('Сохранить')).trigger('click');
+      expect(wrapper.emitted('confirm')[0]).toEqual(['новая причина']);
+    });
+  });
 });

@@ -18,10 +18,13 @@ const ACTION_TEXTS = {
   created: 'Добавлен в чёрный список',
   archived: 'Снят с чёрного списка',
   restored: 'Возвращён в чёрный список',
+  updated: 'Изменена причина',
 };
 
 const FIELD_LABELS = {
   reason: 'Причина',
+  reason_old: 'Было',
+  reason_new: 'Стало',
   employees_deactivated: 'Деактивировано сотрудников',
   employees_reactivated: 'Возвращено сотрудников',
 };

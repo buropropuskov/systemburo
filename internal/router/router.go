@@ -207,6 +207,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	vblGroup.GET("/check", vehicleBlacklist.Check)
 	vblGroup.GET("/:id/history", vehicleBlacklist.GetHistory)
 	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
+	vblGroup.PUT("/:id", vehicleBlacklist.Update, requireBlacklist)
 	vblGroup.DELETE("/:id", vehicleBlacklist.Delete, requireBlacklist)
 	vblGroup.POST("/:id/restore", vehicleBlacklist.Restore, requireBlacklist)
 
@@ -216,6 +217,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	pblGroup.GET("/check", personBlacklist.Check)
 	pblGroup.GET("/:id/history", personBlacklist.GetHistory)
 	pblGroup.POST("", personBlacklist.Create, requireBlacklist)
+	pblGroup.PUT("/:id", personBlacklist.Update, requireBlacklist)
 	pblGroup.DELETE("/:id", personBlacklist.Delete, requireBlacklist)
 	pblGroup.POST("/:id/restore", personBlacklist.Restore, requireBlacklist)
 

@@ -46,6 +46,7 @@ const (
 	BlacklistActionCreated  = "created"
 	BlacklistActionArchived = "archived"
 	BlacklistActionRestored = "restored"
+	BlacklistActionUpdated  = "updated"
 )
 
 // CreateVehicleBlacklistRequest - тело POST /vehicle-blacklist.
@@ -53,6 +54,11 @@ type CreateVehicleBlacklistRequest struct {
 	CarNumber string `json:"car_number" validate:"required,min=1,max=50"`
 	MarkID    int    `json:"mark_id" validate:"required"`
 	Reason    string `json:"reason" validate:"required,min=1"`
+}
+
+// UpdateBlacklistReasonRequest - тело PUT /<entity>-blacklist/{id} (редактирование причины).
+type UpdateBlacklistReasonRequest struct {
+	Reason string `json:"reason" validate:"required,min=1"`
 }
 
 // VehicleBlacklistHistoryItem - элемент истории для API (с именем пользователя).
