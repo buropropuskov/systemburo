@@ -97,8 +97,10 @@
                 class="table-row"
                 :class="{
                   'table-row--disabled': isCarDisabled(car),
+                  'table-row--blacklisted': isCarBlacklisted(car),
                   'table-row--selected': isCarSelected(car)
                 }"
+                :title="carRowTitle(car)"
                 @click="handleRowClick(car)"
               >
                 <div
@@ -123,6 +125,14 @@
                 </div>
                 <div class="table-cell status-cell">
                   <span
+                    v-if="isCarBlacklisted(car)"
+                    class="status-badge status-blacklisted"
+                    title="В чёрном списке"
+                  >
+                    В ЧС
+                  </span>
+                  <span
+                    v-else
                     class="status-badge"
                     :class="{
                       'status-active': car.status,
@@ -176,6 +186,7 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import { listVehicleBlacklist } from '@/api/blacklist'
 
 export default {
     name: 'ExistingCarsModal',
@@ -213,15 +224,19 @@ export default {
             tempSelectedCars: [],
             currentFilter: 'all',
             loadingCars: false,
-            searchQuery: ''
+            searchQuery: '',
+            blacklistKeys: new Set()
         }
     },
     watch: {
-        visible(newVal) {
+        async visible(newVal) {
             if (newVal) {
                 this.tempSelectedCars = [...this.initialSelectedCars]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
+                // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС"
+                // (иначе строка на миг отрисуется выбираемой, пока blacklistKeys пуст).
+                await this.loadBlacklist()
                 this.loadCarsByFilter('all')
             } else {
                 this.tempSelectedCars = []
@@ -337,7 +352,36 @@ export default {
             return this.tempSelectedCars.some(selectedCar => selectedCar.id === car.id)
         },
 
+        async loadBlacklist() {
+            try {
+                const items = await listVehicleBlacklist()
+                const list = Array.isArray(items) ? items : []
+                this.blacklistKeys = new Set(
+                    list.map(e => this.blacklistKey(e.car_number, e.mark_name))
+                )
+            } catch (error) {
+                // Не блокируем модалку при сбое ЧС - серверный гард всё равно отклонит подачу.
+                console.error('Не удалось загрузить чёрный список машин:', error)
+                this.blacklistKeys = new Set()
+            }
+        },
+
+        // Ключ совпадения зеркалит серверный CheckByName: LOWER(TRIM(номер)) + LOWER(TRIM(марка)).
+        blacklistKey(number, mark) {
+            return `${(number || '').trim().toLowerCase()}|${(mark || '').trim().toLowerCase()}`
+        },
+
+        isCarBlacklisted(car) {
+            return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark))
+        },
+
+        carRowTitle(car) {
+            if (this.isCarBlacklisted(car)) return 'Машина в чёрном списке - выбрать нельзя'
+            return ''
+        },
+
         isCarDisabled(car) {
+            if (this.isCarBlacklisted(car)) return true
             return this.alreadyAddedVehicles.some(vehicle =>
                 (vehicle.isExisting && vehicle.existingCarId === car.id) ||
                 (!vehicle.isExisting && vehicle.plateNumber === car.number && vehicle.mark === car.mark)
@@ -633,6 +677,17 @@ export default {
     background-color: #fef2f2;
     color: #991b1b;
     border: 1px solid #fecaca;
+}
+
+.status-blacklisted {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    font-weight: 700;
+}
+
+.table-row--blacklisted .status-badge.status-blacklisted {
+    opacity: 1;
 }
 
 .table-row--disabled .status-badge {

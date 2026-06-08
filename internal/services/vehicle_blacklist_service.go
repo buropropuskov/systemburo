@@ -32,6 +32,9 @@ type VehicleBlacklistService interface {
 	Restore(ctx context.Context, id int, userID int) error
 	// Check - заблокирована ли машина (number+mark) активной записью.
 	Check(ctx context.Context, carNumber string, markID int) (models.VehicleBlacklistCheckResult, error)
+	// CheckByName - проверка по номеру и имени марки (для машин без mark_id, например
+	// выбранных из существующих unique_cars). Совпадение по mark_name, как в каскаде.
+	CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error)
 	GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error)
 }
 
@@ -178,6 +181,24 @@ func (s *vehicleBlacklistService) Check(ctx context.Context, carNumber string, m
 		Where("is_active = ?", true).
 		Where("LOWER(TRIM(car_number)) = LOWER(TRIM(?))", carNumber).
 		Where("mark_id = ?", markID).
+		First(&e).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.VehicleBlacklistCheckResult{IsBlacklisted: false}, nil
+		}
+		return models.VehicleBlacklistCheckResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
+	}
+	return models.VehicleBlacklistCheckResult{IsBlacklisted: true, Reason: e.Reason}, nil
+}
+
+func (s *vehicleBlacklistService) CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error) {
+	// .First: при нескольких активных записях с одним номером+именем марки (разные mark_id
+	// после пересоздания марки) берём любую - для блокировки достаточно факта совпадения.
+	var e models.VehicleBlacklist
+	err := s.db.WithContext(ctx).
+		Where("is_active = ?", true).
+		Where("LOWER(TRIM(car_number)) = LOWER(TRIM(?))", carNumber).
+		Where("LOWER(TRIM(mark_name)) = LOWER(TRIM(?))", markName).
 		First(&e).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

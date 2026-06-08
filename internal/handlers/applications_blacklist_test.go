@@ -41,6 +41,32 @@ func submitCarApp(t *testing.T, e *echo.Echo, db *gorm.DB, token, orgName, tag, 
 	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 }
 
+// submitCarAppNoMark подаёт заявку с машиной БЕЗ mark_id (как при выборе из существующих
+// unique_cars) - только номер и car_brand. Проверяет name-fallback серверного гарда.
+func submitCarAppNoMark(t *testing.T, e *echo.Echo, db *gorm.DB, token, orgName, tag, carNumber, carBrand string) *httptest.ResponseRecorder {
+	t.Helper()
+	uaID := seedUniqueAttachment(t, db, "cars", fmt.Sprintf("car_tmpl_%s_%s", t.Name(), tag), "Car Template")
+	body := fmt.Sprintf(`{
+		"message": "blacklist guard",
+		"organization": "%s",
+		"responsible_person": "Test",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "car_tmpl",
+			"attachment_display_name": "Car Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": {"vehicles": [{"car_number": "%s", "car_brand": "%s"}]}
+		}]
+	}`, orgName, uaID, carNumber, carBrand)
+	return testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+}
+
 // submitPersonApp подаёт полную заявку с одним человеком (ФИО) и возвращает recorder.
 func submitPersonApp(t *testing.T, e *echo.Echo, db *gorm.DB, token, orgName, tag, last, first, middle string, citizenshipID, tableID int) *httptest.ResponseRecorder {
 	t.Helper()
@@ -102,6 +128,17 @@ func TestSubmitCompleteApplication_BlacklistGuard(t *testing.T) {
 
 	t.Run("машину не из ЧС подать можно", func(t *testing.T) {
 		rec := submitCarApp(t, e, db, token, orgName, "clean", "D888DD799", mark.ID)
+		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+	})
+
+	t.Run("заблокированную машину без mark_id ловит name-fallback", func(t *testing.T) {
+		rec := submitCarAppNoMark(t, e, db, token, orgName, "blocked_noid", "C777CC799", mark.Name)
+		require.Equal(t, http.StatusConflict, rec.Code, "body: %s", rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "чёрном списке")
+	})
+
+	t.Run("без mark_id и без совпадения по имени - можно", func(t *testing.T) {
+		rec := submitCarAppNoMark(t, e, db, token, orgName, "clean_noid", "C777CC799", "Другая марка")
 		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	})
 

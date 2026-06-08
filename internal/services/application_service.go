@@ -946,10 +946,21 @@ func (s *applicationService) validateBlacklist(ctx context.Context, req Complete
 	for _, att := range req.Attachments {
 		if att.Data.Vehicles != nil {
 			for _, v := range *att.Data.Vehicles {
-				if v.MarkID == nil {
+				// Машины из mark-дропдауна приходят с mark_id (строгий матч), выбранные из
+				// существующих unique_cars - без mark_id, но с car_brand (имя марки): для них
+				// fallback на матч по имени, иначе заблокированная машина прошла бы гард.
+				var (
+					res models.VehicleBlacklistCheckResult
+					err error
+				)
+				switch {
+				case v.MarkID != nil:
+					res, err = s.vehicleBlacklist.Check(ctx, v.CarNumber, *v.MarkID)
+				case strings.TrimSpace(v.CarBrand) != "":
+					res, err = s.vehicleBlacklist.CheckByName(ctx, v.CarNumber, v.CarBrand)
+				default:
 					continue
 				}
-				res, err := s.vehicleBlacklist.Check(ctx, v.CarNumber, *v.MarkID)
 				if err != nil {
 					return err
 				}
