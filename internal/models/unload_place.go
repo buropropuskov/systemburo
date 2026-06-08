@@ -40,6 +40,9 @@ type UnloadPlaceTimeSlot struct {
 	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
+// GetID возвращает идентификатор слота (контракт timeSlotModel для общего стора).
+func (s UnloadPlaceTimeSlot) GetID() int { return s.ID }
+
 type OrganizationUnloadPlace struct {
 	ID             int          `json:"id"`
 	OrganizationID int          `gorm:"index" json:"organization_id"`
