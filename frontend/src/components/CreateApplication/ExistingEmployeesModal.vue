@@ -87,8 +87,10 @@
                 class="table-row"
                 :class="{
                   'table-row--disabled': isEmployeeDisabled(employee),
+                  'table-row--blacklisted': isEmployeeBlacklisted(employee),
                   'table-row--selected': isEmployeeSelected(employee)
                 }"
+                :title="employeeRowTitle(employee)"
                 @click="handleRowClick(employee)"
               >
                 <div
@@ -116,6 +118,14 @@
                 </div>
                 <div class="table-cell status-cell">
                   <span
+                    v-if="isEmployeeBlacklisted(employee)"
+                    class="status-badge status-blacklisted"
+                    title="В чёрном списке"
+                  >
+                    В ЧС
+                  </span>
+                  <span
+                    v-else
                     class="status-badge"
                     :class="{
                       'status-active': employee.status,
@@ -167,6 +177,7 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import { listPersonBlacklist } from '@/api/blacklist'
 
 export default {
     name: 'ExistingEmployeesModal',
@@ -200,15 +211,18 @@ export default {
             tempSelectedEmployees: [],
             currentFilter: 'all',
             loadingEmployees: false,
-            searchQuery: ''
+            searchQuery: '',
+            blacklistKeys: new Set()
         }
     },
     watch: {
-        visible(newVal) {
+        async visible(newVal) {
             if (newVal) {
                 this.tempSelectedEmployees = [...this.initialSelectedEmployees]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
+                // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС".
+                await this.loadBlacklist()
                 this.loadEmployeesByFilter('all')
             } else {
                 this.tempSelectedEmployees = []
@@ -295,7 +309,39 @@ export default {
             return this.tempSelectedEmployees.some(sel => sel.id === employee.id)
         },
 
+        async loadBlacklist() {
+            try {
+                const items = await listPersonBlacklist()
+                const list = Array.isArray(items) ? items : []
+                this.blacklistKeys = new Set(
+                    list.map(e => this.blacklistKey(e.last_name, e.first_name, e.middle_name))
+                )
+            } catch (error) {
+                // Не блокируем модалку при сбое ЧС - серверный гард всё равно отклонит подачу.
+                console.error('Не удалось загрузить чёрный список людей:', error)
+                this.blacklistKeys = new Set()
+            }
+        },
+
+        // Ключ зеркалит серверный Check: LOWER(TRIM) по ФИО, пустое отчество матчит пустое.
+        blacklistKey(last, first, middle) {
+            const norm = (v) => (v || '').trim().toLowerCase()
+            return `${norm(last)}|${norm(first)}|${norm(middle)}`
+        },
+
+        isEmployeeBlacklisted(employee) {
+            return this.blacklistKeys.has(
+                this.blacklistKey(employee.last_name, employee.first_name, employee.middle_name)
+            )
+        },
+
+        employeeRowTitle(employee) {
+            if (this.isEmployeeBlacklisted(employee)) return 'Человек в чёрном списке - выбрать нельзя'
+            return ''
+        },
+
         isEmployeeDisabled(employee) {
+            if (this.isEmployeeBlacklisted(employee)) return true
             return this.alreadyAddedEmployees.some(emp =>
                 (emp.isExisting && emp.existingEmployeeId === employee.id) ||
                 (!emp.isExisting && emp.passportSeriesNumber === employee.passport_series_number)
@@ -596,6 +642,17 @@ export default {
     background-color: #fef2f2;
     color: #991b1b;
     border: 1px solid #fecaca;
+}
+
+.status-blacklisted {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    font-weight: 700;
+}
+
+.table-row--blacklisted .status-badge.status-blacklisted {
+    opacity: 1;
 }
 
 .table-row--disabled .status-badge {
