@@ -70,3 +70,14 @@ export async function restoreAttachment(id) {
   const res = await apiRequest(`/attachments/${id}/restore`, { method: 'PUT' });
   return unwrap(res, 'Не удалось восстановить вложение');
 }
+
+/**
+ * История действий над шаблоном вложения (#416, backend #485).
+ * GET /attachments/{id}/history -> [{id, action_type, details, actor_user_id, actor_name, created_at}].
+ * details: created={display_name}; updated={field:{old,new}} по
+ * attachment_type/name/display_name/title/instruction; archived/restored без details.
+ */
+export async function getAttachmentHistory(id) {
+  const res = await apiRequest(`/attachments/${id}/history`);
+  return unwrap(res, 'Не удалось загрузить историю вложения');
+}

@@ -143,6 +143,13 @@
                 class="archive-badge"
               >В архиве</span>
               <button
+                class="action-btn history-btn"
+                data-testid="attachment-history"
+                @click="openHistory(selectedAttachment)"
+              >
+                История
+              </button>
+              <button
                 v-if="selectedAttachment.is_active"
                 class="action-btn template-btn"
                 data-testid="attachment-template-btn"
@@ -432,6 +439,13 @@
       @confirm="performArchive"
       @cancel="archiveConfirm = null"
     />
+
+    <UniqueAttachmentHistoryModal
+      v-if="historyForAttachment"
+      :attachment="historyForAttachment"
+      :current-user-name="currentUserName"
+      @close="historyForAttachment = null"
+    />
   </div>
 </template>
 
@@ -444,9 +458,11 @@ import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AttachmentCustomFields from './admin/AttachmentCustomFields.vue';
 import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
+import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { apiRequest } from '@/api/client';
 import {
   listAllAttachments,
   createAttachment,
@@ -472,6 +488,7 @@ export default {
     LoaderSpinner,
     AttachmentCustomFields,
     AttachmentTemplateEditor,
+    UniqueAttachmentHistoryModal,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -499,6 +516,8 @@ export default {
       nameError: '',
       isAdding: false,
       archiveConfirm: null,
+      historyForAttachment: null,
+      currentUserName: '',
       archiveOptions: [
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
@@ -571,6 +590,7 @@ export default {
   },
   mounted() {
     this.refresh();
+    this.fetchCurrentUser();
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => {
@@ -802,6 +822,22 @@ export default {
         await this.refresh();
       } catch (e) {
         this.deletions.notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    openHistory(a) {
+      // Подпись в заголовке - актуальное наименование (из формы, если правилось).
+      this.historyForAttachment = { id: a.id, name: this.original.display_name || a.display_name };
+    },
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
   },
@@ -1131,6 +1167,16 @@ export default {
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.history-btn {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.history-btn:hover {
+  background: #eef0ff;
 }
 
 .archive-action-btn {

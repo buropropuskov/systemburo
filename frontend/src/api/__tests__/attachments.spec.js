@@ -11,6 +11,7 @@ import {
   updateAttachment,
   archiveAttachment,
   restoreAttachment,
+  getAttachmentHistory,
 } from '../attachments'
 
 // apiRequest разворачивает envelope: на успехе json() = data, на ошибке = { message }.
@@ -122,6 +123,20 @@ describe('api/attachments', () => {
     it('бросает при ошибке, а не считает успехом', async () => {
       apiRequest.mockResolvedValue(errJson('Вложение не найдено', 404))
       await expect(restoreAttachment(5)).rejects.toThrow('Вложение не найдено')
+    })
+  })
+
+  describe('getAttachmentHistory', () => {
+    it('GET /attachments/{id}/history отдаёт массив записей', async () => {
+      apiRequest.mockResolvedValue(okJson([{ id: 1, action_type: 'created' }]))
+      const data = await getAttachmentHistory(7)
+      expect(apiRequest).toHaveBeenCalledWith('/attachments/7/history')
+      expect(data).toEqual([{ id: 1, action_type: 'created' }])
+    })
+
+    it('бросает при ошибке загрузки истории', async () => {
+      apiRequest.mockResolvedValue(errJson('Сервер недоступен', 500))
+      await expect(getAttachmentHistory(7)).rejects.toThrow('Сервер недоступен')
     })
   })
 })
