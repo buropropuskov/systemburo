@@ -222,3 +222,34 @@ func TestUniqueCars_FilterTypes(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code, "filter_type=%s should return 200", f)
 	}
 }
+
+func TestUniqueCars_Lookup(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := fmt.Sprintf(`{"number":"Х999ХХ77","mark":"Lada","organization_id":%d}`, td.OrgID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", body, h).Code)
+
+	t.Run("находит по номеру и марке без учёта регистра/пробелов", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-cars/lookup?number=%20х999хх77%20&mark=lada", h)
+		require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+		resp := testutil.ParseMap(t, rec)
+		assert.Equal(t, "Х999ХХ77", resp["number"])
+		assert.Equal(t, "Lada", resp["mark"])
+		assert.Greater(t, int(resp["id"].(float64)), 0)
+	})
+
+	t.Run("404 если нет совпадения по марке", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-cars/lookup?number=Х999ХХ77&mark=BMW", h)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("400 без номера", func(t *testing.T) {
+		rec := testutil.GET(t, e, "/unique-cars/lookup?mark=Lada", h)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+}

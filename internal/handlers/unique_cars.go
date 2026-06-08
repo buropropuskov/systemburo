@@ -207,6 +207,32 @@ func (h *UniqueCarHandler) GetHistory(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
+// Lookup godoc
+// @Summary      Найти машину по номеру и марке
+// @Description  Поиск машины (LOWER/TRIM) для открытия карточки со страницы ЧС. 404 если нет.
+// @Tags         unique-cars
+// @Produce      json
+// @Security     BearerAuth
+// @Param        number query string true "Номер машины"
+// @Param        mark query string false "Марка"
+// @Success      200 {object} services.UniqueCarWithRelations
+// @Failure      404 {object} models.HTTPError
+// @Router       /unique-cars/lookup [get]
+func (h *UniqueCarHandler) Lookup(c echo.Context) error {
+	number := c.QueryParam("number")
+	if number == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "number обязателен")
+	}
+	car, err := h.service.LookupByNumberMark(c.Request().Context(), number, c.QueryParam("mark"))
+	if err != nil {
+		return err
+	}
+	if car == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Машина не найдена")
+	}
+	return RespondSuccess(c, car)
+}
+
 // GetOwnershipInfo godoc
 // @Summary      Информация о владельце для машин
 // @Description  Возвращает данные о привязке пользователя к организации/компании

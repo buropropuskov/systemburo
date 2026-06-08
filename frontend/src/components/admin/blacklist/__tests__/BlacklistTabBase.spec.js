@@ -148,4 +148,58 @@ describe('BlacklistTabBase', () => {
     await flushPromises();
     expect(wrapper.find('.bl-empty').exists()).toBe(true);
   });
+
+  it('без lookupCard кнопки "Открыть карточку" нет', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Открыть карточку');
+    expect(btn).toBeUndefined();
+  });
+
+  it('с lookupCard: кнопка disabled пока запись не найдена, потом активна и эмитит open-card', async () => {
+    const entity = { id: 99, plateNumber: 'A1' };
+    const lookupCard = vi.fn().mockResolvedValue(entity);
+    const wrapper = mountBase({ lookupCard });
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    await flushPromises();
+    expect(lookupCard).toHaveBeenCalledWith(items[0]);
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Открыть карточку');
+    expect(btn).toBeTruthy();
+    expect(btn.attributes('disabled')).toBeUndefined();
+    await btn.trigger('click');
+    expect(wrapper.emitted('open-card')[0]).toEqual([entity]);
+  });
+
+  it('с lookupCard: кнопка disabled, если записи в реестре нет (null)', async () => {
+    const lookupCard = vi.fn().mockResolvedValue(null);
+    const wrapper = mountBase({ lookupCard });
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    await flushPromises();
+    const btn = wrapper.findAll('button').find((b) => b.text() === 'Открыть карточку');
+    expect(btn.attributes('disabled')).toBeDefined();
+  });
+
+  it('гонка: при быстром переключении строк применяется только последний лукап', async () => {
+    // Первый лукап (item1) разрешается ПОЗЖЕ второго (item2) - не должен затереть результат.
+    let resolveFirst;
+    const lookupCard = vi.fn()
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+      .mockResolvedValueOnce({ id: 2, plateNumber: 'B2' });
+    const wrapper = mountBase({ lookupCard });
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click'); // item1 - висит
+    await wrapper.findAll('.bl-row')[1].trigger('click'); // item2 - резолвится
+    await flushPromises();
+    // item2 разрешён -> cardEntity = item2, loading сброшен
+    expect(wrapper.vm.cardEntity).toEqual({ id: 2, plateNumber: 'B2' });
+    expect(wrapper.vm.cardLoading).toBe(false);
+    // теперь поздно разрешаем item1 - он устарел, не должен затереть cardEntity/loading
+    resolveFirst({ id: 1, plateNumber: 'B1' });
+    await flushPromises();
+    expect(wrapper.vm.cardEntity).toEqual({ id: 2, plateNumber: 'B2' });
+    expect(wrapper.vm.cardLoading).toBe(false);
+  });
 });

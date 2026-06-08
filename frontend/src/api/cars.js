@@ -45,3 +45,15 @@ export async function getCarsCurrentStatus() {
   const res = await apiRequest('/cars/history/current-status');
   return res.json();
 }
+
+/**
+ * Поиск машины в реестре по номеру и марке (для открытия карточки со страницы ЧС).
+ * Возвращает запись unique_car или null, если совпадения нет (404).
+ */
+export async function lookupUniqueCar({ number, mark }) {
+  const qs = new URLSearchParams({ number, mark: mark || '' });
+  const res = await apiRequest(`/unique-cars/lookup?${qs.toString()}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Ошибка поиска машины (${res.status})`);
+  return res.json();
+}

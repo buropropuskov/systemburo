@@ -125,6 +125,9 @@ type UniqueCarHistoryItem struct {
 type UniqueCarService interface {
 	GetOwnerInfo(ctx context.Context, username string) (*CarOwnerInfo, error)
 	GetAll(ctx context.Context, username string, filterType string) ([]UniqueCarWithRelations, error)
+	// LookupByNumberMark ищет машину по номеру и марке (LOWER(TRIM), как ЧС) для открытия
+	// карточки со страницы чёрного списка. Возвращает nil, nil если совпадения нет.
+	LookupByNumberMark(ctx context.Context, number, mark string) (*UniqueCarWithRelations, error)
 	Create(ctx context.Context, username string, req NewUniqueCarRequest) (*UniqueCarResponse, error)
 	CreateBatch(ctx context.Context, username string, reqs []NewUniqueCarRequest) (*BatchCreateCarsResponse, int, error)
 	Update(ctx context.Context, username string, id int, req NewUniqueCarRequest) (*UniqueCarResponse, error)
@@ -177,6 +180,32 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 // GetOwnerInfo возвращает информацию о владельце для фильтрации машин.
 func (s *uniqueCarService) GetOwnerInfo(ctx context.Context, username string) (*CarOwnerInfo, error) {
 	return s.getCarOwnerInfo(ctx, username)
+}
+
+// LookupByNumberMark ищет машину по номеру+марке без скоупинга по владельцу (вызывается
+// из админ-страницы ЧС). Берёт самую свежую при нескольких совпадениях. nil,nil если нет.
+func (s *uniqueCarService) LookupByNumberMark(ctx context.Context, number, mark string) (*UniqueCarWithRelations, error) {
+	rows := make([]UniqueCarWithRelations, 0, 1)
+	err := s.db.WithContext(ctx).
+		Table("unique_cars uc").
+		Select(`uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id, uc.format_id, uc.user_id,
+			uc.status, uc.created_at,
+			o.name as organization_name, c.name as company_name, lpf.name as format_name`).
+		Joins("LEFT JOIN organizations o ON uc.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON uc.company_id = c.id").
+		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").
+		Where("LOWER(TRIM(uc.number)) = LOWER(TRIM(?))", number).
+		Where("LOWER(TRIM(COALESCE(uc.mark, ''))) = LOWER(TRIM(?))", mark).
+		Order("uc.id DESC").
+		Limit(1).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска машины")
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
 }
 
 // GetAll возвращает список уникальных автомобилей с фильтрацией по типу владельца.

@@ -370,6 +370,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ucg.PUT("/by-number", uc.UpdateByNumber)
 	ucg.DELETE("/:id", uc.Delete)
 	ucg.GET("/ownership-info", uc.GetOwnershipInfo)
+	ucg.GET("/lookup", uc.Lookup, requireBlacklist)
 	ucg.GET("/:id/history", uc.GetHistory)
 
 	// Реестр сотрудников (unique_employees)
