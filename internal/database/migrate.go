@@ -23,6 +23,7 @@ func AllModels() []interface{} {
 		&models.CompanyHistory{},
 		&models.Citizenship{},
 		&models.LicensePlateFormat{},
+		&models.LicensePlateFormatHistory{},
 		&models.Mark{},
 		&models.MarkHistory{},
 		&models.VehicleBlacklist{},
