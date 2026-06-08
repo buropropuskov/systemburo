@@ -68,6 +68,44 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.find('.bl-details-title').text()).toBe('Запись 1');
   });
 
+  it('строка kind=reason рендерится отдельным callout, остальные - в def-list', async () => {
+    const wrapper = mountBase({
+      getDetailRows: (i) => [
+        { label: 'Номер', value: `N${i.id}` },
+        { label: 'Причина', value: i.reason, kind: 'reason' },
+      ],
+    });
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    expect(wrapper.find('.bl-reason').exists()).toBe(true);
+    expect(wrapper.find('.bl-reason-text').text()).toBe('причина1');
+    const defRows = wrapper.findAll('.bl-def-row');
+    expect(defRows).toHaveLength(1);
+    expect(defRows[0].text()).toContain('Номер');
+    expect(wrapper.find('.bl-def-list').text()).not.toContain('причина1');
+  });
+
+  it('статус-баннер: активная - is-active, архивная - is-archived', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    expect(wrapper.find('.bl-status-banner.is-active').exists()).toBe(true);
+    expect(wrapper.find('.bl-status-banner').text()).toContain('В чёрном списке');
+
+    wrapper.vm.onArchiveModeChange('archive');
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    expect(wrapper.find('.bl-status-banner.is-archived').exists()).toBe(true);
+  });
+
+  it('иконка сущности рендерится при entity-icon', async () => {
+    const wrapper = mountBase({ entityIcon: '/icons/car.png' });
+    await flushPromises();
+    await wrapper.findAll('.bl-row')[0].trigger('click');
+    expect(wrapper.find('.bl-details-icon').exists()).toBe(true);
+    expect(wrapper.find('.bl-details-icon').attributes('src')).toBe('/icons/car.png');
+  });
+
   it('кнопка "Создать запись" эмитит create', async () => {
     const wrapper = mountBase();
     await flushPromises();

@@ -3,6 +3,7 @@
     <BlacklistTabBase
       ref="base"
       empty-noun="машины"
+      :entity-icon="carIcon"
       :api-list="listVehicleBlacklist"
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
@@ -55,6 +56,7 @@ import {
 } from '@/api/blacklist';
 import { formatDateTime } from '@/utils/datetime';
 import { useDeletionsStore } from '@/stores/deletions';
+import carIcon from '@/assets/icons/car.png';
 
 /**
  * Вкладка "Машины" чёрного списка (#443). Конфигурирует BlacklistTabBase под машины
@@ -68,7 +70,7 @@ export default {
   },
   emits: ['count'],
   data() {
-    return { showCreate: false, archiveItem: null, historyItem: null };
+    return { showCreate: false, archiveItem: null, historyItem: null, carIcon };
   },
   computed: {
     archiveMessage() {
@@ -87,7 +89,7 @@ export default {
       return [
         { label: 'Номер', value: item.car_number },
         { label: 'Марка', value: item.mark_name },
-        { label: 'Причина', value: item.reason },
+        { label: 'Причина', value: item.reason, kind: 'reason' },
         { label: 'Добавлена', value: formatDateTime(item.created_at) },
       ];
     },
