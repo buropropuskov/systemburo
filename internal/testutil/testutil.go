@@ -60,7 +60,7 @@ var tables = []string{
 	"system_table_trash_histories", "system_table_histories",
 	"system_table_time_slots", "system_table_photos", "system_tables",
 	"license_plate_format_histories", "license_plate_format_cells", "license_plate_formats",
-	"citizenships",
+	"citizenship_histories", "citizenships",
 	"companies_users", "organization_users",
 	"user_histories", "user_type_histories", "organization_histories", "company_histories",
 	"refresh_tokens", "users",

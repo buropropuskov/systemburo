@@ -175,6 +175,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	csg.POST("", cs.Create)
 	csg.PUT("/:id", cs.Update)
 	csg.DELETE("/:id", cs.Delete)
+	csg.POST("/:id/restore", cs.Restore)
+	csg.GET("/:id/history", cs.GetHistory)
 	csg.POST("/clear-default", cs.ClearDefaults)
 
 	// Форматы номерных знаков
