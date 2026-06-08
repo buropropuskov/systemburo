@@ -268,3 +268,76 @@ func TestPersonBlacklist_GetAllHistory(t *testing.T) {
 		assert.False(t, all[i].CreatedAt.After(all[i-1].CreatedAt), "события должны идти от новых к старым")
 	}
 }
+
+// TestPersonBlacklist_FindSimilar: нечёткий поиск (#481) ловит латиничный гомоглиф, опечатку
+// и отсутствие отчества; не ловит постороннее ФИО; игнорирует архивные.
+func TestPersonBlacklist_FindSimilar(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	svc := newPersonBlacklistService(db)
+	ctx := context.Background()
+
+	target, err := svc.Create(ctx, models.CreatePersonBlacklistRequest{
+		LastName: "Иванов", FirstName: "Иван", MiddleName: "Иванович", Reason: "обход",
+	}, userID)
+	require.NoError(t, err)
+	_, err = svc.Create(ctx, models.CreatePersonBlacklistRequest{
+		LastName: "Сидоров", FirstName: "Сидор", MiddleName: "Сидорович", Reason: "фон",
+	}, userID)
+	require.NoError(t, err)
+
+	containsTarget := func(t *testing.T, res []models.BlacklistSimilarMatch) models.BlacklistSimilarMatch {
+		t.Helper()
+		for _, m := range res {
+			if m.ID == target.ID {
+				return m
+			}
+		}
+		t.Fatalf("ожидали эталон id=%d среди похожих, получили %+v", target.ID, res)
+		return models.BlacklistSimilarMatch{}
+	}
+
+	t.Run("латиница-гомоглиф в фамилии (обход) -> sim ~1.0", func(t *testing.T) {
+		// "Ивaнов" с латинской 'a' нормализуется в "иванов" - сырой Check бы не сматчил.
+		res, err := svc.FindSimilar(ctx, "Ивaнов", "Иван", "Иванович")
+		require.NoError(t, err)
+		m := containsTarget(t, res)
+		assert.InDelta(t, 1.0, m.Similarity, 1e-9)
+		assert.Equal(t, "обход", m.Reason)
+		assert.Contains(t, m.MatchedValue, "Иванов")
+	})
+
+	t.Run("без отчества (обход) -> похоже, >=0.7", func(t *testing.T) {
+		res, err := svc.FindSimilar(ctx, "Иванов", "Иван", "")
+		require.NoError(t, err)
+		m := containsTarget(t, res)
+		assert.GreaterOrEqual(t, m.Similarity, 0.7)
+	})
+
+	t.Run("опечатка в имени -> похоже", func(t *testing.T) {
+		res, err := svc.FindSimilar(ctx, "Иванов", "Иваи", "Иванович")
+		require.NoError(t, err)
+		_ = containsTarget(t, res)
+	})
+
+	t.Run("постороннее ФИО -> эталон не матчится", func(t *testing.T) {
+		res, err := svc.FindSimilar(ctx, "Кузнецов", "Алексей", "Петрович")
+		require.NoError(t, err)
+		for _, m := range res {
+			assert.NotEqual(t, target.ID, m.ID)
+		}
+	})
+
+	t.Run("архивная запись не находится", func(t *testing.T) {
+		require.NoError(t, svc.Archive(ctx, target.ID, userID))
+		res, err := svc.FindSimilar(ctx, "Иванов", "Иван", "Иванович")
+		require.NoError(t, err)
+		for _, m := range res {
+			assert.NotEqual(t, target.ID, m.ID)
+		}
+	})
+}

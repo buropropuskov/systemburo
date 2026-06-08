@@ -16,6 +16,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// blacklistSimilarityThreshold - порог [0..1] нечёткого совпадения для предупреждения о
+// возможном обходе ЧС (#481). Дефолт 0.7 (решение владельца). Общий для машин (Левенштейн
+// по номеру) и людей (similarity/word_similarity по ФИО). Может стать настройкой админки
+// отдельным срезом - пока фиксированная константа (YAGNI).
+const blacklistSimilarityThreshold = 0.7
+
 // VehicleBlacklistService - бизнес-логика чёрного списка автомобилей (#443).
 //
 // Create/Restore каскадно деактивируют совпадающие cars (status 1 -> 0) в одной
@@ -36,6 +42,11 @@ type VehicleBlacklistService interface {
 	// CheckByName - проверка по номеру и имени марки (для машин без mark_id, например
 	// выбранных из существующих unique_cars). Совпадение по mark_name, как в каскаде.
 	CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error)
+	// FindSimilar - активные записи ЧС, чьи нормализованные номера БЛИЗКИ (но не обязательно
+	// равны) нормализованному номеру заявки: Левенштейн по normalized_number, порог 0.7.
+	// Слой предупреждения о возможном обходе (#481): точное совпадение ловит Check (409),
+	// сюда попадают опечатка/гомоглиф/подмена 0<->О. Пустой срез - похожих нет.
+	FindSimilar(ctx context.Context, carNumber string) ([]models.BlacklistSimilarMatch, error)
 	// UpdateReason - редактирование причины записи + лог в историю (updated).
 	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error)
 	// Purge - удаление архивной записи навсегда: запись удаляется физически, но событие
@@ -280,6 +291,58 @@ func (s *vehicleBlacklistService) CheckByName(ctx context.Context, carNumber, ma
 		return models.VehicleBlacklistCheckResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки чёрного списка")
 	}
 	return models.VehicleBlacklistCheckResult{IsBlacklisted: true, Reason: e.Reason}, nil
+}
+
+// FindSimilar ищет активные записи, чей нормализованный номер близок к нормализованному
+// номеру заявки. Метрика - 1 - levenshtein/max(len): расстояние редактирования fuzzystrmatch,
+// приведённое к [0..1]. Сравниваем по normalized_number (та же канон-форма, что при Create/
+// бэкфилле), чтобы гомоглиф/0<->О/пробелы не давали ложного расхождения. Нормализованно-точную
+// форму НЕ исключаем: совпадение в нормали при различии в сырых данных (латиница) - и есть
+// обход (Check его не сматчит). Результат - по убыванию близости.
+func (s *vehicleBlacklistService) FindSimilar(ctx context.Context, carNumber string) ([]models.BlacklistSimilarMatch, error) {
+	q := normalize.Plate(carNumber)
+	if q == "" {
+		return []models.BlacklistSimilarMatch{}, nil
+	}
+	// levenshtein (fuzzystrmatch) падает на аргументе >255 байт, а FindSimilar зовётся с
+	// пользовательским вводом (normalize.Plate длину не ограничивает). Реальные номера
+	// короткие - обрезаем по рунам, чтобы мусорный ввод не ронял запрос (64 руны <= 128 байт).
+	if r := []rune(q); len(r) > 64 {
+		q = string(r[:64])
+	}
+	type simRow struct {
+		ID        int
+		CarNumber string
+		MarkName  string
+		Reason    string
+		Sim       float64
+	}
+	var rows []simRow
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT id, car_number, mark_name, reason, sim FROM (
+			SELECT id, car_number, mark_name, reason,
+			       1 - levenshtein(normalized_number, @q)::float
+			           / GREATEST(LENGTH(normalized_number), LENGTH(@q), 1) AS sim
+			FROM vehicle_blacklists
+			WHERE is_active = true AND normalized_number <> ''
+		) t
+		WHERE sim >= @threshold
+		ORDER BY sim DESC, id`,
+		map[string]interface{}{"q": q, "threshold": blacklistSimilarityThreshold},
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска похожих записей чёрного списка")
+	}
+	matches := make([]models.BlacklistSimilarMatch, 0, len(rows))
+	for _, r := range rows {
+		matches = append(matches, models.BlacklistSimilarMatch{
+			ID:           r.ID,
+			Similarity:   r.Sim,
+			MatchedValue: strings.TrimSpace(r.CarNumber + " " + r.MarkName),
+			Reason:       r.Reason,
+		})
+	}
+	return matches, nil
 }
 
 func (s *vehicleBlacklistService) GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error) {

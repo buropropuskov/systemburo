@@ -145,6 +145,9 @@ func AllModels() []interface{} {
 // AutoMigrate creates/updates all tables from GORM models.
 func AutoMigrate(db *gorm.DB) error {
 	slog.Info("running AutoMigrate for all models")
+	if err := installExtensions(db); err != nil {
+		return err
+	}
 	if err := db.AutoMigrate(AllModels()...); err != nil {
 		return err
 	}
@@ -276,6 +279,23 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 		return err
 	}
 	slog.Info("SQL functions installed: format_short_name, format_full_name")
+	return nil
+}
+
+// installExtensions включает Postgres-расширения для нечёткого поиска возможного обхода
+// ЧС (#481): pg_trgm (триграммные similarity/word_similarity по ФИО) и fuzzystrmatch
+// (levenshtein по госномерам). CREATE EXTENSION IF NOT EXISTS идемпотентен и безопасен при
+// каждом старте; оба расширения trusted в PG13+, поэтому ставятся владельцем БД без
+// суперпользователя. Ставим до AutoMigrate: инфраструктура не зависит от таблиц, а
+// FindSimilar-запросы сервисов зависят от расширений.
+func installExtensions(db *gorm.DB) error {
+	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`).Error; err != nil {
+		return fmt.Errorf("failed to install pg_trgm extension: %w", err)
+	}
+	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS fuzzystrmatch`).Error; err != nil {
+		return fmt.Errorf("failed to install fuzzystrmatch extension: %w", err)
+	}
+	slog.Info("SQL extensions installed: pg_trgm, fuzzystrmatch")
 	return nil
 }
 
