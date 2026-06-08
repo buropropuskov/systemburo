@@ -46,6 +46,10 @@ export function restoreVehicleBlacklist(id) {
   return mutate(`/vehicle-blacklist/${id}/restore`);
 }
 
+export function purgeVehicleBlacklist(id) {
+  return mutate(`/vehicle-blacklist/${id}/purge`, { method: 'DELETE' });
+}
+
 export function createPersonBlacklist({ last_name, first_name, middle_name, reason }) {
   return mutate('/person-blacklist', { body: { last_name, first_name, middle_name, reason } });
 }
@@ -60,6 +64,10 @@ export function archivePersonBlacklist(id) {
 
 export function restorePersonBlacklist(id) {
   return mutate(`/person-blacklist/${id}/restore`);
+}
+
+export function purgePersonBlacklist(id) {
+  return mutate(`/person-blacklist/${id}/purge`, { method: 'DELETE' });
 }
 
 export async function getVehicleBlacklistHistory(id) {

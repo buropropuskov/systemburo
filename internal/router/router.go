@@ -209,6 +209,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
 	vblGroup.PUT("/:id", vehicleBlacklist.Update, requireBlacklist)
 	vblGroup.DELETE("/:id", vehicleBlacklist.Delete, requireBlacklist)
+	vblGroup.DELETE("/:id/purge", vehicleBlacklist.Purge, requireBlacklist)
 	vblGroup.POST("/:id/restore", vehicleBlacklist.Restore, requireBlacklist)
 
 	// Чёрный список людей (#443). Та же permission page.admin.blacklist (одна страница).
@@ -219,6 +220,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	pblGroup.POST("", personBlacklist.Create, requireBlacklist)
 	pblGroup.PUT("/:id", personBlacklist.Update, requireBlacklist)
 	pblGroup.DELETE("/:id", personBlacklist.Delete, requireBlacklist)
+	pblGroup.DELETE("/:id/purge", personBlacklist.Purge, requireBlacklist)
 	pblGroup.POST("/:id/restore", personBlacklist.Restore, requireBlacklist)
 
 	// Attachment Excel-templates (#183) - вложенные ручки под /attachments/:id/...

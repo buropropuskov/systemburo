@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"systemburo/internal/models"
@@ -186,4 +187,38 @@ func TestPersonBlacklist_UnblacklistSkipsExpiredPass(t *testing.T) {
 	require.NoError(t, db.First(&after, empID).Error)
 	require.NotNil(t, after.Status)
 	assert.Equal(t, 0, *after.Status, "сотрудник с истёкшим пропуском не должен возрождаться")
+}
+
+// TestPersonBlacklist_Purge покрывает hard-delete архивной записи + запрет на активную.
+func TestPersonBlacklist_Purge(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	svc := newPersonBlacklistService(db)
+	ctx := context.Background()
+
+	entry, err := svc.Create(ctx, models.CreatePersonBlacklistRequest{
+		LastName: "Удаляев", FirstName: "Удал", MiddleName: "Удалович", Reason: "к удалению",
+	}, userID)
+	require.NoError(t, err)
+
+	t.Run("активную удалять нельзя - 400", func(t *testing.T) {
+		assertHTTPStatus(t, svc.Purge(ctx, entry.ID), http.StatusBadRequest)
+	})
+
+	require.NoError(t, svc.Archive(ctx, entry.ID, userID))
+
+	t.Run("архивную удаляет вместе с историей", func(t *testing.T) {
+		require.NoError(t, svc.Purge(ctx, entry.ID))
+
+		_, err := svc.GetByID(ctx, entry.ID)
+		assertHTTPStatus(t, err, http.StatusNotFound)
+
+		var histCount int64
+		require.NoError(t, db.Model(&models.PersonBlacklistHistory{}).Where("entity_id = ?", entry.ID).Count(&histCount).Error)
+		assert.Zero(t, histCount, "история записи должна быть удалена")
+	})
 }

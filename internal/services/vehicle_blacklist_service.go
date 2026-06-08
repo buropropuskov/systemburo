@@ -37,6 +37,8 @@ type VehicleBlacklistService interface {
 	CheckByName(ctx context.Context, carNumber, markName string) (models.VehicleBlacklistCheckResult, error)
 	// UpdateReason - редактирование причины записи + лог в историю (updated).
 	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error)
+	// Purge - безвозвратное удаление архивной записи вместе с её историей (только is_active=false).
+	Purge(ctx context.Context, id int) error
 	GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error)
 }
 
@@ -173,6 +175,28 @@ func (s *vehicleBlacklistService) UpdateReason(ctx context.Context, id int, reas
 	}
 	e.Reason = newReason
 	return e, nil
+}
+
+// Purge безвозвратно удаляет архивную запись и её историю в одной транзакции. Активную
+// запись удалять нельзя - сперва "Убрать из ЧС". Каскадную историю самих машин не трогаем.
+func (s *vehicleBlacklistService) Purge(ctx context.Context, id int) error {
+	e, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if e.IsActive {
+		return echo.NewHTTPError(http.StatusBadRequest, "Сначала уберите запись из чёрного списка")
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("entity_id = ?", e.ID).Delete(&models.VehicleBlacklistHistory{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.VehicleBlacklist{}, e.ID).Error
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка удаления записи")
+	}
+	return nil
 }
 
 func (s *vehicleBlacklistService) Restore(ctx context.Context, id int, userID int) error {

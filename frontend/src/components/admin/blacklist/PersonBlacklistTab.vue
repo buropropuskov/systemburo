@@ -15,6 +15,7 @@
       @history="historyItem = $event"
       @open-card="openCard"
       @edit="onEdit"
+      @purge="askPurge"
     >
       <template #header-left>
         <slot name="header-left" />
@@ -55,6 +56,16 @@
       @confirm="doArchive"
       @cancel="archiveItem = null"
     />
+    <ConfirmationModal
+      :show="!!purgeItem"
+      title="Удалить навсегда"
+      :message="purgeMessage"
+      confirm-text="Удалить навсегда"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#dc3545', borderColor: '#dc3545' }"
+      @confirm="doPurge"
+      @cancel="purgeItem = null"
+    />
     <EmployeeDetailsModal
       :show="showDetails"
       :employee="detailsEmployee"
@@ -78,6 +89,7 @@ import {
   updatePersonBlacklist,
   archivePersonBlacklist,
   restorePersonBlacklist,
+  purgePersonBlacklist,
 } from '@/api/blacklist';
 import { lookupUniqueEmployee } from '@/api/employees';
 import { formatDateTime } from '@/utils/datetime';
@@ -98,13 +110,18 @@ export default {
   data() {
     return {
       showCreate: false, archiveItem: null, historyItem: null, userIcon, detailsEmployee: null, showDetails: false,
-      editItem: null, savingEdit: false, editError: '',
+      editItem: null, savingEdit: false, editError: '', purgeItem: null,
     };
   },
   computed: {
     archiveMessage() {
       return this.archiveItem
         ? `Убрать «${this.primaryText(this.archiveItem)}» из чёрного списка? Совпадающие сотрудники с активной заявкой снова станут активными.`
+        : '';
+    },
+    purgeMessage() {
+      return this.purgeItem
+        ? `Удалить «${this.primaryText(this.purgeItem)}» из архива навсегда? Запись и её история будут удалены безвозвратно.`
         : '';
     },
   },
@@ -199,6 +216,21 @@ export default {
         await this.$refs.base.fetchData();
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Не удалось вернуть: ', bold: e?.message || 'ошибка', type: 'error' });
+      }
+    },
+    askPurge(item) {
+      this.purgeItem = item;
+    },
+    async doPurge() {
+      const item = this.purgeItem;
+      this.purgeItem = null;
+      if (!item) return;
+      try {
+        await purgePersonBlacklist(item.id);
+        useDeletionsStore().notify({ prefix: 'Запись ', bold: this.primaryText(item), suffix: ' удалена безвозвратно' });
+        await this.$refs.base.fetchData();
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: e?.message || 'ошибка', type: 'error' });
       }
     },
   },

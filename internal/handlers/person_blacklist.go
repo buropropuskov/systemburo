@@ -86,6 +86,25 @@ func (h *PersonBlacklistHandler) Update(c echo.Context) error {
 	return RespondSuccess(c, entry)
 }
 
+// Purge godoc
+// @Summary      Безвозвратно удалить архивную запись чёрного списка
+// @Tags         person-blacklist
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID записи"
+// @Success      200 {string} string "Запись удалена"
+// @Router       /person-blacklist/{id}/purge [delete]
+func (h *PersonBlacklistHandler) Purge(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	if err := h.service.Purge(c.Request().Context(), id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Запись удалена")
+}
+
 // Delete godoc
 // @Summary      Снять человека с чёрного списка (архивация)
 // @Tags         person-blacklist

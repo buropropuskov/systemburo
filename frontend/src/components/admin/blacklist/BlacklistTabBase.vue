@@ -132,6 +132,13 @@
             >
               Вернуть в ЧС
             </button>
+            <button
+              v-if="!selected.is_active"
+              class="lk-button lk-button--danger"
+              @click="$emit('purge', selected)"
+            >
+              Удалить навсегда
+            </button>
           </div>
         </div>
         <div class="bl-details-body">
@@ -210,7 +217,7 @@ export default {
     // "Открыть карточку" (disabled, пока запись в реестре не найдена).
     lookupCard: { type: Function, default: null },
   },
-  emits: ['count', 'create', 'archive', 'restore', 'history', 'open-card', 'edit'],
+  emits: ['count', 'create', 'archive', 'restore', 'history', 'open-card', 'edit', 'purge'],
   data() {
     return {
       items: [],

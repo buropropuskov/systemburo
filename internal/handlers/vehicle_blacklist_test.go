@@ -297,3 +297,38 @@ func TestVehicleBlacklist_UpdateReason(t *testing.T) {
 		assertHTTPStatus(t, err, http.StatusBadRequest)
 	})
 }
+
+// TestVehicleBlacklist_Purge покрывает hard-delete архивной записи + запрет на активную.
+func TestVehicleBlacklist_Purge(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	mark := seedMark(t, db, "BL_Purge")
+	svc := newVehicleBlacklistService(db)
+	ctx := context.Background()
+
+	entry, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "P222PP799", MarkID: mark.ID, Reason: "к удалению",
+	}, userID)
+	require.NoError(t, err)
+
+	t.Run("активную удалять нельзя - 400", func(t *testing.T) {
+		assertHTTPStatus(t, svc.Purge(ctx, entry.ID), http.StatusBadRequest)
+	})
+
+	require.NoError(t, svc.Archive(ctx, entry.ID, userID))
+
+	t.Run("архивную удаляет вместе с историей", func(t *testing.T) {
+		require.NoError(t, svc.Purge(ctx, entry.ID))
+
+		_, err := svc.GetByID(ctx, entry.ID)
+		assertHTTPStatus(t, err, http.StatusNotFound)
+
+		var histCount int64
+		require.NoError(t, db.Model(&models.VehicleBlacklistHistory{}).Where("entity_id = ?", entry.ID).Count(&histCount).Error)
+		assert.Zero(t, histCount, "история записи должна быть удалена")
+	})
+}
