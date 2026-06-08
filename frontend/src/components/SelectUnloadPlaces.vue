@@ -30,10 +30,7 @@
             v-for="place in allUnloadPlaces" 
             :key="place.id"
             class="place-item"
-            :class="{
-              'selected': isPlaceSelected(place.id),
-              'disabled': !place.is_active
-            }"
+            :class="{ 'selected': isPlaceSelected(place.id) }"
             @click="toggleUnloadPlace(place)"
           >
             {{ place.name }}
@@ -53,6 +50,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 export default {
   name: 'SelectUnloadPlaces',
   props: {
@@ -152,16 +150,16 @@ export default {
         
         if (response.ok) {
           this.originalSelectedPlaces = [...this.selectedUnloadPlaces];
-          this.showNotification("Места разгрузки успешно обновлены", "success");
+          useDeletionsStore().notify({ prefix: 'Места разгрузки сохранены для ', bold: this.entity.name, type: 'success' });
           this.$emit('places-updated');
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении мест разгрузки", "error");
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить места разгрузки: ', bold: error.message || 'ошибка сервера', type: 'error' });
           await this.fetchEntityUnloadPlaces(this.entity.id);
         }
       } catch (error) {
         console.error("Error updating unload places:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить места разгрузки: ', bold: 'ошибка сети', type: 'error' });
         await this.fetchEntityUnloadPlaces(this.entity.id);
       } finally {
         this.isSaving = false;
@@ -173,8 +171,6 @@ export default {
     },
 
     toggleUnloadPlace(place) {
-      if (!place.is_active) return;
-      
       const index = this.selectedUnloadPlaces.findIndex(p => p.id === place.id);
       if (index > -1) {
         this.selectedUnloadPlaces.splice(index, 1);
@@ -185,33 +181,6 @@ export default {
 
     isPlaceSelected(placeId) {
       return this.selectedUnloadPlaces.some(p => p.id === placeId);
-    },
-
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
     }
   },
 };
@@ -270,15 +239,6 @@ export default {
 .place-item.selected {
   background: #4F5BDF;
   color: #FFF;
-}
-
-.place-item.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.place-item.disabled:hover {
-  background: #f2f2f2;
 }
 
 .no-places-message {
