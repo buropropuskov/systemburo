@@ -13,18 +13,9 @@
             :class="{ 'shifted': isMainShifted }"
           >
             <div class="modal-header">
-              <div class="modal-title-row">
-                <h3 class="modal-title">
-                  {{ modalTitle }}
-                </h3>
-                <span
-                  v-if="isBlacklisted"
-                  class="blacklist-plashka"
-                  :title="blacklistReason || 'В чёрном списке'"
-                >
-                  В ЧС
-                </span>
-              </div>
+              <h3 class="modal-title">
+                {{ modalTitle }}
+              </h3>
               <div class="header-actions">
                 <button
                   v-if="showHistoryButton"
@@ -69,6 +60,23 @@
             </div>
                     
             <div class="modal-body">
+              <!-- Секция статуса ЧС -->
+              <div
+                v-if="isBlacklisted"
+                class="bl-section"
+              >
+                <div class="bl-section-head">
+                  <span class="bl-section-dot" />
+                  Человек в чёрном списке
+                </div>
+                <div
+                  v-if="blacklistReason"
+                  class="bl-section-reason"
+                >
+                  <span class="bl-section-label">Причина:</span> {{ blacklistReason }}
+                </div>
+              </div>
+
               <div
                 v-if="employee"
                 class="employee-details"
@@ -987,24 +995,41 @@ export default {
     border-color: #dc2626;
 }
 
-.modal-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
+.bl-section {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #fdeaea;
+    border: 1px solid #f5b5b5;
+    border-radius: 12px;
 }
 
-.blacklist-plashka {
-    display: inline-flex;
+.bl-section-head {
+    display: flex;
     align-items: center;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-    white-space: nowrap;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #b91c1c;
+}
+
+.bl-section-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dc2626;
+    flex-shrink: 0;
+}
+
+.bl-section-reason {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #7f1d1d;
+    word-break: break-word;
+}
+
+.bl-section-label {
+    font-weight: 600;
 }
 
 .modal-title {
