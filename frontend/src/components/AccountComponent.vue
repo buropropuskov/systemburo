@@ -51,109 +51,37 @@
         />
       </div>
     </div>
-    
-    <!-- Настройки системы -->
-    <div class="settings">
-      <AccountSettings v-if="isBuroPropuskov" />
-    </div>
-
-    <template v-if="isBuroPropuskov">
-      <section id="users" class="account-section">
-        <UserControl
-          :all-users="allUsers"
-          class="dashboard-card dashboard-card-animated"
-          @fetch-users="fetchAllUsers"
-          @user-updated="handleUserUpdated"
-        />
-      </section>
-      <section id="organizations" class="account-section">
-        <OrganizationsManagement class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="companies" class="account-section">
-        <CompaniesManagement class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="unload_place" class="account-section">
-        <UnloadPlacesContainer class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="number" class="account-section">
-        <NumberFormat class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="citizenships" class="account-section">
-        <CitizenshipManagement class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="marks" class="account-section">
-        <MarksManagement class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="tables" class="account-section">
-        <TableConstructor class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="user_types" class="account-section">
-        <UserTypes class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="attachments" class="account-section">
-        <AttachmentsManagement class="dashboard-card dashboard-card-animated" />
-      </section>
-      <section id="approvers" class="account-section">
-        <ApplicationApprovers class="dashboard-card dashboard-card-animated" />
-      </section>
-    </template>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
-import UserControl from './UserControl.vue';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotificationsInline from './UserNotificationsInline.vue';
-import OrganizationsManagement from './OrganizationsManagement.vue';
-import CompaniesManagement from './CompaniesManagement.vue';
-import UnloadPlacesContainer from './UnloadPlaces/UnloadPlacesContainer.vue';
-import NumberFormat from './NumberFormat.vue';
-import TableConstructor from './TableConstructor.vue';
-import UserTypes from './UserTypes.vue';
-import AccountSettings from './AccountSettings.vue';
-import CitizenshipManagement from './CitizenshipManagement.vue';
-import MarksManagement from './MarksManagement.vue';
-import AttachmentsManagement from './AttachmentsManagement.vue';
-import ApplicationApprovers from './ApplicationApprovers.vue';
 import { SkeletonTransition, SkeletonBlock } from '@/components/ui';
 
 export default {
   components: {
-    UserControl,
     UserApplications,
     UserProfileHeader,
     UserNotificationsInline,
-    OrganizationsManagement,
-    CompaniesManagement,
-    UnloadPlacesContainer,
-    NumberFormat,
-    TableConstructor,
-    UserTypes,
-    AccountSettings,
-    CitizenshipManagement,
-    MarksManagement,
-    AttachmentsManagement,
-    ApplicationApprovers,
     SkeletonTransition,
     SkeletonBlock,
   },
   data() {
     return {
       loading: true,
-      allUsers: [],
       organization: "",
       company: "",
       username: "",
       type_id: 1,
       user_type: "user",
-      is_super_admin: false,
       userId: null,
       userOrganizationId: null,
       userCompanyId: null,
-      
+
       // Поля пользователя
       lastName: "",
       firstName: "",
@@ -163,16 +91,8 @@ export default {
       phone: ""
     };
   },
-  computed: {
-    isBuroPropuskov() {
-      return this.is_super_admin === true;
-    }
-  },
   mounted() {
     this.fetchUserData();
-    if (this.isBuroPropuskov) {
-      this.fetchAllUsers();
-    }
   },
   methods: {
     async fetchUserData() {
@@ -205,7 +125,6 @@ export default {
       this.username = userData.username || "";
       this.type_id = userData.type_id || 1;
       this.user_type = userData.user_type || "user";
-      this.is_super_admin = userData.is_super_admin === true;
       this.userId = userData.id || null;
       this.userOrganizationId = userData.organization_id || null;
       this.userCompanyId = userData.company_id || null;
@@ -217,42 +136,6 @@ export default {
       this.position = userData.position || "";
       this.email = userData.email || "";
       this.phone = userData.phone || "";
-
-      console.log("userCompanyId set to:", this.userCompanyId);
-    console.log("userOrganizationId set to:", this.userOrganizationId);
-    },
-    async fetchAllUsers() {
-      try {
-        // include_archived=true: UserControl фильтрует активных/архивных клиентски (переключатель).
-        const response = await apiRequest("/users/all?include_archived=true", {
-          method: "GET",
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          this.allUsers = data.map(user => ({
-            ...user,
-            newPassword: ""
-          }));
-        } else {
-          alert("Ошибка при загрузке пользователей.");
-        }
-      } catch (error) {
-        console.error("Ошибка сети при загрузке пользователей:", error);
-      }
-    },
-    handleUserUpdated(updatedUser) {
-      if (updatedUser.username === this.username) {
-        this.updateUserData(updatedUser);
-      }
-      
-      const userIndex = this.allUsers.findIndex(u => u.username === updatedUser.username);
-      if (userIndex !== -1) {
-        this.allUsers[userIndex] = {
-          ...this.allUsers[userIndex],
-          ...updatedUser
-        };
-      }
     }
   }
 };
@@ -261,7 +144,6 @@ export default {
 <style scoped>
 .account-dashboard {
   width: 100%;
-  margin: 0 auto;
   padding: 15px;
   position: relative;
 }
@@ -292,43 +174,16 @@ export default {
  padding: 15px 0;
 }
 
-.account-section {
-  margin-top: 25px;
-}
-
 .applications-wrapper {
   position: relative;
 }
 
-/* Стили для карточек */
-.dashboard-card {
-  background: white;
-  border-radius: 30px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e6e6e6;
-}
-
+/* Карточки личного кабинета (профиль/уведомления/заявки) */
 .dashboard-card-animated {
   opacity: 0;
   transform: translateY(20px);
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-}
-
-.dashboard-card h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  color: #4F5BDF;
-  font-size: 1.2em;
-  font-weight: 600;
-}
-
-.settings {
-  width: 100%;
-  margin-top: 35px;
-  margin-bottom: 35px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
 /* Анимации */
@@ -355,22 +210,6 @@ export default {
 
   .first-row :deep(.notifications) {
     max-width: 100%;
-  }
-
-  .settings {
-    width: 100%;
-  }
-}
-
-@media (max-width: 768px) {
-  .dashboard-card {
-    padding: 15px;
-  }
-}
-
-@media (max-width: 480px) {
-  .dashboard-card {
-    padding: 15px 10px;
   }
 }
 </style>
