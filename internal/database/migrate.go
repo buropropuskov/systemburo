@@ -69,6 +69,7 @@ func AllModels() []interface{} {
 		&models.ApplicationStatusHistory{},
 		&models.ApplicationResponsibleUser{},
 		&models.ApplicationApprover{},
+		&models.ApplicationApproverHistory{},
 		&models.ApplicationViewer{},
 
 		// Unique records

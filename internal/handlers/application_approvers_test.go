@@ -194,3 +194,146 @@ func TestApprovers_Create_RegularUserForbidden(t *testing.T) {
 	rec := testutil.POST(t, e, "/application-approvers", `{"user_id":1}`, testutil.AuthHeader(userToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
+
+func TestApprovers_History_CreateWritesEntry(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "histuser", "password123", 1, td.OrgID, td.CompanyID)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminH := testutil.AuthHeader(adminToken)
+
+	rec := testutil.GET(t, e, "/application-approvers/available-users", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+	available := testutil.ParseSlice(t, rec)
+
+	var targetUserID int
+	for _, u := range available {
+		if u["username"] == "histuser" {
+			targetUserID = int(u["id"].(float64))
+			break
+		}
+	}
+	require.Greater(t, targetUserID, 0)
+
+	body := fmt.Sprintf(`{"user_id":%d}`, targetUserID)
+	rec = testutil.POST(t, e, "/application-approvers", body, adminH)
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	// История должна содержать запись created.
+	rec = testutil.GET(t, e, "/application-approvers/history", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	history := testutil.ParseSlice(t, rec)
+	require.Len(t, history, 1)
+	entry := history[0]
+	assert.Equal(t, "created", entry["action_type"])
+	assert.Equal(t, float64(targetUserID), entry["approver_user_id"])
+	assert.NotEmpty(t, entry["approver_name"])
+	// actor_user_id должен быть заполнен (admin создавал).
+	assert.NotNil(t, entry["actor_user_id"])
+}
+
+func TestApprovers_History_DeleteWritesEntry(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "delhistuser", "password123", 1, td.OrgID, td.CompanyID)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminH := testutil.AuthHeader(adminToken)
+
+	rec := testutil.GET(t, e, "/application-approvers/available-users", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+	available := testutil.ParseSlice(t, rec)
+
+	var targetUserID int
+	for _, u := range available {
+		if u["username"] == "delhistuser" {
+			targetUserID = int(u["id"].(float64))
+			break
+		}
+	}
+	require.Greater(t, targetUserID, 0)
+
+	body := fmt.Sprintf(`{"user_id":%d}`, targetUserID)
+	rec = testutil.POST(t, e, "/application-approvers", body, adminH)
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	rec = testutil.GET(t, e, "/application-approvers", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+	approvers := testutil.ParseSlice(t, rec)
+	require.Len(t, approvers, 1)
+	approverID := int(approvers[0]["id"].(float64))
+
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/application-approvers/%d", approverID), adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// История: две записи (created + deleted), deleted — новее, стоит первой.
+	rec = testutil.GET(t, e, "/application-approvers/history", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	history := testutil.ParseSlice(t, rec)
+	require.GreaterOrEqual(t, len(history), 2)
+
+	// Первая запись — deleted (новее).
+	assert.Equal(t, "deleted", history[0]["action_type"])
+	assert.Equal(t, float64(targetUserID), history[0]["approver_user_id"])
+	// Снимок имени не пустой.
+	assert.NotEmpty(t, history[0]["approver_name"])
+	// actor заполнен.
+	assert.NotNil(t, history[0]["actor_user_id"])
+}
+
+func TestApprovers_History_OrderNewestFirst(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "orduser1", "password123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "orduser2", "password123", 1, td.OrgID, td.CompanyID)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminH := testutil.AuthHeader(adminToken)
+
+	rec := testutil.GET(t, e, "/application-approvers/available-users", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+	available := testutil.ParseSlice(t, rec)
+
+	var uid1, uid2 int
+	for _, u := range available {
+		switch u["username"] {
+		case "orduser1":
+			uid1 = int(u["id"].(float64))
+		case "orduser2":
+			uid2 = int(u["id"].(float64))
+		}
+	}
+	require.Greater(t, uid1, 0)
+	require.Greater(t, uid2, 0)
+
+	rec = testutil.POST(t, e, "/application-approvers", fmt.Sprintf(`{"user_id":%d}`, uid1), adminH)
+	require.Equal(t, http.StatusCreated, rec.Code)
+	rec = testutil.POST(t, e, "/application-approvers", fmt.Sprintf(`{"user_id":%d}`, uid2), adminH)
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	rec = testutil.GET(t, e, "/application-approvers/history", adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	history := testutil.ParseSlice(t, rec)
+	require.Len(t, history, 2)
+
+	// Новые сверху: uid2 добавлен последним -> стоит первым в журнале.
+	assert.Equal(t, float64(uid2), history[0]["approver_user_id"])
+	assert.Equal(t, float64(uid1), history[1]["approver_user_id"])
+
+	// Оба — created, актор заполнен, actor_name не пустой.
+	for _, h := range history {
+		assert.Equal(t, "created", h["action_type"])
+		assert.NotNil(t, h["actor_user_id"])
+		assert.NotEmpty(t, h["actor_name"])
+	}
+}

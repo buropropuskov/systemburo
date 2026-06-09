@@ -96,10 +96,28 @@ func (h *ApproverHandler) Delete(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if err := h.service.Delete(c.Request().Context(), typeID, id); err != nil {
+	actorUsername, _ := c.Get("username").(string)
+	if err := h.service.Delete(c.Request().Context(), typeID, id, actorUsername); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]string{
 		"message": "Approver deleted successfully",
 	})
+}
+
+// GetHistory godoc
+// @Summary      Журнал принимающих заявки
+// @Description  Глобальный аудит-лог: кто и когда был добавлен или удалён из принимающих
+// @Tags         application-approvers
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.ApplicationApproverHistoryItem
+// @Failure      403 {object} models.HTTPError
+// @Router       /application-approvers/history [get]
+func (h *ApproverHandler) GetHistory(c echo.Context) error {
+	history, err := h.service.GetHistory(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, history)
 }
