@@ -256,6 +256,7 @@
               v-show="matches('Статистика')"
               class="nav-item disabled"
               title="Скоро"
+              aria-disabled="true"
             >
               <NavIcon
                 name="statistics"
@@ -268,6 +269,7 @@
               v-show="matches('Аналитика')"
               class="nav-item disabled"
               title="Скоро"
+              aria-disabled="true"
             >
               <NavIcon
                 name="analytics"
