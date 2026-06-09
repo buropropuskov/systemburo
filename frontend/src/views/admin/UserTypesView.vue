@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <UserTypes />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import UserTypes from '@/components/UserTypes.vue';
 
 export default {
   name: 'UserTypesView',
-  components: { UserTypes },
+  components: { AdminPageShell, UserTypes },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

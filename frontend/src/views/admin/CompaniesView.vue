@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <CompaniesManagement />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import CompaniesManagement from '@/components/CompaniesManagement.vue';
 
 export default {
   name: 'CompaniesView',
-  components: { CompaniesManagement },
+  components: { AdminPageShell, CompaniesManagement },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <UnloadPlacesContainer />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import UnloadPlacesContainer from '@/components/UnloadPlaces/UnloadPlacesContainer.vue';
 
 export default {
   name: 'UnloadPlacesView',
-  components: { UnloadPlacesContainer },
+  components: { AdminPageShell, UnloadPlacesContainer },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

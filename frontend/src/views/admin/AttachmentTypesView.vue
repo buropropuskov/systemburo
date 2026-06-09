@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <AttachmentsManagement />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import AttachmentsManagement from '@/components/AttachmentsManagement.vue';
 
 export default {
   name: 'AttachmentTypesView',
-  components: { AttachmentsManagement },
+  components: { AdminPageShell, AttachmentsManagement },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

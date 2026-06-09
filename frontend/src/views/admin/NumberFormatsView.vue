@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <NumberFormat />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import NumberFormat from '@/components/NumberFormat.vue';
 
 export default {
   name: 'NumberFormatsView',
-  components: { NumberFormat },
+  components: { AdminPageShell, NumberFormat },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>
