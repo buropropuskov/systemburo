@@ -438,6 +438,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	aag := protected.Group("/application-approvers")
 	aag.GET("", approvers.GetAll)
 	aag.GET("/available-users", approvers.GetAvailableUsers)
+	aag.GET("/history", approvers.GetHistory)
 	aag.POST("", approvers.Create)
 	aag.DELETE("/:id", approvers.Delete)
 

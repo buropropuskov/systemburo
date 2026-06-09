@@ -15,16 +15,18 @@ type ApproverService interface {
 	GetAll(ctx context.Context, typeID int) ([]models.ApplicationApproverWithUser, error)
 	GetAvailableUsers(ctx context.Context, typeID int) ([]models.AvailableApproverUser, error)
 	Create(ctx context.Context, typeID int, userID int, createdByUsername string) error
-	Delete(ctx context.Context, typeID int, id int) error
+	Delete(ctx context.Context, typeID int, id int, actorUsername string) error
+	GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error)
 }
 
 type approverService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	history ApproverHistoryService
 }
 
 // NewApproverService создаёт сервис для управления утверждающими заявок.
 func NewApproverService(db *gorm.DB) ApproverService {
-	return &approverService{db: db}
+	return &approverService{db: db, history: NewApproverHistoryService(db)}
 }
 
 func (s *approverService) checkAdmin(ctx context.Context, typeID int) error {
@@ -118,14 +120,34 @@ func (s *approverService) Create(ctx context.Context, typeID int, userID int, cr
 	if err := s.db.WithContext(ctx).Create(&approver).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating approver")
 	}
+
+	// Снимок имени добавляемого принимающего для аудита.
+	approverName := s.resolveUserName(ctx, userID)
+	s.history.Log(ctx, userID, approverName, &createdByID, models.ApproverActionCreated)
 	return nil
 }
 
 // Delete удаляет утверждающего по ID.
-func (s *approverService) Delete(ctx context.Context, typeID int, id int) error {
+func (s *approverService) Delete(ctx context.Context, typeID int, id int, actorUsername string) error {
 	if err := s.checkAdmin(ctx, typeID); err != nil {
 		return err
 	}
+
+	// Снимок до удаления: берём user_id и имя принимающего.
+	type approverRow struct {
+		UserID int
+		Name   string
+	}
+	var snap approverRow
+	snapErr := s.db.WithContext(ctx).
+		Table("application_approvers aa").
+		Select(`aa.user_id,
+			COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), ''), u.username, '') AS name`).
+		Joins("JOIN users u ON u.id = aa.user_id").
+		Where("aa.id = ?", id).
+		Row().
+		Scan(&snap.UserID, &snap.Name)
+	// snapErr не роняет удаление — аудит best-effort.
 
 	result := s.db.WithContext(ctx).Delete(&models.ApplicationApprover{}, id)
 	if result.Error != nil {
@@ -134,5 +156,32 @@ func (s *approverService) Delete(ctx context.Context, typeID int, id int) error 
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Approver not found")
 	}
+
+	if snapErr == nil && snap.UserID > 0 {
+		var actorID *int
+		var aid int
+		if err := s.db.WithContext(ctx).Table("users").Select("id").Where("username = ?", actorUsername).Row().Scan(&aid); err == nil {
+			actorID = &aid
+		}
+		s.history.Log(ctx, snap.UserID, snap.Name, actorID, models.ApproverActionDeleted)
+	}
 	return nil
+}
+
+// GetHistory возвращает глобальный журнал принимающих (новые сверху).
+func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error) {
+	return s.history.GetAll(ctx)
+}
+
+// resolveUserName возвращает форматированное имя пользователя по ID
+// (фамилия имя отчество или username как фолбэк).
+func (s *approverService) resolveUserName(ctx context.Context, userID int) string {
+	var name string
+	_ = s.db.WithContext(ctx).
+		Table("users").
+		Select(`COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', last_name, first_name, middle_name)), ''), username, '')`).
+		Where("id = ?", userID).
+		Row().
+		Scan(&name)
+	return name
 }
