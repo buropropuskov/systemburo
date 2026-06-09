@@ -9,6 +9,7 @@ import {
   getAllUsers,
   addApprover,
   deleteApprover,
+  getApproverHistory,
 } from '../approvers'
 
 function okJson(payload) {
@@ -75,6 +76,21 @@ describe('api/approvers', () => {
     it('бросает при ошибке удаления', async () => {
       apiRequest.mockResolvedValue(errJson('Принимающий не найден', 404))
       await expect(deleteApprover(3)).rejects.toThrow('Принимающий не найден')
+    })
+  })
+
+  describe('getApproverHistory', () => {
+    it('GET /application-approvers/history (глобальный, без id) возвращает массив', async () => {
+      const log = [{ id: 1, approver_user_id: 5, action_type: 'created' }]
+      apiRequest.mockResolvedValue(okJson(log))
+      const data = await getApproverHistory()
+      expect(apiRequest).toHaveBeenCalledWith('/application-approvers/history')
+      expect(data).toEqual(log)
+    })
+
+    it('бросает при ошибке загрузки', async () => {
+      apiRequest.mockResolvedValue(errJson('Нет доступа', 403))
+      await expect(getApproverHistory()).rejects.toThrow('Нет доступа')
     })
   })
 })
