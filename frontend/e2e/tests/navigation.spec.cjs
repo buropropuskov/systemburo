@@ -22,7 +22,7 @@ test.describe('Navigation & Authorization', () => {
     const navBar = new NavigationBar(page);
     await expect(navBar.root).toBeVisible();
     await navBar.root.hover();
-    await expect(navBar.root.getByText('Администрирование')).toBeVisible();
+    await expect(navBar.adminEntry).toBeVisible();
   });
 
   test('nav menu hides admin entry for regular user', async ({ page }) => {
@@ -32,9 +32,9 @@ test.describe('Navigation & Authorization', () => {
     const navBar = new NavigationBar(page);
     await expect(navBar.root).toBeVisible();
     await navBar.root.hover();
-    // Пункт "Администрирование" гейтится по isSuperAdmin (#510) - у обычного
-    // пользователя его нет в DOM.
-    await expect(navBar.root.getByText('Администрирование')).toHaveCount(0);
+    // Секция "Администрирование" гейтится по isSuperAdmin (#510) - у обычного
+    // пользователя её нет в DOM.
+    await expect(navBar.adminEntry).toHaveCount(0);
   });
 
   test('admin entry opens two-column admin panel and navigates sections', async ({ page }) => {

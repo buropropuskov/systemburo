@@ -160,14 +160,14 @@ html, body {
 }
 
 /*
- * Контент на desktop отступает на ширину рельса NavMenu. Переменную --nav-ml
- * выставляет NavMenu по персистентному состоянию (свёрнут 50 / пин 248 / hide 0);
+ * Контент на desktop заходит на 25px под рельс NavMenu. Переменную --nav-ml
+ * выставляет NavMenu по персистентному состоянию (свёрнут 25 / пин 223 / hide 0);
  * hover-разворот оверлеит контент и margin не меняет. На мобильном (<768px)
  * NavMenu - burger-drawer, margin не нужен.
  */
 @media (min-width: 768px) {
   body.auth-active #app {
-    margin-left: var(--nav-ml, 50px);
+    margin-left: var(--nav-ml, 25px);
     transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

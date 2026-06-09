@@ -14,7 +14,10 @@
       <span />
     </button>
 
-    <div class="header__title">
+    <div
+      class="header__title"
+      :class="{ 'header__title--shifted': uiStore.sidebarHidden }"
+    >
       <template v-if="loading">
         <SkeletonLine
           width="200px"
@@ -98,6 +101,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
@@ -112,6 +116,12 @@ export default {
     SkeletonLine,
   },
   emits: ['refresh-feedback'],
+  setup() {
+    // uiStore нужен для сдвига приветствия, когда рельс скрыт (плавающая кнопка
+    // возврата перекрывала бы заголовок).
+    const uiStore = useUiStore();
+    return { uiStore };
+  },
   data() {
     return {
       loading: true,
@@ -292,6 +302,13 @@ h3 {
   gap: 0px;
   min-width: 0;
   flex-shrink: 1;
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Рельс скрыт: уводим приветствие вправо, чтобы не налезала плавающая кнопка
+   возврата меню (#510). */
+.header__title--shifted {
+  margin-left: 45px;
 }
 
 .header__subtitle {
