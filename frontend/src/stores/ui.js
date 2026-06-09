@@ -1,9 +1,44 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+
+const NAV_PREFS_KEY = 'nav-prefs'
+
+function loadNavPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(NAV_PREFS_KEY)) || {}
+  } catch {
+    return {}
+  }
+}
 
 export const useUiStore = defineStore('ui', () => {
   const toasts = ref([])
-  const sidebarExpanded = ref(false)
+
+  // Состояния рельса навигации (#510), персист в localStorage:
+  // sidebarExpanded = пин (рельс закреплён раскрытым), sidebarHidden = full-hide.
+  const navPrefs = loadNavPrefs()
+  const sidebarExpanded = ref(navPrefs.pinned ?? false)
+  const sidebarHidden = ref(navPrefs.hidden ?? false)
+
+  watch([sidebarExpanded, sidebarHidden], ([pinned, hidden]) => {
+    try {
+      localStorage.setItem(NAV_PREFS_KEY, JSON.stringify({ pinned, hidden }))
+    } catch {
+      // localStorage недоступен (приватный режим) - персист best-effort, не критично.
+    }
+  })
+
+  function toggleSidebarPinned() {
+    sidebarExpanded.value = !sidebarExpanded.value
+  }
+
+  function hideSidebar() {
+    sidebarHidden.value = true
+  }
+
+  function showSidebar() {
+    sidebarHidden.value = false
+  }
 
   function showToast(message, type = 'info', duration = 3000) {
     const id = Date.now()
@@ -51,6 +86,10 @@ export const useUiStore = defineStore('ui', () => {
   return {
     toasts,
     sidebarExpanded,
+    sidebarHidden,
+    toggleSidebarPinned,
+    hideSidebar,
+    showSidebar,
     showToast,
     success,
     error,
