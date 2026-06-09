@@ -37,6 +37,37 @@ test.describe('Navigation & Authorization', () => {
     await expect(navBar.root.getByText('Администрирование')).toHaveCount(0);
   });
 
+  test('admin entry opens two-column admin panel and navigates sections', async ({ page }) => {
+    await loginAsSuperAdminUI(page);
+    await page.goto('/personal-cabinet');
+
+    const navBar = new NavigationBar(page);
+    await expect(navBar.root).toBeVisible();
+
+    await navBar.openAdmin();
+    // Колонка открылась, разделы видны.
+    await expect(navBar.adminColumn).toBeVisible();
+    await expect(navBar.adminSection('users')).toBeVisible();
+    await expect(navBar.adminSection('organizations')).toBeVisible();
+
+    // Переход по разделу - SPA-навигация, колонка остаётся открытой, раздел активен.
+    await navBar.adminSection('organizations').click();
+    await expect(page).toHaveURL(/\/admin\/organizations/);
+    await expect(navBar.adminColumn).toBeVisible();
+    await expect(navBar.adminSection('organizations')).toHaveClass(/active/);
+
+    // "Назад в работу" закрывает колонку, маршрут не меняется.
+    await navBar.adminBack.click();
+    await expect(navBar.adminColumn).toHaveCount(0);
+    await expect(page).toHaveURL(/\/admin\/organizations/);
+
+    // Esc тоже закрывает колонку.
+    await navBar.openAdmin();
+    await expect(navBar.adminColumn).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(navBar.adminColumn).toHaveCount(0);
+  });
+
   test('cabinet link navigates to personal-cabinet', async ({ page }) => {
     await loginAsUser(page);
     await page.goto('/personal-cabinet');

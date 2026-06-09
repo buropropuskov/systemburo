@@ -569,9 +569,12 @@ export default {
 
     // Слушаем событие от burger-кнопки в TheHeader
     this.$bus.on('mobile-nav-toggle', this.toggleMobile);
-    // Esc закрывает drawer
+    // Esc закрывает верхний слой: сначала колонку Админки, затем мобильный drawer.
     this._escHandler = (e) => {
-      if (e.key === 'Escape' && this.mobileOpen) {
+      if (e.key !== 'Escape') return;
+      if (this.adminOpen) {
+        this.closeAdmin();
+      } else if (this.mobileOpen) {
         this.closeMobile();
       }
     };
