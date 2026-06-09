@@ -291,7 +291,7 @@ export default {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid #e6e6e6;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 14px;
     outline: none;
     transition: border-color 0.2s;

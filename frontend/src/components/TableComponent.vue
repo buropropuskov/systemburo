@@ -401,7 +401,7 @@ export default {
   padding: 5px;
   font-size: 14px;
   margin-right: 25px;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   border: 2px solid #ddd;
 }
 

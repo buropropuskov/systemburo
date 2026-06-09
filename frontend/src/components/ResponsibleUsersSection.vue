@@ -563,7 +563,7 @@ export default {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 0.7rem;
   transition: all 0.2s ease;
   background: #fff;

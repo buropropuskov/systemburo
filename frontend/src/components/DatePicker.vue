@@ -513,7 +513,7 @@ export default {
     width: 200px;
     height: 35px;
     background-color: #FFF;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     border: 1px solid #e6e6e6;
     padding: 0 10px;
     display: flex;
@@ -664,7 +664,7 @@ export default {
 .date-input {
     padding: 8px 10px;
     border: 1px solid #e6e6e6;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 13px;
     outline: none;
     height: 32px;

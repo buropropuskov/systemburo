@@ -98,7 +98,7 @@ function onInput(event) {
   width: 100%;
   padding: 10px 38px 10px 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-family: inherit;
   background: #fff;
