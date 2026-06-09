@@ -14,7 +14,8 @@
             <button
               class="accept-btn"
               data-testid="app-detail-button-approve"
-              :disabled="processing"
+              :disabled="processing || approvalBlockedByBlacklist"
+              :title="approvalBlockedByBlacklist ? blacklistGateHint : null"
               @click="handleCombinedAction('accept')"
             >
               <span
@@ -219,7 +220,8 @@
             <button
               class="confirm-btn"
               data-testid="app-detail-button-approve"
-              :disabled="updatingConfirmation || processing"
+              :disabled="updatingConfirmation || processing || approvalBlockedByBlacklist"
+              :title="approvalBlockedByBlacklist ? blacklistGateHint : null"
               @click="updateConfirmation('Согласовано')"
             >
               <span
@@ -330,6 +332,15 @@
           На согласовании
         </div>
       </template>
+
+      <!-- Гейт ЧС (#481): подсказка, почему согласование заблокировано -->
+      <div
+        v-if="approvalBlockedByBlacklist"
+        class="blacklist-gate-hint"
+        data-testid="app-detail-blacklist-gate-hint"
+      >
+        Подтвердите пропуск по помеченным
+      </div>
     </div>
 
     <!-- Режим просмотра заявок пользователя -->
@@ -379,6 +390,10 @@ export default {
         actionComment: {
             type: String,
             default: ''
+        },
+        hasUnoverriddenBlacklistFlags: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['action-completed', 'processing-change', 'updating-confirmation-change', 'comment-clear'],
@@ -431,6 +446,23 @@ export default {
                 return 'Ожидает согласования';
             }
             return 'Готова к принятию';
+        },
+
+        // Кнопка "Согласовать"/"Согласовать и принять" видна только ответственному,
+        // который ещё не голосовал, по не отклонённой и не завершённой заявке.
+        showsApproveButton() {
+            if (!this.isResponsibleUser || this.hasUserVoted) return false;
+            return this.application.confirmation !== 'Не согласовано' && this.application.status !== 'Завершено';
+        },
+
+        // Гейт ЧС (#481): согласование заблокировано в UI, пока есть непереопределённые
+        // флаги. Зеркало бэкенд-гейта (409) - кнопка disabled + подсказка.
+        approvalBlockedByBlacklist() {
+            return this.hasUnoverriddenBlacklistFlags && this.showsApproveButton;
+        },
+
+        blacklistGateHint() {
+            return 'Подтвердите пропуск по всем помеченным элементам, чтобы согласовать заявку';
         }
     },
     methods: {
@@ -750,6 +782,19 @@ export default {
     background: #f0f0f0;
     color: #666;
     border: 1px solid #e6e6e6;
+}
+
+.blacklist-gate-hint {
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    max-width: 240px;
+    background: rgba(245, 158, 11, 0.1);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    cursor: help;
 }
 
 .status-badge {
