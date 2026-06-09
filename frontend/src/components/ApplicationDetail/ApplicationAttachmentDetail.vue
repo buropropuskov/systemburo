@@ -93,6 +93,14 @@
                   >
                     {{ blacklistLabel(car.blacklist_similar) }}
                   </Badge>
+                  <button
+                    v-if="canOverride && isFlagged(car)"
+                    type="button"
+                    class="lk-button lk-button--danger blacklist-override-btn"
+                    @click.stop="$emit('override-element', { label: car.car_number, flag: car.blacklist_similar })"
+                  >
+                    Пропустить
+                  </button>
                 </div>
               </div>
             </div>
@@ -156,6 +164,14 @@
                   >
                     {{ blacklistLabel(employee.blacklist_similar) }}
                   </Badge>
+                  <button
+                    v-if="canOverride && isFlagged(employee)"
+                    type="button"
+                    class="lk-button lk-button--danger blacklist-override-btn"
+                    @click.stop="$emit('override-element', { label: employeeFullName(employee), flag: employee.blacklist_similar })"
+                  >
+                    Пропустить
+                  </button>
                 </div>
               </div>
             </div>
@@ -238,13 +254,22 @@ export default {
         loading: {
             type: Boolean,
             default: false
+        },
+        // Показываем "Пропустить" только ответственному - у остальных нет права на override.
+        canOverride: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['open-vehicle', 'open-employee'],
+    emits: ['open-vehicle', 'open-employee', 'override-element'],
     methods: {
         isFlagged(entity) {
             const flag = entity && entity.blacklist_similar;
             return !!flag && !flag.overridden;
+        },
+
+        employeeFullName(employee) {
+            return [employee.last_name, employee.first_name, employee.middle_name].filter(Boolean).join(' ');
         },
 
         blacklistVariant(flag) {
@@ -534,6 +559,13 @@ export default {
 .blacklist-badge {
     flex-shrink: 0;
     margin-left: auto;
+}
+
+/* кнопка идёт сразу за бейджем (тот уже прижат вправо через margin-left:auto) */
+.blacklist-override-btn {
+    flex-shrink: 0;
+    padding: 5px 12px;
+    font-size: 12px;
 }
 
 .car-item-content, .employee-item-content, .item-item-content {
