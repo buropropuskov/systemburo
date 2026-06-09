@@ -4,12 +4,18 @@
       <h2 class="page-title">
         Роли пользователей
       </h2>
-      <button
-        class="lk-button lk-button--primary"
-        @click="openCreate"
-      >
-        + Создать роль
-      </button>
+      <div class="page-header__actions">
+        <button
+          class="lk-button lk-button--primary"
+          @click="openCreate"
+        >
+          + Создать роль
+        </button>
+        <RefreshButton
+          :loading="loading"
+          @refresh="fetchAll"
+        />
+      </div>
     </header>
 
     <div
@@ -209,9 +215,11 @@ import {
   setRoleDefaultGroups,
   listPermissionGroups,
 } from '@/api/permissions';
+import RefreshButton from '@/components/RefreshButton.vue';
 
 export default {
   name: 'AdminRoles',
+  components: { RefreshButton },
   data() {
     return {
       roles: [],
@@ -320,6 +328,12 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .page-title {

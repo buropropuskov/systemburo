@@ -4,12 +4,18 @@
       <h2 class="page-title">
         Группы прав доступа
       </h2>
-      <button
-        class="lk-button lk-button--primary"
-        @click="openCreateModal"
-      >
-        + Создать группу
-      </button>
+      <div class="page-header__actions">
+        <button
+          class="lk-button lk-button--primary"
+          @click="openCreateModal"
+        >
+          + Создать группу
+        </button>
+        <RefreshButton
+          :loading="loading"
+          @refresh="fetch"
+        />
+      </div>
     </header>
 
     <div
@@ -143,11 +149,12 @@ import {
   deletePermissionGroup,
 } from '@/api/permissions';
 import PermissionTreeModal from '@/components/admin/PermissionTreeModal.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import { ALL_PERMISSION_KEYS } from '@/constants/permissionKeys';
 
 export default {
   name: 'AdminPermissionGroups',
-  components: { PermissionTreeModal },
+  components: { PermissionTreeModal, RefreshButton },
   data() {
     return {
       groups: [],
@@ -254,6 +261,12 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .page-title {

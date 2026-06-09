@@ -5,17 +5,10 @@
         <h2 class="feedback-admin__title">
           Обратная связь
         </h2>
-        <button
-          class="lk-button lk-button--secondary"
-          :disabled="loading"
-          @click="fetchFeedbacks"
-        >
-          <span
-            v-if="loading"
-            class="spinner"
-          />
-          <span>Обновить</span>
-        </button>
+        <RefreshButton
+          :loading="loading"
+          @refresh="fetchFeedbacks"
+        />
       </div>
 
       <div class="summary-cards">
@@ -230,12 +223,14 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import SearchComponent from '@/components/SearchComponent.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import { SkeletonTransition, SkeletonCard, Badge } from '@/components/ui';
 
 export default {
   name: 'FeedbackPage',
   components: {
     SearchComponent,
+    RefreshButton,
     SkeletonTransition,
     SkeletonCard,
     Badge,
@@ -639,19 +634,6 @@ export default {
   text-align: center;
   padding: 48px 24px;
   color: var(--color-text-muted);
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .modal-overlay {

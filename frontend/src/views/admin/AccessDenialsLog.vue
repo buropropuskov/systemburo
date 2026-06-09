@@ -4,13 +4,10 @@
       <h2 class="page-title">
         Журнал отказов в доступе
       </h2>
-      <button
-        class="lk-button lk-button--secondary"
-        :disabled="loading"
-        @click="fetch"
-      >
-        Обновить
-      </button>
+      <RefreshButton
+        :loading="loading"
+        @refresh="fetch"
+      />
     </header>
 
     <div class="toggle-row">
@@ -193,9 +190,11 @@ import {
   deleteAccessDenials,
   archiveAccessDenials,
 } from '@/api/permissions';
+import RefreshButton from '@/components/RefreshButton.vue';
 
 export default {
   name: 'AccessDenialsLog',
+  components: { RefreshButton },
   data() {
     return {
       mode: 'active',
