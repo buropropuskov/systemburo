@@ -44,6 +44,7 @@ var tables = []string{
 	"bug_reports",
 	"request_log", "request_logs", "notifications", "news", "announcements",
 	"feedback", "application_items", "items",
+	"application_blacklist_flags",
 	"employee_target_tables", "employee_files", "application_employees", "employees_history", "employees",
 	"car_unload_places", "cars_history", "cars",
 	"vehicle_blacklist_histories", "vehicle_blacklists",

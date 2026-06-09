@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"systemburo/internal/crypto"
+	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
 )
@@ -102,6 +103,41 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 	return attachments, nil
 }
 
+// fetchBlacklistFlags возвращает per-element предупреждения о возможном обходе ЧС (#481)
+// по типу элемента и его id; ключ результата - element_id. Best-effort overlay для детали
+// заявки: ошибку чтения логируем и возвращаем пустую карту - деталь должна отрисоваться и
+// без предупреждений, а не падать. При нескольких флагах на элемент берём последний по id.
+// Фильтр по application_id не нужен: element_id это глобальный PK cars/employees, флаг
+// не может относиться к чужой заявке.
+func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementType string, ids []int) map[int]*BlacklistFlagInfo {
+	out := make(map[int]*BlacklistFlagInfo)
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []struct {
+		ElementID     int     `gorm:"column:element_id"`
+		MatchedValue  string  `gorm:"column:matched_value"`
+		MatchedReason string  `gorm:"column:matched_reason"`
+		Similarity    float64 `gorm:"column:similarity"`
+	}
+	if err := s.db.WithContext(ctx).Raw(`
+		SELECT element_id, matched_value, matched_reason, similarity
+		FROM application_blacklist_flags
+		WHERE element_type = ? AND element_id IN ?
+		ORDER BY id`, elementType, ids).Scan(&rows).Error; err != nil {
+		slog.Warn("fetch blacklist flags failed", "err", err, "element_type", elementType)
+		return out
+	}
+	for _, r := range rows {
+		out[r.ElementID] = &BlacklistFlagInfo{
+			MatchedValue:  r.MatchedValue,
+			MatchedReason: r.MatchedReason,
+			Similarity:    r.Similarity,
+		}
+	}
+	return out
+}
+
 // GetAttachmentCars возвращает автомобили вложения с привязанными местами разгрузки.
 func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error) {
 	type carRow struct {
@@ -143,6 +179,12 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
 	}
 
+	carIDs := make([]int, 0, len(cars))
+	for _, car := range cars {
+		carIDs = append(carIDs, car.ID)
+	}
+	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementCar, carIDs)
+
 	result := make([]CarWithPlaces, 0)
 	for _, car := range cars {
 		places := make([]UnloadPlaceRef, 0)
@@ -155,19 +197,20 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 		`, car.ID).Scan(&places)
 
 		result = append(result, CarWithPlaces{
-			ID:             car.ID,
-			CarNumber:      car.CarNumber,
-			CarBrand:       car.CarBrand,
-			UnloadPlace:    car.UnloadPlace,
-			EntryDateFrom:  car.EntryDateFrom,
-			EntryTimeFrom:  car.EntryTimeFrom,
-			EntryDateTo:    car.EntryDateTo,
-			EntryTimeTo:    car.EntryTimeTo,
-			Organization:   car.Organization,
-			OrganizationID: car.OrganizationID,
-			Company:        car.Company,
-			CompanyID:      car.CompanyID,
-			UnloadPlaces:   places,
+			ID:               car.ID,
+			CarNumber:        car.CarNumber,
+			CarBrand:         car.CarBrand,
+			UnloadPlace:      car.UnloadPlace,
+			EntryDateFrom:    car.EntryDateFrom,
+			EntryTimeFrom:    car.EntryTimeFrom,
+			EntryDateTo:      car.EntryDateTo,
+			EntryTimeTo:      car.EntryTimeTo,
+			Organization:     car.Organization,
+			OrganizationID:   car.OrganizationID,
+			Company:          car.Company,
+			CompanyID:        car.CompanyID,
+			UnloadPlaces:     places,
+			BlacklistSimilar: flags[car.ID],
 		})
 	}
 
@@ -228,6 +271,12 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
 	}
 
+	empIDs := make([]int, 0, len(employees))
+	for _, emp := range employees {
+		empIDs = append(empIDs, emp.ID)
+	}
+	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementEmployee, empIDs)
+
 	result := make([]EmployeeWithTables, 0)
 	for _, emp := range employees {
 		tables := make([]TableInfoRef, 0)
@@ -257,6 +306,7 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 			Company:              emp.Company,
 			CompanyID:            emp.CompanyID,
 			TargetTables:         tables,
+			BlacklistSimilar:     flags[emp.ID],
 		})
 	}
 
