@@ -100,6 +100,10 @@ func AllModels() []interface{} {
 		&models.EmployeeFile{},
 		&models.EmployeeTargetTable{},
 
+		// Per-element флаги возможного обхода ЧС (#481): ссылается на cars.id/employees.id
+		// без FK (снимок момента подачи, переживает изменение/удаление элемента и записи ЧС).
+		&models.ApplicationBlacklistFlag{},
+
 		// Items (depends on Attachment)
 		&models.Item{},
 		&models.ApplicationItem{},

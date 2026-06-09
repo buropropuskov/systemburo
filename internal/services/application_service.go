@@ -415,6 +415,17 @@ type CarWithPlaces struct {
 	Company        *string          `json:"company"`
 	CompanyID      *int             `json:"company_id"`
 	UnloadPlaces   []UnloadPlaceRef `json:"unload_places"`
+	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
+	// номер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.
+	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
+}
+
+// BlacklistFlagInfo - данные per-element предупреждения о возможном обходе ЧС (#481)
+// для детали заявки: что в ЧС похоже, причина записи и степень близости [0..1].
+type BlacklistFlagInfo struct {
+	MatchedValue  string  `json:"matched_value"`
+	MatchedReason string  `json:"matched_reason"`
+	Similarity    float64 `json:"similarity"`
 }
 
 // UnloadPlaceRef ссылка на место разгрузки.
@@ -443,6 +454,9 @@ type EmployeeWithTables struct {
 	Company              *string        `json:"company"`
 	CompanyID            *int           `json:"company_id"`
 	TargetTables         []TableInfoRef `json:"target_tables"`
+	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
+	// ФИО близко к активной записи ЧС (но не точное совпадение). nil - элемент чист.
+	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`
 }
 
 // TableInfoRef ссылка на системную таблицу.
@@ -991,6 +1005,68 @@ func (s *applicationService) validateBlacklist(ctx context.Context, req Complete
 	return nil
 }
 
+// pendingVehicleFlag - вставленная машина заявки, по которой нужно проверить близость к ЧС
+// после коммита (id + номер; FindSimilar матчит по нормализованному номеру, марка не нужна).
+type pendingVehicleFlag struct {
+	carID     int
+	carNumber string
+}
+
+// pendingEmployeeFlag - вставленный сотрудник заявки для пост-коммит проверки близости к ЧС.
+type pendingEmployeeFlag struct {
+	empID      int
+	lastName   string
+	firstName  string
+	middleName string
+}
+
+// detectBlacklistSimilarity - мягкий слой предупреждения о возможном обходе ЧС (#481).
+// Запускается ПОСЛЕ коммита сабмита и намеренно best-effort: это не блокирующая проверка
+// (точное совпадение уже отклонено в validateBlacklist -> 409), а предупреждение. Любая
+// ошибка поиска/записи флага логируется и проглатывается - неудача warning-слоя НЕ должна
+// валить уже созданную заявку. Вне транзакции сабмита: ошибка здесь не отравит и не откатит её.
+func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appID int, vehicles []pendingVehicleFlag, employees []pendingEmployeeFlag) {
+	for _, v := range vehicles {
+		matches, err := s.vehicleBlacklist.FindSimilar(ctx, v.carNumber)
+		if err != nil {
+			slog.Warn("blacklist similarity check failed (vehicle)", "err", err, "app_id", appID, "car_id", v.carID)
+			continue
+		}
+		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementCar, v.carID, matches)
+	}
+	for _, e := range employees {
+		matches, err := s.personBlacklist.FindSimilar(ctx, e.lastName, e.firstName, e.middleName)
+		if err != nil {
+			slog.Warn("blacklist similarity check failed (person)", "err", err, "app_id", appID, "employee_id", e.empID)
+			continue
+		}
+		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementEmployee, e.empID, matches)
+	}
+}
+
+// saveBlacklistFlag сохраняет ЛУЧШЕЕ совпадение как флаг элемента: matches приходят
+// отсортированными по убыванию близости (контракт FindSimilar). Пустой срез - элемент
+// чист, флаг не пишем. Ошибку записи логируем и проглатываем (best-effort warning-слой).
+func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, elementType string, elementID int, matches []models.BlacklistSimilarMatch) {
+	if len(matches) == 0 {
+		return
+	}
+	best := matches[0]
+	flag := models.ApplicationBlacklistFlag{
+		ApplicationID:      appID,
+		ElementType:        elementType,
+		ElementID:          elementID,
+		MatchedBlacklistID: best.ID,
+		MatchedValue:       best.MatchedValue,
+		MatchedReason:      best.Reason,
+		Similarity:         best.Similarity,
+		CreatedAt:          time.Now().UTC(),
+	}
+	if err := s.db.WithContext(ctx).Create(&flag).Error; err != nil {
+		slog.Warn("blacklist flag save failed", "err", err, "app_id", appID, "element_type", elementType, "element_id", elementID)
+	}
+}
+
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
 func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest) (*CompleteApplicationResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
@@ -1152,6 +1228,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		`, appID, ru.UserID, string(meta), historyTime)
 	}
 
+	// Вставленные машины/сотрудники для пост-коммит проверки близости к ЧС (#481).
+	var pendingVehicleFlags []pendingVehicleFlag
+	var pendingEmployeeFlags []pendingEmployeeFlag
+
 	// Создаём вложения
 	for _, att := range req.Attachments {
 		var attID int
@@ -1181,6 +1261,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						tx.Rollback()
 						return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating car")
 					}
+
+					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
 					carHistoryTime := baseTime.Add(time.Millisecond)
 					tx.Exec(`
@@ -1226,6 +1308,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					if e.MiddleName != nil {
 						empMiddle = *e.MiddleName
 					}
+					pendingEmployeeFlags = append(pendingEmployeeFlags, pendingEmployeeFlag{
+						empID: empID, lastName: lastName, firstName: firstName, middleName: empMiddle,
+					})
 					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{lastName, firstName, empMiddle}, " ")))
 					tx.Exec(`
 						INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
@@ -1273,6 +1358,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	if err := tx.Commit().Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
+
+	// Мягкая проверка возможного обхода ЧС по похожему номеру/ФИО (#481): помечает
+	// элементы флагом для предупреждения согласующим. Best-effort, заявку не блокирует.
+	// Синхронно (не в горутине) намеренно: флаги должны быть готовы сразу для детали
+	// заявки и детерминированны для тестов; сабмит не hot-path, элементов в заявке мало.
+	s.detectBlacklistSimilarity(ctx, appID, pendingVehicleFlags, pendingEmployeeFlags)
 
 	// Уведомление отправителю о создании заявки
 	if s.notificationService != nil {
