@@ -120,8 +120,10 @@
             :employees="attachmentEmployees"
             :items="attachmentItems"
             :loading="loadingAttachmentDetails"
+            :can-override="isResponsibleUser"
             @open-vehicle="openVehicleModal"
             @open-employee="openEmployeeModal"
+            @override-element="openOverrideModal"
           />
         </div>
 
@@ -297,18 +299,28 @@
       :source="'application'"
       @close="showEmployeeModal = false"
     />
+
+    <BlacklistOverrideModal
+      :show="showOverrideModal"
+      :flag="overrideFlag"
+      :submitting="overrideSubmitting"
+      @confirm="confirmOverride"
+      @close="showOverrideModal = false"
+    />
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { markAsRead } from '@/api/applications'
+import { useDeletionsStore } from '@/stores/deletions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
 import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
+import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
 import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 
@@ -321,6 +333,7 @@ export default {
         ForwardModal,
         ApplicationActionBar,
         ApplicationAttachmentDetail,
+        BlacklistOverrideModal,
         VehicleDetailsModal,
         EmployeeDetailsModal
     },
@@ -375,7 +388,11 @@ export default {
             showVehicleModal: false,
             showEmployeeModal: false,
             selectedVehicle: null,
-            selectedEmployee: null
+            selectedEmployee: null,
+            showOverrideModal: false,
+            overrideFlag: null,
+            overrideLabel: '',
+            overrideSubmitting: false
         }
     },
     computed: {
@@ -822,6 +839,51 @@ export default {
                 territory_status: 0
             };
             this.showEmployeeModal = true;
+        },
+
+        openOverrideModal({ label, flag }) {
+            this.overrideLabel = label || '';
+            this.overrideFlag = flag || null;
+            this.showOverrideModal = true;
+        },
+
+        async confirmOverride(comment) {
+            if (!this.overrideFlag) return;
+            this.overrideSubmitting = true;
+            try {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/blacklist-overrides`, {
+                    method: 'POST',
+                    body: JSON.stringify({ flag_id: this.overrideFlag.flag_id, comment })
+                });
+                if (response.ok) {
+                    useDeletionsStore().notify({
+                        prefix: 'Пропуск подтверждён: ',
+                        bold: this.overrideLabel || 'элемент',
+                        type: 'success'
+                    });
+                    this.showOverrideModal = false;
+                    if (this.selectedAttachment) {
+                        await this.loadAttachmentDetails(this.selectedAttachment.id);
+                    }
+                    this.$emit('application-changed', this.applicationData);
+                } else {
+                    const data = await response.json();
+                    useDeletionsStore().notify({
+                        prefix: 'Не удалось подтвердить пропуск: ',
+                        bold: data.message || 'ошибка',
+                        type: 'error'
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка при подтверждении пропуска:', error);
+                useDeletionsStore().notify({
+                    prefix: 'Не удалось подтвердить пропуск: ',
+                    bold: 'ошибка сети',
+                    type: 'error'
+                });
+            } finally {
+                this.overrideSubmitting = false;
+            }
         }
     }
 }

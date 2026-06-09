@@ -103,3 +103,57 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
     expect(badge.attributes('title')).toContain('Иваноф Иван Иванович');
   });
 });
+
+describe('ApplicationAttachmentDetail — кнопка "Пропустить" override (#481, срез 6a)', () => {
+  function mountCarsWith(cars, props = {}) {
+    return mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars,
+        ...props,
+      },
+    });
+  }
+
+  it('canOverride=true: на помеченной строке есть кнопка "Пропустить"', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
+    const btn = wrapper.find('.car-item .blacklist-override-btn');
+    expect(btn.exists()).toBe(true);
+    expect(btn.text()).toBe('Пропустить');
+  });
+
+  it('canOverride=false (дефолт): кнопки "Пропустить" нет даже на помеченной строке', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag() })]);
+    expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
+  });
+
+  it('overridden строка: кнопки нет даже при canOverride=true', () => {
+    const wrapper = mountCarsWith([car({ blacklist_similar: flag({ overridden: true }) })], { canOverride: true });
+    expect(wrapper.find('.blacklist-override-btn').exists()).toBe(false);
+  });
+
+  it('клик по "Пропустить" эмитит override-element с label и flag, но НЕ open-vehicle', async () => {
+    const f = flag();
+    const wrapper = mountCarsWith([car({ car_number: 'А123ВС', blacklist_similar: f })], { canOverride: true });
+    await wrapper.find('.blacklist-override-btn').trigger('click');
+
+    const emitted = wrapper.emitted('override-element');
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0][0]).toEqual({ label: 'А123ВС', flag: f });
+    // @click.stop не должен пробросить клик на строку (открытие модалки машины)
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+
+  it('сотрудник: override-element несёт ФИО как label', async () => {
+    const f = flag({ matched_value: 'Иванов И.И.' });
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'people', attachment_display_name: 'Люди' },
+        employees: [employee({ last_name: 'Иваноф', first_name: 'Иван', blacklist_similar: f })],
+        canOverride: true,
+      },
+    });
+    await wrapper.find('.blacklist-override-btn').trigger('click');
+    expect(wrapper.emitted('override-element')[0][0]).toEqual({ label: 'Иваноф Иван', flag: f });
+  });
+});
