@@ -104,35 +104,44 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 }
 
 // fetchBlacklistFlags возвращает per-element предупреждения о возможном обходе ЧС (#481)
-// по типу элемента и его id; ключ результата - element_id. Best-effort overlay для детали
-// заявки: ошибку чтения логируем и возвращаем пустую карту - деталь должна отрисоваться и
-// без предупреждений, а не падать. При нескольких флагах на элемент берём последний по id.
-// Фильтр по application_id не нужен: element_id это глобальный PK cars/employees, флаг
-// не может относиться к чужой заявке.
-func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementType string, ids []int) map[int]*BlacklistFlagInfo {
+// по типу элемента и его id в рамках заявки; ключ результата - element_id. Best-effort
+// overlay для детали: ошибку чтения логируем и возвращаем пустую карту - деталь должна
+// отрисоваться и без предупреждений, а не падать.
+// Фильтр по application_id - защита-в-глубину: cars/employees сейчас создаются свежими на
+// каждый сабмит (element_id уникален на заявку), но завязываться на этот инвариант в
+// security-оверлее не хочется - иначе будущий рефактор с переиспользованием строк тихо
+// показал бы чужой override.
+func (s *applicationService) fetchBlacklistFlags(ctx context.Context, elementType string, applicationID int, ids []int) map[int]*BlacklistFlagInfo {
 	out := make(map[int]*BlacklistFlagInfo)
 	if len(ids) == 0 {
 		return out
 	}
 	var rows []struct {
+		FlagID        int     `gorm:"column:flag_id"`
 		ElementID     int     `gorm:"column:element_id"`
 		MatchedValue  string  `gorm:"column:matched_value"`
 		MatchedReason string  `gorm:"column:matched_reason"`
 		Similarity    float64 `gorm:"column:similarity"`
+		Overridden    bool    `gorm:"column:overridden"`
 	}
+	// LEFT JOIN на override: overridden=true, если по флагу подтверждён пропуск (срез 4).
 	if err := s.db.WithContext(ctx).Raw(`
-		SELECT element_id, matched_value, matched_reason, similarity
-		FROM application_blacklist_flags
-		WHERE element_type = ? AND element_id IN ?
-		ORDER BY id`, elementType, ids).Scan(&rows).Error; err != nil {
+		SELECT f.id AS flag_id, f.element_id, f.matched_value, f.matched_reason, f.similarity,
+		       (o.id IS NOT NULL) AS overridden
+		FROM application_blacklist_flags f
+		LEFT JOIN application_blacklist_overrides o ON o.flag_id = f.id
+		WHERE f.application_id = ? AND f.element_type = ? AND f.element_id IN ?
+		ORDER BY f.id`, applicationID, elementType, ids).Scan(&rows).Error; err != nil {
 		slog.Warn("fetch blacklist flags failed", "err", err, "element_type", elementType)
 		return out
 	}
 	for _, r := range rows {
 		out[r.ElementID] = &BlacklistFlagInfo{
+			FlagID:        r.FlagID,
 			MatchedValue:  r.MatchedValue,
 			MatchedReason: r.MatchedReason,
 			Similarity:    r.Similarity,
+			Overridden:    r.Overridden,
 		}
 	}
 	return out
@@ -183,7 +192,8 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 	for _, car := range cars {
 		carIDs = append(carIDs, car.ID)
 	}
-	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementCar, carIDs)
+	appID, _ := s.GetApplicationIDByAttachment(ctx, attachmentID)
+	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementCar, appID, carIDs)
 
 	result := make([]CarWithPlaces, 0)
 	for _, car := range cars {
@@ -275,7 +285,8 @@ func (s *applicationService) GetAttachmentEmployees(ctx context.Context, attachm
 	for _, emp := range employees {
 		empIDs = append(empIDs, emp.ID)
 	}
-	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementEmployee, empIDs)
+	appID, _ := s.GetApplicationIDByAttachment(ctx, attachmentID)
+	flags := s.fetchBlacklistFlags(ctx, models.BlacklistElementEmployee, appID, empIDs)
 
 	result := make([]EmployeeWithTables, 0)
 	for _, emp := range employees {

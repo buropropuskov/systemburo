@@ -30,3 +30,20 @@ type ApplicationBlacklistFlag struct {
 	Similarity         float64   `json:"similarity"`
 	CreatedAt          time.Time `json:"created_at"`
 }
+
+// ApplicationBlacklistOverride - аудит явного решения "всё равно пропустить" по помеченному
+// элементу заявки (#481). Согласование помеченной заявки заблокировано, пока по каждому
+// флагу нет override. Отдельная таблица аудита (НЕ pd_audit, off-limits): фиксирует кто/когда/
+// комментарий и снимок совпавшего значения - запись неизменяема и переживает удаление флага.
+// FlagID уникален (один override на флаг) и без FK - это исторический след, а не живая связь.
+type ApplicationBlacklistOverride struct {
+	ID                 int       `json:"id"`
+	FlagID             int       `gorm:"uniqueIndex" json:"flag_id"`
+	ApplicationID      int       `gorm:"index" json:"application_id"`
+	ElementType        string    `gorm:"size:20" json:"element_type"`
+	ElementID          int       `json:"element_id"`
+	MatchedValue       string    `gorm:"size:300" json:"matched_value"`
+	OverriddenByUserID int       `json:"overridden_by_user_id"`
+	Comment            string    `gorm:"size:1000" json:"comment"`
+	CreatedAt          time.Time `json:"created_at"`
+}

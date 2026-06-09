@@ -76,6 +76,39 @@ func (h *ApplicationHandler) ApproveApplicationByUser(c echo.Context) error {
 	return RespondMessage(c, "Approval status updated successfully")
 }
 
+// OverrideBlacklistFlag godoc
+// @Summary      Подтвердить пропуск похожего на ЧС элемента
+// @Description  Ответственный фиксирует "всё равно пропустить" по конкретному предупреждению (#481), снимая блокировку согласования по нему.
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                    true "ID заявки"
+// @Param        request body services.OverrideBlacklistFlagRequest  true "flag_id + комментарий"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/blacklist-overrides [post]
+func (h *ApplicationHandler) OverrideBlacklistFlag(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.OverrideBlacklistFlagRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.OverrideBlacklistFlag(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Пропуск подтверждён")
+}
+
 // CheckApprovalStatus godoc
 // @Summary      Проверка статуса согласования
 // @Description  Возвращает текущие confirmation и status заявки.

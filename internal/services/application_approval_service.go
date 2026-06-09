@@ -275,6 +275,22 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		return echo.NewHTTPError(http.StatusBadRequest, "You have already voted on this application")
 	}
 
+	// Гейт обхода ЧС (#481): согласовать ('approved') нельзя, пока по всем помеченным
+	// похожими на ЧС элементам не подтверждён пропуск (override). Отказ ('rejected') не
+	// блокируем - отклонить подозрительную заявку можно сразу.
+	if req.Status == "approved" {
+		blocked, err := hasUnoverriddenBlacklistFlags(ctx, tx, applicationID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if blocked {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusConflict,
+				"Заявка содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
+		}
+	}
+
 	// Сохраняем старый confirmation
 	var oldConfirmation *string
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
