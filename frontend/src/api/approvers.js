@@ -1,0 +1,36 @@
+import { apiRequest } from './client';
+
+/**
+ * API клиент справочника принимающих заявки (#417).
+ * unwrap бросает на !res.ok с сообщением бэка (fallback - если тела нет),
+ * чтобы 4xx не прошёл как молчаливый успех.
+ */
+
+async function unwrap(res, fallback) {
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || fallback);
+  return body;
+}
+
+export async function getApprovers() {
+  const res = await apiRequest('/application-approvers');
+  return unwrap(res, 'Не удалось загрузить принимающих');
+}
+
+export async function getAllUsers() {
+  const res = await apiRequest('/users/all');
+  return unwrap(res, 'Не удалось загрузить пользователей');
+}
+
+export async function addApprover(userId) {
+  const res = await apiRequest('/application-approvers', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId }),
+  });
+  return unwrap(res, 'Не удалось добавить принимающего');
+}
+
+export async function deleteApprover(id) {
+  const res = await apiRequest(`/application-approvers/${id}`, { method: 'DELETE' });
+  return unwrap(res, 'Не удалось удалить принимающего');
+}

@@ -1,5 +1,5 @@
 <template>
-  <div class="approvers-management-container dashboard-card">
+  <div class="approvers-container dashboard-card">
     <div class="management-header">
       <h3 class="management-title">
         Принимающие заявки
@@ -9,25 +9,24 @@
           v-model="searchQuery"
           :title="'Поиск принимающих...'"
         />
-        
         <button
           class="add-header-button"
-          @click="showAddModal = true"
+          :disabled="isAdding"
+          @click="openAddModal"
         >
           Добавить принимающего
         </button>
         <RefreshButton
-          :loading="refreshing"
-          @refresh="refreshData"
+          :loading="isLoading"
+          @refresh="refresh"
         />
       </div>
     </div>
 
     <div class="content-container">
-      <!-- Левая часть - список принимающих (50%) -->
       <div
         class="table-section"
-        :class="{'with-details': selectedApprover}"
+        :class="{ 'with-details': selectedApprover }"
       >
         <div class="table-container">
           <div class="table-header">
@@ -38,13 +37,10 @@
               <p :class="{ 'active-sort': sortField === 'id' }">
                 ID
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'id',
-                  'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'id', desc: sortField === 'id' && sortDirection === 'desc' }"
               >
             </div>
             <div
@@ -54,13 +50,10 @@
               <p :class="{ 'active-sort': sortField === 'full_name' }">
                 ФИО
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'full_name',
-                  'desc': sortField === 'full_name' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'full_name', desc: sortField === 'full_name' && sortDirection === 'desc' }"
               >
             </div>
             <div
@@ -70,23 +63,20 @@
               <p :class="{ 'active-sort': sortField === 'created_at' }">
                 Добавлен
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'created_at',
-                  'desc': sortField === 'created_at' && sortDirection === 'desc'
-                }" 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{ sorted: sortField === 'created_at', desc: sortField === 'created_at' && sortDirection === 'desc' }"
               >
             </div>
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="approver in sortedApprovers" 
-              :key="approver.id" 
+            <div
+              v-for="approver in sortedApprovers"
+              :key="approver.id"
               class="table-row"
-              :class="{ 'selected': selectedApprover && selectedApprover.id === approver.id }"
+              :class="{ selected: selectedApprover && selectedApprover.id === approver.id }"
               @click="selectApprover(approver)"
             >
               <div class="table-col id-col">
@@ -104,6 +94,13 @@
                 <span class="cell-content">{{ formatDate(approver.created_at) }}</span>
               </div>
             </div>
+
+            <div
+              v-if="!sortedApprovers.length && !isLoading"
+              class="no-results"
+            >
+              {{ searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Принимающих пока нет' }}
+            </div>
           </div>
 
           <div class="table-footer">
@@ -114,28 +111,28 @@
         </div>
       </div>
 
-      <!-- Правая часть - детали принимающего (50%) -->
       <div
         v-if="selectedApprover"
         class="details-section"
       >
-        <div class="details-content">
+        <div class="tab-content">
           <div class="details-header">
-            <h3 class="details-title">
-              {{ getFullName(selectedApprover) }}
-            </h3>
-            <button 
-              class="delete-btn"
-              title="Удалить"
-              @click="confirmDeleteApprover(selectedApprover)"
-            >
-              <img
-                src="@/assets/icons/delete.png"
-                class="delete-icon"
+            <div class="details-title-wrapper">
+              <h3 class="details-title">
+                {{ getFullName(selectedApprover) }}
+              </h3>
+            </div>
+            <div class="details-header-actions">
+              <button
+                class="action-btn delete-action-btn"
+                title="Удалить принимающего"
+                @click="removeApproverWithUndo(selectedApprover)"
               >
-            </button>
+                Удалить
+              </button>
+            </div>
           </div>
-          
+
           <div class="details-body">
             <div class="info-row">
               <span class="info-label">Должность:</span>
@@ -153,293 +150,272 @@
               <span class="info-label">Добавлен:</span>
               <span class="info-value">{{ formatDate(selectedApprover.created_at) }}</span>
             </div>
+
+            <div class="details-meta">
+              <span>ID: {{ selectedApprover.id }}</span>
+            </div>
           </div>
         </div>
       </div>
-      
+
       <div
         v-else
         class="no-selection-message"
       >
-        <p>Выберите принимающего</p>
+        <p>Выберите принимающего для просмотра</p>
       </div>
     </div>
 
-    <div
-      v-if="filteredApprovers.length === 0 && !searchQuery"
-      class="no-results"
-    >
-      <p>Нет принимающих</p>
-    </div>
-
-    <!-- Модальное окно добавления принимающего -->
+    <!-- Модалка добавления принимающих -->
     <Teleport to="body">
-      <div
-        v-if="showAddModal"
-        class="modal-overlay"
-        @click.self="closeAddModal"
-      >
-        <div class="modal modal-compact">
-          <div class="modal-header">
-            <h3>Добавить принимающего</h3>
-            <button
-              class="modal-close"
-              @click="closeAddModal"
-            >
-              ×
-            </button>
-          </div>
-        
-          <div class="modal-content">
-            <div class="user-search-section">
-              <input
-                ref="searchInput"
-                v-model="userSearchQuery"
-                class="search-input"
-                placeholder="Поиск пользователей..."
-                type="text"
-                autocomplete="off"
-                @input="searchUsers"
-                @focus="showUserDropdown = true"
-                @blur="onSearchBlur"
+      <transition name="modal-fade">
+        <div
+          v-if="showAddModal"
+          class="modal-overlay"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
+          <div
+            class="approvers-modal"
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <h3>Добавить принимающего</h3>
+              <button
+                class="modal-close"
+                aria-label="Закрыть"
+                @click="requestCloseAdd"
               >
-              <div
-                v-if="showUserDropdown && filteredAvailableUsers.length > 0"
-                class="user-dropdown"
-              >
-                <div class="user-dropdown-content">
-                  <div 
-                    v-for="user in filteredAvailableUsers" 
-                    :key="user.id"
-                    class="user-item"
-                    @mousedown.prevent="addUser(user)"
-                  >
-                    <div class="user-info">
-                      <div class="user-name">
-                        {{ getFullName(user) }}
+                ×
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <div class="user-search-section">
+                <input
+                  ref="searchInput"
+                  v-model="userSearchQuery"
+                  class="lk-input"
+                  placeholder="Поиск пользователей..."
+                  type="text"
+                  autocomplete="off"
+                  @input="onUserSearchInput"
+                  @focus="showUserDropdown = true"
+                  @blur="onSearchBlur"
+                >
+                <div
+                  v-if="showUserDropdown && filteredAvailableUsers.length > 0"
+                  class="user-dropdown"
+                >
+                  <div class="user-dropdown-content">
+                    <div
+                      v-for="user in filteredAvailableUsers"
+                      :key="user.id"
+                      class="user-item"
+                      @mousedown.prevent="addUserToSelection(user)"
+                    >
+                      <div class="user-info">
+                        <div class="user-name">
+                          {{ getFullName(user) }}
+                        </div>
+                        <div class="user-details">
+                          <span class="user-username">@{{ user.username }}</span>
+                          <span
+                            v-if="user.position"
+                            class="user-position"
+                          >{{ user.position }}</span>
+                        </div>
                       </div>
-                      <div class="user-details">
-                        <span class="user-username">@{{ user.username }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-else-if="showUserDropdown && userSearchQuery.trim() && filteredAvailableUsers.length === 0"
+                  class="user-dropdown"
+                >
+                  <div class="user-dropdown-content">
+                    <div class="no-results-message">
+                      Нет доступных пользователей
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="selected-users">
+                <div class="selected-users-header">
+                  <span>Выбрано пользователей:</span>
+                  <span class="selected-count">
+                    {{ selectedUsers.length }}
+                  </span>
+                </div>
+
+                <div class="users-list-container">
+                  <div class="users-list">
+                    <div
+                      v-for="user in selectedUsers"
+                      :key="user.id"
+                      class="selected-user"
+                    >
+                      <div class="selected-user-info">
+                        <span class="selected-user-name">{{ getFullName(user) }}</span>
+                        <span class="selected-user-username">@{{ user.username }}</span>
                         <span
                           v-if="user.position"
-                          class="user-position"
+                          class="selected-user-position"
                         >{{ user.position }}</span>
                       </div>
+                      <button
+                        class="remove-user-btn"
+                        title="Убрать из списка"
+                        @click="removeUserFromSelection(user)"
+                      >
+                        ×
+                      </button>
                     </div>
-                  </div>
-                </div>
-              </div>
-              <div
-                v-else-if="showUserDropdown && filteredAvailableUsers.length === 0"
-                class="user-dropdown no-results-dropdown"
-              >
-                <div class="user-dropdown-content">
-                  <div class="no-results-message">
-                    Нет доступных пользователей
-                  </div>
-                </div>
-              </div>
-            </div>
-          
-            <div class="selected-users">
-              <div class="selected-users-header">
-                <span>Выбрано пользователей:</span>
-                <span class="selected-count">{{ selectedUsers.length }}</span>
-              </div>
-            
-              <div class="users-list-container">
-                <div class="users-list">
-                  <div 
-                    v-for="user in selectedUsers" 
-                    :key="user.id"
-                    class="selected-user"
-                  >
-                    <div class="selected-user-info">
-                      <span class="selected-user-name">{{ getFullName(user) }}</span>
-                      <span class="selected-user-username">@{{ user.username }}</span>
-                      <span
-                        v-if="user.position"
-                        class="selected-user-position"
-                      >{{ user.position }}</span>
-                    </div>
-                    <button 
-                      class="remove-user-btn"
-                      title="Удалить из списка"
-                      @click="removeUser(user)"
+                    <div
+                      v-if="!selectedUsers.length"
+                      class="no-selected-hint"
                     >
-                      ×
-                    </button>
+                      Выберите пользователей из поиска выше
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        
-          <div class="modal-footer">
-            <button
-              class="modal-cancel-btn"
-              @click="closeAddModal"
-            >
-              Отмена
-            </button>
-            <button 
-              class="modal-add-btn"
-              :disabled="selectedUsers.length === 0 || loading"
-              @click="addApprovers"
-            >
-              {{ loading ? 'Добавление...' : `Добавить (${selectedUsers.length})` }}
-            </button>
+
+            <div class="modal-footer">
+              <button
+                class="lk-button lk-button--ghost"
+                @click="requestCloseAdd"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="selectedUsers.length === 0 || isAdding"
+                @click="submitAdd"
+              >
+                {{ isAdding ? 'Добавление...' : `Добавить (${selectedUsers.length})` }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
-
-    <!-- Уведомления -->
-    <div
-      v-if="notification.show"
-      class="notification"
-      :class="notification.type"
-    >
-      {{ notification.message }}
-    </div>
   </div>
 </template>
 
 <script>
-import { apiRequest } from '@/api/client'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useOverlayClose } from '@/composables/useOverlayClose';
+import { getApprovers, getAllUsers, addApprover, deleteApprover } from '@/api/approvers';
 
 export default {
   name: 'ApplicationApproversManagement',
-  components: {
-    SearchComponent,
-    RefreshButton
+  components: { SearchComponent, RefreshButton },
+  setup() {
+    const overlay = { close: () => {} };
+    const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
+    return { onOverlayMousedown, onOverlayMouseup, overlay };
   },
   data() {
     return {
-      searchQuery: '',
-      refreshing: false,
       approvers: [],
       allUsers: [],
+      searchQuery: '',
+      sortField: 'full_name',
+      sortDirection: 'asc',
+      isLoading: false,
       selectedApprover: null,
+      pendingDeleteIds: [],
       showAddModal: false,
       userSearchQuery: '',
       showUserDropdown: false,
       selectedUsers: [],
-      loading: false,
-      sortField: 'full_name',
-      sortDirection: 'asc',
-      notification: {
-        show: false,
-        message: '',
-        type: 'info'
-      }
+      isAdding: false,
     };
   },
   computed: {
     filteredApprovers() {
-      if (!this.searchQuery) return this.approvers;
-      
-      const query = this.searchQuery.toLowerCase();
-      return this.approvers.filter(a => 
-        this.getFullName(a).toLowerCase().includes(query)
-      );
+      const q = this.searchQuery.trim().toLowerCase();
+      let list = this.approvers.filter(a => !this.pendingDeleteIds.includes(a.id));
+      if (q) {
+        list = list.filter(a => this.getFullName(a).toLowerCase().includes(q));
+      }
+      return list;
     },
-    
     sortedApprovers() {
-      const approvers = [...this.filteredApprovers];
-      
-      return approvers.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (this.sortField) {
-          case 'id':
-            valueA = a.id;
-            valueB = b.id;
-            break;
-          case 'full_name':
-            valueA = this.getFullName(a);
-            valueB = this.getFullName(b);
-            break;
-          case 'created_at':
-            valueA = a.created_at || '';
-            valueB = b.created_at || '';
-            break;
-          default:
-            return 0;
+      const arr = [...this.filteredApprovers];
+      return arr.sort((a, b) => {
+        let va, vb;
+        if (this.sortField === 'id') {
+          va = a.id;
+          vb = b.id;
+        } else if (this.sortField === 'full_name') {
+          va = this.getFullName(a);
+          vb = this.getFullName(b);
+        } else {
+          va = a.created_at || '';
+          vb = b.created_at || '';
         }
-        
-        if (valueA < valueB) {
-          return this.sortDirection === 'asc' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return this.sortDirection === 'asc' ? 1 : -1;
-        }
+        if (va < vb) return this.sortDirection === 'asc' ? -1 : 1;
+        if (va > vb) return this.sortDirection === 'asc' ? 1 : -1;
         return 0;
       });
     },
-    
-    // ID уже добавленных принимающих
-    approverIds() {
+    approverUserIds() {
       return this.approvers.map(a => a.user_id);
     },
-    
-    // ID выбранных для добавления
     selectedUserIds() {
       return this.selectedUsers.map(u => u.id);
     },
-    
-    // Доступные пользователи (не в списке принимающих и не выбранные)
     availableUsers() {
-      return this.allUsers.filter(user => 
-        !this.approverIds.includes(user.id) && 
-        !this.selectedUserIds.includes(user.id)
+      return this.allUsers.filter(
+        u => !this.approverUserIds.includes(u.id) && !this.selectedUserIds.includes(u.id),
       );
     },
-    
-    // Отфильтрованные по поиску
     filteredAvailableUsers() {
-      if (!this.userSearchQuery.trim()) {
-        return this.availableUsers.slice(0, 10);
-      }
-      
-      const query = this.userSearchQuery.toLowerCase();
-      return this.availableUsers.filter(user => {
-        const fullName = this.getFullName(user).toLowerCase();
-        const username = user.username.toLowerCase();
-        const position = (user.position || '').toLowerCase();
-        
-        return fullName.includes(query) ||
-               username.includes(query) ||
-               position.includes(query);
+      const q = this.userSearchQuery.trim().toLowerCase();
+      if (!q) return this.availableUsers.slice(0, 10);
+      return this.availableUsers.filter(u => {
+        return (
+          this.getFullName(u).toLowerCase().includes(q) ||
+          u.username.toLowerCase().includes(q) ||
+          (u.position || '').toLowerCase().includes(q)
+        );
       }).slice(0, 10);
-    }
+    },
+  },
+  created() {
+    this.overlay.close = () => { this.requestCloseAdd(); };
   },
   mounted() {
-    this.refreshData();
+    this.refresh();
+    document.addEventListener('keydown', this.onKeydown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
-    getFullName(user) {
-      const parts = [];
-      if (user.last_name) parts.push(user.last_name);
-      if (user.first_name) parts.push(user.first_name);
-      if (user.middle_name) parts.push(user.middle_name);
-      return parts.length > 0 ? parts.join(' ') : user.username;
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.showAddModal) this.requestCloseAdd();
     },
-
-    formatDate(dateString) {
-      if (!dateString) return '—';
-      const date = new Date(dateString);
-      return date.toLocaleString('ru-RU', {
+    getFullName(user) {
+      const parts = [user.last_name, user.first_name, user.middle_name].filter(Boolean);
+      return parts.length > 0 ? parts.join(' ') : (user.username || String(user.id));
+    },
+    formatDate(s) {
+      if (!s) return '—';
+      return new Date(s).toLocaleString('ru-RU', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     },
-
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -448,158 +424,127 @@ export default {
         this.sortDirection = 'asc';
       }
     },
-
     selectApprover(approver) {
       this.selectedApprover = approver;
     },
-
-    searchUsers() {
-      this.showUserDropdown = true;
-    },
-
-    onSearchBlur() {
-      setTimeout(() => {
-        this.showUserDropdown = false;
-      }, 200);
-    },
-
-    addUser(user) {
-      this.selectedUsers.push(user);
-      this.userSearchQuery = '';
-      this.showUserDropdown = false;
-      this.$refs.searchInput.blur();
-    },
-
-    removeUser(user) {
-      this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id);
-    },
-
-    async refreshData() {
-      this.refreshing = true;
+    async refresh() {
+      this.isLoading = true;
       try {
-        await Promise.all([
-          this.fetchApprovers(),
-          this.fetchAllUsers()
+        const [approvers, users] = await Promise.all([
+          getApprovers(),
+          getAllUsers(),
         ]);
-      } finally {
-        this.refreshing = false;
-      }
-    },
-
-    async fetchApprovers() {
-      try {
-        const response = await apiRequest('/application-approvers', {});
-        if (response.ok) {
-          this.approvers = await response.json();
-        }
-      } catch (error) {
-        console.error('Error fetching approvers:', error);
-      }
-    },
-
-    async fetchAllUsers() {
-      try {
-        const response = await apiRequest('/users/all', {});
-        if (response.ok) {
-          this.allUsers = await response.json();
-        }
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    },
-
-    async addApprovers() {
-      if (this.selectedUsers.length === 0) return;
-
-      this.loading = true;
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const user of this.selectedUsers) {
-        try {
-          const response = await apiRequest('/application-approvers', {
-            method: 'POST',
-            body: JSON.stringify({ user_id: user.id })
-          });
-
-          if (response.ok) {
-            successCount++;
-          } else {
-            errorCount++;
-          }
-        } catch (error) {
-          console.error('Error adding approver:', error);
-          errorCount++;
-        }
-      }
-
-      this.closeAddModal();
-      await this.fetchApprovers();
-      
-      if (errorCount === 0) {
-        this.showNotification(`Добавлено ${successCount} принимающих`, 'success');
-      } else if (successCount > 0) {
-        this.showNotification(`Добавлено ${successCount}, ошибок: ${errorCount}`, 'warning');
-      } else {
-        this.showNotification('Ошибка при добавлении', 'error');
-      }
-      
-      this.loading = false;
-    },
-
-    confirmDeleteApprover(approver) {
-      const fullName = this.getFullName(approver);
-      if (confirm(`Вы уверены, что хотите удалить пользователя "${fullName}" из списка принимающих?`)) {
-        this.deleteApprover(approver);
-      }
-    },
-
-    async deleteApprover(approver) {
-      try {
-        const response = await apiRequest(`/application-approvers/${approver.id}`, {
-          method: 'DELETE'});
-
-        if (response.ok) {
-          if (this.selectedApprover && this.selectedApprover.id === approver.id) {
+        this.approvers = Array.isArray(approvers) ? approvers : [];
+        this.allUsers = Array.isArray(users) ? users : [];
+        if (this.selectedApprover) {
+          const fresh = this.approvers.find(a => a.id === this.selectedApprover.id);
+          if (fresh) {
+            this.selectedApprover = fresh;
+          } else if (!this.pendingDeleteIds.includes(this.selectedApprover.id)) {
             this.selectedApprover = null;
           }
-          await this.fetchApprovers();
-          this.showNotification('Принимающий удален', 'success');
-        } else {
-          this.showNotification('Ошибка при удалении', 'error');
         }
-      } catch (error) {
-        console.error('Error deleting approver:', error);
-        this.showNotification('Ошибка сети', 'error');
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'принимающих', type: 'error' });
+      } finally {
+        this.isLoading = false;
       }
     },
-
-    closeAddModal() {
+    removeApproverWithUndo(approver) {
+      if (this.pendingDeleteIds.includes(approver.id)) return;
+      const id = approver.id;
+      const fullName = this.getFullName(approver);
+      this.pendingDeleteIds.push(id);
+      if (this.selectedApprover && this.selectedApprover.id === id) {
+        this.selectedApprover = null;
+      }
+      useDeletionsStore().enqueue({
+        prefix: 'Принимающий ',
+        bold: fullName,
+        suffix: ' удалён',
+        onConfirm: () => this.commitDelete(id),
+        onUndo: () => this.unhidePending(id),
+      });
+    },
+    unhidePending(id) {
+      this.pendingDeleteIds = this.pendingDeleteIds.filter(i => i !== id);
+    },
+    async commitDelete(id) {
+      try {
+        await deleteApprover(id);
+      } catch {
+        this.unhidePending(id);
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить принимающего', type: 'error' });
+        return;
+      }
+      this.unhidePending(id);
+      await this.refresh();
+    },
+    openAddModal() {
+      this.showAddModal = true;
+      this.userSearchQuery = '';
+      this.selectedUsers = [];
+      this.showUserDropdown = false;
+    },
+    requestCloseAdd() {
       this.showAddModal = false;
       this.userSearchQuery = '';
       this.selectedUsers = [];
       this.showUserDropdown = false;
     },
-
-    showNotification(message, type = 'info') {
-      this.notification = { show: true, message, type };
+    onUserSearchInput() {
+      this.showUserDropdown = true;
+    },
+    onSearchBlur() {
       setTimeout(() => {
-        this.notification.show = false;
-      }, 3000);
-    }
-  }
+        this.showUserDropdown = false;
+      }, 200);
+    },
+    addUserToSelection(user) {
+      this.selectedUsers.push(user);
+      this.userSearchQuery = '';
+      this.showUserDropdown = false;
+      this.$refs.searchInput?.blur();
+    },
+    removeUserFromSelection(user) {
+      this.selectedUsers = this.selectedUsers.filter(u => u.id !== user.id);
+    },
+    async submitAdd() {
+      if (this.selectedUsers.length === 0 || this.isAdding) return;
+      this.isAdding = true;
+      try {
+        const results = await Promise.allSettled(
+          this.selectedUsers.map(u => addApprover(u.id)),
+        );
+        const successCount = results.filter(r => r.status === 'fulfilled').length;
+        const errorCount = results.length - successCount;
+        this.requestCloseAdd();
+        await this.refresh();
+        if (errorCount === 0) {
+          useDeletionsStore().notify({ prefix: 'Добавлено принимающих: ', bold: String(successCount) });
+        } else if (successCount > 0) {
+          useDeletionsStore().notify({
+            prefix: `Добавлено ${successCount}, не удалось: `,
+            bold: String(errorCount),
+            type: 'warning',
+          });
+        } else {
+          useDeletionsStore().notify({ prefix: 'Не удалось добавить принимающих', type: 'error' });
+        }
+      } finally {
+        this.isAdding = false;
+      }
+    },
+  },
 };
 </script>
 
 <style scoped>
-.approvers-management-container {
+.approvers-container {
   background: #fff;
   border-radius: 16px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
-  width: 100%;
-  height: 500px;
-  position: relative;
 }
 
 .management-header {
@@ -609,19 +554,20 @@ export default {
   padding: 0 20px;
   border-bottom: 1px solid #e6e6e6;
   height: 50px;
+  gap: 12px;
 }
 
 .management-title {
-  font-size: 1.2em;
   margin: 0;
+  font-size: 1.2em;
   font-weight: 600;
   color: #000;
 }
 
 .header-controls {
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
 }
 
 .add-header-button {
@@ -632,6 +578,10 @@ export default {
   border-radius: 50px;
   cursor: pointer;
   font-size: 0.9em;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
 }
 
@@ -639,21 +589,20 @@ export default {
   background: #3a45b2;
 }
 
+/* Master-detail layout */
 .content-container {
   display: flex;
-  height: 450px;
+  height: 500px;
   width: 100%;
+  overflow: hidden;
 }
 
 .table-section {
-  width: 50%;
+  width: 40%;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e6e6e6;
-}
-
-.table-section.with-details {
-  width: 50%;
+  background: #fff;
 }
 
 .table-container {
@@ -682,18 +631,27 @@ export default {
   display: flex;
   align-items: center;
   gap: 5px;
+  transition: 0.2s;
   cursor: pointer;
   user-select: none;
+}
+
+.header-col p {
+  margin: 0;
 }
 
 .header-col:hover {
   color: #000;
 }
 
+.header-col:hover .sort-icon {
+  filter: brightness(0);
+}
+
 .sort-icon {
   width: 12px;
   height: 12px;
-  transition: .2s;
+  transition: 0.2s;
 }
 
 .sort-icon.sorted {
@@ -706,25 +664,27 @@ export default {
 
 .active-sort {
   color: #000 !important;
+  font-weight: 600 !important;
 }
 
 .id-col {
-  width: 10%;
-  min-width: 60px;
+  width: 15%;
+  min-width: 55px;
 }
 
 .name-col {
-  width: 60%;
-  min-width: 200px;
+  width: 55%;
+  min-width: 160px;
 }
 
 .date-col {
   width: 30%;
-  min-width: 120px;
+  min-width: 110px;
 }
 
 .table-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -733,6 +693,7 @@ export default {
   padding: 0 20px;
   border-bottom: 1px solid #f0f0f0;
   align-items: center;
+  transition: background-color 0.2s ease;
   cursor: pointer;
   height: 42px;
   font-size: 14px;
@@ -744,6 +705,10 @@ export default {
 
 .table-row.selected {
   background-color: #f8f9ff;
+}
+
+.table-row:last-child {
+  border-bottom: none;
 }
 
 .table-col {
@@ -768,11 +733,17 @@ export default {
   display: block;
 }
 
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a2a2a2;
+  width: 100%;
+}
+
 .table-footer {
-  margin-top: auto;
   padding: 6px 20px;
   border-top: 1px solid #e6e6e6;
-  text-align: end;
+  text-align: right;
   background: #f8fafc;
 }
 
@@ -782,18 +753,37 @@ export default {
   font-weight: 500;
 }
 
+/* Details */
 .details-section {
-  width: 50%;
-  padding: 20px;
+  width: 60%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+
+.tab-content {
+  flex: 1;
   overflow-y: auto;
-  background: #fafafa;
+  padding: 20px;
+  background: #fff;
+  line-height: 1.5;
 }
 
 .details-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 20px;
+  gap: 12px;
+}
+
+.details-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .details-title {
@@ -801,41 +791,45 @@ export default {
   color: #000;
   font-size: 1.2em;
   font-weight: 600;
+  word-break: break-word;
 }
 
-.delete-btn {
-  outline: none;
+.details-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  padding: 8px 16px;
   border: none;
-  width: 36px;
-  height: 36px;
-  padding: 8px;
-  border-radius: 10px;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8f9fa;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
-.delete-btn:hover {
-  background-color: #fee2e2;
+.delete-action-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
 }
 
-.delete-icon {
-  width: 20px;
-  height: 20px;
-  opacity: 0.6;
-}
-
-.delete-btn:hover .delete-icon {
-  opacity: 1;
+.delete-action-btn:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
 }
 
 .details-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .info-row {
@@ -862,23 +856,25 @@ export default {
   color: #000;
 }
 
+.details-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #a2a2a2;
+}
+
 .no-selection-message {
-  width: 50%;
+  width: 60%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #a2a2a2;
+  font-weight: 400;
   font-size: 14px;
 }
 
-.no-results {
-  text-align: center;
-  padding: 40px 20px;
-  color: #a2a2a2;
-  width: 100%;
-}
-
-/* Модальное окно */
+/* Модалка */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -887,104 +883,86 @@ export default {
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 20000;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
-  animation: fadeIn 0.2s ease-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-compact {
-  background: white;
-  border-radius: 16px;
-  width: 480px;
-  max-width: 90%;
+.approvers-modal {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border-radius: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  animation: scaleIn 0.2s ease-out;
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid #e6e6e6;
   flex-shrink: 0;
 }
 
 .modal-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
   margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #000;
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 22px;
-  color: #999;
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  font-size: 24px;
+  line-height: 1;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s;
 }
 
 .modal-close:hover {
-  background: #f0f0f0;
   color: #333;
+  background: #f5f5f5;
 }
 
-.modal-content {
-  flex: 1;
-  padding: 16px 20px;
-  min-height: 0;
+.modal-body {
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-.user-search-section {
-  position: relative;
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #e6e6e6;
   flex-shrink: 0;
 }
 
-.search-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.2s ease;
-}
-
-.search-input:focus {
-  border-color: #4F5BDF;
-  outline: none;
+/* Поиск пользователей в модалке */
+.user-search-section {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .user-dropdown {
@@ -994,7 +972,7 @@ export default {
   right: 0;
   background: white;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 15px;
   max-height: 250px;
   overflow-y: auto;
   z-index: 1000;
@@ -1014,8 +992,12 @@ export default {
   transition: background-color 0.15s ease;
 }
 
+.user-item:last-child {
+  border-bottom: none;
+}
+
 .user-item:hover {
-  background-color: #f5f5f5;
+  background-color: #f8f9ff;
 }
 
 .user-info {
@@ -1045,13 +1027,14 @@ export default {
   color: #999;
 }
 
-.no-results-dropdown {
+.no-results-message {
   padding: 12px;
   text-align: center;
   color: #999;
   font-size: 14px;
 }
 
+/* Выбранные пользователи */
 .selected-users {
   flex: 1;
   min-height: 0;
@@ -1079,11 +1062,10 @@ export default {
 }
 
 .users-list-container {
-  flex: 1;
   overflow-y: auto;
-  max-height: 230px;
+  max-height: 200px;
   border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border-radius: 15px;
   background: #fafafa;
 }
 
@@ -1133,6 +1115,13 @@ export default {
   margin-top: 2px;
 }
 
+.no-selected-hint {
+  padding: 16px 12px;
+  text-align: center;
+  color: #a2a2a2;
+  font-size: 13px;
+}
+
 .remove-user-btn {
   background: none;
   border: none;
@@ -1149,95 +1138,79 @@ export default {
   color: #ef4444;
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 20px;
-  border-top: 1px solid #e6e6e6;
-  flex-shrink: 0;
+/* Анимация открытия/закрытия (зеркало CitizenshipManagement) */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.25s ease;
 }
 
-.modal-cancel-btn {
-  padding: 8px 16px;
-  background: #f0f0f0;
-  color: #333;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease;
+.modal-fade-enter-active .approvers-modal,
+.modal-fade-leave-active .approvers-modal {
+  transition: all 0.25s ease;
 }
 
-.modal-cancel-btn:hover {
-  background: #e0e0e0;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  background: rgba(0, 0, 0, 0);
 }
 
-.modal-add-btn {
-  padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  min-width: 100px;
-}
-
-.modal-add-btn:hover:not(:disabled) {
-  background: #3a45c0;
-}
-
-.modal-add-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-/* Уведомления */
-.notification {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100%);
-  padding: 10px 20px;
-  border-radius: 0 0 8px 8px;
-  color: white;
-  font-weight: 500;
-  z-index: 21000;
-  font-size: 14px;
-  animation: slideDown 0.2s ease-out forwards;
-}
-
-.notification.success { background: #10b981; }
-.notification.error { background: #ef4444; }
-.notification.warning { background: #f59e0b; }
-.notification.info { background: #3b82f6; }
-
-@keyframes slideDown {
-  from { transform: translateX(-50%) translateY(-100%); }
-  to { transform: translateX(-50%) translateY(0); }
+.modal-fade-enter-from .approvers-modal,
+.modal-fade-leave-to .approvers-modal {
+  opacity: 0;
+  transform: translateY(20px);
 }
 
 /* Скроллбары */
 .user-dropdown-content::-webkit-scrollbar,
 .users-list-container::-webkit-scrollbar,
-.table-body::-webkit-scrollbar {
+.table-body::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
   width: 4px;
 }
 
 .user-dropdown-content::-webkit-scrollbar-track,
 .users-list-container::-webkit-scrollbar-track,
-.table-body::-webkit-scrollbar-track {
+.table-body::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
 
 .user-dropdown-content::-webkit-scrollbar-thumb,
 .users-list-container::-webkit-scrollbar-thumb,
-.table-body::-webkit-scrollbar-thumb {
+.table-body::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb {
   background: #ccc;
   border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    height: auto;
+    padding: 16px;
+  }
+  .header-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .content-container {
+    flex-direction: column;
+    height: auto;
+  }
+  .table-section,
+  .table-section.with-details,
+  .details-section,
+  .no-selection-message {
+    width: 100%;
+  }
+  .table-section {
+    border-right: none;
+    border-bottom: 1px solid #e6e6e6;
+  }
+  .table-body {
+    max-height: 300px;
+  }
 }
 </style>
