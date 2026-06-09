@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="nav-root">
     <!-- Backdrop для мобильного drawer'а -->
     <transition name="nav-backdrop">
       <div
@@ -237,101 +237,38 @@
             <span class="nav-text">Новости</span>
           </div>
 
-          <!-- Администрирование: видно только супер-админу. Пока флайаут -
-               двухколоночная Админка приходит отдельным срезом. -->
+          <!-- Администрирование: видно только супер-админу. Клик открывает
+               двухколоночную Админку, рельс при этом схлопывается в иконки. -->
           <div
             v-if="authStore.isSuperAdmin"
             v-show="matches('Администрирование')"
-            class="nav-item-container"
+            class="nav-item has-dropdown"
+            :class="{ active: adminOpen || isActive('/admin') }"
+            data-testid="nav-link-admin"
+            @click="toggleAdmin"
           >
-            <div
-              class="nav-item has-dropdown"
-              :class="{ active: isActive('/admin') }"
-              @mouseenter="openDropdown('admin')"
-              @mouseleave="handleDropdownLeave('admin')"
-            >
-              <div class="nav-item-content">
-                <NavIcon
-                  name="admin"
-                  :size="18"
-                  class="nav-icon"
-                />
-                <span class="nav-text">Администрирование</span>
-              </div>
-              <svg
-                class="dropdown-arrow"
-                :class="{ rotated: dropdowns.admin }"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="9 6 15 12 9 18" />
-              </svg>
+            <div class="nav-item-content">
+              <NavIcon
+                name="admin"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Администрирование</span>
             </div>
-
-            <transition name="dropdown-fade">
-              <div
-                v-show="dropdowns.admin"
-                class="dropdown-list dropdown-right"
-                @mouseenter="keepDropdownOpen('admin')"
-                @mouseleave="closeDropdown('admin')"
-              >
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminUsers"
-                >
-                  Пользователи
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminRoles"
-                >
-                  Роли
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminPermissionGroups"
-                >
-                  Группы прав
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAccessDenials"
-                >
-                  Журнал отказов
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminBlacklist"
-                >
-                  Чёрный список
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminSettings"
-                >
-                  Настройки
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminFeedback"
-                >
-                  Обратная связь
-                </div>
-                <div
-                  class="dropdown-item"
-                  @click="navigateToAdminRequests"
-                >
-                  Мониторинг запросов
-                </div>
-              </div>
-            </transition>
+            <svg
+              class="dropdown-arrow"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="9 6 15 12 9 18" />
+            </svg>
           </div>
         </div>
 
@@ -365,6 +302,87 @@
         </div>
       </div>
     </nav>
+
+    <!--
+      Двухколоночная Админка (#510): колонка справа от свёрнутого в иконки рельса,
+      поверх готовых /admin/* роутов. Палитра наследуется от .nav-root. Без теней.
+    -->
+    <transition name="admin-col">
+      <aside
+        v-if="adminOpen"
+        class="admin-column"
+        aria-label="Администрирование"
+        data-testid="admin-column"
+      >
+        <button
+          class="admin-back"
+          type="button"
+          data-testid="admin-back"
+          @click="closeAdmin"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="15 6 9 12 15 18" />
+          </svg>
+          Назад в работу
+        </button>
+
+        <div class="admin-column__head">
+          <span class="admin-column__title">Админка</span>
+          <span class="admin-count">{{ adminCountLabel }}</span>
+        </div>
+
+        <input
+          v-model="adminSearch"
+          type="text"
+          class="admin-search"
+          placeholder="Поиск по админке..."
+          aria-label="Поиск по разделам админки"
+        >
+
+        <div class="admin-column__scroll">
+          <div
+            v-for="group in filteredAdminGroups"
+            :key="group.title"
+            class="admin-group"
+          >
+            <div class="admin-group__title">
+              {{ group.title }}
+            </div>
+            <div
+              v-for="item in group.items"
+              :key="item.path"
+              class="admin-link"
+              :class="{ active: isActive(item.path) }"
+              :data-testid="`admin-link-${item.icon}`"
+              @click="navigateToAdminPath(item.path)"
+            >
+              <NavIcon
+                :name="item.icon"
+                :size="18"
+                class="admin-link__icon"
+              />
+              <span class="admin-link__label">{{ item.label }}</span>
+            </div>
+          </div>
+          <div
+            v-if="filteredAdminGroups.length === 0"
+            class="admin-empty"
+          >
+            Ничего не найдено
+          </div>
+        </div>
+      </aside>
+    </transition>
 
     <!-- Возврат рельса из full-hide: плавающая кнопка у левого края -->
     <transition name="nav-backdrop">
@@ -433,8 +451,7 @@ export default {
     return {
       isExpanded: false,
       dropdowns: {
-        tables: false,
-        admin: false
+        tables: false
       },
       hoverTimeout: null,
       dropdownTimeout: null,
@@ -446,20 +463,98 @@ export default {
       mobileOpen: false,
       isBanned: false,
       searchQuery: '',
+      adminOpen: false,
+      adminSearch: '',
+      // Разделы Админки по группам мокапа (#510). Все роуты /admin/* уже заведены
+      // (срезы 1,2) с requiresBuro - доступ супер-админа без правок бэкенда прав.
+      adminGroups: [
+        {
+          title: 'Доступ и роли',
+          items: [
+            { label: 'Пользователи', icon: 'users', path: '/admin/users' },
+            { label: 'Роли', icon: 'roles', path: '/admin/roles' },
+            { label: 'Группы прав', icon: 'permission-groups', path: '/admin/permission-groups' },
+            { label: 'Журнал отказов', icon: 'access-denials', path: '/admin/access-denials' },
+            { label: 'Чёрный список', icon: 'blacklist', path: '/admin/blacklist' },
+          ],
+        },
+        {
+          title: 'Справочники',
+          items: [
+            { label: 'Организации', icon: 'organizations', path: '/admin/organizations' },
+            { label: 'Компании', icon: 'companies', path: '/admin/companies' },
+            { label: 'Места разгрузки', icon: 'unload-places', path: '/admin/unload-places' },
+            { label: 'Форматы номеров', icon: 'number-formats', path: '/admin/number-formats' },
+            { label: 'Гражданства', icon: 'citizenship', path: '/admin/citizenship' },
+            { label: 'Марки авто', icon: 'marks', path: '/admin/marks' },
+            { label: 'Типы вложений', icon: 'attachment-types', path: '/admin/attachment-types' },
+            { label: 'Типы пользователей', icon: 'user-types', path: '/admin/user-types' },
+            { label: 'Принимающие', icon: 'approvers', path: '/admin/approvers' },
+          ],
+        },
+        {
+          title: 'Система',
+          items: [
+            { label: 'Настройки', icon: 'settings', path: '/admin/settings' },
+            { label: 'Конструктор таблиц', icon: 'table-constructor', path: '/table-constructor' },
+            { label: 'Техработы', icon: 'system-control', path: '/admin/system-control' },
+          ],
+        },
+        {
+          title: 'Аудит и связь',
+          items: [
+            { label: 'Обратная связь', icon: 'feedback', path: '/admin/feedback' },
+            { label: 'Мониторинг запросов', icon: 'requests', path: '/admin/requests' },
+          ],
+        },
+      ],
     };
   },
   computed: {
     // Рельс раскрыт если закреплён (пин) или временно по hover. В full-hide
-    // не раскрываем - рельс схлопнут в 0.
+    // не раскрываем - рельс схлопнут в 0. При открытой Админке рельс
+    // зафиксирован в иконках, чтобы не перекрывать колонку.
     railExpanded() {
       if (this.uiStore.sidebarHidden) return false;
+      if (this.adminOpen) return false;
       return this.uiStore.sidebarExpanded || this.isExpanded;
+    },
+    // Множество путей Админки - по нему route-watcher решает, закрывать ли колонку
+    // (переход на «РАБОТА»/кабинет закрывает, переключение между разделами - нет).
+    adminPathSet() {
+      const set = new Set();
+      this.adminGroups.forEach((g) => g.items.forEach((i) => set.add(i.path)));
+      return set;
+    },
+    // Клиентский фильтр разделов по подстроке (поиск в колонке Админки).
+    filteredAdminGroups() {
+      const q = this.adminSearch.trim().toLowerCase();
+      if (!q) return this.adminGroups;
+      return this.adminGroups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(q)) }))
+        .filter((g) => g.items.length > 0);
+    },
+    adminCount() {
+      return this.adminGroups.reduce((n, g) => n + g.items.length, 0);
+    },
+    adminCountLabel() {
+      const n = this.adminCount;
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      let word = 'разделов';
+      if (mod10 === 1 && mod100 !== 11) word = 'раздел';
+      else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = 'раздела';
+      return `${n} ${word}`;
     },
   },
   watch: {
-    // Закрываем drawer при переходе по пункту меню
+    // Закрываем drawer при переходе по пункту меню; покинули раздел Админки
+    // (клик «РАБОТА»/кабинет) - закрываем колонку.
     '$route'() {
       this.closeMobile();
+      if (this.adminOpen && !this.adminPathSet.has(this.$route.path)) {
+        this.closeAdmin();
+      }
     },
     'uiStore.sidebarExpanded': 'syncContentMargin',
     'uiStore.sidebarHidden': 'syncContentMargin',
@@ -529,13 +624,35 @@ export default {
       this.uiStore.hideSidebar();
       this.isExpanded = false;
       this.closeAllDropdowns();
+      this.closeAdmin();
     },
     showRail() {
       this.uiStore.showSidebar();
     },
+    // Открытие/закрытие колонки Админки. При открытии рельс схлопывается в иконки
+    // (railExpanded -> false), при закрытии возвращается в прежнее состояние.
+    toggleAdmin() {
+      if (this.adminOpen) {
+        this.closeAdmin();
+        return;
+      }
+      this.adminOpen = true;
+      this.isExpanded = false;
+      this.closeAllDropdowns();
+    },
+    closeAdmin() {
+      this.adminOpen = false;
+      this.adminSearch = '';
+    },
+    navigateToAdminPath(path) {
+      this.$router.push(path);
+      // На мобильном колонка оверлеит контент - закрываем после перехода, чтобы
+      // показать страницу; на десктопе оставляем открытой для смены разделов.
+      if (window.innerWidth <= 768) this.closeAdmin();
+    },
     // Контент (#main-content) отслеживает персистентную ширину рельса: hide -> 0,
-    // пин -> развёрнутый, иначе свёрнутый. Hover-разворот сюда не входит - он
-    // оверлеит контент, а не раздвигает. Переменную читает App.vue.
+    // пин -> развёрнутый, иначе свёрнутый. Колонка Админки и hover-разворот сюда
+    // НЕ входят - они оверлеят контент, а не раздвигают его. Переменную читает App.vue.
     syncContentMargin() {
       const width = this.uiStore.sidebarHidden
         ? '0px'
@@ -553,6 +670,8 @@ export default {
       document.body.classList.remove('nav-drawer-open');
     },
     expandMenu() {
+      // При открытой Админке рельс зафиксирован в иконках - hover не разворачивает.
+      if (this.adminOpen) return;
       if (this.hoverTimeout) {
         clearTimeout(this.hoverTimeout);
         this.hoverTimeout = null;
@@ -633,38 +752,6 @@ export default {
       }
     },
 
-    navigateToAdminRequests() {
-      this.$router.push('/admin/requests');
-      this.closeAllDropdowns();
-    },
-    navigateToAdminFeedback() {
-      this.$router.push('/admin/feedback');
-      this.closeAllDropdowns();
-    },
-    navigateToAdminUsers() {
-      this.$router.push('/admin/users');
-      this.closeAllDropdowns();
-    },
-    navigateToAdminPermissionGroups() {
-      this.$router.push('/admin/permission-groups');
-      this.closeAllDropdowns();
-    },
-    navigateToAdminRoles() {
-      this.$router.push('/admin/roles');
-      this.closeAllDropdowns();
-    },
-    navigateToAccessDenials() {
-      this.$router.push('/admin/access-denials');
-      this.closeAllDropdowns();
-    },
-    navigateToAdminSettings() {
-      this.$router.push('/admin/settings');
-      this.closeAllDropdowns();
-    },
-    navigateToAdminBlacklist() {
-      this.$router.push('/admin/blacklist');
-      this.closeAllDropdowns();
-    },
     navigateToCenter() {
       this.$router.push('/center');
       this.closeAllDropdowns();
@@ -755,19 +842,27 @@ export default {
 
 <style scoped>
 /*
- * Палитра навигации (#510) скоуплена на корне рельса - точные хексы мокапа,
- * чтобы не утекали в глобальный tokens.css. Радиусы/шрифт - из проектных токенов.
+ * Палитра навигации (#510) - точные хексы мокапа, scoped на корне навигации
+ * (.nav-root). И рельс, и колонка Админки, и кнопка возврата наследуют отсюда;
+ * глобальный tokens.css не трогаем, чтобы цвета мокапа не утекли на весь сайт.
+ * Радиусы/шрифт - из проектных токенов.
  */
-.nav-menu {
+.nav-root {
   --nav-primary: #4F5BDF;
+  --nav-primary-hover: #3d49c7;
   --nav-primary-soft: rgba(79, 91, 223, .10);
+  --nav-primary-soft-strong: rgba(79, 91, 223, .16);
   --nav-text: #1f2330;
   --nav-text-muted: #8a90a2;
   --nav-text-faint: #aab0c0;
   --nav-border: #e9eaf0;
+  --nav-border-soft: #f0f1f6;
   --nav-bg: #ffffff;
   --nav-hover: #f4f5fb;
+  --nav-scrollbar: #e0e2ee;
+}
 
+.nav-menu {
   position: fixed;
   left: 0;
   top: 0;
@@ -887,8 +982,8 @@ export default {
 }
 
 /*
- * Плавающая кнопка возврата рельса из full-hide. Вне .nav-menu - палитра-vars
- * сюда не дотягиваются, поэтому хексы навигации заданы напрямую.
+ * Плавающая кнопка возврата рельса из full-hide. Внутри .nav-root - наследует
+ * палитру навигации.
  */
 .nav-unhide {
   position: fixed;
@@ -900,17 +995,17 @@ export default {
   justify-content: center;
   width: 38px;
   height: 38px;
-  border: 1px solid #e9eaf0;
-  background: #ffffff;
+  border: 1px solid var(--nav-border);
+  background: var(--nav-bg);
   border-radius: 12px;
-  color: #8a90a2;
+  color: var(--nav-text-muted);
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .nav-unhide:hover {
-  background: #f4f5fb;
-  color: #4F5BDF;
+  background: var(--nav-hover);
+  color: var(--nav-primary);
 }
 
 .nav-section {
@@ -1177,6 +1272,201 @@ export default {
 }
 
 /*
+ * Двухколоночная Админка (#510): колонка справа от свёрнутого в иконки рельса
+ * (left: 50px). Без теней - отделение бордером. Палитра - от .nav-root.
+ */
+.admin-column {
+  position: fixed;
+  left: 50px;
+  top: 0;
+  width: 264px;
+  height: 100vh;
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-border);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 16px;
+  overflow: hidden;
+}
+
+.admin-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin: 0 14px 10px;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--nav-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.admin-back:hover {
+  background: var(--nav-hover);
+  color: var(--nav-primary);
+}
+
+.admin-column__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+
+.admin-column__title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 22px;
+  color: var(--nav-text);
+}
+
+.admin-count {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nav-primary);
+  background: var(--nav-primary-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 999px);
+  white-space: nowrap;
+}
+
+.admin-search {
+  margin: 0 16px 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--nav-border);
+  border-radius: var(--radius-md, 15px);
+  background: var(--nav-bg);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  color: var(--nav-text);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-search::placeholder {
+  color: var(--nav-text-faint);
+}
+
+.admin-search:focus {
+  border-color: var(--nav-primary);
+  box-shadow: 0 0 0 3px var(--nav-primary-soft);
+}
+
+.admin-column__scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nav-scrollbar) transparent;
+}
+
+.admin-column__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-column__scroll::-webkit-scrollbar-thumb {
+  background: var(--nav-scrollbar);
+  border-radius: 3px;
+}
+
+.admin-group__title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nav-text-faint);
+  margin: 14px 0 6px 24px;
+}
+
+.admin-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 15px;
+  margin: 2px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  color: var(--nav-text);
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-link__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--nav-text-muted);
+  transition: color 0.2s ease;
+}
+
+.admin-link__label {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--nav-text);
+  white-space: nowrap;
+}
+
+.admin-link:hover {
+  background-color: var(--nav-hover);
+}
+
+.admin-link:hover .admin-link__icon {
+  color: var(--nav-primary);
+}
+
+.admin-link.active {
+  background-color: var(--nav-primary-soft);
+}
+
+.admin-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nav-primary);
+}
+
+.admin-link.active .admin-link__icon,
+.admin-link.active .admin-link__label {
+  color: var(--nav-primary);
+}
+
+.admin-empty {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  color: var(--nav-text-faint);
+  padding: 16px 24px;
+}
+
+/* Открытие/закрытие колонки - только transform + opacity (150-300ms). */
+.admin-col-enter-active,
+.admin-col-leave-active {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-col-enter-from,
+.admin-col-leave-to {
+  transform: translateX(-12px);
+  opacity: 0;
+}
+
+/*
  * Mobile drawer (<768px): nav скрыт по-умолчанию, открывается через burger
  * в TheHeader (emits $bus mobile-nav-toggle). Без теней по требованию #510 -
  * отделение от контента через backdrop и border-right.
@@ -1264,6 +1554,15 @@ export default {
     width: 100% !important;
     border: none !important;
     margin-left: 20px !important;
+  }
+
+  /* Колонка Админки на мобильном оверлеит как самостоятельная панель поверх
+     drawer'а (рельс уезжает за край), а не лепится к 50px-рельсу. */
+  .admin-column {
+    left: 0;
+    width: 280px;
+    max-width: 85vw;
+    z-index: 10001;
   }
 }
 
