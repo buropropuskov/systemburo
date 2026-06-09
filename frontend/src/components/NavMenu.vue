@@ -164,7 +164,7 @@
             >
               <div
                 class="nav-item has-dropdown"
-                :class="{ active: isActive('/table'), 'is-open': dropdowns.tables }"
+                :class="{ active: isActive('/table') }"
                 data-testid="nav-link-tables"
                 @click="toggleDropdown('tables')"
               >
@@ -695,10 +695,11 @@ export default {
       return current === path;
     },
     // Текущая открытая таблица - для подсветки пункта в списке «Таблицы».
-    // Сверяем по пути (роут /table/:tableName), а не по имени параметра.
+    // Сверяем по декодированному параметру роута /table/:tableName (надёжно к
+    // кодированию кириллицы/спецсимволов в URL).
     isCurrentTable(tableName) {
       if (!tableName) return false;
-      return decodeURIComponent(this.$route.path) === `/table/${tableName}`;
+      return this.$route.params.tableName === tableName;
     },
     // Клиентский фильтр пунктов рельса по подстроке (поиск в развёрнутом виде).
     matches(label) {
