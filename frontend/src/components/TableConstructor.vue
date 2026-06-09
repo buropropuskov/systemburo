@@ -615,12 +615,12 @@
       @close="historyTable = null"
     />
 
-    <!-- Подтверждение удаления таблицы -->
+    <!-- Подтверждение архивации таблицы -->
     <ConfirmationModal
       :show="!!deleteConfirmTable"
-      title="Удаление таблицы"
-      :message="deleteConfirmTable ? `Удалить таблицу &quot;${deleteConfirmTable.table.display_name}&quot;? Её можно будет восстановить из архива.` : ''"
-      confirm-text="Удалить"
+      title="Архивация таблицы"
+      :message="deleteConfirmTable ? `Архивировать таблицу «${deleteConfirmTable.table.display_name}»? Её можно будет восстановить из архива.` : ''"
+      confirm-text="В архив"
       cancel-text="Отмена"
       :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
       @confirm="performDeleteTable"
@@ -984,11 +984,11 @@ export default {
           method: "DELETE",
         });
         if (response.ok) {
-          const deletedName = table.table.display_name;
+          const archivedName = table.table.display_name;
           this.selectedTable = null;
           this.activeTab = 'main';
           await this.refreshData();
-          useDeletionsStore().notify({ bold: deletedName, suffix: ' удалена' });
+          useDeletionsStore().notify({ prefix: 'Таблица ', bold: archivedName, suffix: ' архивирована' });
         } else {
           const errorText = await response.text();
           console.error('Error response text:', errorText);
@@ -999,7 +999,7 @@ export default {
           } catch {
             // оставляем сырой текст
           }
-          useDeletionsStore().notify({ prefix: 'Не удалось удалить: ', bold: message, type: 'error' });
+          useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: message, type: 'error' });
         }
       } catch (error) {
         console.error('Error deleting system table:', error);
