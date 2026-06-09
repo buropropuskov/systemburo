@@ -154,6 +154,6 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
       },
     });
     await wrapper.find('.blacklist-override-btn').trigger('click');
-    expect(wrapper.emitted('override-element')[0][0]).toEqual({ label: 'Иваноф Иван', flag: f });
+    expect(wrapper.emitted('override-element')[0][0]).toEqual({ label: 'Иваноф Иван Иванович', flag: f });
   });
 });

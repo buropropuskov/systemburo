@@ -168,7 +168,7 @@
                     v-if="canOverride && isFlagged(employee)"
                     type="button"
                     class="lk-button lk-button--danger blacklist-override-btn"
-                    @click.stop="$emit('override-element', { label: employee.last_name + ' ' + employee.first_name, flag: employee.blacklist_similar })"
+                    @click.stop="$emit('override-element', { label: employeeFullName(employee), flag: employee.blacklist_similar })"
                   >
                     Пропустить
                   </button>
@@ -255,8 +255,7 @@ export default {
             type: Boolean,
             default: false
         },
-        // canOverride - показывать ли действие "Пропустить" на помеченных строках.
-        // true только для ответственного: бэкенд override-эндпоинт отвечает 403 остальным.
+        // Показываем "Пропустить" только ответственному - у остальных нет права на override.
         canOverride: {
             type: Boolean,
             default: false
@@ -267,6 +266,10 @@ export default {
         isFlagged(entity) {
             const flag = entity && entity.blacklist_similar;
             return !!flag && !flag.overridden;
+        },
+
+        employeeFullName(employee) {
+            return [employee.last_name, employee.first_name, employee.middle_name].filter(Boolean).join(' ');
         },
 
         blacklistVariant(flag) {

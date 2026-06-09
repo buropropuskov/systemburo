@@ -29,20 +29,18 @@
         </div>
       </div>
 
-      <label
-        class="override-field-label"
-        for="blacklist-override-comment"
+      <FormField
+        label="Причина пропуска"
+        required
       >
-        Причина пропуска
-      </label>
-      <textarea
-        id="blacklist-override-comment"
-        v-model="comment"
-        class="lk-textarea"
-        rows="3"
-        placeholder="Например: проверено по СТС, это другой автомобиль"
-        @keydown.enter.ctrl="submit"
-      />
+        <textarea
+          v-model="comment"
+          class="lk-textarea"
+          rows="3"
+          placeholder="Например: проверено по СТС, это другой автомобиль"
+          @keydown.enter.ctrl="submit"
+        />
+      </FormField>
     </div>
 
     <template #actions>
@@ -68,10 +66,11 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
+import FormField from '@/components/ui/FormField.vue'
 
 export default {
     name: 'BlacklistOverrideModal',
-    components: { BaseModal },
+    components: { BaseModal, FormField },
     props: {
         show: {
             type: Boolean,
@@ -125,10 +124,11 @@ export default {
     color: #666;
 }
 
+/* красная палитра зеркалит Badge danger и подсветку строки (#481, срез 5) - семантических токенов под неё нет */
 .override-matched {
     border: 1px solid #fecaca;
     background: #fff5f5;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     padding: 12px 14px;
     margin-bottom: 16px;
 }
@@ -152,13 +152,5 @@ export default {
     font-size: 12.5px;
     color: #7f1d1d;
     margin-top: 2px;
-}
-
-.override-field-label {
-    display: block;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 6px;
 }
 </style>

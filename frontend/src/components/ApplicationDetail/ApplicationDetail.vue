@@ -866,7 +866,8 @@ export default {
                         await this.loadAttachmentDetails(this.selectedAttachment.id);
                     }
                     this.$emit('application-changed', this.applicationData);
-                } else {
+                } else if (response.status !== 403) {
+                    // 403 уже показывает тост через client.js - второй не дублируем
                     const data = await response.json();
                     useDeletionsStore().notify({
                         prefix: 'Не удалось подтвердить пропуск: ',
