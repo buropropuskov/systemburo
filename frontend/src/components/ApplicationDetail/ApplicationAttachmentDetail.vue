@@ -86,12 +86,12 @@
                   <Badge
                     v-if="car.blacklist_similar"
                     class="blacklist-badge"
-                    :variant="car.blacklist_similar.overridden ? 'neutral' : 'danger'"
+                    :variant="blacklistVariant(car.blacklist_similar)"
                     size="sm"
                     dot
                     :title="blacklistTooltip(car.blacklist_similar)"
                   >
-                    {{ car.blacklist_similar.overridden ? 'пропуск подтверждён' : 'похоже на ЧС' }}
+                    {{ blacklistLabel(car.blacklist_similar) }}
                   </Badge>
                 </div>
               </div>
@@ -149,12 +149,12 @@
                   <Badge
                     v-if="employee.blacklist_similar"
                     class="blacklist-badge"
-                    :variant="employee.blacklist_similar.overridden ? 'neutral' : 'danger'"
+                    :variant="blacklistVariant(employee.blacklist_similar)"
                     size="sm"
                     dot
                     :title="blacklistTooltip(employee.blacklist_similar)"
                   >
-                    {{ employee.blacklist_similar.overridden ? 'пропуск подтверждён' : 'похоже на ЧС' }}
+                    {{ blacklistLabel(employee.blacklist_similar) }}
                   </Badge>
                 </div>
               </div>
@@ -245,6 +245,14 @@ export default {
         isFlagged(entity) {
             const flag = entity && entity.blacklist_similar;
             return !!flag && !flag.overridden;
+        },
+
+        blacklistVariant(flag) {
+            return flag.overridden ? 'neutral' : 'danger';
+        },
+
+        blacklistLabel(flag) {
+            return flag.overridden ? 'пропуск подтверждён' : 'похоже на ЧС';
         },
 
         blacklistTooltip(flag) {
