@@ -34,8 +34,17 @@
       </button>
 
       <div class="nav-content">
-        <!-- Верх рельса (виден в развёрнутом виде): контролы + поиск -->
-        <div class="nav-top">
+        <!-- Бренд + контролы (пин/скрыть). В свёрнутом виде - только лого по центру. -->
+        <div class="nav-head">
+          <div class="nav-brand">
+            <span class="nav-logo">
+              <NavIcon
+                name="logo"
+                :size="20"
+              />
+            </span>
+            <span class="nav-brand__name">Бюро<span>пропусков</span></span>
+          </div>
           <div class="nav-controls">
             <button
               class="nav-ctrl nav-ctrl--pin"
@@ -56,8 +65,13 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <polyline points="7 7 12 12 7 17" />
-                <polyline points="13 7 18 12 13 17" />
+                <path d="M9 4h6l-1 7 3 3v2H7v-2l3-3z" />
+                <line
+                  x1="12"
+                  y1="16"
+                  x2="12"
+                  y2="21"
+                />
               </svg>
             </button>
             <button
@@ -77,16 +91,21 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <line
-                  x1="6"
-                  y1="5"
-                  x2="6"
-                  y2="19"
-                />
-                <polyline points="13 7 8 12 13 17" />
+                <polyline points="11 7 6 12 11 17" />
+                <polyline points="17 7 12 12 17 17" />
               </svg>
             </button>
           </div>
+        </div>
+
+        <!-- Поиск: место зарезервировано всегда (в свёрнутом - лупа по центру). -->
+        <div class="nav-search-row">
+          <span class="nav-search-ic">
+            <NavIcon
+              name="search"
+              :size="16"
+            />
+          </span>
           <input
             v-model="searchQuery"
             type="text"
@@ -96,63 +115,196 @@
           >
         </div>
 
-        <!-- РАБОТА -->
-        <div class="nav-section">
-          <div class="section-title">
-            РАБОТА
-          </div>
-
-          <div
-            v-show="matches('Центр заявок')"
-            class="nav-item"
-            :class="{ active: isActive('/center') }"
-            data-testid="nav-link-center"
-            @click="navigateToCenter"
-          >
-            <div class="nav-icon-wrapper">
-              <NavIcon
-                name="center"
-                :size="18"
-                class="nav-icon"
-              />
+        <div class="nav-scroll">
+          <!-- ЗАЯВКИ -->
+          <div class="nav-section">
+            <div class="section-title">
+              ЗАЯВКИ
+            </div>
+            <div
+              v-show="matches('Центр заявок')"
+              class="nav-item"
+              :class="{ active: isActive('/center') }"
+              data-testid="nav-link-center"
+              @click="navigateToCenter"
+            >
+              <div class="nav-icon-wrapper">
+                <NavIcon
+                  name="center"
+                  :size="18"
+                  class="nav-icon"
+                />
+                <span
+                  v-if="newApplicationsCount > 0"
+                  class="icon-badge"
+                >
+                  {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
+                </span>
+              </div>
+              <span class="nav-text">Центр заявок</span>
               <span
                 v-if="newApplicationsCount > 0"
-                class="icon-badge"
+                class="notification-badge"
               >
                 {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
               </span>
             </div>
-            <span class="nav-text">Центр заявок</span>
-            <span
-              v-if="newApplicationsCount > 0"
-              class="notification-badge"
-            >
-              {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
-            </span>
           </div>
 
-          <!-- Таблицы (выпадающий список) -->
-          <div
-            v-show="matches('Таблицы')"
-            class="nav-item-container"
-          >
+          <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
+          <div class="nav-section">
+            <div class="section-title">
+              УПРАВЛЕНИЕ ДАННЫМИ
+            </div>
+
+            <!-- Таблицы: дропдаун раскрывается по клику и разворачивается под пунктом -->
             <div
+              v-show="matches('Таблицы')"
+              class="nav-item-container"
+            >
+              <div
+                class="nav-item has-dropdown"
+                :class="{ active: isActive('/table'), 'is-open': dropdowns.tables }"
+                data-testid="nav-link-tables"
+                @click="toggleDropdown('tables')"
+              >
+                <div class="nav-item-content">
+                  <NavIcon
+                    name="tables"
+                    :size="18"
+                    class="nav-icon"
+                  />
+                  <span class="nav-text">Таблицы</span>
+                </div>
+                <svg
+                  class="dropdown-arrow"
+                  :class="{ rotated: dropdowns.tables }"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+
+              <transition name="dropdown-collapse">
+                <div
+                  v-show="dropdowns.tables && railExpanded"
+                  class="dropdown-below"
+                >
+                  <div
+                    v-for="table in systemTables"
+                    :key="getTableId(table)"
+                    class="dropdown-item"
+                    @click="navigateToTable(getTableName(table))"
+                  >
+                    {{ getTableDisplayName(table) }}
+                  </div>
+                  <div
+                    v-if="systemTables.length === 0"
+                    class="dropdown-item disabled"
+                  >
+                    Нет доступных таблиц
+                  </div>
+                </div>
+              </transition>
+            </div>
+
+            <div
+              v-show="matches('Сотрудники')"
+              class="nav-item"
+              :class="{ active: isActive('/employeesview') }"
+              data-testid="nav-link-employees"
+              @click="navigateToEmployeesView"
+            >
+              <NavIcon
+                name="employees"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Сотрудники</span>
+            </div>
+
+            <div
+              v-show="matches('Автомобили')"
+              class="nav-item"
+              :class="{ active: isActive('/carsview') }"
+              data-testid="nav-link-cars"
+              @click="navigateToCarsView"
+            >
+              <NavIcon
+                name="cars"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Автомобили</span>
+            </div>
+          </div>
+
+          <!-- АНАЛИТИКА (пока заглушки - роутов нет) -->
+          <div class="nav-section">
+            <div class="section-title">
+              АНАЛИТИКА
+            </div>
+            <div
+              v-show="matches('Статистика')"
+              class="nav-item disabled"
+              title="Скоро"
+              aria-disabled="true"
+            >
+              <NavIcon
+                name="statistics"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Статистика</span>
+            </div>
+            <div
+              v-show="matches('Аналитика')"
+              class="nav-item disabled"
+              title="Скоро"
+              aria-disabled="true"
+            >
+              <NavIcon
+                name="analytics"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Аналитика</span>
+            </div>
+          </div>
+
+          <!-- АДМИНИСТРИРОВАНИЕ: только супер-админ. Клик открывает колонку Админки. -->
+          <div
+            v-if="authStore.isSuperAdmin"
+            class="nav-section"
+          >
+            <div class="section-title">
+              АДМИНИСТРИРОВАНИЕ
+            </div>
+            <div
+              v-show="matches('Администрирование')"
               class="nav-item has-dropdown"
-              :class="{ active: isActive('/table') }"
-              @mouseenter="openDropdown('tables')"
-              @mouseleave="handleDropdownLeave('tables')"
+              :class="{ active: adminOpen || isActive('/admin') }"
+              data-testid="nav-link-admin"
+              @click="toggleAdmin"
             >
               <div class="nav-item-content">
                 <NavIcon
-                  name="tables"
+                  name="admin"
                   :size="18"
                   class="nav-icon"
                 />
-                <span class="nav-text">Таблицы</span>
+                <span class="nav-text">Администрирование</span>
               </div>
               <svg
                 class="dropdown-arrow"
-                :class="{ rotated: dropdowns.tables }"
                 width="14"
                 height="14"
                 viewBox="0 0 24 24"
@@ -166,64 +318,16 @@
                 <polyline points="9 6 15 12 9 18" />
               </svg>
             </div>
-
-            <transition name="dropdown-fade">
-              <div
-                v-show="dropdowns.tables"
-                class="dropdown-list dropdown-right"
-                @mouseenter="keepDropdownOpen('tables')"
-                @mouseleave="closeDropdown('tables')"
-              >
-                <div
-                  v-for="table in systemTables"
-                  :key="getTableId(table)"
-                  class="dropdown-item"
-                  @click="navigateToTable(getTableName(table))"
-                >
-                  {{ getTableDisplayName(table) }}
-                </div>
-                <div
-                  v-if="systemTables.length === 0"
-                  class="dropdown-item disabled"
-                >
-                  Нет доступных таблиц
-                </div>
-              </div>
-            </transition>
           </div>
+        </div>
 
-          <div
-            v-show="matches('Сотрудники')"
-            class="nav-item"
-            :class="{ active: isActive('/employeesview') }"
-            data-testid="nav-link-employees"
-            @click="navigateToEmployeesView"
-          >
-            <NavIcon
-              name="employees"
-              :size="18"
-              class="nav-icon"
-            />
-            <span class="nav-text">Сотрудники</span>
+        <!-- ПОЛЬЗОВАТЕЛЬ (низ) -->
+        <div class="nav-section user-section">
+          <div class="section-title">
+            ПОЛЬЗОВАТЕЛЬ
           </div>
-
           <div
-            v-show="matches('Автомобили')"
-            class="nav-item"
-            :class="{ active: isActive('/carsview') }"
-            data-testid="nav-link-cars"
-            @click="navigateToCarsView"
-          >
-            <NavIcon
-              name="cars"
-              :size="18"
-              class="nav-icon"
-            />
-            <span class="nav-text">Автомобили</span>
-          </div>
-
-          <div
-            v-show="matches('Новости')"
+            v-show="matches('Обзор и новости')"
             class="nav-item"
             :class="{ active: isActive('/news') }"
             data-testid="nav-link-news"
@@ -234,46 +338,8 @@
               :size="18"
               class="nav-icon"
             />
-            <span class="nav-text">Новости</span>
+            <span class="nav-text">Обзор и новости</span>
           </div>
-
-          <!-- Администрирование: видно только супер-админу. Клик открывает
-               двухколоночную Админку, рельс при этом схлопывается в иконки. -->
-          <div
-            v-if="authStore.isSuperAdmin"
-            v-show="matches('Администрирование')"
-            class="nav-item has-dropdown"
-            :class="{ active: adminOpen || isActive('/admin') }"
-            data-testid="nav-link-admin"
-            @click="toggleAdmin"
-          >
-            <div class="nav-item-content">
-              <NavIcon
-                name="admin"
-                :size="18"
-                class="nav-icon"
-              />
-              <span class="nav-text">Администрирование</span>
-            </div>
-            <svg
-              class="dropdown-arrow"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="9 6 15 12 9 18" />
-            </svg>
-          </div>
-        </div>
-
-        <!-- Низ: личный кабинет + выход -->
-        <div class="nav-section user-section">
           <div
             class="nav-item"
             :class="{ active: isActive('/personal-cabinet') }"
@@ -333,10 +399,15 @@
           >
             <polyline points="15 6 9 12 15 18" />
           </svg>
-          Назад в работу
+          Назад
         </button>
 
         <div class="admin-column__head">
+          <NavIcon
+            name="admin"
+            :size="18"
+            class="admin-column__icon"
+          />
           <span class="admin-column__title">Админка</span>
           <span class="admin-count">{{ adminCountLabel }}</span>
         </div>
@@ -454,8 +525,6 @@ export default {
         tables: false
       },
       hoverTimeout: null,
-      dropdownTimeout: null,
-      dropdownLeaveTimeout: null,
       systemTables: [],
       newApplicationsCount: 0,
       applicationsPollingInterval: null,
@@ -579,6 +648,14 @@ export default {
       }
     };
     window.addEventListener('keydown', this._escHandler);
+
+    // Клик вне рельса и колонки Админки закрывает колонку.
+    this._docClickHandler = (e) => {
+      if (!this.adminOpen) return;
+      if (e.target.closest('.nav-menu') || e.target.closest('.admin-column')) return;
+      this.closeAdmin();
+    };
+    document.addEventListener('mousedown', this._docClickHandler);
   },
   beforeUnmount() {
     document.body.classList.remove('auth-active');
@@ -588,16 +665,13 @@ export default {
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
     }
-    if (this.dropdownTimeout) {
-      clearTimeout(this.dropdownTimeout);
-    }
-    if (this.dropdownLeaveTimeout) {
-      clearTimeout(this.dropdownLeaveTimeout);
-    }
 
     this.$bus.off('mobile-nav-toggle', this.toggleMobile);
     if (this._escHandler) {
       window.removeEventListener('keydown', this._escHandler);
+    }
+    if (this._docClickHandler) {
+      document.removeEventListener('mousedown', this._docClickHandler);
     }
     // Обязательно снимаем body lock если компонент unmount'нулся в открытом состоянии
     document.body.classList.remove('nav-drawer-open');
@@ -653,13 +727,14 @@ export default {
       // показать страницу; на десктопе оставляем открытой для смены разделов.
       if (window.innerWidth <= 768) this.closeAdmin();
     },
-    // Контент (#main-content) отслеживает персистентную ширину рельса: hide -> 0,
-    // пин -> развёрнутый, иначе свёрнутый. Колонка Админки и hover-разворот сюда
-    // НЕ входят - они оверлеят контент, а не раздвигают его. Переменную читает App.vue.
+    // Контент (#main-content) отслеживает персистентную ширину рельса. Контент
+    // заходит на 25px под рельс (свёрнутый рельс 50px -> отступ 25; пин 248 -> 223;
+    // hide -> 0). Колонка Админки и hover-разворот сюда НЕ входят - они оверлеят
+    // контент, а не раздвигают. Переменную читает App.vue.
     syncContentMargin() {
       const width = this.uiStore.sidebarHidden
         ? '0px'
-        : (this.uiStore.sidebarExpanded ? '248px' : '50px');
+        : (this.uiStore.sidebarExpanded ? '223px' : '25px');
       document.body.style.setProperty('--nav-ml', width);
     },
     toggleMobile() {
@@ -688,37 +763,9 @@ export default {
         this.hoverTimeout = null;
       }, 150);
     },
-    openDropdown(type) {
-      if (this.isExpanded) {
-        if (this.dropdownLeaveTimeout) {
-          clearTimeout(this.dropdownLeaveTimeout);
-          this.dropdownLeaveTimeout = null;
-        }
-        Object.keys(this.dropdowns).forEach(key => {
-          if (key !== type) {
-            this.dropdowns[key] = false;
-          }
-        });
-        this.dropdowns[type] = true;
-      }
-    },
-    handleDropdownLeave(type) {
-      this.dropdownLeaveTimeout = setTimeout(() => {
-        if (!this.isDropdownHovered) {
-          this.dropdowns[type] = false;
-        }
-      }, 150);
-    },
-    keepDropdownOpen(type) {
-      if (this.dropdownLeaveTimeout) {
-        clearTimeout(this.dropdownLeaveTimeout);
-      }
-      this.dropdowns[type] = true;
-    },
-    closeDropdown(type) {
-      this.dropdownLeaveTimeout = setTimeout(() => {
-        this.dropdowns[type] = false;
-      }, 150);
+    // Таблицы: дропдаун раскрывается/сворачивается по клику (не hover).
+    toggleDropdown(type) {
+      this.dropdowns[type] = !this.dropdowns[type];
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {
@@ -902,30 +949,77 @@ export default {
   pointer-events: none;
 }
 
-/* Верх рельса: контролы (пин/скрыть) + поиск. Видны только в развёрнутом виде;
-   в свёрнутом схлопнуты в 0, чтобы не занимать место над пунктами. */
-.nav-top {
-  height: 0;
-  padding: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* Шапка: лого + контролы (пин/скрыть). Контролы видны только в развёрнутом. */
+.nav-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 14px 12px 8px;
+  flex-shrink: 0;
 }
 
-.nav-menu.expanded .nav-top {
-  height: auto;
-  padding: 12px 0 6px;
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-logo {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #6470ff, var(--nav-primary));
+}
+
+.nav-brand__name {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.1;
+  color: var(--nav-text);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-brand__name span {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--nav-text-muted);
+}
+
+.nav-menu.expanded .nav-brand__name {
   opacity: 1;
-  pointer-events: auto;
+  transform: translateX(0);
   transition-delay: 0.05s;
 }
 
 .nav-controls {
   display: flex;
-  justify-content: flex-end;
   gap: 4px;
-  padding: 0 12px 8px;
+  flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-menu.expanded .nav-controls {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition-delay: 0.05s;
 }
 
 .nav-ctrl {
@@ -952,19 +1046,31 @@ export default {
   background: var(--nav-primary-soft);
 }
 
-.nav-ctrl--pin svg {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* Поиск: строка с зарезервированной высотой (всегда занимает место - не двигает
+   пункты при разворачивании). В свёрнутом - только лупа по центру. */
+.nav-search-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 38px;
+  margin: 0 12px 8px;
+  flex-shrink: 0;
 }
 
-.nav-ctrl--pin.is-pinned svg {
-  transform: rotate(180deg);
+.nav-search-ic {
+  position: absolute;
+  left: 11px;
+  display: flex;
+  align-items: center;
+  color: var(--nav-text-faint);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .nav-search {
-  width: calc(100% - 24px);
-  margin: 0 12px;
-  height: 34px;
-  padding: 0 12px;
+  width: 100%;
+  height: 100%;
+  padding: 0 12px 0 34px;
   border: 1px solid var(--nav-border);
   border-radius: var(--radius-md, 15px);
   background: var(--nav-bg);
@@ -972,7 +1078,13 @@ export default {
   font-size: 13px;
   color: var(--nav-text);
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  opacity: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.nav-menu.expanded .nav-search {
+  opacity: 1;
+  transition-delay: 0.05s;
 }
 
 .nav-search::placeholder {
@@ -982,6 +1094,41 @@ export default {
 .nav-search:focus {
   border-color: var(--nav-primary);
   box-shadow: 0 0 0 3px var(--nav-primary-soft);
+}
+
+/* В свёрнутом виде лупа поиска центрируется в видимых 50px. */
+.nav-menu:not(.expanded) .nav-search-row {
+  margin: 0 0 8px;
+  justify-content: center;
+}
+
+.nav-menu:not(.expanded) .nav-search-ic {
+  position: static;
+  width: 50px;
+  justify-content: center;
+}
+
+/* Прокручиваемая середина (секции выше ПОЛЬЗОВАТЕЛЬ). */
+.nav-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nav-scrollbar) transparent;
+}
+
+.nav-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.nav-scroll::-webkit-scrollbar-thumb {
+  background: var(--nav-scrollbar);
+  border-radius: 3px;
+}
+
+.nav-menu:not(.expanded) .nav-scroll {
+  overflow-y: hidden;
 }
 
 /*
@@ -1014,11 +1161,23 @@ export default {
 .nav-section {
   display: flex;
   flex-direction: column;
+  padding-bottom: 4px;
+}
+
+/* Линии-разделители между секциями (видны в развёрнутом виде). */
+.nav-scroll .nav-section + .nav-section,
+.user-section {
+  border-top: 1px solid var(--nav-border-soft);
+}
+
+.nav-menu:not(.expanded) .nav-scroll .nav-section + .nav-section,
+.nav-menu:not(.expanded) .user-section {
+  border-top-color: transparent;
 }
 
 .user-section {
-  margin-top: auto;
-  margin-bottom: 16px;
+  flex-shrink: 0;
+  padding-bottom: 12px;
 }
 
 .section-title {
@@ -1029,7 +1188,7 @@ export default {
   letter-spacing: 0.04em;
   color: var(--nav-text-faint);
   text-transform: uppercase;
-  margin: 16px 0 8px 24px;
+  margin: 14px 0 6px 24px;
   height: 10px;
   overflow: hidden;
   white-space: nowrap;
@@ -1042,6 +1201,12 @@ export default {
   opacity: 1;
   transform: translateX(0);
   transition-delay: 0.05s;
+}
+
+/* В свёрнутом виде заголовки секций не занимают вертикальное место. */
+.nav-menu:not(.expanded) .section-title {
+  height: 0;
+  margin: 6px 0 0;
 }
 
 .nav-item-container {
@@ -1077,12 +1242,39 @@ export default {
   min-width: 0;
 }
 
+/* Свёрнутый рельс: пункт сжимается до 50px и центрирует иконку в видимой полосе. */
+.nav-menu:not(.expanded) .nav-item {
+  width: 50px;
+  margin: 2px 0;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+}
+
+.nav-menu:not(.expanded) .nav-item.has-dropdown {
+  justify-content: center;
+}
+
+.nav-menu:not(.expanded) .nav-item-content {
+  gap: 0;
+  justify-content: center;
+}
+
 .nav-item:hover:not(.disabled) {
   background-color: var(--nav-hover);
 }
 
 .nav-item:hover:not(.disabled) .nav-icon {
   color: var(--nav-primary);
+}
+
+.nav-item.disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.nav-item.disabled .nav-icon {
+  color: var(--nav-text-faint);
 }
 
 /* active: фон primary-soft + левая полоса primary + текст/иконка primary */
@@ -1154,7 +1346,7 @@ export default {
 }
 
 .dropdown-arrow.rotated {
-  transform: rotate(90deg);
+  transform: rotate(180deg);
 }
 
 .nav-menu.expanded .dropdown-arrow {
@@ -1162,35 +1354,24 @@ export default {
   transition-delay: 0.15s;
 }
 
-.dropdown-list {
-  position: absolute;
-  left: 248px;
-  top: 0;
-  background: var(--nav-bg);
-  border-radius: 0 15px 15px 0;
-  z-index: 1001;
-  border: 1px solid var(--nav-border);
-  border-left: none;
-  min-width: 210px;
-  transform-origin: left center;
+/* Список таблиц: разворачивается под пунктом «Таблицы» (не сбоку). */
+.dropdown-below {
   overflow: hidden;
-  padding: 6px;
-}
-
-.user-section .dropdown-list {
-  top: auto;
-  bottom: 0;
+  margin: 0 8px 4px;
+  padding-left: 22px;
 }
 
 .dropdown-item {
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: 10px;
   font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  color: var(--nav-text);
+  font-size: 12.5px;
+  color: var(--nav-text-muted);
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -1263,15 +1444,15 @@ export default {
   transition-delay: 0.2s;
 }
 
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.dropdown-collapse-enter-active,
+.dropdown-collapse-leave-active {
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.dropdown-fade-enter-from,
-.dropdown-fade-leave-to {
+.dropdown-collapse-enter-from,
+.dropdown-collapse-leave-to {
   opacity: 0;
-  transform: translateX(-10px) scale(0.97);
+  transform: translateY(-6px);
 }
 
 /*
@@ -1304,8 +1485,8 @@ export default {
   background: transparent;
   border-radius: 8px;
   font-family: 'Montserrat', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--nav-text-muted);
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -1321,6 +1502,13 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 0 16px 10px;
+}
+
+.admin-column__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--nav-text);
 }
 
 .admin-column__title {
@@ -1434,12 +1622,14 @@ export default {
   background-color: var(--nav-primary-soft);
 }
 
+/* Активная полоса вынесена к левому краю колонки (к линии свёрнутого рельса),
+   отдельно от фонового блока пункта (у которого свой inset-фон). */
 .admin-link.active::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 7px;
-  bottom: 7px;
+  left: -12px;
+  top: 6px;
+  bottom: 6px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--nav-primary);
@@ -1525,16 +1715,71 @@ export default {
     padding-top: 48px;
   }
 
-  /* На мобильном содержимое всегда развёрнуто - hover не работает на touch */
+  /* В drawer'е всё всегда развёрнуто - hover/collapse не работают на touch.
+     Перебиваем свёрнутые desktop-оверрайды. */
+  .nav-menu .nav-brand__name,
+  .nav-menu .nav-controls,
+  .nav-menu .nav-search,
   .nav-menu .nav-text,
-  .nav-menu .section-title {
+  .nav-menu .section-title,
+  .nav-menu .dropdown-arrow {
     opacity: 1 !important;
     transform: none !important;
+    pointer-events: auto;
   }
 
-  .nav-menu .nav-item {
+  .nav-menu .nav-item,
+  .nav-menu:not(.expanded) .nav-item {
     width: auto;
+    padding: 9px 15px;
+    gap: 12px;
+    margin: 2px 8px;
     min-height: 48px;
+    justify-content: flex-start;
+  }
+
+  .nav-menu .nav-item.has-dropdown,
+  .nav-menu:not(.expanded) .nav-item.has-dropdown {
+    justify-content: space-between;
+  }
+
+  .nav-menu .nav-item-content,
+  .nav-menu:not(.expanded) .nav-item-content {
+    gap: 12px;
+    justify-content: flex-start;
+  }
+
+  .nav-menu:not(.expanded) .section-title {
+    height: auto;
+    margin: 14px 0 6px 24px;
+  }
+
+  .nav-menu .nav-head,
+  .nav-menu:not(.expanded) .nav-head {
+    justify-content: flex-start;
+    padding: 14px 12px 8px;
+  }
+
+  .nav-menu .nav-search-row,
+  .nav-menu:not(.expanded) .nav-search-row {
+    justify-content: flex-start;
+    margin: 0 12px 8px;
+  }
+
+  .nav-menu .nav-search-ic,
+  .nav-menu:not(.expanded) .nav-search-ic {
+    position: absolute;
+    left: 11px;
+    width: auto;
+  }
+
+  .nav-menu:not(.expanded) .nav-scroll {
+    overflow-y: auto;
+  }
+
+  .nav-menu:not(.expanded) .nav-scroll .nav-section + .nav-section,
+  .nav-menu:not(.expanded) .user-section {
+    border-top-color: var(--nav-border-soft);
   }
 
   .nav-menu__backdrop {
@@ -1549,14 +1794,6 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  /* dropdown'ы в drawer - inline (не абсолютные) на мобильном */
-  .dropdown-list {
-    position: static !important;
-    width: 100% !important;
-    border: none !important;
-    margin-left: 20px !important;
   }
 
   /* Колонка Админки на мобильном оверлеит как самостоятельная панель поверх
