@@ -220,13 +220,13 @@
         @close="closeApplicationDetail"
         @duplicate="handleDuplicate"
       />
-      <DownloadBlanksModal
-        v-if="showDownloadModal && downloadAppId"
-        :application-id="downloadAppId"
-        :application-info="downloadAppInfo"
-        @close="showDownloadModal = false"
-      />
     </teleport>
+    <DownloadBlanksModal
+      v-if="showDownloadModal && downloadAppId"
+      :application-id="downloadAppId"
+      :application-info="downloadAppInfo"
+      @close="showDownloadModal = false"
+    />
   </div>
 </template>
 

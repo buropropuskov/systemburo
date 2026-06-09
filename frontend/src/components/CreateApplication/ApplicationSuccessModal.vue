@@ -1,184 +1,186 @@
 <template>
-  <transition name="modal-fade">
-    <div
-      v-if="show"
-      class="modal-overlay"
-      @click.self="handleClose"
-    >
-      <div class="modal-content">
-        <div class="modal-header">
-          <button
-            class="modal-close"
-            @click="handleClose"
-          >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 14 14"
-              fill="none"
+  <Teleport to="body">
+    <transition name="modal-fade">
+      <div
+        v-if="show"
+        class="modal-overlay"
+        @click.self="handleClose"
+      >
+        <div class="modal-content">
+          <div class="modal-header">
+            <button
+              class="modal-close"
+              @click="handleClose"
             >
-              <path
-                d="M13 1L1 13M1 1L13 13"
-                stroke="#666"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div class="modal-body">
-          <h2 class="modal-title">
-            Заявка успешно оформлена!
-          </h2>
-
-          <div class="application-number">
-            <span class="label">Номер заявки:</span>
-            <strong
-              class="number number--copyable"
-              data-tooltip="Копировать"
-              role="button"
-              tabindex="0"
-              @click="copyNumber"
-              @keydown.enter.prevent="copyNumber"
-            >{{ applicationNumber }}</strong>
-          </div>
-
-          <div class="info-message">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                fill="#4F5BDF"
-              />
-            </svg>
-            <span>Скоро мы начнём её обрабатывать</span>
-          </div>
-
-          <div class="progress-container">
-            <div class="progress-steps">
-              <div
-                v-for="(step, index) in steps"
-                :key="index"
-                class="progress-step"
-                :class="{
-                  completed: index < currentStep,
-                  active: index === currentStep
-                }"
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 14 14"
+                fill="none"
               >
-                <div class="step-icon">
-                  <div class="step-circle">
-                    <span
-                      v-if="index < currentStep"
-                      class="check-icon"
-                    >+</span>
-                    <span
-                      v-else
-                      class="step-number"
-                    >{{ index + 1 }}</span>
+                <path
+                  d="M13 1L1 13M1 1L13 13"
+                  stroke="#666"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <h2 class="modal-title">
+              Заявка успешно оформлена!
+            </h2>
+
+            <div class="application-number">
+              <span class="label">Номер заявки:</span>
+              <strong
+                class="number number--copyable"
+                data-tooltip="Копировать"
+                role="button"
+                tabindex="0"
+                @click="copyNumber"
+                @keydown.enter.prevent="copyNumber"
+              >{{ applicationNumber }}</strong>
+            </div>
+
+            <div class="info-message">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  fill="#4F5BDF"
+                />
+              </svg>
+              <span>Скоро мы начнём её обрабатывать</span>
+            </div>
+
+            <div class="progress-container">
+              <div class="progress-steps">
+                <div
+                  v-for="(step, index) in steps"
+                  :key="index"
+                  class="progress-step"
+                  :class="{
+                    completed: index < currentStep,
+                    active: index === currentStep
+                  }"
+                >
+                  <div class="step-icon">
+                    <div class="step-circle">
+                      <span
+                        v-if="index < currentStep"
+                        class="check-icon"
+                      >+</span>
+                      <span
+                        v-else
+                        class="step-number"
+                      >{{ index + 1 }}</span>
+                    </div>
+                    <div class="step-glow" />
                   </div>
-                  <div class="step-glow" />
+                  <div class="step-label">
+                    {{ step }}
+                  </div>
                 </div>
-                <div class="step-label">
-                  {{ step }}
+              </div>
+              <div class="progress-track">
+                <div
+                  class="progress-fill"
+                  :style="{ width: progressWidth + '%' }"
+                >
+                  <div class="progress-sparkle" />
                 </div>
               </div>
             </div>
-            <div class="progress-track">
-              <div
-                class="progress-fill"
-                :style="{ width: progressWidth + '%' }"
-              >
-                <div class="progress-sparkle" />
+
+            <div class="attachments-section">
+              <div class="section-header">
+                <h3 class="section-title">
+                  Вложения в заявке
+                </h3>
+                <span class="attachments-count">{{ attachmentsData.length }}</span>
               </div>
-            </div>
-          </div>
 
-          <div class="attachments-section">
-            <div class="section-header">
-              <h3 class="section-title">
-                Вложения в заявке
-              </h3>
-              <span class="attachments-count">{{ attachmentsData.length }}</span>
-            </div>
-
-            <div
-              v-if="attachmentsData.length === 0"
-              class="no-attachments"
-            >
-              <p>Нет вложений</p>
-            </div>
-
-            <div
-              v-else
-              class="attachments-list"
-            >
               <div
-                v-for="(att, idx) in attachmentsData"
-                :key="idx"
-                class="attachment-item"
+                v-if="attachmentsData.length === 0"
+                class="no-attachments"
               >
-                <div class="attachment-content">
-                  <div class="attachment-name">
-                    {{ att.display_name }}
-                  </div>
-                  <div class="attachment-details">
-                    <span
-                      v-if="att.period"
-                      class="attachment-period"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
+                <p>Нет вложений</p>
+              </div>
+
+              <div
+                v-else
+                class="attachments-list"
+              >
+                <div
+                  v-for="(att, idx) in attachmentsData"
+                  :key="idx"
+                  class="attachment-item"
+                >
+                  <div class="attachment-content">
+                    <div class="attachment-name">
+                      {{ att.display_name }}
+                    </div>
+                    <div class="attachment-details">
+                      <span
+                        v-if="att.period"
+                        class="attachment-period"
                       >
-                        <path
-                          d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10z"
-                          fill="#a2a2a2"
-                        />
-                      </svg>
-                      {{ att.period }}
-                    </span>
-                    <span
-                      v-if="att.time"
-                      class="attachment-time"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                        >
+                          <path
+                            d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10z"
+                            fill="#a2a2a2"
+                          />
+                        </svg>
+                        {{ att.period }}
+                      </span>
+                      <span
+                        v-if="att.time"
+                        class="attachment-time"
                       >
-                        <path
-                          d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
-                          fill="#a2a2a2"
-                        />
-                      </svg>
-                      {{ att.time }}
-                    </span>
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                        >
+                          <path
+                            d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
+                            fill="#a2a2a2"
+                          />
+                        </svg>
+                        {{ att.time }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="modal-footer">
-          <button
-            class="btn close-btn"
-            @click="handleClose"
-          >
-            Закрыть
-          </button>
+          <div class="modal-footer">
+            <button
+              class="btn close-btn"
+              @click="handleClose"
+            >
+              Закрыть
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </transition>
+    </transition>
+  </Teleport>
 </template>
 
 <script>
