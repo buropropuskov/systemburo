@@ -63,6 +63,7 @@
             :processing="processingApplication"
             :updating-confirmation="updatingConfirmation"
             :action-comment="actionComment"
+            :has-unoverridden-blacklist-flags="!!applicationData.has_unoverridden_blacklist_flags"
             @action-completed="handleActionCompleted"
             @processing-change="processingApplication = $event"
             @updating-confirmation-change="updatingConfirmation = $event"
@@ -862,9 +863,10 @@ export default {
                         type: 'success'
                     });
                     this.showOverrideModal = false;
-                    if (this.selectedAttachment) {
-                        await this.loadAttachmentDetails(this.selectedAttachment.id);
-                    }
+                    await Promise.all([
+                        this.selectedAttachment ? this.loadAttachmentDetails(this.selectedAttachment.id) : Promise.resolve(),
+                        this.refreshApplicationGate()
+                    ]);
                     this.$emit('application-changed', this.applicationData);
                 } else if (response.status !== 403) {
                     // 403 уже показывает тост через client.js - второй не дублируем
@@ -885,6 +887,28 @@ export default {
             } finally {
                 this.overrideSubmitting = false;
             }
+        },
+
+        // После override обновляем только заявочные поля (в т.ч. гейт
+        // has_unoverridden_blacklist_flags), не сбрасывая выбранное вложение.
+        async refreshApplicationGate() {
+            try {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/details`, { method: 'GET' });
+                if (response.ok) {
+                    const appData = await response.json();
+                    this.applicationData = { ...this.applicationData, ...appData };
+                    return;
+                }
+            } catch (error) {
+                console.error('Ошибка при обновлении состояния заявки:', error);
+            }
+            // Override прошёл, но детали не перечитались - кнопка согласования может
+            // остаться заблокированной. Сообщаем, чтобы пользователь обновил вручную.
+            useDeletionsStore().notify({
+                prefix: 'Пропуск подтверждён, ',
+                bold: 'обновите страницу для согласования',
+                type: 'error'
+            });
         }
     }
 }

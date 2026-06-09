@@ -130,3 +130,56 @@ func TestBlacklistOverride_RejectionNotBlocked(t *testing.T) {
 		fmt.Sprintf(`{"user_id":%d,"status":"rejected","comment":"подозрительно"}`, apprID), testutil.AuthHeader(apprToken))
 	require.Equal(t, http.StatusOK, rec.Code, "reject не должен блокироваться: %s", rec.Body.String())
 }
+
+// TestGetApplicationDetails_BlacklistGateField: GET /applications/:id/details отдаёт
+// has_unoverridden_blacklist_flags - true пока есть помеченный элемент без override,
+// false после override (зеркало бэкенд-гейта для блокировки кнопки на фронте, #481).
+func TestGetApplicationDetails_BlacklistGateField(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	ctx := context.Background()
+
+	const orgName = "Test Organization"
+	senderToken := testutil.RegisterAndLogin(t, e, "bg_sender", "pass123", 1, td.OrgID, td.CompanyID)
+	senderID := getUserID(t, db, "bg_sender")
+	mark := seedMark(t, db, "BG_Mark")
+
+	_, err := newVehicleBlacklistService(db).Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "C777CC799", MarkID: mark.ID, Reason: "угон",
+	}, senderID)
+	require.NoError(t, err)
+
+	rec := submitCarApp(t, e, db, senderToken, orgName, "gate", "C777CC798", mark.ID)
+	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
+	carID := latestElementID(t, db, "cars", "car_number = ?", "C777CC798")
+	flag, ok := blacklistFlagFor(t, db, models.BlacklistElementCar, carID)
+	require.True(t, ok, "ожидался флаг похожести")
+	appID := flag.ApplicationID
+
+	detailsPath := fmt.Sprintf("/applications/%d/details", appID)
+
+	t.Run("true пока флаг не переопределён", func(t *testing.T) {
+		det := testutil.GET(t, e, detailsPath, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, det.Code, "body: %s", det.Body.String())
+		assert.Contains(t, det.Body.String(), `"has_unoverridden_blacklist_flags":true`)
+	})
+
+	t.Run("false после override", func(t *testing.T) {
+		testutil.RegisterUser(t, e, "bg_appr", "pass123", 1, td.OrgID, td.CompanyID)
+		apprID := getUserID(t, db, "bg_appr")
+		fwd := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, apprID)
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), fwd, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		apprToken, _ := testutil.LoginUser(t, e, "bg_appr", "pass123")
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/blacklist-overrides", appID),
+			fmt.Sprintf(`{"flag_id":%d,"comment":"проверено лично"}`, flag.ID), testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusOK, rec.Code, "override: %s", rec.Body.String())
+
+		det := testutil.GET(t, e, detailsPath, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, det.Code, "body: %s", det.Body.String())
+		assert.Contains(t, det.Body.String(), `"has_unoverridden_blacklist_flags":false`)
+	})
+}

@@ -798,6 +798,14 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 
 	responsibles, _ := s.fetchResponsibleUsers(s.db.WithContext(ctx), applicationID)
 
+	// Зеркало гейта согласования (#481): пока есть помеченные элементы без override,
+	// фронт держит кнопку "Согласовать" заблокированной. Источник правды - тот же
+	// hasUnoverriddenBlacklistFlags, что блокирует согласование на бэке (409).
+	blacklistBlocked, err := hasUnoverriddenBlacklistFlags(ctx, s.db, applicationID)
+	if err != nil {
+		return nil, err
+	}
+
 	orgName := ""
 	if row.OrganizationName != nil {
 		orgName = *row.OrganizationName
@@ -837,6 +845,8 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"responsible_comment":   row.ResponsibleComment,
 		"data_approval":         row.DataApproval,
 		"responsible_users":     responsibles,
+
+		"has_unoverridden_blacklist_flags": blacklistBlocked,
 	}
 
 	return response, nil
