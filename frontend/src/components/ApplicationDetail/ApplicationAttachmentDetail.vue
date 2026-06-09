@@ -63,6 +63,7 @@
                 v-for="(car, index) in cars"
                 :key="car.id"
                 class="car-item"
+                :class="{ 'car-item--flagged': isFlagged(car) }"
                 @click="$emit('open-vehicle', car)"
               >
                 <div class="car-item-content">
@@ -82,6 +83,16 @@
                       {{ getTruncatedPlacesList(car.unload_places) }}
                     </span>
                   </div>
+                  <Badge
+                    v-if="car.blacklist_similar"
+                    class="blacklist-badge"
+                    :variant="blacklistVariant(car.blacklist_similar)"
+                    size="sm"
+                    dot
+                    :title="blacklistTooltip(car.blacklist_similar)"
+                  >
+                    {{ blacklistLabel(car.blacklist_similar) }}
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -115,6 +126,7 @@
                 v-for="(employee, index) in employees"
                 :key="employee.id"
                 class="employee-item"
+                :class="{ 'employee-item--flagged': isFlagged(employee) }"
                 @click="$emit('open-employee', employee)"
               >
                 <div class="employee-item-content">
@@ -134,6 +146,16 @@
                       {{ getTruncatedTablesList(employee.target_tables) }}
                     </span>
                   </div>
+                  <Badge
+                    v-if="employee.blacklist_similar"
+                    class="blacklist-badge"
+                    :variant="blacklistVariant(employee.blacklist_similar)"
+                    size="sm"
+                    dot
+                    :title="blacklistTooltip(employee.blacklist_similar)"
+                  >
+                    {{ blacklistLabel(employee.blacklist_similar) }}
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -191,8 +213,11 @@
 </template>
 
 <script>
+import Badge from '@/components/ui/Badge.vue'
+
 export default {
     name: 'ApplicationAttachmentDetail',
+    components: { Badge },
     props: {
         attachment: {
             type: Object,
@@ -217,6 +242,27 @@ export default {
     },
     emits: ['open-vehicle', 'open-employee'],
     methods: {
+        isFlagged(entity) {
+            const flag = entity && entity.blacklist_similar;
+            return !!flag && !flag.overridden;
+        },
+
+        blacklistVariant(flag) {
+            return flag.overridden ? 'neutral' : 'danger';
+        },
+
+        blacklistLabel(flag) {
+            return flag.overridden ? 'пропуск подтверждён' : 'похоже на ЧС';
+        },
+
+        blacklistTooltip(flag) {
+            const value = flag.matched_value || '';
+            const base = value
+                ? `Возможный обход чёрного списка. Похоже на: ${value}`
+                : 'Возможный обход чёрного списка.';
+            return flag.matched_reason ? `${base} (${flag.matched_reason})` : base;
+        },
+
         formatDate(date) {
             if (!date) return '';
             if (typeof date === 'string') {
@@ -473,6 +519,21 @@ export default {
 .car-item:hover, .employee-item:hover, .item-item:hover {
     border-color: #4F5BDF;
     background: #f8f9ff;
+}
+
+.car-item--flagged, .employee-item--flagged {
+    background: #fff5f5;
+    border-color: #fecaca;
+}
+
+.car-item--flagged:hover, .employee-item--flagged:hover {
+    border-color: #f87171;
+    background: #fee2e2;
+}
+
+.blacklist-badge {
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .car-item-content, .employee-item-content, .item-item-content {
