@@ -318,7 +318,7 @@ export default {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid #e6e6e6;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   color: #1a1a1a;

@@ -1587,7 +1587,7 @@ export default {
     width: 100%;
     padding: 10px 14px;
     border: 1px solid #e6e6e6;
-    border-radius: 20px;
+    border-radius: var(--radius-md);
     font-family: 'Montserrat', sans-serif;
     font-size: 13px;
     transition: all 0.2s ease;
