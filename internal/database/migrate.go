@@ -103,6 +103,8 @@ func AllModels() []interface{} {
 		// Per-element флаги возможного обхода ЧС (#481): ссылается на cars.id/employees.id
 		// без FK (снимок момента подачи, переживает изменение/удаление элемента и записи ЧС).
 		&models.ApplicationBlacklistFlag{},
+		// Аудит override помеченных элементов (#481, срез 4): кто/когда/коммент "всё равно пропустить".
+		&models.ApplicationBlacklistOverride{},
 
 		// Items (depends on Attachment)
 		&models.Item{},

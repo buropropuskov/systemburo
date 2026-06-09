@@ -56,6 +56,9 @@ type ApplicationService interface {
 
 	// ApproveApplicationByUser согласование/отказ заявки пользователем.
 	ApproveApplicationByUser(ctx context.Context, username string, applicationID int, req UserApprovalRequest) error
+	// OverrideBlacklistFlag фиксирует "всё равно пропустить" по помеченному элементу (#481),
+	// снимая блокировку согласования по этому флагу. Только ответственный, идемпотентно.
+	OverrideBlacklistFlag(ctx context.Context, username string, applicationID int, req OverrideBlacklistFlagRequest) error
 
 	// CheckApprovalStatus проверяет текущий статус согласования заявки.
 	CheckApprovalStatus(ctx context.Context, applicationID int) (*ApprovalStatusResponse, error)
@@ -421,11 +424,14 @@ type CarWithPlaces struct {
 }
 
 // BlacklistFlagInfo - данные per-element предупреждения о возможном обходе ЧС (#481)
-// для детали заявки: что в ЧС похоже, причина записи и степень близости [0..1].
+// для детали заявки: id флага (для override), что в ЧС похоже, причина, близость [0..1]
+// и подтверждён ли уже пропуск (override) - чтобы фронт показал статус и разблокировку.
 type BlacklistFlagInfo struct {
+	FlagID        int     `json:"flag_id"`
 	MatchedValue  string  `json:"matched_value"`
 	MatchedReason string  `json:"matched_reason"`
 	Similarity    float64 `json:"similarity"`
+	Overridden    bool    `json:"overridden"`
 }
 
 // UnloadPlaceRef ссылка на место разгрузки.
@@ -1419,6 +1425,19 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	if req.Confirmation != nil {
 		if !allowedConfirmations[*req.Confirmation] {
 			return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid confirmation value")
+		}
+		// Гейт обхода ЧС (#481): прямое выставление "Согласовано" этим путём (минуя
+		// поэлементное голосование) тоже блокируем, пока есть помеченные элементы без
+		// override - иначе блокировку согласования из ApproveApplicationByUser легко обойти.
+		if *req.Confirmation == models.ConfirmationApproved {
+			blocked, err := hasUnoverriddenBlacklistFlags(ctx, s.db, applicationID)
+			if err != nil {
+				return nil, err
+			}
+			if blocked {
+				return nil, echo.NewHTTPError(http.StatusConflict,
+					"Заявка содержит элементы, похожие на чёрный список. Подтвердите пропуск каждого ('Всё равно пропустить') перед согласованием")
+			}
 		}
 		setClauses = append(setClauses, "confirmation = ?")
 		args = append(args, *req.Confirmation)
