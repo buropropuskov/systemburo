@@ -164,15 +164,10 @@
           @change="refreshLogs"
         >
       </div>
-      <button
-        class="refresh-button"
-        @click="refreshLogs"
-      >
-        <img
-          src="@/assets/icons/refresh.png"
-          class="refresh-icon"
-        >
-      </button>
+      <RefreshButton
+        :loading="isLoading"
+        @refresh="refreshLogs"
+      />
       <button
         class="clear-filters-btn"
         @click="clearFilters"
@@ -523,13 +518,15 @@ import { apiRequest, apiRequestRaw } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import RealTimeChart from '@/components/RealTimeChart.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import RefreshButton from '@/components/RefreshButton.vue'
 
 export default {
   name: 'RequestsView',
   components: {
     SearchComponent,
     RealTimeChart,
-    LoaderSpinner
+    LoaderSpinner,
+    RefreshButton
   },
   data() {
     return {
@@ -1075,25 +1072,6 @@ export default {
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
 }
 
-.refresh-button {
-  background: none;
-  border: 1px solid transparent;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 10px;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.refresh-button:hover {
-  background-color: #eef0ff;
-  border-color: #4F5BDF;
-}
-
-.refresh-icon {
-  width: 18px;
-  height: 18px;
-}
-
 .clear-filters-btn,
 .export-btn {
   padding: 8px 14px;
@@ -1477,20 +1455,6 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 @media (max-width: 1200px) {
