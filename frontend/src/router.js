@@ -108,7 +108,7 @@ const routes = [
   {
     path: '/admin/users',
     name: 'AdminUsers',
-    component: () => import('./views/AdminUsers.vue'),
+    component: () => import('./views/admin/UserControlView.vue'),
     meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.users' }
   },
   {
