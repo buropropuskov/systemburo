@@ -14,7 +14,9 @@
       role="navigation"
       aria-label="Основная навигация"
       :class="{
-        expanded: isExpanded,
+        expanded: railExpanded,
+        'nav-menu--pinned': uiStore.sidebarExpanded,
+        'nav-menu--hidden': uiStore.sidebarHidden,
         'nav-menu--mobile-open': mobileOpen,
         'nav-menu--banned': isBanned,
       }"
@@ -32,6 +34,68 @@
       </button>
 
       <div class="nav-content">
+        <!-- Верх рельса (виден в развёрнутом виде): контролы + поиск -->
+        <div class="nav-top">
+          <div class="nav-controls">
+            <button
+              class="nav-ctrl nav-ctrl--pin"
+              type="button"
+              :class="{ 'is-pinned': uiStore.sidebarExpanded }"
+              :title="uiStore.sidebarExpanded ? 'Открепить рельс' : 'Закрепить раскрытым'"
+              :aria-pressed="uiStore.sidebarExpanded"
+              @click="togglePin"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="7 7 12 12 7 17" />
+                <polyline points="13 7 18 12 13 17" />
+              </svg>
+            </button>
+            <button
+              class="nav-ctrl"
+              type="button"
+              title="Скрыть меню"
+              @click="hideRail"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <line
+                  x1="6"
+                  y1="5"
+                  x2="6"
+                  y2="19"
+                />
+                <polyline points="13 7 8 12 13 17" />
+              </svg>
+            </button>
+          </div>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="nav-search"
+            placeholder="Поиск..."
+            aria-label="Поиск по меню"
+          >
+        </div>
+
         <!-- РАБОТА -->
         <div class="nav-section">
           <div class="section-title">
@@ -39,6 +103,7 @@
           </div>
 
           <div
+            v-show="matches('Центр заявок')"
             class="nav-item"
             :class="{ active: isActive('/center') }"
             data-testid="nav-link-center"
@@ -67,7 +132,10 @@
           </div>
 
           <!-- Таблицы (выпадающий список) -->
-          <div class="nav-item-container">
+          <div
+            v-show="matches('Таблицы')"
+            class="nav-item-container"
+          >
             <div
               class="nav-item has-dropdown"
               :class="{ active: isActive('/table') }"
@@ -125,6 +193,7 @@
           </div>
 
           <div
+            v-show="matches('Сотрудники')"
             class="nav-item"
             :class="{ active: isActive('/employeesview') }"
             data-testid="nav-link-employees"
@@ -139,6 +208,7 @@
           </div>
 
           <div
+            v-show="matches('Автомобили')"
             class="nav-item"
             :class="{ active: isActive('/carsview') }"
             data-testid="nav-link-cars"
@@ -153,6 +223,7 @@
           </div>
 
           <div
+            v-show="matches('Новости')"
             class="nav-item"
             :class="{ active: isActive('/news') }"
             data-testid="nav-link-news"
@@ -170,6 +241,7 @@
                двухколоночная Админка приходит отдельным срезом. -->
           <div
             v-if="authStore.isSuperAdmin"
+            v-show="matches('Администрирование')"
             class="nav-item-container"
           >
             <div
@@ -293,6 +365,49 @@
         </div>
       </div>
     </nav>
+
+    <!-- Возврат рельса из full-hide: плавающая кнопка у левого края -->
+    <transition name="nav-backdrop">
+      <button
+        v-if="uiStore.sidebarHidden"
+        class="nav-unhide"
+        type="button"
+        aria-label="Показать меню"
+        title="Показать меню"
+        @click="showRail"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <line
+            x1="4"
+            y1="7"
+            x2="20"
+            y2="7"
+          />
+          <line
+            x1="4"
+            y1="12"
+            x2="20"
+            y2="12"
+          />
+          <line
+            x1="4"
+            y1="17"
+            x2="20"
+            y2="17"
+          />
+        </svg>
+      </button>
+    </transition>
   </div>
 </template>
 
@@ -300,6 +415,7 @@
 import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 import NavIcon from '@/components/icons/NavIcon.vue'
 
 export default {
@@ -307,9 +423,11 @@ export default {
   components: { NavIcon },
   emits: ['logout'],
   setup() {
-    // Стор берём в setup для реактивности isSuperAdmin в шаблоне (гейт Администрирования).
+    // Сторы берём в setup для реактивности в шаблоне: authStore - гейт
+    // Администрирования, uiStore - состояния рельса (пин/hide, персист).
     const authStore = useAuthStore()
-    return { authStore }
+    const uiStore = useUiStore()
+    return { authStore, uiStore }
   },
   data() {
     return {
@@ -327,16 +445,28 @@ export default {
       tablesPollingInterval: null,
       mobileOpen: false,
       isBanned: false,
+      searchQuery: '',
     };
+  },
+  computed: {
+    // Рельс раскрыт если закреплён (пин) или временно по hover. В full-hide
+    // не раскрываем - рельс схлопнут в 0.
+    railExpanded() {
+      if (this.uiStore.sidebarHidden) return false;
+      return this.uiStore.sidebarExpanded || this.isExpanded;
+    },
   },
   watch: {
     // Закрываем drawer при переходе по пункту меню
     '$route'() {
       this.closeMobile();
-    }
+    },
+    'uiStore.sidebarExpanded': 'syncContentMargin',
+    'uiStore.sidebarHidden': 'syncContentMargin',
   },
   async mounted() {
     document.body.classList.add('auth-active');
+    this.syncContentMargin();
     await this.fetchBanStatus();
     await this.fetchSystemTables();
     this.startApplicationsPolling();
@@ -354,6 +484,7 @@ export default {
   },
   beforeUnmount() {
     document.body.classList.remove('auth-active');
+    document.body.style.removeProperty('--nav-ml');
     this.stopApplicationsPolling();
 
     if (this.hoverTimeout) {
@@ -379,6 +510,37 @@ export default {
       if (path === '/table') return current.startsWith('/table');
       if (path === '/admin') return current.startsWith('/admin');
       return current === path;
+    },
+    // Клиентский фильтр пунктов рельса по подстроке (поиск в развёрнутом виде).
+    matches(label) {
+      const q = this.searchQuery.trim().toLowerCase();
+      if (!q) return true;
+      return label.toLowerCase().includes(q);
+    },
+    togglePin() {
+      this.uiStore.toggleSidebarPinned();
+      // Снимаем временный hover-стейт, чтобы не конфликтовал с пином.
+      if (this.hoverTimeout) {
+        clearTimeout(this.hoverTimeout);
+        this.hoverTimeout = null;
+      }
+    },
+    hideRail() {
+      this.uiStore.hideSidebar();
+      this.isExpanded = false;
+      this.closeAllDropdowns();
+    },
+    showRail() {
+      this.uiStore.showSidebar();
+    },
+    // Контент (#main-content) отслеживает персистентную ширину рельса: hide -> 0,
+    // пин -> развёрнутый, иначе свёрнутый. Hover-разворот сюда не входит - он
+    // оверлеит контент, а не раздвигает. Переменную читает App.vue.
+    syncContentMargin() {
+      const width = this.uiStore.sidebarHidden
+        ? '0px'
+        : (this.uiStore.sidebarExpanded ? '248px' : '50px');
+      document.body.style.setProperty('--nav-ml', width);
     },
     toggleMobile() {
       this.mobileOpen = !this.mobileOpen;
@@ -633,6 +795,122 @@ export default {
 .nav-menu.expanded {
   width: 248px;
   overflow: visible;
+}
+
+/* full-hide: рельс схлопнут в 0, не перехватывает клики */
+.nav-menu.nav-menu--hidden {
+  width: 0;
+  border-right-color: transparent;
+  pointer-events: none;
+}
+
+/* Верх рельса: контролы (пин/скрыть) + поиск. Видны только в развёрнутом виде;
+   в свёрнутом схлопнуты в 0, чтобы не занимать место над пунктами. */
+.nav-top {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-menu.expanded .nav-top {
+  height: auto;
+  padding: 12px 0 6px;
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.05s;
+}
+
+.nav-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 12px 8px;
+}
+
+.nav-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--nav-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.nav-ctrl:hover {
+  background: var(--nav-hover);
+  color: var(--nav-primary);
+}
+
+.nav-ctrl--pin.is-pinned {
+  color: var(--nav-primary);
+  background: var(--nav-primary-soft);
+}
+
+.nav-ctrl--pin svg {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-ctrl--pin.is-pinned svg {
+  transform: rotate(180deg);
+}
+
+.nav-search {
+  width: calc(100% - 24px);
+  margin: 0 12px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--nav-border);
+  border-radius: var(--radius-md, 15px);
+  background: var(--nav-bg);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  color: var(--nav-text);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nav-search::placeholder {
+  color: var(--nav-text-faint);
+}
+
+.nav-search:focus {
+  border-color: var(--nav-primary);
+  box-shadow: 0 0 0 3px var(--nav-primary-soft);
+}
+
+/*
+ * Плавающая кнопка возврата рельса из full-hide. Вне .nav-menu - палитра-vars
+ * сюда не дотягиваются, поэтому хексы навигации заданы напрямую.
+ */
+.nav-unhide {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e9eaf0;
+  background: #ffffff;
+  border-radius: 12px;
+  color: #8a90a2;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.nav-unhide:hover {
+  background: #f4f5fb;
+  color: #4F5BDF;
 }
 
 .nav-section {
