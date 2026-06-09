@@ -84,14 +84,14 @@
                     </span>
                   </div>
                   <Badge
-                    v-if="blacklistFlag(car)"
+                    v-if="car.blacklist_similar"
                     class="blacklist-badge"
-                    :variant="blacklistFlag(car).overridden ? 'neutral' : 'danger'"
+                    :variant="car.blacklist_similar.overridden ? 'neutral' : 'danger'"
                     size="sm"
                     dot
-                    :title="blacklistTooltip(blacklistFlag(car))"
+                    :title="blacklistTooltip(car.blacklist_similar)"
                   >
-                    {{ blacklistFlag(car).overridden ? 'пропуск подтверждён' : 'похоже на ЧС' }}
+                    {{ car.blacklist_similar.overridden ? 'пропуск подтверждён' : 'похоже на ЧС' }}
                   </Badge>
                 </div>
               </div>
@@ -147,14 +147,14 @@
                     </span>
                   </div>
                   <Badge
-                    v-if="blacklistFlag(employee)"
+                    v-if="employee.blacklist_similar"
                     class="blacklist-badge"
-                    :variant="blacklistFlag(employee).overridden ? 'neutral' : 'danger'"
+                    :variant="employee.blacklist_similar.overridden ? 'neutral' : 'danger'"
                     size="sm"
                     dot
-                    :title="blacklistTooltip(blacklistFlag(employee))"
+                    :title="blacklistTooltip(employee.blacklist_similar)"
                   >
-                    {{ blacklistFlag(employee).overridden ? 'пропуск подтверждён' : 'похоже на ЧС' }}
+                    {{ employee.blacklist_similar.overridden ? 'пропуск подтверждён' : 'похоже на ЧС' }}
                   </Badge>
                 </div>
               </div>
@@ -242,17 +242,12 @@ export default {
     },
     emits: ['open-vehicle', 'open-employee'],
     methods: {
-        blacklistFlag(entity) {
-            return entity && entity.blacklist_similar ? entity.blacklist_similar : null;
-        },
-
         isFlagged(entity) {
-            const flag = this.blacklistFlag(entity);
+            const flag = entity && entity.blacklist_similar;
             return !!flag && !flag.overridden;
         },
 
         blacklistTooltip(flag) {
-            if (!flag) return '';
             const value = flag.matched_value || '';
             const base = value
                 ? `Возможный обход чёрного списка. Похоже на: ${value}`
