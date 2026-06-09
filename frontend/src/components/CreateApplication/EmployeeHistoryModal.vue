@@ -57,6 +57,7 @@
               <div class="user-filter">
                 <span class="filter-label">Пользователь:</span>
                 <div
+                  ref="userSelect"
                   class="custom-select"
                   @click="toggleUserDropdown"
                 >
@@ -97,6 +98,7 @@
               <div class="place-filter">
                 <span class="filter-label">Место прохода:</span>
                 <div
+                  ref="placeSelect"
                   class="custom-select"
                   @click="togglePlaceDropdown"
                 >
@@ -585,12 +587,12 @@ export default {
     applyFilters() {},
 
     handleClickOutside(event) {
-      const selects = this.$el.querySelectorAll('.custom-select');
-      let clickedInside = false;
-      selects.forEach(select => {
-        if (select.contains(event.target)) clickedInside = true;
-      });
-      
+      // refs, не this.$el.querySelectorAll: при <Teleport> $el - это якорный комментарий
+      // без querySelector, и дропдауны фильтров не закрывались бы по клику снаружи.
+      const selects = [this.$refs.userSelect, this.$refs.placeSelect];
+      const clickedInside = selects.some(
+        (select) => select && select.contains(event.target),
+      );
       if (!clickedInside) {
         this.userDropdownOpen = false;
         this.placeDropdownOpen = false;

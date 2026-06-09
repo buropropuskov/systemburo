@@ -57,6 +57,7 @@
               <div class="user-filter">
                 <span class="filter-label">Пользователь:</span>
                 <div
+                  ref="userSelect"
                   class="custom-select"
                   @click="toggleUserDropdown"
                 >
@@ -571,7 +572,9 @@ export default {
     applyFilters() {},
 
     handleClickOutside(event) {
-      const select = this.$el.querySelector('.custom-select');
+      // ref, не this.$el.querySelector: при <Teleport> $el - это якорный комментарий
+      // без querySelector, и дропдаун фильтра не закрывался бы по клику снаружи.
+      const select = this.$refs.userSelect;
       if (select && !select.contains(event.target)) {
         this.userDropdownOpen = false;
       }
