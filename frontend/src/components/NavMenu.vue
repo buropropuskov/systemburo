@@ -117,7 +117,10 @@
 
         <div class="nav-scroll">
           <!-- ЗАЯВКИ -->
-          <div class="nav-section">
+          <div
+            v-show="sectionVisible.requests"
+            class="nav-section"
+          >
             <div class="section-title">
               ЗАЯВКИ
             </div>
@@ -152,14 +155,17 @@
           </div>
 
           <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
-          <div class="nav-section">
+          <div
+            v-show="sectionVisible.data"
+            class="nav-section"
+          >
             <div class="section-title">
               УПРАВЛЕНИЕ ДАННЫМИ
             </div>
 
             <!-- Таблицы: дропдаун раскрывается по клику и разворачивается под пунктом -->
             <div
-              v-show="matches('Таблицы')"
+              v-show="tablesItemVisible"
               class="nav-item-container"
             >
               <div
@@ -197,11 +203,11 @@
                    анимируется плавно и двигает пункты ниже. -->
               <div
                 class="dropdown-below"
-                :class="{ open: dropdowns.tables && (railExpanded || mobileOpen) }"
+                :class="{ open: tablesDropdownOpen && (railExpanded || mobileOpen) }"
               >
                 <div class="dropdown-below__inner">
                   <div
-                    v-for="table in systemTables"
+                    v-for="table in filteredTables"
                     :key="getTableId(table)"
                     class="dropdown-item"
                     :class="{ active: isCurrentTable(getTableName(table)) }"
@@ -210,7 +216,7 @@
                     {{ getTableDisplayName(table) }}
                   </div>
                   <div
-                    v-if="systemTables.length === 0"
+                    v-if="filteredTables.length === 0"
                     class="dropdown-item disabled"
                   >
                     Нет доступных таблиц
@@ -251,7 +257,10 @@
           </div>
 
           <!-- АНАЛИТИКА (пока заглушки - роутов нет) -->
-          <div class="nav-section">
+          <div
+            v-show="sectionVisible.analytics"
+            class="nav-section"
+          >
             <div class="section-title">
               АНАЛИТИКА
             </div>
@@ -286,6 +295,7 @@
           <!-- АДМИНИСТРИРОВАНИЕ: только супер-админ. Клик открывает колонку Админки. -->
           <div
             v-if="authStore.isSuperAdmin"
+            v-show="sectionVisible.admin"
             class="nav-section"
           >
             <div class="section-title">
@@ -306,10 +316,11 @@
                 />
                 <span class="nav-text">Администрирование</span>
               </div>
+              <!-- Не дропдаун, а открытие боковой колонки: глиф панели с подколонкой. -->
               <svg
-                class="dropdown-arrow"
-                width="14"
-                height="14"
+                class="panel-indicator"
+                width="15"
+                height="15"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -318,14 +329,29 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <polyline points="9 6 15 12 9 18" />
+                <rect
+                  x="3"
+                  y="5"
+                  width="18"
+                  height="14"
+                  rx="2"
+                />
+                <line
+                  x1="14"
+                  y1="5"
+                  x2="14"
+                  y2="19"
+                />
               </svg>
             </div>
           </div>
         </div>
 
         <!-- ПОЛЬЗОВАТЕЛЬ (низ) -->
-        <div class="nav-section user-section">
+        <div
+          v-show="sectionVisible.user"
+          class="nav-section user-section"
+        >
           <div class="section-title">
             ПОЛЬЗОВАТЕЛЬ
           </div>
@@ -344,6 +370,7 @@
             <span class="nav-text">Обзор и новости</span>
           </div>
           <div
+            v-show="matches('Личный кабинет')"
             class="nav-item"
             :class="{ active: isActive('/personal-cabinet') }"
             data-testid="nav-link-cabinet"
@@ -357,6 +384,7 @@
             <span class="nav-text">Личный кабинет</span>
           </div>
           <div
+            v-show="matches('Выйти')"
             class="nav-item"
             data-testid="nav-button-logout"
             @click="logout"
@@ -625,6 +653,44 @@ export default {
       if (mod10 === 1 && mod100 !== 11) word = 'раздел';
       else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = 'раздела';
       return `${n} ${word}`;
+    },
+    // Активен ли поиск по рельсу.
+    searchActive() {
+      return this.searchQuery.trim().length > 0;
+    },
+    // Таблицы, отфильтрованные поиском рельса (по отображаемому имени). Без запроса
+    // - весь список; поиск «КПП» оставляет в дропдауне только совпавшие таблицы.
+    filteredTables() {
+      const q = this.searchQuery.trim().toLowerCase();
+      if (!q) return this.systemTables;
+      return this.systemTables.filter(
+        (t) => this.getTableDisplayName(t).toLowerCase().includes(q),
+      );
+    },
+    // Пункт «Таблицы» виден если совпала его метка ИЛИ есть совпавшая таблица -
+    // поиск проваливается внутрь вкладки, а не прячет её целиком.
+    tablesItemVisible() {
+      if (!this.searchActive) return true;
+      return this.matches('Таблицы') || this.filteredTables.length > 0;
+    },
+    // При поиске с совпавшими таблицами дропдаун раскрывается сам, чтобы показать
+    // найденное; иначе - по ручному клику.
+    tablesDropdownOpen() {
+      if (this.searchActive && this.filteredTables.length > 0) return true;
+      return this.dropdowns.tables;
+    },
+    // Видимость секций при поиске: пустую группу (все пункты отфильтрованы) прячем
+    // целиком, чтобы результат был плоским, без осиротевших заголовков. Без поиска
+    // все секции видны.
+    sectionVisible() {
+      const on = this.searchActive;
+      return {
+        requests: !on || this.matches('Центр заявок'),
+        data: !on || this.tablesItemVisible || this.matches('Сотрудники') || this.matches('Автомобили'),
+        analytics: !on || this.matches('Статистика') || this.matches('Аналитика'),
+        admin: !on || this.matches('Администрирование'),
+        user: !on || this.matches('Обзор и новости') || this.matches('Личный кабинет') || this.matches('Выйти'),
+      };
     },
   },
   watch: {
@@ -1171,10 +1237,12 @@ export default {
   padding-bottom: 4px;
 }
 
-/* Линии-разделители между секциями (видны в развёрнутом виде). */
+/* Линии-разделители между секциями (видны в развёрнутом виде). Толщина 1px
+   зарезервирована всегда - меняется только цвет, плавно вместе с разворотом. */
 .nav-scroll .nav-section + .nav-section,
 .user-section {
   border-top: 1px solid var(--nav-border-soft);
+  transition: border-top-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-menu:not(.expanded) .nav-scroll .nav-section + .nav-section,
@@ -1187,8 +1255,10 @@ export default {
   padding-bottom: 12px;
 }
 
-/* Заголовок секции: в свёрнутом схлопнут (height 0), в развёрнутом 10px - height
-   и margin-top анимируются плавно вместе с разворотом рельса (без скачка). */
+/* Заголовок секции: высота и отступы зарезервированы в ОБОИХ состояниях, поэтому
+   вертикальная раскладка пунктов одинакова в свёрнутом и развёрнутом виде. При
+   наведении меняется только ширина рельса, а заголовок лишь проявляется (opacity
+   + transform) - без анимации height/margin, то есть без reflow и без скачка высоты. */
 .section-title {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
@@ -1197,19 +1267,16 @@ export default {
   letter-spacing: 0.04em;
   color: var(--nav-text-faint);
   text-transform: uppercase;
-  margin: 0 0 0 24px;
-  height: 0;
+  height: 10px;
+  margin: 14px 0 6px 24px;
   overflow: hidden;
   white-space: nowrap;
   opacity: 0;
   transform: translateX(-10px);
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), margin-top 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-menu.expanded .section-title {
-  height: 10px;
-  margin-top: 14px;
-  margin-bottom: 6px;
   opacity: 1;
   transform: translateX(0);
   transition-delay: 0.05s;
@@ -1346,6 +1413,20 @@ export default {
 }
 
 .nav-menu.expanded .dropdown-arrow {
+  opacity: 0.7;
+  transition-delay: 0.15s;
+}
+
+/* Индикатор «открывается боковая панель» у «Администрирования» - виден только
+   в развёрнутом рельсе, как и dropdown-arrow, но без поворота. */
+.panel-indicator {
+  flex-shrink: 0;
+  color: var(--nav-text-muted);
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-menu.expanded .panel-indicator {
   opacity: 0.7;
   transition-delay: 0.15s;
 }
@@ -1742,7 +1823,8 @@ export default {
   .nav-menu .nav-search,
   .nav-menu .nav-text,
   .nav-menu .section-title,
-  .nav-menu .dropdown-arrow {
+  .nav-menu .dropdown-arrow,
+  .nav-menu .panel-indicator {
     opacity: 1 !important;
     transform: none !important;
     pointer-events: auto;
