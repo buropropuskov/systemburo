@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <OrganizationsManagement />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import OrganizationsManagement from '@/components/OrganizationsManagement.vue';
 
 export default {
   name: 'OrganizationsView',
-  components: { OrganizationsManagement },
+  components: { AdminPageShell, OrganizationsManagement },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

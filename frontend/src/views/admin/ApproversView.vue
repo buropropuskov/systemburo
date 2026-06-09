@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <ApplicationApprovers />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import ApplicationApprovers from '@/components/ApplicationApprovers.vue';
 
 export default {
   name: 'ApproversView',
-  components: { ApplicationApprovers },
+  components: { AdminPageShell, ApplicationApprovers },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

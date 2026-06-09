@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <MarksManagement />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import MarksManagement from '@/components/MarksManagement.vue';
 
 export default {
   name: 'MarksView',
-  components: { MarksManagement },
+  components: { AdminPageShell, MarksManagement },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>

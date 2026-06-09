@@ -1,21 +1,15 @@
 <template>
-  <section class="admin-page">
+  <AdminPageShell>
     <CitizenshipManagement />
-  </section>
+  </AdminPageShell>
 </template>
 
 <script>
+import AdminPageShell from './AdminPageShell.vue';
 import CitizenshipManagement from '@/components/CitizenshipManagement.vue';
 
 export default {
   name: 'CitizenshipView',
-  components: { CitizenshipManagement },
+  components: { AdminPageShell, CitizenshipManagement },
 };
 </script>
-
-<style scoped>
-.admin-page {
-  padding: 16px;
-  height: 100%;
-}
-</style>
