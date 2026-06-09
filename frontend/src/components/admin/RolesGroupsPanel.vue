@@ -167,8 +167,8 @@ import { useDeletionsStore } from '@/stores/deletions';
 
 /**
  * Контентная панель «Роль и группы» (роль + дополнительные группы + блокировка + merge).
- * Вынесена из UserPermissionsModal, чтобы переиспользоваться и в нём (обёртка для
- * AdminUsers), и во вкладке UserAccessModal. Сама модалкой не является.
+ * Вынесена из UserPermissionsModal, чтобы переиспользоваться и в нём, и во вкладке
+ * UserAccessModal. Сама модалкой не является.
  */
 export default {
   name: 'RolesGroupsPanel',
