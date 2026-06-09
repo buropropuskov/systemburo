@@ -34,3 +34,12 @@ export async function deleteApprover(id) {
   const res = await apiRequest(`/application-approvers/${id}`, { method: 'DELETE' });
   return unwrap(res, 'Не удалось удалить принимающего');
 }
+
+/**
+ * Глобальный аудит-лог принимающих (без :id - принимающие hard-delete,
+ * история хранит снимок имени). Записи отсортированы новыми сверху.
+ */
+export async function getApproverHistory() {
+  const res = await apiRequest('/application-approvers/history');
+  return unwrap(res, 'Не удалось загрузить историю принимающих');
+}

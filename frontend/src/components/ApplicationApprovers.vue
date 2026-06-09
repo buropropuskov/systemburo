@@ -10,6 +10,13 @@
           :title="'Поиск принимающих...'"
         />
         <button
+          class="lk-button lk-button--secondary"
+          data-testid="approver-history"
+          @click="openHistory"
+        >
+          История
+        </button>
+        <button
           class="add-header-button"
           :disabled="isAdding"
           @click="openAddModal"
@@ -302,19 +309,27 @@
         </div>
       </transition>
     </Teleport>
+
+    <ApplicationApproverHistoryModal
+      v-if="showHistory"
+      :current-user-name="currentUserName"
+      @close="showHistory = false"
+    />
   </div>
 </template>
 
 <script>
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
+import ApplicationApproverHistoryModal from './ApplicationApproverHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { apiRequest } from '@/api/client';
 import { getApprovers, getAllUsers, addApprover, deleteApprover } from '@/api/approvers';
 
 export default {
   name: 'ApplicationApproversManagement',
-  components: { SearchComponent, RefreshButton },
+  components: { SearchComponent, RefreshButton, ApplicationApproverHistoryModal },
   setup() {
     const overlay = { close: () => {} };
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => overlay.close());
@@ -335,6 +350,8 @@ export default {
       showUserDropdown: false,
       selectedUsers: [],
       isAdding: false,
+      showHistory: false,
+      currentUserName: '',
     };
   },
   computed: {
@@ -393,6 +410,7 @@ export default {
   },
   mounted() {
     this.refresh();
+    this.fetchCurrentUser();
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
@@ -426,6 +444,21 @@ export default {
     },
     selectApprover(approver) {
       this.selectedApprover = approver;
+    },
+    openHistory() {
+      this.showHistory = true;
+    },
+    async fetchCurrentUser() {
+      // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").
+      try {
+        const res = await apiRequest('/users/me');
+        if (!res.ok) return;
+        const u = await res.json();
+        const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+        this.currentUserName = parts.join(' ') || u.username || '';
+      } catch {
+        // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
+      }
     },
     async refresh() {
       this.isLoading = true;
