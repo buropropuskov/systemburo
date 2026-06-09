@@ -31,273 +31,267 @@
         ✕
       </button>
 
-    <!-- Внутренний контейнер для контента -->
-    <div class="nav-content">
-      <!-- ЗАЯВКИ -->
-      <div class="nav-section">
-        <div class="section-title">
-          ЗАЯВКИ
-        </div>
-        <div
-          class="nav-item"
-          data-testid="nav-link-center"
-          @click="navigateToCenter"
-        >
-          <div class="nav-icon-wrapper">
-            <img
-              src="@/assets/icons/envelope.png"
-              alt="Центр заявок"
-              class="nav-icon"
-            >
+      <div class="nav-content">
+        <!-- РАБОТА -->
+        <div class="nav-section">
+          <div class="section-title">
+            РАБОТА
+          </div>
+
+          <div
+            class="nav-item"
+            :class="{ active: isActive('/center') }"
+            data-testid="nav-link-center"
+            @click="navigateToCenter"
+          >
+            <div class="nav-icon-wrapper">
+              <NavIcon
+                name="center"
+                :size="18"
+                class="nav-icon"
+              />
+              <span
+                v-if="newApplicationsCount > 0"
+                class="icon-badge"
+              >
+                {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
+              </span>
+            </div>
+            <span class="nav-text">Центр заявок</span>
             <span
               v-if="newApplicationsCount > 0"
-              class="icon-badge"
+              class="notification-badge"
             >
               {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
             </span>
           </div>
-          <span class="nav-text">Центр заявок</span>
-          <span
-            v-if="newApplicationsCount > 0"
-            class="notification-badge"
-          >
-            {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
-          </span>
-        </div>
-      </div>
 
-      <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
-      <div class="nav-section">
-        <div class="section-title">
-          УПРАВЛЕНИЕ ДАННЫМИ
-        </div>
-        
-        <!-- Элемент с выпадающим списком таблиц -->
-        <div class="nav-item-container">
-          <div 
-            class="nav-item has-dropdown" 
-            @mouseenter="openDropdown('tables')"
-            @mouseleave="handleDropdownLeave('tables')"
-          >
-            <div class="nav-item-content">
-              <img
-                src="@/assets/icons/table.png"
-                alt="Таблицы"
-                class="nav-icon"
-              >
-              <span class="nav-text">Таблицы</span>
-            </div>
-            <img
-              src="@/assets/icons/arrow.png"
-              alt="▼"
-              class="dropdown-arrow"
-              :class="{ rotated: dropdowns.tables }"
+          <!-- Таблицы (выпадающий список) -->
+          <div class="nav-item-container">
+            <div
+              class="nav-item has-dropdown"
+              :class="{ active: isActive('/table') }"
+              @mouseenter="openDropdown('tables')"
+              @mouseleave="handleDropdownLeave('tables')"
             >
+              <div class="nav-item-content">
+                <NavIcon
+                  name="tables"
+                  :size="18"
+                  class="nav-icon"
+                />
+                <span class="nav-text">Таблицы</span>
+              </div>
+              <svg
+                class="dropdown-arrow"
+                :class="{ rotated: dropdowns.tables }"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
+            </div>
+
+            <transition name="dropdown-fade">
+              <div
+                v-show="dropdowns.tables"
+                class="dropdown-list dropdown-right"
+                @mouseenter="keepDropdownOpen('tables')"
+                @mouseleave="closeDropdown('tables')"
+              >
+                <div
+                  v-for="table in systemTables"
+                  :key="getTableId(table)"
+                  class="dropdown-item"
+                  @click="navigateToTable(getTableName(table))"
+                >
+                  {{ getTableDisplayName(table) }}
+                </div>
+                <div
+                  v-if="systemTables.length === 0"
+                  class="dropdown-item disabled"
+                >
+                  Нет доступных таблиц
+                </div>
+              </div>
+            </transition>
           </div>
-          
-          <!-- Выпадающий список таблиц (справа от меню) -->
-          <transition name="dropdown-fade">
-            <div 
-              v-show="dropdowns.tables" 
-              class="dropdown-list dropdown-right"
-              @mouseenter="keepDropdownOpen('tables')"
-              @mouseleave="closeDropdown('tables')"
-            >
-              <div 
-                v-for="table in systemTables" 
-                :key="getTableId(table)"
-                class="dropdown-item" 
-                @click="navigateToTable(getTableName(table))"
-              >
-                {{ getTableDisplayName(table) }}
-              </div>
-              <div
-                v-if="systemTables.length === 0"
-                class="dropdown-item disabled"
-              >
-                Нет доступных таблиц
-              </div>
-            </div>
-          </transition>
-        </div>
 
-        <!-- Элемент с выпадающим списком сотрудников -->
-        <div
-          class="nav-item"
-          data-testid="nav-link-employees"
-          @click="navigateToEmployeesView"
-        >
-          <img
-            src="@/assets/icons/employees.png"
-            alt="Сотрудники"
-            class="nav-icon"
+          <div
+            class="nav-item"
+            :class="{ active: isActive('/employeesview') }"
+            data-testid="nav-link-employees"
+            @click="navigateToEmployeesView"
           >
-          <span class="nav-text">Сотрудники</span>
-        </div>
-        <div
-          class="nav-item"
-          data-testid="nav-link-cars"
-          @click="navigateToCarsView"
-        >
-          <img
-            src="@/assets/icons/car.png"
-            alt="Автомобили"
-            class="nav-icon"
-          >
-          <span class="nav-text">Автомобили</span>
-        </div>
-      </div>
-
-      <!-- АНАЛИТИКА -->
-      <div class="nav-section">
-        <div class="section-title">
-          АНАЛИТИКА
-        </div>
-        <div class="nav-item disabled">
-          <img
-            src="@/assets/icons/stats.png"
-            alt="Статистика"
-            class="nav-icon"
-          >
-          <span class="nav-text disabled ">Статистика</span>
-        </div>
-        <div class="nav-item disabled">
-          <img
-            src="@/assets/icons/clipboard.png"
-            alt="Отчёты"
-            class="nav-icon"
-          >
-          <span class="nav-text disabled">Отчёты</span>
-        </div>
-      </div>
-
-      <!-- ПОЛЬЗОВАТЕЛЬ (в нижней части) -->
-      <div class="nav-section user-section">
-        <div class="section-title">
-          ПОЛЬЗОВАТЕЛЬ
-        </div>
-        <div
-          class="nav-item"
-          data-testid="nav-link-news"
-          @click="navigateToNews"
-        >
-          <img
-            src="@/assets/icons/newspaper.png"
-            alt="Новости"
-            class="nav-icon"
-          >
-          <span class="nav-text">Обзор и новости</span>
-        </div>
-        
-        <!-- Элемент с выпадающим списком админки -->
-        <div class="nav-item-container">
-          <div 
-            class="nav-item has-dropdown" 
-            @mouseenter="openDropdown('admin')"
-            @mouseleave="handleDropdownLeave('admin')"
-          >
-            <div class="nav-item-content">
-              <img
-                src="@/assets/settings.png"
-                alt="Админка"
-                class="nav-icon"
-              >
-              <span class="nav-text">Админка</span>
-            </div>
-            <img
-              src="@/assets/icons/arrow.png"
-              alt="▼"
-              class="dropdown-arrow"
-              :class="{ rotated: dropdowns.admin }"
-            >
+            <NavIcon
+              name="employees"
+              :size="18"
+              class="nav-icon"
+            />
+            <span class="nav-text">Сотрудники</span>
           </div>
-          
-          <!-- Выпадающий список админки (справа от меню) -->
-          <transition name="dropdown-fade">
-            <div 
-              v-show="dropdowns.admin" 
-              class="dropdown-list dropdown-right"
-              @mouseenter="keepDropdownOpen('admin')"
-              @mouseleave="closeDropdown('admin')"
+
+          <div
+            class="nav-item"
+            :class="{ active: isActive('/carsview') }"
+            data-testid="nav-link-cars"
+            @click="navigateToCarsView"
+          >
+            <NavIcon
+              name="cars"
+              :size="18"
+              class="nav-icon"
+            />
+            <span class="nav-text">Автомобили</span>
+          </div>
+
+          <div
+            class="nav-item"
+            :class="{ active: isActive('/news') }"
+            data-testid="nav-link-news"
+            @click="navigateToNews"
+          >
+            <NavIcon
+              name="news"
+              :size="18"
+              class="nav-icon"
+            />
+            <span class="nav-text">Новости</span>
+          </div>
+
+          <!-- Администрирование: видно только супер-админу. Пока флайаут -
+               двухколоночная Админка приходит отдельным срезом. -->
+          <div
+            v-if="authStore.isSuperAdmin"
+            class="nav-item-container"
+          >
+            <div
+              class="nav-item has-dropdown"
+              :class="{ active: isActive('/admin') }"
+              @mouseenter="openDropdown('admin')"
+              @mouseleave="handleDropdownLeave('admin')"
             >
-              <div 
-                class="dropdown-item" 
-                @click="navigateToAdminRequests"
-              >
-                Запросы
+              <div class="nav-item-content">
+                <NavIcon
+                  name="admin"
+                  :size="18"
+                  class="nav-icon"
+                />
+                <span class="nav-text">Администрирование</span>
               </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAdminFeedback"
+              <svg
+                class="dropdown-arrow"
+                :class="{ rotated: dropdowns.admin }"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
               >
-                Обратная связь
-              </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAdminUsers"
-              >
-                Пользователи
-              </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAdminPermissionGroups"
-              >
-                Группы прав
-              </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAdminRoles"
-              >
-                Роли
-              </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAccessDenials"
-              >
-                Журнал отказов
-              </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAdminSettings"
-              >
-                Настройки
-              </div>
-              <div
-                class="dropdown-item"
-                @click="navigateToAdminBlacklist"
-              >
-                Чёрный список
-              </div>
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
             </div>
-          </transition>
+
+            <transition name="dropdown-fade">
+              <div
+                v-show="dropdowns.admin"
+                class="dropdown-list dropdown-right"
+                @mouseenter="keepDropdownOpen('admin')"
+                @mouseleave="closeDropdown('admin')"
+              >
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminUsers"
+                >
+                  Пользователи
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminRoles"
+                >
+                  Роли
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminPermissionGroups"
+                >
+                  Группы прав
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAccessDenials"
+                >
+                  Журнал отказов
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminBlacklist"
+                >
+                  Чёрный список
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminSettings"
+                >
+                  Настройки
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminFeedback"
+                >
+                  Обратная связь
+                </div>
+                <div
+                  class="dropdown-item"
+                  @click="navigateToAdminRequests"
+                >
+                  Мониторинг запросов
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
-        
-        <div
-          class="nav-item"
-          data-testid="nav-link-cabinet"
-          @click="navigateToAccount"
-        >
-          <img
-            src="@/assets/icons/user.png"
-            alt="Личный кабинет"
-            class="nav-icon"
+
+        <!-- Низ: личный кабинет + выход -->
+        <div class="nav-section user-section">
+          <div
+            class="nav-item"
+            :class="{ active: isActive('/personal-cabinet') }"
+            data-testid="nav-link-cabinet"
+            @click="navigateToAccount"
           >
-          <span class="nav-text">Личный кабинет</span>
-        </div>
-        <div
-          class="nav-item"
-          data-testid="nav-button-logout"
-          @click="logout"
-        >
-          <img
-            src="@/assets/icons/logout.png"
-            alt="Выйти"
-            class="nav-icon"
+            <NavIcon
+              name="cabinet"
+              :size="18"
+              class="nav-icon"
+            />
+            <span class="nav-text">Личный кабинет</span>
+          </div>
+          <div
+            class="nav-item"
+            data-testid="nav-button-logout"
+            @click="logout"
           >
-          <span class="nav-text exit">Выйти</span>
+            <NavIcon
+              name="logout"
+              :size="18"
+              class="nav-icon"
+            />
+            <span class="nav-text exit">Выйти</span>
+          </div>
         </div>
       </div>
-    </div>
     </nav>
   </div>
 </template>
@@ -305,9 +299,18 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
+import { useAuthStore } from '@/stores/auth'
+import NavIcon from '@/components/icons/NavIcon.vue'
+
 export default {
   name: 'NavMenu',
+  components: { NavIcon },
   emits: ['logout'],
+  setup() {
+    // Стор берём в setup для реактивности isSuperAdmin в шаблоне (гейт Администрирования).
+    const authStore = useAuthStore()
+    return { authStore }
+  },
   data() {
     return {
       isExpanded: false,
@@ -371,6 +374,12 @@ export default {
     document.body.classList.remove('nav-drawer-open');
   },
   methods: {
+    isActive(path) {
+      const current = this.$route.path;
+      if (path === '/table') return current.startsWith('/table');
+      if (path === '/admin') return current.startsWith('/admin');
+      return current === path;
+    },
     toggleMobile() {
       this.mobileOpen = !this.mobileOpen;
       // Блокируем scroll body когда drawer открыт
@@ -432,8 +441,8 @@ export default {
         this.dropdowns[key] = false;
       });
     },
-    
-    // Новые методы для работы с данными таблиц
+
+    // Работа с данными таблиц
     getTableId(table) {
       if (table.table && table.table.id) {
         return table.table.id;
@@ -461,7 +470,7 @@ export default {
         this.closeAllDropdowns();
       }
     },
-    
+
     navigateToAdminRequests() {
       this.$router.push('/admin/requests');
       this.closeAllDropdowns();
@@ -510,7 +519,7 @@ export default {
     navigateToEmployeesView() {
       this.$router.push('/employeesview');
     },
-    
+
     async fetchBanStatus() {
       try {
         const res = await apiRequest('/users/me');
@@ -529,8 +538,7 @@ export default {
         });
         if (response.ok) {
           const data = await response.json();
-          console.log('Fetched system tables in NavMenu:', data);
-          
+
           // Фильтруем только активные таблицы
           this.systemTables = data.filter(table => {
             const isActive = table.table ? table.table.is_active : table.is_active;
@@ -541,7 +549,7 @@ export default {
         console.error("Error fetching system tables:", error);
       }
     },
-    
+
     async fetchNewApplicationsCount() {
       try {
         const data = await getUnreadCount()
@@ -550,7 +558,7 @@ export default {
         this.newApplicationsCount = 0
       }
     },
-    
+
     startApplicationsPolling() {
       this.fetchNewApplicationsCount();
       this.applicationsPollingInterval = setInterval(() => {
@@ -574,7 +582,7 @@ export default {
         this.tablesPollingInterval = null;
       }
     },
-    
+
     logout() {
       this.stopApplicationsPolling();
       this.$emit('logout');
@@ -584,59 +592,80 @@ export default {
 </script>
 
 <style scoped>
-/* Все стили остаются без изменений */
+/*
+ * Палитра навигации (#510) скоуплена на корне рельса - точные хексы мокапа,
+ * чтобы не утекали в глобальный tokens.css. Радиусы/шрифт - из проектных токенов.
+ */
 .nav-menu {
+  --nav-primary: #4F5BDF;
+  --nav-primary-soft: rgba(79, 91, 223, .10);
+  --nav-text: #1f2330;
+  --nav-text-muted: #8a90a2;
+  --nav-text-faint: #aab0c0;
+  --nav-border: #e9eaf0;
+  --nav-bg: #ffffff;
+  --nav-hover: #f4f5fb;
+
   position: fixed;
   left: 0;
   top: 0;
   width: 50px;
   height: 100vh;
-  background: #fafafa;
-  border-right: 1px solid var(--color-border);
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-border);
   z-index: 1000;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   display: flex;
 }
 
+.nav-menu * {
+  box-sizing: border-box;
+}
+
 .nav-content {
-  width: 188px;
+  width: 248px;
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
 .nav-menu.expanded {
-  width: 188px;
+  width: 248px;
   overflow: visible;
+}
+
+.nav-section {
+  display: flex;
+  flex-direction: column;
 }
 
 .user-section {
   margin-top: auto;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .section-title {
   font-family: 'Montserrat', sans-serif;
-  font-style: normal;
   font-weight: 700;
   font-size: 10px;
   line-height: 10px;
-  color: #A2A2A2;
+  letter-spacing: 0.04em;
+  color: var(--nav-text-faint);
   text-transform: uppercase;
-  margin: 15px 0 8px 19px;
+  margin: 16px 0 8px 24px;
   height: 10px;
   overflow: hidden;
   white-space: nowrap;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 0;
   transform: translateX(-10px);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-menu.expanded .section-title {
   opacity: 1;
   transform: translateX(0);
-  transition-delay: 0.1s;
+  transition-delay: 0.05s;
 }
 
 .nav-item-container {
@@ -646,20 +675,19 @@ export default {
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 10px 15px;
+  gap: 12px;
+  padding: 9px 15px;
+  margin: 2px 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  min-height: 35px;
-  justify-content: flex-start;
-  width: 187px;
-  gap: 10px;
+  overflow: hidden;
+  min-height: 38px;
+  width: 232px;
+  flex-shrink: 0;
+  color: var(--nav-text);
   text-decoration: none;
-  color: inherit;
-}
-
-.nav-item:hover .exit {
-  color: red;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-item.has-dropdown {
@@ -669,55 +697,84 @@ export default {
 .nav-item-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
 .nav-item:hover:not(.disabled) {
-  background-color: var(--color-border);
+  background-color: var(--nav-hover);
+}
+
+.nav-item:hover:not(.disabled) .nav-icon {
+  color: var(--nav-primary);
+}
+
+/* active: фон primary-soft + левая полоса primary + текст/иконка primary */
+.nav-item.active {
+  background-color: var(--nav-primary-soft);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nav-primary);
+}
+
+.nav-item.active .nav-icon,
+.nav-item.active .nav-text {
+  color: var(--nav-primary);
+}
+
+.nav-item:hover .exit {
+  color: #e5484d;
 }
 
 .nav-icon-wrapper {
   position: relative;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
 .nav-icon {
-  width: 16px;
-  height: 16px;
-  transition: transform 0.2s ease;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--nav-text-muted);
+  transition: color 0.2s ease;
 }
 
 .nav-text {
   font-family: 'Montserrat', sans-serif;
-  font-style: normal;
   font-weight: 500;
   font-size: 13px;
   line-height: 16px;
-  color: #000;
+  color: var(--nav-text);
   white-space: nowrap;
   overflow: hidden;
-  opacity: 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translateX(-5px);
   flex-shrink: 0;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-menu.expanded .nav-text {
   opacity: 1;
   transform: translateX(0);
-  transition-delay: 0.15s;
+  transition-delay: 0.1s;
 }
 
 .dropdown-arrow {
-  width: 6px;
-  height: 6px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: rotate(0deg);
   flex-shrink: 0;
+  color: var(--nav-text-muted);
   opacity: 0;
+  transform: rotate(0deg);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dropdown-arrow.rotated {
@@ -725,26 +782,23 @@ export default {
 }
 
 .nav-menu.expanded .dropdown-arrow {
-  opacity: 0.6;
-  transition-delay: 0.2s;
-}
-
-.nav-item:hover .dropdown-arrow {
-  opacity: 1;
+  opacity: 0.7;
+  transition-delay: 0.15s;
 }
 
 .dropdown-list {
   position: absolute;
-  left: 188px;
+  left: 248px;
   top: 0;
-  background: #fafafa;
+  background: var(--nav-bg);
   border-radius: 0 15px 15px 0;
   z-index: 1001;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--nav-border);
   border-left: none;
-  min-width: 200px;
+  min-width: 210px;
   transform-origin: left center;
   overflow: hidden;
+  padding: 6px;
 }
 
 .user-section .dropdown-list {
@@ -753,48 +807,40 @@ export default {
 }
 
 .dropdown-item {
-  padding: 8px 16px;
+  padding: 8px 14px;
+  border-radius: 10px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
-  color: #000;
+  color: var(--nav-text);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .dropdown-item:hover {
-  background-color: var(--color-border);
-}
-
-.disabled {
-  color: #95a5a6;
-  cursor: not-allowed;
-}
-
-.disabled img {
-  filter:opacity(0.3)
+  background-color: var(--nav-hover);
+  color: var(--nav-primary);
 }
 
 .dropdown-item.disabled {
-  color: #95a5a6;
+  color: var(--nav-text-faint);
   cursor: not-allowed;
 }
 
 .dropdown-item.disabled:hover {
   background-color: transparent;
-  border-left-color: transparent;
-  padding-left: 16px;
+  color: var(--nav-text-faint);
 }
 
 .icon-badge {
   position: absolute;
-  top: -7px;
-  right: -7px;
-  background-color: var(--color-primary);
-  color: white;
+  top: -6px;
+  right: -6px;
+  background-color: var(--nav-primary);
+  color: #fff;
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   min-width: 16px;
   height: 16px;
   border-radius: 15px;
@@ -802,93 +848,60 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 0 3px;
-  border: 1.5px solid #fafafa;
+  border: 1.5px solid var(--nav-bg);
   z-index: 2;
   line-height: 1;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 1;
   transform: scale(1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-menu.expanded .icon-badge {
   opacity: 0;
   transform: scale(0);
-  transition-delay: 0s;
 }
 
 .notification-badge {
   position: absolute;
   right: 15px;
-  background-color: var(--color-primary);
-  color: white;
+  background-color: var(--nav-primary);
+  color: #fff;
   font-size: 10px;
   font-weight: 600;
-  width: 16px;
+  min-width: 16px;
   height: 16px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 3px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 0 4px;
   z-index: 2;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 0;
   transform: scale(0);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-menu.expanded .notification-badge {
   opacity: 1;
   transform: scale(1);
-  transition-delay: 0.3s;
+  transition-delay: 0.2s;
 }
 
 .dropdown-fade-enter-active,
 .dropdown-fade-leave-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dropdown-fade-enter-from,
 .dropdown-fade-leave-to {
   opacity: 0;
-  transform: translateX(-10px) scale(0.95);
-}
-
-.nav-menu * {
-  box-sizing: border-box;
-}
-
-.nav-item {
-  flex-shrink: 0;
-}
-
-.nav-content > * {
-  transition: opacity 0.3s ease;
-}
-
-.nav-item {
-  position: relative;
-  overflow: hidden;
-}
-
-.dropdown-item-icon {
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  opacity: 0.7;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background-color: var(--color-border);
-  margin: 4px 0;
+  transform: translateX(-10px) scale(0.97);
 }
 
 /*
  * Mobile drawer (<768px): nav скрыт по-умолчанию, открывается через burger
- * в TheHeader (emits $bus mobile-nav-toggle). Drawer выезжает слева,
- * занимает 280px (или 85% viewport), с backdrop позади.
+ * в TheHeader (emits $bus mobile-nav-toggle). Без теней по требованию #510 -
+ * отделение от контента через backdrop и border-right.
  */
 .nav-menu__backdrop {
   display: none;
@@ -904,14 +917,14 @@ export default {
   border: none;
   background: transparent;
   font-size: 22px;
-  color: #333;
+  color: var(--nav-text);
   cursor: pointer;
   border-radius: 50%;
   z-index: 2;
 }
 
 .nav-menu__close:hover {
-  background: #f0f0f5;
+  background: var(--nav-hover);
 }
 
 .nav-backdrop-enter-active,
@@ -925,18 +938,15 @@ export default {
 
 @media (max-width: 768px) {
   .nav-menu {
-    /* Позиция - слева, выезжает drawer-style */
     width: 280px;
     max-width: 85vw;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
     z-index: 10000;
-    box-shadow: none;
   }
 
   .nav-menu.nav-menu--mobile-open {
     transform: translateX(0);
-    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.2);
   }
 
   .nav-menu .nav-content {
@@ -948,9 +958,11 @@ export default {
   .nav-menu .nav-text,
   .nav-menu .section-title {
     opacity: 1 !important;
+    transform: none !important;
   }
 
   .nav-menu .nav-item {
+    width: auto;
     min-height: 48px;
   }
 
@@ -972,7 +984,6 @@ export default {
   .dropdown-list {
     position: static !important;
     width: 100% !important;
-    box-shadow: none !important;
     border: none !important;
     margin-left: 20px !important;
   }
@@ -981,7 +992,6 @@ export default {
 /*
  * Заблокированный пользователь (#230). Все nav-items серым/disabled,
  * pointer-events отключены кроме pages из списка allowed (личный кабинет).
- * Кнопка выхода обрабатывается отдельно через v-if.
  */
 .nav-menu--banned .nav-item:not([data-testid="nav-link-cabinet"]):not(.banned-passthrough),
 .nav-menu--banned .dropdown-item,
@@ -996,5 +1006,4 @@ export default {
   background: transparent !important;
   color: inherit !important;
 }
-
 </style>

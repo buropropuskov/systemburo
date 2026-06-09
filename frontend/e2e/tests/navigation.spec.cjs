@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { loginAsAdmin, loginAsUser } = require('../helpers/auth');
+const { loginAsUser, loginAsSuperAdminUI } = require('../helpers/auth');
 const { NavigationBar } = require('../pages/NavigationBar');
 
 test.describe('Navigation & Authorization', () => {
@@ -15,20 +15,27 @@ test.describe('Navigation & Authorization', () => {
   // Сейчас e2e_admin (type_id=6, не суперадмин) блокируется permission-guard'ом из PR #244.
   test.skip('admin can access admin pages (требует расширения seed)', async () => {});
 
-  test('nav menu shows admin items for admin user', async ({ page }) => {
-    await loginAsAdmin(page);
+  test('nav menu shows admin entry for super-admin', async ({ page }) => {
+    await loginAsSuperAdminUI(page);
     await page.goto('/personal-cabinet');
 
     const navBar = new NavigationBar(page);
     await expect(navBar.root).toBeVisible();
     await navBar.root.hover();
-    await expect(navBar.root.getByText('Админка')).toBeVisible();
+    await expect(navBar.root.getByText('Администрирование')).toBeVisible();
   });
 
-  // TODO: фактический баг во фронте - NavMenu для regular user всё ещё показывает
-  // "Админка" dropdown. v-permission-scope из PR #233 либо не применён, либо не работает.
-  // Включить тест когда NavMenu начнёт правильно фильтроваться.
-  test.skip('nav menu hides admin items for regular user (баг в NavMenu)', async () => {});
+  test('nav menu hides admin entry for regular user', async ({ page }) => {
+    await loginAsUser(page);
+    await page.goto('/personal-cabinet');
+
+    const navBar = new NavigationBar(page);
+    await expect(navBar.root).toBeVisible();
+    await navBar.root.hover();
+    // Пункт "Администрирование" гейтится по isSuperAdmin (#510) - у обычного
+    // пользователя его нет в DOM.
+    await expect(navBar.root.getByText('Администрирование')).toHaveCount(0);
+  });
 
   test('cabinet link navigates to personal-cabinet', async ({ page }) => {
     await loginAsUser(page);
