@@ -9,7 +9,6 @@ import CreateApplication from './components/CreateApplication/CreateApplication.
 import CarsView from './views/CarsView.vue';
 import ApplicationsCenter from './views/ApplicationsCenter.vue';
 import TableConstructor from './components/TableConstructor.vue';
-import NumberFormat from './components/NumberFormat.vue';
 import EmployeeView from './views/EmployeeView.vue';
 import NewsAndReview from './views/NewsAndReview.vue';
 import FeedbackPage from './views/FeedbackPage.vue';
@@ -74,9 +73,7 @@ const routes = [
   },
   {
     path: '/number-format',
-    name: 'NumberFormat',
-    component: NumberFormat,
-    meta: { requiresAuth: true, requiresBuro: true }
+    redirect: '/admin/number-formats'
   },
   {
     path: '/employeesview',
@@ -137,6 +134,61 @@ const routes = [
     name: 'AccessDenialsLog',
     component: () => import('./views/admin/AccessDenialsLog.vue'),
     meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.read' }
+  },
+  // requiresBuro сохраняет текущий доступ супер-админа без правок бэкенда прав.
+  {
+    path: '/admin/organizations',
+    name: 'AdminOrganizations',
+    component: () => import('./views/admin/OrganizationsView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/companies',
+    name: 'AdminCompanies',
+    component: () => import('./views/admin/CompaniesView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/unload-places',
+    name: 'AdminUnloadPlaces',
+    component: () => import('./views/admin/UnloadPlacesView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/number-formats',
+    name: 'AdminNumberFormats',
+    component: () => import('./views/admin/NumberFormatsView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/citizenship',
+    name: 'AdminCitizenship',
+    component: () => import('./views/admin/CitizenshipView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/marks',
+    name: 'AdminMarks',
+    component: () => import('./views/admin/MarksView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/attachment-types',
+    name: 'AdminAttachmentTypes',
+    component: () => import('./views/admin/AttachmentTypesView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/user-types',
+    name: 'AdminUserTypes',
+    component: () => import('./views/admin/UserTypesView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
+    path: '/admin/approvers',
+    name: 'AdminApprovers',
+    component: () => import('./views/admin/ApproversView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
   },
   {
     path: '/500',
