@@ -49,6 +49,7 @@ var tables = []string{
 	"car_unload_places", "cars_history", "cars",
 	"vehicle_blacklist_histories", "vehicle_blacklists",
 	"person_blacklist_histories", "person_blacklists",
+	"attachment_custom_values", "attachment_custom_fields", "attachment_field_configs",
 	"attachments",
 	"unique_employees_history", "unique_cars_history",
 	"unique_employees", "unique_cars", "unique_attachment_histories", "unique_attachments",

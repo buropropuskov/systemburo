@@ -159,6 +159,14 @@
               </button>
               <button
                 v-if="selectedAttachment.is_active"
+                class="action-btn template-btn"
+                data-testid="attachment-fields-btn"
+                @click="openFieldsConfig(selectedAttachment)"
+              >
+                Настройка полей
+              </button>
+              <button
+                v-if="selectedAttachment.is_active"
                 class="action-btn archive-action-btn"
                 data-testid="attachment-archive"
                 @click="onArchiveClick(selectedAttachment)"
@@ -446,6 +454,13 @@
       :current-user-name="currentUserName"
       @close="historyForAttachment = null"
     />
+
+    <AttachmentFieldsModal
+      v-if="fieldsForAttachment"
+      :unique-attachment-id="fieldsForAttachment.id"
+      :attachment-name="fieldsForAttachment.name"
+      @close="fieldsForAttachment = null"
+    />
   </div>
 </template>
 
@@ -457,6 +472,7 @@ import TextConstructor from './TextConstructor.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import AttachmentCustomFields from './admin/AttachmentCustomFields.vue';
+import AttachmentFieldsModal from './admin/AttachmentFieldsModal.vue';
 import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -487,6 +503,7 @@ export default {
     BaseDropdown,
     LoaderSpinner,
     AttachmentCustomFields,
+    AttachmentFieldsModal,
     AttachmentTemplateEditor,
     UniqueAttachmentHistoryModal,
   },
@@ -517,6 +534,7 @@ export default {
       isAdding: false,
       archiveConfirm: null,
       historyForAttachment: null,
+      fieldsForAttachment: null,
       currentUserName: '',
       archiveOptions: [
         { label: 'Активные', value: 'active' },
@@ -827,6 +845,9 @@ export default {
     openHistory(a) {
       // Подпись в заголовке - актуальное наименование (из формы, если правилось).
       this.historyForAttachment = { id: a.id, name: this.original.display_name || a.display_name };
+    },
+    openFieldsConfig(a) {
+      this.fieldsForAttachment = { id: a.id, name: this.original.display_name || a.display_name };
     },
     async fetchCurrentUser() {
       // Имя нужно для футера Excel-экспорта истории ("Отчёт сформировал").

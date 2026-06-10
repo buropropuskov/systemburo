@@ -81,6 +81,32 @@ export async function getTemplateFields(uniqueAttachmentID) {
   return res.json();
 }
 
+// --- Field Config (базовые поля: видимость/обязательность) ---
+
+/**
+ * Настройка полей вложения: базовые поля реестра типа (смерженные с оверрайдами)
+ * и кастомные поля. Единый источник для админ-модалки и формы подачи (#529).
+ * @returns {Promise<{ base: Array, custom: Array }>}
+ */
+export async function getFieldConfig(uniqueAttachmentID) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/field-config`);
+  return res.json();
+}
+
+/**
+ * Сохранить оверрайды видимости/обязательности базовых полей (bulk-upsert).
+ * Залоченные поля (дата/время) бэк игнорирует.
+ * @param {number} uniqueAttachmentID
+ * @param {Array<{ key: string, visible: boolean, required: boolean }>} base
+ */
+export async function saveFieldConfig(uniqueAttachmentID, base) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/field-config`, {
+    method: 'PUT',
+    body: JSON.stringify({ base }),
+  });
+  return res.json();
+}
+
 // --- Custom Fields ---
 
 export async function listCustomFields(uniqueAttachmentID) {

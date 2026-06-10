@@ -138,12 +138,13 @@ func MergeFieldConfig(attachmentType string, overrides []models.AttachmentFieldC
 			}
 		}
 		out = append(out, models.MergedField{
-			Key:      d.Key,
-			Label:    d.Label,
-			Group:    d.Group,
-			Visible:  visible,
-			Required: required,
-			Locked:   d.Locked,
+			Key:        d.Key,
+			Label:      d.Label,
+			Group:      d.Group,
+			Visible:    visible,
+			Required:   required,
+			Requirable: d.Requirable,
+			Locked:     d.Locked,
 		})
 	}
 	return out
