@@ -9,7 +9,8 @@ import "systemburo/internal/models"
 // разъехался бы с кодом. БД (attachment_field_config) хранит только оверрайды.
 //
 // Дефолты visible/required отражают ТЕКУЩЕЕ поведение форм (сверено со срезом H-1):
-//   - common даты/время обязательны (CreateApplication.vue hasValidDates);
+//   - common даты/время ЗАЛОЧЕНЫ (Locked): всегда видимы и обязательны, не
+//     настраиваются - заявка без периода действия бессмысленна (решение владельца 10.06);
 //   - роof/parking/notify - булевые чекбоксы, required для них не имеет смысла
 //     (Requirable=false): значение есть всегда;
 //   - people/cars/items - required совпадает со звёздочками и useFormValidation форм.
@@ -32,15 +33,20 @@ type FieldDef struct {
 	// Requirable=false для булевых чекбоксов (роof/parking/notify): значение всегда
 	// есть, тумблер "обязательно" бессмыслен. Оверрайд required для них игнорируется.
 	Requirable bool
+	// Locked=true: поле нельзя настроить (всегда visible+required). Не показывается
+	// в админ-модалке настройки, любые оверрайды из БД игнорируются. Для common
+	// даты/времени - период действия обязателен у каждой заявки.
+	Locked bool
 }
 
 // attachmentFieldRegistry - полный реестр. Порядок = порядок показа в UI.
 var attachmentFieldRegistry = []FieldDef{
-	// common - присутствует у всех типов вложения
-	{Key: "entry_date_from", Label: "Дата въезда с", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true},
-	{Key: "entry_date_to", Label: "Дата въезда по", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true},
-	{Key: "entry_time_from", Label: "Время с", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true},
-	{Key: "entry_time_to", Label: "Время по", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true},
+	// common - присутствует у всех типов вложения.
+	// Дата/время залочены: период действия обязателен у каждой заявки, не настраивается.
+	{Key: "entry_date_from", Label: "Дата въезда с", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true, Locked: true},
+	{Key: "entry_date_to", Label: "Дата въезда по", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true, Locked: true},
+	{Key: "entry_time_from", Label: "Время с", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true, Locked: true},
+	{Key: "entry_time_to", Label: "Время по", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true, Locked: true},
 	{Key: "roof_access", Label: "Доступ на крышу", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
 	{Key: "free_parking", Label: "Свободная парковка", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
 	{Key: "notify_situation_center", Label: "Уведомить ситуационный центр", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
@@ -107,6 +113,7 @@ func fieldDefByKey(attachmentType string) map[string]FieldDef {
 // MergeFieldConfig мержит реестр типа вложения с оверрайдами из БД.
 // Где оверрайда нет - берётся дефолт реестра. Для не-Requirable полей
 // (булевые чекбоксы) required всегда false независимо от оверрайда.
+// Залоченные поля (Locked) всегда visible+required, оверрайды для них игнорируются.
 func MergeFieldConfig(attachmentType string, overrides []models.AttachmentFieldConfig) []models.MergedField {
 	byKey := make(map[string]models.AttachmentFieldConfig, len(overrides))
 	for _, o := range overrides {
@@ -117,12 +124,18 @@ func MergeFieldConfig(attachmentType string, overrides []models.AttachmentFieldC
 	out := make([]models.MergedField, 0, len(defs))
 	for _, d := range defs {
 		visible, required := d.DefaultVisible, d.DefaultRequired
-		if o, ok := byKey[d.Key]; ok {
-			visible = o.Visible
-			required = o.Required
-		}
-		if !d.Requirable {
-			required = false
+		switch {
+		case d.Locked:
+			// Залоченные (дата/время) - всегда видимы и обязательны, оверрайд не применяется.
+			visible, required = true, true
+		default:
+			if o, ok := byKey[d.Key]; ok {
+				visible = o.Visible
+				required = o.Required
+			}
+			if !d.Requirable {
+				required = false
+			}
 		}
 		out = append(out, models.MergedField{
 			Key:      d.Key,
@@ -130,6 +143,7 @@ func MergeFieldConfig(attachmentType string, overrides []models.AttachmentFieldC
 			Group:    d.Group,
 			Visible:  visible,
 			Required: required,
+			Locked:   d.Locked,
 		})
 	}
 	return out

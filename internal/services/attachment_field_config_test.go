@@ -242,6 +242,58 @@ func TestBuildFieldConfigRows_ForcesNonRequirableFalse(t *testing.T) {
 	}
 }
 
+func TestRegistryDateTimeLocked(t *testing.T) {
+	lockedKeys := []string{"entry_date_from", "entry_date_to", "entry_time_from", "entry_time_to"}
+	defs := FieldRegistryFor("people")
+	for _, k := range lockedKeys {
+		d, ok := defByKey(defs, k)
+		if !ok {
+			t.Fatalf("нет поля %q", k)
+		}
+		if !d.Locked {
+			t.Errorf("%s должен быть Locked", k)
+		}
+	}
+	// прочие поля не залочены
+	for _, k := range []string{"roof_access", "last_name", "passport"} {
+		if d, _ := defByKey(defs, k); d.Locked {
+			t.Errorf("%s не должен быть Locked", k)
+		}
+	}
+}
+
+func TestMergeFieldConfig_LockedForcedAndIgnoresOverride(t *testing.T) {
+	// оверрайд пытается скрыть/снять обязательность даты - должен игнорироваться
+	overrides := []models.AttachmentFieldConfig{
+		{FieldKey: "entry_date_from", Visible: false, Required: false},
+		{FieldKey: "entry_time_to", Visible: false, Required: false},
+	}
+	merged := MergeFieldConfig("cars", overrides)
+	for _, k := range []string{"entry_date_from", "entry_time_to"} {
+		f, ok := mergedByKey(merged, k)
+		if !ok {
+			t.Fatalf("нет %q", k)
+		}
+		if !f.Visible || !f.Required || !f.Locked {
+			t.Errorf("%s залочен: visible=%v required=%v locked=%v, ожидалось true/true/true", k, f.Visible, f.Required, f.Locked)
+		}
+	}
+}
+
+func TestBuildFieldConfigRows_SkipsLocked(t *testing.T) {
+	items := []models.FieldConfigItem{
+		{Key: "entry_date_from", Visible: false, Required: false}, // залочен - не персистится
+		{Key: "number", Visible: false, Required: false},
+	}
+	rows := buildFieldConfigRows("cars", 3, items)
+	if len(rows) != 1 {
+		t.Fatalf("ожидалась 1 строка (залоченное поле пропущено), got %d", len(rows))
+	}
+	if rows[0].FieldKey != "number" {
+		t.Errorf("ожидался number, got %q", rows[0].FieldKey)
+	}
+}
+
 func TestUnknownFieldKeys(t *testing.T) {
 	tests := []struct {
 		name    string
