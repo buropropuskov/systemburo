@@ -168,7 +168,7 @@
                   <label class="detail-label">Наименование типа:</label>
                   <input
                     v-model="selectedType.name"
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="Название типа"
                     autocomplete="off"
                     :disabled="selectedType.is_system"
@@ -180,7 +180,7 @@
                   <label class="detail-label">Системное имя:</label>
                   <input 
                     v-model="selectedType.code" 
-                    class="form-input-sm"
+                    class="lk-input"
                     disabled
                     placeholder="Системное имя"
                   >
@@ -957,27 +957,6 @@ export default {
   font-weight:400;
 }
 
-.form-input-sm {
-  padding:5px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: var(--radius-md);
-  font-size: 0.8em;
-  height: 35px;
-  transition: border-color 0.2s ease;
-  background: #fff;
-  width: 300px;
-}
-
-.form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
-}
-
-.form-input-sm:disabled {
-  background: #f5f5f5;
-  color: #999;
-}
-
 .form-hint {
   font-size: 0.7em;
   color: #999;
@@ -1203,11 +1182,6 @@ export default {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
-  }
-  
-  .form-input-sm,
-  .form-input {
-    width: 100% !important;
   }
 }
 </style>

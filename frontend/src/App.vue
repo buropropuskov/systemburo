@@ -181,10 +181,6 @@ body.nav-drawer-open {
   overflow: hidden;
 }
 
-.form-input-sm {
-  border-radius: 15px !important;
-}
-
 /* Включает анимацию transition между length и intrinsic-значениями (auto / max-content)
    для width/height/max-width/min-width. Без этого схлопывание столбца таблицы
    через max-width: 0 -> auto обратно не анимируется и даёт визуальный скачок

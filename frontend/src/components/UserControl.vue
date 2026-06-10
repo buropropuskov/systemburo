@@ -239,7 +239,7 @@
                   <label class="detail-label">Фамилия:</label>
                   <input 
                     v-model="selectedUser.last_name" 
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="Введите фамилию"
                     autocomplete="new-password"
                     autocorrect="off"
@@ -253,7 +253,7 @@
                   <label class="detail-label">Отчество:</label>
                   <input 
                     v-model="selectedUser.middle_name" 
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="Введите отчество"
                     autocomplete="new-password"
                     autocorrect="off"
@@ -280,7 +280,7 @@
                   <label class="detail-label">Должность:</label>
                   <input 
                     v-model="selectedUser.position" 
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="Введите должность"
                     autocomplete="new-password"
                     autocorrect="off"
@@ -297,7 +297,7 @@
                   <label class="detail-label">Имя:</label>
                   <input 
                     v-model="selectedUser.first_name" 
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="Введите имя"
                     autocomplete="new-password"
                     autocorrect="off"
@@ -311,7 +311,7 @@
                   <label class="detail-label">Телефон:</label>
                   <input
                     :value="selectedUser.phone"
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="+7 (___) ___ __-__"
                     type="tel"
                     autocomplete="new-password"
@@ -340,7 +340,7 @@
                   <label class="detail-label">Email:</label>
                   <input 
                     v-model="selectedUser.email" 
-                    class="form-input-sm"
+                    class="lk-input"
                     placeholder="Введите email"
                     type="email"
                     autocomplete="new-password"
@@ -1591,22 +1591,6 @@ export default {
    вровень с соседними инпутами (а не полужирным весом BaseDropdown по умолчанию). */
 .detail-group :deep(.base-dropdown__text) {
   font-weight: 400;
-}
-
-/* Уменьшенные инпуты */
-.form-input-sm {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 15px;
-  font-size: 14px;
-  width: 100%;
-  height: 32px;
-  transition: border-color 0.2s;
-}
-
-.form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
 }
 
 .full-width {
