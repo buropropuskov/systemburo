@@ -249,12 +249,19 @@ export default {
                 return;
             }
             
-            // Фильтруем пустые строки
-            const validItems = this.tempItems.filter(item => 
-                item.itemName && item.itemName.trim() && 
-                item.quantity && item.quantity >= 1
-            );
-            
+            // Валидность строки - тот же конфиг-aware критерий, что и canAddItems:
+            // скрытое/необязательное поле не делает строку невалидной. Иначе при
+            // скрытом item_name validItems пустел и addItems молча ничего не эмитил.
+            const nameVisible = this.fieldVisible('item_name');
+            const quantityVisible = this.fieldVisible('quantity');
+            const nameRequired = this.fieldRequired('item_name');
+            const quantityRequired = this.fieldRequired('quantity');
+            const validItems = this.tempItems.filter(item => {
+                const nameOk = !nameVisible || !nameRequired || (item.itemName && item.itemName.trim());
+                const quantityOk = !quantityVisible || !quantityRequired || (item.quantity && item.quantity >= 1);
+                return nameOk && quantityOk;
+            });
+
             if (validItems.length === 0) {
                 return;
             }

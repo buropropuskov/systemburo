@@ -94,6 +94,17 @@ describe('ItemsForm - потребление field-config (#529)', () => {
     // item_name пустой, но required=false - quantity=1 (дефолт)
     expect(w.vm.canAddItems).toBe(true);
   });
+
+  it('addItems эмитит при скрытом item_name, а не молчит (red H-8)', async () => {
+    const w = mount(ItemsForm, {
+      props: { fieldConfig: { item_name: { visible: false, required: true } } },
+    });
+    // item_name скрыт, quantity=1 (дефолт) -> строка валидна, эмит должен произойти
+    w.vm.addItems();
+    await w.vm.$nextTick();
+    expect(w.emitted('item-added')).toBeTruthy();
+    expect(w.emitted('item-added')[0][0].quantity).toBe(1);
+  });
 });
 
 describe('CustomFieldsSection - is_required + submitted (#529)', () => {
