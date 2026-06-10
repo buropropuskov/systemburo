@@ -85,6 +85,95 @@
                   </div>
                 </div>
               </div>
+
+              <div class="fields-group custom-group">
+                <div class="group-title">
+                  Дополнительные поля
+                </div>
+                <p class="custom-hint">
+                  Произвольные текстовые поля, заполняются при подаче заявки.
+                  Порядок задаёт расположение в форме.
+                </p>
+
+                <div
+                  v-if="!customFields.length"
+                  class="custom-empty"
+                >
+                  Дополнительных полей нет
+                </div>
+
+                <div
+                  v-for="(cf, i) in customFields"
+                  :key="cf.uid"
+                  class="custom-row"
+                  :data-testid="`custom-row-${i}`"
+                >
+                  <div class="custom-inputs">
+                    <input
+                      v-model="cf.label"
+                      class="lk-input custom-input"
+                      maxlength="200"
+                      placeholder="Заголовок"
+                      :data-testid="`custom-label-${i}`"
+                    >
+                    <input
+                      v-model="cf.placeholder"
+                      class="lk-input custom-input"
+                      maxlength="200"
+                      placeholder="Плейсхолдер"
+                      :data-testid="`custom-placeholder-${i}`"
+                    >
+                  </div>
+                  <div class="custom-controls">
+                    <ToggleSwitch
+                      v-model="cf.required"
+                      :data-testid="`custom-required-${i}`"
+                    >
+                      Обязательно
+                    </ToggleSwitch>
+                    <div class="custom-order">
+                      <button
+                        type="button"
+                        class="order-btn"
+                        aria-label="Переместить выше"
+                        :disabled="i === 0"
+                        :data-testid="`custom-up-${i}`"
+                        @click="moveCustom(i, -1)"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        class="order-btn"
+                        aria-label="Переместить ниже"
+                        :disabled="i === customFields.length - 1"
+                        :data-testid="`custom-down-${i}`"
+                        @click="moveCustom(i, 1)"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="custom-delete"
+                      aria-label="Удалить поле"
+                      :data-testid="`custom-delete-${i}`"
+                      @click="removeCustom(i)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="lk-button lk-button--ghost custom-add"
+                  data-testid="custom-add"
+                  @click="addCustom"
+                >
+                  + Добавить поле
+                </button>
+              </div>
             </template>
           </div>
 
@@ -113,7 +202,10 @@
 
 <script>
 import { ref } from 'vue';
-import { getFieldConfig, saveFieldConfig } from '@/api/attachment-templates';
+import {
+  getFieldConfig, saveFieldConfig,
+  createCustomField, updateCustomField, deleteCustomField,
+} from '@/api/attachment-templates';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
@@ -153,6 +245,13 @@ export default {
       fields: [],
       // Снимок настраиваемых полей на момент загрузки - для проверки "грязности".
       original: '',
+      // Кастомные поля редактируются в памяти, коммитятся одним "Сохранить" вместе
+      // с базовыми. Порядок в массиве = sort_order. uid - стабильный ключ списка
+      // (id у новых строк ещё нет, нужен счётчик, иначе reorder путает инпуты).
+      customFields: [],
+      originalCustom: '',
+      deletedCustomIds: [],
+      customUidSeq: 0,
     };
   },
   computed: {
@@ -176,8 +275,20 @@ export default {
         .filter((f) => !f.locked)
         .map((f) => ({ key: f.key, visible: f.visible, required: f.required }));
     },
-    isDirty() {
+    isBaseDirty() {
       return JSON.stringify(this.payload) !== this.original;
+    },
+    // Снимок кастомных полей в порядке массива (order значим) - для "грязности".
+    customSnapshot() {
+      return JSON.stringify(this.customFields.map((c) => ({
+        id: c.id, label: c.label, placeholder: c.placeholder, required: c.required,
+      })));
+    },
+    isCustomDirty() {
+      return this.customSnapshot !== this.originalCustom || this.deletedCustomIds.length > 0;
+    },
+    isDirty() {
+      return this.isBaseDirty || this.isCustomDirty;
     },
   },
   mounted() {
@@ -207,6 +318,17 @@ export default {
           locked: f.locked,
         }));
         this.original = JSON.stringify(this.payload);
+
+        const custom = Array.isArray(data?.custom) ? data.custom : [];
+        this.deletedCustomIds = [];
+        this.customFields = custom.map((c) => ({
+          uid: this.customUidSeq++,
+          id: c.id,
+          label: c.label || '',
+          placeholder: c.placeholder || '',
+          required: !!c.is_required,
+        }));
+        this.originalCustom = this.customSnapshot;
       } catch (error) {
         console.error('Error loading field config:', error);
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'настройку полей', type: 'error' });
@@ -215,11 +337,57 @@ export default {
         this.loading = false;
       }
     },
+    addCustom() {
+      this.customFields.push({
+        uid: this.customUidSeq++, id: null, label: '', placeholder: '', required: false,
+      });
+    },
+    removeCustom(i) {
+      const cf = this.customFields[i];
+      if (cf?.id != null) this.deletedCustomIds.push(cf.id);
+      this.customFields.splice(i, 1);
+    },
+    moveCustom(i, dir) {
+      const j = i + dir;
+      if (j < 0 || j >= this.customFields.length) return;
+      const arr = this.customFields;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    },
+    // Коммит кастомных полей: удаления, затем upsert в порядке массива (index = sort_order).
+    // Существующие всегда PUT-им (идемпотентно) - проще, чем дифать измененные.
+    // Резюмируемо: снимаем удаления из очереди и проставляем id созданным по мере
+    // успеха, чтобы повторный "Сохранить" после частичного сбоя не дублировал.
+    async commitCustom() {
+      while (this.deletedCustomIds.length) {
+        await deleteCustomField(this.deletedCustomIds[0]);
+        this.deletedCustomIds.shift();
+      }
+      for (let i = 0; i < this.customFields.length; i += 1) {
+        const cf = this.customFields[i];
+        const body = {
+          label: cf.label.trim(),
+          placeholder: cf.placeholder || '',
+          sortOrder: i,
+          isRequired: cf.required,
+        };
+        if (cf.id == null) {
+          const created = await createCustomField(this.uniqueAttachmentId, body);
+          if (created?.id != null) cf.id = created.id;
+        } else {
+          await updateCustomField(cf.id, body);
+        }
+      }
+    },
     async save() {
       if (!this.isDirty || this.isSaving) return;
+      if (this.customFields.some((c) => !c.label.trim())) {
+        useDeletionsStore().notify({ prefix: 'Заполните ', bold: 'заголовок поля', type: 'error' });
+        return;
+      }
       this.isSaving = true;
       try {
-        await saveFieldConfig(this.uniqueAttachmentId, this.payload);
+        if (this.isBaseDirty) await saveFieldConfig(this.uniqueAttachmentId, this.payload);
+        if (this.isCustomDirty) await this.commitCustom();
         useDeletionsStore().notify({ prefix: 'Настройка полей ', bold: 'сохранена', type: 'success' });
         this.$emit('saved');
         this.requestClose();
@@ -402,5 +570,97 @@ export default {
   gap: 10px;
   padding: 15px 25px;
   border-top: 1px solid #e6e6e6;
+}
+
+.custom-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a2a2a2;
+}
+
+.custom-empty {
+  font-size: 13px;
+  color: #a2a2a2;
+  padding: 8px 0 12px;
+}
+
+.custom-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.custom-inputs {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.custom-order {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.order-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f6f8;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  color: #555;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.order-btn:hover:not(:disabled) {
+  background: #e9ebef;
+  color: #333;
+}
+
+.order-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.custom-delete {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: #c0392b;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.custom-delete:hover {
+  background: #fdecea;
+}
+
+.custom-add {
+  margin-top: 12px;
 }
 </style>

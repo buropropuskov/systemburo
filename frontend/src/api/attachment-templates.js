@@ -114,18 +114,26 @@ export async function listCustomFields(uniqueAttachmentID) {
   return res.json();
 }
 
-export async function createCustomField(uniqueAttachmentID, { label, placeholder = '', sortOrder = 0 }) {
+export async function createCustomField(uniqueAttachmentID, {
+  label, placeholder = '', sortOrder = 0, isRequired = false,
+}) {
   const res = await apiRequest(`/attachments/${uniqueAttachmentID}/custom-fields`, {
     method: 'POST',
-    body: JSON.stringify({ label, placeholder, sort_order: sortOrder }),
+    body: JSON.stringify({
+      label, placeholder, sort_order: sortOrder, is_required: isRequired,
+    }),
   });
   return res.json();
 }
 
-export async function updateCustomField(fieldID, { label, placeholder = '', sortOrder = 0 }) {
+export async function updateCustomField(fieldID, {
+  label, placeholder = '', sortOrder = 0, isRequired = false,
+}) {
   const res = await apiRequest(`/attachments/custom-fields/${fieldID}`, {
     method: 'PUT',
-    body: JSON.stringify({ label, placeholder, sort_order: sortOrder }),
+    body: JSON.stringify({
+      label, placeholder, sort_order: sortOrder, is_required: isRequired,
+    }),
   });
   return res.json();
 }
