@@ -292,7 +292,7 @@
                     <label class="detail-label">Наименование таблицы:</label>
                     <input 
                       v-model="selectedTable.table.display_name" 
-                      class="form-input-sm"
+                      class="lk-input"
                       placeholder="Название таблицы"
                       autocomplete="off"
                       @change="updateTableField('display_name')"
@@ -1738,21 +1738,6 @@ export default {
   font-size: 12px;
   color: #a2a2a2;
   line-height: 1.5;
-}
-
-.form-input-sm {
-  padding: 8px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  font-size: 13px;
-  width: 100%;
-  transition: border-color 0.2s;
-  background: #fff;
-}
-
-.form-input-sm:focus {
-  border-color: #4F5BDF;
-  outline: none;
 }
 
 .form-textarea {
