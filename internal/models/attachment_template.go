@@ -134,6 +134,9 @@ type MergedField struct {
 	Group    string `json:"group"`
 	Visible  bool   `json:"visible"`
 	Required bool   `json:"required"`
+	// Requirable=false для булевых чекбоксов (крыша/парковка/уведомление): тумблер
+	// "обязательно" для них бессмыслен. Админ-модалка по нему прячет этот тумблер.
+	Requirable bool `json:"requirable"`
 	// Locked=true: поле не настраивается (дата/время). Админ-модалка не показывает
 	// для него тумблеры, форма подачи рендерит как обязательное всегда.
 	Locked bool `json:"locked"`
