@@ -162,6 +162,7 @@
             :free-parking="currentAttachmentData.freeParking"
             :notify-situation-center="currentAttachmentData.notifySituationCenter"
             :errors="currentAttachmentErrors"
+            :field-config="currentFieldConfig"
             @update:is-one-day="updateAttachmentData('isOneDay', $event)"
             @update:start-date="updateAttachmentData('startDate', $event)"
             @update:end-date="updateAttachmentData('endDate', $event)"
@@ -181,9 +182,10 @@
         <div class="form__data">
           <!-- Для автомобилей -->
           <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
-            <VehicleForm 
+            <VehicleForm
               :key="vehicleFormKey"
               ref="vehicleForm"
+              :field-config="currentFieldConfig"
               :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
@@ -208,9 +210,10 @@
 
           <!-- Для людей/сотрудников -->
           <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'people'">
-            <EmployeeForm 
+            <EmployeeForm
               :key="employeeFormKey"
               ref="employeeForm"
+              :field-config="currentFieldConfig"
               :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
@@ -234,9 +237,10 @@
 
           <!-- Для ТМЦ -->
           <template v-else-if="selectedAttachment && selectedAttachment.attachment_type === 'items'">
-            <ItemsForm 
+            <ItemsForm
               :key="itemsFormKey"
               ref="itemsForm"
+              :field-config="currentFieldConfig"
               :existing-items="items"
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
@@ -386,6 +390,9 @@ export default {
 
             customFieldsByAttachment: {},
             customFieldDefinitions: {},
+            // Настройка полей по UniqueAttachment (#529): { [uaId]: { [fieldKey]: { visible, required, locked, requirable } } }.
+            // Источник - GET /attachments/{id}/field-config (base). Раздаётся секциям формы пропсом field-config.
+            fieldConfigByAttachment: {},
         }
     },
     computed: {
@@ -421,6 +428,12 @@ export default {
             if (!this.selectedAttachment) return {};
             const key = this.attachmentKey(this.selectedAttachment);
             return this.customFieldsByAttachment[key] || {};
+        },
+
+        currentFieldConfig() {
+            if (!this.selectedAttachment) return {};
+            const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
+            return this.fieldConfigByAttachment[uaId] || {};
         },
 
         currentAttachmentData() {
@@ -951,13 +964,28 @@ export default {
             this.customFieldsByAttachment[key] = values;
         },
 
-        async loadCustomFields(uniqueAttachmentId) {
-            if (this.customFieldDefinitions[uniqueAttachmentId]) return;
+        async loadFieldConfig(uniqueAttachmentId) {
+            if (this.fieldConfigByAttachment[uniqueAttachmentId]) return;
             try {
-                const { listCustomFields } = await import('@/api/attachment-templates');
-                const data = await listCustomFields(uniqueAttachmentId);
-                this.customFieldDefinitions[uniqueAttachmentId] = Array.isArray(data) ? data : [];
+                const { getFieldConfig } = await import('@/api/attachment-templates');
+                const data = await getFieldConfig(uniqueAttachmentId);
+                const base = Array.isArray(data?.base) ? data.base : [];
+                const map = {};
+                base.forEach((f) => {
+                    map[f.key] = {
+                        visible: f.visible,
+                        required: f.required,
+                        locked: f.locked,
+                        requirable: f.requirable,
+                    };
+                });
+                this.fieldConfigByAttachment[uniqueAttachmentId] = map;
+                this.customFieldDefinitions[uniqueAttachmentId] = Array.isArray(data?.custom) ? data.custom : [];
             } catch {
+                // Конфиг недоступен (сеть/транзиентная ошибка) - деградируем к дефолту:
+                // дефолт = все поля видимы, обязательность как сейчас (спека #529). Пустой
+                // объект falsy -> следующий выбор вложения повторит запрос.
+                this.fieldConfigByAttachment[uniqueAttachmentId] = {};
                 this.customFieldDefinitions[uniqueAttachmentId] = [];
             }
         },
@@ -973,7 +1001,7 @@ export default {
             this.restoreAttachmentData(attachment);
 
             const uaId = attachment.template_id || attachment.id;
-            this.loadCustomFields(uaId);
+            this.loadFieldConfig(uaId);
         },
 
         attachmentKey(attachment) {
@@ -1033,7 +1061,7 @@ export default {
             this.selectAttachment(attachment);
 
             const uaId = attachment.template_id || attachment.id;
-            this.loadCustomFields(uaId);
+            this.loadFieldConfig(uaId);
 
             this.saveToLocalStorage();
         },
@@ -1949,6 +1977,7 @@ export default {
             this.attachmentDatesByAttachment = {};
             this.customFieldsByAttachment = {};
             this.customFieldDefinitions = {};
+            this.fieldConfigByAttachment = {};
 
             this.vehicleIdCounter = 1;
             this.employeeIdCounter = 1;

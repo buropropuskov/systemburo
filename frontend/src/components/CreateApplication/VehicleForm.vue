@@ -370,6 +370,12 @@ export default {
         existingVehicles: {
             type: Array,
             default: () => []
+        },
+        // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
+        // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей машин) - срез H-7.
+        fieldConfig: {
+            type: Object,
+            default: () => ({})
         }
     },
     emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added'],

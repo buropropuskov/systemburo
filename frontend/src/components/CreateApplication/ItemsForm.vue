@@ -115,6 +115,12 @@ export default {
         existingItems: {
             type: Array,
             default: () => []
+        },
+        // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
+        // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей предметов) - срез H-8.
+        fieldConfig: {
+            type: Object,
+            default: () => ({})
         }
     },
     emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added'],

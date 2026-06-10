@@ -1,7 +1,13 @@
 <template>
   <div class="date-range-section">
-    <div class="date__input">
-      <label class="input__label">Дата действия <span class="required">*</span></label>
+    <div
+      v-if="fieldVisible('entry_date_from')"
+      class="date__input"
+    >
+      <label class="input__label">Дата действия <span
+        v-if="fieldRequired('entry_date_from')"
+        class="required"
+      >*</span></label>
       <div class="quick-dates">
         <button
           type="button"
@@ -325,8 +331,14 @@
         <p>однодневная заявка</p>
       </div>
     </div>
-    <div class="date__input time-section">
-      <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+    <div
+      v-if="fieldVisible('entry_time_from')"
+      class="date__input time-section"
+    >
+      <label class="input__label">Время пребывания (проезда) <span
+        v-if="fieldRequired('entry_time_from')"
+        class="required"
+      >*</span></label>
       <div class="time-wrapper">
         <div class="time-input-group">
           <p class="date__text">
@@ -389,7 +401,10 @@ export default {
         roofAccess: Boolean,
         freeParking: Boolean,
         notifySituationCenter: Boolean,
-        errors: { type: Object, default: () => ({}) }
+        errors: { type: Object, default: () => ({}) },
+        // Настройка полей выбранного шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
+        // Дата/время реестром залочены (всегда visible+required) - хелперы ниже для них резолвятся в true.
+        fieldConfig: { type: Object, default: () => ({}) }
     },
     emits: [
         'update:is-one-day',
@@ -502,6 +517,16 @@ export default {
         this.validateTimeCrossing();
     },
     methods: {
+        // Видимость поля по конфигу шаблона. Нет строки конфига -> поле видимо (дефолт).
+        fieldVisible(key) {
+            const c = this.fieldConfig[key];
+            return c ? c.visible : true;
+        },
+        // Обязательность поля по конфигу. Нет строки -> обязательно (текущее поведение дат/времени).
+        fieldRequired(key) {
+            const c = this.fieldConfig[key];
+            return c ? c.required : true;
+        },
         setQuickDate(kind) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
