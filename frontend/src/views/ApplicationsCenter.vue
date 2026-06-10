@@ -285,6 +285,16 @@
                     @click.stop="copyApplicationNumber(application.application_number)"
                     @keydown.enter.prevent="copyApplicationNumber(application.application_number)"
                   >{{ application.application_number }}</span>
+                  <Badge
+                    v-if="blacklistFlagCount(application) > 0"
+                    variant="danger"
+                    size="sm"
+                    dot
+                    class="blacklist-flag-badge"
+                    :title="blacklistFlagTitle()"
+                  >
+                    {{ blacklistFlagLabel(application) }}
+                  </Badge>
                 </div>
                 <div class="application-col date-col">
                   {{ formatDateTime(application.sending_datetime) }}
@@ -365,6 +375,8 @@ import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
+import Badge from '@/components/ui/Badge.vue';
+import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { useToast } from '@/composables/useToast';
 
 export default {
@@ -378,6 +390,7 @@ export default {
         SkeletonTransition,
         SkeletonTable,
         DownloadBlanksModal,
+        Badge,
     },
     emits: ['refresh-data'],
     data() {
@@ -831,7 +844,13 @@ export default {
             };
             return statusClasses[status] || 'status-default';
         },
-        
+
+        blacklistFlagCount,
+        blacklistFlagLabel,
+        blacklistFlagTitle() {
+            return BLACKLIST_FLAG_TITLE;
+        },
+
         // API методы
         async fetchApplications() {
             this.refreshing = true;
@@ -1335,6 +1354,14 @@ export default {
 
 .number-col {
     width: 15%;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.blacklist-flag-badge {
+    max-width: 100%;
 }
 
 .date-col {
@@ -1461,7 +1488,7 @@ export default {
     padding: 6px 16px;
     align-items: center;
     border-bottom: 1px solid #f0f0f0;
-    height: 40px;
+    min-height: 40px;
 }
 
 .application-col {
