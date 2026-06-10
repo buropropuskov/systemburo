@@ -40,11 +40,23 @@
             <div class="header-cell number-header">
               <label class="input__label">№</label>
             </div>
-            <div class="header-cell name-header">
-              <label class="input__label">Наименование ТМЦ <span class="required">*</span></label>
+            <div
+              v-if="fieldVisible('item_name')"
+              class="header-cell name-header"
+            >
+              <label class="input__label">Наименование ТМЦ <span
+                v-if="fieldRequired('item_name')"
+                class="required"
+              >*</span></label>
             </div>
-            <div class="header-cell quantity-header">
-              <label class="input__label">Количество <span class="required">*</span></label>
+            <div
+              v-if="fieldVisible('quantity')"
+              class="header-cell quantity-header"
+            >
+              <label class="input__label">Количество <span
+                v-if="fieldRequired('quantity')"
+                class="required"
+              >*</span></label>
             </div>
             <div class="header-cell actions-header" />
           </div>
@@ -58,24 +70,30 @@
               <div class="table-cell number-cell">
                 <span class="item-number">{{ index + 1 }}</span>
               </div>
-              <div class="table-cell name-cell">
-                <input 
-                  v-model="item.itemName" 
+              <div
+                v-if="fieldVisible('item_name')"
+                class="table-cell name-cell"
+              >
+                <input
+                  v-model="item.itemName"
                   type="text"
                   placeholder="Введите наименование"
                   class="name__input"
-                  :class="{ 'input--error': !item.itemName && submitted }"
+                  :class="{ 'input--error': fieldRequired('item_name') && !item.itemName && submitted }"
                   @input="updateItem(index, $event.target.value, 'itemName')"
                 >
               </div>
-              <div class="table-cell quantity-cell">
-                <input 
-                  v-model.number="item.quantity" 
+              <div
+                v-if="fieldVisible('quantity')"
+                class="table-cell quantity-cell"
+              >
+                <input
+                  v-model.number="item.quantity"
                   type="number"
                   min="1"
                   placeholder="1"
                   class="name__input"
-                  :class="{ 'input--error': (!item.quantity || item.quantity < 1) && submitted }"
+                  :class="{ 'input--error': fieldRequired('quantity') && (!item.quantity || item.quantity < 1) && submitted }"
                   @input="updateItem(index, parseInt($event.target.value) || 1, 'quantity')"
                 >
               </div>
@@ -109,6 +127,8 @@
 </template>
 
 <script>
+import { useFieldConfig } from '@/composables/useFieldConfig';
+
 export default {
     name: 'ItemsForm',
     props: {
@@ -117,13 +137,16 @@ export default {
             default: () => []
         },
         // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
-        // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей предметов) - срез H-8.
+        // Раздаётся из CreateApplication; fieldVisible/fieldRequired через useFieldConfig.
         fieldConfig: {
             type: Object,
             default: () => ({})
         }
     },
     emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added'],
+    setup(props) {
+        return useFieldConfig(() => props.fieldConfig);
+    },
     data() {
         return {
             tempItems: [
@@ -142,26 +165,32 @@ export default {
     },
     computed: {
         canAddItems() {
-            // Проверяем, что все строки заполнены правильно
-            return this.tempItems.every(item => 
-                item.itemName && item.itemName.trim() && 
-                item.quantity && item.quantity >= 1
-            ) && this.tempItems.length > 0;
+            const nameVisible = this.fieldVisible('item_name');
+            const quantityVisible = this.fieldVisible('quantity');
+            const nameRequired = this.fieldRequired('item_name');
+            const quantityRequired = this.fieldRequired('quantity');
+            return this.tempItems.every(item => {
+                const nameOk = !nameVisible || !nameRequired || (item.itemName && item.itemName.trim());
+                const quantityOk = !quantityVisible || !quantityRequired || (item.quantity && item.quantity >= 1);
+                return nameOk && quantityOk;
+            }) && this.tempItems.length > 0;
         },
         getTooltipMessage() {
-            const invalidItems = this.tempItems.filter(item => 
-                !item.itemName || !item.itemName.trim() || 
-                !item.quantity || item.quantity < 1
-            );
-            
-            if (invalidItems.length > 0) {
-                return 'Заполните все обязательные поля (Наименование ТМЦ и количество)';
-            }
-            
             if (this.tempItems.length === 0) {
                 return 'Добавьте хотя бы одну ТМЦ';
             }
-            
+            const nameVisible = this.fieldVisible('item_name');
+            const quantityVisible = this.fieldVisible('quantity');
+            const nameRequired = this.fieldRequired('item_name');
+            const quantityRequired = this.fieldRequired('quantity');
+            const invalidItems = this.tempItems.filter(item => {
+                const nameInvalid = nameVisible && nameRequired && (!item.itemName || !item.itemName.trim());
+                const quantityInvalid = quantityVisible && quantityRequired && (!item.quantity || item.quantity < 1);
+                return nameInvalid || quantityInvalid;
+            });
+            if (invalidItems.length > 0) {
+                return 'Заполните все обязательные поля (Наименование ТМЦ и количество)';
+            }
             return '';
         }
     },
@@ -220,12 +249,19 @@ export default {
                 return;
             }
             
-            // Фильтруем пустые строки
-            const validItems = this.tempItems.filter(item => 
-                item.itemName && item.itemName.trim() && 
-                item.quantity && item.quantity >= 1
-            );
-            
+            // Валидность строки - тот же конфиг-aware критерий, что и canAddItems:
+            // скрытое/необязательное поле не делает строку невалидной. Иначе при
+            // скрытом item_name validItems пустел и addItems молча ничего не эмитил.
+            const nameVisible = this.fieldVisible('item_name');
+            const quantityVisible = this.fieldVisible('quantity');
+            const nameRequired = this.fieldRequired('item_name');
+            const quantityRequired = this.fieldRequired('quantity');
+            const validItems = this.tempItems.filter(item => {
+                const nameOk = !nameVisible || !nameRequired || (item.itemName && item.itemName.trim());
+                const quantityOk = !quantityVisible || !quantityRequired || (item.quantity && item.quantity >= 1);
+                return nameOk && quantityOk;
+            });
+
             if (validItems.length === 0) {
                 return;
             }
