@@ -277,13 +277,6 @@
             </div>
 
             <template v-if="selectedAttachment.is_active">
-              <div class="details-subsection">
-                <AttachmentCustomFields
-                  :key="`cf-${selectedAttachment.id}`"
-                  :unique-attachment-id="selectedAttachment.id"
-                />
-              </div>
-
               <AttachmentTemplateEditor
                 :key="`te-${selectedAttachment.id}`"
                 :show="showTemplateEditor"
@@ -471,7 +464,6 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
-import AttachmentCustomFields from './admin/AttachmentCustomFields.vue';
 import AttachmentFieldsModal from './admin/AttachmentFieldsModal.vue';
 import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
@@ -502,7 +494,6 @@ export default {
     TextConstructor,
     BaseDropdown,
     LoaderSpinner,
-    AttachmentCustomFields,
     AttachmentFieldsModal,
     AttachmentTemplateEditor,
     UniqueAttachmentHistoryModal,
@@ -1275,12 +1266,6 @@ export default {
   display: flex;
   gap: 10px;
   margin-top: 6px;
-}
-
-.details-subsection {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid #eef0f4;
 }
 
 .details-meta {
