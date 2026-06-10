@@ -764,7 +764,8 @@ export default {
   methods: {
     isActive(path) {
       const current = this.$route.path;
-      if (path === '/table') return current.startsWith('/table');
+      // Только список таблиц /table и /table/:name, но НЕ /table-constructor.
+      if (path === '/table') return current === '/table' || current.startsWith('/table/');
       if (path === '/admin') return current.startsWith('/admin');
       return current === path;
     },

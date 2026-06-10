@@ -1294,6 +1294,16 @@ export default {
   transition: .2s;
   cursor: pointer;
   user-select: none;
+  /* В узкой секции метка обрезается, а не наезжает на соседнюю колонку. */
+  overflow: hidden;
+}
+
+.header-col p {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-col:hover {
@@ -1308,6 +1318,7 @@ export default {
   width: 12px;
   height: 12px;
   transition: .2s;
+  flex-shrink: 0;
 }
 
 .sort-icon.sorted {
@@ -1324,23 +1335,27 @@ export default {
 }
 
 .id-col {
-  width: 15%;
-  min-width: 60px;
+  width: 12%;
+  min-width: 50px;
 }
 
+/* Наименование сжимается первым (текст обрезается через .truncate-text),
+   отдавая место колонкам Тип/Статус с бейджами фиксированной ширины. */
 .name-col {
-  width: 40%;
-  min-width: 200px;
+  width: 32%;
+  min-width: 84px;
 }
 
 .type-col {
-  width: 25%;
-  min-width: 100px;
+  width: 26%;
+  min-width: 76px;
 }
 
+/* Под самый широкий бейдж статуса ("На обслуживании", nowrap ~108px), иначе
+   он вылезает за колонку и прижимается к правому краю секции. */
 .status-col {
-  width: 20%;
-  min-width: 80px;
+  width: 30%;
+  min-width: 108px;
 }
 
 .table-body {

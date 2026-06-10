@@ -197,7 +197,7 @@
                 v-if="timeConflictError"
                 class="error-hint"
               >
-                ⚠️ {{ timeConflictError }}
+                {{ timeConflictError }}
               </div>
 
               <!-- Подсказка о следующем дне -->
@@ -674,8 +674,10 @@ export default {
 
 .schedule-grid {
   display: grid;
-  /* max 4 столбика: min(25%, ...) ограничивает до четверти ширины. */
-  grid-template-columns: repeat(auto-fill, minmax(max(150px, calc(25% - 9px)), 1fr));
+  /* Колонка не уже 190px (иначе день недели + тумблер 24/7 не помещаются);
+     при нехватке места колонок становится меньше и они растягиваются (1fr).
+     calc(25% - 9px) сверху ограничивает до 4 столбцов на широком экране. */
+  grid-template-columns: repeat(auto-fill, minmax(max(190px, calc(25% - 9px)), 1fr));
   gap: 12px;
 }
 
@@ -696,6 +698,9 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* Если день недели + тумблер не влезают в строку - тумблер переносится вниз,
+     а не вылезает за карточку. */
+  flex-wrap: wrap;
 }
 
 .schedule-day-card__body {
