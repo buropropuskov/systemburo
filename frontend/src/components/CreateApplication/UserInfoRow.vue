@@ -1,15 +1,16 @@
 <template>
   <div class="user-info-row">
     <div class="user__input">
-      <label class="input__label">Организация / Отдел <span class="required">*</span></label>
-      <input 
-        class="input" 
-        placeholder="Введите организацию" 
+      <label class="input__label">Организация / Отдел</label>
+      <input
+        class="input"
+        placeholder="Введите организацию"
         :value="organization"
         :class="{ 'input--error': errors.organization }"
         @input="$emit('update:organization', $event.target.value)"
         @blur="$emit('validate-field', 'organization')"
       >
+      <span class="input__hint">Заполните организацию или компанию</span>
       <div
         v-if="errors.organization"
         class="error-message"
@@ -18,7 +19,7 @@
       </div>
     </div>
     <div class="user__input">
-      <label class="input__label">Компания <span class="required">*</span></label>
+      <label class="input__label">Компания</label>
       <input 
         class="input" 
         placeholder="Введите компанию" 
@@ -139,6 +140,11 @@ export default {
 
 .input__label {
     font-size: 13px;
+    color: #a2a2a2;
+}
+
+.input__hint {
+    font-size: 11px;
     color: #a2a2a2;
 }
 
