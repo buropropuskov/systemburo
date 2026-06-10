@@ -82,4 +82,11 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: auto;
 }
+
+/* Шапка карточки не сжимается во flex-колонке: иначе высокий контент в теле
+   (открытые детали мастер-детейла) выдавливал бы и плющил заголовок вместо
+   внутреннего скролла тела (.table-body / .tab-content уже overflow:auto). */
+.admin-page :deep(.management-header) {
+  flex-shrink: 0;
+}
 </style>

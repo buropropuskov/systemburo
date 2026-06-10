@@ -718,9 +718,6 @@ export default {
     this.syncContentMargin();
     await this.fetchBanStatus();
     await this.fetchSystemTables();
-    // Заход напрямую на страницу таблицы - раскрываем список один раз, чтобы
-    // активная была видна. Дальше состояние дропдауна управляется только кликом.
-    if (this.isActive('/table')) this.dropdowns.tables = true;
     this.startApplicationsPolling();
     this.startTablesPolling();
 
@@ -852,11 +849,12 @@ export default {
       this.isExpanded = true;
     },
     collapseMenu() {
-      // Сворачиваем только рельс (hover-разворот). Состояние дропдауна «Таблицы»
-      // намеренно НЕ трогаем: открыт по клику - остаётся открытым, скрывается лишь
-      // визуально вместе со схлопыванием рельса и возвращается при наведении.
       this.hoverTimeout = setTimeout(() => {
         this.isExpanded = false;
+        // Если рельс реально схлопывается (не закреплён пином) - сворачиваем и
+        // раскрытые дропдауны, чтобы при следующем наведении они были закрыты.
+        // У закреплённого рельса (пин) состояние держится: он не сворачивается.
+        if (!this.uiStore.sidebarExpanded) this.closeAllDropdowns();
         this.hoverTimeout = null;
       }, 150);
     },
