@@ -152,6 +152,9 @@ func TestFieldConfig_RequiresAuth(t *testing.T) {
 
 	rec := testutil.GET(t, e, "/attachments/1/field-config", nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+
+	rec = testutil.PUT(t, e, "/attachments/1/field-config", `{"base":[]}`, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 }
 
 // TestCustomField_PersistsIsRequired: is_required проходит через CRUD кастомных
