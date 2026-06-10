@@ -110,6 +110,12 @@
                 </span>
               </div>
             </div>
+            <div
+              v-if="!sortedUnloadPlaces.length"
+              class="no-results"
+            >
+              {{ emptyText }}
+            </div>
           </div>
 
           <div class="table-footer">
@@ -432,15 +438,6 @@
       </div>
     </div>
 
-    <div
-      v-if="filteredUnloadPlaces.length === 0"
-      class="no-results"
-    >
-      <div class="no-results-icon">
-        📍
-      </div>
-      <p>{{ emptyText }}</p>
-    </div>
 
     <!-- Модальное окно добавления места -->
     <Teleport to="body">
@@ -1919,17 +1916,6 @@ async uploadPhotoFiles(files) {
   padding: 40px 20px;
   color: #a2a2a2;
   width: 100%;
-}
-
-.no-results-icon {
-  font-size: 3em;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.no-results p {
-  margin: 0;
-  font-size: 1.1em;
 }
 
 /* Стили для модальных окон */

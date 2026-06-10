@@ -135,6 +135,12 @@
                   </span>
                 </div>
               </div>
+              <div
+                v-if="!sortedTables.length"
+                class="no-results"
+              >
+                {{ emptyText }}
+              </div>
             </div>
 
             <div class="table-footer">
@@ -592,15 +598,6 @@
         </div>
       </div>
 
-      <div
-        v-if="filteredTables.length === 0"
-        class="no-results"
-      >
-        <div class="no-results-icon">
-          📊
-        </div>
-        <p>Таблицы не найдены</p>
-      </div>
 
       <!-- Модальное окно создания таблицы -->
       <TableConstructorCreateModal
@@ -687,6 +684,10 @@ export default {
     };
   },
   computed: {
+    emptyText() {
+      if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
+      return this.showArchive ? 'В архиве пусто' : 'Таблиц пока нет';
+    },
     filteredTables() {
       if (!this.searchQuery) return this.tables;
       const query = this.searchQuery.toLowerCase();
@@ -2046,17 +2047,6 @@ export default {
   padding: 40px 20px;
   color: #a2a2a2;
   width: 100%;
-}
-
-.no-results-icon {
-  font-size: 3em;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.no-results p {
-  margin: 0;
-  font-size: 1.1em;
 }
 
 /* Модальное окно */
