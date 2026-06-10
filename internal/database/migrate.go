@@ -88,6 +88,7 @@ func AllModels() []interface{} {
 		&models.AttachmentTemplateMapping{},
 		&models.AttachmentCustomField{},
 		&models.AttachmentCustomValue{},
+		&models.AttachmentFieldConfig{},
 
 		// Cars (depends on Attachment)
 		&models.Car{},
