@@ -249,6 +249,7 @@ import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import Badge from './ui/Badge.vue';
+import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 
 export default {
   components: {
@@ -518,17 +519,10 @@ export default {
       return statusClasses[status] || 'status-default';
     },
 
-    blacklistFlagCount(application) {
-      return Number(application?.blacklist_flags_count) || 0;
-    },
-
-    blacklistFlagLabel(application) {
-      const n = this.blacklistFlagCount(application);
-      return `${n} ${n === 1 ? 'похожа' : 'похожи'} на ЧС`;
-    },
-
+    blacklistFlagCount,
+    blacklistFlagLabel,
     blacklistFlagTitle() {
-      return 'В заявке есть элементы, похожие на чёрный список. Подтвердите пропуск в деталях заявки.';
+      return BLACKLIST_FLAG_TITLE;
     },
 
     getNoDataHint() {
@@ -813,6 +807,10 @@ export default {
   justify-content: center;
   align-items: flex-start;
   gap: 4px;
+}
+
+/* Двойной класс перебивает overflow: hidden из .application-col, иначе бейдж под номером обрезается. */
+.application-col.id-col {
   overflow: visible;
 }
 

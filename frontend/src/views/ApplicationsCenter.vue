@@ -376,6 +376,7 @@ import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
 import Badge from '@/components/ui/Badge.vue';
+import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { useToast } from '@/composables/useToast';
 
 export default {
@@ -844,17 +845,10 @@ export default {
             return statusClasses[status] || 'status-default';
         },
 
-        blacklistFlagCount(application) {
-            return Number(application?.blacklist_flags_count) || 0;
-        },
-
-        blacklistFlagLabel(application) {
-            const n = this.blacklistFlagCount(application);
-            return `${n} ${n === 1 ? 'похожа' : 'похожи'} на ЧС`;
-        },
-
+        blacklistFlagCount,
+        blacklistFlagLabel,
         blacklistFlagTitle() {
-            return 'В заявке есть элементы, похожие на чёрный список. Подтвердите пропуск в деталях заявки.';
+            return BLACKLIST_FLAG_TITLE;
         },
 
         // API методы

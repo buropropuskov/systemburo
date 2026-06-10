@@ -219,9 +219,9 @@ func TestGetApplications_BlacklistFlagsCount(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "list: %s", rec.Body.String())
 		for _, row := range testutil.ParseSlice(t, rec) {
 			if row["id"] == float64(appID) {
-				cnt, hasField := row["blacklist_flags_count"]
-				require.True(t, hasField, "в строке списка нет blacklist_flags_count")
-				return cnt.(float64)
+				cnt, ok := row["blacklist_flags_count"].(float64)
+				require.True(t, ok, "blacklist_flags_count отсутствует или не число: %v", row["blacklist_flags_count"])
+				return cnt
 			}
 		}
 		t.Fatalf("заявка %d не найдена в списке", appID)
@@ -246,6 +246,8 @@ func TestGetApplications_BlacklistFlagsCount(t *testing.T) {
 			fmt.Sprintf(`{"flag_id":%d,"comment":"проверено лично"}`, flag.ID), testutil.AuthHeader(apprToken))
 		require.Equal(t, http.StatusOK, rec.Code, "override: %s", rec.Body.String())
 
-		assert.Equal(t, float64(0), countFor(t, testutil.GET(t, e, "/applications", testutil.AuthHeader(senderToken))), "после override счётчик обнуляется")
+		assert.Equal(t, float64(0), countFor(t, testutil.GET(t, e, "/applications", testutil.AuthHeader(senderToken))), "GetApplications после override")
+		assert.Equal(t, float64(0), countFor(t, testutil.GET(t, e, "/applications?per_page=50", testutil.AuthHeader(senderToken))), "GetApplicationsPaginated после override")
+		assert.Equal(t, float64(0), countFor(t, testutil.GET(t, e, "/applications/user", testutil.AuthHeader(senderToken))), "GetUserApplications после override")
 	})
 }
