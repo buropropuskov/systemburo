@@ -117,6 +117,14 @@ type SaveFieldConfigRequest struct {
 	Base []FieldConfigItem `json:"base" validate:"dive"`
 }
 
+// FieldConfigResponse - ответ GET /attachments/{id}/field-config: базовые поля
+// (реестр типа, смерженный с оверрайдами) + кастомные поля вложения. Единый
+// источник для админ-модалки настройки и формы подачи.
+type FieldConfigResponse struct {
+	Base   []MergedField           `json:"base"`
+	Custom []AttachmentCustomField `json:"custom"`
+}
+
 // MergedField - базовое поле вложения, смерженное с оверрайдами для
 // конкретного UniqueAttachment. Единый источник для админ-модалки и формы
 // подачи: реестр типа вложения + оверрайды из attachment_field_config.
