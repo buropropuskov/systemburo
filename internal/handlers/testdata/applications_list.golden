@@ -1,5 +1,6 @@
 data[]
 data[].application_number
+data[].blacklist_flags_count
 data[].company_id
 data[].company_name
 data[].confirmation

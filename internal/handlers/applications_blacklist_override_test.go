@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"systemburo/internal/models"
@@ -181,5 +182,70 @@ func TestGetApplicationDetails_BlacklistGateField(t *testing.T) {
 		det := testutil.GET(t, e, detailsPath, testutil.AuthHeader(senderToken))
 		require.Equal(t, http.StatusOK, det.Code, "body: %s", det.Body.String())
 		assert.Contains(t, det.Body.String(), `"has_unoverridden_blacklist_flags":false`)
+	})
+}
+
+// TestGetApplications_BlacklistFlagsCount: списки заявок отдают blacklist_flags_count -
+// число непереопределённых помеченных элементов заявки (тот же предикат, что и гейт
+// согласования). После override счётчик обнуляется. Питает сводный бейдж "N похожи на ЧС"
+// в Центре заявок и "Моих заявках" (#481, срез 6c).
+func TestGetApplications_BlacklistFlagsCount(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	ctx := context.Background()
+
+	const orgName = "Test Organization"
+	senderToken := testutil.RegisterAndLogin(t, e, "bc_sender", "pass123", 1, td.OrgID, td.CompanyID)
+	senderID := getUserID(t, db, "bc_sender")
+	mark := seedMark(t, db, "BC_Mark")
+
+	_, err := newVehicleBlacklistService(db).Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "C777CC799", MarkID: mark.ID, Reason: "угон",
+	}, senderID)
+	require.NoError(t, err)
+
+	rec := submitCarApp(t, e, db, senderToken, orgName, "cnt", "C777CC798", mark.ID)
+	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
+	carID := latestElementID(t, db, "cars", "car_number = ?", "C777CC798")
+	flag, ok := blacklistFlagFor(t, db, models.BlacklistElementCar, carID)
+	require.True(t, ok, "ожидался флаг похожести")
+	appID := flag.ApplicationID
+
+	// countFor извлекает blacklist_flags_count заявки appID из ответа списка (JSON-числа - float64).
+	countFor := func(t *testing.T, rec *httptest.ResponseRecorder) float64 {
+		t.Helper()
+		require.Equal(t, http.StatusOK, rec.Code, "list: %s", rec.Body.String())
+		for _, row := range testutil.ParseSlice(t, rec) {
+			if row["id"] == float64(appID) {
+				cnt, hasField := row["blacklist_flags_count"]
+				require.True(t, hasField, "в строке списка нет blacklist_flags_count")
+				return cnt.(float64)
+			}
+		}
+		t.Fatalf("заявка %d не найдена в списке", appID)
+		return 0
+	}
+
+	t.Run("счётчик = 1 во всех трёх списках пока флаг не переопределён", func(t *testing.T) {
+		assert.Equal(t, float64(1), countFor(t, testutil.GET(t, e, "/applications", testutil.AuthHeader(senderToken))), "GetApplications")
+		assert.Equal(t, float64(1), countFor(t, testutil.GET(t, e, "/applications?per_page=50", testutil.AuthHeader(senderToken))), "GetApplicationsPaginated")
+		assert.Equal(t, float64(1), countFor(t, testutil.GET(t, e, "/applications/user", testutil.AuthHeader(senderToken))), "GetUserApplications")
+	})
+
+	t.Run("счётчик = 0 после override", func(t *testing.T) {
+		testutil.RegisterUser(t, e, "bc_appr", "pass123", 1, td.OrgID, td.CompanyID)
+		apprID := getUserID(t, db, "bc_appr")
+		fwd := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, apprID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), fwd, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		apprToken, _ := testutil.LoginUser(t, e, "bc_appr", "pass123")
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/blacklist-overrides", appID),
+			fmt.Sprintf(`{"flag_id":%d,"comment":"проверено лично"}`, flag.ID), testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusOK, rec.Code, "override: %s", rec.Body.String())
+
+		assert.Equal(t, float64(0), countFor(t, testutil.GET(t, e, "/applications", testutil.AuthHeader(senderToken))), "после override счётчик обнуляется")
 	})
 }

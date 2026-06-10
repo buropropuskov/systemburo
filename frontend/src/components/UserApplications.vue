@@ -154,6 +154,16 @@
                     <div class="application-row">
                       <div class="application-col id-col">
                         <span class="application-id">{{ application.application_number }}</span>
+                        <Badge
+                          v-if="blacklistFlagCount(application) > 0"
+                          variant="danger"
+                          size="sm"
+                          dot
+                          class="blacklist-flag-badge"
+                          :title="blacklistFlagTitle()"
+                        >
+                          {{ blacklistFlagLabel(application) }}
+                        </Badge>
                       </div>
                       <div class="application-col date-col">
                         {{ formatDateTime(application.sending_datetime) }}
@@ -238,6 +248,7 @@ import SearchComponent from './SearchComponent.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import Badge from './ui/Badge.vue';
 
 export default {
   components: {
@@ -245,7 +256,8 @@ export default {
     SearchComponent,
     ApplicationDetail,
     DownloadBlanksModal,
-    LoaderSpinner
+    LoaderSpinner,
+    Badge
   },
   props: {
     userOrganizationId: {
@@ -504,6 +516,19 @@ export default {
         'Отказано': 'status-rejected'
       };
       return statusClasses[status] || 'status-default';
+    },
+
+    blacklistFlagCount(application) {
+      return Number(application?.blacklist_flags_count) || 0;
+    },
+
+    blacklistFlagLabel(application) {
+      const n = this.blacklistFlagCount(application);
+      return `${n} ${n === 1 ? 'похожа' : 'похожи'} на ЧС`;
+    },
+
+    blacklistFlagTitle() {
+      return 'В заявке есть элементы, похожие на чёрный список. Подтвердите пропуск в деталях заявки.';
     },
 
     getNoDataHint() {
@@ -784,6 +809,15 @@ export default {
   flex: 1.2; /* Немного шире для номера заявки */
   min-width: 180px;
   max-width: 180px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 4px;
+  overflow: visible;
+}
+
+.blacklist-flag-badge {
+  max-width: 100%;
 }
 
 .date-col {
@@ -883,7 +917,7 @@ export default {
   width: 100%;
   padding: 6px 0;
   align-items: center;
-  height: 40px;
+  min-height: 40px;
 }
 
 .application-col {
