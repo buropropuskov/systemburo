@@ -826,7 +826,7 @@ export default {
     syncContentMargin() {
       const width = this.uiStore.sidebarHidden
         ? '0px'
-        : (this.uiStore.sidebarExpanded ? '120px' : '25px');
+        : (this.uiStore.sidebarExpanded ? '124px' : '25px');
       document.body.style.setProperty('--nav-ml', width);
     },
     toggleMobile() {

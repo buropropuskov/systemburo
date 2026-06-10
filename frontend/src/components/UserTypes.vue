@@ -107,6 +107,12 @@
                 <span class="users-count">{{ type.users_count }}</span>
               </div>
             </div>
+            <div
+              v-if="!sortedTypes.length"
+              class="no-results"
+            >
+              {{ emptyText }}
+            </div>
           </div>
 
           <div class="table-footer">
@@ -193,15 +199,6 @@
       </div>
     </div>
 
-    <div
-      v-if="filteredTypes.length === 0"
-      class="no-results"
-    >
-      <div class="no-results-icon">
-        👥
-      </div>
-      <p>Типы пользователей не найдены</p>
-    </div>
 
     <!-- Модальное окно создания типа -->
     <Teleport to="body">
@@ -361,6 +358,9 @@ export default {
     };
   },
   computed: {
+    emptyText() {
+      return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Типов пока нет';
+    },
     filteredTypes() {
       if (!this.searchQuery) return this.types;
       const query = this.searchQuery.toLowerCase();
@@ -1005,17 +1005,6 @@ export default {
   padding: 40px 20px;
   color: #a2a2a2;
   width: 100%;
-}
-
-.no-results-icon {
-  font-size: 3em;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.no-results p {
-  margin: 0;
-  font-size: 1.1em;
 }
 
 /* Стили для улучшенного модального окна */
