@@ -389,6 +389,8 @@
 </template>
 
 <script>
+import { useFieldConfig } from '@/composables/useFieldConfig';
+
 export default {
     name: 'DateRangeSection',
     props: {
@@ -402,8 +404,9 @@ export default {
         freeParking: Boolean,
         notifySituationCenter: Boolean,
         errors: { type: Object, default: () => ({}) },
-        // Настройка полей выбранного шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
-        // Дата/время реестром залочены (всегда visible+required) - хелперы ниже для них резолвятся в true.
+        // Настройка полей выбранного шаблона (#529): { [fieldKey]: { visible, required } }.
+        // Потребляется через composable useFieldConfig (setup); дата/время реестром
+        // залочены (всегда visible+required), поэтому при пустом конфиге поведение прежнее.
         fieldConfig: { type: Object, default: () => ({}) }
     },
     emits: [
@@ -420,6 +423,10 @@ export default {
         'validate-date-range',
         'validate-time-range'
     ],
+    setup(props) {
+        // Геттер, а не props.fieldConfig напрямую - сохраняет реактивность пропса в хелперах (#529).
+        return useFieldConfig(() => props.fieldConfig);
+    },
     data() {
         const today = new Date();
         return {
@@ -517,16 +524,6 @@ export default {
         this.validateTimeCrossing();
     },
     methods: {
-        // Видимость поля по конфигу шаблона. Нет строки конфига -> поле видимо (дефолт).
-        fieldVisible(key) {
-            const c = this.fieldConfig[key];
-            return c ? c.visible : true;
-        },
-        // Обязательность поля по конфигу. Нет строки -> обязательно (текущее поведение дат/времени).
-        fieldRequired(key) {
-            const c = this.fieldConfig[key];
-            return c ? c.required : true;
-        },
         setQuickDate(kind) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
