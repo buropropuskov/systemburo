@@ -1818,6 +1818,12 @@ export default {
   min-width: 130px;
 }
 
+/* .field-full перебивается более специфичным .cell-edit-fields .field { flex:1 } -
+   возвращаем полю отдельную полную строку. */
+.cell-edit-fields .field-full {
+  flex: 0 0 100%;
+}
+
 .length-field {
   flex: 0 0 auto;
 }
