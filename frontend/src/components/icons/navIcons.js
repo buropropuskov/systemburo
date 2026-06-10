@@ -14,6 +14,9 @@ export const navIcons = {
   // Центр заявок - конверт/письмо.
   center:
     '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+  // Новая заявка - простой плюс.
+  'new-application':
+    '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   statistics:
     '<path d="M4 20h16"/><line x1="7" y1="20" x2="7" y2="13"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="17" y1="20" x2="17" y2="11"/>',
   analytics:

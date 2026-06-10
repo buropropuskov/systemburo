@@ -1,632 +1,634 @@
 <template>
-  <div class="table-constructor-container dashboard-card">
-    <div class="management-header">
-      <h3 class="management-title">
-        Таблицы системы
-      </h3>
-      <div class="header-controls">
-        <BaseDropdown
-          class="archive-dropdown"
-          :model-value="showArchive ? 'archive' : 'active'"
-          :options="archiveOptions"
-          label-key="label"
-          value-key="value"
-          @update:model-value="onArchiveModeChange"
-        />
-        <SearchComponent
-          v-model="searchQuery"
-          :title="'Поиск таблиц...'"
-        />
-        <button
-          class="add-header-button"
-          @click="showAddModal = true"
-        >
-          Создать таблицу
-        </button>
-        <RefreshButton
-          :loading="refreshing"
-          @refresh="refreshData"
-        />
-      </div>
-    </div>
-
-    <div class="content-container">
-      <!-- Левая часть - список таблиц -->
-      <div
-        class="table-section"
-        :class="{'with-details': selectedTable}"
-      >
-        <div class="table-container">
-          <div class="table-header">
-            <div
-              class="header-col id-col"
-              @click="sortBy('id')"
-            >
-              <p :class="{ 'active-sort': sortField === 'id' }">
-                ID
-              </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'id',
-                  'desc': sortField === 'id' && sortDirection === 'desc'
-                }" 
-              >
-            </div>
-            <div
-              class="header-col name-col"
-              @click="sortBy('name')"
-            >
-              <p :class="{ 'active-sort': sortField === 'name' }">
-                Наименование
-              </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'name',
-                  'desc': sortField === 'name' && sortDirection === 'desc'
-                }" 
-              >
-            </div>
-            <div
-              class="header-col type-col"
-              @click="sortBy('type')"
-            >
-              <p :class="{ 'active-sort': sortField === 'type' }">
-                Тип
-              </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
-                  'sorted': sortField === 'type',
-                  'desc': sortField === 'type' && sortDirection === 'desc'
-                }" 
-              >
-            </div>
-            <div class="header-col status-col">
-              <p>Статус</p>
-            </div>
-          </div>
-
-          <div class="table-body">
-            <div
-              v-for="table in sortedTables"
-              :key="table.table.id"
-              class="table-row"
-              :class="{
-                'selected': selectedTable && selectedTable.table.id === table.table.id,
-                'inactive': !table.table.is_active,
-              }"
-              @click="selectTable(table)"
-            >
-              <div class="table-col id-col">
-                <span class="cell-content id-value">{{ table.table.id }}</span>
-              </div>
-              <div class="table-col name-col">
-                <span
-                  class="truncate-text"
-                  :title="table.table.display_name"
-                >
-                  {{ table.table.display_name }}
-                  <span
-                    v-if="!table.table.is_active"
-                    class="inactive-badge"
-                  >(архив)</span>
-                </span>
-              </div>
-              <div class="table-col type-col">
-                <span
-                  class="type-badge"
-                  :class="table.table.table_type"
-                >
-                  {{ getTableTypeLabel(table.table.table_type) }}
-                </span>
-              </div>
-              <div class="table-col status-col">
-                <span
-                  class="status-badge"
-                  :class="getTableStatusClass(table)"
-                >
-                  {{ getTableStatusText(table) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="table-footer">
-            <span class="items-count">
-              {{ showArchive ? 'В архиве' : 'Всего таблиц' }}: {{ filteredTables.length }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Правая часть - детали таблицы -->
-      <div
-        v-if="selectedTable"
-        class="details-section"
-      >
-        <div
-          v-if="selectedTable.table.is_active"
-          class="details-tabs"
-        >
-          <div class="details-tabs__row">
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'main' }"
-              @click="switchTab('main')"
-            >
-              Основное
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'schedule' }"
-              @click="switchTab('schedule')"
-            >
-              Расписание
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'location' }"
-              @click="switchTab('location')"
-            >
-              Местоположение
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'columns' }"
-              @click="switchTab('columns')"
-            >
-              Колонки
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'appearance' }"
-              @click="switchTab('appearance')"
-            >
-              Оформление
-            </button>
-          </div>
-          <div
-            v-if="selectedTable.table.show_fact_table"
-            class="details-tabs__row details-tabs__row--fact"
+  <AdminPageShell>
+    <div class="table-constructor-container dashboard-card">
+      <div class="management-header">
+        <h3 class="management-title">
+          Таблицы системы
+        </h3>
+        <div class="header-controls">
+          <BaseDropdown
+            class="archive-dropdown"
+            :model-value="showArchive ? 'archive' : 'active'"
+            :options="archiveOptions"
+            label-key="label"
+            value-key="value"
+            @update:model-value="onArchiveModeChange"
+          />
+          <SearchComponent
+            v-model="searchQuery"
+            :title="'Поиск таблиц...'"
+          />
+          <button
+            class="add-header-button"
+            @click="showAddModal = true"
           >
-            <span class="details-tabs__group-label">По факту:</span>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'fact-columns' }"
-              @click="switchTab('fact-columns')"
-            >
-              Колонки
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'fact-appearance' }"
-              @click="switchTab('fact-appearance')"
-            >
-              Оформление
-            </button>
+            Создать таблицу
+          </button>
+          <RefreshButton
+            :loading="refreshing"
+            @refresh="refreshData"
+          />
+        </div>
+      </div>
+
+      <div class="content-container">
+        <!-- Левая часть - список таблиц -->
+        <div
+          class="table-section"
+          :class="{'with-details': selectedTable}"
+        >
+          <div class="table-container">
+            <div class="table-header">
+              <div
+                class="header-col id-col"
+                @click="sortBy('id')"
+              >
+                <p :class="{ 'active-sort': sortField === 'id' }">
+                  ID
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'id',
+                    'desc': sortField === 'id' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col name-col"
+                @click="sortBy('name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'name' }">
+                  Наименование
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'name',
+                    'desc': sortField === 'name' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div
+                class="header-col type-col"
+                @click="sortBy('type')"
+              >
+                <p :class="{ 'active-sort': sortField === 'type' }">
+                  Тип
+                </p>
+                <img 
+                  src="@/assets/icons/sort.png" 
+                  class="sort-icon" 
+                  :class="{ 
+                    'sorted': sortField === 'type',
+                    'desc': sortField === 'type' && sortDirection === 'desc'
+                  }" 
+                >
+              </div>
+              <div class="header-col status-col">
+                <p>Статус</p>
+              </div>
+            </div>
+
+            <div class="table-body">
+              <div
+                v-for="table in sortedTables"
+                :key="table.table.id"
+                class="table-row"
+                :class="{
+                  'selected': selectedTable && selectedTable.table.id === table.table.id,
+                  'inactive': !table.table.is_active,
+                }"
+                @click="selectTable(table)"
+              >
+                <div class="table-col id-col">
+                  <span class="cell-content id-value">{{ table.table.id }}</span>
+                </div>
+                <div class="table-col name-col">
+                  <span
+                    class="truncate-text"
+                    :title="table.table.display_name"
+                  >
+                    {{ table.table.display_name }}
+                    <span
+                      v-if="!table.table.is_active"
+                      class="inactive-badge"
+                    >(архив)</span>
+                  </span>
+                </div>
+                <div class="table-col type-col">
+                  <span
+                    class="type-badge"
+                    :class="table.table.table_type"
+                  >
+                    {{ getTableTypeLabel(table.table.table_type) }}
+                  </span>
+                </div>
+                <div class="table-col status-col">
+                  <span
+                    class="status-badge"
+                    :class="getTableStatusClass(table)"
+                  >
+                    {{ getTableStatusText(table) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-footer">
+              <span class="items-count">
+                {{ showArchive ? 'В архиве' : 'Всего таблиц' }}: {{ filteredTables.length }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <!-- Вкладка Основное -->
+        <!-- Правая часть - детали таблицы -->
         <div
-          v-if="activeTab === 'main'"
-          class="tab-content"
+          v-if="selectedTable"
+          class="details-section"
         >
-          <div class="details-header">
-            <div class="details-title-wrapper">
-              <div class="table-info-title">
-                <h3 class="details-title">
-                  {{ selectedTable.table.display_name }}
-                </h3>
-                <span
-                  class="table-type-badge"
-                  :class="selectedTable.table.table_type"
-                >
-                  {{ getTableTypeLabel(selectedTable.table.table_type) }}
-                </span>
-              </div>
-              <div class="table-info-row">
-                <span
-                  class="current-status-badge"
-                  :class="getTableCurrentStatusClass(selectedTable)"
-                >
-                  {{ getTableCurrentStatusText(selectedTable) }}
-                </span>
-                <span class="system-name">{{ selectedTable.table.name }}</span>
-              </div>
+          <div
+            v-if="selectedTable.table.is_active"
+            class="details-tabs"
+          >
+            <div class="details-tabs__row">
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'main' }"
+                @click="switchTab('main')"
+              >
+                Основное
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'schedule' }"
+                @click="switchTab('schedule')"
+              >
+                Расписание
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'location' }"
+                @click="switchTab('location')"
+              >
+                Местоположение
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'columns' }"
+                @click="switchTab('columns')"
+              >
+                Колонки
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'appearance' }"
+                @click="switchTab('appearance')"
+              >
+                Оформление
+              </button>
             </div>
-            <div class="details-header-actions">
-              <span
-                v-if="!selectedTable.table.is_active"
-                class="archive-badge"
-              >В архиве</span>
+            <div
+              v-if="selectedTable.table.show_fact_table"
+              class="details-tabs__row details-tabs__row--fact"
+            >
+              <span class="details-tabs__group-label">По факту:</span>
               <button
-                class="action-btn history-btn"
-                @click="historyTable = selectedTable.table"
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'fact-columns' }"
+                @click="switchTab('fact-columns')"
               >
-                История
+                Колонки
               </button>
               <button
-                v-if="selectedTable.table.is_active"
-                class="action-btn view-btn"
-                @click="openTable"
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'fact-appearance' }"
+                @click="switchTab('fact-appearance')"
               >
-                Открыть
-              </button>
-              <button
-                v-if="!selectedTable.table.is_active"
-                class="action-btn restore-btn"
-                @click="restoreTable(selectedTable)"
-              >
-                Восстановить
-              </button>
-              <button
-                v-if="selectedTable.table.is_active"
-                class="delete-icon-btn"
-                @click="confirmDeleteTable(selectedTable)"
-              >
-                <img
-                  src="@/assets/icons/delete.png"
-                  class="delete-icon"
-                >
+                Оформление
               </button>
             </div>
           </div>
-          
-          <div class="details-body">
-            <div class="compact-form">
-              <div class="form-row">
-                <div class="form-group compact">
-                  <label class="detail-label">Наименование таблицы:</label>
-                  <input 
-                    v-model="selectedTable.table.display_name" 
-                    class="form-input-sm"
-                    placeholder="Название таблицы"
-                    autocomplete="off"
-                    @change="updateTableField('display_name')"
+
+          <!-- Вкладка Основное -->
+          <div
+            v-if="activeTab === 'main'"
+            class="tab-content"
+          >
+            <div class="details-header">
+              <div class="details-title-wrapper">
+                <div class="table-info-title">
+                  <h3 class="details-title">
+                    {{ selectedTable.table.display_name }}
+                  </h3>
+                  <span
+                    class="table-type-badge"
+                    :class="selectedTable.table.table_type"
                   >
+                    {{ getTableTypeLabel(selectedTable.table.table_type) }}
+                  </span>
                 </div>
-                <div class="form-group compact">
-                  <label class="detail-label">Тип таблицы:</label>
-                  <div class="custom-select">
-                    <div
-                      class="select-header"
-                      @click="toggleTableTypeDropdown"
+                <div class="table-info-row">
+                  <span
+                    class="current-status-badge"
+                    :class="getTableCurrentStatusClass(selectedTable)"
+                  >
+                    {{ getTableCurrentStatusText(selectedTable) }}
+                  </span>
+                  <span class="system-name">{{ selectedTable.table.name }}</span>
+                </div>
+              </div>
+              <div class="details-header-actions">
+                <span
+                  v-if="!selectedTable.table.is_active"
+                  class="archive-badge"
+                >В архиве</span>
+                <button
+                  class="action-btn history-btn"
+                  @click="historyTable = selectedTable.table"
+                >
+                  История
+                </button>
+                <button
+                  v-if="selectedTable.table.is_active"
+                  class="action-btn view-btn"
+                  @click="openTable"
+                >
+                  Открыть
+                </button>
+                <button
+                  v-if="!selectedTable.table.is_active"
+                  class="action-btn restore-btn"
+                  @click="restoreTable(selectedTable)"
+                >
+                  Восстановить
+                </button>
+                <button
+                  v-if="selectedTable.table.is_active"
+                  class="delete-icon-btn"
+                  @click="confirmDeleteTable(selectedTable)"
+                >
+                  <img
+                    src="@/assets/icons/delete.png"
+                    class="delete-icon"
+                  >
+                </button>
+              </div>
+            </div>
+          
+            <div class="details-body">
+              <div class="compact-form">
+                <div class="form-row">
+                  <div class="form-group compact">
+                    <label class="detail-label">Наименование таблицы:</label>
+                    <input 
+                      v-model="selectedTable.table.display_name" 
+                      class="form-input-sm"
+                      placeholder="Название таблицы"
+                      autocomplete="off"
+                      @change="updateTableField('display_name')"
                     >
-                      <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="select-arrow"
-                        :class="{ rotated: tableTypeDropdownOpen }"
-                      >
-                    </div>
-                    <transition name="dropdown-fade">
+                  </div>
+                  <div class="form-group compact">
+                    <label class="detail-label">Тип таблицы:</label>
+                    <div class="custom-select">
                       <div
-                        v-if="tableTypeDropdownOpen"
-                        class="select-dropdown"
+                        class="select-header"
+                        @click="toggleTableTypeDropdown"
                       >
-                        <div 
-                          class="select-option"
-                          :class="{ active: selectedTable.table.table_type === 'cars' }"
-                          @click="selectTableType('cars')"
+                        <span class="select-value">{{ getTableTypeLabel(selectedTable.table.table_type) }}</span>
+                        <img
+                          src="@/assets/icons/arrow.png"
+                          class="select-arrow"
+                          :class="{ rotated: tableTypeDropdownOpen }"
                         >
-                          Машины
-                        </div>
-                        <div 
-                          class="select-option"
-                          :class="{ active: selectedTable.table.table_type === 'people' }"
-                          @click="selectTableType('people')"
-                        >
-                          Люди
-                        </div>
                       </div>
-                    </transition>
+                      <transition name="dropdown-fade">
+                        <div
+                          v-if="tableTypeDropdownOpen"
+                          class="select-dropdown"
+                        >
+                          <div 
+                            class="select-option"
+                            :class="{ active: selectedTable.table.table_type === 'cars' }"
+                            @click="selectTableType('cars')"
+                          >
+                            Машины
+                          </div>
+                          <div 
+                            class="select-option"
+                            :class="{ active: selectedTable.table.table_type === 'people' }"
+                            @click="selectTableType('people')"
+                          >
+                            Люди
+                          </div>
+                        </div>
+                      </transition>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Статус в виде кнопок -->
-              <div class="form-group">
-                <label class="detail-label">Статус:</label>
-                <p class="field-hint">
-                  "Не активно" / "На обслуживании" - таблицу нельзя выбрать в
-                  новой заявке. Пользователь видит причину.
-                </p>
-                <div class="status-toggle">
-                  <button 
-                    class="status-btn" 
-                    :class="{ 'active': selectedTable.table.status === 'active' }"
-                    @click="setTableStatus('active')"
-                  >
-                    Активно
-                  </button>
-                  <button 
-                    class="status-btn" 
-                    :class="{ 'active': selectedTable.table.status === 'inactive' }"
-                    @click="setTableStatus('inactive')"
-                  >
-                    Не активно
-                  </button>
-                  <button 
-                    class="status-btn" 
-                    :class="{ 'active': selectedTable.table.status === 'maintenance' }"
-                    @click="setTableStatus('maintenance')"
-                  >
-                    На обслуживании
-                  </button>
-                </div>
-              </div>
-
-              <!-- Комментарий к статусу (только для неактивных) -->
-              <div
-                v-if="selectedTable.table.status !== 'active'"
-                class="form-group"
-              >
-                <label class="detail-label">Причина:</label>
-                <textarea 
-                  v-model="selectedTable.table.status_comment" 
-                  class="form-textarea"
-                  placeholder="Укажите причину"
-                  rows="2"
-                  @change="updateTableField('status_comment')"
-                />
-              </div>
-
-              <div class="settings-section">
-                <label class="section-label">Настройки отображения:</label>
-
-                <div class="checkbox-group">
-                  <label class="checkbox-label">
-                    <input
-                      v-model="selectedTable.table.show_fact_table"
-                      type="checkbox"
-                      class="checkbox-input"
-                      @change="updateTableField('show_fact_table')"
-                    >
-                    <span class="checkbox-text">Отображать таблицу "по факту"</span>
-                  </label>
+                <!-- Статус в виде кнопок -->
+                <div class="form-group">
+                  <label class="detail-label">Статус:</label>
                   <p class="field-hint">
-                    На странице с основной таблицей отображается таблица
-                    "по факту". В ней отображаются люди/машины, данные которых
-                    заранее не известны.
+                    "Не активно" / "На обслуживании" - таблицу нельзя выбрать в
+                    новой заявке. Пользователь видит причину.
                   </p>
+                  <div class="status-toggle">
+                    <button 
+                      class="status-btn" 
+                      :class="{ 'active': selectedTable.table.status === 'active' }"
+                      @click="setTableStatus('active')"
+                    >
+                      Активно
+                    </button>
+                    <button 
+                      class="status-btn" 
+                      :class="{ 'active': selectedTable.table.status === 'inactive' }"
+                      @click="setTableStatus('inactive')"
+                    >
+                      Не активно
+                    </button>
+                    <button 
+                      class="status-btn" 
+                      :class="{ 'active': selectedTable.table.status === 'maintenance' }"
+                      @click="setTableStatus('maintenance')"
+                    >
+                      На обслуживании
+                    </button>
+                  </div>
                 </div>
 
+                <!-- Комментарий к статусу (только для неактивных) -->
                 <div
-                  v-if="selectedTable.table.show_fact_table"
-                  class="hint-section"
+                  v-if="selectedTable.table.status !== 'active'"
+                  class="form-group"
                 >
+                  <label class="detail-label">Причина:</label>
+                  <textarea 
+                    v-model="selectedTable.table.status_comment" 
+                    class="form-textarea"
+                    placeholder="Укажите причину"
+                    rows="2"
+                    @change="updateTableField('status_comment')"
+                  />
+                </div>
+
+                <div class="settings-section">
+                  <label class="section-label">Настройки отображения:</label>
+
+                  <div class="checkbox-group">
+                    <label class="checkbox-label">
+                      <input
+                        v-model="selectedTable.table.show_fact_table"
+                        type="checkbox"
+                        class="checkbox-input"
+                        @change="updateTableField('show_fact_table')"
+                      >
+                      <span class="checkbox-text">Отображать таблицу "по факту"</span>
+                    </label>
+                    <p class="field-hint">
+                      На странице с основной таблицей отображается таблица
+                      "по факту". В ней отображаются люди/машины, данные которых
+                      заранее не известны.
+                    </p>
+                  </div>
+
+                  <div
+                    v-if="selectedTable.table.show_fact_table"
+                    class="hint-section"
+                  >
+                    <div class="section-header-with-actions">
+                      <label class="detail-label">Подсказка для таблицы "по факту":</label>
+                      <div
+                        v-if="hintHasChanges"
+                        class="editor-actions"
+                      >
+                        <button
+                          class="compact-btn cancel-btn"
+                          @click="cancelHintEdit"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          class="compact-btn save-btn"
+                          @click="saveHint"
+                        >
+                          Сохранить
+                        </button>
+                      </div>
+                    </div>
+                    <TextConstructor
+                      ref="hintConstructor"
+                      v-model="selectedTable.table.fact_table_hint"
+                      :placeholder="getDefaultHint(selectedTable.table.table_type)"
+                      rows="4"
+                    />
+                  </div>
+                </div>
+
+                <div class="instruction-section">
+                  <p class="field-hint">
+                    Видна в шапке таблицы по клику на "Инструкция". Здесь пишут
+                    правила прохода/проезда для охранника на этой точке.
+                  </p>
                   <div class="section-header-with-actions">
-                    <label class="detail-label">Подсказка для таблицы "по факту":</label>
+                    <label class="detail-label">Инструкция к таблице:</label>
                     <div
-                      v-if="hintHasChanges"
+                      v-if="instructionHasChanges"
                       class="editor-actions"
                     >
                       <button
                         class="compact-btn cancel-btn"
-                        @click="cancelHintEdit"
+                        @click="cancelInstructionEdit"
                       >
                         Отмена
                       </button>
                       <button
                         class="compact-btn save-btn"
-                        @click="saveHint"
+                        @click="saveInstruction"
                       >
                         Сохранить
                       </button>
                     </div>
                   </div>
                   <TextConstructor
-                    ref="hintConstructor"
-                    v-model="selectedTable.table.fact_table_hint"
-                    :placeholder="getDefaultHint(selectedTable.table.table_type)"
+                    ref="instructionConstructor"
+                    v-model="selectedTable.table.instruction"
+                    placeholder="Введите инструкцию для таблицы..."
                     rows="4"
                   />
                 </div>
               </div>
-
-              <div class="instruction-section">
-                <p class="field-hint">
-                  Видна в шапке таблицы по клику на "Инструкция". Здесь пишут
-                  правила прохода/проезда для охранника на этой точке.
-                </p>
-                <div class="section-header-with-actions">
-                  <label class="detail-label">Инструкция к таблице:</label>
-                  <div
-                    v-if="instructionHasChanges"
-                    class="editor-actions"
-                  >
-                    <button
-                      class="compact-btn cancel-btn"
-                      @click="cancelInstructionEdit"
-                    >
-                      Отмена
-                    </button>
-                    <button
-                      class="compact-btn save-btn"
-                      @click="saveInstruction"
-                    >
-                      Сохранить
-                    </button>
-                  </div>
-                </div>
-                <TextConstructor
-                  ref="instructionConstructor"
-                  v-model="selectedTable.table.instruction"
-                  placeholder="Введите инструкцию для таблицы..."
-                  rows="4"
-                />
-              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Вкладка Расписание -->
-        <div
-          v-if="activeTab === 'schedule'"
-          class="tab-content"
-        >
-          <WorkScheduleTab
-            :resource-url="'/system-tables/' + selectedTable.table.id"
-            :time-slots="selectedTable.time_slots"
-            @update="refreshSelectedTable"
-          />
-        </div>
-
-        <!-- Вкладка Местоположение -->
-        <div
-          v-if="activeTab === 'location'"
-          class="tab-content"
-        >
-          <div class="location-section">
-            <h4 class="section-title">
-              Описание местоположения
-            </h4>
-            <textarea 
-              v-model="selectedTable.table.location_description" 
-              class="form-textarea"
-              placeholder="Введите описание местоположения..."
-              rows="3"
-              @change="updateTableField('location_description')"
+          <!-- Вкладка Расписание -->
+          <div
+            v-if="activeTab === 'schedule'"
+            class="tab-content"
+          >
+            <WorkScheduleTab
+              :resource-url="'/system-tables/' + selectedTable.table.id"
+              :time-slots="selectedTable.time_slots"
+              @update="refreshSelectedTable"
             />
           </div>
 
-          <div class="location-section">
-            <h4 class="section-title">
-              Ссылка на карту
-            </h4>
-            <div class="map-link-group">
-              <input 
-                v-model="selectedTable.table.map_link" 
-                class="form-input"
-                placeholder="https://maps.google.com/..."
-                autocomplete="off"
-                @change="updateTableField('map_link')"
-              >
-              <a 
-                v-if="selectedTable.table.map_link" 
-                :href="selectedTable.table.map_link" 
-                target="_blank" 
-                class="map-link-btn"
-              >
-                Открыть карту
-              </a>
+          <!-- Вкладка Местоположение -->
+          <div
+            v-if="activeTab === 'location'"
+            class="tab-content"
+          >
+            <div class="location-section">
+              <h4 class="section-title">
+                Описание местоположения
+              </h4>
+              <textarea 
+                v-model="selectedTable.table.location_description" 
+                class="form-textarea"
+                placeholder="Введите описание местоположения..."
+                rows="3"
+                @change="updateTableField('location_description')"
+              />
             </div>
+
+            <div class="location-section">
+              <h4 class="section-title">
+                Ссылка на карту
+              </h4>
+              <div class="map-link-group">
+                <input 
+                  v-model="selectedTable.table.map_link" 
+                  class="form-input"
+                  placeholder="https://maps.google.com/..."
+                  autocomplete="off"
+                  @change="updateTableField('map_link')"
+                >
+                <a 
+                  v-if="selectedTable.table.map_link" 
+                  :href="selectedTable.table.map_link" 
+                  target="_blank" 
+                  class="map-link-btn"
+                >
+                  Открыть карту
+                </a>
+              </div>
+            </div>
+
+            <TableConstructorPhotoSection
+              :table-id="selectedTable.table.id"
+              :photos="selectedTable.photos || []"
+              @photos-changed="refreshSelectedTable"
+            />
           </div>
 
-          <TableConstructorPhotoSection
-            :table-id="selectedTable.table.id"
-            :photos="selectedTable.photos || []"
-            @photos-changed="refreshSelectedTable"
-          />
+          <!-- Вкладка Колонки (#345) -->
+          <div
+            v-if="activeTab === 'columns'"
+            class="tab-content"
+          >
+            <SystemTableColumnsTab
+              :table-id="selectedTable.table.id"
+              :table-type="selectedTable.table.table_type"
+              :fields="selectedTable.fields || []"
+              @update="refreshSelectedTable"
+            />
+          </div>
+
+          <!-- Вкладка Оформление (#345 фазы 1D+1E) -->
+          <div
+            v-if="activeTab === 'appearance'"
+            class="tab-content"
+          >
+            <SystemTableAppearanceTab
+              :table-id="selectedTable.table.id"
+              :table="selectedTable.table"
+              :table-type="selectedTable.table.table_type"
+              :fields="selectedTable.fields || []"
+              @update="refreshSelectedTable"
+            />
+          </div>
+
+          <!-- Колонки FactTable (#345) -->
+          <div
+            v-if="activeTab === 'fact-columns' && selectedTable.table.show_fact_table"
+            class="tab-content"
+          >
+            <SystemTableColumnsTab
+              :table-id="selectedTable.table.id"
+              :table-type="selectedTable.table.table_type"
+              :fields="selectedTable.fact_fields || []"
+              variant="fact"
+              @update="refreshSelectedTable"
+            />
+          </div>
+
+          <!-- Оформление FactTable (#345) -->
+          <div
+            v-if="activeTab === 'fact-appearance' && selectedTable.table.show_fact_table"
+            class="tab-content"
+          >
+            <SystemTableAppearanceTab
+              :table-id="selectedTable.table.id"
+              :table="selectedTable.table"
+              :table-type="selectedTable.table.table_type"
+              :fields="selectedTable.fact_fields || []"
+              variant="fact"
+              @update="refreshSelectedTable"
+            />
+          </div>
         </div>
 
-        <!-- Вкладка Колонки (#345) -->
         <div
-          v-if="activeTab === 'columns'"
-          class="tab-content"
+          v-else
+          class="no-selection-message"
         >
-          <SystemTableColumnsTab
-            :table-id="selectedTable.table.id"
-            :table-type="selectedTable.table.table_type"
-            :fields="selectedTable.fields || []"
-            @update="refreshSelectedTable"
-          />
-        </div>
-
-        <!-- Вкладка Оформление (#345 фазы 1D+1E) -->
-        <div
-          v-if="activeTab === 'appearance'"
-          class="tab-content"
-        >
-          <SystemTableAppearanceTab
-            :table-id="selectedTable.table.id"
-            :table="selectedTable.table"
-            :table-type="selectedTable.table.table_type"
-            :fields="selectedTable.fields || []"
-            @update="refreshSelectedTable"
-          />
-        </div>
-
-        <!-- Колонки FactTable (#345) -->
-        <div
-          v-if="activeTab === 'fact-columns' && selectedTable.table.show_fact_table"
-          class="tab-content"
-        >
-          <SystemTableColumnsTab
-            :table-id="selectedTable.table.id"
-            :table-type="selectedTable.table.table_type"
-            :fields="selectedTable.fact_fields || []"
-            variant="fact"
-            @update="refreshSelectedTable"
-          />
-        </div>
-
-        <!-- Оформление FactTable (#345) -->
-        <div
-          v-if="activeTab === 'fact-appearance' && selectedTable.table.show_fact_table"
-          class="tab-content"
-        >
-          <SystemTableAppearanceTab
-            :table-id="selectedTable.table.id"
-            :table="selectedTable.table"
-            :table-type="selectedTable.table.table_type"
-            :fields="selectedTable.fact_fields || []"
-            variant="fact"
-            @update="refreshSelectedTable"
-          />
+          <p>Выберите таблицу для просмотра и редактирования</p>
         </div>
       </div>
 
       <div
-        v-else
-        class="no-selection-message"
+        v-if="filteredTables.length === 0"
+        class="no-results"
       >
-        <p>Выберите таблицу для просмотра и редактирования</p>
+        <div class="no-results-icon">
+          📊
+        </div>
+        <p>Таблицы не найдены</p>
       </div>
+
+      <!-- Модальное окно создания таблицы -->
+      <TableConstructorCreateModal
+        :show="showAddModal"
+        @created="onTableCreated"
+        @close="showAddModal = false"
+      />
+
+      <!-- Модалка истории таблицы -->
+      <SystemTableHistoryModal
+        v-if="historyTable"
+        :table="historyTable"
+        @close="historyTable = null"
+      />
+
+      <!-- Подтверждение архивации таблицы -->
+      <ConfirmationModal
+        :show="!!deleteConfirmTable"
+        title="Архивация таблицы"
+        :message="deleteConfirmTable ? `Архивировать таблицу «${deleteConfirmTable.table.display_name}»? Её можно будет восстановить из архива.` : ''"
+        confirm-text="В архив"
+        cancel-text="Отмена"
+        :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+        @confirm="performDeleteTable"
+        @cancel="deleteConfirmTable = null"
+      />
     </div>
-
-    <div
-      v-if="filteredTables.length === 0"
-      class="no-results"
-    >
-      <div class="no-results-icon">
-        📊
-      </div>
-      <p>Таблицы не найдены</p>
-    </div>
-
-    <!-- Модальное окно создания таблицы -->
-    <TableConstructorCreateModal
-      :show="showAddModal"
-      @created="onTableCreated"
-      @close="showAddModal = false"
-    />
-
-    <!-- Модалка истории таблицы -->
-    <SystemTableHistoryModal
-      v-if="historyTable"
-      :table="historyTable"
-      @close="historyTable = null"
-    />
-
-    <!-- Подтверждение архивации таблицы -->
-    <ConfirmationModal
-      :show="!!deleteConfirmTable"
-      title="Архивация таблицы"
-      :message="deleteConfirmTable ? `Архивировать таблицу «${deleteConfirmTable.table.display_name}»? Её можно будет восстановить из архива.` : ''"
-      confirm-text="В архив"
-      cancel-text="Отмена"
-      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
-      @confirm="performDeleteTable"
-      @cancel="deleteConfirmTable = null"
-    />
-  </div>
+  </AdminPageShell>
 </template>
 
 <script>
@@ -644,6 +646,7 @@ import TableConstructorPhotoSection from './TableConstructorPhotoSection.vue';
 import SystemTableHistoryModal from './SystemTableHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 
 export default {
   name: 'TableConstructor',
@@ -659,6 +662,7 @@ export default {
     SystemTableHistoryModal,
     ConfirmationModal,
     BaseDropdown,
+    AdminPageShell,
   },
   data() {
     return {
@@ -735,16 +739,6 @@ export default {
       return this.selectedTable && this.selectedTable.table.instruction !== this.originalInstruction;
     }
   },
-  mounted() {
-    this.refreshData();
-
-    // Закрываем dropdown при клике вне них
-    document.addEventListener('click', (e) => {
-      if (!this.$el.contains(e.target)) {
-        this.tableTypeDropdownOpen = false;
-      }
-    });
-  },
   watch: {
     // Если активна вкладка фактовой таблицы, а пользователь снял галочку
     // show_fact_table - возвращаем на главную, чтобы не висел пустой контент.
@@ -762,6 +756,16 @@ export default {
         }
       }
     },
+  },
+  mounted() {
+    this.refreshData();
+
+    // Закрываем dropdown при клике вне них
+    document.addEventListener('click', (e) => {
+      if (!this.$el.contains(e.target)) {
+        this.tableTypeDropdownOpen = false;
+      }
+    });
   },
   methods: {
     /**

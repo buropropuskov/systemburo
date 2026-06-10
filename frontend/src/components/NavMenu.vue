@@ -152,6 +152,20 @@
                 {{ newApplicationsCount > 9 ? '9+' : newApplicationsCount }}
               </span>
             </div>
+            <div
+              v-show="matches('Новая заявка')"
+              class="nav-item"
+              :class="{ active: isActive('/new-application') }"
+              data-testid="nav-link-new-application"
+              @click="navigateToNewApplication"
+            >
+              <NavIcon
+                name="new-application"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Новая заявка</span>
+            </div>
           </div>
 
           <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
@@ -316,11 +330,11 @@
                 />
                 <span class="nav-text">Администрирование</span>
               </div>
-              <!-- Не дропдаун, а открытие боковой колонки: глиф панели с подколонкой. -->
+              <!-- Не дропдаун, а открытие боковой колонки: прямая стрелка вправо. -->
               <svg
                 class="panel-indicator"
-                width="15"
-                height="15"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -329,19 +343,13 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <rect
-                  x="3"
-                  y="5"
-                  width="18"
-                  height="14"
-                  rx="2"
-                />
                 <line
-                  x1="14"
-                  y1="5"
-                  x2="14"
-                  y2="19"
+                  x1="4"
+                  y1="12"
+                  x2="18"
+                  y2="12"
                 />
+                <polyline points="13 7 18 12 13 17" />
               </svg>
             </div>
           </div>
@@ -685,7 +693,7 @@ export default {
     sectionVisible() {
       const on = this.searchActive;
       return {
-        requests: !on || this.matches('Центр заявок'),
+        requests: !on || this.matches('Центр заявок') || this.matches('Новая заявка'),
         data: !on || this.tablesItemVisible || this.matches('Сотрудники') || this.matches('Автомобили'),
         analytics: !on || this.matches('Статистика') || this.matches('Аналитика'),
         admin: !on || this.matches('Администрирование'),
@@ -710,6 +718,9 @@ export default {
     this.syncContentMargin();
     await this.fetchBanStatus();
     await this.fetchSystemTables();
+    // Заход напрямую на страницу таблицы - раскрываем список один раз, чтобы
+    // активная была видна. Дальше состояние дропдауна управляется только кликом.
+    if (this.isActive('/table')) this.dropdowns.tables = true;
     this.startApplicationsPolling();
     this.startTablesPolling();
 
@@ -839,13 +850,13 @@ export default {
         this.hoverTimeout = null;
       }
       this.isExpanded = true;
-      // На странице таблицы держим список раскрытым, чтобы активная была видна.
-      if (this.isActive('/table')) this.dropdowns.tables = true;
     },
     collapseMenu() {
+      // Сворачиваем только рельс (hover-разворот). Состояние дропдауна «Таблицы»
+      // намеренно НЕ трогаем: открыт по клику - остаётся открытым, скрывается лишь
+      // визуально вместе со схлопыванием рельса и возвращается при наведении.
       this.hoverTimeout = setTimeout(() => {
         this.isExpanded = false;
-        this.closeAllDropdowns();
         this.hoverTimeout = null;
       }, 150);
     },
@@ -890,7 +901,10 @@ export default {
 
     navigateToCenter() {
       this.$router.push('/center');
-      this.closeAllDropdowns();
+    },
+    navigateToNewApplication() {
+      this.$router.push('/new-application');
+      this.closeMobile();
     },
     navigateToAccount() {
       this.$router.push('/personal-cabinet');
