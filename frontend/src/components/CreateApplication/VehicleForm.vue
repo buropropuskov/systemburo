@@ -101,13 +101,19 @@
         </div>
       </div>
       <div class="completion__fields">
-        <div class="completion__number">
+        <div
+          v-if="fieldVisible('number')"
+          class="completion__number"
+        >
           <div class="completion__number-header">
-            <label class="input__label">Номер Т/C <span class="required">*</span></label>
+            <label class="input__label">Номер Т/C <span
+              v-if="fieldRequired('number')"
+              class="required"
+            >*</span></label>
             <div class="number-fact">
-              <input 
-                v-model="isNumberByFact" 
-                class="fact-checkbox" 
+              <input
+                v-model="isNumberByFact"
+                class="fact-checkbox"
                 type="checkbox"
                 :disabled="editingVehicle && editingVehicle.isExisting"
                 @change="handleNumberByFactChange"
@@ -122,22 +128,22 @@
             v-if="isNumberByFact"
             class="number__field number__field--fact"
           >
-            <input 
-              class="number__input number__input--fact" 
+            <input
+              class="number__input number__input--fact"
               value="По факту"
               readonly
             >
           </div>
-                    
+
           <!-- Динамический формат из базы данных -->
           <div
             v-else-if="selectedFormat"
             class="number__field"
           >
-            <input 
-              v-for="(cell, index) in selectedFormat.cells" 
+            <input
+              v-for="(cell, index) in selectedFormat.cells"
               :key="index"
-              v-model="numberParts[index]" 
+              v-model="numberParts[index]"
               class="number__input"
               :placeholder="getPlaceholder(cell)"
               :maxlength="cell.max_length"
@@ -156,14 +162,20 @@
 
           <!-- Блок предупреждения об активной заявке для номера -->
         </div>
-                
-        <div class="completion__mark">
+
+        <div
+          v-if="fieldVisible('mark')"
+          class="completion__mark"
+        >
           <div class="completion__mark-header">
-            <label class="input__label">Марка Т/С <span class="required">*</span></label>
+            <label class="input__label">Марка Т/С <span
+              v-if="fieldRequired('mark')"
+              class="required"
+            >*</span></label>
             <div class="mark-fact">
-              <input 
-                v-model="isMarkByFact" 
-                class="fact-checkbox" 
+              <input
+                v-model="isMarkByFact"
+                class="fact-checkbox"
                 type="checkbox"
                 @change="handleMarkByFactChange"
               >
@@ -176,8 +188,8 @@
             v-if="isMarkByFact"
             class="mark__field mark__field--fact"
           >
-            <input 
-              class="mark__input mark__input--fact" 
+            <input
+              class="mark__input mark__input--fact"
               value="По факту"
               readonly
             >
@@ -206,8 +218,8 @@
                   class="mark__dropdown-menu"
                 >
                   <div class="mark__search">
-                    <input 
-                      v-model="markSearch" 
+                    <input
+                      v-model="markSearch"
                       class="mark__search-input"
                       placeholder="Поиск марки..."
                       @input="filterMarks"
@@ -269,8 +281,14 @@
     </div>
 
     <!-- Места разгрузки -->
-    <div class="completion__unloading">
-      <label class="input__label">Места разгрузки (выбор) <span class="required">*</span></label>
+    <div
+      v-if="fieldVisible('unloading_places')"
+      class="completion__unloading"
+    >
+      <label class="input__label">Места разгрузки (выбор) <span
+        v-if="fieldRequired('unloading_places')"
+        class="required"
+      >*</span></label>
       <div
         v-if="!loadingUnloadingPlaces && allUnloadingPlaces.length > 0"
         class="unloading__grid"
@@ -342,6 +360,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
+import { useFieldConfig } from '@/composables/useFieldConfig'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
 
@@ -379,9 +398,11 @@ export default {
         }
     },
     emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added'],
-    setup() {
+    setup(props) {
         const instance = getCurrentInstance()
         const toast = useToast()
+        // Геттер сохраняет реактивность пропса fieldConfig (#529).
+        const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
             const vm = instance.proxy
@@ -392,17 +413,17 @@ export default {
 
             if (vm.selectedExistingCars.length > 0) {
                 return [
-                    { check: vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
+                    { check: !fieldVisible('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
                 ]
             }
 
             return [
-                { check: !vm.activeCarInfo || vm.isNumberByFact, message: 'На этот автомобиль уже есть активная заявка' },
-                { check: !vm.blacklistInfo, message: 'Машина в чёрном списке' },
-                { check: (vm.isNumberByFact && vm.isMarkByFact) || !hasInactiveSelected, message: 'Невозможно выбрать неактивные места разгрузки' },
-                { check: vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
+                { check: !vm.activeCarInfo || vm.isNumberByFact || !fieldVisible('number'), message: 'На этот автомобиль уже есть активная заявка' },
+                { check: !vm.blacklistInfo || !fieldVisible('number'), message: 'Машина в чёрном списке' },
+                { check: (vm.isNumberByFact && vm.isMarkByFact) || !hasInactiveSelected || !fieldVisible('unloading_places'), message: 'Невозможно выбрать неактивные места разгрузки' },
+                { check: !fieldVisible('number') || !fieldRequired('number') || vm.isNumberByFact || !!vm.selectedFormat, message: 'формат номера' },
                 {
-                    check: vm.isNumberByFact || (
+                    check: !fieldVisible('number') || !fieldRequired('number') || vm.isNumberByFact || (
                         !!vm.selectedFormat &&
                         vm.numberParts.length > 0 &&
                         vm.numberParts.every((part, i) => {
@@ -412,12 +433,12 @@ export default {
                     ),
                     message: 'номер Т/С'
                 },
-                { check: vm.isMarkByFact || !!vm.selectedMark, message: 'марка Т/С' },
-                { check: vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
+                { check: !fieldVisible('mark') || !fieldRequired('mark') || vm.isMarkByFact || !!vm.selectedMark, message: 'марка Т/С' },
+                { check: !fieldVisible('unloading_places') || !fieldRequired('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
             ]
         })
 
-        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast }
+        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast, fieldVisible, fieldRequired }
     },
     data() {
         return {
@@ -470,8 +491,8 @@ export default {
                 const place = this.allUnloadingPlaces.find(p => p.id === placeId);
                 return place && place.status !== 'active';
             });
-            
-            return this.selectedExistingCars.length > 0 && this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected;
+            const placesOk = !this.fieldVisible('unloading_places') || (this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected);
+            return this.selectedExistingCars.length > 0 && placesOk;
         },
     },
     watch: {
