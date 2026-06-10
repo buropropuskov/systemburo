@@ -397,6 +397,12 @@ export default {
         existingEmployees: {
             type: Array,
             default: () => []
+        },
+        // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
+        // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей людей) - срез H-6.
+        fieldConfig: {
+            type: Object,
+            default: () => ({})
         }
     },
     emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
