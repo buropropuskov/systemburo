@@ -131,4 +131,25 @@ describe('EmployeeForm - потребление field-config (#529 H-6)', () => 
     });
     expect(w.vm.effectivePatentRequired).toBe(false);
   });
+
+  it('скрывает блок "Иное разрешение на работы" при work_permission.visible=false', () => {
+    const w = mount(EmployeeForm, {
+      props: { fieldConfig: { work_permission: { visible: false, required: false } } }
+    });
+    expect(w.find('.completion__permission').exists()).toBe(false);
+  });
+
+  it('видимое необязательное поле не блокирует canAddEmployee (red H-6)', () => {
+    // Все поля видимы, но required=false -> единственное правило это проверка ЧС
+    // (blacklistInfo=null, мок). До фикса required-проверки гейтились лишь fieldVisible
+    // и блокировали submit при пустом optional-поле.
+    const optional = { visible: true, required: false };
+    const w = mount(EmployeeForm, {
+      props: { fieldConfig: {
+        last_name: optional, first_name: optional, position: optional,
+        citizenship: optional, passport: optional, patent: optional, target_tables: optional,
+      } }
+    });
+    expect(w.vm.canAddEmployee).toBe(true);
+  });
 });

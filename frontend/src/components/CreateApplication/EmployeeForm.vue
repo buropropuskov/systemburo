@@ -472,26 +472,30 @@ export default {
             const vm = instance.proxy
 
             if (vm.selectedExistingEmployees.length > 0) {
-                return [
-                    { check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' }
-                ]
+                const existingRules = []
+                if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
+                    existingRules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
+                }
+                return existingRules
             }
 
+            // Поле требует заполнения только когда видимо И помечено обязательным.
+            // Видимое необязательное (required=false) не должно блокировать submit.
             const rules = []
-            if (fieldVisible('last_name')) {
+            if (fieldVisible('last_name') && fieldRequired('last_name')) {
                 rules.push({ check: !!vm.lastName.trim(), message: 'фамилию' })
             }
-            if (fieldVisible('first_name')) {
+            if (fieldVisible('first_name') && fieldRequired('first_name')) {
                 rules.push({ check: !!vm.firstName.trim(), message: 'имя' })
             }
             rules.push({ check: !vm.blacklistInfo, message: 'Человек в чёрном списке' })
-            if (fieldVisible('position')) {
+            if (fieldVisible('position') && fieldRequired('position')) {
                 rules.push({ check: !!vm.position.trim(), message: 'должность' })
             }
-            if (fieldVisible('citizenship')) {
+            if (fieldVisible('citizenship') && fieldRequired('citizenship')) {
                 rules.push({ check: !!vm.selectedCitizenship, message: 'гражданство' })
             }
-            if (fieldVisible('passport')) {
+            if (fieldVisible('passport') && fieldRequired('passport')) {
                 rules.push({ check: !!vm.passportSeriesNumber.trim(), message: 'паспортные данные' })
             }
             if (fieldVisible('patent')) {
@@ -500,7 +504,7 @@ export default {
                     message: 'номер патента или иное разрешение'
                 })
             }
-            if (fieldVisible('target_tables')) {
+            if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
                 rules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
             }
 
@@ -578,8 +582,10 @@ export default {
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
         },
-        // При явном required=true в конфиге для patent - всегда обязателен независимо от гражданства.
-        // Дефолт (нет строки конфига) - текущая условная логика по гражданству (patent_required).
+        // patent трёхзначен: нет строки конфига -> условная логика по гражданству;
+        // required=true -> всегда обязателен; required=false -> снова условная.
+        // fieldRequired() тут не годится: при отсутствии строки он даёт true (дефолт),
+        // что форсировало бы обязательность вместо условной логики - читаем конфиг напрямую.
         effectivePatentRequired() {
             const cfg = this.fieldConfig && this.fieldConfig['patent']
             if (cfg) {
