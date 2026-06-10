@@ -266,6 +266,7 @@ func (s *attachmentTemplateService) CreateCustomField(ctx context.Context, uaID 
 		Label:              req.Label,
 		Placeholder:        req.Placeholder,
 		SortOrder:          req.SortOrder,
+		IsRequired:         req.IsRequired,
 		IsActive:           true,
 	}
 	if err := s.db.WithContext(ctx).Create(&cf).Error; err != nil {
@@ -279,6 +280,7 @@ func (s *attachmentTemplateService) UpdateCustomField(ctx context.Context, id in
 		"label":       req.Label,
 		"placeholder": req.Placeholder,
 		"sort_order":  req.SortOrder,
+		"is_required": req.IsRequired,
 	}
 	res := s.db.WithContext(ctx).Model(&models.AttachmentCustomField{}).Where("id = ?", id).Updates(updates)
 	if res.Error != nil {
