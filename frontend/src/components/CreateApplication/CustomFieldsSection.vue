@@ -5,10 +5,13 @@
       :key="field.id"
       class="custom-fields__item"
     >
-      <label class="input__label">{{ field.label }}</label>
+      <label class="input__label">{{ field.label }}<span
+        v-if="field.is_required"
+        class="required"
+      > *</span></label>
       <input
         type="text"
-        class="input"
+        :class="['input', { 'input--error': field.is_required && submitted && !modelValue[field.id]?.trim() }]"
         :placeholder="field.placeholder"
         :value="modelValue[field.id] || ''"
         @input="$emit('update:modelValue', { ...modelValue, [field.id]: $event.target.value })"
@@ -23,6 +26,9 @@ export default {
     props: {
         fields: { type: Array, default: () => [] },
         modelValue: { type: Object, default: () => ({}) },
+        // Триггер подсветки ошибок обязательных полей (is_required=true).
+        // Дефолт false - поведение без переданного пропса не меняется.
+        submitted: { type: Boolean, default: false },
     },
     emits: ['update:modelValue'],
 };
@@ -48,6 +54,10 @@ export default {
     color: #a2a2a2;
 }
 
+.required {
+    color: #ff4444;
+}
+
 .input {
     width: 100%;
     height: 40px;
@@ -63,5 +73,9 @@ export default {
 
 .input:focus {
     border-color: #4F5BDF;
+}
+
+.input--error {
+    border-color: #ff4444;
 }
 </style>
