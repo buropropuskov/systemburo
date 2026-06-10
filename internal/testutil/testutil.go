@@ -139,6 +139,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	personBlacklistService := services.NewPersonBlacklistService(db, personBlacklistHistoryService)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
+	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)
 	trashDBRef := services.NewTrashDBRef(db)
@@ -180,7 +181,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	markHandler := handlers.NewMarkHandler(markService)
 	vehicleBlacklistHandler := handlers.NewVehicleBlacklistHandler(vehicleBlacklistService)
 	personBlacklistHandler := handlers.NewPersonBlacklistHandler(personBlacklistService)
-	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService)
+	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService, attachmentFieldConfigService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 

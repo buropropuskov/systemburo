@@ -11,14 +11,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// AttachmentTemplateHandler - HTTP API настроек Excel-бланков (#183).
+// AttachmentTemplateHandler - HTTP API настроек Excel-бланков (#183) и настройки
+// полей вложения (feedback-0608-H / #529).
 type AttachmentTemplateHandler struct {
-	service services.AttachmentTemplateService
+	service     services.AttachmentTemplateService
+	fieldConfig services.AttachmentFieldConfigService
 }
 
 // NewAttachmentTemplateHandler создаёт handler.
-func NewAttachmentTemplateHandler(s services.AttachmentTemplateService) *AttachmentTemplateHandler {
-	return &AttachmentTemplateHandler{service: s}
+func NewAttachmentTemplateHandler(s services.AttachmentTemplateService, fc services.AttachmentFieldConfigService) *AttachmentTemplateHandler {
+	return &AttachmentTemplateHandler{service: s, fieldConfig: fc}
 }
 
 // GetTemplate godoc
@@ -337,4 +339,55 @@ func (h *AttachmentTemplateHandler) DeleteCustomField(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Поле удалено")
+}
+
+// GetFieldConfig godoc
+// @Summary      Настройка полей вложения (базовые + кастомные)
+// @Description  Базовые поля реестра типа, смерженные с оверрайдами видимости/обязательности, плюс кастомные поля. Единый источник для админ-модалки и формы подачи.
+// @Tags         attachment-templates
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Success      200 {object} models.FieldConfigResponse
+// @Router       /attachments/{id}/field-config [get]
+func (h *AttachmentTemplateHandler) GetFieldConfig(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	base, err := h.fieldConfig.GetMerged(c.Request().Context(), uaID)
+	if err != nil {
+		return err
+	}
+	custom, err := h.service.ListCustomFields(c.Request().Context(), uaID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, models.FieldConfigResponse{Base: base, Custom: custom})
+}
+
+// SaveFieldConfig godoc
+// @Summary      Сохранить настройку базовых полей вложения
+// @Description  Bulk-upsert оверрайдов видимости/обязательности базовых полей. Ключи не из реестра типа отклоняются. Залоченные поля (дата/время) игнорируются.
+// @Tags         attachment-templates
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Param        request body models.SaveFieldConfigRequest true "Оверрайды базовых полей"
+// @Success      200 {string} string "Настройка полей сохранена"
+// @Router       /attachments/{id}/field-config [put]
+func (h *AttachmentTemplateHandler) SaveFieldConfig(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.SaveFieldConfigRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.fieldConfig.Save(c.Request().Context(), uaID, req.Base); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Настройка полей сохранена")
 }

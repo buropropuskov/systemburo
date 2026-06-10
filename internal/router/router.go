@@ -242,6 +242,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attRoot.POST("/:id/custom-fields", attachmentTemplates.CreateCustomField)
 	attRoot.PUT("/custom-fields/:fid", attachmentTemplates.UpdateCustomField)
 	attRoot.DELETE("/custom-fields/:fid", attachmentTemplates.DeleteCustomField)
+	// Настройка полей вложения (feedback-0608-H / #529): видимость/обязательность
+	// базовых полей реестра + кастомные поля одним ответом.
+	attRoot.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
+	attRoot.PUT("/:id/field-config", attachmentTemplates.SaveFieldConfig)
 
 	// Организации
 	orgg := protected.Group("/organizations")
