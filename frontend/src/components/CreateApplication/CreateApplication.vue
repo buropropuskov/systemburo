@@ -445,8 +445,7 @@ export default {
             }
 
             const missingFields = [];
-            if (!this.organization) missingFields.push('организация');
-            if (!this.company) missingFields.push('компания');
+            if (!this.organization?.trim() && !this.company?.trim()) missingFields.push('организация или компания');
             if (!this.responsiblePerson) missingFields.push('ответственный');
             if (!this.phoneNumber) missingFields.push('телефон');
             if (!this.consentGiven) missingFields.push('согласие на обработку данных');
@@ -515,8 +514,7 @@ export default {
 
             const globalErrors = [];
             if (this.attachments.length === 0) globalErrors.push('Не добавлено ни одного вложения');
-            if (!this.organization) globalErrors.push('Не заполнена организация');
-            if (!this.company) globalErrors.push('Не заполнена компания');
+            if (!this.organization?.trim() && !this.company?.trim()) globalErrors.push('Не заполнена организация или компания');
             if (!this.responsiblePerson) globalErrors.push('Не указано ответственное лицо');
             if (!this.phoneNumber) globalErrors.push('Не указан номер телефона');
             if (!this.consentGiven) globalErrors.push('Не дано согласие на обработку данных');
@@ -1365,11 +1363,14 @@ export default {
 
             switch (field) {
                 case 'organization':
-                    this.errors.organization = this.organization ? '' : 'Обязательное поле';
+                case 'company': {
+                    // Достаточно заполнить организацию ИЛИ компанию - не оба поля.
+                    const orgOrCompany = this.organization?.trim() || this.company?.trim()
+                        ? '' : 'Укажите организацию или компанию';
+                    this.errors.organization = orgOrCompany;
+                    this.errors.company = orgOrCompany;
                     break;
-                case 'company':
-                    this.errors.company = this.company ? '' : 'Обязательное поле';
-                    break;
+                }
                 case 'responsiblePerson':
                     this.errors.responsiblePerson = this.responsiblePerson ? '' : 'Обязательное поле';
                     break;

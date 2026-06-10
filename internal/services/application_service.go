@@ -147,7 +147,7 @@ type ApplicationCreateRequest struct {
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
 	Message           *string              `json:"message"`
-	Organization      string               `json:"organization" validate:"required"`
+	Organization      string               `json:"organization"`
 	Company           *string              `json:"company"`
 	ResponsiblePerson string               `json:"responsible_person" validate:"required"`
 	ContactPhone      string               `json:"contact_phone" validate:"required"`
@@ -1095,6 +1095,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}
 	if len(req.Attachments) == 0 {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
+	}
+	// Организация и компания взаимозаменяемы: для отправки достаточно одной из двух.
+	if strings.TrimSpace(req.Organization) == "" &&
+		(req.Company == nil || strings.TrimSpace(*req.Company) == "") {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
 	}
 
 	// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком

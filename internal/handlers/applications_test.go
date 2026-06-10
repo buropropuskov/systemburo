@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
@@ -287,6 +288,100 @@ func TestSubmitCompleteApplication_DataApprovalRequired(t *testing.T) {
 	}`
 	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestSubmitCompleteApplication_CompanyOnly(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	uaID := seedUniqueAttachment(t, db, "cars", "co_cars", "Company Only Cars")
+	token := testutil.RegisterAndLogin(t, e, "componly", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// Организация пустая, заполнена только компания - заявка должна создаться.
+	body := fmt.Sprintf(`{
+		"message": "company only",
+		"organization": "",
+		"company": "Test Company",
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "co_cars",
+			"attachment_display_name": "Company Only Cars",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": {"vehicles": [{"car_number": "A001AA777", "car_brand": "Toyota"}]}
+		}]
+	}`, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "company-only submit: %s", rec.Body.String())
+
+	resp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+	assert.NotZero(t, resp.ApplicationID)
+
+	// Чтение company-only заявки не должно падать: organization_id NULL в LEFT JOIN organizations.
+	listRec := testutil.GET(t, e, "/applications/user", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, listRec.Code, "read company-only app: %s", listRec.Body.String())
+}
+
+func TestSubmitCompleteApplication_NoOrgNoCompany(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	uaID := seedUniqueAttachment(t, db, "cars", "noorg_cars", "No Org Cars")
+	token := testutil.RegisterAndLogin(t, e, "noorg", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// Ни организация, ни компания не заполнены - заявку отклоняем (400).
+	body := fmt.Sprintf(`{
+		"message": "no org no company",
+		"organization": "",
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "noorg_cars",
+			"attachment_display_name": "No Org Cars",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": {"vehicles": [{"car_number": "A002AA777", "car_brand": "Toyota"}]}
+		}]
+	}`, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "no org/company should be 400: %s", rec.Body.String())
+}
+
+// TestAutoMigrate_RelaxesOrganizationNotNull: на БД из старой "NOT NULL"-эры
+// (свежий AutoMigrate уже делает колонку nullable, поэтому эмулируем констрейнт)
+// повторный AutoMigrate должен снять NOT NULL с applications.organization_id -
+// иначе company-only подача упадёт 500 на существующих staging/prod.
+func TestAutoMigrate_RelaxesOrganizationNotNull(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	require.NoError(t, db.Exec(`TRUNCATE applications CASCADE`).Error)
+	require.NoError(t, db.Exec(`ALTER TABLE applications ALTER COLUMN organization_id SET NOT NULL`).Error)
+
+	require.NoError(t, database.AutoMigrate(db))
+
+	var nullable string
+	require.NoError(t, db.Raw(
+		`SELECT is_nullable FROM information_schema.columns WHERE table_name='applications' AND column_name='organization_id'`,
+	).Row().Scan(&nullable))
+	require.Equal(t, "YES", nullable, "organization_id должна стать nullable после миграции")
 }
 
 // --- GET /applications/:id ---

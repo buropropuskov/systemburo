@@ -162,6 +162,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := fixAttachmentTemplateIndex(db); err != nil {
 		return err
 	}
+	if err := relaxApplicationOrgNotNull(db); err != nil {
+		return err
+	}
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
@@ -187,6 +190,19 @@ func backfillSuperAdmin(db *gorm.DB) error {
 	}
 	if res.RowsAffected > 0 {
 		slog.Info("super-admin backfilled", "users_updated", res.RowsAffected)
+	}
+	return nil
+}
+
+// relaxApplicationOrgNotNull снимает NOT NULL с applications.organization_id:
+// при подаче заявки достаточно указать организацию ИЛИ компанию, поэтому
+// organization_id может быть NULL (company-only подача). Свежий AutoMigrate уже
+// создаёт колонку nullable, но на БД из старой "NOT NULL"-эры констрейнт остаётся -
+// AutoMigrate существующие колонки не ослабляет. ALTER ... DROP NOT NULL идемпотентен
+// (на уже nullable колонке - noop).
+func relaxApplicationOrgNotNull(db *gorm.DB) error {
+	if err := db.Exec(`ALTER TABLE applications ALTER COLUMN organization_id DROP NOT NULL`).Error; err != nil {
+		return fmt.Errorf("relax applications.organization_id NOT NULL: %w", err)
 	}
 	return nil
 }
