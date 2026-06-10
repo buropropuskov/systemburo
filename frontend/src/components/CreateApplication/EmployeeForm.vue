@@ -35,9 +35,15 @@
     </div>
 
     <div v-else>
-      <div class="completion__citizenship">
+      <div
+        v-if="fieldVisible('citizenship')"
+        class="completion__citizenship"
+      >
         <div class="citizenship__header">
-          <label class="citizenship__label">Гражданство <span class="required">*</span></label>
+          <label class="citizenship__label">Гражданство <span
+            v-if="fieldRequired('citizenship')"
+            class="required"
+          >*</span></label>
           <div class="citizenship-actions">
             <button
               v-if="editingEmployee"
@@ -103,25 +109,40 @@
       </div>
             
       <div class="completion__fields">
-        <div class="completion__name-row">
-          <div class="completion__last-name">
+        <div
+          v-if="fieldVisible('last_name') || fieldVisible('first_name')"
+          class="completion__name-row"
+        >
+          <div
+            v-if="fieldVisible('last_name')"
+            class="completion__last-name"
+          >
             <div class="completion__last-name-header">
-              <label class="input__label">Фамилия <span class="required">*</span></label>
+              <label class="input__label">Фамилия <span
+                v-if="fieldRequired('last_name')"
+                class="required"
+              >*</span></label>
             </div>
-            <input 
-              v-model="lastName" 
+            <input
+              v-model="lastName"
               class="name__input"
               placeholder="Введите фамилию"
               :disabled="editingEmployee && editingEmployee.isExisting"
               @blur="formatNameField('lastName')"
             >
           </div>
-          <div class="completion__first-name">
+          <div
+            v-if="fieldVisible('first_name')"
+            class="completion__first-name"
+          >
             <div class="completion__first-name-header">
-              <label class="input__label">Имя <span class="required">*</span></label>
+              <label class="input__label">Имя <span
+                v-if="fieldRequired('first_name')"
+                class="required"
+              >*</span></label>
             </div>
-            <input 
-              v-model="firstName" 
+            <input
+              v-model="firstName"
               class="name__input"
               placeholder="Введите имя"
               :disabled="editingEmployee && editingEmployee.isExisting"
@@ -129,23 +150,38 @@
             >
           </div>
         </div>
-                
-        <div class="completion__name-row">
-          <div class="completion__middle-name">
+
+        <div
+          v-if="fieldVisible('middle_name') || fieldVisible('position')"
+          class="completion__name-row"
+        >
+          <div
+            v-if="fieldVisible('middle_name')"
+            class="completion__middle-name"
+          >
             <div class="completion__middle-name-header">
-              <label class="input__label">Отчество</label>
+              <label class="input__label">Отчество <span
+                v-if="fieldRequired('middle_name')"
+                class="required"
+              >*</span></label>
             </div>
-            <input 
-              v-model="middleName" 
+            <input
+              v-model="middleName"
               class="name__input"
               placeholder="Введите отчество"
               :disabled="editingEmployee && editingEmployee.isExisting"
               @blur="formatNameField('middleName')"
             >
           </div>
-          <div class="completion__position">
+          <div
+            v-if="fieldVisible('position')"
+            class="completion__position"
+          >
             <div class="completion__position-header">
-              <label class="input__label">Должность <span class="required">*</span></label>
+              <label class="input__label">Должность <span
+                v-if="fieldRequired('position')"
+                class="required"
+              >*</span></label>
             </div>
             <input
               v-model="position"
@@ -171,50 +207,64 @@
           </p>
         </div>
 
-        <div class="completion__name-row">
-          <div class="completion__passport">
+        <div
+          v-if="fieldVisible('passport') || fieldVisible('patent')"
+          class="completion__name-row"
+        >
+          <div
+            v-if="fieldVisible('passport')"
+            class="completion__passport"
+          >
             <div class="completion__passport-header">
-              <label class="input__label">Паспортные данные <span class="required">*</span></label>
+              <label class="input__label">Паспортные данные <span
+                v-if="fieldRequired('passport')"
+                class="required"
+              >*</span></label>
             </div>
-            <input 
-              v-model="passportSeriesNumber" 
+            <input
+              v-model="passportSeriesNumber"
               class="name__input"
               placeholder="Введите паспортные данные"
               :disabled="editingEmployee && editingEmployee.isExisting"
             >
           </div>
           <div
+            v-if="fieldVisible('patent')"
             class="completion__patent"
-            :class="{ 'disabled-field': !isPatentRequired }"
+            :class="{ 'disabled-field': !effectivePatentRequired }"
           >
             <div class="completion__patent-header">
-              <label class="input__label">Номер патента</label>
+              <label class="input__label">Номер патента <span
+                v-if="fieldRequired('patent') && effectivePatentRequired"
+                class="required"
+              >*</span></label>
             </div>
-            <input 
-              v-model="patentNumber" 
+            <input
+              v-model="patentNumber"
               class="name__input"
-              :placeholder="isPatentRequired ? 'Номер патента' : 'Не требуется'"
-              :disabled="!isPatentRequired || patentFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
+              :placeholder="effectivePatentRequired ? 'Номер патента' : 'Не требуется'"
+              :disabled="!effectivePatentRequired || patentFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
               @input="handlePatentInput"
             >
           </div>
         </div>
-                
+
         <div
+          v-if="fieldVisible('work_permission')"
           class="completion__permission"
-          :class="{ 'disabled-field': !isPatentRequired }"
+          :class="{ 'disabled-field': !effectivePatentRequired }"
         >
           <div class="completion__permission-header">
             <label class="input__label">Иное разрешение на работы</label>
           </div>
           <div class="permission__dropdown">
             <button
-              class="permission__dropdown-button" 
-              :disabled="!isPatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)" 
+              class="permission__dropdown-button"
+              :disabled="!effectivePatentRequired || permissionFieldDisabled || (editingEmployee && editingEmployee.isExisting)"
               @click="togglePermissionDropdown"
             >
               <div class="permission__button-content">
-                <span class="permission__button-text">{{ selectedPermission || (isPatentRequired ? 'Выберите разрешение' : 'Не требуется') }}</span>
+                <span class="permission__button-text">{{ selectedPermission || (effectivePatentRequired ? 'Выберите разрешение' : 'Не требуется') }}</span>
                 <img
                   src="@/assets/icons/arrow.png"
                   class="permission__button-arrow"
@@ -227,8 +277,8 @@
                 v-if="isPermissionDropdownOpen"
                 class="permission__dropdown-menu"
               >
-                <div 
-                  v-for="permission in availablePermissions" 
+                <div
+                  v-for="permission in availablePermissions"
                   :key="permission"
                   class="permission__dropdown-item"
                   @click="selectPermission(permission)"
@@ -239,9 +289,9 @@
             </transition>
           </div>
         </div>
-                
+
         <div
-          v-if="isPatentRequired"
+          v-if="fieldVisible('patent') && effectivePatentRequired"
           class="completion__files"
         >
           <div class="completion__files-header">
@@ -300,8 +350,14 @@
       </div>
     </div>
 
-    <div class="completion__passage">
-      <label class="input__label">Места прохода (целевые таблицы) <span class="required">*</span></label>
+    <div
+      v-if="fieldVisible('target_tables')"
+      class="completion__passage"
+    >
+      <label class="input__label">Места прохода (целевые таблицы) <span
+        v-if="fieldRequired('target_tables')"
+        class="required"
+      >*</span></label>
       <div
         v-if="!loadingPassageTables && filteredPassageTables.length > 0"
         class="passage__grid"
@@ -370,6 +426,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
+import { useFieldConfig } from '@/composables/useFieldConfig'
 import { getCurrentInstance } from 'vue'
 
 export default {
@@ -406,35 +463,55 @@ export default {
         }
     },
     emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
-    setup() {
+    setup(props) {
         const instance = getCurrentInstance()
         const toast = useToast()
+        const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
             const vm = instance.proxy
 
             if (vm.selectedExistingEmployees.length > 0) {
-                return [
-                    { check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' }
-                ]
+                const existingRules = []
+                if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
+                    existingRules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
+                }
+                return existingRules
             }
 
-            return [
-                { check: !!vm.lastName.trim(), message: 'фамилию' },
-                { check: !!vm.firstName.trim(), message: 'имя' },
-                { check: !vm.blacklistInfo, message: 'Человек в чёрном списке' },
-                { check: !!vm.position.trim(), message: 'должность' },
-                { check: !!vm.selectedCitizenship, message: 'гражданство' },
-                { check: !!vm.passportSeriesNumber.trim(), message: 'паспортные данные' },
-                {
-                    check: !vm.isPatentRequired || !!(vm.patentNumber.trim() || vm.selectedPermission),
+            // Поле требует заполнения только когда видимо И помечено обязательным.
+            // Видимое необязательное (required=false) не должно блокировать submit.
+            const rules = []
+            if (fieldVisible('last_name') && fieldRequired('last_name')) {
+                rules.push({ check: !!vm.lastName.trim(), message: 'фамилию' })
+            }
+            if (fieldVisible('first_name') && fieldRequired('first_name')) {
+                rules.push({ check: !!vm.firstName.trim(), message: 'имя' })
+            }
+            rules.push({ check: !vm.blacklistInfo, message: 'Человек в чёрном списке' })
+            if (fieldVisible('position') && fieldRequired('position')) {
+                rules.push({ check: !!vm.position.trim(), message: 'должность' })
+            }
+            if (fieldVisible('citizenship') && fieldRequired('citizenship')) {
+                rules.push({ check: !!vm.selectedCitizenship, message: 'гражданство' })
+            }
+            if (fieldVisible('passport') && fieldRequired('passport')) {
+                rules.push({ check: !!vm.passportSeriesNumber.trim(), message: 'паспортные данные' })
+            }
+            if (fieldVisible('patent')) {
+                rules.push({
+                    check: !vm.effectivePatentRequired || !!(vm.patentNumber.trim() || vm.selectedPermission),
                     message: 'номер патента или иное разрешение'
-                },
-                { check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' }
-            ]
+                })
+            }
+            if (fieldVisible('target_tables') && fieldRequired('target_tables')) {
+                rules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место прохода' })
+            }
+
+            return rules
         })
 
-        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast }
+        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast, fieldVisible, fieldRequired }
     },
     data() {
         return {
@@ -504,6 +581,17 @@ export default {
         },
         isPatentRequired() {
             return this.selectedCitizenship ? this.selectedCitizenship.patent_required : false;
+        },
+        // patent трёхзначен: нет строки конфига -> условная логика по гражданству;
+        // required=true -> всегда обязателен; required=false -> снова условная.
+        // fieldRequired() тут не годится: при отсутствии строки он даёт true (дефолт),
+        // что форсировало бы обязательность вместо условной логики - читаем конфиг напрямую.
+        effectivePatentRequired() {
+            const cfg = this.fieldConfig && this.fieldConfig['patent']
+            if (cfg) {
+                return cfg.required ? true : this.isPatentRequired
+            }
+            return this.isPatentRequired
         },
         patentFieldDisabled() {
             return this.selectedPermission !== '';
@@ -848,8 +936,8 @@ export default {
                 citizenshipId: this.selectedCitizenship.id,
                 citizenshipName: this.selectedCitizenship.name,
                 passportSeriesNumber: this.passportSeriesNumber.trim(),
-                patentNumber: this.isPatentRequired ? this.patentNumber.trim() : null,
-                otherPermission: this.isPatentRequired ? this.selectedPermission : null,
+                patentNumber: this.effectivePatentRequired ? this.patentNumber.trim() : null,
+                otherPermission: this.effectivePatentRequired ? this.selectedPermission : null,
                 passageTables: this.formatPassageTables(),
                 targetTables: [...this.selectedPassageTables],
                 isExisting: false
