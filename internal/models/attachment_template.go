@@ -126,6 +126,9 @@ type MergedField struct {
 	Group    string `json:"group"`
 	Visible  bool   `json:"visible"`
 	Required bool   `json:"required"`
+	// Locked=true: поле не настраивается (дата/время). Админ-модалка не показывает
+	// для него тумблеры, форма подачи рендерит как обязательное всегда.
+	Locked bool `json:"locked"`
 }
 
 // CustomValueInput - значение кастомного поля при создании attachment.

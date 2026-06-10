@@ -47,11 +47,13 @@ func UnknownFieldKeys(attachmentType string, keys []string) []string {
 }
 
 // buildFieldConfigRows готовит строки для bulk-upsert: дедуп по ключу
-// (last-wins) и форс required=false для не-Requirable полей. Чистая функция.
+// (last-wins), пропуск залоченных полей и форс required=false для не-Requirable.
+// Чистая функция.
 //
 // Дедуп нужен против PG "ON CONFLICT cannot affect row a second time": один и
 // тот же ключ дважды в одном INSERT иначе падает. PUT идемпотентен -
-// побеждает последнее значение ключа.
+// побеждает последнее значение ключа. Залоченные поля (дата/время) не настраиваются:
+// оверрайды для них не персистятся, даже если пришли в теле запроса.
 func buildFieldConfigRows(attType string, uaID int, items []models.FieldConfigItem) []models.AttachmentFieldConfig {
 	defs := fieldDefByKey(attType)
 	byKey := make(map[string]models.FieldConfigItem, len(items))
@@ -65,9 +67,13 @@ func buildFieldConfigRows(attType string, uaID int, items []models.FieldConfigIt
 
 	rows := make([]models.AttachmentFieldConfig, 0, len(order))
 	for _, key := range order {
+		d := defs[key]
+		if d.Locked {
+			continue
+		}
 		it := byKey[key]
 		required := it.Required
-		if d := defs[key]; !d.Requirable {
+		if !d.Requirable {
 			required = false
 		}
 		rows = append(rows, models.AttachmentFieldConfig{
@@ -128,6 +134,10 @@ func (s *attachmentFieldConfigService) Save(ctx context.Context, uaID int, items
 	}
 
 	rows := buildFieldConfigRows(attType, uaID, items)
+	if len(rows) == 0 {
+		// Все присланные ключи залочены - сохранять нечего (пустой батч уронил бы GORM).
+		return nil
+	}
 
 	err = s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "unique_attachment_id"}, {Name: "field_key"}},
