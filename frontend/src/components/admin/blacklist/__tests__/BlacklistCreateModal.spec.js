@@ -2,11 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import BlacklistCreateModal from '../BlacklistCreateModal.vue';
 
-// BaseModal использует Teleport - стабим. VehicleNumberFormatInput грузит форматы по сети -
-// стабим, номер задаём через carNumber (его v-model).
+// BaseModal использует Teleport - стабим, чтобы не тянуть портал в тест.
 const stubs = {
   BaseModal: { template: '<div><slot /><slot name="actions" /></div>' },
-  VehicleNumberFormatInput: true,
 };
 
 function mountModal(props = {}) {
@@ -60,25 +58,31 @@ describe('BlacklistCreateModal (person)', () => {
 });
 
 describe('BlacklistCreateModal (vehicle)', () => {
-  it('canSubmit false без номера и марки', () => {
+  const fmt = [{ format: { id: 1, name: 'РФ' }, cells: [{ cell_type: 'letters', max_length: 1 }, { cell_type: 'numbers', max_length: 3 }] }];
+
+  it('canSubmit false без формата, ячеек и марки', () => {
     const w = mountModal({ type: 'vehicle' });
     expect(w.vm.canSubmit).toBe(false);
   });
 
-  it('canSubmit true когда номер, марка и причина заполнены', async () => {
+  it('canSubmit true когда формат, ячейки, марка и причина заполнены', async () => {
     const w = mountModal({ type: 'vehicle' });
-    w.vm.carNumber = 'А 123';
+    w.vm.formats = fmt;
+    w.vm.selectedFormatId = 1;
+    w.vm.numberParts = ['А', '123'];
     w.vm.markId = 5;
     w.vm.reason = 'причина';
     await flushPromises();
     expect(w.vm.canSubmit).toBe(true);
   });
 
-  it('submit берёт car_number из v-model компонента и эмитит created с номером и маркой', async () => {
+  it('submit собирает car_number из ячеек и эмитит created с номером и маркой', async () => {
     const createFn = vi.fn().mockResolvedValue({});
     const w = mountModal({ type: 'vehicle', createFn });
+    w.vm.formats = fmt;
+    w.vm.selectedFormatId = 1;
     w.vm.marks = [{ id: 5, name: 'BMW' }];
-    w.vm.carNumber = 'А 123';
+    w.vm.numberParts = ['А', '123'];
     w.vm.markId = 5;
     w.vm.reason = 'причина';
     await w.vm.submit();

@@ -30,7 +30,7 @@ describe('VehicleNumberFormatInput', () => {
     await flushPromises();
     expect(w.vm.selectedFormatId).toBe(1);
     expect(w.vm.numberParts.length).toBe(2);
-    expect(w.findAll('.vnf__number-input').length).toBe(2);
+    expect(w.findAll('.number__input').length).toBe(2);
   });
 
   it('префилл раскладывает номер по ячейкам формата с совпадающим числом частей', async () => {

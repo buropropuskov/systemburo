@@ -7,14 +7,77 @@
   >
     <div class="bl-create">
       <template v-if="type === 'vehicle'">
-        <!-- Поячеечный ввод номера по формату вынесен в общий компонент - он же используется
-             при правке записи ЧС, чтобы создание и редактирование не расходились (#481). -->
-        <VehicleNumberFormatInput
-          v-model="carNumber"
-          class="bl-create__number"
-        />
+        <div class="completion__format">
+          <div class="format__header">
+            <label class="format__label">Формат номеров <span class="required">*</span></label>
+          </div>
+          <div class="format__dropdown">
+            <button
+              class="dropdown__button"
+              @click="toggleFormatDropdown"
+            >
+              <div class="button__content">
+                <span class="button__text">{{ selectedFormatText }}</span>
+                <img
+                  src="@/assets/icons/arrow.png"
+                  class="button__arrow"
+                  :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                >
+              </div>
+            </button>
+            <transition name="dropdown">
+              <div
+                v-if="isFormatDropdownOpen"
+                class="dropdown__menu"
+              >
+                <div
+                  v-for="format in formats"
+                  :key="format.format.id"
+                  class="dropdown__item"
+                  @click="selectFormat(format)"
+                >
+                  <span class="item__text">{{ format.format.name }}</span>
+                </div>
+                <div
+                  v-if="!formats.length"
+                  class="dropdown__item"
+                >
+                  <span class="item__text">Нет форматов</span>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
 
         <div class="completion__fields">
+          <div class="completion__number">
+            <div class="completion__number-header">
+              <label class="input__label">Номер Т/С <span class="required">*</span></label>
+            </div>
+            <div
+              v-if="selectedFormat"
+              class="number__field"
+            >
+              <input
+                v-for="(cell, index) in selectedFormat.cells"
+                :key="index"
+                v-model="numberParts[index]"
+                class="number__input"
+                :placeholder="getPlaceholder(cell)"
+                :maxlength="cell.max_length"
+                :style="{ width: getInputWidth(cell) }"
+                @input="validatePart(index, $event, cell)"
+                @blur="formatPart(index, cell)"
+              >
+            </div>
+            <div
+              v-else
+              class="no-format-message"
+            >
+              Выберите формат номера
+            </div>
+          </div>
+
           <div class="completion__mark">
             <div class="completion__mark-header">
               <label class="input__label">Марка Т/С <span class="required">*</span></label>
@@ -142,8 +205,9 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FormField from '@/components/ui/FormField.vue';
-import VehicleNumberFormatInput from './VehicleNumberFormatInput.vue';
+import { apiRequest } from '@/api/client';
 import { listMarks } from '@/api/marks';
+import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat';
 
 /**
  * Модалка добавления записи в чёрный список (#443). Тип определяет форму: 'vehicle' -
@@ -153,7 +217,7 @@ import { listMarks } from '@/api/marks';
  */
 export default {
   name: 'BlacklistCreateModal',
-  components: { BaseModal, FormField, VehicleNumberFormatInput },
+  components: { BaseModal, FormField },
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },
@@ -162,12 +226,15 @@ export default {
   emits: ['close', 'created'],
   data() {
     return {
-      carNumber: '',
+      formats: [],
+      selectedFormatId: null,
+      isFormatDropdownOpen: false,
       marks: [],
       markId: null,
       selectedMark: '',
       isMarkDropdownOpen: false,
       markSearch: '',
+      numberParts: [],
       lastName: '',
       firstName: '',
       middleName: '',
@@ -180,6 +247,12 @@ export default {
     title() {
       return this.type === 'vehicle' ? 'Добавить машину в чёрный список' : 'Добавить человека в чёрный список';
     },
+    selectedFormat() {
+      return this.formats.find((f) => f.format.id === this.selectedFormatId) || null;
+    },
+    selectedFormatText() {
+      return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
+    },
     filteredMarks() {
       const q = this.markSearch.trim().toLowerCase();
       if (!q) return this.marks;
@@ -188,7 +261,8 @@ export default {
     canSubmit() {
       if (!this.reason.trim()) return false;
       if (this.type === 'vehicle') {
-        return !!this.carNumber.trim() && !!this.markId;
+        return !!this.selectedFormat && this.numberParts.length > 0 &&
+          this.numberParts.every((p) => p && p.trim()) && !!this.markId;
       }
       return !!this.lastName.trim() && !!this.firstName.trim();
     },
@@ -211,11 +285,14 @@ export default {
   },
   methods: {
     resetForm() {
-      this.carNumber = '';
+      this.selectedFormatId = null;
+      this.formats = [];
+      this.isFormatDropdownOpen = false;
       this.markId = null;
       this.selectedMark = '';
       this.isMarkDropdownOpen = false;
       this.markSearch = '';
+      this.numberParts = [];
       this.lastName = '';
       this.firstName = '';
       this.middleName = '';
@@ -225,6 +302,15 @@ export default {
     },
     async loadVehicleData() {
       try {
+        const res = await apiRequest('/license-plate-formats');
+        const data = await res.json();
+        this.formats = Array.isArray(data) ? data : [];
+        const def = this.formats.find((f) => f.format.is_default) || this.formats[0];
+        if (def) this.selectFormat(def);
+      } catch {
+        this.formError = 'Не удалось загрузить форматы номеров';
+      }
+      try {
         const marks = await listMarks();
         const arr = Array.isArray(marks) ? marks : [];
         this.marks = arr.filter((m) => m.is_active !== false).map((m) => ({ id: m.id, name: m.name }));
@@ -233,16 +319,43 @@ export default {
       }
     },
     onDocumentClick(e) {
+      if (!e.target.closest('.format__dropdown')) this.isFormatDropdownOpen = false;
       if (!e.target.closest('.mark__dropdown')) this.isMarkDropdownOpen = false;
+    },
+    toggleFormatDropdown() {
+      this.isFormatDropdownOpen = !this.isFormatDropdownOpen;
+      this.isMarkDropdownOpen = false;
+    },
+    selectFormat(format) {
+      this.selectedFormatId = format.format.id;
+      this.numberParts = initializeNumberParts(this.selectedFormat);
+      this.isFormatDropdownOpen = false;
     },
     toggleMarkDropdown() {
       this.isMarkDropdownOpen = !this.isMarkDropdownOpen;
+      this.isFormatDropdownOpen = false;
     },
     selectMark(mark) {
       this.markId = mark.id;
       this.selectedMark = mark.name;
       this.isMarkDropdownOpen = false;
       this.markSearch = '';
+    },
+    validatePart(index, event, cell) {
+      const value = validatePartValue(event.target.value, cell);
+      this.numberParts[index] = value;
+      event.target.value = value;
+    },
+    formatPart(index, cell) {
+      this.numberParts[index] = formatPartValue(this.numberParts[index], cell);
+    },
+    getPlaceholder(cell) {
+      if (cell.cell_type === 'numbers') return '0'.repeat(cell.max_length);
+      return 'A'.repeat(cell.max_length);
+    },
+    getInputWidth(cell) {
+      const width = Math.max(50, (cell.max_length || 2) * 25);
+      return `${width}px`;
     },
     close() {
       if (this.saving) return;
@@ -256,7 +369,7 @@ export default {
         let payload;
         let displayName;
         if (this.type === 'vehicle') {
-          const carNumber = this.carNumber.trim();
+          const carNumber = this.numberParts.join(' ').trim();
           const markName = (this.marks.find((m) => m.id === this.markId) || {}).name || this.selectedMark || '';
           payload = { car_number: carNumber, mark_id: this.markId, reason: this.reason.trim() };
           displayName = [carNumber, markName].filter(Boolean).join(' ');
@@ -298,6 +411,116 @@ export default {
   color: #ff4444;
 }
 
+.completion__format {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 15px;
+}
+
+.format__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+}
+
+.format__label {
+  font-size: 13px;
+  color: #a2a2a2;
+}
+
+.format__dropdown {
+  position: relative;
+}
+
+.dropdown__button {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #e6e6e6;
+  background-color: #fff;
+  border-radius: 15px;
+  outline: none;
+  cursor: pointer;
+  padding: 0 15px;
+  transition: border-color 0.2s;
+}
+
+.dropdown__button:hover {
+  border-color: #4f5bdf;
+}
+
+.button__content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.button__text {
+  font-size: 14px;
+  color: #000;
+  font-weight: 500;
+  display: block;
+}
+
+.button__arrow {
+  width: 10px;
+  height: 10px;
+  transition: transform 0.2s;
+  transform: rotate(90deg);
+  flex-shrink: 0;
+}
+
+.button__arrow--open {
+  transform: rotate(-90deg);
+}
+
+.dropdown__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  margin-top: 5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dropdown__item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown__item:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.dropdown__item:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.item__text {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .completion__fields {
   display: flex;
   gap: 20px;
@@ -305,10 +528,12 @@ export default {
   margin-bottom: 15px;
 }
 
+.completion__number,
 .completion__mark {
   flex: 1;
 }
 
+.completion__number-header,
 .completion__mark-header {
   display: flex;
   align-items: center;
@@ -316,8 +541,51 @@ export default {
   padding-bottom: 5px;
 }
 
-.bl-create__number {
-  margin-bottom: 15px;
+.number__field {
+  max-width: 202px;
+  min-width: 202px;
+  height: 40px;
+  display: flex;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.number__input {
+  border: none;
+  height: 100%;
+  outline: none;
+  text-align: center;
+  font-size: 14px;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.number__input:not(:last-child) {
+  border-right: 1px solid #e6e6e6;
+}
+
+.number__input::placeholder {
+  color: #a2a2a2;
+  font-size: 12px;
+  text-transform: none;
+}
+
+.number__input:focus {
+  background-color: #f8f8f8;
+}
+
+.no-format-message {
+  font-size: 12px;
+  color: #a2a2a2;
+  text-align: center;
+  padding: 10px;
+  background: #f8f8f8;
+  border-radius: 10px;
+  border: 1px solid #e6e6e6;
 }
 
 .mark__field {

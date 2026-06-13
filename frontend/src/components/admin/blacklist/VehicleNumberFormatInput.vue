@@ -1,61 +1,61 @@
 <template>
   <div class="vnf">
-    <div class="vnf__format">
-      <div class="vnf__header">
-        <label class="vnf__label">Формат номеров <span class="vnf__required">*</span></label>
+    <div class="completion__format">
+      <div class="format__header">
+        <label class="format__label">Формат номеров <span class="required">*</span></label>
       </div>
-      <div class="vnf__dropdown">
+      <div class="format__dropdown">
         <button
           type="button"
-          class="vnf__dropdown-button"
+          class="dropdown__button"
           @click="toggleFormatDropdown"
         >
-          <div class="vnf__button-content">
-            <span class="vnf__button-text">{{ selectedFormatText }}</span>
+          <div class="button__content">
+            <span class="button__text">{{ selectedFormatText }}</span>
             <img
               src="@/assets/icons/arrow.png"
-              class="vnf__button-arrow"
-              :class="{ 'vnf__button-arrow--open': isFormatDropdownOpen }"
+              class="button__arrow"
+              :class="{ 'button__arrow--open': isFormatDropdownOpen }"
             >
           </div>
         </button>
-        <transition name="vnf-dropdown">
+        <transition name="dropdown">
           <div
             v-if="isFormatDropdownOpen"
-            class="vnf__dropdown-menu"
+            class="dropdown__menu"
           >
             <div
               v-for="format in formats"
               :key="format.format.id"
-              class="vnf__dropdown-item"
+              class="dropdown__item"
               @click="selectFormat(format)"
             >
-              <span class="vnf__item-text">{{ format.format.name }}</span>
+              <span class="item__text">{{ format.format.name }}</span>
             </div>
             <div
               v-if="!formats.length"
-              class="vnf__dropdown-item"
+              class="dropdown__item"
             >
-              <span class="vnf__item-text">Нет форматов</span>
+              <span class="item__text">Нет форматов</span>
             </div>
           </div>
         </transition>
       </div>
     </div>
 
-    <div class="vnf__number">
-      <div class="vnf__header">
-        <label class="vnf__label">Номер Т/С <span class="vnf__required">*</span></label>
+    <div class="completion__number">
+      <div class="completion__number-header">
+        <label class="input__label">Номер Т/С <span class="required">*</span></label>
       </div>
       <div
         v-if="selectedFormat"
-        class="vnf__number-field"
+        class="number__field"
       >
         <input
           v-for="(cell, index) in selectedFormat.cells"
           :key="index"
           v-model="numberParts[index]"
-          class="vnf__number-input"
+          class="number__input"
           :placeholder="getPlaceholder(cell)"
           :maxlength="cell.max_length"
           :style="{ width: getInputWidth(cell) }"
@@ -65,7 +65,7 @@
       </div>
       <div
         v-else
-        class="vnf__no-format"
+        class="no-format-message"
       >
         Выберите формат номера
       </div>
@@ -78,11 +78,10 @@ import { apiRequest } from '@/api/client';
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat';
 
 /**
- * Поячеечный ввод номера Т/С по выбранному формату (формат-дропдаун + ячейки). Единый
- * источник UX номера для создания (BlacklistCreateModal) и правки (AddToBlacklistModal)
- * записи ЧС - раньше правка использовала простой text-input и расходилась с созданием (#481).
- * v-model отдаёт собранную строку номера ("часть часть"). Для правки initialNumber лучшим
- * усилием раскладывается обратно по ячейкам, если число частей совпадает с форматом.
+ * Поячеечный ввод номера Т/С по выбранному формату (формат-дропдаун + ячейки). Markup и стили
+ * 1:1 повторяют ввод номера в BlacklistCreateModal, чтобы правка записи ЧС выглядела так же, как
+ * создание (#481). v-model отдаёт собранную строку "часть часть". Для правки initialNumber
+ * лучшим усилием раскладывается обратно по ячейкам, если число частей совпадает с форматом.
  */
 export default {
   name: 'VehicleNumberFormatInput',
@@ -176,54 +175,52 @@ export default {
       return `${width}px`;
     },
     onDocumentClick(e) {
-      if (!e.target.closest('.vnf__dropdown')) this.isFormatDropdownOpen = false;
+      if (!e.target.closest('.format__dropdown')) this.isFormatDropdownOpen = false;
     },
   },
 };
 </script>
 
+<!-- Стили 1:1 из BlacklistCreateModal (ввод номера), чтобы правка выглядела как создание. -->
 <style scoped>
 .vnf {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-.vnf__format {
-  display: flex;
   flex-direction: column;
-  gap: 6px;
-  position: relative;
-  flex: 1;
-  min-width: 180px;
 }
 
-.vnf__number {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.vnf__header {
-  display: flex;
-  align-items: end;
-}
-
-.vnf__label {
+.input__label {
   font-size: 13px;
   color: #a2a2a2;
 }
 
-.vnf__required {
+.required {
   color: #ff4444;
 }
 
-.vnf__dropdown {
+.completion__format {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 15px;
+}
+
+.format__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+}
+
+.format__label {
+  font-size: 13px;
+  color: #a2a2a2;
+}
+
+.format__dropdown {
   position: relative;
 }
 
-.vnf__dropdown-button {
+.dropdown__button {
   width: 100%;
   height: 40px;
   border: 1px solid #e6e6e6;
@@ -235,11 +232,11 @@ export default {
   transition: border-color 0.2s;
 }
 
-.vnf__dropdown-button:hover {
+.dropdown__button:hover {
   border-color: #4f5bdf;
 }
 
-.vnf__button-content {
+.button__content {
   display: flex;
   align-items: center;
   width: 100%;
@@ -247,14 +244,14 @@ export default {
   justify-content: space-between;
 }
 
-.vnf__button-text {
+.button__text {
   font-size: 14px;
   color: #000;
   font-weight: 500;
   display: block;
 }
 
-.vnf__button-arrow {
+.button__arrow {
   width: 10px;
   height: 10px;
   transition: transform 0.2s;
@@ -262,11 +259,11 @@ export default {
   flex-shrink: 0;
 }
 
-.vnf__button-arrow--open {
+.button__arrow--open {
   transform: rotate(-90deg);
 }
 
-.vnf__dropdown-menu {
+.dropdown__menu {
   position: absolute;
   top: 100%;
   left: 0;
@@ -281,7 +278,7 @@ export default {
   overflow-y: auto;
 }
 
-.vnf__dropdown-item {
+.dropdown__item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -290,11 +287,19 @@ export default {
   transition: background-color 0.2s;
 }
 
-.vnf__dropdown-item:hover {
+.dropdown__item:hover {
   background-color: #f5f5f5;
 }
 
-.vnf__item-text {
+.dropdown__item:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.dropdown__item:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.item__text {
   font-size: 13px;
   color: #333;
   white-space: nowrap;
@@ -302,7 +307,20 @@ export default {
   text-overflow: ellipsis;
 }
 
-.vnf__number-field {
+.completion__number {
+  flex: 1;
+}
+
+.completion__number-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 5px;
+}
+
+.number__field {
+  max-width: 202px;
+  min-width: 202px;
   height: 40px;
   display: flex;
   border: 1px solid #e6e6e6;
@@ -311,7 +329,7 @@ export default {
   background: #fff;
 }
 
-.vnf__number-input {
+.number__input {
   border: none;
   height: 100%;
   outline: none;
@@ -323,21 +341,21 @@ export default {
   text-transform: uppercase;
 }
 
-.vnf__number-input:not(:last-child) {
+.number__input:not(:last-child) {
   border-right: 1px solid #e6e6e6;
 }
 
-.vnf__number-input::placeholder {
+.number__input::placeholder {
   color: #a2a2a2;
   font-size: 12px;
   text-transform: none;
 }
 
-.vnf__number-input:focus {
+.number__input:focus {
   background-color: #f8f8f8;
 }
 
-.vnf__no-format {
+.no-format-message {
   font-size: 12px;
   color: #a2a2a2;
   text-align: center;
@@ -347,13 +365,13 @@ export default {
   border: 1px solid #e6e6e6;
 }
 
-.vnf-dropdown-enter-active,
-.vnf-dropdown-leave-active {
+.dropdown-enter-active,
+.dropdown-leave-active {
   transition: all 0.2s ease;
 }
 
-.vnf-dropdown-enter-from,
-.vnf-dropdown-leave-to {
+.dropdown-enter-from,
+.dropdown-leave-to {
   opacity: 0;
   transform: translateY(-10px);
 }
