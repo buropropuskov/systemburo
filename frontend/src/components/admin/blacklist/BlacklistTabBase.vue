@@ -333,10 +333,14 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 20px;
-  height: 50px;
+  padding: 8px 20px;
+  /* min-height вместо фиксированной height: на узкой ширине (например при закреплённой
+     нав-панели) контролы/табы переносятся на вторую строку, а не вылезают из шапки. */
+  min-height: 50px;
   border-bottom: 1px solid #e6e6e6;
   gap: 12px;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .bl-header-left {
@@ -351,6 +355,8 @@ export default {
   gap: 10px;
   align-items: center;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 /* фиксированная ширина: триггер не меняет размер между "Активные" и "Архив" */
