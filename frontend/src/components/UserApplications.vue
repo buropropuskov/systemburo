@@ -952,12 +952,12 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   width: max-content;
-  max-width: 240px;
+  max-width: 200px;
   background: #333;
   color: #fff;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.3;
   text-align: center;
   white-space: normal;

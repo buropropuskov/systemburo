@@ -1335,6 +1335,7 @@ export default {
     border-radius: 30px;
     border: 1px solid var(--color-border);
     overflow: hidden;
+    container-type: inline-size;
     margin-top: 20px;
     height: fit-content;
     max-height: 500px;
@@ -1434,13 +1435,13 @@ export default {
     white-space: normal;
 }
 
-/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529).
-   ЧС не сворачивается; крыша/парковка -> иконки когда оба и тесно. wrap: широкий
-   ЧС+тег, не влезающий в узкую колонку, переносится ВНУТРИ колонки, а не в actions. */
+/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529). Всё в ОДНУ строку (nowrap).
+   ЧС не сворачивается. Крыша/парковка -> иконки когда нав-меню закреплено (тесно) И в строке
+   есть ЧС или оба тега; одиночные крыша/парковка - текст. ЧС+оба (3 тега) - всегда иконки. */
 .application-tags {
     display: flex;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
 }
 
@@ -1470,12 +1471,12 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     width: max-content;
-    max-width: 240px;
+    max-width: 200px;
     background: #333;
     color: #fff;
-    padding: 6px 10px;
+    padding: 5px 9px;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.3;
     text-align: center;
     white-space: normal;
@@ -1505,47 +1506,49 @@ export default {
     opacity: 1;
 }
 
-/* оба тега присутствуют (--both): сворачиваем крышу/парковку когда текст всех не влезает.
-   Условия --both/--chs считаются во Vue (надёжнее :has() в scoped-стилях). */
-@container (max-width: 232px) {
+/* ЧС + оба тега (3 тега): крыша/парковка всегда иконки - 3 текста в одну строку не влезают */
+.application-tags--chs.application-tags--both .rt-tag--roof .rt-tag__text,
+.application-tags--chs.application-tags--both .rt-tag--parking .rt-tag__text {
+    display: none;
+}
+
+.application-tags--chs.application-tags--both .rt-tag--roof .rt-tag__icon,
+.application-tags--chs.application-tags--both .rt-tag--parking .rt-tag__icon {
+    display: block;
+}
+
+.application-tags--chs.application-tags--both .rt-tag--roof.badge--sm,
+.application-tags--chs.application-tags--both .rt-tag--parking.badge--sm {
+    padding: 4px;
+}
+
+/* тесно (нав-меню закреплено): крыша/парковка -> иконки в строках с ЧС или с обоими тегами.
+   Порог - ширина таблицы (.applications-table - container). Одиночные крыша/парковка без ЧС - текст. */
+@container (max-width: 1320px) {
+    .application-tags--chs .rt-tag--roof .rt-tag__text,
+    .application-tags--chs .rt-tag--parking .rt-tag__text,
     .application-tags--both .rt-tag--roof .rt-tag__text,
     .application-tags--both .rt-tag--parking .rt-tag__text {
         display: none;
     }
 
+    .application-tags--chs .rt-tag--roof .rt-tag__icon,
+    .application-tags--chs .rt-tag--parking .rt-tag__icon,
     .application-tags--both .rt-tag--roof .rt-tag__icon,
     .application-tags--both .rt-tag--parking .rt-tag__icon {
         display: block;
     }
 
+    .application-tags--chs .rt-tag--roof.badge--sm,
+    .application-tags--chs .rt-tag--parking.badge--sm,
     .application-tags--both .rt-tag--roof.badge--sm,
     .application-tags--both .rt-tag--parking.badge--sm {
         padding: 4px;
     }
 }
 
-/* без ЧС крыша+парковка влезают текстом дольше - держим текст, пока колонка не станет узкой */
-@container (min-width: 133px) {
-    .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__text,
-    .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__text {
-        display: inline;
-    }
-
-    .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__icon,
-    .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__icon {
-        display: none;
-    }
-
-    .application-tags--both:not(.application-tags--chs) .rt-tag--roof.badge--sm,
-    .application-tags--both:not(.application-tags--chs) .rt-tag--parking.badge--sm {
-        padding: 3px 8px;
-    }
-}
-
 .tags-col {
-    flex: 1.4 1 0;
-    min-width: 96px;
-    container-type: inline-size;
+    flex: 0 0 185px;
 }
 
 .application-col.tags-col {
@@ -1557,13 +1560,13 @@ export default {
 }
 
 .organization-col {
-    flex: 2.5 1 0;
+    flex: 2.2 1 0;
     min-width: 90px;
 }
 
 .sender-col {
-    flex: 2 1 0;
-    min-width: 90px;
+    flex: 1.2 1 0;
+    min-width: 80px;
 }
 
 .application-col.sender-col {
@@ -1617,7 +1620,7 @@ export default {
 }
 
 .status-col {
-    flex: 0 0 140px;
+    flex: 0 0 130px;
 }
 
 .actions-col {
