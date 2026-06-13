@@ -32,8 +32,10 @@ type PersonBlacklistService interface {
 	// отсутствия отчества), порог 0.7. Слой предупреждения о возможном обходе (#481): точное
 	// совпадение ловит Check (409). Пустой срез - похожих нет.
 	FindSimilar(ctx context.Context, lastName, firstName, middleName string) ([]models.BlacklistSimilarMatch, error)
-	// UpdateReason - редактирование причины записи + лог в историю (updated).
-	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error)
+	// Update - правка активной записи (ФИО/причина) + лог в историю (updated). При смене
+	// ФИО перекаскадивает employees: реактивирует совпадавших со старым ФИО, деактивирует
+	// совпадающих с новым. Дубль активной записи -> 409.
+	Update(ctx context.Context, id int, req models.UpdatePersonBlacklistRequest, userID int) (*models.PersonBlacklist, error)
 	// Purge - удаление архивной записи навсегда: запись удаляется физически, но событие
 	// purged (с ФИО) остаётся в общем журнале ЧС. Активную удалять нельзя.
 	Purge(ctx context.Context, id int, userID int) error
@@ -247,38 +249,90 @@ func (s *personBlacklistService) FindSimilar(ctx context.Context, lastName, firs
 	return matches, nil
 }
 
-func (s *personBlacklistService) UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.PersonBlacklist, error) {
+func (s *personBlacklistService) Update(ctx context.Context, id int, req models.UpdatePersonBlacklistRequest, userID int) (*models.PersonBlacklist, error) {
 	e, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if !e.IsActive {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя редактировать причину архивной записи")
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя редактировать архивную запись")
 	}
-	newReason := strings.TrimSpace(reason)
+	lastName := strings.TrimSpace(req.LastName)
+	firstName := strings.TrimSpace(req.FirstName)
+	middleName := strings.TrimSpace(req.MiddleName)
+	newReason := strings.TrimSpace(req.Reason)
+	if lastName == "" || firstName == "" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Фамилия и имя обязательны")
+	}
 	if newReason == "" {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Причина обязательна")
 	}
-	if newReason == e.Reason {
+
+	oldMiddle := ""
+	if e.MiddleName != nil {
+		oldMiddle = *e.MiddleName
+	}
+	identityChanged := !strings.EqualFold(strings.TrimSpace(e.LastName), lastName) ||
+		!strings.EqualFold(strings.TrimSpace(e.FirstName), firstName) ||
+		!strings.EqualFold(strings.TrimSpace(oldMiddle), middleName)
+	if !identityChanged && newReason == e.Reason {
 		return e, nil // без изменений - не пишем историю
 	}
-	oldReason := e.Reason
+
+	old := *e
+	updated := *e
+	updated.LastName = lastName
+	updated.FirstName = firstName
+	updated.MiddleName = normalizeMiddleName(req.MiddleName)
+	updated.NormalizedFIO = normalize.Name(lastName, firstName, middleName)
+	updated.Reason = newReason
+
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.PersonBlacklist{}).Where("id = ?", e.ID).Update("reason", newReason).Error; err != nil {
+		reactivated, deactivated := 0, 0
+		// При смене ФИО employees, привязанные к старому ФИО, больше не покрыты этой записью -
+		// возвращаем их; новые совпадения гасим.
+		if identityChanged {
+			r, err := s.reactivateMatchingEmployees(ctx, tx, old, userID)
+			if err != nil {
+				return err
+			}
+			reactivated = r
+		}
+		if err := tx.Model(&models.PersonBlacklist{}).Where("id = ?", e.ID).Updates(map[string]interface{}{
+			"last_name":      updated.LastName,
+			"first_name":     updated.FirstName,
+			"middle_name":    updated.MiddleName,
+			"normalized_fio": updated.NormalizedFIO,
+			"reason":         updated.Reason,
+		}).Error; err != nil {
 			return err
 		}
+		if identityChanged {
+			d, err := s.deactivateMatchingEmployees(ctx, tx, updated, userID)
+			if err != nil {
+				return err
+			}
+			deactivated = d
+		}
 		details := map[string]interface{}{
-			"full_name":  personFullName(*e),
-			"reason_old": oldReason,
-			"reason_new": newReason,
+			"full_name_old": personFullName(old),
+			"full_name_new": personFullName(updated),
+			"reason_old":    old.Reason,
+			"reason_new":    updated.Reason,
+		}
+		if identityChanged {
+			details["employees_reactivated"] = reactivated
+			details["employees_deactivated"] = deactivated
 		}
 		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
 	})
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления причины")
+		if isUniqueViolation(err) {
+			return nil, echo.NewHTTPError(http.StatusConflict, "Этот человек уже в чёрном списке")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления записи")
 	}
-	e.Reason = newReason
-	return e, nil
+	return &updated, nil
 }
 
 // Purge удаляет архивную запись навсегда. Логируем purged-событие (с ФИО в details),

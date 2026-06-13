@@ -341,3 +341,70 @@ func TestPersonBlacklist_FindSimilar(t *testing.T) {
 		}
 	})
 }
+
+// TestPersonBlacklist_Update покрывает правку ФИО/причины: лог истории, пересчёт нормали,
+// дубль -> 409, запрет правки архивной.
+func TestPersonBlacklist_Update(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	userID, _, userCleanup := setupMWUser(t, db, true, false)
+	defer userCleanup()
+	svc := newPersonBlacklistService(db)
+	ctx := context.Background()
+
+	entry, err := svc.Create(ctx, models.CreatePersonBlacklistRequest{
+		LastName: "Иванов", FirstName: "Иван", MiddleName: "Иванович", Reason: "старая",
+	}, userID)
+	require.NoError(t, err)
+	oldFIO := entry.NormalizedFIO
+
+	t.Run("правка причины - сохраняется + история", func(t *testing.T) {
+		_, err := svc.Update(ctx, entry.ID, models.UpdatePersonBlacklistRequest{
+			LastName: "Иванов", FirstName: "Иван", MiddleName: "Иванович", Reason: "  новая  ",
+		}, userID)
+		require.NoError(t, err)
+		stored, err := svc.GetByID(ctx, entry.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "новая", stored.Reason)
+	})
+
+	t.Run("смена ФИО - пересчёт нормали", func(t *testing.T) {
+		_, err := svc.Update(ctx, entry.ID, models.UpdatePersonBlacklistRequest{
+			LastName: "Петров", FirstName: "Пётр", MiddleName: "Петрович", Reason: "новая",
+		}, userID)
+		require.NoError(t, err)
+		stored, err := svc.GetByID(ctx, entry.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Петров", stored.LastName)
+		assert.NotEqual(t, oldFIO, stored.NormalizedFIO, "нормаль должна пересчитаться")
+		assert.NotEmpty(t, stored.NormalizedFIO)
+	})
+
+	t.Run("пустые фамилия/имя - 400", func(t *testing.T) {
+		_, err := svc.Update(ctx, entry.ID, models.UpdatePersonBlacklistRequest{
+			LastName: "  ", FirstName: "Пётр", Reason: "x",
+		}, userID)
+		assertHTTPStatus(t, err, 400)
+	})
+
+	t.Run("дубль активной записи - 409", func(t *testing.T) {
+		other, err := svc.Create(ctx, models.CreatePersonBlacklistRequest{
+			LastName: "Сидоров", FirstName: "Сидор", Reason: "вторая",
+		}, userID)
+		require.NoError(t, err)
+		_, err = svc.Update(ctx, other.ID, models.UpdatePersonBlacklistRequest{
+			LastName: "Петров", FirstName: "Пётр", MiddleName: "Петрович", Reason: "вторая",
+		}, userID)
+		assertHTTPStatus(t, err, 409)
+	})
+
+	t.Run("нельзя редактировать архивную - 400", func(t *testing.T) {
+		require.NoError(t, svc.Archive(ctx, entry.ID, userID))
+		_, err := svc.Update(ctx, entry.ID, models.UpdatePersonBlacklistRequest{
+			LastName: "Петров", FirstName: "Пётр", MiddleName: "Петрович", Reason: "после архива",
+		}, userID)
+		assertHTTPStatus(t, err, 400)
+	})
+}

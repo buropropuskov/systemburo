@@ -27,6 +27,7 @@
       mode="edit"
       :entity-label="editItem ? primaryText(editItem) : ''"
       :initial-reason="editItem ? editItem.reason : ''"
+      :initial-entity="editItem || {}"
       :saving="savingEdit"
       :error="editError"
       :z-index="1000"
@@ -177,18 +178,18 @@ export default {
       this.editError = '';
       this.editItem = item;
     },
-    async saveEdit(reason) {
+    async saveEdit(payload) {
       const item = this.editItem;
       if (!item || this.savingEdit) return;
       this.savingEdit = true;
       this.editError = '';
       try {
-        await updatePersonBlacklist(item.id, { reason });
-        useDeletionsStore().notify({ prefix: 'Причина обновлена для ', bold: this.primaryText(item) });
+        const updated = await updatePersonBlacklist(item.id, payload);
+        useDeletionsStore().notify({ prefix: 'Запись обновлена: ', bold: this.primaryText(updated || item) });
         this.editItem = null;
         await this.$refs.base.fetchData();
       } catch (e) {
-        this.editError = e?.message || 'Не удалось сохранить причину';
+        this.editError = e?.message || 'Не удалось сохранить';
       } finally {
         this.savingEdit = false;
       }

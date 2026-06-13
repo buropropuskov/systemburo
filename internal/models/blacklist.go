@@ -62,9 +62,19 @@ type CreateVehicleBlacklistRequest struct {
 	Reason    string `json:"reason" validate:"required,min=1"`
 }
 
-// UpdateBlacklistReasonRequest - тело PUT /<entity>-blacklist/{id} (редактирование причины).
-type UpdateBlacklistReasonRequest struct {
-	Reason string `json:"reason" validate:"required,min=1"`
+// UpdateVehicleBlacklistRequest - тело PUT /vehicle-blacklist/{id}: правка номера, марки и причины.
+type UpdateVehicleBlacklistRequest struct {
+	CarNumber string `json:"car_number" validate:"required,min=1,max=50"`
+	MarkID    int    `json:"mark_id" validate:"required"`
+	Reason    string `json:"reason" validate:"required,min=1"`
+}
+
+// UpdatePersonBlacklistRequest - тело PUT /person-blacklist/{id}: правка ФИО и причины.
+type UpdatePersonBlacklistRequest struct {
+	LastName   string `json:"last_name" validate:"required,min=1,max=100"`
+	FirstName  string `json:"first_name" validate:"required,min=1,max=100"`
+	MiddleName string `json:"middle_name" validate:"omitempty,max=100"`
+	Reason     string `json:"reason" validate:"required,min=1"`
 }
 
 // VehicleBlacklistHistoryItem - элемент истории для API (с именем пользователя).

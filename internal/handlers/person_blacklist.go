@@ -60,13 +60,13 @@ func (h *PersonBlacklistHandler) Create(c echo.Context) error {
 }
 
 // Update godoc
-// @Summary      Редактировать причину записи чёрного списка
+// @Summary      Редактировать запись чёрного списка (ФИО, причина)
 // @Tags         person-blacklist
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID записи"
-// @Param        request body models.UpdateBlacklistReasonRequest true "Новая причина"
+// @Param        request body models.UpdatePersonBlacklistRequest true "ФИО, причина"
 // @Success      200 {object} models.PersonBlacklist
 // @Router       /person-blacklist/{id} [put]
 func (h *PersonBlacklistHandler) Update(c echo.Context) error {
@@ -74,12 +74,12 @@ func (h *PersonBlacklistHandler) Update(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	var req models.UpdateBlacklistReasonRequest
+	var req models.UpdatePersonBlacklistRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	userID, _ := c.Get("user_id").(int)
-	entry, err := h.service.UpdateReason(c.Request().Context(), id, req.Reason, userID)
+	entry, err := h.service.Update(c.Request().Context(), id, req, userID)
 	if err != nil {
 		return err
 	}

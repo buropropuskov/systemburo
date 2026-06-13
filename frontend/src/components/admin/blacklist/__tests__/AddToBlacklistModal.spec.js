@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AddToBlacklistModal from '../AddToBlacklistModal.vue';
+
+// marks подгружаются в vehicle edit-режиме - мокаем, чтобы не ходить в сеть.
+vi.mock('@/api/marks', () => ({ listMarks: () => Promise.resolve([{ id: 5, name: 'BMW' }]) }));
 
 // BaseModal рендерит через Teleport - стабим, чтобы контент был в обёртке для запросов.
 const stubs = {
@@ -67,23 +70,47 @@ describe('AddToBlacklistModal', () => {
   describe('режим редактирования (mode=edit)', () => {
     it('заголовок и кнопка - для редактирования', () => {
       const wrapper = mountModal({ mode: 'edit', type: 'person' });
-      expect(wrapper.vm.title).toBe('Редактировать причину');
+      expect(wrapper.vm.title).toBe('Редактировать человека');
       const btn = wrapper.findAll('button').find((b) => b.text().includes('Сохранить'));
       expect(btn).toBeTruthy();
     });
 
-    it('предзаполняет причину из initialReason при открытии', async () => {
-      const wrapper = mountModal({ show: false, mode: 'edit', initialReason: 'прежняя причина' });
+    it('предзаполняет причину и идентичность из initial* при открытии', async () => {
+      const wrapper = mountModal({
+        show: false, mode: 'edit', type: 'person', initialReason: 'прежняя причина',
+        initialEntity: { last_name: 'Иванов', first_name: 'Иван', middle_name: 'Иванович' },
+      });
       await wrapper.setProps({ show: true });
       expect(wrapper.vm.reason).toBe('прежняя причина');
+      expect(wrapper.vm.lastName).toBe('Иванов');
+      expect(wrapper.vm.firstName).toBe('Иван');
     });
 
-    it('confirm эмитит изменённую причину', async () => {
-      const wrapper = mountModal({ show: false, mode: 'edit', initialReason: 'старая' });
+    it('confirm (person) эмитит объект с ФИО и причиной', async () => {
+      const wrapper = mountModal({
+        show: false, mode: 'edit', type: 'person',
+        initialEntity: { last_name: 'Иванов', first_name: 'Иван', middle_name: '' },
+      });
       await wrapper.setProps({ show: true });
       await wrapper.find('textarea').setValue('новая причина');
       await wrapper.findAll('button').find((b) => b.text().includes('Сохранить')).trigger('click');
-      expect(wrapper.emitted('confirm')[0]).toEqual(['новая причина']);
+      expect(wrapper.emitted('confirm')[0]).toEqual([
+        { last_name: 'Иванов', first_name: 'Иван', middle_name: '', reason: 'новая причина' },
+      ]);
+    });
+
+    it('confirm (vehicle) эмитит объект с номером, маркой и причиной', async () => {
+      const wrapper = mountModal({
+        show: false, mode: 'edit', type: 'vehicle',
+        initialEntity: { car_number: 'А777АА77', mark_id: 5 },
+      });
+      await wrapper.setProps({ show: true });
+      await wrapper.find('textarea').setValue('угон');
+      expect(wrapper.vm.markId).toBe(5);
+      wrapper.vm.confirm();
+      expect(wrapper.emitted('confirm')[0]).toEqual([
+        { car_number: 'А777АА77', mark_id: 5, reason: 'угон' },
+      ]);
     });
   });
 });

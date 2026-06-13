@@ -47,8 +47,10 @@ type VehicleBlacklistService interface {
 	// Слой предупреждения о возможном обходе (#481): точное совпадение ловит Check (409),
 	// сюда попадают опечатка/гомоглиф/подмена 0<->О. Пустой срез - похожих нет.
 	FindSimilar(ctx context.Context, carNumber string) ([]models.BlacklistSimilarMatch, error)
-	// UpdateReason - редактирование причины записи + лог в историю (updated).
-	UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error)
+	// Update - правка активной записи (номер/марка/причина) + лог в историю (updated). При
+	// смене идентичности перекаскадивает cars: реактивирует совпадавшие со старым номером,
+	// деактивирует совпадающие с новым. Дубль активной записи -> 409.
+	Update(ctx context.Context, id int, req models.UpdateVehicleBlacklistRequest, userID int) (*models.VehicleBlacklist, error)
 	// Purge - удаление архивной записи навсегда: запись удаляется физически, но событие
 	// purged (с лейблом машины) остаётся в общем журнале ЧС. Активную удалять нельзя.
 	Purge(ctx context.Context, id int, userID int) error
@@ -164,39 +166,95 @@ func (s *vehicleBlacklistService) Archive(ctx context.Context, id int, userID in
 	return nil
 }
 
-func (s *vehicleBlacklistService) UpdateReason(ctx context.Context, id int, reason string, userID int) (*models.VehicleBlacklist, error) {
+func (s *vehicleBlacklistService) Update(ctx context.Context, id int, req models.UpdateVehicleBlacklistRequest, userID int) (*models.VehicleBlacklist, error) {
 	e, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if !e.IsActive {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя редактировать причину архивной записи")
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя редактировать архивную запись")
 	}
-	newReason := strings.TrimSpace(reason)
+
+	var mark models.Mark
+	if err := s.db.WithContext(ctx).First(&mark, req.MarkID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "Марка не найдена")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения марки")
+	}
+
+	carNumber := strings.TrimSpace(req.CarNumber)
+	newReason := strings.TrimSpace(req.Reason)
+	if carNumber == "" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Номер обязателен")
+	}
 	if newReason == "" {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Причина обязательна")
 	}
-	if newReason == e.Reason {
+
+	// Идентичность - номер (без учёта регистра/пробелов, как в uidx) либо марка.
+	identityChanged := !strings.EqualFold(strings.TrimSpace(e.CarNumber), carNumber) || e.MarkID != req.MarkID
+	if !identityChanged && newReason == e.Reason {
 		return e, nil // без изменений - не пишем историю
 	}
-	oldReason := e.Reason
+
+	old := *e
+	updated := *e
+	updated.CarNumber = carNumber
+	updated.MarkID = req.MarkID
+	updated.MarkName = mark.Name
+	updated.NormalizedNumber = normalize.Plate(carNumber)
+	updated.Reason = newReason
+
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.VehicleBlacklist{}).Where("id = ?", e.ID).Update("reason", newReason).Error; err != nil {
+		reactivated, deactivated := 0, 0
+		// При смене идентичности cars, привязанные к старому номеру, больше не покрыты этой
+		// записью - возвращаем их; новые совпадения гасим. Иначе авто осталось бы ошибочно
+		// заблокированным/разблокированным.
+		if identityChanged {
+			r, err := s.reactivateMatchingCars(ctx, tx, old, userID)
+			if err != nil {
+				return err
+			}
+			reactivated = r
+		}
+		if err := tx.Model(&models.VehicleBlacklist{}).Where("id = ?", e.ID).Updates(map[string]interface{}{
+			"car_number":        updated.CarNumber,
+			"mark_id":           updated.MarkID,
+			"mark_name":         updated.MarkName,
+			"normalized_number": updated.NormalizedNumber,
+			"reason":            updated.Reason,
+		}).Error; err != nil {
 			return err
 		}
+		if identityChanged {
+			d, err := s.deactivateMatchingCars(ctx, tx, updated, userID)
+			if err != nil {
+				return err
+			}
+			deactivated = d
+		}
 		details := map[string]interface{}{
-			"car_number": e.CarNumber,
-			"mark_name":  e.MarkName,
-			"reason_old": oldReason,
-			"reason_new": newReason,
+			"car_number_old": old.CarNumber,
+			"car_number_new": updated.CarNumber,
+			"mark_name_old":  old.MarkName,
+			"mark_name_new":  updated.MarkName,
+			"reason_old":     old.Reason,
+			"reason_new":     updated.Reason,
+		}
+		if identityChanged {
+			details["cars_reactivated"] = reactivated
+			details["cars_deactivated"] = deactivated
 		}
 		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
 	})
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления причины")
+		if isUniqueViolation(err) {
+			return nil, echo.NewHTTPError(http.StatusConflict, "Эта машина уже в чёрном списке")
+		}
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления записи")
 	}
-	e.Reason = newReason
-	return e, nil
+	return &updated, nil
 }
 
 // Purge удаляет архивную запись навсегда. Сначала логируем purged-событие (с лейблом
