@@ -295,6 +295,25 @@
                   >
                     {{ blacklistFlagLabel(application) }}
                   </Badge>
+                  <div
+                    v-if="application.has_roof_access || application.has_free_parking"
+                    class="application-tags"
+                  >
+                    <Badge
+                      v-if="application.has_roof_access"
+                      variant="info"
+                      size="sm"
+                    >
+                      Крыша
+                    </Badge>
+                    <Badge
+                      v-if="application.has_free_parking"
+                      variant="success"
+                      size="sm"
+                    >
+                      Парковка
+                    </Badge>
+                  </div>
                 </div>
                 <div class="application-col date-col">
                   {{ formatDateTime(application.sending_datetime) }}
