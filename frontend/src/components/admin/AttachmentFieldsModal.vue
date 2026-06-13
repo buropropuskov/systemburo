@@ -40,139 +40,141 @@
                 (даты и время) обязателен всегда и не настраивается.
               </p>
 
-              <div
-                v-for="group in groups"
-                :key="group.key"
-                class="fields-group"
-              >
-                <div class="group-title">
-                  {{ group.label }}
-                </div>
-
+              <div class="fields-grid">
                 <div
-                  v-for="field in group.fields"
-                  :key="field.key"
-                  class="field-row"
-                  :class="{ 'field-row--locked': field.locked }"
-                  :data-testid="`field-row-${field.key}`"
+                  v-for="group in groups"
+                  :key="group.key"
+                  class="fields-group"
                 >
-                  <span class="field-label">{{ field.label }}</span>
+                  <div class="group-title">
+                    {{ group.label }}
+                  </div>
 
                   <div
-                    v-if="field.locked"
-                    class="field-locked"
+                    v-for="field in group.fields"
+                    :key="field.key"
+                    class="field-row"
+                    :class="{ 'field-row--locked': field.locked }"
+                    :data-testid="`field-row-${field.key}`"
                   >
-                    Всегда включено
+                    <span class="field-label">{{ field.label }}</span>
+
+                    <div
+                      v-if="field.locked"
+                      class="field-locked"
+                    >
+                      Всегда включено
+                    </div>
+                    <div
+                      v-else
+                      class="field-toggles"
+                    >
+                      <ToggleSwitch
+                        v-model="field.visible"
+                        :data-testid="`field-visible-${field.key}`"
+                      >
+                        Показывать
+                      </ToggleSwitch>
+                      <ToggleSwitch
+                        v-if="field.requirable"
+                        v-model="field.required"
+                        :disabled="!field.visible"
+                        :data-testid="`field-required-${field.key}`"
+                      >
+                        Обязательно
+                      </ToggleSwitch>
+                    </div>
                   </div>
+                </div>
+
+                <div class="fields-group fields-group--full custom-group">
+                  <div class="group-title">
+                    Дополнительные поля
+                  </div>
+                  <p class="custom-hint">
+                    Произвольные текстовые поля, заполняются при подаче заявки.
+                    Порядок задаёт расположение в форме.
+                  </p>
+
                   <div
-                    v-else
-                    class="field-toggles"
+                    v-if="!customFields.length"
+                    class="custom-empty"
                   >
-                    <ToggleSwitch
-                      v-model="field.visible"
-                      :data-testid="`field-visible-${field.key}`"
-                    >
-                      Показывать
-                    </ToggleSwitch>
-                    <ToggleSwitch
-                      v-if="field.requirable"
-                      v-model="field.required"
-                      :disabled="!field.visible"
-                      :data-testid="`field-required-${field.key}`"
-                    >
-                      Обязательно
-                    </ToggleSwitch>
+                    Дополнительных полей нет
                   </div>
-                </div>
-              </div>
 
-              <div class="fields-group custom-group">
-                <div class="group-title">
-                  Дополнительные поля
-                </div>
-                <p class="custom-hint">
-                  Произвольные текстовые поля, заполняются при подаче заявки.
-                  Порядок задаёт расположение в форме.
-                </p>
-
-                <div
-                  v-if="!customFields.length"
-                  class="custom-empty"
-                >
-                  Дополнительных полей нет
-                </div>
-
-                <div
-                  v-for="(cf, i) in customFields"
-                  :key="cf.uid"
-                  class="custom-row"
-                  :data-testid="`custom-row-${i}`"
-                >
-                  <div class="custom-inputs">
-                    <input
-                      v-model="cf.label"
-                      class="lk-input custom-input"
-                      maxlength="200"
-                      placeholder="Заголовок"
-                      :data-testid="`custom-label-${i}`"
-                    >
-                    <input
-                      v-model="cf.placeholder"
-                      class="lk-input custom-input"
-                      maxlength="200"
-                      placeholder="Плейсхолдер"
-                      :data-testid="`custom-placeholder-${i}`"
-                    >
-                  </div>
-                  <div class="custom-controls">
-                    <ToggleSwitch
-                      v-model="cf.required"
-                      :data-testid="`custom-required-${i}`"
-                    >
-                      Обязательно
-                    </ToggleSwitch>
-                    <div class="custom-order">
+                  <div
+                    v-for="(cf, i) in customFields"
+                    :key="cf.uid"
+                    class="custom-row"
+                    :data-testid="`custom-row-${i}`"
+                  >
+                    <div class="custom-inputs">
+                      <input
+                        v-model="cf.label"
+                        class="lk-input custom-input"
+                        maxlength="200"
+                        placeholder="Заголовок"
+                        :data-testid="`custom-label-${i}`"
+                      >
+                      <input
+                        v-model="cf.placeholder"
+                        class="lk-input custom-input"
+                        maxlength="200"
+                        placeholder="Плейсхолдер"
+                        :data-testid="`custom-placeholder-${i}`"
+                      >
+                    </div>
+                    <div class="custom-controls">
+                      <ToggleSwitch
+                        v-model="cf.required"
+                        :data-testid="`custom-required-${i}`"
+                      >
+                        Обязательно
+                      </ToggleSwitch>
+                      <div class="custom-order">
+                        <button
+                          type="button"
+                          class="order-btn"
+                          aria-label="Переместить выше"
+                          :disabled="i === 0"
+                          :data-testid="`custom-up-${i}`"
+                          @click="moveCustom(i, -1)"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          class="order-btn"
+                          aria-label="Переместить ниже"
+                          :disabled="i === customFields.length - 1"
+                          :data-testid="`custom-down-${i}`"
+                          @click="moveCustom(i, 1)"
+                        >
+                          ↓
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        class="order-btn"
-                        aria-label="Переместить выше"
-                        :disabled="i === 0"
-                        :data-testid="`custom-up-${i}`"
-                        @click="moveCustom(i, -1)"
+                        class="custom-delete"
+                        aria-label="Удалить поле"
+                        :data-testid="`custom-delete-${i}`"
+                        @click="removeCustom(i)"
                       >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        class="order-btn"
-                        aria-label="Переместить ниже"
-                        :disabled="i === customFields.length - 1"
-                        :data-testid="`custom-down-${i}`"
-                        @click="moveCustom(i, 1)"
-                      >
-                        ↓
+                        ×
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      class="custom-delete"
-                      aria-label="Удалить поле"
-                      :data-testid="`custom-delete-${i}`"
-                      @click="removeCustom(i)"
-                    >
-                      ×
-                    </button>
                   </div>
-                </div>
 
-                <button
-                  type="button"
-                  class="lk-button lk-button--ghost custom-add"
-                  data-testid="custom-add"
-                  @click="addCustom"
-                >
-                  + Добавить поле
-                </button>
+                  <button
+                    type="button"
+                    class="lk-button lk-button--ghost custom-add"
+                    data-testid="custom-add"
+                    @click="addCustom"
+                  >
+                    + Добавить поле
+                  </button>
+                </div>
               </div>
             </template>
           </div>
@@ -421,7 +423,7 @@ export default {
 .fields-modal {
   background: white;
   border-radius: 30px;
-  width: 560px;
+  width: 960px;
   max-width: 95%;
   max-height: 85vh;
   display: flex;
@@ -516,8 +518,24 @@ export default {
   color: #a2a2a2;
 }
 
-.fields-group + .fields-group {
-  margin-top: 18px;
+/* Группы тайлятся горизонтально в карточки; узкая ширина -> 1 колонка (мобайл). */
+.fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* Доп. поля шире (инпуты заголовок/плейсхолдер) - на всю ширину сетки. */
+.fields-group--full {
+  grid-column: 1 / -1;
+}
+
+.fields-group {
+  border: 1px solid #e9ecf1;
+  border-radius: var(--radius-md);
+  background: #fafbfc;
+  padding: 14px 16px;
 }
 
 .group-title {
@@ -526,20 +544,21 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #a2a2a2;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .field-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 10px 0;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid #eef1f4;
 }
 
 .field-row:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
 .field-label {
@@ -554,8 +573,8 @@ export default {
 .field-toggles {
   display: flex;
   align-items: center;
-  gap: 20px;
-  flex-shrink: 0;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 
 .field-locked {
