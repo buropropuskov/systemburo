@@ -953,7 +953,7 @@ export default {
 }
 
 /* без ЧС крыша+парковка держим текстом, пока колонка не станет узкой */
-@container (min-width: 133px) {
+@container (min-width: 125px) {
   .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__text,
   .tags-col .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__text {
     display: inline;
@@ -1071,7 +1071,7 @@ export default {
 /* Бейджи подтверждения */
 .confirmation-badge {
   display: block;
-  width: 100%;
+  width: 64px;
   box-sizing: border-box;
   padding: 4px 8px;
   border-radius: 12px;
@@ -1110,7 +1110,7 @@ export default {
 /* Бейджи статуса */
 .status-badge {
   display: block;
-  width: 100%;
+  width: 118px;
   box-sizing: border-box;
   padding: 4px 8px;
   border-radius: 12px;

@@ -1405,11 +1405,11 @@ export default {
 
 /* Перераспределение размеров колонок */
 .confirmation-col {
-    width: 14%;
+    width: 15%;
 }
 
 .number-col {
-    width: 11%;
+    width: 12%;
     /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
        не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
     min-width: 0;
@@ -1469,7 +1469,7 @@ export default {
 }
 
 /* без ЧС крыша+парковка влезают текстом дольше - держим текст, пока колонка не станет узкой */
-@container (min-width: 133px) {
+@container (min-width: 125px) {
     .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__text,
     .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__text {
         display: inline;
@@ -1487,7 +1487,7 @@ export default {
 }
 
 .tags-col {
-    width: 17%;
+    width: 12%;
     container-type: inline-size;
 }
 
@@ -1496,15 +1496,15 @@ export default {
 }
 
 .date-col {
-    width: 12%;
+    width: 13%;
 }
 
 .organization-col {
-    width: 18%;
+    width: 20%;
 }
 
 .sender-col {
-    width: 15%;
+    width: 17%;
 }
 
 .sender-tooltip-anchor {
@@ -1551,7 +1551,7 @@ export default {
 }
 
 .status-col {
-    width: 13%;
+    width: 11%;
 }
 
 .actions-col {
@@ -1661,7 +1661,7 @@ export default {
 
 .confirmation-badge {
     display: block;
-    width: 100%;
+    width: 64px;
     box-sizing: border-box;
     padding: 4px 8px;
     border-radius: 12px;
@@ -1744,7 +1744,7 @@ export default {
 
 .status-badge {
     display: block;
-    width: 100%;
+    width: 118px;
     box-sizing: border-box;
     padding: 4px 8px;
     border-radius: 8px;
