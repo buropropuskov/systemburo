@@ -51,6 +51,8 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 			a.entry_date_to,
 			a.entry_time_from,
 			a.entry_time_to,
+			a.roof_access,
+			a.free_parking,
 			a.created_at,
 			a.unique_attachment_id,
 			ua.title as unique_attachment_title,
