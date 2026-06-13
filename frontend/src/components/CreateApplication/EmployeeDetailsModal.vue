@@ -37,7 +37,7 @@
                   class="blacklist-add-btn"
                   @click="openAddBlacklist"
                 >
-                  <span>Добавить в ЧС</span>
+                  <span>В ЧС</span>
                 </button>
               </div>
               <button

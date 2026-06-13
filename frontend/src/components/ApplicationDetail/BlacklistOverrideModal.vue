@@ -4,12 +4,13 @@
     title="Всё равно пропустить?"
     width="460px"
     :z-index="10005"
+    content-class="bl-override-modal"
     @close="$emit('close')"
   >
     <div class="override-body">
       <p class="override-lead">
         Элемент похож на активную запись чёрного списка, но это не точное совпадение.
-        Подтвердите пропуск - действие фиксируется в аудите (кто, когда, причина).
+        Подтвердите действие.
       </p>
 
       <div
@@ -26,7 +27,7 @@
           v-if="flag.matched_reason"
           class="override-matched__reason"
         >
-          Причина совпадения: {{ flag.matched_reason }}
+          Причина: {{ flag.matched_reason }}
         </div>
       </div>
 
@@ -38,7 +39,7 @@
           v-model="comment"
           class="lk-textarea"
           rows="3"
-          placeholder="Например: проверено по СТС, это другой автомобиль"
+          placeholder="Введите причину..."
           @keydown.enter.ctrl="submit"
         />
       </FormField>
@@ -153,5 +154,13 @@ export default {
     font-size: 12.5px;
     color: #7f1d1d;
     margin-top: 2px;
+}
+</style>
+
+<!-- не scoped: контент BaseModal телепортится в body и несёт data-v самого BaseModal,
+     поэтому радиус задаём глобально двойным классом (бьёт scoped .base-modal BaseModal). -->
+<style>
+.base-modal.bl-override-modal {
+    border-radius: 30px;
 }
 </style>

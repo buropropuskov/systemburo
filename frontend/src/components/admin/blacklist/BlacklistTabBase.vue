@@ -353,6 +353,12 @@ export default {
   flex-shrink: 0;
 }
 
+/* фиксированная ширина: триггер не меняет размер между "Активные" и "Архив" */
+.bl-archive-dropdown {
+  width: 150px;
+  flex-shrink: 0;
+}
+
 .bl-content {
   display: flex;
   height: 460px;
@@ -546,7 +552,6 @@ export default {
   padding: 12px 16px;
   background: #fdf3f3;
   border-radius: var(--radius-md);
-  border-left: 3px solid var(--color-danger);
 }
 
 .bl-reason-label {
