@@ -19,17 +19,11 @@
       <!-- EDIT: правка идентичности записи реестра -->
       <template v-else>
         <template v-if="type === 'vehicle'">
-          <FormField
-            label="Номер Т/С"
-            :required="true"
-          >
-            <input
-              ref="firstInput"
-              v-model="carNumber"
-              class="lk-input"
-              placeholder="А777АА 77"
-            >
-          </FormField>
+          <!-- Поячеечный ввод номера по формату - тот же, что при создании записи ЧС (#481). -->
+          <VehicleNumberFormatInput
+            :key="openSeq"
+            v-model="carNumber"
+          />
           <FormField
             label="Марка Т/С"
             :required="true"
@@ -120,6 +114,7 @@
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FormField from '@/components/ui/FormField.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import VehicleNumberFormatInput from './VehicleNumberFormatInput.vue';
 import { listMarks } from '@/api/marks';
 
 /**
@@ -132,7 +127,7 @@ import { listMarks } from '@/api/marks';
  */
 export default {
   name: 'AddToBlacklistModal',
-  components: { BaseModal, FormField, BaseDropdown },
+  components: { BaseModal, FormField, BaseDropdown, VehicleNumberFormatInput },
   props: {
     show: { type: Boolean, default: false },
     type: { type: String, required: true, validator: (v) => ['vehicle', 'person'].includes(v) },
@@ -155,6 +150,9 @@ export default {
       firstName: '',
       middleName: '',
       marks: [],
+      // Меняется при каждом открытии - форсит ремоунт VehicleNumberFormatInput, чтобы он
+      // заново разложил префилл номера по ячейкам.
+      openSeq: 0,
     };
   },
   computed: {
@@ -190,6 +188,7 @@ export default {
         this.lastName = e.last_name || '';
         this.firstName = e.first_name || '';
         this.middleName = e.middle_name || '';
+        this.openSeq += 1; // ремоунт ввода номера -> повторный префилл по ячейкам
         if (this.type === 'vehicle') this.loadMarks();
       }
       this.$nextTick(() => this.$refs.firstInput?.focus());
