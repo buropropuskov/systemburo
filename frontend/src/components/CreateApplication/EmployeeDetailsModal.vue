@@ -4,6 +4,7 @@
       <div
         v-if="show"
         class="modal-overlay"
+        :style="{ zIndex: overlayZIndex }"
         @click.self="close"
       >
         <div class="modal-wrapper">
@@ -456,6 +457,12 @@ export default {
         };
     },
     computed: {
+        // Карточка, открытая ИЗ ApplicationDetail (source='application'), лежит ПОВЕРХ его
+        // оверлея (z-index 10002). В остальных местах - базовый слой 10001, чтобы открытый
+        // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
+        overlayZIndex() {
+            return this.source === 'application' ? 10003 : 10001;
+        },
         // Кнопки в шапке: "Полная история" (showHistoryButton) и
         // "Открыть заявку" (source !== 'application' и есть applicationId).
         visibleActionsCount() {

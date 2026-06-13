@@ -3,6 +3,7 @@
     :show="show"
     title="Всё равно пропустить?"
     width="460px"
+    :z-index="10005"
     @close="$emit('close')"
   >
     <div class="override-body">

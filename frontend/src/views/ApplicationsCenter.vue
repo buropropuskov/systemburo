@@ -1353,7 +1353,10 @@ export default {
 }
 
 .number-col {
-    width: 15%;
+    width: 18%;
+    /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
+       не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
+    min-width: 0;
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
@@ -1364,12 +1367,18 @@ export default {
     max-width: 100%;
 }
 
+/* у .application-col нет overflow:hidden - на узкой раскладке даём бейджу перенестись,
+   а не вылезать в соседнюю колонку (специфичность бьёт white-space:nowrap из Badge). */
+.number-col .blacklist-flag-badge {
+    white-space: normal;
+}
+
 .date-col {
     width: 15%;
 }
 
 .organization-col {
-    width: 20%;
+    width: 17%;
 }
 
 .sender-col {
