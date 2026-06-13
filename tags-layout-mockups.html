@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мокапы: теги крыша/парковка (#529)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #4F5BDF;
+    --primary-hover: #3d49c7;
+    --ink: #1a1a1a;
+    --muted: #a2a2a2;
+    --line: #e6e6e6;
+    --radius-md: 15px;
+    --radius-lg: 20px;
+    --radius-pill: 999px;
+    /* Badge tokens (Badge.vue) */
+    --info-bg: #dbeafe;   --info-fg: #1e40af;   --info-bd: #bfdbfe;
+    --ok-bg: #dcfce7;     --ok-fg: #166534;     --ok-bd: #bbf7d0;
+    --danger-bg: #fee2e2; --danger-fg: #991b1b; --danger-bd: #fecaca;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    background: #eef0f6;
+    color: var(--ink);
+    padding: 40px 32px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .page-title { font-size: 26px; font-weight: 700; margin: 0 0 4px; }
+  .page-sub { color: #6b7280; font-size: 14px; margin: 0 0 36px; }
+
+  .section { margin-bottom: 48px; }
+  .section > h2 {
+    font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--primary); margin: 0 0 4px;
+  }
+  .section > .hint { color: #6b7280; font-size: 13px; margin: 0 0 18px; max-width: 760px; line-height: 1.5; }
+
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg);
+    box-shadow: 0 2px 14px rgba(20,22,60,.05); padding: 22px;
+  }
+  .variant-label {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 12px;
+  }
+  .variant-label .pin {
+    font-size: 11px; font-weight: 700; color: #fff; background: var(--primary);
+    border-radius: var(--radius-pill); padding: 2px 9px;
+  }
+  .variant-label .rec { background: #16a34a; }
+  .variant-label .alt { background: #94a3b8; }
+  .variant-note { font-size: 12px; color: #6b7280; margin: 10px 2px 0; line-height: 1.45; }
+
+  /* ---------- Badge / теги ---------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: var(--radius-pill); font-weight: 500; white-space: nowrap;
+    line-height: 1; border: 1px solid transparent;
+  }
+  .badge--sm { font-size: 11px; padding: 3px 8px; }
+  .badge--md { font-size: 12px; padding: 4px 10px; }
+  .badge--lg { font-size: 13px; padding: 7px 13px; }
+  .badge--info { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-bd); }
+  .badge--ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-bd); }
+  .badge--danger { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-bd); }
+  .badge svg { display: block; }
+  .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* icon-only chip (variant B) */
+  .chip {
+    width: 26px; height: 26px; border-radius: 9px; display: inline-flex;
+    align-items: center; justify-content: center; border: 1px solid transparent;
+  }
+  .chip--info { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-bd); }
+  .chip--ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-bd); }
+
+  /* ---------- Форма: тумблеры ---------- */
+  .form-demo { display: flex; gap: 40px; flex-wrap: wrap; }
+  .field-col { display: flex; flex-direction: column; gap: 6px; min-width: 230px; }
+  .field-label { font-size: 13px; color: var(--muted); }
+  .additional-options { display: flex; flex-direction: column; gap: 12px; }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 11px; cursor: pointer; user-select: none;
+  }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch {
+    position: relative; width: 42px; height: 24px; border-radius: var(--radius-pill);
+    background: #d4d7e3; transition: background .22s ease; flex-shrink: 0;
+  }
+  .switch::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    transition: transform .22s cubic-bezier(.3,1.3,.5,1);
+  }
+  .toggle input:checked + .switch { background: var(--primary); }
+  .toggle input:checked + .switch::after { transform: translateX(18px); }
+  .toggle input:focus-visible + .switch { box-shadow: 0 0 0 3px rgba(79,91,223,.3); }
+  .toggle-text { font-size: 13px; color: #333; }
+  .mini-caption { font-size: 12px; color: #6b7280; margin-top: 14px; }
+
+  /* ---------- Таблица (Центр / ЛК) ---------- */
+  .tbl { width: 100%; }
+  .trow {
+    display: grid; align-items: center; gap: 14px;
+    padding: 12px 16px; border-bottom: 1px solid #f0f1f5;
+  }
+  .thead {
+    font-size: 12px; font-weight: 600; color: #8c8c8c; border-bottom: 1px solid var(--line);
+    text-transform: none;
+  }
+  .trow.body { background: #fff; }
+  .trow.body:hover { background: #f8f9ff; }
+  .num { font-weight: 600; color: #333; }
+  .muted-cell { color: #6b7280; font-size: 13px; }
+  .status-pill {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 12px;
+    border-radius: var(--radius-pill); background: #eef0ff; color: var(--primary);
+  }
+  .status-pill.warn { background: #fef3c7; color: #92400e; }
+  .conf { font-size: 12px; font-weight: 600; color: #16a34a; }
+  .refresh-dot {
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line);
+    display: inline-flex; align-items: center; justify-content: center; color: var(--primary);
+    margin-left: auto;
+  }
+  .col-head-tags { color: var(--primary); }
+
+  /* grids: Центр (A/B: +Теги колонка) */
+  .grid-center-tags { grid-template-columns: 1.1fr 1.3fr 1.2fr 1.5fr 1.2fr 1.2fr 1.1fr 48px; }
+  .grid-center-base { grid-template-columns: 1.1fr 1.3fr 1.2fr 1.5fr 1.2fr 1.2fr 48px; }
+  /* ЛК */
+  .grid-lk-tags { grid-template-columns: 1.1fr 1.3fr 1.4fr 1.1fr 1.2fr 1.1fr 48px; }
+
+  .blk-flag {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500;
+    color: var(--danger-fg); background: var(--danger-bg); border: 1px solid var(--danger-bd);
+    border-radius: var(--radius-pill); padding: 3px 8px; white-space: nowrap;
+  }
+  .blk-flag .dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; }
+
+  /* ApplicationDetail header */
+  .att-card { border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: #fff; max-width: 720px; }
+  .att-head {
+    padding: 16px 18px; border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: start;
+  }
+  .att-head h4 {
+    margin: 0; font-size: 19px; font-weight: 700; color: var(--primary);
+    align-self: center;
+  }
+  .att-head .att-tags { display: flex; gap: 8px; align-self: center; justify-self: end; }
+  .att-meta { grid-column: 1 / -1; display: flex; gap: 36px; }
+  .att-meta .lbl { font-size: 13px; color: var(--muted); }
+  .att-meta .val { font-size: 15px; }
+  .att-body { padding: 18px; color: #9aa0ac; font-size: 13px; font-style: italic; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-size: 12px; color: #6b7280; }
+  .legend b { color: #374151; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="page-title">Теги «Крыша» / «Парковка» - размещение</h1>
+  <p class="page-sub">Мокап #529 в стиле systemburo (Montserrat, primary #4F5BDF, компонент Badge). Цвета: «Крыша» - info (синий), «Парковка» - success (зелёный).</p>
+
+  <!-- ============ 1. ФОРМА: ТУМБЛЕРЫ ============ -->
+  <div class="section">
+    <h2>1 · Форма подачи - блок «Дополнительно»</h2>
+    <p class="hint">Тумблеры вместо чекбоксов. Без фиксированной высоты и <code>justify-content:center</code> - если поле скрыто настройкой шаблона, второе встаёт на его место сверху, пустот не остаётся.</p>
+    <div class="card">
+      <div class="form-demo">
+        <div class="field-col">
+          <span class="field-label">Дополнительно</span>
+          <div class="additional-options">
+            <label class="toggle"><input type="checkbox" checked><span class="switch"></span><span class="toggle-text">Доступ на крышу</span></label>
+            <label class="toggle"><input type="checkbox"><span class="switch"></span><span class="toggle-text">Бесплатная парковка</span></label>
+          </div>
+          <span class="mini-caption">оба поля видимы</span>
+        </div>
+        <div class="field-col">
+          <span class="field-label">Дополнительно</span>
+          <div class="additional-options">
+            <label class="toggle"><input type="checkbox" checked><span class="switch"></span><span class="toggle-text">Бесплатная парковка</span></label>
+          </div>
+          <span class="mini-caption">«Доступ на крышу» скрыт настройкой - парковка наверху, без дыры</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2. ЦЕНТР ЗАЯВОК ============ -->
+  <div class="section">
+    <h2>2 · Центр заявок - презентация тегов (3 варианта)</h2>
+    <p class="hint">Сейчас теги лезут второй строкой под номер - выглядит плохо. Ниже три варианта; «Теги» - отдельная колонка после «Статус заявки».</p>
+
+    <!-- Variant A -->
+    <div class="card" style="margin-bottom:20px;">
+      <span class="variant-label"><span class="pin rec">A · рекомендую</span> Отдельная колонка «Теги», текстовые пилюли</span>
+      <div class="tbl">
+        <div class="trow thead grid-center-tags">
+          <div>Подтверждение</div><div>Номер заявки</div><div>Дата и время</div><div>Организация</div><div>Отправитель</div><div>Статус заявки</div><div class="col-head-tags">Теги</div><div></div>
+        </div>
+        <div class="trow body grid-center-tags">
+          <div class="conf">да</div>
+          <div class="num">ЗАЯ-001024</div>
+          <div class="muted-cell">13.06 14:20</div>
+          <div class="muted-cell">ООО «Ромашка»</div>
+          <div class="muted-cell">Иванов И.</div>
+          <div><span class="status-pill">Согласована</span></div>
+          <div class="tag-row"><span class="badge badge--sm badge--info">Крыша</span><span class="badge badge--sm badge--ok">Парковка</span></div>
+          <div class="refresh-dot">↻</div>
+        </div>
+        <div class="trow body grid-center-tags">
+          <div class="conf">да</div>
+          <div class="num">ЗАЯ-001023</div>
+          <div class="muted-cell">13.06 12:05</div>
+          <div class="muted-cell">АО «Вектор»</div>
+          <div class="muted-cell">Петров П.</div>
+          <div><span class="status-pill warn">На согласовании</span></div>
+          <div class="tag-row"><span class="badge badge--sm badge--ok">Парковка</span></div>
+          <div></div>
+        </div>
+        <div class="trow body grid-center-tags">
+          <div class="conf">да</div>
+          <div class="num">ЗАЯ-001022</div>
+          <div class="muted-cell">12.06 18:40</div>
+          <div class="muted-cell">ООО «Старт»</div>
+          <div class="muted-cell">Сидоров С.</div>
+          <div><span class="status-pill">Согласована</span></div>
+          <div class="tag-row"></div>
+          <div></div>
+        </div>
+      </div>
+      <p class="variant-note">+ Явно и читабельно. - Ест ~11% ширины; при двух длинных тегах колонка шире всего.</p>
+    </div>
+
+    <!-- Variant B -->
+    <div class="card" style="margin-bottom:20px;">
+      <span class="variant-label"><span class="pin alt">B</span> Колонка «Теги» с иконками (компактно, тултип на hover)</span>
+      <div class="tbl">
+        <div class="trow thead grid-center-tags">
+          <div>Подтверждение</div><div>Номер заявки</div><div>Дата и время</div><div>Организация</div><div>Отправитель</div><div>Статус заявки</div><div class="col-head-tags">Теги</div><div></div>
+        </div>
+        <div class="trow body grid-center-tags">
+          <div class="conf">да</div>
+          <div class="num">ЗАЯ-001024</div>
+          <div class="muted-cell">13.06 14:20</div>
+          <div class="muted-cell">ООО «Ромашка»</div>
+          <div class="muted-cell">Иванов И.</div>
+          <div><span class="status-pill">Согласована</span></div>
+          <div class="tag-row">
+            <span class="chip chip--info" title="Доступ на крышу"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg></span>
+            <span class="chip chip--ok" title="Бесплатная парковка"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div></div>
+        </div>
+        <div class="trow body grid-center-tags">
+          <div class="conf">да</div>
+          <div class="num">ЗАЯ-001023</div>
+          <div class="muted-cell">13.06 12:05</div>
+          <div class="muted-cell">АО «Вектор»</div>
+          <div class="muted-cell">Петров П.</div>
+          <div><span class="status-pill warn">На согласовании</span></div>
+          <div class="tag-row">
+            <span class="chip chip--ok" title="Бесплатная парковка"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div></div>
+        </div>
+        <div class="trow body grid-center-tags">
+          <div class="conf">да</div>
+          <div class="num">ЗАЯ-001022</div>
+          <div class="muted-cell">12.06 18:40</div>
+          <div class="muted-cell">ООО «Старт»</div>
+          <div class="muted-cell">Сидоров С.</div>
+          <div><span class="status-pill">Согласована</span></div>
+          <div class="tag-row"></div>
+          <div></div>
+        </div>
+      </div>
+      <p class="variant-note">+ Узкая колонка, не растёт. - Иконку надо «прочитать»; смысл - в тултипе.</p>
+    </div>
+
+    <!-- Variant C -->
+    <div class="card">
+      <span class="variant-label"><span class="pin alt">C</span> Без новой колонки - маркеры-точки перед номером (одна строка)</span>
+      <div class="tbl">
+        <div class="trow thead grid-center-base">
+          <div>Подтверждение</div><div>Номер заявки</div><div>Дата и время</div><div>Организация</div><div>Отправитель</div><div>Статус заявки</div><div></div>
+        </div>
+        <div class="trow body grid-center-base">
+          <div class="conf">да</div>
+          <div style="display:flex;align-items:center;gap:7px;">
+            <span style="display:inline-flex;gap:3px;">
+              <span title="Доступ на крышу" style="width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span>
+              <span title="Бесплатная парковка" style="width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>
+            </span>
+            <span class="num">ЗАЯ-001024</span>
+          </div>
+          <div class="muted-cell">13.06 14:20</div>
+          <div class="muted-cell">ООО «Ромашка»</div>
+          <div class="muted-cell">Иванов И.</div>
+          <div><span class="status-pill">Согласована</span></div>
+          <div></div>
+        </div>
+        <div class="trow body grid-center-base">
+          <div class="conf">да</div>
+          <div style="display:flex;align-items:center;gap:7px;">
+            <span style="display:inline-flex;gap:3px;">
+              <span title="Бесплатная парковка" style="width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>
+            </span>
+            <span class="num">ЗАЯ-001023</span>
+          </div>
+          <div class="muted-cell">13.06 12:05</div>
+          <div class="muted-cell">АО «Вектор»</div>
+          <div class="muted-cell">Петров П.</div>
+          <div><span class="status-pill warn">На согласовании</span></div>
+          <div></div>
+        </div>
+      </div>
+      <p class="variant-note">+ Не трогает ширину таблицы, одна строка. - Минимум информации; смысл точек неочевиден без легенды.</p>
+    </div>
+
+    <div class="legend">
+      <span><b>Легенда:</b></span>
+      <span><span class="badge badge--sm badge--info">Крыша</span> доступ на крышу</span>
+      <span><span class="badge badge--sm badge--ok">Парковка</span> бесплатная парковка</span>
+      <span><span class="blk-flag"><span class="dot"></span>1 похоже на ЧС</span> существующий бейдж (не трогаем)</span>
+    </div>
+  </div>
+
+  <!-- ============ 3. APPLICATION DETAIL ============ -->
+  <div class="section">
+    <h2>3 · Детали заявки - шапка вложения</h2>
+    <p class="hint">Тег справа от заголовка <code>h4</code>, крупнее (размер lg).</p>
+    <div class="att-card">
+      <div class="att-head">
+        <h4>Пропуск на автомобиль</h4>
+        <div class="att-tags">
+          <span class="badge badge--lg badge--info">Крыша</span>
+          <span class="badge badge--lg badge--ok">Парковка</span>
+        </div>
+        <div class="att-meta">
+          <div><div class="lbl">Срок действия:</div><div class="val">01.04.2026 - 31.12.2099</div></div>
+          <div><div class="lbl">Время:</div><div class="val">08:00 - 18:00</div></div>
+        </div>
+      </div>
+      <div class="att-body">Список автомобилей...</div>
+    </div>
+  </div>
+
+  <!-- ============ 4. ЛК ============ -->
+  <div class="section">
+    <h2>4 · Личный кабинет (мои заявки) - та же колонка «Теги»</h2>
+    <p class="hint">Зеркалит вариант A: колонка «Теги» после «Статус».</p>
+    <div class="card">
+      <div class="tbl">
+        <div class="trow thead grid-lk-tags">
+          <div>Номер заявки</div><div>Дата и время</div><div>Отправитель</div><div>Подтверждение</div><div>Статус заявки</div><div class="col-head-tags">Теги</div><div></div>
+        </div>
+        <div class="trow body grid-lk-tags">
+          <div class="num">ЗАЯ-000310</div>
+          <div class="muted-cell">13.06 14:20</div>
+          <div class="muted-cell">Иванов И.</div>
+          <div class="conf">да</div>
+          <div><span class="status-pill">Согласована</span></div>
+          <div class="tag-row"><span class="badge badge--sm badge--info">Крыша</span><span class="badge badge--sm badge--ok">Парковка</span></div>
+          <div></div>
+        </div>
+        <div class="trow body grid-lk-tags">
+          <div class="num">ЗАЯ-000309</div>
+          <div class="muted-cell">12.06 09:10</div>
+          <div class="muted-cell">Иванов И.</div>
+          <div class="conf">да</div>
+          <div><span class="status-pill warn">На согласовании</span></div>
+          <div class="tag-row"><span class="badge badge--sm badge--info">Крыша</span></div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
