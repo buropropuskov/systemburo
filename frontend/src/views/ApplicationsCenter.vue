@@ -288,16 +288,6 @@
                     @click.stop="copyApplicationNumber(application.application_number)"
                     @keydown.enter.prevent="copyApplicationNumber(application.application_number)"
                   >{{ application.application_number }}</span>
-                  <Badge
-                    v-if="blacklistFlagCount(application) > 0"
-                    variant="danger"
-                    size="sm"
-                    dot
-                    class="blacklist-flag-badge"
-                    :title="blacklistFlagTitle()"
-                  >
-                    {{ blacklistFlagLabel(application) }}
-                  </Badge>
                 </div>
                 <div class="application-col date-col">
                   {{ formatDateTime(application.sending_datetime) }}
@@ -324,22 +314,59 @@
                 </div>
                 <div class="application-col tags-col">
                   <div
-                    v-if="application.has_roof_access || application.has_free_parking"
+                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking"
                     class="application-tags"
                   >
                     <Badge
-                      v-if="application.has_roof_access"
-                      variant="info"
+                      v-if="blacklistFlagCount(application) > 0"
+                      variant="danger"
                       size="sm"
+                      dot
+                      class="rt-tag rt-tag--chs blacklist-flag-badge"
+                      :title="blacklistFlagTitle()"
                     >
-                      Крыша
+                      <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
+                      <span class="rt-tag__short">{{ blacklistFlagCount(application) }}</span>
+                    </Badge>
+                    <Badge
+                      v-if="application.has_roof_access"
+                      variant="primary"
+                      size="sm"
+                      class="rt-tag"
+                      title="Доступ на крышу"
+                    >
+                      <svg
+                        class="rt-tag__icon"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><path d="M3 11l9-7 9 7" /><path d="M5 10v9h14v-9" /></svg>
+                      <span class="rt-tag__text">Крыша</span>
                     </Badge>
                     <Badge
                       v-if="application.has_free_parking"
-                      variant="success"
+                      variant="warning"
                       size="sm"
+                      class="rt-tag"
+                      title="Бесплатная парковка"
                     >
-                      Парковка
+                      <svg
+                        class="rt-tag__icon"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
+                      <span class="rt-tag__text">Парковка</span>
                     </Badge>
                   </div>
                 </div>
@@ -1373,11 +1400,11 @@ export default {
 
 /* Перераспределение размеров колонок */
 .confirmation-col {
-    width: 13%;
+    width: 11%;
 }
 
 .number-col {
-    width: 15%;
+    width: 12%;
     /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
        не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
     min-width: 0;
@@ -1402,27 +1429,61 @@ export default {
     white-space: normal;
 }
 
-/* теги вложений (крыша/парковка) в отдельной колонке, в одну строку (#529) */
+/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529).
+   Широко - текст с переносом; тесно (закреплено нав-меню / узкий экран) -
+   container query сворачивает теги в иконки в одну строку. */
 .application-tags {
     display: flex;
     gap: 4px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.rt-tag__icon {
+    display: none;
+}
+
+.rt-tag__short {
+    display: none;
+}
+
+@container (max-width: 175px) {
+    .application-tags {
+        flex-wrap: nowrap;
+    }
+
+    .rt-tag .rt-tag__text {
+        display: none;
+    }
+
+    .rt-tag .rt-tag__icon {
+        display: block;
+    }
+
+    .rt-tag--chs .rt-tag__short {
+        display: inline;
+    }
+
+    .rt-tag.badge--sm {
+        padding: 4px;
+    }
 }
 
 .tags-col {
-    width: 11%;
+    width: 15%;
+    container-type: inline-size;
 }
 
 .date-col {
-    width: 13%;
+    width: 12%;
 }
 
 .organization-col {
-    width: 15%;
+    width: 17%;
 }
 
 .sender-col {
-    width: 13%;
+    width: 15%;
 }
 
 .sender-tooltip-anchor {
