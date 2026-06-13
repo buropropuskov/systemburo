@@ -421,7 +421,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/update-items-status", app.UpdateApplicationItemsStatus)
 	apg.POST("/:id/forward", app.ForwardApplication)
 	apg.POST("/:id/approve", app.ApproveApplicationByUser)
-	apg.POST("/:id/blacklist-overrides", app.OverrideBlacklistFlag) // #481 - "всё равно пропустить"
+	apg.POST("/:id/blacklist-overrides", app.OverrideBlacklistFlag)     // #481 - "всё равно пропустить"
+	apg.DELETE("/:id/blacklist-overrides", app.DeleteBlacklistOverride) // #481 - отмена подтверждения (срез C)
 	apg.GET("/:id/check-approval-status", app.CheckApprovalStatus)
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)

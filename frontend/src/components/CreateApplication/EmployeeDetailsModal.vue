@@ -78,6 +78,56 @@
                 </div>
               </div>
 
+              <!-- Подозрение на обход ЧС (#481, срез C): см. VehicleDetailsModal. -->
+              <div
+                v-if="blacklistSimilar"
+                class="bl-suspicion-section"
+                :class="{ 'is-resolved': blacklistSimilar.overridden }"
+              >
+                <div class="bl-suspicion-head">
+                  <span class="bl-suspicion-dot" />
+                  Подозрение на обход чёрного списка
+                </div>
+                <div class="bl-suspicion-row">
+                  <span class="bl-suspicion-label">Похоже на:</span> {{ blacklistSimilar.matched_value }}
+                </div>
+                <div
+                  v-if="blacklistSimilar.matched_reason"
+                  class="bl-suspicion-row"
+                >
+                  <span class="bl-suspicion-label">Причина:</span> {{ blacklistSimilar.matched_reason }}
+                </div>
+
+                <div
+                  v-if="blacklistSimilar.overridden"
+                  class="bl-suspicion-foot"
+                >
+                  <span class="bl-suspicion-confirmed">Пропуск подтверждён</span>
+                  <button
+                    v-if="canCancelOverride"
+                    type="button"
+                    class="bl-suspicion-btn bl-suspicion-btn--cancel"
+                    @click="$emit('cancel-override')"
+                  >
+                    Отменить
+                  </button>
+                </div>
+                <div
+                  v-else
+                  class="bl-suspicion-foot"
+                >
+                  <span class="bl-suspicion-blocked">Согласование заблокировано до подтверждения пропуска</span>
+                  <button
+                    v-if="canOverride"
+                    type="button"
+                    class="bl-suspicion-btn bl-suspicion-btn--allow"
+                    @click="$emit('override')"
+                  >
+                    Всё равно пропустить
+                  </button>
+                </div>
+              </div>
+
               <div
                 v-if="employee"
                 class="employee-details"
@@ -433,9 +483,19 @@ export default {
         source: {
             type: String,
             default: 'general'
+        },
+        // Право подтвердить пропуск (POST override) - только ответственный по заявке.
+        canOverride: {
+            type: Boolean,
+            default: false
+        },
+        // Право снять подтверждение (DELETE override) - ответственный или принимающий.
+        canCancelOverride: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['close', 'open-application'],
+    emits: ['close', 'open-application', 'override', 'cancel-override'],
     data() {
         return {
             selectedTable: null,
@@ -462,6 +522,10 @@ export default {
         // из карточки ApplicationDetail ("Открыть заявку") был выше карточки.
         overlayZIndex() {
             return this.source === 'application' ? 10003 : 10001;
+        },
+        // Предупреждение о возможном обходе ЧС - только в контексте заявки (#481, срез C).
+        blacklistSimilar() {
+            return this.source === 'application' ? (this.employee?.blacklist_similar || null) : null;
         },
         // Кнопки в шапке: "Полная история" (showHistoryButton) и
         // "Открыть заявку" (source !== 'application' и есть applicationId).
@@ -1037,6 +1101,112 @@ export default {
 
 .bl-section-label {
     font-weight: 600;
+}
+
+/* Блок "Подозрение на обход ЧС" (#481, срез C) - зеркалит VehicleDetailsModal. */
+.bl-suspicion-section {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #fdeaea;
+    border: 1px solid #f5b5b5;
+    border-radius: 20px;
+}
+
+.bl-suspicion-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #b91c1c;
+}
+
+.bl-suspicion-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dc2626;
+    flex-shrink: 0;
+}
+
+.bl-suspicion-row {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #7f1d1d;
+    word-break: break-word;
+}
+
+.bl-suspicion-label {
+    font-weight: 600;
+}
+
+.bl-suspicion-foot {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.bl-suspicion-blocked {
+    font-size: 12px;
+    color: #7f1d1d;
+}
+
+.bl-suspicion-confirmed {
+    font-size: 13px;
+    font-weight: 600;
+    color: #047857;
+}
+
+.bl-suspicion-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.bl-suspicion-btn--allow {
+    background: #fff;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+}
+
+.bl-suspicion-btn--allow:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+}
+
+.bl-suspicion-btn--cancel {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+}
+
+.bl-suspicion-btn--cancel:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.bl-suspicion-section.is-resolved {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+}
+
+.bl-suspicion-section.is-resolved .bl-suspicion-head {
+    color: #047857;
+}
+
+.bl-suspicion-section.is-resolved .bl-suspicion-dot {
+    background: #10b981;
+}
+
+.bl-suspicion-section.is-resolved .bl-suspicion-row {
+    color: #065f46;
 }
 
 .modal-title {

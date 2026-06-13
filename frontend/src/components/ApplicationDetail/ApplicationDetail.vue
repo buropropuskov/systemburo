@@ -287,7 +287,11 @@
       :current-user-name="currentUserName"
       :show-car-features="true"
       :source="'application'"
+      :can-override="isResponsibleUser"
+      :can-cancel-override="canManageBlacklistOverride"
       @close="showVehicleModal = false"
+      @override="onCardOverride('vehicle')"
+      @cancel-override="onCardCancelOverride('vehicle')"
     />
 
     <EmployeeDetailsModal
@@ -298,7 +302,11 @@
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
       :source="'application'"
+      :can-override="isResponsibleUser"
+      :can-cancel-override="canManageBlacklistOverride"
       @close="showEmployeeModal = false"
+      @override="onCardOverride('employee')"
+      @cancel-override="onCardCancelOverride('employee')"
     />
 
     <BlacklistOverrideModal
@@ -315,6 +323,7 @@
 import { apiRequest } from '@/api/client'
 import { markAsRead } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
+import { useUiStore } from '@/stores/ui'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
@@ -405,6 +414,12 @@ export default {
         isApprover() {
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
+        },
+
+        // Отменить подтверждение пропуска может ответственный по заявке ИЛИ принимающий -
+        // зеркалит право DELETE /blacklist-overrides на бэке (шире, чем создание override).
+        canManageBlacklistOverride() {
+            return this.isResponsibleUser || this.isApprover;
         },
 
         hasUserVoted() {
@@ -813,7 +828,8 @@ export default {
                 applicationId: this.applicationData.id,
                 territory_status: 0,
                 entry_checked: false,
-                exit_checked: false
+                exit_checked: false,
+                blacklist_similar: car.blacklist_similar || null
             };
             this.showVehicleModal = true;
         },
@@ -837,7 +853,8 @@ export default {
                 pass_time: employee.pass_time || null,
                 target_tables: employee.target_tables ? employee.target_tables.map(t => t.id) : [],
                 applicationId: this.applicationData.id,
-                territory_status: 0
+                territory_status: 0,
+                blacklist_similar: employee.blacklist_similar || null
             };
             this.showEmployeeModal = true;
         },
@@ -867,6 +884,7 @@ export default {
                         this.selectedAttachment ? this.loadAttachmentDetails(this.selectedAttachment.id) : Promise.resolve(),
                         this.refreshApplicationGate()
                     ]);
+                    this.syncSelectedDetailFlags();
                     this.$emit('application-changed', this.applicationData);
                 } else if (response.status !== 403) {
                     // 403 уже показывает тост через client.js - второй не дублируем
@@ -909,6 +927,83 @@ export default {
                 bold: 'обновите страницу для согласования',
                 type: 'error'
             });
+        },
+
+        // Открытая карточка детали держит свою копию flag - после override/отмены
+        // переносим в неё свежий blacklist_similar из перечитанного вложения, чтобы блок
+        // "Подозрение на обход ЧС" сразу показал актуальный статус без закрытия карточки.
+        syncSelectedDetailFlags() {
+            if (this.showVehicleModal && this.selectedVehicle) {
+                const fresh = this.attachmentCars.find(c => c.id === this.selectedVehicle.id);
+                if (fresh) this.selectedVehicle.blacklist_similar = fresh.blacklist_similar || null;
+            }
+            if (this.showEmployeeModal && this.selectedEmployee) {
+                const fresh = this.attachmentEmployees.find(emp => emp.id === this.selectedEmployee.id);
+                if (fresh) this.selectedEmployee.blacklist_similar = fresh.blacklist_similar || null;
+            }
+        },
+
+        // "Всё равно пропустить" из карточки детали - переиспользуем POST-флоу с причиной.
+        onCardOverride(kind) {
+            const entity = kind === 'vehicle' ? this.selectedVehicle : this.selectedEmployee;
+            if (!entity || !entity.blacklist_similar) return;
+            const label = kind === 'vehicle'
+                ? (entity.plateNumber || 'Т/С')
+                : [entity.last_name, entity.first_name, entity.middle_name].filter(Boolean).join(' ').trim() || 'Сотрудник';
+            this.openOverrideModal({ label, flag: entity.blacklist_similar });
+        },
+
+        // "Отменить" подтверждение пропуска из карточки - подтверждение БЕЗ причины, затем DELETE.
+        async onCardCancelOverride(kind) {
+            const entity = kind === 'vehicle' ? this.selectedVehicle : this.selectedEmployee;
+            const flag = entity && entity.blacklist_similar;
+            if (!flag || !flag.flag_id) return;
+            const label = kind === 'vehicle'
+                ? (entity.plateNumber || 'Т/С')
+                : [entity.last_name, entity.first_name, entity.middle_name].filter(Boolean).join(' ').trim() || 'Сотрудник';
+
+            const ok = await useUiStore().confirm({
+                title: 'Снять подтверждение пропуска?',
+                message: 'Подтверждение пропуска будет снято, и согласование заявки снова заблокируется по этому элементу.',
+                confirmText: 'Снять',
+                cancelText: 'Отмена',
+                danger: true
+            });
+            if (!ok) return;
+
+            try {
+                const response = await apiRequest(
+                    `/applications/${this.applicationData.id}/blacklist-overrides?flag_id=${flag.flag_id}`,
+                    { method: 'DELETE' }
+                );
+                if (response.ok) {
+                    useDeletionsStore().notify({
+                        prefix: 'Подтверждение пропуска снято: ',
+                        bold: label,
+                        type: 'success'
+                    });
+                    await Promise.all([
+                        this.selectedAttachment ? this.loadAttachmentDetails(this.selectedAttachment.id) : Promise.resolve(),
+                        this.refreshApplicationGate()
+                    ]);
+                    this.syncSelectedDetailFlags();
+                    this.$emit('application-changed', this.applicationData);
+                } else if (response.status !== 403) {
+                    const data = await response.json();
+                    useDeletionsStore().notify({
+                        prefix: 'Не удалось снять подтверждение: ',
+                        bold: data.message || 'ошибка',
+                        type: 'error'
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка при отмене подтверждения пропуска:', error);
+                useDeletionsStore().notify({
+                    prefix: 'Не удалось снять подтверждение: ',
+                    bold: 'ошибка сети',
+                    type: 'error'
+                });
+            }
         }
     }
 }

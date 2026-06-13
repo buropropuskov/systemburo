@@ -251,3 +251,93 @@ func TestGetApplications_BlacklistFlagsCount(t *testing.T) {
 		assert.Equal(t, float64(0), countFor(t, testutil.GET(t, e, "/applications/user", testutil.AuthHeader(senderToken))), "GetUserApplications после override")
 	})
 }
+
+// TestBlacklistOverride_Delete: отмена подтверждения пропуска (#481, срез C). Снять override
+// может ответственный по заявке ИЛИ принимающий, но не посторонний; после отмены согласование
+// снова блокируется, а факт фиксируется в истории заявки. Повторная отмена -> 404.
+func TestBlacklistOverride_Delete(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	ctx := context.Background()
+
+	const orgName = "Test Organization"
+	senderToken := testutil.RegisterAndLogin(t, e, "bd_sender", "pass123", 1, td.OrgID, td.CompanyID)
+	senderID := getUserID(t, db, "bd_sender")
+	mark := seedMark(t, db, "BD_Mark")
+
+	_, err := newVehicleBlacklistService(db).Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "D777DD799", MarkID: mark.ID, Reason: "розыск",
+	}, senderID)
+	require.NoError(t, err)
+
+	rec := submitCarApp(t, e, db, senderToken, orgName, "del", "D777DD798", mark.ID)
+	require.Equal(t, http.StatusOK, rec.Code, "submit: %s", rec.Body.String())
+	carID := latestElementID(t, db, "cars", "car_number = ?", "D777DD798")
+	flag, ok := blacklistFlagFor(t, db, models.BlacklistElementCar, carID)
+	require.True(t, ok, "ожидался флаг похожести")
+	appID := flag.ApplicationID
+
+	testutil.RegisterUser(t, e, "bd_appr", "pass123", 1, td.OrgID, td.CompanyID)
+	apprID := getUserID(t, db, "bd_appr")
+	fwd := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, apprID)
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), fwd, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+	apprToken, _ := testutil.LoginUser(t, e, "bd_appr", "pass123")
+
+	overridePath := fmt.Sprintf("/applications/%d/blacklist-overrides", appID)
+	deletePath := fmt.Sprintf("%s?flag_id=%d", overridePath, flag.ID)
+	approveBody := fmt.Sprintf(`{"user_id":%d,"status":"approved","comment":"ok"}`, apprID)
+
+	overrideCount := func() int64 {
+		var cnt int64
+		db.Model(&models.ApplicationBlacklistOverride{}).Where("flag_id = ?", flag.ID).Count(&cnt)
+		return cnt
+	}
+
+	// Ответственный подтверждает пропуск (предусловие для отмены).
+	rec = testutil.POST(t, e, overridePath, fmt.Sprintf(`{"flag_id":%d,"comment":"проверил лично"}`, flag.ID), testutil.AuthHeader(apprToken))
+	require.Equal(t, http.StatusOK, rec.Code, "override: %s", rec.Body.String())
+	require.Equal(t, int64(1), overrideCount())
+
+	t.Run("отмена от постороннего запрещена", func(t *testing.T) {
+		outsiderToken := testutil.RegisterAndLogin(t, e, "bd_outsider", "pass123", 1, td.OrgID, td.CompanyID)
+		rec := testutil.DELETE(t, e, deletePath, testutil.AuthHeader(outsiderToken))
+		require.Equal(t, http.StatusForbidden, rec.Code, "body: %s", rec.Body.String())
+		assert.Equal(t, int64(1), overrideCount(), "посторонний не должен снять override")
+	})
+
+	t.Run("ответственный снимает - гейт снова блокирует, факт в истории", func(t *testing.T) {
+		rec := testutil.DELETE(t, e, deletePath, testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusOK, rec.Code, "delete: %s", rec.Body.String())
+		assert.Equal(t, int64(0), overrideCount(), "override-строка удалена")
+
+		var histCnt int64
+		db.Table("application_history").
+			Where("application_id = ? AND action_type = 'blacklist_override_revoke'", appID).Count(&histCnt)
+		assert.Equal(t, int64(1), histCnt, "факт отмены залогирован в историю заявки")
+
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), approveBody, testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusConflict, rec.Code, "согласование снова заблокировано: %s", rec.Body.String())
+	})
+
+	t.Run("повторная отмена несуществующего - 404", func(t *testing.T) {
+		rec := testutil.DELETE(t, e, deletePath, testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusNotFound, rec.Code, "body: %s", rec.Body.String())
+	})
+
+	t.Run("принимающий (не ответственный по заявке) может снять", func(t *testing.T) {
+		rec := testutil.POST(t, e, overridePath, fmt.Sprintf(`{"flag_id":%d,"comment":"снова"}`, flag.ID), testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusOK, rec.Code, "re-override: %s", rec.Body.String())
+		require.Equal(t, int64(1), overrideCount())
+
+		accToken := testutil.RegisterAndLogin(t, e, "bd_acceptor", "pass123", 1, td.OrgID, td.CompanyID)
+		accID := getUserID(t, db, "bd_acceptor")
+		db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", accID)
+
+		rec = testutil.DELETE(t, e, deletePath, testutil.AuthHeader(accToken))
+		require.Equal(t, http.StatusOK, rec.Code, "delete принимающим: %s", rec.Body.String())
+		assert.Equal(t, int64(0), overrideCount())
+	})
+}

@@ -60,6 +60,10 @@ type ApplicationService interface {
 	// снимая блокировку согласования по этому флагу. Только ответственный, идемпотентно.
 	OverrideBlacklistFlag(ctx context.Context, username string, applicationID int, req OverrideBlacklistFlagRequest) error
 
+	// DeleteBlacklistOverride снимает ранее подтверждённый пропуск по флагу (#481), снова
+	// блокируя согласование по нему. Право шире, чем создание: ответственный ИЛИ принимающий.
+	DeleteBlacklistOverride(ctx context.Context, username string, applicationID, flagID int) error
+
 	// CheckApprovalStatus проверяет текущий статус согласования заявки.
 	CheckApprovalStatus(ctx context.Context, applicationID int) (*ApprovalStatusResponse, error)
 
