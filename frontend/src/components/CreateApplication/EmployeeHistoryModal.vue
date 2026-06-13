@@ -484,7 +484,9 @@ export default {
         'deactivate': 'dot-deactivate',
         'restore': 'dot-restore',
         'blacklisted': 'dot-delete',
-        'unblacklisted': 'dot-activate'
+        'unblacklisted': 'dot-activate',
+        'blacklist_override': 'dot-activate',
+        'blacklist_override_revoke': 'dot-deactivate'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -504,7 +506,9 @@ export default {
         'deactivate': 'Сотрудник выведен из работы',
         'restore': 'Сотрудник восстановлен',
         'blacklisted': 'Добавлен в чёрный список',
-        'unblacklisted': 'Снят с чёрного списка'
+        'unblacklisted': 'Снят с чёрного списка',
+        'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
+        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)'
       };
       
       let text = texts[item.action_type] || item.action_type;

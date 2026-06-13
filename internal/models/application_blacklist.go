@@ -20,11 +20,16 @@ const (
 // флаг это снимок момента подачи (matched_value/reason фиксируются), он должен пережить
 // изменение/удаление записи ЧС и не каскадиться при удалении элемента.
 type ApplicationBlacklistFlag struct {
-	ID                 int       `json:"id"`
-	ApplicationID      int       `gorm:"index" json:"application_id"`
-	ElementType        string    `gorm:"size:20;index:idx_app_blacklist_flag_element,priority:1" json:"element_type"`
-	ElementID          int       `gorm:"index:idx_app_blacklist_flag_element,priority:2" json:"element_id"`
-	MatchedBlacklistID int       `json:"matched_blacklist_id"`
+	ID            int    `json:"id"`
+	ApplicationID int    `gorm:"index" json:"application_id"`
+	ElementType   string `gorm:"size:20;index:idx_app_blacklist_flag_element,priority:1" json:"element_type"`
+	ElementID     int    `gorm:"index:idx_app_blacklist_flag_element,priority:2" json:"element_id"`
+	// ElementNormalized - нормализованная форма самого элемента (normalize.Plate / normalize.Name),
+	// не записи ЧС. Стабильный ключ "этой машины/человека" между сабмитами (ElementID меняется,
+	// т.к. cars/employees создаются заново). По нему + MatchedBlacklistID гасим повторные
+	// предупреждения после "всё равно пропустить" (#481, срез C-followup).
+	ElementNormalized  string    `gorm:"size:300;index" json:"element_normalized"`
+	MatchedBlacklistID int       `gorm:"index" json:"matched_blacklist_id"`
 	MatchedValue       string    `gorm:"size:300" json:"matched_value"`
 	MatchedReason      string    `gorm:"size:500" json:"matched_reason"`
 	Similarity         float64   `json:"similarity"`
@@ -37,11 +42,16 @@ type ApplicationBlacklistFlag struct {
 // комментарий и снимок совпавшего значения - запись неизменяема и переживает удаление флага.
 // FlagID уникален (один override на флаг) и без FK - это исторический след, а не живая связь.
 type ApplicationBlacklistOverride struct {
-	ID                 int       `json:"id"`
-	FlagID             int       `gorm:"uniqueIndex" json:"flag_id"`
-	ApplicationID      int       `gorm:"index" json:"application_id"`
-	ElementType        string    `gorm:"size:20" json:"element_type"`
-	ElementID          int       `json:"element_id"`
+	ID            int    `json:"id"`
+	FlagID        int    `gorm:"uniqueIndex" json:"flag_id"`
+	ApplicationID int    `gorm:"index" json:"application_id"`
+	ElementType   string `gorm:"size:20" json:"element_type"`
+	ElementID     int    `json:"element_id"`
+	// ElementNormalized + MatchedBlacklistID копируются с флага: служат ключом подавления
+	// будущих предупреждений по той же паре "элемент <-> запись ЧС" (#481, срез C-followup).
+	// Пока override жив - не предупреждаем; отмена override (DELETE) снова включает предупреждение.
+	ElementNormalized  string    `gorm:"size:300;index" json:"element_normalized"`
+	MatchedBlacklistID int       `gorm:"index" json:"matched_blacklist_id"`
 	MatchedValue       string    `gorm:"size:300" json:"matched_value"`
 	OverriddenByUserID int       `json:"overridden_by_user_id"`
 	Comment            string    `gorm:"size:1000" json:"comment"`

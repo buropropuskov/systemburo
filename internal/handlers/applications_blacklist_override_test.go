@@ -341,3 +341,74 @@ func TestBlacklistOverride_Delete(t *testing.T) {
 		assert.Equal(t, int64(0), overrideCount())
 	})
 }
+
+// TestBlacklistOverride_HistoryAndSuppression: "всё равно пропустить" фиксируется в истории
+// заявки И машины (#481, срез C-followup), и гасит повторное предупреждение для той же машины
+// в будущих заявках, пока override жив; после отмены override предупреждение снова появляется.
+func TestBlacklistOverride_HistoryAndSuppression(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	ctx := context.Background()
+
+	const orgName = "Test Organization"
+	senderToken := testutil.RegisterAndLogin(t, e, "bh_sender", "pass123", 1, td.OrgID, td.CompanyID)
+	senderID := getUserID(t, db, "bh_sender")
+	mark := seedMark(t, db, "BH_Mark")
+
+	_, err := newVehicleBlacklistService(db).Create(ctx, models.CreateVehicleBlacklistRequest{
+		CarNumber: "H777HH799", MarkID: mark.ID, Reason: "розыск",
+	}, senderID)
+	require.NoError(t, err)
+
+	rec := submitCarApp(t, e, db, senderToken, orgName, "h1", "H777HH798", mark.ID)
+	require.Equal(t, http.StatusOK, rec.Code, "submit1: %s", rec.Body.String())
+	carID := latestElementID(t, db, "cars", "car_number = ?", "H777HH798")
+	flag, ok := blacklistFlagFor(t, db, models.BlacklistElementCar, carID)
+	require.True(t, ok, "ожидался флаг похожести")
+	appID := flag.ApplicationID
+
+	testutil.RegisterUser(t, e, "bh_appr", "pass123", 1, td.OrgID, td.CompanyID)
+	apprID := getUserID(t, db, "bh_appr")
+	fwd := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, apprID)
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), fwd, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+	apprToken, _ := testutil.LoginUser(t, e, "bh_appr", "pass123")
+
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/blacklist-overrides", appID),
+		fmt.Sprintf(`{"flag_id":%d,"comment":"проверил лично"}`, flag.ID), testutil.AuthHeader(apprToken))
+	require.Equal(t, http.StatusOK, rec.Code, "override: %s", rec.Body.String())
+
+	t.Run("override пишет историю заявки и машины", func(t *testing.T) {
+		var appHist int64
+		db.Table("application_history").
+			Where("application_id = ? AND action_type = 'blacklist_override'", appID).Count(&appHist)
+		assert.Equal(t, int64(1), appHist, "запись в истории заявки")
+
+		var carHist int64
+		db.Table("cars_history").
+			Where("car_id = ? AND action_type = 'blacklist_override'", carID).Count(&carHist)
+		assert.Equal(t, int64(1), carHist, "запись в истории машины")
+	})
+
+	t.Run("после пропуска та же машина в новой заявке не помечается", func(t *testing.T) {
+		rec := submitCarApp(t, e, db, senderToken, orgName, "h2", "H777HH798", mark.ID)
+		require.Equal(t, http.StatusOK, rec.Code, "submit2: %s", rec.Body.String())
+		car2 := latestElementID(t, db, "cars", "car_number = ?", "H777HH798")
+		require.NotEqual(t, carID, car2, "ожидалась новая строка машины")
+		_, ok := blacklistFlagFor(t, db, models.BlacklistElementCar, car2)
+		assert.False(t, ok, "повторное предупреждение должно быть подавлено после override")
+	})
+
+	t.Run("после отмены пропуска предупреждение снова появляется", func(t *testing.T) {
+		del := testutil.DELETE(t, e, fmt.Sprintf("/applications/%d/blacklist-overrides?flag_id=%d", appID, flag.ID), testutil.AuthHeader(apprToken))
+		require.Equal(t, http.StatusOK, del.Code, "delete: %s", del.Body.String())
+
+		rec := submitCarApp(t, e, db, senderToken, orgName, "h3", "H777HH798", mark.ID)
+		require.Equal(t, http.StatusOK, rec.Code, "submit3: %s", rec.Body.String())
+		car3 := latestElementID(t, db, "cars", "car_number = ?", "H777HH798")
+		_, ok := blacklistFlagFor(t, db, models.BlacklistElementCar, car3)
+		assert.True(t, ok, "после отмены override предупреждение снова появляется")
+	})
+}
