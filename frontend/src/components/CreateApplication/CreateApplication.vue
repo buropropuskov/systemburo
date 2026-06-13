@@ -504,7 +504,7 @@ export default {
                 const uaId = attachment.template_id || attachment.id;
                 const fields = this.customFieldDefinitions[uaId] || [];
                 const values = this.customFieldsByAttachment[key] || {};
-                const emptyFields = fields.filter(f => !values[f.id] || !values[f.id].trim());
+                const emptyFields = fields.filter(f => f.is_required && (!values[f.id] || !values[f.id].trim()));
                 if (emptyFields.length > 0) {
                     reasons.push(`"${label}": заполните доп. поля: ${emptyFields.map(f => f.label).join(', ')}`);
                 }
@@ -573,7 +573,7 @@ export default {
                 const uaId = attachment.template_id || attachment.id;
                 const cfFields = this.customFieldDefinitions[uaId] || [];
                 const cfValues = this.customFieldsByAttachment[key] || {};
-                const emptyCf = cfFields.filter(f => !cfValues[f.id] || !cfValues[f.id].trim());
+                const emptyCf = cfFields.filter(f => f.is_required && (!cfValues[f.id] || !cfValues[f.id].trim()));
                 if (emptyCf.length > 0) {
                     emptyCf.forEach(f => errors.push(`Не заполнено доп. поле "${f.label}"`));
                 }
