@@ -385,6 +385,36 @@
         {{ errors.startTime || errors.endTime }}
       </div>
     </div>
+    <div
+      v-if="fieldVisible('roof_access') || fieldVisible('free_parking')"
+      class="date__input"
+    >
+      <label class="input__label">Дополнительно</label>
+      <div class="additional-options">
+        <label
+          v-if="fieldVisible('roof_access')"
+          class="option-checkbox"
+        >
+          <input
+            type="checkbox"
+            :checked="roofAccess"
+            @change="$emit('update:roof-access', $event.target.checked)"
+          >
+          <span class="option-text">Доступ на крышу</span>
+        </label>
+        <label
+          v-if="fieldVisible('free_parking')"
+          class="option-checkbox"
+        >
+          <input
+            type="checkbox"
+            :checked="freeParking"
+            @change="$emit('update:free-parking', $event.target.checked)"
+          >
+          <span class="option-text">Бесплатная парковка</span>
+        </label>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -402,7 +432,6 @@ export default {
         endTime: { type: String, default: null },
         roofAccess: Boolean,
         freeParking: Boolean,
-        notifySituationCenter: Boolean,
         errors: { type: Object, default: () => ({}) },
         // Настройка полей выбранного шаблона (#529): { [fieldKey]: { visible, required } }.
         // Потребляется через composable useFieldConfig (setup); дата/время реестром
@@ -418,7 +447,6 @@ export default {
         'update:end-time',
         'update:roof-access',
         'update:free-parking',
-        'update:notify-situation-center',
         'validate-field',
         'validate-date-range',
         'validate-time-range'

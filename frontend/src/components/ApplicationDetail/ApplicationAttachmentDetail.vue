@@ -24,6 +24,27 @@
           {{ formatTimeRange(attachment.entry_time_from, attachment.entry_time_to) }}
         </span>
       </div>
+
+      <!-- Теги вложения: доступ на крышу / бесплатная парковка (#529) -->
+      <div
+        v-if="attachment.roof_access || attachment.free_parking"
+        class="attachment-tags"
+      >
+        <Badge
+          v-if="attachment.roof_access"
+          variant="info"
+          size="sm"
+        >
+          Крыша
+        </Badge>
+        <Badge
+          v-if="attachment.free_parking"
+          variant="success"
+          size="sm"
+        >
+          Парковка
+        </Badge>
+      </div>
     </div>
 
     <div
@@ -406,6 +427,13 @@ export default {
     flex-direction: column;
     gap: 0px;
     font-size: 14px;
+}
+
+.attachment-tags {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .date-range:last-child, .time-range:last-child {

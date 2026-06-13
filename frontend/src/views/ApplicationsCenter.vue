@@ -295,6 +295,25 @@
                   >
                     {{ blacklistFlagLabel(application) }}
                   </Badge>
+                  <div
+                    v-if="application.has_roof_access || application.has_free_parking"
+                    class="application-tags"
+                  >
+                    <Badge
+                      v-if="application.has_roof_access"
+                      variant="info"
+                      size="sm"
+                    >
+                      Крыша
+                    </Badge>
+                    <Badge
+                      v-if="application.has_free_parking"
+                      variant="success"
+                      size="sm"
+                    >
+                      Парковка
+                    </Badge>
+                  </div>
                 </div>
                 <div class="application-col date-col">
                   {{ formatDateTime(application.sending_datetime) }}
@@ -1376,6 +1395,13 @@ export default {
    а не вылезать в соседнюю колонку (специфичность бьёт white-space:nowrap из Badge). */
 .number-col .blacklist-flag-badge {
     white-space: normal;
+}
+
+/* теги вложений (крыша/парковка) строкой под номером заявки (#529) */
+.application-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
 }
 
 .date-col {

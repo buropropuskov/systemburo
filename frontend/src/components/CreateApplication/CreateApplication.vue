@@ -160,7 +160,6 @@
             :end-time="currentAttachmentData.endTime"
             :roof-access="currentAttachmentData.roofAccess"
             :free-parking="currentAttachmentData.freeParking"
-            :notify-situation-center="currentAttachmentData.notifySituationCenter"
             :errors="currentAttachmentErrors"
             :field-config="currentFieldConfig"
             @update:is-one-day="updateAttachmentData('isOneDay', $event)"
@@ -171,7 +170,6 @@
             @update:end-time="updateAttachmentData('endTime', $event)"
             @update:roof-access="updateAttachmentData('roofAccess', $event)"
             @update:free-parking="updateAttachmentData('freeParking', $event)"
-            @update:notify-situation-center="updateAttachmentData('notifySituationCenter', $event)"
             @validate-field="validateAttachmentField"
             @validate-date-range="validateAttachmentDateRange"
             @validate-time-range="validateAttachmentTimeRange"
@@ -799,11 +797,10 @@ export default {
                 endTime: '',
                 roofAccess: false,
                 freeParking: false,
-                notifySituationCenter: false,
                 errors: {}
             };
         },
-        
+
         updateAttachmentData(field, value) {
             if (!this.selectedAttachment) return;
             
@@ -1745,6 +1742,8 @@ export default {
                     entry_date_to: this.formatDateForAPI(dateData.isOneDay ? dateData.singleDate : dateData.endDate),
                     entry_time_from: dateData.startTime + ":00",
                     entry_time_to: dateData.endTime + ":00",
+                    roof_access: dateData.roofAccess,
+                    free_parking: dateData.freeParking,
                     data: {}
                 };
 
@@ -2104,7 +2103,6 @@ export default {
                                 endTime: data.entry_time_to ? data.entry_time_to.substring(0, 5) : '',
                                 roofAccess: false,
                                 freeParking: false,
-                                notifySituationCenter: false,
                                 errors: {}
                             };
                         });
