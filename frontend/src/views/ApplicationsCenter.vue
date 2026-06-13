@@ -1357,6 +1357,11 @@ export default {
     /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
        не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
     min-width: 0;
+}
+
+/* column-stack (номер + бейдж) только в строках данных. У заголовка остаётся row из
+   .header-col, иначе иконка сортировки уезжает под текст. */
+.application-col.number-col {
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
