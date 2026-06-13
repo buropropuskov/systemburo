@@ -272,9 +272,10 @@
             >
               <div class="application-row">
                 <div class="application-col confirmation-col">
-                  <span 
+                  <span
                     class="confirmation-badge"
                     :class="getConfirmationClass(application.confirmation)"
+                    :title="application.confirmation"
                   >
                     {{ application.confirmation }}
                   </span>
@@ -305,9 +306,10 @@
                   >{{ application.sender_name }}</span>
                 </div>
                 <div class="application-col status-col">
-                  <span 
+                  <span
                     class="status-badge"
                     :class="getStatusClass(application.status)"
+                    :title="application.status"
                   >
                     {{ application.status }}
                   </span>
@@ -316,6 +318,10 @@
                   <div
                     v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking"
                     class="application-tags"
+                    :class="{
+                      'application-tags--both': application.has_roof_access && application.has_free_parking,
+                      'application-tags--chs': blacklistFlagCount(application) > 0
+                    }"
                   >
                     <Badge
                       v-if="blacklistFlagCount(application) > 0"
@@ -326,13 +332,12 @@
                       :title="blacklistFlagTitle()"
                     >
                       <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
-                      <span class="rt-tag__short">{{ blacklistFlagCount(application) }}</span>
                     </Badge>
                     <Badge
                       v-if="application.has_roof_access"
                       variant="primary"
                       size="sm"
-                      class="rt-tag"
+                      class="rt-tag rt-tag--roof"
                       title="Доступ на крышу"
                     >
                       <svg
@@ -352,7 +357,7 @@
                       v-if="application.has_free_parking"
                       variant="warning"
                       size="sm"
-                      class="rt-tag"
+                      class="rt-tag rt-tag--parking"
                       title="Бесплатная парковка"
                     >
                       <svg
@@ -1400,11 +1405,11 @@ export default {
 
 /* Перераспределение размеров колонок */
 .confirmation-col {
-    width: 11%;
+    width: 14%;
 }
 
 .number-col {
-    width: 12%;
+    width: 11%;
     /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
        не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
     min-width: 0;
@@ -1429,13 +1434,14 @@ export default {
     white-space: normal;
 }
 
-/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529).
-   Широко - текст с переносом; тесно (закреплено нав-меню / узкий экран) -
-   container query сворачивает теги в иконки в одну строку. */
+/* теги вложения (ЧС/крыша/парковка) в отдельной колонке (#529), всегда в одну строку.
+   ЧС не сворачивается. Крыша/Парковка -> иконки только когда ОБА присутствуют и тесно
+   (закреплено нав-меню / узко); один из двух - всегда текст. Пороги - content-ширина
+   колонки (за вычетом padding). */
 .application-tags {
     display: flex;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
 }
 
@@ -1443,35 +1449,50 @@ export default {
     display: none;
 }
 
-.rt-tag__short {
-    display: none;
-}
-
-@container (max-width: 175px) {
-    .application-tags {
-        flex-wrap: nowrap;
-    }
-
-    .rt-tag .rt-tag__text {
+/* оба тега присутствуют (--both): сворачиваем крышу/парковку когда текст всех не влезает.
+   Условия --both/--chs считаются во Vue (надёжнее :has() в scoped-стилях). */
+@container (max-width: 232px) {
+    .application-tags--both .rt-tag--roof .rt-tag__text,
+    .application-tags--both .rt-tag--parking .rt-tag__text {
         display: none;
     }
 
-    .rt-tag .rt-tag__icon {
+    .application-tags--both .rt-tag--roof .rt-tag__icon,
+    .application-tags--both .rt-tag--parking .rt-tag__icon {
         display: block;
     }
 
-    .rt-tag--chs .rt-tag__short {
-        display: inline;
-    }
-
-    .rt-tag.badge--sm {
+    .application-tags--both .rt-tag--roof.badge--sm,
+    .application-tags--both .rt-tag--parking.badge--sm {
         padding: 4px;
     }
 }
 
+/* без ЧС крыша+парковка влезают текстом дольше - держим текст, пока колонка не станет узкой */
+@container (min-width: 133px) {
+    .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__text,
+    .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__text {
+        display: inline;
+    }
+
+    .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__icon,
+    .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__icon {
+        display: none;
+    }
+
+    .application-tags--both:not(.application-tags--chs) .rt-tag--roof.badge--sm,
+    .application-tags--both:not(.application-tags--chs) .rt-tag--parking.badge--sm {
+        padding: 3px 8px;
+    }
+}
+
 .tags-col {
-    width: 15%;
+    width: 17%;
     container-type: inline-size;
+}
+
+.application-col.tags-col {
+    overflow: visible;
 }
 
 .date-col {
@@ -1479,7 +1500,7 @@ export default {
 }
 
 .organization-col {
-    width: 17%;
+    width: 18%;
 }
 
 .sender-col {
@@ -1534,7 +1555,8 @@ export default {
 }
 
 .actions-col {
-    width: 7%;
+    width: 104px;
+    flex-shrink: 0;
     justify-content: flex-end;
     cursor: default;
 }
@@ -1607,6 +1629,10 @@ export default {
     display: flex;
     align-items: center;
     height: 100%;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 /* Стили для кнопки "Скачать" */
@@ -1634,11 +1660,17 @@ export default {
 }
 
 .confirmation-badge {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
     padding: 4px 8px;
     border-radius: 12px;
     font-size: 11px;
     font-weight: 500;
-    display: inline-block;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .confirmation-approved {
@@ -1711,11 +1743,17 @@ export default {
 }
 
 .status-badge {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
     padding: 4px 8px;
     border-radius: 8px;
     font-size: 11px;
     font-weight: 500;
-    display: inline-block;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     border: 1px solid;
 }
 
