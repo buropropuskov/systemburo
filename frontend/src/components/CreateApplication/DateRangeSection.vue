@@ -393,24 +393,28 @@
       <div class="additional-options">
         <label
           v-if="fieldVisible('roof_access')"
-          class="option-checkbox"
+          class="option-toggle"
         >
           <input
             type="checkbox"
+            class="option-toggle__input"
             :checked="roofAccess"
             @change="$emit('update:roof-access', $event.target.checked)"
           >
+          <span class="option-toggle__switch" />
           <span class="option-text">Доступ на крышу</span>
         </label>
         <label
           v-if="fieldVisible('free_parking')"
-          class="option-checkbox"
+          class="option-toggle"
         >
           <input
             type="checkbox"
+            class="option-toggle__input"
             :checked="freeParking"
             @change="$emit('update:free-parking', $event.target.checked)"
           >
+          <span class="option-toggle__switch" />
           <span class="option-text">Бесплатная парковка</span>
         </label>
       </div>
@@ -1117,32 +1121,63 @@ export default {
     cursor: pointer;
 }
 
-/* Чекбоксы справа */
+/* Тумблеры "Дополнительно": без фикс-высоты и justify-center - скрытое поле не оставляет дыру,
+   оставшееся встаёт наверх. */
 .additional-options {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    height: 80px;
-    justify-content:center;
 }
 
-.option-checkbox {
+.option-toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 11px;
     cursor: pointer;
-    font-size: 12px;
-    line-height: 1.2;
-    height: 16px;
+    user-select: none;
 }
 
-.option-checkbox input[type="checkbox"] {
-    width: 12px;
-    height: 12px;
-    cursor: pointer;
-    margin: 0;
+.option-toggle__input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.option-toggle__switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    border-radius: var(--radius-pill, 999px);
+    background: #d4d7e3;
+    transition: background 0.22s ease;
     flex-shrink: 0;
+}
+
+.option-toggle__switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform 0.22s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.option-toggle__input:checked + .option-toggle__switch {
+    background: var(--color-primary, #4F5BDF);
+}
+
+.option-toggle__input:checked + .option-toggle__switch::after {
+    transform: translateX(18px);
+}
+
+.option-toggle__input:focus-visible + .option-toggle__switch {
+    box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.3);
 }
 
 .option-text {

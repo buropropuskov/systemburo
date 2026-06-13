@@ -233,6 +233,9 @@
               }" 
             >
           </div>
+          <div class="header-col tags-col">
+            <p>Теги</p>
+          </div>
           <div class="header-col actions-col">
             <RefreshButton
               :loading="refreshing"
@@ -295,25 +298,6 @@
                   >
                     {{ blacklistFlagLabel(application) }}
                   </Badge>
-                  <div
-                    v-if="application.has_roof_access || application.has_free_parking"
-                    class="application-tags"
-                  >
-                    <Badge
-                      v-if="application.has_roof_access"
-                      variant="info"
-                      size="sm"
-                    >
-                      Крыша
-                    </Badge>
-                    <Badge
-                      v-if="application.has_free_parking"
-                      variant="success"
-                      size="sm"
-                    >
-                      Парковка
-                    </Badge>
-                  </div>
                 </div>
                 <div class="application-col date-col">
                   {{ formatDateTime(application.sending_datetime) }}
@@ -337,6 +321,27 @@
                   >
                     {{ application.status }}
                   </span>
+                </div>
+                <div class="application-col tags-col">
+                  <div
+                    v-if="application.has_roof_access || application.has_free_parking"
+                    class="application-tags"
+                  >
+                    <Badge
+                      v-if="application.has_roof_access"
+                      variant="info"
+                      size="sm"
+                    >
+                      Крыша
+                    </Badge>
+                    <Badge
+                      v-if="application.has_free_parking"
+                      variant="success"
+                      size="sm"
+                    >
+                      Парковка
+                    </Badge>
+                  </div>
                 </div>
                 <div class="application-col actions-col">
                   <button
@@ -1368,11 +1373,11 @@ export default {
 
 /* Перераспределение размеров колонок */
 .confirmation-col {
-    width: 15%;
+    width: 13%;
 }
 
 .number-col {
-    width: 18%;
+    width: 15%;
     /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
        не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
     min-width: 0;
@@ -1397,23 +1402,27 @@ export default {
     white-space: normal;
 }
 
-/* теги вложений (крыша/парковка) строкой под номером заявки (#529) */
+/* теги вложений (крыша/парковка) в отдельной колонке, в одну строку (#529) */
 .application-tags {
     display: flex;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+}
+
+.tags-col {
+    width: 11%;
 }
 
 .date-col {
-    width: 15%;
+    width: 13%;
 }
 
 .organization-col {
-    width: 17%;
+    width: 15%;
 }
 
 .sender-col {
-    width: 15%;
+    width: 13%;
 }
 
 .sender-tooltip-anchor {
@@ -1460,7 +1469,7 @@ export default {
 }
 
 .status-col {
-    width: 15%;
+    width: 13%;
 }
 
 .actions-col {
