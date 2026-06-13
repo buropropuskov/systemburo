@@ -162,7 +162,7 @@
                         {{ formatDateTime(application.sending_datetime) }}
                       </div>
                       <div class="application-col sender-col">
-                        {{ application.sender_name || application.sender_full_name || '—' }}
+                        <span class="ellip">{{ application.sender_name || application.sender_full_name || '—' }}</span>
                       </div>
                       <div class="application-col confirmation-col">
                         <span
@@ -196,8 +196,8 @@
                             variant="danger"
                             size="sm"
                             dot
-                            class="rt-tag rt-tag--chs blacklist-flag-badge"
-                            :title="blacklistFlagTitle()"
+                            class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
+                            :data-hint="blacklistFlagTitle()"
                           >
                             <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
                           </Badge>
@@ -205,8 +205,8 @@
                             v-if="application.has_roof_access"
                             variant="primary"
                             size="sm"
-                            class="rt-tag rt-tag--roof"
-                            title="Доступ на крышу"
+                            class="rt-tag rt-tag--roof tag-hint"
+                            data-hint="Доступ на крышу"
                           >
                             <svg
                               class="rt-tag__icon"
@@ -225,8 +225,8 @@
                             v-if="application.has_free_parking"
                             variant="warning"
                             size="sm"
-                            class="rt-tag rt-tag--parking"
-                            title="Бесплатная парковка"
+                            class="rt-tag rt-tag--parking tag-hint"
+                            data-hint="Бесплатная парковка"
                           >
                             <svg
                               class="rt-tag__icon"
@@ -926,8 +926,65 @@ export default {
 .tags-col .application-tags {
   display: flex;
   gap: 4px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
+}
+
+/* текст с многоточием в flex-ячейке */
+.ellip {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* hover-подсказка #333 под тегом */
+.tag-hint {
+  position: relative;
+}
+
+.tag-hint::after {
+  content: attr(data-hint);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  background: #333;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tag-hint::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: #333;
+  z-index: 1001;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tag-hint:hover::after,
+.tag-hint:hover::before {
+  opacity: 1;
 }
 
 .tags-col .rt-tag__icon {
