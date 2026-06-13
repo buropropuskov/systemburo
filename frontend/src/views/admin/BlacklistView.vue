@@ -98,6 +98,14 @@ export default {
   align-items: center;
   gap: 16px;
   min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+/* Табы "Машины"/"Люди" держим в одну строку (таргетно, без правки общего FilterTabs):
+   на узкой ширине переносится вся группа табов целиком, а не разрывается по строкам. */
+.bl-head-left :deep(.filter-tabs) {
+  flex-wrap: nowrap;
 }
 
 .bl-page-title {

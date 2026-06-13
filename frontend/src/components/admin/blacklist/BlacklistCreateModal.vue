@@ -3,6 +3,7 @@
     :show="show"
     :title="title"
     width="520px"
+    content-class="bl-create-modal"
     @close="close"
   >
     <div class="bl-create">
@@ -724,5 +725,13 @@ export default {
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+</style>
+
+<!-- не scoped: контент BaseModal телепортится в body с его data-v, поэтому радиус задаём
+     глобально двойным классом (бьёт scoped .base-modal). Эталон модалок - 30px. -->
+<style>
+.base-modal.bl-create-modal {
+  border-radius: 30px;
 }
 </style>

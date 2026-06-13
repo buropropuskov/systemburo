@@ -4,6 +4,7 @@
     :title="title"
     width="480px"
     :z-index="zIndex"
+    content-class="bl-edit-modal"
     @close="close"
   >
     <div class="atb">
@@ -262,5 +263,13 @@ export default {
 .atb-error {
   color: var(--color-danger, #dc3545);
   font-size: 13px;
+}
+</style>
+
+<!-- не scoped: контент BaseModal телепортится в body с его data-v, радиус задаём глобально
+     двойным классом (бьёт scoped .base-modal). Эталон модалок - 30px. -->
+<style>
+.base-modal.bl-edit-modal {
+  border-radius: 30px;
 }
 </style>
