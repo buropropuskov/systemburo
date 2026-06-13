@@ -122,6 +122,9 @@
                   }"
                 >
               </div>
+              <div class="header-col tags-col">
+                <p>Теги</p>
+              </div>
               <div class="header-col actions-col" />
             </div>
           </div>
@@ -186,6 +189,27 @@
                         >
                           {{ application.status }}
                         </span>
+                      </div>
+                      <div class="application-col tags-col">
+                        <div
+                          v-if="application.has_roof_access || application.has_free_parking"
+                          class="application-tags"
+                        >
+                          <Badge
+                            v-if="application.has_roof_access"
+                            variant="info"
+                            size="sm"
+                          >
+                            Крыша
+                          </Badge>
+                          <Badge
+                            v-if="application.has_free_parking"
+                            variant="success"
+                            size="sm"
+                          >
+                            Парковка
+                          </Badge>
+                        </div>
                       </div>
                       <div class="application-col actions-col">
                         <button
@@ -801,8 +825,7 @@ export default {
 /* Колонки с пропорциональной шириной для 5 столбцов */
 .id-col {
   flex: 1.2; /* Немного шире для номера заявки */
-  min-width: 180px;
-  max-width: 180px;
+  min-width: 160px;
 }
 
 /* column-stack (номер + бейдж ЧС) только в строках данных. У заголовка остаётся row из
@@ -828,27 +851,42 @@ export default {
 }
 
 .date-col {
-  flex: 1.5; /* Шире для даты и времени */
-  min-width: 180px;
-  max-width: 180px;
+  flex: 1.3; /* Шире для даты и времени */
+  min-width: 150px;
 }
 
 .sender-col {
-  flex: 1.2; /* Отправитель */
-  min-width: 200px;
-  max-width: 200px;
+  flex: 1.4; /* Отправитель */
+  min-width: 160px;
 }
 
 .confirmation-col {
   flex: 1; /* Подтверждение */
-  min-width: 180px;
-  max-width: 180px;
+  min-width: 140px;
 }
 
 .status-col {
+  flex: 1.1;
+  min-width: 150px;
+}
+
+.tags-col {
   flex: 1;
-  min-width: 180px;
-  max-width: 180px;
+  min-width: 130px;
+}
+
+.header-col.tags-col {
+  cursor: default;
+}
+
+.header-col.tags-col:hover {
+  color: #a2a2a2;
+}
+
+.tags-col .application-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
 .actions-col {

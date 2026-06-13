@@ -1,7 +1,28 @@
 <template>
   <div class="attachment-details">
     <div class="attachment-header-section">
-      <h4>{{ attachment.attachment_display_name }}</h4>
+      <div class="attachment-title-row">
+        <h4>{{ attachment.attachment_display_name }}</h4>
+        <div
+          v-if="attachment.roof_access || attachment.free_parking"
+          class="attachment-tags"
+        >
+          <Badge
+            v-if="attachment.roof_access"
+            variant="info"
+            size="lg"
+          >
+            Крыша
+          </Badge>
+          <Badge
+            v-if="attachment.free_parking"
+            variant="success"
+            size="lg"
+          >
+            Парковка
+          </Badge>
+        </div>
+      </div>
 
       <!-- Даты действия -->
       <div
@@ -23,27 +44,6 @@
         <span class="time-value">
           {{ formatTimeRange(attachment.entry_time_from, attachment.entry_time_to) }}
         </span>
-      </div>
-
-      <!-- Теги вложения: доступ на крышу / бесплатная парковка (#529) -->
-      <div
-        v-if="attachment.roof_access || attachment.free_parking"
-        class="attachment-tags"
-      >
-        <Badge
-          v-if="attachment.roof_access"
-          variant="info"
-          size="sm"
-        >
-          Крыша
-        </Badge>
-        <Badge
-          v-if="attachment.free_parking"
-          variant="success"
-          size="sm"
-        >
-          Парковка
-        </Badge>
       </div>
     </div>
 
@@ -429,11 +429,19 @@ export default {
     font-size: 14px;
 }
 
-.attachment-tags {
+.attachment-title-row {
     grid-column: 1 / -1;
     display: flex;
-    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.attachment-tags {
+    display: flex;
+    gap: 8px;
     flex-wrap: wrap;
+    flex-shrink: 0;
 }
 
 .date-range:last-child, .time-range:last-child {
