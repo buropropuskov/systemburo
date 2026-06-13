@@ -109,6 +109,38 @@ func (h *ApplicationHandler) OverrideBlacklistFlag(c echo.Context) error {
 	return RespondMessage(c, "Пропуск подтверждён")
 }
 
+// DeleteBlacklistOverride godoc
+// @Summary      Отменить подтверждение пропуска
+// @Description  Снимает ранее подтверждённый пропуск по флагу (#481), снова блокируя согласование. Право: ответственный по заявке или принимающий.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int true "ID заявки"
+// @Param        flag_id query int true "ID предупреждения"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/blacklist-overrides [delete]
+func (h *ApplicationHandler) DeleteBlacklistOverride(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	flagID, err := strconv.Atoi(c.QueryParam("flag_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid flag_id")
+	}
+
+	if err := h.service.DeleteBlacklistOverride(c.Request().Context(), username, id, flagID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Подтверждение пропуска отменено")
+}
+
 // CheckApprovalStatus godoc
 // @Summary      Проверка статуса согласования
 // @Description  Возвращает текущие confirmation и status заявки.

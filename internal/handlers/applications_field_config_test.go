@@ -159,3 +159,51 @@ func TestSubmitCompleteApplication_BlacklistHiddenFIO(t *testing.T) {
 	rec := submitFC(t, e, token, orgName, "people", uaID, data)
 	require.Equal(t, http.StatusOK, rec.Code, "пустое ФИО должно пропускать ЧС, а не падать/блокировать; body: %s", rec.Body.String())
 }
+
+// TestSubmitCompleteApplication_RoofParkingPersisted проверяет, что флаги
+// roof_access/free_parking сохраняются на вложении при подаче (#529 - основа для тегов).
+func TestSubmitCompleteApplication_RoofParkingPersisted(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	const orgName = "Test Organization"
+	token := testutil.RegisterAndLogin(t, e, "rp_user", "pass123", 1, td.OrgID, td.CompanyID)
+	citizenshipID := seedCitizenship(t, db)
+	tableID := seedSystemTable(t, db)
+	uaID := seedUniqueAttachment(t, db, "people", "rp_tmpl", "tmpl")
+
+	body := fmt.Sprintf(`{
+		"message": "rp",
+		"organization": "%s",
+		"responsible_person": "Test",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "people",
+			"attachment_name": "rp_tmpl",
+			"attachment_display_name": "RP",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"roof_access": true,
+			"free_parking": true,
+			"data": {"employees": [{"last_name": "Иванов", "first_name": "Иван", "citizenship_id": %d, "position": "Рабочий", "passport_series_number": "1234 567890", "target_tables": [%d]}]}
+		}]
+	}`, orgName, uaID, citizenshipID, tableID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+
+	var saved struct {
+		RoofAccess  bool `gorm:"column:roof_access"`
+		FreeParking bool `gorm:"column:free_parking"`
+	}
+	require.NoError(t, db.Raw(
+		"SELECT roof_access, free_parking FROM attachments WHERE unique_attachment_id = ? ORDER BY id DESC LIMIT 1", uaID,
+	).Scan(&saved).Error)
+	assert.True(t, saved.RoofAccess, "roof_access должен сохраниться true")
+	assert.True(t, saved.FreeParking, "free_parking должен сохраниться true")
+}

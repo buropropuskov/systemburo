@@ -60,6 +60,10 @@ type ApplicationService interface {
 	// снимая блокировку согласования по этому флагу. Только ответственный, идемпотентно.
 	OverrideBlacklistFlag(ctx context.Context, username string, applicationID int, req OverrideBlacklistFlagRequest) error
 
+	// DeleteBlacklistOverride снимает ранее подтверждённый пропуск по флагу (#481), снова
+	// блокируя согласование по нему. Право шире, чем создание: ответственный ИЛИ принимающий.
+	DeleteBlacklistOverride(ctx context.Context, username string, applicationID, flagID int) error
+
 	// CheckApprovalStatus проверяет текущий статус согласования заявки.
 	CheckApprovalStatus(ctx context.Context, applicationID int) (*ApprovalStatusResponse, error)
 
@@ -166,6 +170,8 @@ type AttachmentData struct {
 	EntryDateTo           *string                    `json:"entry_date_to"`
 	EntryTimeFrom         *string                    `json:"entry_time_from"`
 	EntryTimeTo           *string                    `json:"entry_time_to"`
+	RoofAccess            bool                       `json:"roof_access"`
+	FreeParking           bool                       `json:"free_parking"`
 	Data                  AttachmentContentData      `json:"data"`
 	CustomValues          *[]models.CustomValueInput `json:"custom_values,omitempty"`
 }
@@ -389,6 +395,8 @@ type AttachmentInfo struct {
 	EntryDateTo                 *string             `json:"entry_date_to"`
 	EntryTimeFrom               *string             `json:"entry_time_from"`
 	EntryTimeTo                 *string             `json:"entry_time_to"`
+	RoofAccess                  bool                `json:"roof_access"`
+	FreeParking                 bool                `json:"free_parking"`
 	CreatedAt                   *time.Time          `json:"created_at"`
 	UniqueAttachmentID          *int                `json:"unique_attachment_id"`
 	UniqueAttachmentTitle       *string             `json:"unique_attachment_title"`
@@ -1397,11 +1405,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	for _, att := range req.Attachments {
 		var attID int
 		err := tx.Raw(`
-			INSERT INTO attachments (application_id, attachment_type, attachment_name, attachment_display_name, unique_attachment_id, entry_date_from, entry_date_to, entry_time_from, entry_time_to, status)
-			VALUES (?, ?, ?, ?, ?, ?::date, ?::date, ?::time, ?::time, 1)
+			INSERT INTO attachments (application_id, attachment_type, attachment_name, attachment_display_name, unique_attachment_id, entry_date_from, entry_date_to, entry_time_from, entry_time_to, roof_access, free_parking, status)
+			VALUES (?, ?, ?, ?, ?, ?::date, ?::date, ?::time, ?::time, ?, ?, 1)
 			RETURNING id
 		`, appID, att.AttachmentType, att.AttachmentName, att.AttachmentDisplayName, att.UniqueAttachmentID,
-			att.EntryDateFrom, att.EntryDateTo, att.EntryTimeFrom, att.EntryTimeTo).Scan(&attID).Error
+			att.EntryDateFrom, att.EntryDateTo, att.EntryTimeFrom, att.EntryTimeTo, att.RoofAccess, att.FreeParking).Scan(&attID).Error
 		if err != nil {
 			tx.Rollback()
 			slog.Error("Ошибка создания вложения", "error", err)

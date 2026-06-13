@@ -101,7 +101,6 @@ func TestRegistryDefaults_MatchForms(t *testing.T) {
 		// булевые чекбоксы - не обязуемы
 		{"people", "roof_access", true, false, false},
 		{"people", "free_parking", true, false, false},
-		{"people", "notify_situation_center", true, false, false},
 		// people
 		{"people", "last_name", true, true, true},
 		{"people", "middle_name", true, false, true},

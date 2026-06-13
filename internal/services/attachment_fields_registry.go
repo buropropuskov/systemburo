@@ -48,8 +48,7 @@ var attachmentFieldRegistry = []FieldDef{
 	{Key: "entry_time_from", Label: "Время с", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true, Locked: true},
 	{Key: "entry_time_to", Label: "Время по", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: true, Requirable: true, Locked: true},
 	{Key: "roof_access", Label: "Доступ на крышу", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
-	{Key: "free_parking", Label: "Свободная парковка", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
-	{Key: "notify_situation_center", Label: "Уведомить ситуационный центр", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
+	{Key: "free_parking", Label: "Бесплатная парковка", Group: FieldGroupCommon, DefaultVisible: true, DefaultRequired: false, Requirable: false},
 
 	// people
 	{Key: "last_name", Label: "Фамилия", Group: FieldGroupPeople, DefaultVisible: true, DefaultRequired: true, Requirable: true},

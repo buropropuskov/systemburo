@@ -621,7 +621,8 @@ export default {
                 'assigned_responsible': 'dot-assign',
                 'assigned_viewer': 'dot-view',
                 'confirmation_change': 'dot-system',
-                'status_change': 'dot-system'
+                'status_change': 'dot-system',
+                'blacklist_override_revoke': 'dot-warning'
             };
             return classes[actionType] || 'dot-default';
         },
@@ -653,7 +654,8 @@ export default {
                 'assigned_responsible': 'Назначен(-а) ответственным получателем',
                 'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
                 'confirmation_change': 'Статус согласования изменился',
-                'status_change': 'Статус заявки изменился'
+                'status_change': 'Статус заявки изменился',
+                'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска'
             };
             
             let text = texts[item.action_type] || item.action_type;

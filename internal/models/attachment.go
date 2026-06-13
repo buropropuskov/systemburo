@@ -18,6 +18,9 @@ type Attachment struct {
 	UniqueAttachmentID    *int              `gorm:"index" json:"unique_attachment_id"`
 	UniqueAttachment      *UniqueAttachment `json:"-"`
 	Status                *int              `json:"status"`
+	// Общие булевы параметры заявки (#529): сохраняются на вложении, в просмотре - теги.
+	RoofAccess  bool `gorm:"default:false" json:"roof_access"`
+	FreeParking bool `gorm:"default:false" json:"free_parking"`
 }
 
 type UniqueAttachment struct {
