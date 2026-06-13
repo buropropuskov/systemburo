@@ -110,7 +110,9 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10000;
+  /* Истечение сессии - блокирующий takeover, должен лежать поверх любых открытых стопок
+     модалок (деталь/карточка/override/история), иначе re-auth прячется за ними (#481). */
+  z-index: 25000;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
 }

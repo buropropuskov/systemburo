@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -1190,7 +1191,7 @@ func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appI
 			slog.Warn("blacklist similarity check failed (vehicle)", "err", err, "app_id", appID, "car_id", v.carID)
 			continue
 		}
-		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementCar, v.carID, matches)
+		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementCar, v.carID, normalize.Plate(v.carNumber), matches)
 	}
 	for _, e := range employees {
 		matches, err := s.personBlacklist.FindSimilar(ctx, e.lastName, e.firstName, e.middleName)
@@ -1198,22 +1199,28 @@ func (s *applicationService) detectBlacklistSimilarity(ctx context.Context, appI
 			slog.Warn("blacklist similarity check failed (person)", "err", err, "app_id", appID, "employee_id", e.empID)
 			continue
 		}
-		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementEmployee, e.empID, matches)
+		s.saveBlacklistFlag(ctx, appID, models.BlacklistElementEmployee, e.empID, normalize.Name(e.lastName, e.firstName, e.middleName), matches)
 	}
 }
 
 // saveBlacklistFlag сохраняет ЛУЧШЕЕ совпадение как флаг элемента: matches приходят
 // отсортированными по убыванию близости (контракт FindSimilar). Пустой срез - элемент
 // чист, флаг не пишем. Ошибку записи логируем и проглатываем (best-effort warning-слой).
-func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, elementType string, elementID int, matches []models.BlacklistSimilarMatch) {
+func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, elementType string, elementID int, elementNormalized string, matches []models.BlacklistSimilarMatch) {
 	if len(matches) == 0 {
 		return
 	}
 	best := matches[0]
+	// Если оператор уже подтвердил пропуск этого элемента против этой записи ЧС - не
+	// предупреждаем повторно (#481, срез C-followup). Отмена override снова включит флаг.
+	if s.isBlacklistSuppressed(ctx, elementType, elementNormalized, best.ID) {
+		return
+	}
 	flag := models.ApplicationBlacklistFlag{
 		ApplicationID:      appID,
 		ElementType:        elementType,
 		ElementID:          elementID,
+		ElementNormalized:  elementNormalized,
 		MatchedBlacklistID: best.ID,
 		MatchedValue:       best.MatchedValue,
 		MatchedReason:      best.Reason,
@@ -1223,6 +1230,27 @@ func (s *applicationService) saveBlacklistFlag(ctx context.Context, appID int, e
 	if err := s.db.WithContext(ctx).Create(&flag).Error; err != nil {
 		slog.Warn("blacklist flag save failed", "err", err, "app_id", appID, "element_type", elementType, "element_id", elementID)
 	}
+}
+
+// isBlacklistSuppressed - оператор ранее нажал "всё равно пропустить" по этому элементу
+// против этой записи ЧС, и подтверждение ещё действует (override-строка жива) -> повторно
+// не предупреждаем (#481, срез C-followup). Ключ - нормализованная форма элемента + id записи
+// ЧС, поэтому переживает пересоздание cars/employees между заявками. Best-effort: при пустом
+// ключе или ошибке считаем "не подавлено" (лучше лишний раз предупредить, чем тихо пропустить).
+func (s *applicationService) isBlacklistSuppressed(ctx context.Context, elementType, elementNormalized string, matchedBlacklistID int) bool {
+	if elementNormalized == "" {
+		return false
+	}
+	var cnt int64
+	err := s.db.WithContext(ctx).Model(&models.ApplicationBlacklistOverride{}).
+		Where("element_type = ? AND element_normalized = ? AND matched_blacklist_id = ?",
+			elementType, elementNormalized, matchedBlacklistID).
+		Count(&cnt).Error
+	if err != nil {
+		slog.Warn("blacklist suppression check failed", "err", err, "element_type", elementType)
+		return false
+	}
+	return cnt > 0
 }
 
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.

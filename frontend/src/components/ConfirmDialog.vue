@@ -83,7 +83,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1100;
+  /* Глобальный блокирующий confirm должен лежать ПОВЕРХ любых стопок модалок, из которых
+     его зовут (деталь заявки 10002, карточка 10003, override 10005, история 12000). Ниже
+     тоста (29000), чтобы уведомления оставались видны. Раньше было 1100 - терялся за
+     карточкой авто/сотрудника, открытой из заявки (#481). */
+  z-index: 20000;
   padding: 20px;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);

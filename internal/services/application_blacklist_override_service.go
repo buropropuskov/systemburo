@@ -66,21 +66,67 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 		return nil // уже подтверждён - идемпотентно
 	}
 
+	now := time.Now().UTC()
 	override := models.ApplicationBlacklistOverride{
 		FlagID:             flag.ID,
 		ApplicationID:      flag.ApplicationID,
 		ElementType:        flag.ElementType,
 		ElementID:          flag.ElementID,
+		ElementNormalized:  flag.ElementNormalized,
+		MatchedBlacklistID: flag.MatchedBlacklistID,
 		MatchedValue:       flag.MatchedValue,
 		OverriddenByUserID: user.ID,
 		Comment:            comment,
-		CreatedAt:          time.Now().UTC(),
+		CreatedAt:          now,
 	}
-	if err := s.db.WithContext(ctx).Create(&override).Error; err != nil {
+	// Создание override + запись решения в обе истории (заявки и элемента) атомарно.
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&override).Error; err != nil {
+			return err
+		}
+		return s.logBlacklistOverrideAction(tx, flag, user.ID, "blacklist_override", comment, now)
+	})
+	if err != nil {
 		if isUniqueViolation(err) {
 			return nil // гонка двух параллельных override одного флага - не ошибка
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка сохранения подтверждения пропуска")
+	}
+	return nil
+}
+
+// logBlacklistOverrideAction фиксирует подтверждение/отмену пропуска И в истории заявки, И в
+// истории самого элемента (машины/человека) - чтобы решение было видно из обеих карточек (#481,
+// срез C-followup). actionType: 'blacklist_override' / 'blacklist_override_revoke'.
+func (s *applicationService) logBlacklistOverrideAction(tx *gorm.DB, flag models.ApplicationBlacklistFlag, userID int, actionType, comment string, at time.Time) error {
+	meta, _ := json.Marshal(map[string]any{
+		"flag_id":              flag.ID,
+		"matched_blacklist_id": flag.MatchedBlacklistID,
+		"matched_value":        flag.MatchedValue,
+	})
+	if err := tx.Exec(`
+		INSERT INTO application_history (application_id, user_id, action_type, comment, metadata, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, flag.ApplicationID, userID, actionType, comment, string(meta), at).Error; err != nil {
+		return err
+	}
+
+	// В истории элемента поясняем, на что похоже (комментарий-причину сюда же, если есть).
+	elemComment := comment
+	if elemComment == "" {
+		elemComment = flag.MatchedValue
+	}
+	switch flag.ElementType {
+	case models.BlacklistElementCar:
+		return tx.Exec(`
+			INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
+			VALUES (?, ?, ?, ?, ?)
+		`, flag.ElementID, userID, actionType, elemComment, at).Error
+	case models.BlacklistElementEmployee:
+		return tx.Exec(`
+			INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
+			VALUES (?, ?, ?, ?, ?)
+		`, flag.ElementID, userID, actionType, elemComment, at).Error
 	}
 	return nil
 }
@@ -129,11 +175,8 @@ func (s *applicationService) DeleteBlacklistOverride(ctx context.Context, userna
 		if err := tx.Delete(&models.ApplicationBlacklistOverride{}, override.ID).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отмены подтверждения пропуска")
 		}
-		meta, _ := json.Marshal(map[string]any{"flag_id": flag.ID, "matched_value": override.MatchedValue})
-		if err := tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, comment, metadata, created_at)
-			VALUES (?, ?, 'blacklist_override_revoke', ?, ?, ?)
-		`, applicationID, user.ID, override.MatchedValue, string(meta), time.Now().UTC()).Error; err != nil {
+		// Отмена без причины - комментарий пустой, история элемента подставит matched_value.
+		if err := s.logBlacklistOverrideAction(tx, flag, user.ID, "blacklist_override_revoke", "", time.Now().UTC()); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
 		}
 		return nil

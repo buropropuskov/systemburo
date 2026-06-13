@@ -450,7 +450,9 @@ export default {
         'activate': 'dot-activate',
         'deactivate': 'dot-deactivate',
         'blacklisted': 'dot-delete',
-        'unblacklisted': 'dot-activate'
+        'unblacklisted': 'dot-activate',
+        'blacklist_override': 'dot-activate',
+        'blacklist_override_revoke': 'dot-deactivate'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -470,9 +472,11 @@ export default {
         'deactivate': 'Автомобиль выведен из работы',
         'restore': 'Автомобиль восстановлен',
         'blacklisted': 'Добавлен в чёрный список',
-        'unblacklisted': 'Снят с чёрного списка'
+        'unblacklisted': 'Снят с чёрного списка',
+        'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
+        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)'
       };
-      
+
       let text = texts[item.action_type] || item.action_type;
       
       if (item.action_type === 'update' && item.field_name) {

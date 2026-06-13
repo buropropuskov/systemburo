@@ -622,6 +622,7 @@ export default {
                 'assigned_viewer': 'dot-view',
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system',
+                'blacklist_override': 'dot-success',
                 'blacklist_override_revoke': 'dot-warning'
             };
             return classes[actionType] || 'dot-default';
@@ -655,6 +656,7 @@ export default {
                 'assigned_viewer': 'Получил(-а) доступ к просмотру заявки',
                 'confirmation_change': 'Статус согласования изменился',
                 'status_change': 'Статус заявки изменился',
+                'blacklist_override': 'Подтвердил(-а) пропуск (возможный обход ЧС)',
                 'blacklist_override_revoke': 'Отменил(-а) подтверждение пропуска'
             };
             
