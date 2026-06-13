@@ -381,17 +381,17 @@ type ViewerWithUser struct {
 
 // AttachmentInfo информация о вложении заявки.
 type AttachmentInfo struct {
-	ID                          int        `json:"id"`
-	AttachmentType              string     `json:"attachment_type"`
-	AttachmentName              string     `json:"attachment_name"`
-	AttachmentDisplayName       string     `json:"attachment_display_name"`
-	EntryDateFrom               *string    `json:"entry_date_from"`
-	EntryDateTo                 *string    `json:"entry_date_to"`
-	EntryTimeFrom               *string    `json:"entry_time_from"`
-	EntryTimeTo                 *string    `json:"entry_time_to"`
-	CreatedAt                   *time.Time `json:"created_at"`
-	UniqueAttachmentID          *int       `json:"unique_attachment_id"`
-	UniqueAttachmentTitle       *string    `json:"unique_attachment_title"`
+	ID                          int                 `json:"id"`
+	AttachmentType              string              `json:"attachment_type"`
+	AttachmentName              string              `json:"attachment_name"`
+	AttachmentDisplayName       string              `json:"attachment_display_name"`
+	EntryDateFrom               *string             `json:"entry_date_from"`
+	EntryDateTo                 *string             `json:"entry_date_to"`
+	EntryTimeFrom               *string             `json:"entry_time_from"`
+	EntryTimeTo                 *string             `json:"entry_time_to"`
+	CreatedAt                   *time.Time          `json:"created_at"`
+	UniqueAttachmentID          *int                `json:"unique_attachment_id"`
+	UniqueAttachmentTitle       *string             `json:"unique_attachment_title"`
 	UniqueAttachmentDisplayName *string             `json:"unique_attachment_display_name"`
 	HasTemplate                 bool                `json:"has_template"`
 	CustomValues                []CustomValueDetail `gorm:"-" json:"custom_values,omitempty"`
@@ -399,9 +399,9 @@ type AttachmentInfo struct {
 
 // CustomValueDetail значение кастомного поля для отображения.
 type CustomValueDetail struct {
-	FieldID   int    `json:"field_id"`
-	Label     string `json:"label"`
-	Value     string `json:"value"`
+	FieldID int    `json:"field_id"`
+	Label   string `json:"label"`
+	Value   string `json:"value"`
 }
 
 // CarWithPlaces автомобиль с привязанными местами разгрузки.
@@ -1006,6 +1006,11 @@ func (s *applicationService) validateBlacklist(ctx context.Context, req Complete
 		}
 		if att.Data.Employees != nil {
 			for _, e := range *att.Data.Employees {
+				// Тихая деградация ЧС (#529): если ФИО скрыто конфигом - данных для
+				// совпадения нет, матчить нечем, пропускаем (не падаем, не 500).
+				if strings.TrimSpace(e.LastName) == "" && strings.TrimSpace(e.FirstName) == "" {
+					continue
+				}
 				middleName := ""
 				if e.MiddleName != nil {
 					middleName = *e.MiddleName
@@ -1018,6 +1023,131 @@ func (s *applicationService) validateBlacklist(ctx context.Context, req Complete
 					fio := strings.TrimSpace(fmt.Sprintf("%s %s %s", e.LastName, e.FirstName, middleName))
 					return echo.NewHTTPError(http.StatusConflict,
 						fmt.Sprintf("Человек %s в чёрном списке: %s", fio, res.Reason))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// requiredFieldKeys - ключи полей, которые админ ЯВНО настроил обязательными для
+// вложения (override visible=true И required=true). Поля без override не валидируются:
+// строгая проверка только для настроенных полей, существующие шаблоны не ломаются
+// (решение владельца, #529 H-9).
+func requiredFieldKeys(overrides []models.AttachmentFieldConfig) map[string]bool {
+	req := make(map[string]bool, len(overrides))
+	for _, o := range overrides {
+		if o.Visible && o.Required {
+			req[o.FieldKey] = true
+		}
+	}
+	return req
+}
+
+// employeeFieldPresent сообщает, заполнено ли поле сотрудника с данным ключом реестра.
+// Незнакомый ключ -> true (не валидируем то, чего не знаем).
+func employeeFieldPresent(e EmployeeInput, key string) bool {
+	switch key {
+	case "last_name":
+		return strings.TrimSpace(e.LastName) != ""
+	case "first_name":
+		return strings.TrimSpace(e.FirstName) != ""
+	case "middle_name":
+		return e.MiddleName != nil && strings.TrimSpace(*e.MiddleName) != ""
+	case "passport":
+		return strings.TrimSpace(e.PassportSeriesNumber) != ""
+	case "position":
+		return strings.TrimSpace(e.Position) != ""
+	case "citizenship":
+		return e.CitizenshipID > 0
+	case "patent":
+		// Патент удовлетворяется номером патента ИЛИ иным разрешением (как на фронте).
+		return (e.PatentNumber != nil && strings.TrimSpace(*e.PatentNumber) != "") ||
+			(e.OtherPermission != nil && strings.TrimSpace(*e.OtherPermission) != "")
+	case "work_permission":
+		// Делит поле OtherPermission с patent: если оба настроены required,
+		// одно заполненное разрешение удовлетворяет обоим (как на фронте).
+		return e.OtherPermission != nil && strings.TrimSpace(*e.OtherPermission) != ""
+	case "target_tables":
+		return len(e.TargetTables) > 0
+	}
+	return true
+}
+
+// vehicleFieldPresent сообщает, заполнено ли поле машины. "По факту" приходит непустым
+// sentinel-ом ("По факту") в car_number/car_brand, поэтому by-fact проходит проверку.
+func vehicleFieldPresent(v VehicleInput, key string) bool {
+	switch key {
+	case "number":
+		return strings.TrimSpace(v.CarNumber) != ""
+	case "mark":
+		return v.MarkID != nil || strings.TrimSpace(v.CarBrand) != ""
+	case "unloading_places":
+		return len(v.UnloadPlaces) > 0
+	}
+	return true
+}
+
+// itemFieldPresent сообщает, заполнено ли поле ТМЦ.
+func itemFieldPresent(i ItemInput, key string) bool {
+	switch key {
+	case "item_name":
+		return strings.TrimSpace(i.Name) != ""
+	case "quantity":
+		return i.Count >= 1
+	}
+	return true
+}
+
+// validateConfiguredRequiredFields проверяет, что поля, явно настроенные админом
+// обязательными (override visible+required), присутствуют в подаче. Скрытые и
+// ненастроенные поля не валидируются. Запускается до транзакции (#529 H-9).
+func (s *applicationService) validateConfiguredRequiredFields(ctx context.Context, req CompleteApplicationRequest) error {
+	for _, att := range req.Attachments {
+		var overrides []models.AttachmentFieldConfig
+		if err := s.db.WithContext(ctx).
+			Where("unique_attachment_id = ?", att.UniqueAttachmentID).
+			Find(&overrides).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки настройки полей")
+		}
+		required := requiredFieldKeys(overrides)
+		if len(required) == 0 {
+			continue
+		}
+		labels := fieldDefByKey(att.AttachmentType)
+		fail := func(key string) error {
+			label := key
+			if d, ok := labels[key]; ok {
+				label = d.Label
+			}
+			return echo.NewHTTPError(http.StatusBadRequest,
+				fmt.Sprintf("Поле «%s» обязательно для заполнения", label))
+		}
+
+		if att.Data.Employees != nil {
+			for _, e := range *att.Data.Employees {
+				for key := range required {
+					if !employeeFieldPresent(e, key) {
+						return fail(key)
+					}
+				}
+			}
+		}
+		if att.Data.Vehicles != nil {
+			for _, v := range *att.Data.Vehicles {
+				for key := range required {
+					if !vehicleFieldPresent(v, key) {
+						return fail(key)
+					}
+				}
+			}
+		}
+		if att.Data.Items != nil {
+			for _, item := range *att.Data.Items {
+				for key := range required {
+					if !itemFieldPresent(item, key) {
+						return fail(key)
+					}
 				}
 			}
 		}
@@ -1104,6 +1234,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	if strings.TrimSpace(req.Organization) == "" &&
 		(req.Company == nil || strings.TrimSpace(*req.Company) == "") {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
+	}
+
+	// Серверная валидация настроенных обязательных полей (#529 H-9): поля, помеченные
+	// админом required, должны присутствовать; скрытые/ненастроенные пропускаются.
+	if err := s.validateConfiguredRequiredFields(ctx, req); err != nil {
+		return nil, err
 	}
 
 	// Серверный гард ЧС (#443): отклоняем заявку с заблокированной машиной/человеком
