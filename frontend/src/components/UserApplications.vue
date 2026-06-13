@@ -825,6 +825,7 @@ export default {
   flex: 1;
   padding: 0 16px;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .header-col:hover {
@@ -1070,17 +1071,15 @@ export default {
 
 /* Бейджи подтверждения */
 .confirmation-badge {
-  display: block;
-  width: 64px;
+  display: inline-block;
+  min-width: 115px;
   box-sizing: border-box;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 12px;
   font-size: 11px;
   font-weight: 500;
   text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .confirmation-approved {
@@ -1109,17 +1108,15 @@ export default {
 
 /* Бейджи статуса */
 .status-badge {
-  display: block;
-  width: 118px;
+  display: inline-block;
+  min-width: 120px;
   box-sizing: border-box;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
   text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Статусы */
