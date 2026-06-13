@@ -36,64 +36,65 @@
 
             <template v-else>
               <p class="fields-hint">
-                Скрытые поля не показываются при подаче заявки. Период действия
-                (даты и время) обязателен всегда и не настраивается.
+                Скрытые поля не показываются при подаче заявки.
               </p>
 
-              <div class="fields-grid">
+              <div class="groups">
                 <div
                   v-for="group in groups"
                   :key="group.key"
-                  class="fields-group"
+                  class="gcard"
                 >
-                  <div class="group-title">
-                    {{ group.label }}
+                  <div class="ghead">
+                    <span class="ghead-dot" />
+                    <h4>{{ group.label }}</h4>
+                    <span class="ghead-count">{{ group.fields.length }}</span>
                   </div>
-
-                  <div
-                    v-for="field in group.fields"
-                    :key="field.key"
-                    class="field-row"
-                    :class="{ 'field-row--locked': field.locked }"
-                    :data-testid="`field-row-${field.key}`"
-                  >
-                    <span class="field-label">{{ field.label }}</span>
-
-                    <div
-                      v-if="field.locked"
-                      class="field-locked"
-                    >
-                      Всегда включено
+                  <div class="matrix">
+                    <div class="matrix-head">
+                      <span>Поле</span>
+                      <span>Показывать</span>
+                      <span>Обязательно</span>
                     </div>
                     <div
-                      v-else
-                      class="field-toggles"
+                      v-for="field in group.fields"
+                      :key="field.key"
+                      class="matrix-row"
+                      :data-testid="`field-row-${field.key}`"
                     >
-                      <ToggleSwitch
-                        v-model="field.visible"
-                        :data-testid="`field-visible-${field.key}`"
-                      >
-                        Показывать
-                      </ToggleSwitch>
-                      <ToggleSwitch
-                        v-if="field.requirable"
-                        v-model="field.required"
-                        :disabled="!field.visible"
-                        :data-testid="`field-required-${field.key}`"
-                      >
-                        Обязательно
-                      </ToggleSwitch>
+                      <div class="matrix-name">{{ field.label }}</div>
+                      <div class="matrix-cell">
+                        <ToggleSwitch
+                          v-model="field.visible"
+                          :data-testid="`field-visible-${field.key}`"
+                        />
+                      </div>
+                      <div class="matrix-cell matrix-cell--req">
+                        <ToggleSwitch
+                          v-if="field.requirable"
+                          v-model="field.required"
+                          :disabled="!field.visible"
+                          :data-testid="`field-required-${field.key}`"
+                        />
+                        <span
+                          v-else
+                          class="matrix-dash"
+                        >—</span>
+                      </div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div class="fields-group fields-group--full custom-group">
-                  <div class="group-title">
-                    Дополнительные поля
-                  </div>
+              <div class="gcard custom-card">
+                <div class="ghead">
+                  <span class="ghead-dot" />
+                  <h4>Дополнительные поля</h4>
+                  <span class="ghead-count">{{ customFields.length }}</span>
+                </div>
+                <div class="custom-body">
                   <p class="custom-hint">
-                    Произвольные текстовые поля, заполняются при подаче заявки.
-                    Порядок задаёт расположение в форме.
+                    Произвольные текстовые поля заявки. Перетаскивание за ⠿ задаёт порядок в форме подачи.
                   </p>
 
                   <div
@@ -104,65 +105,76 @@
                   </div>
 
                   <div
-                    v-for="(cf, i) in customFields"
-                    :key="cf.uid"
-                    class="custom-row"
-                    :data-testid="`custom-row-${i}`"
+                    v-else
+                    class="ctable"
                   >
-                    <div class="custom-inputs">
-                      <input
-                        v-model="cf.label"
-                        class="lk-input custom-input"
-                        maxlength="200"
-                        placeholder="Заголовок"
-                        :data-testid="`custom-label-${i}`"
-                      >
-                      <input
-                        v-model="cf.placeholder"
-                        class="lk-input custom-input"
-                        maxlength="200"
-                        placeholder="Плейсхолдер"
-                        :data-testid="`custom-placeholder-${i}`"
-                      >
+                    <div class="ctable-head">
+                      <span />
+                      <span>Заголовок</span>
+                      <span>Плейсхолдер</span>
+                      <span class="ctable-head--c">Обязат.</span>
+                      <span />
                     </div>
-                    <div class="custom-controls">
-                      <ToggleSwitch
-                        v-model="cf.required"
-                        :data-testid="`custom-required-${i}`"
+                    <div class="ctable-scroll">
+                      <div
+                        v-for="(cf, i) in customFields"
+                        :key="cf.uid"
+                        class="ctable-row"
+                        :data-testid="`custom-row-${i}`"
                       >
-                        Обязательно
-                      </ToggleSwitch>
-                      <div class="custom-order">
-                        <button
-                          type="button"
-                          class="order-btn"
-                          aria-label="Переместить выше"
-                          :disabled="i === 0"
-                          :data-testid="`custom-up-${i}`"
-                          @click="moveCustom(i, -1)"
+                        <span class="ctable-grip">⠿</span>
+                        <input
+                          v-model="cf.label"
+                          class="lk-input ctable-input"
+                          maxlength="200"
+                          placeholder="Заголовок"
+                          :data-testid="`custom-label-${i}`"
                         >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          class="order-btn"
-                          aria-label="Переместить ниже"
-                          :disabled="i === customFields.length - 1"
-                          :data-testid="`custom-down-${i}`"
-                          @click="moveCustom(i, 1)"
+                        <input
+                          v-model="cf.placeholder"
+                          class="lk-input ctable-input"
+                          maxlength="200"
+                          placeholder="Плейсхолдер"
+                          :data-testid="`custom-placeholder-${i}`"
                         >
-                          ↓
-                        </button>
+                        <div class="ctable-req">
+                          <ToggleSwitch
+                            v-model="cf.required"
+                            :data-testid="`custom-required-${i}`"
+                          />
+                        </div>
+                        <div class="ctable-ctl">
+                          <button
+                            type="button"
+                            class="order-btn"
+                            aria-label="Переместить выше"
+                            :disabled="i === 0"
+                            :data-testid="`custom-up-${i}`"
+                            @click="moveCustom(i, -1)"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            class="order-btn"
+                            aria-label="Переместить ниже"
+                            :disabled="i === customFields.length - 1"
+                            :data-testid="`custom-down-${i}`"
+                            @click="moveCustom(i, 1)"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            class="custom-delete"
+                            aria-label="Удалить поле"
+                            :data-testid="`custom-delete-${i}`"
+                            @click="removeCustom(i)"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        class="custom-delete"
-                        aria-label="Удалить поле"
-                        :data-testid="`custom-delete-${i}`"
-                        @click="removeCustom(i)"
-                      >
-                        ×
-                      </button>
                     </div>
                   </div>
 
@@ -261,6 +273,8 @@ export default {
       const out = [];
       const byKey = new Map();
       this.fields.forEach((f) => {
+        // Залоченные (даты/время) не настраиваются - не показываем в модалке (#529).
+        if (f.locked) return;
         let group = byKey.get(f.group);
         if (!group) {
           group = { key: f.group, label: GROUP_LABELS[f.group] || f.group, fields: [] };
@@ -518,69 +532,129 @@ export default {
   color: #a2a2a2;
 }
 
-/* Группы тайлятся горизонтально в карточки; узкая ширина -> 1 колонка (мобайл). */
-.fields-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  align-items: start;
-}
-
-/* Доп. поля шире (инпуты заголовок/плейсхолдер) - на всю ширину сетки. */
-.fields-group--full {
-  grid-column: 1 / -1;
-}
-
-.fields-group {
-  border: 1px solid #e9ecf1;
-  border-radius: var(--radius-md);
-  background: #fafbfc;
-  padding: 14px 16px;
-}
-
-.group-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #a2a2a2;
-  margin-bottom: 10px;
-}
-
-.field-row {
+/* Группы - явные блоки-карточки, тайлятся горизонтально; узко -> в столбец. */
+.groups {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  padding: 10px 0;
-  border-bottom: 1px solid #eef1f4;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
 }
 
-.field-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.gcard {
+  flex: 1 1 300px;
+  min-width: 280px;
+  border: 1px solid #e6e9f0;
+  border-radius: var(--radius-md);
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(20, 24, 40, 0.04);
 }
 
-.field-label {
-  font-size: 14px;
+/* Доп. поля - отдельный блок на всю ширину снизу. */
+.custom-card {
+  flex: none;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.ghead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 16px;
+  background: #fafbfc;
+  border-bottom: 1px solid #e6e9f0;
+}
+
+.ghead-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  flex: none;
+}
+
+.ghead h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
   color: #333;
 }
 
-.field-row--locked .field-label {
-  color: #777;
+.ghead-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: #a2a2a2;
 }
 
-.field-toggles {
+/* Матрица: Поле | Показывать | Обязательно - колонки чётко разделены. */
+.matrix-head,
+.matrix-row {
+  display: grid;
+  grid-template-columns: 1fr 92px 92px;
+  align-items: center;
+}
+
+.matrix-head {
+  background: #f3f4fb;
+  border-bottom: 1px solid #e6e9f0;
+}
+
+.matrix-head span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #7c8190;
+  text-align: center;
+  padding: 9px 6px;
+}
+
+.matrix-head span:first-child {
+  text-align: left;
+  padding-left: 16px;
+}
+
+.matrix-head span:nth-child(2),
+.matrix-head span:nth-child(3) {
+  border-left: 1px solid #e6e9f0;
+}
+
+.matrix-head span:nth-child(3) {
+  background: #f6f7fe;
+}
+
+.matrix-row {
+  border-bottom: 1px solid #f1f3f6;
+}
+
+.matrix-row:last-child {
+  border-bottom: none;
+}
+
+.matrix-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #333;
+  padding: 11px 8px 11px 16px;
+}
+
+.matrix-cell {
   display: flex;
   align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  justify-content: center;
+  align-self: stretch;
+  border-left: 1px solid #eef1f4;
+  padding: 9px 0;
 }
 
-.field-locked {
-  font-size: 12px;
-  color: #a2a2a2;
-  flex-shrink: 0;
+.matrix-cell--req {
+  background: #f6f7fe;
+}
+
+.matrix-dash {
+  color: #cfd3dc;
+  font-size: 16px;
 }
 
 .modal-footer {
@@ -604,35 +678,74 @@ export default {
   padding: 8px 0 12px;
 }
 
-.custom-row {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f2f5;
+.custom-body {
+  padding: 14px 16px;
 }
 
-.custom-inputs {
-  display: flex;
+/* Доп. поля - компактная таблица со скроллом (масштабируется при многих). */
+.ctable {
+  border: 1px solid #e6e9f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ctable-head,
+.ctable-row {
+  display: grid;
+  grid-template-columns: 18px 1.2fr 1.2fr 84px 96px;
   gap: 8px;
+  align-items: center;
 }
 
-.custom-input {
-  flex: 1;
+.ctable-head {
+  background: #f3f4fb;
+  padding: 8px 12px;
+}
+
+.ctable-head span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7c8190;
+}
+
+.ctable-head--c {
+  text-align: center;
+}
+
+.ctable-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.ctable-row {
+  padding: 7px 12px;
+  border-top: 1px solid #f1f3f6;
+}
+
+.ctable-grip {
+  color: #c4c8d2;
+  cursor: grab;
+  text-align: center;
+  font-size: 13px;
+}
+
+.ctable-input {
+  width: 100%;
   min-width: 0;
 }
 
-.custom-controls {
+.ctable-req {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: center;
 }
 
-.custom-order {
+.ctable-ctl {
   display: flex;
   gap: 4px;
-  margin-left: auto;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .order-btn {
