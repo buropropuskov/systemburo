@@ -7,6 +7,8 @@ data[].confirmation
 data[].confirmation_datetime
 data[].data_approval
 data[].has_blank_template
+data[].has_free_parking
+data[].has_roof_access
 data[].id
 data[].is_read
 data[].message
