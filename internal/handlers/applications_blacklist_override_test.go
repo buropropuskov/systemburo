@@ -390,6 +390,14 @@ func TestBlacklistOverride_HistoryAndSuppression(t *testing.T) {
 		db.Table("cars_history").
 			Where("car_id = ? AND action_type = 'blacklist_override'", carID).Count(&carHist)
 		assert.Equal(t, int64(1), carHist, "запись в истории машины")
+
+		// В комментарии видно, КАКУЮ машину пропустили и причину - иначе в истории непонятно.
+		var carComment string
+		db.Table("cars_history").
+			Where("car_id = ? AND action_type = 'blacklist_override'", carID).
+			Select("comment").Scan(&carComment)
+		assert.Contains(t, carComment, "H777HH798", "в истории должен быть номер машины")
+		assert.Contains(t, carComment, "проверил лично", "в истории должна быть причина")
 	})
 
 	t.Run("после пропуска та же машина в новой заявке не помечается", func(t *testing.T) {

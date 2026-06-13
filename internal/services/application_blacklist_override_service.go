@@ -97,12 +97,25 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 
 // logBlacklistOverrideAction фиксирует подтверждение/отмену пропуска И в истории заявки, И в
 // истории самого элемента (машины/человека) - чтобы решение было видно из обеих карточек (#481,
-// срез C-followup). actionType: 'blacklist_override' / 'blacklist_override_revoke'.
-func (s *applicationService) logBlacklistOverrideAction(tx *gorm.DB, flag models.ApplicationBlacklistFlag, userID int, actionType, comment string, at time.Time) error {
+// срез C-followup). actionType: 'blacklist_override' / 'blacklist_override_revoke'. В комментарий
+// кладём, КАКОЙ элемент и на что похоже (+ причину для подтверждения), иначе в истории не видно,
+// о какой машине/человеке речь.
+func (s *applicationService) logBlacklistOverrideAction(tx *gorm.DB, flag models.ApplicationBlacklistFlag, userID int, actionType, reason string, at time.Time) error {
+	label := s.blacklistElementLabel(tx, flag)
+	desc := label
+	if flag.MatchedValue != "" {
+		desc = strings.TrimSpace(label + " - похоже на " + flag.MatchedValue)
+	}
+	comment := desc
+	if reason = strings.TrimSpace(reason); reason != "" {
+		comment = desc + " (причина: " + reason + ")"
+	}
+
 	meta, _ := json.Marshal(map[string]any{
 		"flag_id":              flag.ID,
 		"matched_blacklist_id": flag.MatchedBlacklistID,
 		"matched_value":        flag.MatchedValue,
+		"element":              label,
 	})
 	if err := tx.Exec(`
 		INSERT INTO application_history (application_id, user_id, action_type, comment, metadata, created_at)
@@ -111,24 +124,54 @@ func (s *applicationService) logBlacklistOverrideAction(tx *gorm.DB, flag models
 		return err
 	}
 
-	// В истории элемента поясняем, на что похоже (комментарий-причину сюда же, если есть).
-	elemComment := comment
-	if elemComment == "" {
-		elemComment = flag.MatchedValue
-	}
 	switch flag.ElementType {
 	case models.BlacklistElementCar:
 		return tx.Exec(`
 			INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
 			VALUES (?, ?, ?, ?, ?)
-		`, flag.ElementID, userID, actionType, elemComment, at).Error
+		`, flag.ElementID, userID, actionType, comment, at).Error
 	case models.BlacklistElementEmployee:
 		return tx.Exec(`
 			INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
 			VALUES (?, ?, ?, ?, ?)
-		`, flag.ElementID, userID, actionType, elemComment, at).Error
+		`, flag.ElementID, userID, actionType, comment, at).Error
 	}
 	return nil
+}
+
+// blacklistElementLabel - человекочитаемое имя помеченного элемента для истории: "номер марка"
+// для машины, ФИО для человека. Берём из текущей строки cars/employees (она жива на момент
+// override/отмены - это элемент заявки).
+func (s *applicationService) blacklistElementLabel(tx *gorm.DB, flag models.ApplicationBlacklistFlag) string {
+	switch flag.ElementType {
+	case models.BlacklistElementCar:
+		var r struct {
+			CarNumber string
+			CarBrand  string
+		}
+		tx.Raw("SELECT car_number, car_brand FROM cars WHERE id = ?", flag.ElementID).Scan(&r)
+		return joinNonEmpty(" ", r.CarNumber, r.CarBrand)
+	case models.BlacklistElementEmployee:
+		var r struct {
+			LastName   string
+			FirstName  string
+			MiddleName string
+		}
+		tx.Raw("SELECT last_name, first_name, middle_name FROM employees WHERE id = ?", flag.ElementID).Scan(&r)
+		return joinNonEmpty(" ", r.LastName, r.FirstName, r.MiddleName)
+	}
+	return ""
+}
+
+// joinNonEmpty склеивает непустые (после TrimSpace) части через sep.
+func joinNonEmpty(sep string, parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, sep)
 }
 
 // DeleteBlacklistOverride снимает ранее подтверждённый пропуск по флагу (#481, срез C):

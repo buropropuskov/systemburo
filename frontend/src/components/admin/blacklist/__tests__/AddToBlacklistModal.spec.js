@@ -6,9 +6,11 @@ import AddToBlacklistModal from '../AddToBlacklistModal.vue';
 vi.mock('@/api/marks', () => ({ listMarks: () => Promise.resolve([{ id: 5, name: 'BMW' }]) }));
 
 // BaseModal рендерит через Teleport - стабим, чтобы контент был в обёртке для запросов.
+// VehicleNumberFormatInput сам грузит форматы по сети - стабим, carNumber выставляет watcher.
 const stubs = {
   BaseModal: { template: '<div class="base-modal"><slot /><slot name="actions" /></div>' },
   FormField: { template: '<div class="form-field"><slot /></div>' },
+  VehicleNumberFormatInput: true,
 };
 
 function mountModal(props = {}) {
