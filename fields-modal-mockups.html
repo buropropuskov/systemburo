@@ -3,159 +3,150 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Настройка полей — варианты раскладки</title>
+<title>Настройка полей — Матрица (доработка)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --primary:#4F5BDF; --primary-soft:#eceefe;
-    --ink:#23262f; --muted:#9aa0ac; --line:#e9ecf1; --bg:#fafbfc;
-    --radius-md:15px; --radius-lg:20px;
+    --primary:#4F5BDF; --primary-soft:#eceefe; --req-band:#f6f7fe;
+    --ink:#23262f; --muted:#9aa0ac; --line:#e6e9f0; --bg:#fafbfc;
   }
   *{box-sizing:border-box}
-  body{
-    margin:0; font-family:'Montserrat',sans-serif; color:var(--ink);
-    background:#eef0f5; padding:32px 16px 64px;
-  }
-  .page-head{max-width:1000px;margin:0 auto 20px}
+  body{margin:0;font-family:'Montserrat',sans-serif;color:var(--ink);background:#eef0f5;padding:32px 16px 64px}
+  .page-head{max-width:1000px;margin:0 auto}
   .page-head h1{font-size:20px;margin:0 0 6px}
   .page-head p{margin:0;color:#5b616e;font-size:13px;line-height:1.5}
   .tabs{display:flex;gap:8px;flex-wrap:wrap;max-width:1000px;margin:18px auto 0}
-  .tab{
-    border:1px solid var(--line);background:#fff;border-radius:999px;
-    padding:9px 18px;font:600 13px Montserrat;color:#5b616e;cursor:pointer;transition:.15s;
-  }
+  .tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 18px;font:600 13px Montserrat;color:#5b616e;cursor:pointer;transition:.15s}
   .tab:hover{border-color:#c8ccd6}
   .tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
   .stage{display:flex;justify-content:center;padding:28px 0}
-  .panel{display:none}
-  .panel.active{display:block}
+  .panel{display:none}.panel.active{display:block}
 
-  /* ---- modal shell ---- */
-  .modal{
-    width:840px;max-width:96vw;background:#fff;border-radius:30px;
-    box-shadow:0 18px 50px rgba(20,24,40,.18);overflow:hidden;
-  }
+  .modal{width:880px;max-width:96vw;background:#fff;border-radius:30px;box-shadow:0 18px 50px rgba(20,24,40,.18);overflow:hidden}
   .m-head{display:flex;align-items:center;justify-content:space-between;padding:18px 26px;border-bottom:1px solid var(--line)}
   .m-head h3{margin:0;font-size:17px;font-weight:600}
   .x{border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;width:32px;height:32px;border-radius:50%}
   .x:hover{background:#f4f5f8;color:var(--ink)}
   .m-hint{margin:0;padding:14px 26px 0;color:var(--muted);font-size:12px;line-height:1.5}
-  .m-body{padding:18px 26px;max-height:64vh;overflow:auto}
+  .m-body{padding:18px 26px;max-height:66vh;overflow:auto}
   .m-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 26px;border-top:1px solid var(--line)}
   .btn{border-radius:999px;padding:10px 22px;font:600 13px Montserrat;cursor:pointer;border:1px solid transparent}
   .btn.ghost{background:#fff;border-color:var(--line);color:#5b616e}
   .btn.primary{background:var(--primary);color:#fff}
 
-  /* ---- switch (reusable) ---- */
-  .sw{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font-size:12px;color:#586}
+  /* switch */
+  .sw{display:inline-flex;align-items:center;cursor:pointer;user-select:none}
   .sw input{display:none}
-  .sw .track{width:34px;height:19px;border-radius:10px;background:#cfd3dc;position:relative;transition:.2s;flex:none}
-  .sw .track::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:.2s}
+  .sw .track{width:36px;height:20px;border-radius:10px;background:#cfd3dc;position:relative;transition:.2s;flex:none}
+  .sw .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:.2s}
   .sw input:checked + .track{background:var(--primary)}
-  .sw input:checked + .track::after{transform:translateX(15px)}
-  .sw .cap{color:#6b7280;font-weight:500}
-  .sw.off{opacity:.55}
+  .sw input:checked + .track::after{transform:translateX(16px)}
+  .sw.dis .track{background:#e6e8ee}
 
-  /* =========================================================
-     V1 — МАТРИЦА (таблица: Поле | Показывать | Обязательно)
-     ========================================================= */
-  .v1-cols{display:grid;grid-template-columns:1fr 1fr;gap:26px}
-  .v1-table{width:100%}
-  .v1-th{display:grid;grid-template-columns:1fr 86px 96px;align-items:center;padding:0 0 8px;border-bottom:2px solid var(--line)}
-  .v1-th span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center}
-  .v1-th span:first-child{text-align:left}
-  .v1-row{display:grid;grid-template-columns:1fr 86px 96px;align-items:center;padding:11px 0;border-bottom:1px solid #f1f3f6}
-  .v1-row .name{font-size:14px;font-weight:600}
-  .v1-row .cell{display:flex;justify-content:center}
-  .v1-row .dash{color:#cfd3dc}
-  .v1-onlybadge{font-size:10px;color:var(--muted)}
+  /* ----- группы как блоки ----- */
+  .groups{display:flex;gap:16px;align-items:flex-start}
+  .col-main{flex:1.45;min-width:0}
+  .col-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
+  .gcard{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(20,24,40,.04)}
+  .ghead{display:flex;align-items:center;gap:9px;padding:11px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
+  .ghead .dot{width:7px;height:7px;border-radius:50%;background:var(--primary);flex:none}
+  .ghead h4{margin:0;font-size:13px;font-weight:700}
+  .ghead .count{margin-left:auto;font-size:11px;color:var(--muted)}
 
-  /* =========================================================
-     V2 — СЕТКА КАРТОЧЕК
-     ========================================================= */
-  .v2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:12px}
-  .v2-card{border:1px solid var(--line);border-radius:var(--radius-md);padding:13px 14px;background:var(--bg);display:flex;flex-direction:column;gap:11px}
-  .v2-card .name{font-size:13.5px;font-weight:600;line-height:1.3}
-  .v2-card .toggles{display:flex;flex-direction:column;gap:8px}
-  .v2-card.dim{opacity:.5}
-  .v2-card.span2{grid-column:span 2}
+  /* ----- матрица с чётким разделением колонок ----- */
+  .mhead,.mrow{display:grid;grid-template-columns:1fr 92px 92px}
+  .mhead{background:#f3f4fb;border-bottom:1px solid var(--line)}
+  .mhead span{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7c8190;text-align:center;padding:9px 6px}
+  .mhead span:first-child{text-align:left;padding-left:16px}
+  .mhead span:nth-child(2),.mhead span:nth-child(3){border-left:1px solid var(--line)}
+  .mrow{border-bottom:1px solid #f1f3f6}
+  .mrow:last-child{border-bottom:none}
+  .mrow .name{font-size:13.5px;font-weight:600;padding:11px 8px 11px 16px;display:flex;align-items:center}
+  .mrow .cell{display:flex;align-items:center;justify-content:center;border-left:1px solid #eef1f4;padding:9px 0}
+  .mrow .cell.req{background:var(--req-band)}          /* полоса "Обязательно" затонирована */
+  .mhead span:nth-child(3){background:var(--req-band)}
+  .mrow .dash{color:#cfd3dc;font-size:16px}
 
-  /* =========================================================
-     V3 — КОЛОНКИ-ГРУППЫ (вертикальные колонки, инлайн-тумблеры)
-     ========================================================= */
-  .v3-cols{display:flex;gap:0;align-items:stretch}
-  .v3-col{flex:1;padding:0 22px}
-  .v3-col + .v3-col{border-left:1px solid var(--line)}
-  .v3-item{padding:12px 0;border-bottom:1px solid #f1f3f6}
-  .v3-item:last-child{border-bottom:none}
-  .v3-item .name{font-size:14px;font-weight:600;margin-bottom:9px}
-  .v3-item .row{display:flex;gap:18px}
-
-  /* =========================================================
-     V4 — СЕГМЕНТ-СТРОКИ (имя слева, сегмент-контрол справа)
-     ========================================================= */
-  .v4-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px 26px}
-  .v4-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid #f1f3f6}
-  .v4-row .name{font-size:14px;font-weight:600}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
-  .seg button{border:none;background:#fff;font:600 11px Montserrat;color:#9aa0ac;padding:6px 13px;cursor:pointer}
-  .seg button + button{border-left:1px solid var(--line)}
-  .seg button.on{background:var(--primary-soft);color:var(--primary)}
-  .seg button.on.req{background:var(--primary);color:#fff}
-  .seg.single button{padding:6px 16px}
-
-  /* custom section (общий низ) */
-  .custom-wrap{margin-top:18px;border-top:1px dashed var(--line);padding-top:16px}
-  .custom-wrap .cap{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-  .crow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0}
-  .crow input.lk{border:1px solid var(--line);border-radius:var(--radius-md);padding:9px 12px;font:500 13px Montserrat;flex:1;min-width:160px}
-  .crow .ord{display:flex;gap:4px}
-  .crow .ord button,.crow .del{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:#f5f6f8;color:#586;cursor:pointer}
-  .crow .del{border:none;background:none;color:#c0392b;font-size:18px}
-  .add-field{margin-top:6px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 16px;font:600 12px Montserrat;color:#5b616e;cursor:pointer}
+  /* ----- доп. поля: компактная таблица со скроллом ----- */
+  .ctable{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .cthead{display:grid;grid-template-columns:18px 1.2fr 1.2fr 84px 52px;gap:8px;align-items:center;background:#f3f4fb;padding:8px 12px}
+  .cthead span{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7c8190}
+  .cthead span.c{text-align:center}
+  .cscroll{max-height:188px;overflow-y:auto}
+  .ctrow{display:grid;grid-template-columns:18px 1.2fr 1.2fr 84px 52px;gap:8px;align-items:center;padding:7px 12px;border-top:1px solid #f1f3f6;background:#fff}
+  .ctrow .grip{color:#c4c8d2;cursor:grab;text-align:center;font-size:13px}
+  .ctrow input{border:1px solid var(--line);border-radius:9px;padding:7px 9px;font:500 12.5px Montserrat;width:100%;min-width:0}
+  .ctrow .reqcell{display:flex;justify-content:center}
+  .ctrow .del{border:none;background:none;color:#c0392b;font-size:17px;cursor:pointer;justify-self:center}
+  .cadd{margin-top:10px;background:#fff;border:1px dashed var(--line);border-radius:10px;padding:9px 14px;font:600 12px Montserrat;color:#5b616e;cursor:pointer;width:100%}
+  .csub{font-size:11px;color:var(--muted);margin:0 0 9px;line-height:1.4}
 </style>
 </head>
 <body>
   <div class="page-head">
-    <h1>Настройка полей вложения — варианты раскладки</h1>
-    <p>Один и тот же конфиг в 4 раскладках. Без заголовков групп, без locked-полей «всегда включено», нормальные заголовки полей, группировка горизонтальная. Тумблеры кликабельны. Выбери вкладку и скажи номер (или смесь идей).</p>
+    <h1>Матрица — доработка</h1>
+    <p>Вариант 1 с правками: группы в явных блоках, колонки «Показывать»/«Обязательно» с разделителем и тонированной полосой, доп. поля — компактная таблица со скроллом. Вкладки 1A/1B — с заголовком блока и без. Вкладка «Много доп. полей» — как выглядит при большом количестве.</p>
   </div>
   <div class="tabs" id="tabs"></div>
   <div class="stage">
-    <div class="panel active" data-p="1"></div>
-    <div class="panel" data-p="2"></div>
-    <div class="panel" data-p="3"></div>
-    <div class="panel" data-p="4"></div>
+    <div class="panel active" data-p="A"></div>
+    <div class="panel" data-p="B"></div>
+    <div class="panel" data-p="M"></div>
   </div>
 
 <script>
-// "Параметры" = бывшие common-чекбоксы (roof/parking) - только Показывать (не requirable).
-// "Сотрудники" - полный набор visible+required. Группы есть в данных, но БЕЗ заголовков в UI.
-const PARAMS = [
-  {label:'Доступ на крышу', visible:true},
-  {label:'Бесплатная парковка', visible:true},
+const PARAMS=[{label:'Доступ на крышу',visible:true},{label:'Бесплатная парковка',visible:true}];
+const PEOPLE=[
+  {label:'Фамилия',visible:true,required:true},{label:'Имя',visible:true,required:true},
+  {label:'Отчество',visible:true,required:false},{label:'Паспортные данные',visible:true,required:true},
+  {label:'Должность',visible:true,required:true},{label:'Гражданство',visible:true,required:true},
+  {label:'Номер патента',visible:true,required:false},{label:'Иное разрешение на работы',visible:true,required:false},
+  {label:'Места прохода',visible:true,required:true},
 ];
-const PEOPLE = [
-  {label:'Фамилия', visible:true, required:true},
-  {label:'Имя', visible:true, required:true},
-  {label:'Отчество', visible:true, required:false},
-  {label:'Паспортные данные', visible:true, required:true},
-  {label:'Должность', visible:true, required:true},
-  {label:'Гражданство', visible:true, required:true},
-  {label:'Номер патента', visible:true, required:false},
-  {label:'Иное разрешение на работы', visible:true, required:false},
-  {label:'Места прохода', visible:true, required:true},
+const CUSTOM=[
+  {label:'Наименование работ',ph:'Введите наименование работ',required:true},
+  {label:'Место проведения работ',ph:'Укажите место',required:false},
 ];
-const CUSTOM = [
-  {label:'Наименование работ', ph:'Введите наименование работ', required:true},
-  {label:'Место проведения работ', ph:'Укажите место', required:false},
+const CUSTOM_MANY=[
+  ...CUSTOM,
+  {label:'Ответственный',ph:'ФИО ответственного',required:true},
+  {label:'Контактный телефон',ph:'+7…',required:false},
+  {label:'Номер договора',ph:'№',required:false},
+  {label:'Срок выполнения',ph:'дней',required:false},
+  {label:'Подрядчик',ph:'Название',required:true},
+  {label:'Примечание',ph:'Комментарий',required:false},
 ];
 
-const sw = (cap, on, cls='') =>
-  `<label class="sw ${on?'':'off'} ${cls}"><input type="checkbox" ${on?'checked':''}><span class="track"></span><span class="cap">${cap}</span></label>`;
+const sw=(on,dis=false)=>`<label class="sw ${dis?'dis':''}"><input type="checkbox" ${on?'checked':''} ${dis?'disabled':''}><span class="track"></span></label>`;
 
+function matrix(fields,paramsOnly){
+  const rows=fields.map(f=>`<div class="mrow">
+      <div class="name">${f.label}</div>
+      <div class="cell">${sw(f.visible)}</div>
+      <div class="cell req">${paramsOnly?'<span class="dash">—</span>':sw(!!f.required,!f.visible)}</div>
+    </div>`).join('');
+  return `<div class="mhead"><span>Поле</span><span>Показывать</span><span>Обязательно</span></div>${rows}`;
+}
+function gcard(title,count,inner,withHead){
+  const head=withHead?`<div class="ghead"><span class="dot"></span><h4>${title}</h4><span class="count">${count}</span></div>`:'';
+  return `<div class="gcard">${head}${inner}</div>`;
+}
+function customTable(list){
+  const rows=list.map(c=>`<div class="ctrow">
+      <div class="grip">⠿</div>
+      <input value="${c.label}"><input value="${c.ph}">
+      <div class="reqcell">${sw(c.required)}</div>
+      <button class="del">×</button>
+    </div>`).join('');
+  return `<div class="ctable">
+      <div class="cthead"><span></span><span>Заголовок</span><span>Плейсхолдер</span><span class="c">Обязат.</span><span></span></div>
+      <div class="cscroll">${rows}</div>
+    </div>
+    <p class="csub" style="margin-top:9px">Перетаскивание за ⠿ задаёт порядок в форме подачи.</p>
+    <button class="cadd">+ Добавить поле</button>`;
+}
 function shell(inner){
   return `<div class="modal">
     <div class="m-head"><h3>Настройка полей «Заявка на работы»</h3><button class="x">×</button></div>
@@ -164,93 +155,27 @@ function shell(inner){
     <div class="m-foot"><button class="btn ghost">Отмена</button><button class="btn primary">Сохранить</button></div>
   </div>`;
 }
-
-function customBlock(){
-  const rows = CUSTOM.map((c,i)=>`<div class="crow">
-      <input class="lk" value="${c.label}"><input class="lk" value="${c.ph}">
-      ${sw('Обязательно', c.required)}
-      <div class="ord"><button>↑</button><button>↓</button></div><button class="del">×</button>
-    </div>`).join('');
-  return `<div class="custom-wrap"><div class="cap">Дополнительные поля</div>${rows}<button class="add-field">+ Добавить поле</button></div>`;
+function layout(withHead,customList){
+  const main=gcard('Поля сотрудника',PEOPLE.length,matrix(PEOPLE,false),withHead);
+  const params=gcard('Параметры заявки',PARAMS.length,matrix(PARAMS,true),withHead);
+  const cust=gcard('Дополнительные поля',customList.length,`<div style="padding:14px 16px">${customTable(customList)}</div>`,withHead);
+  return shell(`<div class="groups"><div class="col-main">${main}</div><div class="col-side">${params}${cust}</div></div>`);
 }
 
-/* ---------- V1 матрица ---------- */
-function v1(){
-  const tbl = (fields, paramsOnly)=>{
-    const rows = fields.map(f=>`<div class="v1-row">
-        <div class="name">${f.label}</div>
-        <div class="cell">${sw('', f.visible)}</div>
-        <div class="cell">${paramsOnly?'<span class="dash">—</span>':sw('', !!f.required)}</div>
-      </div>`).join('');
-    return `<div class="v1-table">
-      <div class="v1-th"><span>Поле</span><span>Показывать</span><span>Обязательно</span></div>${rows}</div>`;
-  };
-  return shell(`<div class="v1-cols"><div>${tbl(PEOPLE,false)}</div><div>${tbl(PARAMS,true)}${customBlock()}</div></div>`);
-}
-
-/* ---------- V2 карточки ---------- */
-function v2(){
-  const card = (f, paramsOnly)=>`<div class="v2-card ${f.visible?'':'dim'}">
-      <div class="name">${f.label}</div>
-      <div class="toggles">${sw('Показывать', f.visible)}${paramsOnly?'':sw('Обязательно', !!f.required)}</div>
-    </div>`;
-  const cards = [...PARAMS.map(f=>card(f,true)), ...PEOPLE.map(f=>card(f,false))].join('');
-  return shell(`<div class="v2-grid">${cards}</div>${customBlock()}`);
-}
-
-/* ---------- V3 колонки-группы ---------- */
-function v3(){
-  const item = (f, paramsOnly)=>`<div class="v3-item">
-      <div class="name">${f.label}</div>
-      <div class="row">${sw('Показывать', f.visible)}${paramsOnly?'':sw('Обязательно', !!f.required)}</div>
-    </div>`;
-  const colA = PEOPLE.slice(0,5).map(f=>item(f,false)).join('');
-  const colB = PEOPLE.slice(5).map(f=>item(f,false)).join('');
-  const colC = PARAMS.map(f=>item(f,true)).join('');
-  return shell(`<div class="v3-cols"><div class="v3-col">${colA}</div><div class="v3-col">${colB}</div><div class="v3-col">${colC}</div></div>${customBlock()}`);
-}
-
-/* ---------- V4 сегмент-строки ---------- */
-function v4(){
-  const row = (f, paramsOnly)=>{
-    const seg = paramsOnly
-      ? `<div class="seg single"><button class="${f.visible?'on':''}">Показать</button></div>`
-      : `<div class="seg"><button class="${f.visible?'on':''}">Показать</button><button class="${f.required?'on req':''}">Обязательно</button></div>`;
-    return `<div class="v4-row"><div class="name">${f.label}</div>${seg}</div>`;
-  };
-  const left = PEOPLE.slice(0,5).map(f=>row(f,false)).join('');
-  const right = [...PEOPLE.slice(5).map(f=>row(f,false)), ...PARAMS.map(f=>row(f,true))].join('');
-  return shell(`<div class="v4-cols"><div>${left}</div><div>${right}</div></div>${customBlock()}`);
-}
-
-const VARIANTS = {
-  1:{name:'1 · Матрица', render:v1},
-  2:{name:'2 · Карточки', render:v2},
-  3:{name:'3 · Колонки', render:v3},
-  4:{name:'4 · Сегменты', render:v4},
+const VARIANTS={
+  A:{name:'1A · блоки с заголовком',render:()=>layout(true,CUSTOM)},
+  B:{name:'1B · блоки без заголовка',render:()=>layout(false,CUSTOM)},
+  M:{name:'Много доп. полей',render:()=>layout(true,CUSTOM_MANY)},
 };
-const tabs = document.getElementById('tabs');
+const tabs=document.getElementById('tabs');
 Object.entries(VARIANTS).forEach(([k,v],i)=>{
-  const b=document.createElement('button');
-  b.className='tab'+(i===0?' active':''); b.textContent=v.name; b.dataset.k=k;
-  tabs.appendChild(b);
+  const b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=v.name;b.dataset.k=k;tabs.appendChild(b);
   document.querySelector(`.panel[data-p="${k}"]`).innerHTML=v.render();
 });
-tabs.addEventListener('click',e=>{
-  const b=e.target.closest('.tab'); if(!b)return;
+tabs.addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  b.classList.add('active');
-  document.querySelector(`.panel[data-p="${b.dataset.k}"]`).classList.add('active');
-});
-// живые тумблеры/сегменты
-document.body.addEventListener('click',e=>{
-  const segBtn=e.target.closest('.seg button');
-  if(segBtn){segBtn.classList.toggle('on'); if(segBtn.textContent==='Обязательно')segBtn.classList.toggle('req');}
-});
-document.body.addEventListener('change',e=>{
-  if(e.target.matches('.sw input')) e.target.closest('.sw').classList.toggle('off',!e.target.checked);
-});
+  b.classList.add('active');document.querySelector(`.panel[data-p="${b.dataset.k}"]`).classList.add('active');});
 </script>
 </body>
 </html>
