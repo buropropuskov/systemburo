@@ -262,7 +262,11 @@ func TestVehicleBlacklist_UpdateReason(t *testing.T) {
 	}, userID)
 	require.NoError(t, err)
 
-	updated, err := svc.UpdateReason(ctx, entry.ID, "  новая причина  ", userID)
+	reasonOnly := func(reason string) models.UpdateVehicleBlacklistRequest {
+		return models.UpdateVehicleBlacklistRequest{CarNumber: "U111UU799", MarkID: mark.ID, Reason: reason}
+	}
+
+	updated, err := svc.Update(ctx, entry.ID, reasonOnly("  новая причина  "), userID)
 	require.NoError(t, err)
 	assert.Equal(t, "новая причина", updated.Reason)
 
@@ -281,21 +285,45 @@ func TestVehicleBlacklist_UpdateReason(t *testing.T) {
 	assert.True(t, hasUpdated, "ожидали запись истории 'updated'")
 
 	t.Run("пустая причина - 400", func(t *testing.T) {
-		_, err := svc.UpdateReason(ctx, entry.ID, "   ", userID)
+		_, err := svc.Update(ctx, entry.ID, reasonOnly("   "), userID)
 		assertHTTPStatus(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("та же причина - без новой записи истории", func(t *testing.T) {
+	t.Run("та же причина и номер - без новой записи истории", func(t *testing.T) {
 		before, _ := svc.GetHistory(ctx, entry.ID)
-		_, err := svc.UpdateReason(ctx, entry.ID, "новая причина", userID)
+		_, err := svc.Update(ctx, entry.ID, reasonOnly("новая причина"), userID)
 		require.NoError(t, err)
 		after, _ := svc.GetHistory(ctx, entry.ID)
-		assert.Equal(t, len(before), len(after), "идентичная причина не должна писать историю")
+		assert.Equal(t, len(before), len(after), "идентичная правка не должна писать историю")
+	})
+
+	t.Run("смена номера - история + пересчёт нормали", func(t *testing.T) {
+		_, err := svc.Update(ctx, entry.ID, models.UpdateVehicleBlacklistRequest{
+			CarNumber: "U222UU799", MarkID: mark.ID, Reason: "новая причина",
+		}, userID)
+		require.NoError(t, err)
+		stored, err := svc.GetByID(ctx, entry.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "U222UU799", stored.CarNumber)
+		assert.Equal(t, normalize.Plate("U222UU799"), stored.NormalizedNumber)
+	})
+
+	t.Run("дубль активной записи - 409", func(t *testing.T) {
+		other, err := svc.Create(ctx, models.CreateVehicleBlacklistRequest{
+			CarNumber: "U333UU799", MarkID: mark.ID, Reason: "вторая",
+		}, userID)
+		require.NoError(t, err)
+		_, err = svc.Update(ctx, other.ID, models.UpdateVehicleBlacklistRequest{
+			CarNumber: "U222UU799", MarkID: mark.ID, Reason: "вторая",
+		}, userID)
+		assertHTTPStatus(t, err, http.StatusConflict)
 	})
 
 	t.Run("нельзя редактировать архивную запись - 400", func(t *testing.T) {
 		require.NoError(t, svc.Archive(ctx, entry.ID, userID))
-		_, err := svc.UpdateReason(ctx, entry.ID, "после архива", userID)
+		_, err := svc.Update(ctx, entry.ID, models.UpdateVehicleBlacklistRequest{
+			CarNumber: "U222UU799", MarkID: mark.ID, Reason: "после архива",
+		}, userID)
 		assertHTTPStatus(t, err, http.StatusBadRequest)
 	})
 }

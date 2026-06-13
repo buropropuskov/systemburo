@@ -34,8 +34,8 @@ export function createVehicleBlacklist({ car_number, mark_id, reason }) {
   return mutate('/vehicle-blacklist', { body: { car_number, mark_id, reason } });
 }
 
-export function updateVehicleBlacklist(id, { reason }) {
-  return mutate(`/vehicle-blacklist/${id}`, { method: 'PUT', body: { reason } });
+export function updateVehicleBlacklist(id, { car_number, mark_id, reason }) {
+  return mutate(`/vehicle-blacklist/${id}`, { method: 'PUT', body: { car_number, mark_id, reason } });
 }
 
 export function archiveVehicleBlacklist(id) {
@@ -54,8 +54,8 @@ export function createPersonBlacklist({ last_name, first_name, middle_name, reas
   return mutate('/person-blacklist', { body: { last_name, first_name, middle_name, reason } });
 }
 
-export function updatePersonBlacklist(id, { reason }) {
-  return mutate(`/person-blacklist/${id}`, { method: 'PUT', body: { reason } });
+export function updatePersonBlacklist(id, { last_name, first_name, middle_name, reason }) {
+  return mutate(`/person-blacklist/${id}`, { method: 'PUT', body: { last_name, first_name, middle_name, reason } });
 }
 
 export function archivePersonBlacklist(id) {
