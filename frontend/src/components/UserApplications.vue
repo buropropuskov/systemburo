@@ -803,19 +803,28 @@ export default {
   flex: 1.2; /* Немного шире для номера заявки */
   min-width: 180px;
   max-width: 180px;
+}
+
+/* column-stack (номер + бейдж ЧС) только в строках данных. У заголовка остаётся row из
+   .header-col, иначе иконка сортировки уезжает под текст "Номер заявки" и шапка кривится.
+   Двойной класс заодно перебивает overflow: hidden из .application-col, иначе бейдж под
+   номером обрезается. */
+.application-col.id-col {
+  overflow: visible;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
   gap: 4px;
 }
 
-/* Двойной класс перебивает overflow: hidden из .application-col, иначе бейдж под номером обрезается. */
-.application-col.id-col {
-  overflow: visible;
-}
-
 .blacklist-flag-badge {
   max-width: 100%;
+}
+
+/* у .application-col нет overflow:hidden после оверрайда - даём бейджу перенестись в
+   пределах фикс-ширины колонки, а не вылезать (специфичность бьёт nowrap из Badge). */
+.id-col .blacklist-flag-badge {
+  white-space: normal;
 }
 
 .date-col {
