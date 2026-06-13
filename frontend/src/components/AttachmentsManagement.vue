@@ -328,6 +328,17 @@
 
             <div class="modal-body">
               <div class="form-group">
+                <label class="form-label">Тип вложения</label>
+                <BaseDropdown
+                  :model-value="addForm.attachment_type"
+                  :options="typeOptions"
+                  label-key="label"
+                  value-key="value"
+                  @update:model-value="addForm.attachment_type = $event"
+                />
+              </div>
+
+              <div class="form-group">
                 <label class="form-label">Наименование вложения</label>
                 <input
                   v-model="addForm.display_name"
@@ -372,17 +383,6 @@
                   @keyup.enter="submitAdd"
                 >
                 <span class="field-hint">Отображается в заголовке категории (в верхнем регистре)</span>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Тип вложения</label>
-                <BaseDropdown
-                  :model-value="addForm.attachment_type"
-                  :options="typeOptions"
-                  label-key="label"
-                  value-key="value"
-                  @update:model-value="addForm.attachment_type = $event"
-                />
               </div>
 
               <div
