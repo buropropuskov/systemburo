@@ -157,16 +157,6 @@
                     <div class="application-row">
                       <div class="application-col id-col">
                         <span class="application-id">{{ application.application_number }}</span>
-                        <Badge
-                          v-if="blacklistFlagCount(application) > 0"
-                          variant="danger"
-                          size="sm"
-                          dot
-                          class="blacklist-flag-badge"
-                          :title="blacklistFlagTitle()"
-                        >
-                          {{ blacklistFlagLabel(application) }}
-                        </Badge>
                       </div>
                       <div class="application-col date-col">
                         {{ formatDateTime(application.sending_datetime) }}
@@ -192,22 +182,59 @@
                       </div>
                       <div class="application-col tags-col">
                         <div
-                          v-if="application.has_roof_access || application.has_free_parking"
+                          v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking"
                           class="application-tags"
                         >
                           <Badge
-                            v-if="application.has_roof_access"
-                            variant="info"
+                            v-if="blacklistFlagCount(application) > 0"
+                            variant="danger"
                             size="sm"
+                            dot
+                            class="rt-tag rt-tag--chs blacklist-flag-badge"
+                            :title="blacklistFlagTitle()"
                           >
-                            Крыша
+                            <span class="rt-tag__text">{{ blacklistFlagLabel(application) }}</span>
+                            <span class="rt-tag__short">{{ blacklistFlagCount(application) }}</span>
+                          </Badge>
+                          <Badge
+                            v-if="application.has_roof_access"
+                            variant="primary"
+                            size="sm"
+                            class="rt-tag"
+                            title="Доступ на крышу"
+                          >
+                            <svg
+                              class="rt-tag__icon"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            ><path d="M3 11l9-7 9 7" /><path d="M5 10v9h14v-9" /></svg>
+                            <span class="rt-tag__text">Крыша</span>
                           </Badge>
                           <Badge
                             v-if="application.has_free_parking"
-                            variant="success"
+                            variant="warning"
                             size="sm"
+                            class="rt-tag"
+                            title="Бесплатная парковка"
                           >
-                            Парковка
+                            <svg
+                              class="rt-tag__icon"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2.2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
+                            <span class="rt-tag__text">Парковка</span>
                           </Badge>
                         </div>
                       </div>
@@ -768,7 +795,7 @@ export default {
 /* Заголовок таблицы */
 .applications-header {
   border-bottom: 1px solid #e6e6e6;
-  padding: 12px 16px;
+  padding: 12px 0;
   flex-shrink: 0;
   height: 44px;
   box-sizing: border-box;
@@ -791,6 +818,7 @@ export default {
   cursor: pointer;
   user-select: none;
   flex: 1;
+  padding: 0 16px;
   overflow: hidden;
 }
 
@@ -871,8 +899,14 @@ export default {
 }
 
 .tags-col {
-  flex: 1;
-  min-width: 130px;
+  flex: 1.5;
+  min-width: 150px;
+  container-type: inline-size;
+}
+
+.application-col.tags-col {
+  overflow: visible;
+  white-space: normal;
 }
 
 .header-col.tags-col {
@@ -886,7 +920,39 @@ export default {
 .tags-col .application-tags {
   display: flex;
   gap: 4px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tags-col .rt-tag__icon {
+  display: none;
+}
+
+.tags-col .rt-tag__short {
+  display: none;
+}
+
+/* тесно (закреплено нав-меню / узкий экран) - теги сворачиваются в иконки */
+@container (max-width: 175px) {
+  .tags-col .application-tags {
+    flex-wrap: nowrap;
+  }
+
+  .tags-col .rt-tag .rt-tag__text {
+    display: none;
+  }
+
+  .tags-col .rt-tag .rt-tag__icon {
+    display: block;
+  }
+
+  .tags-col .rt-tag--chs .rt-tag__short {
+    display: inline;
+  }
+
+  .tags-col .rt-tag.badge--sm {
+    padding: 4px;
+  }
 }
 
 .actions-col {

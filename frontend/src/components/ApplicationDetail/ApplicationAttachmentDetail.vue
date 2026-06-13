@@ -9,14 +9,14 @@
         >
           <Badge
             v-if="attachment.roof_access"
-            variant="info"
+            variant="primary"
             size="lg"
           >
             Крыша
           </Badge>
           <Badge
             v-if="attachment.free_parking"
-            variant="success"
+            variant="warning"
             size="lg"
           >
             Парковка
