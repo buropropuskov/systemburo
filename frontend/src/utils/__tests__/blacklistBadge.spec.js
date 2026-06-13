@@ -17,9 +17,9 @@ describe('blacklistBadge', () => {
   });
 
   it('label склоняет форму-1 на 1/21/31', () => {
-    expect(blacklistFlagLabel({ blacklist_flags_count: 1 })).toBe('1 похожа на ЧС');
-    expect(blacklistFlagLabel({ blacklist_flags_count: 21 })).toBe('21 похожа на ЧС');
-    expect(blacklistFlagLabel({ blacklist_flags_count: 31 })).toBe('31 похожа на ЧС');
+    expect(blacklistFlagLabel({ blacklist_flags_count: 1 })).toBe('1 похоже на ЧС');
+    expect(blacklistFlagLabel({ blacklist_flags_count: 21 })).toBe('21 похоже на ЧС');
+    expect(blacklistFlagLabel({ blacklist_flags_count: 31 })).toBe('31 похоже на ЧС');
   });
 
   it('label склоняет множественную форму на 2-20/11', () => {

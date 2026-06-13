@@ -1397,6 +1397,13 @@ export default {
     white-space: normal;
 }
 
+/* теги вложений (крыша/парковка) строкой под номером заявки (#529) */
+.application-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
 .date-col {
     width: 15%;
 }

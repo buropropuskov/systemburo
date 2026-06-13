@@ -10,13 +10,13 @@ export function blacklistFlagCount(application) {
 }
 
 /**
- * Метка бейджа со склонением: 1/21/31 - "похожа", 11/12/2/5 - "похожи"
+ * Метка бейджа со склонением: 1/21/31 - "похоже", 11/12/2/5 - "похожи"
  * (форма-1 при n % 10 === 1 и n % 100 !== 11, иначе множественная).
  */
 export function blacklistFlagLabel(application) {
   const n = blacklistFlagCount(application);
   const singular = n % 10 === 1 && n % 100 !== 11;
-  return `${n} ${singular ? 'похожа' : 'похожи'} на ЧС`;
+  return `${n} ${singular ? 'похоже' : 'похожи'} на ЧС`;
 }
 
 /** Подсказка (title) бейджа - что делать с похожими элементами. */
