@@ -333,36 +333,44 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 20px;
-  /* min-height вместо фиксированной height: на узкой ширине (например при закреплённой
-     нав-панели) контролы/табы переносятся на вторую строку, а не вылезают из шапки. */
-  min-height: 50px;
+  padding: 0 20px;
+  height: 50px;
   border-bottom: 1px solid #e6e6e6;
   gap: 12px;
-  flex-wrap: wrap;
-  row-gap: 8px;
 }
 
 .bl-header-left {
   display: flex;
   align-items: center;
   gap: 16px;
-  min-width: 0;
+  /* заголовок и табы не сжимаем - место на узкой ширине освобождают контролы справа */
+  flex-shrink: 0;
 }
 
 .bl-header-controls {
   display: flex;
   gap: 10px;
   align-items: center;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  row-gap: 8px;
+  /* группа контролов может сжиматься; её элементы по умолчанию НЕ сжимаются (ниже),
+     кроме дропдауна "Активные" и поиска - они и уступают место на узкой ширине. */
+  min-width: 0;
 }
 
-/* фиксированная ширина: триггер не меняет размер между "Активные" и "Архив" */
+.bl-header-controls > * {
+  flex-shrink: 0;
+}
+
+/* "Активные"/"Архив": до 150px, но сжимается до 90px чтобы освободить место. */
 .bl-archive-dropdown {
   width: 150px;
-  flex-shrink: 0;
+  min-width: 90px;
+  flex-shrink: 1;
+}
+
+/* Поиск сжимается с 220px до 110px (его внутренний input - width:100%). */
+.bl-header-controls :deep(.search) {
+  min-width: 110px;
+  flex-shrink: 1;
 }
 
 .bl-content {
