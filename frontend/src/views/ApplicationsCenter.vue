@@ -1360,6 +1360,7 @@ export default {
     width: 100%;
     align-items: center;
     height: 100%;
+    gap: 14px;
 }
 
 .header-col {
@@ -1374,6 +1375,7 @@ export default {
     cursor: pointer;
     user-select: none;
     height: 100%;
+    white-space: nowrap;
 }
 
 .header-col:hover {
@@ -1405,13 +1407,11 @@ export default {
 
 /* Перераспределение размеров колонок */
 .confirmation-col {
-    width: 15%;
+    flex: 0 0 140px;
 }
 
 .number-col {
-    width: 12%;
-    /* min-width:0 снимает min-content "пол" flex-элемента: иначе nowrap-бейдж под номером
-       не даёт строке сжаться до своей доли, и шапка (узкий контент) расходится со строкой. */
+    flex: 0 0 130px;
     min-width: 0;
 }
 
@@ -1469,7 +1469,7 @@ export default {
 }
 
 /* без ЧС крыша+парковка влезают текстом дольше - держим текст, пока колонка не станет узкой */
-@container (min-width: 125px) {
+@container (min-width: 133px) {
     .application-tags--both:not(.application-tags--chs) .rt-tag--roof .rt-tag__text,
     .application-tags--both:not(.application-tags--chs) .rt-tag--parking .rt-tag__text {
         display: inline;
@@ -1487,7 +1487,8 @@ export default {
 }
 
 .tags-col {
-    width: 12%;
+    flex: 1.4 1 0;
+    min-width: 96px;
     container-type: inline-size;
 }
 
@@ -1496,15 +1497,17 @@ export default {
 }
 
 .date-col {
-    width: 13%;
+    flex: 0 0 130px;
 }
 
 .organization-col {
-    width: 20%;
+    flex: 2.5 1 0;
+    min-width: 90px;
 }
 
 .sender-col {
-    width: 17%;
+    flex: 2 1 0;
+    min-width: 90px;
 }
 
 .sender-tooltip-anchor {
@@ -1551,12 +1554,11 @@ export default {
 }
 
 .status-col {
-    width: 11%;
+    flex: 0 0 140px;
 }
 
 .actions-col {
-    width: 104px;
-    flex-shrink: 0;
+    flex: 0 0 96px;
     justify-content: flex-end;
     cursor: default;
 }
@@ -1619,6 +1621,7 @@ export default {
     width: 100%;
     padding: 6px 16px;
     align-items: center;
+    gap: 14px;
     border-bottom: 1px solid #f0f0f0;
     min-height: 40px;
 }
@@ -1660,17 +1663,15 @@ export default {
 }
 
 .confirmation-badge {
-    display: block;
-    width: 64px;
+    display: inline-block;
+    min-width: 115px;
     box-sizing: border-box;
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
     font-size: 11px;
     font-weight: 500;
     text-align: center;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .confirmation-approved {
@@ -1743,17 +1744,15 @@ export default {
 }
 
 .status-badge {
-    display: block;
-    width: 118px;
+    display: inline-block;
+    min-width: 120px;
     box-sizing: border-box;
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 8px;
     font-size: 11px;
     font-weight: 500;
     text-align: center;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     border: 1px solid;
 }
 
