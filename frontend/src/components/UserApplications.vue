@@ -700,7 +700,11 @@ export default {
   border: 1px solid #e6e6e6;
   overflow: hidden;
   width: 100%;
-  height: 383px;
+  /* Тянемся на всю высоту flex-обёртки кабинета (desktop). На <=1200px высоту
+     задаёт адаптивная фикс-высота ниже - там родитель без жёсткой высоты, и
+     flex-basis отдаёт управление height. */
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
