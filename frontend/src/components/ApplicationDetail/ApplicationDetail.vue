@@ -64,6 +64,7 @@
             :updating-confirmation="updatingConfirmation"
             :action-comment="actionComment"
             :has-unoverridden-blacklist-flags="!!applicationData.has_unoverridden_blacklist_flags"
+            :ready="actionsReady"
             @action-completed="handleActionCompleted"
             @processing-change="processingApplication = $event"
             @updating-confirmation-change="updatingConfirmation = $event"
@@ -379,6 +380,7 @@ export default {
             updatingConfirmation: false,
             processingApplication: false,
             loadingAttachmentDetails: false,
+            actionsReady: false,
             isLeftColumnCollapsed: false,
             notification: {
                 show: false,
@@ -533,6 +535,7 @@ export default {
         },
 
         async loadApplicationDetails(application) {
+            this.actionsReady = false;
             try {
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
                     apiRequest(`/applications/${application.id}/details`, {
@@ -594,6 +597,10 @@ export default {
 
             } catch (error) {
                 console.error("Ошибка при загрузке деталей заявки:", error);
+            } finally {
+                // П.46: кнопки действий показываем только после загрузки ролей/согласующих,
+                // иначе мигают не те кнопки пока responsibleUsers/approvers пустые.
+                this.actionsReady = true;
             }
         },
 

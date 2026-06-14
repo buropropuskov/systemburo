@@ -6,7 +6,7 @@
       class="action-buttons"
     >
       <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-      <template v-if="isApproverUser && isResponsibleUser">
+      <template v-if="ready && isApproverUser && isResponsibleUser">
         <!-- Если пользователь еще не голосовал -->
         <template v-if="!hasUserVoted">
           <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
@@ -134,7 +134,7 @@
       </template>
 
       <!-- Для принимающих заявки (не ответственных) -->
-      <template v-else-if="isApproverUser">
+      <template v-else-if="ready && isApproverUser">
         <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
         <template v-if="application.status === 'В работе'">
           <button
@@ -212,7 +212,7 @@
       </template>
 
       <!-- Для ответственных за согласование (не принимающих) -->
-      <template v-else-if="isResponsibleUser">
+      <template v-else-if="ready && isResponsibleUser">
         <!-- Если пользователь еще не голосовал -->
         <template v-if="!hasUserVoted">
           <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
@@ -297,6 +297,11 @@
             </div>
           </template>
         </template>
+      </template>
+
+      <!-- П.46: роли/голоса ещё грузятся - показываем лоадер, не мигаем кнопками -->
+      <template v-else-if="!ready">
+        <span class="button-loading actions-ready-loader" />
       </template>
 
       <!-- Для остальных пользователей - только информация -->
@@ -394,6 +399,11 @@ export default {
         hasUnoverriddenBlacklistFlags: {
             type: Boolean,
             default: false
+        },
+        // П.46: пока false - показываем лоадер вместо кнопок (роли/голоса ещё грузятся)
+        ready: {
+            type: Boolean,
+            default: true
         }
     },
     emits: ['action-completed', 'processing-change', 'updating-confirmation-change', 'comment-clear'],
@@ -852,6 +862,13 @@ export default {
     border-radius: 50%;
     border-top-color: white;
     animation: spin 0.8s linear infinite;
+}
+
+/* П.46: лоадер готовности кнопок стоит на светлом фоне (не внутри цветной кнопки),
+   поэтому белый спиннер не виден - перекрашиваем в серый + primary. */
+.actions-ready-loader {
+    border-color: rgba(0, 0, 0, 0.15);
+    border-top-color: #4F5BDF;
 }
 
 @keyframes spin {
