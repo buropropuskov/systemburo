@@ -494,11 +494,6 @@ export default {
                 if (!hasValidDates) {
                     reasons.push(`"${label}": заполните даты и время действия`);
                 }
-                const hasValidTime = !!(dateData.startTime && dateData.endTime && dateData.startTime < dateData.endTime);
-                if (hasValidDates && !hasValidTime) {
-                    reasons.push(`"${label}": время окончания должно быть позже времени начала`);
-                }
-
                 const uaId = attachment.template_id || attachment.id;
                 const fields = this.customFieldDefinitions[uaId] || [];
                 const values = this.customFieldsByAttachment[key] || {};
@@ -878,14 +873,10 @@ export default {
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData || !dateData.errors) return;
             
-            if (dateData.startTime && dateData.endTime) {
-                if (dateData.startTime >= dateData.endTime) {
-                    dateData.errors.endTime = 'Время окончания должно быть позже времени начала';
-                } else {
-                    dateData.errors.endTime = '';
-                }
-            }
-            
+            // Время окончания раньше начала больше не ошибка: DateRangeSection авто-переносит
+            // окончание на следующий день (получается валидный кросс-дневной диапазон).
+            dateData.errors.endTime = '';
+
             this.saveToLocalStorage();
         },
         
@@ -1083,6 +1074,10 @@ export default {
 
             if (this.selectedAttachment && this.attachmentKey(this.selectedAttachment) === key) {
                 this.selectedAttachment = null;
+                // П.25: при удалении выбранного вложения открываем первое оставшееся (сверху).
+                if (this.attachments.length > 0) {
+                    this.handleAttachmentSelected(this.attachments[0]);
+                }
             }
 
             this.clearFormData();
@@ -1440,13 +1435,8 @@ export default {
             const dateData = this.attachmentDatesByAttachment[attachmentId];
             if (!dateData || !dateData.errors) return;
             
-            if (dateData.startTime && dateData.endTime) {
-                if (dateData.startTime >= dateData.endTime) {
-                    dateData.errors.endTime = 'Время окончания должно быть позже времени начала';
-                } else {
-                    dateData.errors.endTime = '';
-                }
-            }
+            // см. validateAttachmentTimeRange: время окончания раньше начала - не ошибка.
+            dateData.errors.endTime = '';
         },
 
         async submitApplication() {
@@ -1481,10 +1471,6 @@ export default {
                         }
                     }
 
-                    if (dateData.startTime && dateData.endTime && dateData.startTime >= dateData.endTime) {
-                        hasDateErrors = true;
-                        errorMessage = `В вложении "${attachment.display_name}" время окончания должно быть позже времени начала`;
-                    }
                 }
             });
 

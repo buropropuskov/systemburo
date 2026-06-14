@@ -546,10 +546,13 @@ export default {
                 );
             }
 
-            // Фильтр по статусу заявки
+            // Фильтр по статусу заявки. "Непрочитано" срабатывает и на статусе заявки
+            // "Непрочитано", и на заявках, не прочитанных пользователем (!is_read).
             if (this.selectedApplicationStatuses.length > 0) {
-                filtered = filtered.filter(app => 
-                    this.selectedApplicationStatuses.includes(app.status)
+                const includeUnread = this.selectedApplicationStatuses.includes('Непрочитано');
+                filtered = filtered.filter(app =>
+                    this.selectedApplicationStatuses.includes(app.status) ||
+                    (includeUnread && !app.is_read)
                 );
             }
 
