@@ -354,6 +354,9 @@ export default {
 .user-info {
   flex-grow: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .main-info {
@@ -427,6 +430,8 @@ export default {
   align-items: center;
   gap: 8px;
   padding-top: 12px;
+  /* П.43: контактные бейджи прижаты к нижней части блока */
+  margin-top: auto;
 }
 
 .user-detail {
