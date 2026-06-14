@@ -1148,7 +1148,6 @@ export default {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     margin-bottom: 16px;
-    max-width: 1480px;
 }
 
 .center__tabs {
@@ -1331,10 +1330,6 @@ export default {
 
 .applications-table {
     min-width: 300px;
-    /* Потолок ширины: на больших мониторах таблица не растягивается на весь экран -
-       иначе Организации пришлось бы раздуваться либо образовалась бы пустая дыра.
-       Лишняя ширина уходит в поле справа от таблицы (как у панели фильтров). */
-    max-width: 1480px;
     background-color: #fff;
     border-radius: 30px;
     border: 1px solid var(--color-border);
@@ -1410,14 +1405,15 @@ export default {
     font-weight: 500 !important;
 }
 
-/* Перераспределение размеров колонок */
+/* Перераспределение размеров колонок (пропорциональный рост, см. .organization-col) */
 .confirmation-col {
-    flex: 0 0 124px;
+    flex: 126 1 0;
+    min-width: 124px;
 }
 
 .number-col {
-    flex: 0 0 118px;
-    min-width: 0;
+    flex: 120 1 0;
+    min-width: 116px;
 }
 
 /* column-stack (номер + бейдж) только в строках данных. У заголовка остаётся row из
@@ -1528,9 +1524,24 @@ export default {
     padding: 4px;
 }
 
-/* тесно (нав-меню закреплено, ширина таблицы < 1320): крыша+парковка БЕЗ ЧС -> иконки.
-   Порог - ширина таблицы (.applications-table - container). */
-@container (max-width: 1320px) {
+/* Колонка тегов фиксированная: 120px когда таблица просторная, 90px когда тесно (нав-меню
+   закреплено). Базовое правило ДО @container, чтобы контейнерное переопределение (90px)
+   победило по порядку источника при равной специфичности. */
+.tags-col {
+    flex: 0 0 120px;
+}
+
+.application-col.tags-col {
+    overflow: visible;
+}
+
+/* тесно (нав-меню закреплено, ширина таблицы < 1300): теги -> 90px, крыша+парковка БЕЗ ЧС
+   -> иконки. Порог - ширина таблицы (.applications-table - container). */
+@container (max-width: 1300px) {
+    .tags-col {
+        flex: 0 0 90px;
+    }
+
     .application-tags--both .rt-tag--roof .rt-tag__text,
     .application-tags--both .rt-tag--parking .rt-tag__text {
         display: none;
@@ -1547,30 +1558,22 @@ export default {
     }
 }
 
-.tags-col {
-    flex: 0 0 162px;
-}
-
-.application-col.tags-col {
-    overflow: visible;
-}
-
 .date-col {
-    flex: 0 0 118px;
+    flex: 120 1 0;
+    min-width: 115px;
 }
 
-/* Организация - основная колонка (название компании): тянется, заполняя свободную ширину
-   таблицы. Ширину таблицы ограничивает max-width на .applications-table, поэтому на больших
-   мониторах колонка не раздувается, лишнее уходит в поле справа от таблицы, а не в дыру. */
+/* Все текстовые колонки растут ПРОПОРЦИОНАЛЬНО (flex-basis: 0 + вес во flex-grow), поэтому
+   на широком экране ширина распределяется между ними, а не достаётся одной Организации.
+   Организация - самая широкая (вес 270), но не единственный наполнитель. */
 .organization-col {
-    flex: 100 1 0;
-    min-width: 140px;
+    flex: 270 1 0;
+    min-width: 160px;
 }
 
-/* Отправитель - предпочтительная ширина 126px, ужимается до 90 на тесных раскладках, не растёт. */
 .sender-col {
-    flex: 0 1 126px;
-    min-width: 90px;
+    flex: 195 1 0;
+    min-width: 120px;
 }
 
 .application-col.sender-col {
@@ -1624,7 +1627,8 @@ export default {
 }
 
 .status-col {
-    flex: 0 0 124px;
+    flex: 126 1 0;
+    min-width: 124px;
 }
 
 .actions-col {
