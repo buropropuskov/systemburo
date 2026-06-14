@@ -189,11 +189,10 @@ export default {
   padding: 15px;
   position: relative;
   /* Высоту на desktop задаёт applyDashboardHeight под доступный вьюпорт;
-     flex-колонка тянет блок заявок на остаток высоты, overflow держит остаток
-     внутри, а не на всей странице. */
+     flex-колонка тянет блок заявок на остаток высоты. На <=1200px высота
+     сбрасывается и блок снова в естественном потоке (страница скроллится). */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 /* Стили для строк */
