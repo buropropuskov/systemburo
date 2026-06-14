@@ -64,7 +64,7 @@ export default {
     border: 1px solid #e6e6e6;
     outline: none;
     background: #FFF;
-    border-radius: 10px;
+    border-radius: 15px;
     padding: 5px 10px;
     font-family: inherit;
     font-size: 13px;

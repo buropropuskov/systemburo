@@ -6,7 +6,7 @@
     type="button"
     @click="handleRefresh"
   >
-    <!-- Перезарядка: три точки по центру, каждую секунду зажигается одна (П.32) -->
+    <!-- Перезарядка: три точки по центру, по очереди зажигаются в цвет кнопки (П.32) -->
     <span
       v-if="cooldown"
       class="refresh-btn__dots"
@@ -40,7 +40,8 @@
   </button>
 </template>
 <script>
-const CHARGE_MS = 3000;
+const CHARGE_STEP_MS = 400;
+const CHARGE_MS = CHARGE_STEP_MS * 3;
 
 export default {
   props: {
@@ -63,9 +64,9 @@ export default {
       this.clearTimers();
       this.cooldown = true;
       this.chargeStep = 0;
-      // каждую секунду зажигаем одну точку чёрным
-      this.timers.push(setTimeout(() => { this.chargeStep = 1; }, 1000));
-      this.timers.push(setTimeout(() => { this.chargeStep = 2; }, 2000));
+      // зажигаем точки по очереди в цвет кнопки
+      this.timers.push(setTimeout(() => { this.chargeStep = 1; }, CHARGE_STEP_MS));
+      this.timers.push(setTimeout(() => { this.chargeStep = 2; }, CHARGE_STEP_MS * 2));
       this.timers.push(setTimeout(() => {
         this.chargeStep = 3;
         this.cooldown = false;
@@ -141,11 +142,11 @@ export default {
         width: 5px;
         height: 5px;
         border-radius: 50%;
-        background-color: #ccc;
-        transition: background-color 0.3s ease;
+        background-color: #d9deff;
+        transition: background-color 0.2s ease;
     }
 
     .refresh-btn__dot.is-lit {
-        background-color: #333;
+        background-color: #4F5BDF;
     }
 </style>
