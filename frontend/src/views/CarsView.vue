@@ -550,6 +550,17 @@
       :show-car-features="false"
       source="carsview"
       @close="closeCarDetails"
+      @open-application="handleOpenApplication"
+    />
+
+    <ApplicationDetail
+      v-if="showApplicationDetail"
+      :application="selectedApplication"
+      :current-user-id="ownershipInfo?.user_id || null"
+      :current-user-name="''"
+      :mode="'center'"
+      @close="closeApplicationDetail"
+      @application-changed="fetchCars"
     />
   </section>
 </template>
@@ -563,6 +574,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
+import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import { listVehicleBlacklist } from '@/api/blacklist';
 
 export default {
@@ -573,7 +585,8 @@ export default {
         SkeletonTable,
         StatusBadge,
         ConfirmationModal,
-        VehicleDetailsModal
+        VehicleDetailsModal,
+        ApplicationDetail
     },
     data() {
         return {
@@ -592,6 +605,8 @@ export default {
             availableFormats: [],
             showDetailsViewModal: false,
             detailsCar: null,
+            showApplicationDetail: false,
+            selectedApplication: null,
 
             
             // Формат номера
@@ -783,6 +798,16 @@ export default {
         closeCarDetails() {
             this.showDetailsViewModal = false;
             this.detailsCar = null;
+        },
+        handleOpenApplication(applicationId) {
+            if (!applicationId) return;
+            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
+            this.selectedApplication = { id: applicationId };
+            this.showApplicationDetail = true;
+        },
+        closeApplicationDetail() {
+            this.showApplicationDetail = false;
+            this.selectedApplication = null;
         },
         /**
          * Можно ли текущему пользователю редактировать/удалять машину.

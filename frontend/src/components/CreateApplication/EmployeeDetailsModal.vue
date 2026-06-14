@@ -429,6 +429,7 @@
     :current-user-id="currentUserId"
     :current-user-name="currentUserName"
     @close="showFullHistoryModal = false"
+    @open-application="$emit('open-application', $event)"
   />
 
   <AddToBlacklistModal

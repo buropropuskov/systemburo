@@ -396,6 +396,7 @@
     :current-user-id="currentUserId"
     :current-user-name="currentUserName"
     @close="showCarHistoryModal = false"
+    @open-application="$emit('open-application', $event)"
   />
 
   <AddToBlacklistModal
