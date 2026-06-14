@@ -813,7 +813,7 @@ export default {
     font-weight: 500;
     color: #a2a2a2;
     text-align: left;
-    padding: 0 0px;
+    padding: 0 8px;
     font-size: 14px;
     display: flex;
     align-items: center;

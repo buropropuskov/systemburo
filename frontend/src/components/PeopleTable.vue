@@ -1227,7 +1227,6 @@ export default {
   overflow: hidden;
   width: 100%;
   max-height: 575px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
   display: flex;
   flex-direction: column;
 }

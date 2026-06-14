@@ -1136,7 +1136,7 @@ export default {
 .action-btn {
     flex: 1;
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: 50px;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;

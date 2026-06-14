@@ -700,7 +700,6 @@ export default {
   border: 1px solid #e6e6e6;
   overflow: hidden;
   width: 100%;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
   height: 383px;
   display: flex;
   flex-direction: column;

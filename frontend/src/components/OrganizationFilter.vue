@@ -269,7 +269,7 @@ export default {
     width: 230px; /* Такая же ширина как у поля */
     background: white;
     border: 1px solid #e6e6e6;
-    border-radius: 10px;
+    border-radius: 20px;
     max-height: 360px;
     overflow: hidden;
     z-index: 1001;
