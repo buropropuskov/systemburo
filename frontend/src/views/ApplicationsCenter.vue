@@ -327,7 +327,6 @@
                       v-if="blacklistFlagCount(application) > 0"
                       variant="danger"
                       size="sm"
-                      dot
                       class="rt-tag rt-tag--chs blacklist-flag-badge tag-hint"
                       :data-hint="blacklistFlagTitle()"
                     >
@@ -1511,9 +1510,9 @@ export default {
     opacity: 1;
 }
 
-/* ЧС в строке -> крыша/парковка ВСЕГДА иконки (любая ширина). ЧС держим полным текстом
-   (111px), а два-три текстовых тега рядом в одну строку не влезают. Одиночные крыша/
-   парковка без ЧС остаются текстом. */
+/* ЧС в строке -> крыша/парковка ВСЕГДА иконки (любая ширина). ЧС держим полным текстом,
+   а два-три текстовых тега рядом в одну строку не влезают. Одиночные крыша/парковка без
+   ЧС остаются текстом. */
 .application-tags--chs .rt-tag--roof .rt-tag__text,
 .application-tags--chs .rt-tag--parking .rt-tag__text {
     display: none;
@@ -1549,7 +1548,7 @@ export default {
 }
 
 .tags-col {
-    flex: 0 0 175px;
+    flex: 0 0 162px;
 }
 
 .application-col.tags-col {
@@ -1557,7 +1556,7 @@ export default {
 }
 
 .date-col {
-    flex: 0 0 124px;
+    flex: 0 0 118px;
 }
 
 /* Организация - основная колонка (название компании): тянется, заполняя свободную ширину
@@ -1568,9 +1567,9 @@ export default {
     min-width: 140px;
 }
 
-/* Отправитель - предпочтительная ширина 140px, ужимается до 90 на тесных раскладках, не растёт. */
+/* Отправитель - предпочтительная ширина 126px, ужимается до 90 на тесных раскладках, не растёт. */
 .sender-col {
-    flex: 0 1 140px;
+    flex: 0 1 126px;
     min-width: 90px;
 }
 
