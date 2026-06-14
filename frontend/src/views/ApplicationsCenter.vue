@@ -81,6 +81,9 @@
 
         <div class="filters-row filters-row--secondary">
           <div class="filter-section">
+            <div class="filter-section__header">
+              <span class="filter-label">Заявки</span>
+            </div>
             <div class="status-buttons">
               <button
                 class="status-btn"
