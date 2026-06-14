@@ -28,6 +28,7 @@ type EmployeesHistoryService interface {
 type EmployeeHistoryItem struct {
 	ID                 int     `json:"id"`
 	EmployeeID         int     `json:"employee_id"`
+	ApplicationID      *int    `json:"application_id"`
 	UserID             *int    `json:"user_id"`
 	TableID            *int    `json:"table_id"`
 	TableName          *string `json:"table_name"`
@@ -69,6 +70,7 @@ func NewEmployeesHistoryService(db *gorm.DB) EmployeesHistoryService {
 type employeeHistoryRow struct {
 	ID                 int
 	EmployeeID         int
+	ApplicationID      *int
 	UserID             *int
 	TableID            *int
 	TableName          *string
@@ -92,6 +94,7 @@ const baseSelectSQL = `
 	SELECT
 		eh.id,
 		eh.employee_id,
+		app.id AS application_id,
 		eh.user_id,
 		eh.table_id,
 		st.display_name AS table_name,
@@ -241,6 +244,7 @@ func mapEmployeeHistoryRows(rows []employeeHistoryRow) []EmployeeHistoryItem {
 		items = append(items, EmployeeHistoryItem{
 			ID:                 r.ID,
 			EmployeeID:         r.EmployeeID,
+			ApplicationID:      r.ApplicationID,
 			UserID:             r.UserID,
 			TableID:            r.TableID,
 			TableName:          r.TableName,

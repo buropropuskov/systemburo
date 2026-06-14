@@ -137,23 +137,23 @@ type UnifiedCarHistoryQuery struct {
 
 // TableCarResponse -- автомобиль для отображения в таблице.
 type TableCarResponse struct {
-	ID                 int       `json:"id"`
-	CarNumber          string    `json:"car_number"`
-	CarBrand           string    `json:"car_brand"`
-	Organization       *string   `json:"organization"`
-	OrganizationID     *int      `json:"organization_id"`
-	Company            *string   `json:"company"`
-	CompanyID          *int      `json:"company_id"`
-	UnloadPlace        *string   `json:"unload_place"`
-	UnloadPlaces       []string  `json:"unload_places"`
-	EntryDateTo        *string   `json:"entry_date_to"`
-	EntryTimeFrom      *string   `json:"entry_time_from"`
-	EntryTimeTo        *string   `json:"entry_time_to"`
-	Status             int       `json:"status"`
-	ApplicationID      *int      `json:"application_id"`
-	ApplicationNumber  *string   `json:"application_number"`
-	TerritoryStatus    *int      `json:"territory_status"`
-	TerritoryEntryTime *string   `json:"territory_entry_time"`
+	ID                 int      `json:"id"`
+	CarNumber          string   `json:"car_number"`
+	CarBrand           string   `json:"car_brand"`
+	Organization       *string  `json:"organization"`
+	OrganizationID     *int     `json:"organization_id"`
+	Company            *string  `json:"company"`
+	CompanyID          *int     `json:"company_id"`
+	UnloadPlace        *string  `json:"unload_place"`
+	UnloadPlaces       []string `json:"unload_places"`
+	EntryDateTo        *string  `json:"entry_date_to"`
+	EntryTimeFrom      *string  `json:"entry_time_from"`
+	EntryTimeTo        *string  `json:"entry_time_to"`
+	Status             int      `json:"status"`
+	ApplicationID      *int     `json:"application_id"`
+	ApplicationNumber  *string  `json:"application_number"`
+	TerritoryStatus    *int     `json:"territory_status"`
+	TerritoryEntryTime *string  `json:"territory_entry_time"`
 }
 
 // CarUnloadPlaceInfo -- связь автомобиля с местом разгрузки.
@@ -165,24 +165,25 @@ type CarUnloadPlaceInfo struct {
 
 // CarHistoryItemResponse -- элемент истории автомобиля.
 type CarHistoryItemResponse struct {
-	ID           int              `json:"id"`
-	CarID        int              `json:"car_id"`
-	UserID       *int             `json:"user_id"`
-	UserName     string           `json:"user_name"`
-	LastName     *string          `json:"last_name"`
-	FirstName    *string          `json:"first_name"`
-	MiddleName   *string          `json:"middle_name"`
-	ActionType   string           `json:"action_type"`
-	FieldName    *string          `json:"field_name"`
-	OldValue     *string          `json:"old_value"`
-	NewValue     *string          `json:"new_value"`
-	Comment      *string          `json:"comment"`
-	CreatedAt    string           `json:"created_at"`
-	Metadata     *json.RawMessage `json:"metadata" swaggertype:"object"`
-	CarNumber    *string          `json:"car_number"`
-	CarBrand     *string          `json:"car_brand"`
-	Organization *string          `json:"organization"`
-	Company      *string          `json:"company"`
+	ID            int              `json:"id"`
+	CarID         int              `json:"car_id"`
+	ApplicationID *int             `json:"application_id"`
+	UserID        *int             `json:"user_id"`
+	UserName      string           `json:"user_name"`
+	LastName      *string          `json:"last_name"`
+	FirstName     *string          `json:"first_name"`
+	MiddleName    *string          `json:"middle_name"`
+	ActionType    string           `json:"action_type"`
+	FieldName     *string          `json:"field_name"`
+	OldValue      *string          `json:"old_value"`
+	NewValue      *string          `json:"new_value"`
+	Comment       *string          `json:"comment"`
+	CreatedAt     string           `json:"created_at"`
+	Metadata      *json.RawMessage `json:"metadata" swaggertype:"object"`
+	CarNumber     *string          `json:"car_number"`
+	CarBrand      *string          `json:"car_brand"`
+	Organization  *string          `json:"organization"`
+	Company       *string          `json:"company"`
 }
 
 // AllCarsHistoryItem -- элемент общей истории (только entry/exit).

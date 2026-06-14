@@ -14,24 +14,25 @@ import (
 )
 
 type carHistoryRow struct {
-	ID           int
-	CarID        int
-	UserID       *int
-	UserName     string
-	LastName     *string
-	FirstName    *string
-	MiddleName   *string
-	ActionType   string
-	FieldName    *string
-	OldValue     *string
-	NewValue     *string
-	Comment      *string
-	CreatedAt    time.Time
-	Metadata     *string
-	CarNumber    *string
-	CarBrand     *string
-	Organization *string
-	Company      *string
+	ID            int
+	CarID         int
+	ApplicationID *int
+	UserID        *int
+	UserName      string
+	LastName      *string
+	FirstName     *string
+	MiddleName    *string
+	ActionType    string
+	FieldName     *string
+	OldValue      *string
+	NewValue      *string
+	Comment       *string
+	CreatedAt     time.Time
+	Metadata      *string
+	CarNumber     *string
+	CarBrand      *string
+	Organization  *string
+	Company       *string
 }
 
 // GetCarHistory возвращает историю конкретного автомобиля.
@@ -56,9 +57,15 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 			h.new_value,
 			h.comment,
 			h.created_at,
-			h.metadata::text AS metadata
+			h.metadata::text AS metadata,
+			app.id AS application_id
 		FROM cars_history h
 		LEFT JOIN users u ON h.user_id = u.id
+		-- car.attachment_id иммутабелен (машина не перепривязывается к другой заявке),
+		-- поэтому app.id = заявка-источник машины. LEFT JOIN, чтобы не терять записи истории.
+		LEFT JOIN cars c ON h.car_id = c.id
+		LEFT JOIN attachments a ON c.attachment_id = a.id
+		LEFT JOIN applications app ON a.application_id = app.id
 		WHERE h.car_id = ?
 		ORDER BY h.created_at DESC
 	`, carID).Scan(&rows).Error
@@ -228,7 +235,8 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 			c.car_number,
 			c.car_brand,
 			COALESCE(o.name, '') AS organization,
-			COALESCE(c2.name, '') AS company
+			COALESCE(c2.name, '') AS company,
+			app.id AS application_id
 		FROM cars_history h
 		LEFT JOIN users u ON h.user_id = u.id
 		JOIN cars c ON h.car_id = c.id
@@ -262,20 +270,21 @@ func (s *carService) mapHistoryRows(rows []carHistoryRow, includeCarInfo bool) [
 		}
 
 		item := CarHistoryItemResponse{
-			ID:         r.ID,
-			CarID:      r.CarID,
-			UserID:     r.UserID,
-			UserName:   userName,
-			LastName:   r.LastName,
-			FirstName:  r.FirstName,
-			MiddleName: r.MiddleName,
-			ActionType: r.ActionType,
-			FieldName:  r.FieldName,
-			OldValue:   r.OldValue,
-			NewValue:   r.NewValue,
-			Comment:    r.Comment,
-			CreatedAt:  FormatUTC(r.CreatedAt),
-			Metadata:   metadata,
+			ID:            r.ID,
+			CarID:         r.CarID,
+			ApplicationID: r.ApplicationID,
+			UserID:        r.UserID,
+			UserName:      userName,
+			LastName:      r.LastName,
+			FirstName:     r.FirstName,
+			MiddleName:    r.MiddleName,
+			ActionType:    r.ActionType,
+			FieldName:     r.FieldName,
+			OldValue:      r.OldValue,
+			NewValue:      r.NewValue,
+			Comment:       r.Comment,
+			CreatedAt:     FormatUTC(r.CreatedAt),
+			Metadata:      metadata,
 		}
 		if includeCarInfo {
 			item.CarNumber = r.CarNumber
