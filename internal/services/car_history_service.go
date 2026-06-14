@@ -61,6 +61,8 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 			app.id AS application_id
 		FROM cars_history h
 		LEFT JOIN users u ON h.user_id = u.id
+		-- car.attachment_id иммутабелен (машина не перепривязывается к другой заявке),
+		-- поэтому app.id = заявка-источник машины. LEFT JOIN, чтобы не терять записи истории.
 		LEFT JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id
 		LEFT JOIN applications app ON a.application_id = app.id
