@@ -398,6 +398,14 @@
           </p>
         </SkeletonTransition>
       </div>
+
+      <!-- При первой загрузке работает скелетон (loading), поэтому оверлей только на refreshing. -->
+      <div
+        v-if="refreshing && !loading"
+        class="refresh-overlay"
+      >
+        <LoaderSpinner label="Обновление…" />
+      </div>
     </div>
 
     <!-- Исправлено: используем selectedApplication вместо showDetail -->
@@ -432,6 +440,7 @@ import DateFilter from '../components/DateFilter.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
 import Badge from '@/components/ui/Badge.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
@@ -447,6 +456,7 @@ export default {
         FilterTabs,
         SkeletonTransition,
         SkeletonTable,
+        LoaderSpinner,
         DownloadBlanksModal,
         Badge,
     },
@@ -1349,10 +1359,29 @@ export default {
     display: flex;
     flex-direction: column;
     transition: all 0.3s ease;
+    position: relative;
 }
 
 .applications-table.with-details {
     height: 500px;
+}
+
+/* Overlay-лоадер при refresh - накрывает только область данных (ниже шапки
+   45px), вне скролл-контейнера .table-body, поэтому держится на месте при
+   прокрутке. Высота таблицы не схлопывается. */
+.refresh-overlay {
+    position: absolute;
+    top: 45px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(1px);
+    z-index: 2;
+    pointer-events: none;
 }
 
 .table-header {
