@@ -4,11 +4,21 @@
     @click="toggleDropdown"
   >
     <span class="select-text">{{ displayText }}</span>
-    <img 
-      src="@/assets/icons/arrow.png" 
-      class="select-icon" 
-      :class="{ 'select-icon--rotated': isOpen }" 
+    <svg
+      class="select-icon"
+      :class="{ 'select-icon--rotated': isOpen }"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
     >
+      <path
+        d="M6 9L12 15L18 9"
+        stroke="#555"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
         
     <transition name="dropdown">
       <div 
@@ -248,15 +258,14 @@ export default {
 }
 
 .select-icon {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     transition: transform 0.3s ease;
-    transform: rotate(90deg);
     flex-shrink: 0;
 }
 
 .select-icon--rotated {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 
 /* Анимации для выпадающего меню */
@@ -285,7 +294,7 @@ export default {
     width: 200px;
     background: white;
     border: 1px solid #e6e6e6;
-    border-radius: 10px;
+    border-radius: 20px;
     max-height: 355px;
     overflow: hidden;
     z-index: 1001;

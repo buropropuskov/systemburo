@@ -8,10 +8,33 @@
         <div class="field-input">
           {{ displayText }}
         </div>
-        <img
-          src="@/assets/icons/calendar.png"
+        <svg
           class="field-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
         >
+          <rect
+            x="3"
+            y="5"
+            width="18"
+            height="16"
+            rx="3"
+            stroke="#555"
+            stroke-width="2"
+          />
+          <path
+            d="M3 9.5H21"
+            stroke="#555"
+            stroke-width="2"
+          />
+          <path
+            d="M8 3V7M16 3V7"
+            stroke="#555"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
       </div>
             
       <transition name="calendar-slide">
@@ -794,9 +817,9 @@ export default {
 }
 
 .field-icon {
-    width: 15px;
-    height: 15px;
-    opacity: 0.6;
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
     flex-shrink: 0;
 }
 
