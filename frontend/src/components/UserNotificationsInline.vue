@@ -247,7 +247,6 @@ export default {
   background-color: #fff;
   border-radius: 30px;
   border: 1px solid #e6e6e6;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   overflow: hidden;

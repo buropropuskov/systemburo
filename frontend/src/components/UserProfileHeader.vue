@@ -308,7 +308,6 @@ export default {
   gap: 20px;
   padding: 20px 45px;
   border-radius: 30px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
   border: 1px solid #e6e6e6;
   height: 200px;
   position: relative;

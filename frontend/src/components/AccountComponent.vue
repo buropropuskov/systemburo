@@ -183,7 +183,6 @@ export default {
   opacity: 0;
   transform: translateY(20px);
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
 /* Анимации */
