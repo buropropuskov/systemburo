@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="root"
     class="account-dashboard"
     data-testid="cabinet-page"
   >
@@ -92,9 +93,50 @@ export default {
     };
   },
   mounted() {
+    this.headerObserver = null;
+    this.lastDashboardHeight = -1;
     this.fetchUserData();
+    this.$nextTick(this.applyDashboardHeight);
+    window.addEventListener('resize', this.applyDashboardHeight);
+    // Шапка in-flow и может менять высоту (анонс, перенос строки) - пересчитываем
+    // под неё. Наблюдаем саму шапку, а не body, чтобы Teleport-модалки не будили
+    // лишний reflow. Тот же приём, что в AdminPageShell.vue.
+    const header = document.querySelector('.theheader');
+    if (header && typeof ResizeObserver !== 'undefined') {
+      this.headerObserver = new ResizeObserver(this.applyDashboardHeight);
+      this.headerObserver.observe(header);
+    }
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.applyDashboardHeight);
+    if (this.headerObserver) {
+      this.headerObserver.disconnect();
+      this.headerObserver = null;
+    }
   },
   methods: {
+    /**
+     * Тянет дашборд кабинета на доступную высоту вьюпорта (под шапкой), чтобы
+     * список заявок занимал весь экран без скролла всей страницы. Высоту меряем
+     * фактически (innerHeight - top), а не 100vh минус хардкод шапки. На планшете
+     * и мобильном (<=1200px) возвращаем естественный поток - там работает
+     * адаптивная фикс-высота карточки и строки складываются в колонку.
+     */
+    applyDashboardHeight() {
+      const el = this.$refs.root;
+      if (!el) return;
+      if (window.innerWidth <= 1200) {
+        el.style.height = '';
+        this.lastDashboardHeight = -1;
+        return;
+      }
+      const top = el.getBoundingClientRect().top;
+      const height = Math.max(0, Math.round(window.innerHeight - top));
+      // Защита от ResizeObserver-петли: пишем стиль только при реальном изменении.
+      if (height === this.lastDashboardHeight) return;
+      this.lastDashboardHeight = height;
+      el.style.height = `${height}px`;
+    },
     async fetchUserData() {
       try {
         const authStore = useAuthStore();
@@ -146,6 +188,11 @@ export default {
   width: 100%;
   padding: 15px;
   position: relative;
+  /* Высоту на desktop задаёт applyDashboardHeight под доступный вьюпорт;
+     flex-колонка тянет блок заявок на остаток высоты. На <=1200px высота
+     сбрасывается и блок снова в естественном потоке (страница скроллится). */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Стили для строк */
@@ -153,6 +200,7 @@ export default {
   display: flex;
   gap: 15px;
   margin-bottom: 15px;
+  flex-shrink: 0;
 }
 
 .first-row :deep(.notifications) {
@@ -171,11 +219,19 @@ export default {
 }
 
 .dashboard-row {
- padding: 15px 0;
+  padding: 15px 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .applications-wrapper {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Карточки личного кабинета (профиль/уведомления/заявки) */
