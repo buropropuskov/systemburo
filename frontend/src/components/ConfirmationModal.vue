@@ -95,7 +95,6 @@ export default {
   z-index: 1000;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
-  animation: overlayAppear 0.3s ease-out;
 }
 
 
@@ -158,24 +157,22 @@ export default {
     border-color: #3a45c4;
 }
 
-/* Анимации для модального окна */
+/* Анимации: фон overlay и .modal анимируются и на открытие, и на закрытие.
+   ВАЖНО: классы перехода Vue вешает на КОРЕНЬ перехода (.modal-overlay), поэтому фон
+   правим на самих .modal-fade-* (без вложенного .modal-overlay - такого потомка нет),
+   иначе leave-фон не применяется и backdrop пропадает резко. */
 .modal-fade-enter-active,
 .modal-fade-leave-active {
-    transition: all 0.3s ease;
-}
-
-.modal-fade-enter-active .modal-overlay,
-.modal-fade-leave-active .modal-overlay {
-    transition: all 0.3s ease;
+    transition: background 0.3s ease;
 }
 
 .modal-fade-enter-active .modal,
 .modal-fade-leave-active .modal {
-    transition: all 0.3s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.modal-fade-enter-from .modal-overlay,
-.modal-fade-leave-to .modal-overlay {
+.modal-fade-enter-from,
+.modal-fade-leave-to {
     background: rgba(0, 0, 0, 0);
 }
 
@@ -183,26 +180,5 @@ export default {
 .modal-fade-leave-to .modal {
     opacity: 0;
     transform: scale(1) translateY(-20px);
-}
-
-.modal-fade-enter-to .modal-overlay,
-.modal-fade-leave-from .modal-overlay {
-    background: rgba(0, 0, 0, 0.5);
-}
-
-.modal-fade-enter-to .modal,
-.modal-fade-leave-from .modal {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-}
-
-
-@keyframes overlayAppear {
-  from {
-    background: rgba(0, 0, 0, 0);
-  }
-  to {
-    background: rgba(0, 0, 0, 0.5);
-  }
 }
 </style>
