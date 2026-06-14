@@ -1407,13 +1407,13 @@ export default {
 
 /* Перераспределение размеров колонок (пропорциональный рост, см. .organization-col) */
 .confirmation-col {
-    flex: 126 1 0;
-    min-width: 124px;
+    flex: 150 1 0;
+    min-width: 150px;
 }
 
 .number-col {
-    flex: 120 1 0;
-    min-width: 116px;
+    flex: 140 1 0;
+    min-width: 132px;
 }
 
 /* column-stack (номер + бейдж) только в строках данных. У заголовка остаётся row из
@@ -1445,8 +1445,30 @@ export default {
     align-items: center;
 }
 
+/* Анимация сворачивания крыша/парковка: текст схлопывается по ширине, иконка раскрывается
+   (display не анимируется, поэтому через ширину + прозрачность). */
+.rt-tag {
+    gap: 0;
+    transition: padding 0.28s ease;
+}
+
+.rt-tag__text {
+    display: inline-block;
+    max-width: 150px;
+    opacity: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+}
+
 .rt-tag__icon {
-    display: none;
+    display: inline-block;
+    width: 0;
+    height: 13px;
+    opacity: 0;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: width 0.28s ease, opacity 0.2s ease;
 }
 
 /* текст с многоточием в flex-ячейке (на самой ячейке text-overflow:ellipsis не работает) */
@@ -1511,12 +1533,14 @@ export default {
    ЧС остаются текстом. */
 .application-tags--chs .rt-tag--roof .rt-tag__text,
 .application-tags--chs .rt-tag--parking .rt-tag__text {
-    display: none;
+    max-width: 0;
+    opacity: 0;
 }
 
 .application-tags--chs .rt-tag--roof .rt-tag__icon,
 .application-tags--chs .rt-tag--parking .rt-tag__icon {
-    display: block;
+    width: 13px;
+    opacity: 1;
 }
 
 .application-tags--chs .rt-tag--roof.badge--sm,
@@ -1529,6 +1553,7 @@ export default {
    победило по порядку источника при равной специфичности. */
 .tags-col {
     flex: 0 0 120px;
+    transition: flex-basis 0.3s ease;
 }
 
 .application-col.tags-col {
@@ -1544,12 +1569,14 @@ export default {
 
     .application-tags--both .rt-tag--roof .rt-tag__text,
     .application-tags--both .rt-tag--parking .rt-tag__text {
-        display: none;
+        max-width: 0;
+        opacity: 0;
     }
 
     .application-tags--both .rt-tag--roof .rt-tag__icon,
     .application-tags--both .rt-tag--parking .rt-tag__icon {
-        display: block;
+        width: 13px;
+        opacity: 1;
     }
 
     .application-tags--both .rt-tag--roof.badge--sm,
@@ -1559,21 +1586,22 @@ export default {
 }
 
 .date-col {
-    flex: 120 1 0;
-    min-width: 115px;
+    flex: 135 1 0;
+    min-width: 126px;
 }
 
 /* Все текстовые колонки растут ПРОПОРЦИОНАЛЬНО (flex-basis: 0 + вес во flex-grow), поэтому
    на широком экране ширина распределяется между ними, а не достаётся одной Организации.
-   Организация - самая широкая (вес 270), но не единственный наполнитель. */
+   min-width у каждой - под ширину её заголовка (иначе текст заголовка обрезается при тесной
+   раскладке). Организация с меньшим весом - не доминирует над остальными. */
 .organization-col {
-    flex: 270 1 0;
-    min-width: 160px;
+    flex: 175 1 0;
+    min-width: 130px;
 }
 
 .sender-col {
-    flex: 195 1 0;
-    min-width: 120px;
+    flex: 160 1 0;
+    min-width: 124px;
 }
 
 .application-col.sender-col {
@@ -1627,8 +1655,8 @@ export default {
 }
 
 .status-col {
-    flex: 126 1 0;
-    min-width: 124px;
+    flex: 140 1 0;
+    min-width: 130px;
 }
 
 .actions-col {
