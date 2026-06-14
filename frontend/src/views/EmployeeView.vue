@@ -317,6 +317,17 @@
       :current-user-name="''"
       source="employeesview"
       @close="closeDetailsModal"
+      @open-application="handleOpenApplication"
+    />
+
+    <ApplicationDetail
+      v-if="showApplicationDetail"
+      :application="selectedApplication"
+      :current-user-id="ownershipInfo?.user_id || null"
+      :current-user-name="''"
+      :mode="'center'"
+      @close="closeApplicationDetail"
+      @application-changed="fetchEmployees"
     />
   </section>
 </template>
@@ -330,6 +341,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
+import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import { listPersonBlacklist } from '@/api/blacklist';
 
 export default {
@@ -340,7 +352,8 @@ export default {
         SkeletonTable,
         StatusBadge,
         EmployeeEditModal,
-        EmployeeDetailsModal
+        EmployeeDetailsModal,
+        ApplicationDetail
     },
     data() {
         return {
@@ -357,7 +370,9 @@ export default {
             availableCitizenships: [],
             editingEmployee: null,
             showDetailsModal: false,
-            detailsEmployee: null
+            detailsEmployee: null,
+            showApplicationDetail: false,
+            selectedApplication: null
         };
     },
     computed: {
@@ -601,6 +616,16 @@ export default {
         closeDetailsModal() {
             this.showDetailsModal = false;
             this.detailsEmployee = null;
+        },
+        handleOpenApplication(applicationId) {
+            if (!applicationId) return;
+            // ApplicationDetail сам догружает детали/вложения/читателей по id через watch.
+            this.selectedApplication = { id: applicationId };
+            this.showApplicationDetail = true;
+        },
+        closeApplicationDetail() {
+            this.showApplicationDetail = false;
+            this.selectedApplication = null;
         },
 
         showAddEmployeeModal() {

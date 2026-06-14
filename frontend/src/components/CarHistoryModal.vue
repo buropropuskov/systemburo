@@ -165,7 +165,11 @@
                   class="timeline-line"
                 />
             
-                <div class="history-content">
+                <div
+                  class="history-content"
+                  :class="{ 'history-content--link': isApplicationLink(item) }"
+                  @click="handleHistoryClick(item)"
+                >
                   <div class="history-header">
                     <span class="user-name">{{ item.user_name || 'Система' }}</span>
                     <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
@@ -269,7 +273,7 @@ export default {
       default: ''
     }
   },
-  emits: ['close'],
+  emits: ['close', 'open-application'],
   setup(_, { emit }) {
     // Анимация закрытия: внутренний visible (enter по mounted, leave по requestClose),
     // emit('close') только ПОСЛЕ leave-перехода (@after-leave) - иначе родитель
@@ -455,6 +459,17 @@ export default {
         'blacklist_override_revoke': 'dot-deactivate'
       };
       return classes[actionType] || 'dot-default';
+    },
+
+    isApplicationLink(item) {
+      return item.action_type === 'create' && item.application_id != null;
+    },
+
+    handleHistoryClick(item) {
+      if (this.isApplicationLink(item)) {
+        this.$emit('open-application', item.application_id);
+        this.requestClose();
+      }
     },
 
     getActionText(item) {
@@ -1182,6 +1197,19 @@ export default {
   color: #666;
   font-size: 12px;
   margin-bottom: 2px;
+}
+
+.history-content--link {
+  cursor: pointer;
+}
+
+.history-content--link .action-text {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.history-content--link:hover .action-text {
+  text-decoration: underline;
 }
 
 .action-comment {
