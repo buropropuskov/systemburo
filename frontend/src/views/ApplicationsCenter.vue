@@ -1408,11 +1408,11 @@ export default {
 
 /* Перераспределение размеров колонок */
 .confirmation-col {
-    flex: 0 0 140px;
+    flex: 0 0 130px;
 }
 
 .number-col {
-    flex: 0 0 130px;
+    flex: 0 0 118px;
     min-width: 0;
 }
 
@@ -1506,41 +1506,37 @@ export default {
     opacity: 1;
 }
 
-/* ЧС + оба тега (3 тега): крыша/парковка всегда иконки - 3 текста в одну строку не влезают */
-.application-tags--chs.application-tags--both .rt-tag--roof .rt-tag__text,
-.application-tags--chs.application-tags--both .rt-tag--parking .rt-tag__text {
+/* ЧС в строке -> крыша/парковка ВСЕГДА иконки (любая ширина). ЧС держим полным текстом
+   (111px), а два-три текстовых тега рядом в одну строку не влезают. Одиночные крыша/
+   парковка без ЧС остаются текстом. */
+.application-tags--chs .rt-tag--roof .rt-tag__text,
+.application-tags--chs .rt-tag--parking .rt-tag__text {
     display: none;
 }
 
-.application-tags--chs.application-tags--both .rt-tag--roof .rt-tag__icon,
-.application-tags--chs.application-tags--both .rt-tag--parking .rt-tag__icon {
+.application-tags--chs .rt-tag--roof .rt-tag__icon,
+.application-tags--chs .rt-tag--parking .rt-tag__icon {
     display: block;
 }
 
-.application-tags--chs.application-tags--both .rt-tag--roof.badge--sm,
-.application-tags--chs.application-tags--both .rt-tag--parking.badge--sm {
+.application-tags--chs .rt-tag--roof.badge--sm,
+.application-tags--chs .rt-tag--parking.badge--sm {
     padding: 4px;
 }
 
-/* тесно (нав-меню закреплено): крыша/парковка -> иконки в строках с ЧС или с обоими тегами.
-   Порог - ширина таблицы (.applications-table - container). Одиночные крыша/парковка без ЧС - текст. */
+/* тесно (нав-меню закреплено, ширина таблицы < 1320): крыша+парковка БЕЗ ЧС -> иконки.
+   Порог - ширина таблицы (.applications-table - container). */
 @container (max-width: 1320px) {
-    .application-tags--chs .rt-tag--roof .rt-tag__text,
-    .application-tags--chs .rt-tag--parking .rt-tag__text,
     .application-tags--both .rt-tag--roof .rt-tag__text,
     .application-tags--both .rt-tag--parking .rt-tag__text {
         display: none;
     }
 
-    .application-tags--chs .rt-tag--roof .rt-tag__icon,
-    .application-tags--chs .rt-tag--parking .rt-tag__icon,
     .application-tags--both .rt-tag--roof .rt-tag__icon,
     .application-tags--both .rt-tag--parking .rt-tag__icon {
         display: block;
     }
 
-    .application-tags--chs .rt-tag--roof.badge--sm,
-    .application-tags--chs .rt-tag--parking.badge--sm,
     .application-tags--both .rt-tag--roof.badge--sm,
     .application-tags--both .rt-tag--parking.badge--sm {
         padding: 4px;
@@ -1548,7 +1544,7 @@ export default {
 }
 
 .tags-col {
-    flex: 0 0 185px;
+    flex: 0 0 175px;
 }
 
 .application-col.tags-col {
@@ -1556,17 +1552,21 @@ export default {
 }
 
 .date-col {
-    flex: 0 0 130px;
+    flex: 0 0 124px;
 }
 
+/* Организация - основная гибкая колонка-наполнитель: тянется, заполняя свободную ширину,
+   но не больше 560px (на больших мониторах не раздувается). */
 .organization-col {
-    flex: 2.2 1 0;
-    min-width: 90px;
+    flex: 100 1 0;
+    min-width: 120px;
+    max-width: 560px;
 }
 
+/* Отправитель - предпочтительная ширина 160px, ужимается до 90 на тесных раскладках, не растёт. */
 .sender-col {
-    flex: 1.2 1 0;
-    min-width: 80px;
+    flex: 0 1 160px;
+    min-width: 90px;
 }
 
 .application-col.sender-col {
@@ -1620,11 +1620,14 @@ export default {
 }
 
 .status-col {
-    flex: 0 0 130px;
+    flex: 0 0 124px;
 }
 
+/* actions тянется, забирая остаток ширины после потолка Организации - кнопка "Скачать"
+   прижата вправо (justify-content: flex-end), между тегами и ней появляется воздух на
+   широких мониторах вместо пустоты у правого края таблицы. */
 .actions-col {
-    flex: 0 0 96px;
+    flex: 1 0 96px;
     justify-content: flex-end;
     cursor: default;
 }
