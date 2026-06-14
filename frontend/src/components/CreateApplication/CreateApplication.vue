@@ -2366,9 +2366,13 @@ export default {
     }
 
     h4 {
-        font-size: 24px;
-        font-weight: 900;
-        text-shadow: 1px 2px rgba(0,0,0,0.2);
+        font-size: 22px;
+        font-weight: 800;
+        color: #4F5BDF;
+        border: 1px solid #e6e6e6;
+        border-radius: 50px;
+        padding: 5px 20px;
+        width: fit-content;
     }
 
     .form__data {

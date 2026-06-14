@@ -397,10 +397,14 @@ export default {
 }
 
 h4 {
-    font-size: 16px;
-    color: #333;
-    font-weight: 600;
+    font-size: 22px;
+    color: #4F5BDF;
+    font-weight: 800;
     margin: 0;
+    border: 1px solid #e6e6e6;
+    border-radius: 50px;
+    padding: 5px 20px;
+    width: fit-content;
 }
 
 /* Scrollbar styling */
