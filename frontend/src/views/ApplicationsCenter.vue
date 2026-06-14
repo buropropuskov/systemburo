@@ -1031,17 +1031,16 @@ export default {
                 }
             }
             
+            // П.40: подтягиваем актуальное состояние списка из Центра сразу после изменения
+            this.fetchApplications();
             this.$emit('refresh-data');
         },
 
-        handleApplicationUpdate(updatedApp) {
-            console.log('Application updated in center:', updatedApp);
-            this.fetchApplications(); // Обновляем список заявок
+        handleApplicationUpdate() {
+            this.fetchApplications();
         },
 
         handleApplicationChanged(updatedApp) {
-            console.log('Application changed in center (via application-changed):', updatedApp);
-            
             // Обновляем данные в списке
             const appIndex = this.applications.findIndex(app => app.id === updatedApp.id);
             if (appIndex !== -1) {
@@ -1061,6 +1060,8 @@ export default {
                 
                 // Принудительно обновляем список для пересчета computed свойств
                 this.applications = [...this.applications];
+                // П.40: дотягиваем актуальное состояние с сервера (локальный мердж может быть неполным)
+                this.fetchApplications();
             } else {
                 // Если заявка не найдена в списке (например, из-за фильтров), просто перезагружаем весь список
                 this.fetchApplications();
