@@ -405,12 +405,8 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Полный текст</label><textarea
-                  v-model="newsForm.fullText"
-                  class="form-textarea"
-                  placeholder="Введите полный текст"
-                  rows="5"
-                />
+                <label class="form-label">Полный текст</label>
+                <TextConstructor v-model="newsForm.fullText" />
               </div>
             </div>
             <div class="modal-footer">
@@ -480,12 +476,8 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Полный текст</label><textarea
-                  v-model="announcementForm.fullText"
-                  class="form-textarea"
-                  placeholder="Введите полный текст"
-                  rows="5"
-                />
+                <label class="form-label">Полный текст</label>
+                <TextConstructor v-model="announcementForm.fullText" />
               </div>
               <div class="form-group">
                 <label class="checkbox-label"><input
@@ -534,10 +526,9 @@
               </p>
               <div
                 v-if="selectedNews?.full_text"
-                class="modal-full-text"
-              >
-                {{ selectedNews.full_text }}
-              </div>
+                class="modal-full-text news-body-html"
+                v-html="sanitizeHtml(selectedNews.full_text)"
+              />
             </div>
             <div class="modal-footer">
               <button
@@ -574,9 +565,11 @@ import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import UserGuideModal from '../components/news/UserGuideModal.vue'
+import TextConstructor from '@/components/TextConstructor.vue'
 import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
 import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
 import { useAuthStore } from '@/stores/auth'
+import { sanitizeHtml } from '@/utils/sanitize.js'
 
 export default {
   name: 'LatestNews',
@@ -584,7 +577,8 @@ export default {
     RefreshButton,
     AnnouncementModal,
     LoaderSpinner,
-    UserGuideModal
+    UserGuideModal,
+    TextConstructor
   },
   data() {
     return {
@@ -623,6 +617,7 @@ export default {
     this.fetchAllData()
   },
   methods: {
+    sanitizeHtml,
     formatDate(dateString) {
       if (!dateString) return ''
       const date = new Date(dateString)
@@ -1659,4 +1654,15 @@ export default {
         flex-shrink: 0;
     }
 }
+
+.news-body-html {
+    line-height: 1.6;
+}
+.news-body-html :deep(h1),
+.news-body-html :deep(h2),
+.news-body-html :deep(h3) { font-weight: 600; margin: 0.75em 0 0.4em; }
+.news-body-html :deep(p) { margin: 0.5em 0; }
+.news-body-html :deep(ul),
+.news-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
+.news-body-html :deep(img) { max-width: 100%; border-radius: 8px; }
 </style>

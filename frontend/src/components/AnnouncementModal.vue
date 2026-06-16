@@ -28,10 +28,9 @@
             </p>
             <div
               v-if="announcement?.full_text"
-              class="modal-full-text"
-            >
-              {{ announcement.full_text }}
-            </div>
+              class="modal-full-text announcement-body-html"
+              v-html="sanitizeHtml(announcement.full_text)"
+            />
           </div>
           <div class="modal-footer">
             <button
@@ -48,6 +47,8 @@
 </template>
 
 <script>
+import { sanitizeHtml } from '@/utils/sanitize.js'
+
 export default {
   name: 'AnnouncementModal',
   props: {
@@ -62,6 +63,7 @@ export default {
   },
   emits: ['update:show', 'close'],
   methods: {
+    sanitizeHtml,
     formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
@@ -253,17 +255,28 @@ export default {
   .modal-content {
     width: 95vw;
   }
-  
+
   .modal-header {
     padding: 16px 20px 0;
   }
-  
+
   .modal-body {
     padding: 16px 20px;
   }
-  
+
   .modal-footer {
     padding: 12px 20px 20px;
   }
 }
+
+.announcement-body-html {
+  line-height: 1.6;
+}
+.announcement-body-html :deep(h1),
+.announcement-body-html :deep(h2),
+.announcement-body-html :deep(h3) { font-weight: 600; margin: 0.75em 0 0.4em; }
+.announcement-body-html :deep(p) { margin: 0.5em 0; }
+.announcement-body-html :deep(ul),
+.announcement-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
+.announcement-body-html :deep(img) { max-width: 100%; border-radius: 8px; }
 </style>
