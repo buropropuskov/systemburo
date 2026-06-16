@@ -180,13 +180,47 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
-                  }" 
+                  }"
+                >
+              </div>
+              <div
+                v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
+                class="header-col org-col"
+                @click="sortBy('organization_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'organization_name' }">
+                  Организация
+                </p>
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
+                    'sorted': sortField === 'organization_name',
+                    'desc': sortField === 'organization_name' && sortDirection === 'desc'
+                  }"
+                >
+              </div>
+              <div
+                v-if="currentFilter === 'company' || currentFilter === 'all_system'"
+                class="header-col company-col"
+                @click="sortBy('company_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'company_name' }">
+                  Компания
+                </p>
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
+                    'sorted': sortField === 'company_name',
+                    'desc': sortField === 'company_name' && sortDirection === 'desc'
+                  }"
                 >
               </div>
               <div class="header-col actions-col">
@@ -239,6 +273,20 @@
                         v-else
                         :status="car.status ? 'Активна' : 'Неактивна'"
                       />
+                    </div>
+                    <div
+                      v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
+                      class="car-col org-col"
+                      :title="car.organization_name || ''"
+                    >
+                      {{ car.organization_name || '—' }}
+                    </div>
+                    <div
+                      v-if="currentFilter === 'company' || currentFilter === 'all_system'"
+                      class="car-col company-col"
+                      :title="car.company_name || ''"
+                    >
+                      {{ car.company_name || '—' }}
                     </div>
                     <div class="car-col actions-col">
                       <button
@@ -503,23 +551,23 @@
                       v-if="ownershipInfo && ownershipInfo.has_organization"
                       class="binding-option"
                     >
-                      <input 
-                        v-model="bindToOrganization" 
+                      <input
+                        v-model="bindToOrganization"
                         type="checkbox"
                         :disabled="bindToCompany"
                       >
-                      <span>Привязать к организации</span>
+                      <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
                     </label>
                     <label
                       v-if="ownershipInfo && ownershipInfo.has_company"
                       class="binding-option"
                     >
-                      <input 
-                        v-model="bindToCompany" 
+                      <input
+                        v-model="bindToCompany"
                         type="checkbox"
                         :disabled="bindToOrganization"
                       >
-                      <span>Привязать к компании</span>
+                      <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
                     </label>
                     <div class="user-binding">
                       <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
@@ -694,11 +742,21 @@ export default {
                         valueA = a.status;
                         valueB = b.status;
                         break;
-                        
+
+                    case 'organization_name':
+                        valueA = (a.organization_name || '').toLowerCase();
+                        valueB = (b.organization_name || '').toLowerCase();
+                        break;
+
+                    case 'company_name':
+                        valueA = (a.company_name || '').toLowerCase();
+                        valueB = (b.company_name || '').toLowerCase();
+                        break;
+
                     default:
                         return 0;
                 }
-                
+
                 if (valueA < valueB) {
                     return this.sortDirection === 'asc' ? -1 : 1;
                 }
@@ -1678,6 +1736,22 @@ export default {
     width: 10%;
     min-width: 80px;
     justify-content: center;
+}
+
+.org-col {
+    width: 18%;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.company-col {
+    width: 18%;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Тело таблицы */
