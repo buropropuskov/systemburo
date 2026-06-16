@@ -1214,8 +1214,8 @@ export default {
 
 .qd-sep {
     height: 1px;
-    background: #f0f0f4;
-    margin: 3px 6px;
+    background: #e2e4ec;
+    margin: 4px 6px;
 }
 
 .qd-fade-enter-active,
