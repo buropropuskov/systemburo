@@ -299,6 +299,15 @@ func main() {
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
 
+	// Ежедневный сброс территориальных статусов "Покинул/Выехал" -> "Не входил/Не въезжал" в 06:00.
+	resetLoc, err := time.LoadLocation(cfg.ResetTimezone)
+	if err != nil {
+		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
+		resetLoc = time.UTC
+	}
+	resetService := services.NewTerritoryResetService(db)
+	go startDailyStatusReset(ctxSig, resetService, resetLoc)
+
 	// Graceful shutdown
 	go func() {
 		<-ctxSig.Done()
@@ -345,6 +354,52 @@ func startAccessDenialsArchiver(ctx context.Context, svc *services.AccessDenialS
 			return
 		case <-ticker.C:
 			archive()
+		}
+	}
+}
+
+// startDailyStatusReset сбрасывает территориальные статусы "Покинул/Выехал" (2) -> "Не входил/Не въезжал" (0)
+// ежедневно в 06:00 по location. Статус "На территории" (1) не затрагивается.
+// Ошибки логируются, паники нет.
+func startDailyStatusReset(ctx context.Context, svc services.TerritoryResetService, location *time.Location) {
+	now := time.Now().In(location)
+	next := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, location)
+	if !next.After(now) {
+		next = next.Add(24 * time.Hour)
+	}
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+
+	slog.Info("планировщик сброса статусов запущен", "next_reset", next.Format(time.RFC3339))
+
+	select {
+	case <-ctx.Done():
+		slog.Info("планировщик сброса статусов остановлен до первого срабатывания")
+		return
+	case <-timer.C:
+	}
+
+	emp, cars, err := svc.ResetExitedStatuses(ctx)
+	if err != nil {
+		slog.Error("сброс территориальных статусов завершился ошибкой", "error", err)
+	} else {
+		slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
+	}
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("планировщик сброса статусов остановлен")
+			return
+		case <-ticker.C:
+			emp, cars, err := svc.ResetExitedStatuses(ctx)
+			if err != nil {
+				slog.Error("сброс территориальных статусов завершился ошибкой", "error", err)
+			} else {
+				slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
+			}
 		}
 	}
 }

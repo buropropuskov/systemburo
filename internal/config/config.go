@@ -36,10 +36,10 @@ type Config struct {
 	// блокирует brute-force - Argon2id и так растягивает каждую попытку
 	// на 100мс+, 10 попыток за 5 минут это ~17 запросов/час максимум.
 	// В CI/e2e ставим LOGIN_RATE_LIMIT_MAX=1000.
-	LoginRateLimitMax       int   `env:"LOGIN_RATE_LIMIT_MAX" envDefault:"10"`
-	LoginRateLimitWindowSec int64 `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"300"`
-	PaginationMaxLimit int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
-	UploadPath         string `env:"UPLOAD_PATH" envDefault:"./uploads"`
+	LoginRateLimitMax       int    `env:"LOGIN_RATE_LIMIT_MAX" envDefault:"10"`
+	LoginRateLimitWindowSec int64  `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"300"`
+	PaginationMaxLimit      int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
+	UploadPath              string `env:"UPLOAD_PATH" envDefault:"./uploads"`
 
 	// CookieSecure управляет флагом Secure на refresh-cookie. На staging/prod
 	// всегда true (HTTPS). На локальной разработке (http://localhost) - false,
@@ -50,6 +50,10 @@ type Config struct {
 	// если пустые - репорты пишутся только в БД, TG-отправка пропускается (warn-лог).
 	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN" envDefault:""`
 	TelegramChatID   string `env:"TELEGRAM_CHAT_ID" envDefault:""`
+
+	// ResetTimezone задаёт часовой пояс для ежедневного сброса территориальных статусов.
+	// Используется для расчёта 06:00 локального времени. По умолчанию Europe/Moscow.
+	ResetTimezone string `env:"RESET_TIMEZONE" envDefault:"Europe/Moscow"`
 }
 
 func Load() (*Config, error) {
