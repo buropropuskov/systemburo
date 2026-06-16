@@ -186,10 +186,7 @@
         </button>
       </div>
 
-      <div
-        v-if="!disableImages"
-        class="toolbar-group"
-      >
+      <div class="toolbar-group">
         <button
           type="button"
           class="toolbar-btn image-btn"
@@ -416,10 +413,6 @@ export default {
     maxImageBytes: {
       type: Number,
       default: DEFAULT_MAX_IMAGE_BYTES
-    },
-    disableImages: {
-      type: Boolean,
-      default: false
     }
   },
   emits: ['update:modelValue'],
