@@ -1110,7 +1110,9 @@ export default {
 .date__input {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    /* 9px (а не 5): "Быстрый выбор" вынесен из потока и свисает в этот зазор -
+       больший gap отодвигает кнопку от инпута. Одинаков для даты и времени -> уровни совпадают. */
+    gap: 9px;
     position: relative;
 }
 
