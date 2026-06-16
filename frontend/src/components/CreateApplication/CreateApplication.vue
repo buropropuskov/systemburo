@@ -64,10 +64,10 @@
         <!-- 1 ряд: Письмо сопроводительное, Согласие, Отправка -->
         <div class="form__header">
           <div class="header__content">
-            <textarea 
-              v-model="message" 
+            <TextConstructor
+              v-model="message"
               placeholder="Введите сопроводительное письмо / сообщение"
-              class="form__textarea"
+              :disable-images="true"
             />
             <div class="header__right">
               <div class="consent-section">
@@ -378,6 +378,7 @@
 <script>
 import { sanitizeHtml } from '@/utils/sanitize'
 import { apiRequest } from '@/api/client'
+import TextConstructor from '@/components/TextConstructor.vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
 import BlankSelector from '../BlankSelector.vue';
@@ -407,7 +408,8 @@ export default {
         ItemsList,
         UniversalBindingModal,
         ApplicationSuccessModal,
-        CustomFieldsSection
+        CustomFieldsSection,
+        TextConstructor
     },
     data() {
         return {
