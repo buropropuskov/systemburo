@@ -493,6 +493,7 @@ import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 import StatusBadge from './ui/StatusBadge.vue';
 import EnlargedToggle from './ui/EnlargedToggle.vue';
+import ExcelJS from 'exceljs';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
 
@@ -1223,6 +1224,115 @@ export default {
         case 'application_id': return item.applicationNumber || '-';
         default: return '-';
       }
+    },
+
+    async exportToExcel() {
+      const rows = this.displayItems;
+      if (!rows.length) return;
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Lyudi');
+
+      const headers = [
+        'Въезд', 'Выезд', 'Фамилия', 'Имя', 'Отчество', 'Должность',
+        'Организация', 'Компания', 'Дата до', 'Время прохода', '№ заявки', 'Статус',
+      ];
+
+      const headerRow = worksheet.addRow(headers);
+      headerRow.height = 25;
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
+        cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+        };
+      });
+
+      rows.forEach((item, index) => {
+        const row = worksheet.addRow([
+          item.entry_checked ? 'Да' : 'Нет',
+          item.exit_checked ? 'Да' : 'Нет',
+          item.last_name || '-',
+          item.first_name || '-',
+          item.middle_name || '-',
+          item.position || '-',
+          item.organization_name || '-',
+          item.company || '-',
+          this.formatDate(item.entry_date_to),
+          item.pass_time || '-',
+          item.applicationNumber || '-',
+          item.status || '-',
+        ]);
+        row.height = 20;
+        const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+          cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
+          cell.alignment = { vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          };
+        });
+      });
+
+      const colCount = headers.length;
+      const lastDataRow = rows.length;
+      for (let r = 1; r <= lastDataRow + 1; r++) {
+        const rc = worksheet.getCell(r, colCount);
+        rc.border = { ...rc.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
+        const lc = worksheet.getCell(r, 1);
+        lc.border = { ...lc.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
+      }
+      for (let c = 1; c <= colCount; c++) {
+        const tc = worksheet.getCell(1, c);
+        tc.border = { ...tc.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
+        const bc = worksheet.getCell(lastDataRow + 1, c);
+        bc.border = { ...bc.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+      }
+
+      worksheet.addRow([]);
+      const now = new Date();
+      const dateStr = now.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).replace(',', '');
+      const userDisplay = (this.currentUserName || '').trim() || 'Пользователь';
+      [
+        worksheet.addRow(['Отчёт сформировал:', userDisplay]),
+        worksheet.addRow(['Дата формирования:', dateStr]),
+      ].forEach(row => {
+        row.eachCell((cell) => {
+          cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+          cell.alignment = { vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          };
+        });
+      });
+
+      worksheet.columns = [
+        { width: 10 }, { width: 10 }, { width: 22 }, { width: 18 }, { width: 18 }, { width: 22 },
+        { width: 35 }, { width: 25 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 20 },
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.download = `Lyudi_${dateStr.replace(/[.:,\s]/g, '-')}.xlsx`;
+      a.href = url;
+      a.click();
+      window.URL.revokeObjectURL(url);
     },
   }
 };
