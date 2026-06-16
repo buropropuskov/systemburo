@@ -692,7 +692,7 @@ export default {
           published_at: this.editForm.published_at || null,
           is_visible: this.editForm.is_visible,
         };
-        const updated = await updateDocument(this.selectedDoc.id, payload);
+        await updateDocument(this.selectedDoc.id, payload);
         const title = this.editForm.title;
         // Обновляем в локальном массиве
         const idx = this.documents.findIndex((d) => d.id === this.selectedDoc.id);

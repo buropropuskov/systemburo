@@ -177,7 +177,7 @@ export default {
         );
         // Случайный набор видимых разделов на каждую загрузку, остальное в «Ещё» (по ТЗ п.39).
         this.shuffledGroups = this.shuffle([...this.groups]);
-      } catch (e) {
+      } catch {
         useDeletionsStore().notify({ prefix: 'Ошибка загрузки документов', bold: '', type: 'error' });
       } finally {
         this.loading = false;
