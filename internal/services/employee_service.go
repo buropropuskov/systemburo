@@ -175,44 +175,71 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 	}
 
 	rows := make([]employeeRow, 0)
+	// Оконная функция считается после GROUP BY: для каждого непустого паспорта
+	// оставляем строку с максимальным entry_date_to (rn=1). Строки с NULL-паспортом
+	// ("По факту") не схлопываем - условие (hmac IS NULL OR rn = 1).
 	err := s.db.WithContext(ctx).Raw(`
 		SELECT
-			e.id,
-			e.last_name,
-			e.first_name,
-			e.middle_name,
-			COALESCE(o.name, co.name) AS organization,
-			COALESCE(co.name, '') AS company,
-			c.name AS citizenship_name,
-			e.position,
-			(
-				SELECT STRING_AGG(DISTINCT st.display_name, ', ' ORDER BY st.display_name)
-				FROM employee_target_tables ett2
-				JOIN system_tables st ON ett2.table_id = st.id
-				WHERE ett2.employee_id = e.id
-			) AS pass_places,
-			a.entry_date_to,
-			CONCAT(a.entry_time_from, ' - ', a.entry_time_to) AS pass_time,
-			e.status,
-			app.id AS application_id,
-			app.application_number AS application_number
-		FROM employees e
-		JOIN employee_target_tables ett ON e.id = ett.employee_id
-		JOIN attachments a ON e.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies co ON app.company_id = co.id
-		LEFT JOIN citizenships c ON e.citizenship_id = c.id
-		WHERE ett.table_id = ?
-		AND e.status = 1
-		AND app.confirmation = ?
-		AND app.status IN (?, ?)
-		AND CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date
-		GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
-				 o.name, co.name, c.name, e.position,
-				 a.entry_date_to, a.entry_time_from,
-				 a.entry_time_to, e.status, app.id, app.application_number
-		ORDER BY e.last_name, e.first_name
+			id,
+			last_name,
+			first_name,
+			middle_name,
+			organization,
+			company,
+			citizenship_name,
+			position,
+			pass_places,
+			entry_date_to,
+			pass_time,
+			status,
+			application_id,
+			application_number
+		FROM (
+			SELECT
+				e.id,
+				e.last_name,
+				e.first_name,
+				e.middle_name,
+				COALESCE(o.name, co.name) AS organization,
+				COALESCE(co.name, '') AS company,
+				c.name AS citizenship_name,
+				e.position,
+				(
+					SELECT STRING_AGG(DISTINCT st.display_name, ', ' ORDER BY st.display_name)
+					FROM employee_target_tables ett2
+					JOIN system_tables st ON ett2.table_id = st.id
+					WHERE ett2.employee_id = e.id
+				) AS pass_places,
+				a.entry_date_to,
+				CONCAT(a.entry_time_from, ' - ', a.entry_time_to) AS pass_time,
+				e.status,
+				app.id AS application_id,
+				app.application_number AS application_number,
+				e.passport_series_number_hmac,
+				ROW_NUMBER() OVER (
+					PARTITION BY e.passport_series_number_hmac
+					ORDER BY a.entry_date_to DESC NULLS LAST, e.id DESC
+				) AS rn
+			FROM employees e
+			JOIN employee_target_tables ett ON e.id = ett.employee_id
+			JOIN attachments a ON e.attachment_id = a.id
+			JOIN applications app ON a.application_id = app.id
+			LEFT JOIN organizations o ON app.organization_id = o.id
+			LEFT JOIN companies co ON app.company_id = co.id
+			LEFT JOIN citizenships c ON e.citizenship_id = c.id
+			WHERE ett.table_id = ?
+			AND e.status = 1
+			AND app.confirmation = ?
+			AND app.status IN (?, ?)
+			AND CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date
+			GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
+					 o.name, co.name, c.name, e.position,
+					 a.entry_date_to, a.entry_time_from,
+					 a.entry_time_to, e.status, app.id, app.application_number,
+					 e.passport_series_number_hmac
+		) sub
+		WHERE sub.passport_series_number_hmac IS NULL OR sub.rn = 1
+		ORDER BY last_name, first_name
 	`, tableID, models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active employees")
