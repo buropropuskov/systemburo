@@ -31,7 +31,7 @@
                   <span>Полная история</span>
                 </button>
                 <button
-                  v-if="showCarFeatures && source !== 'application' && source !== 'blacklist'"
+                  v-if="canOpenApplication"
                   class="application-btn"
                   @click="openApplication"
                 >
@@ -510,11 +510,18 @@ export default {
         overlayZIndex() {
             return this.source === 'application' ? 10003 : 10001;
         },
+        // "Открыть заявку" доступна, когда у машины есть активная заявка и карточка
+        // открыта не из самой заявки/ЧС (там переход не нужен). От showCarFeatures НЕ
+        // зависит: на вкладке Автомобили features выкл, но открыть заявку нужно.
+        canOpenApplication() {
+            return this.source !== 'application' && this.source !== 'blacklist'
+                && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
+        },
         // Кнопки в шапке: "Полная история" видна при showCarFeatures,
-        // "Открыть заявку" - при showCarFeatures и source !== 'application'.
+        // "Открыть заявку" - при canOpenApplication.
         visibleActionsCount() {
             const history = this.showCarFeatures ? 1 : 0;
-            const application = (this.showCarFeatures && this.source !== 'application' && this.source !== 'blacklist') ? 1 : 0;
+            const application = this.canOpenApplication ? 1 : 0;
             return history + application;
         },
         modalTitle() {

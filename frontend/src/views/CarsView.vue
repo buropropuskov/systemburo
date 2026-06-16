@@ -794,6 +794,8 @@ export default {
                 // active_car_id - id заявочной строки активной заявки; по нему тянем
                 // места разгрузки и статус территории (в реестре их нет).
                 activeCarId: car.active_car_id || null,
+                // id самой заявки - для кнопки "Открыть заявку" (open-application).
+                applicationId: car.active_application_id || null,
                 unloadPlaces: this.carUnloadPlacesMap[car.active_car_id] || [],
                 entry_date_to: car.active_entry_date_to,
                 entry_time_from: car.active_entry_time_from,

@@ -69,6 +69,9 @@ type UniqueCarWithRelations struct {
 	// Нужен фронту, чтобы подтянуть статус территории и места разгрузки активной машины
 	// (current-status и cars/unload-places ключуются по cars.id, а не по unique_cars.id).
 	ActiveCarID *int `json:"active_car_id"`
+	// ActiveApplicationID -- id заявки (applications.id) той же активной заявки, что и
+	// прочие active_*-поля. Нужен фронту для кнопки "Открыть заявку" на вкладке Автомобили.
+	ActiveApplicationID *int `json:"active_application_id"`
 }
 
 // NewUniqueCarRequest -- тело запроса на создание/обновление машины.
@@ -284,7 +287,15 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 				AND CURRENT_DATE <= a.entry_date_to::date
 				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_car_id`).
+			) as active_car_id,
+			(SELECT app.id FROM cars cr
+				JOIN attachments a ON cr.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_application_id`).
 		Joins("LEFT JOIN organizations o ON uc.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON uc.company_id = c.id").
 		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").
