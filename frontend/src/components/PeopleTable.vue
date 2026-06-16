@@ -243,16 +243,14 @@
           v-if="isLoading"
           class="loading-message"
         >
-          <div class="loader" />
-          <p>Загрузка сотрудников...</p>
+          <LoaderSpinner label="Загрузка сотрудников…" />
         </div>
 
         <div
           v-if="refreshing && !isLoading"
           class="refresh-overlay"
         >
-          <div class="loader" />
-          <p>Обновление...</p>
+          <LoaderSpinner label="Обновление…" />
         </div>
 
         <div
@@ -493,6 +491,7 @@ import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 import StatusBadge from './ui/StatusBadge.vue';
 import EnlargedToggle from './ui/EnlargedToggle.vue';
+import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
@@ -504,7 +503,8 @@ export default {
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
     StatusBadge,
-    EnlargedToggle
+    EnlargedToggle,
+    LoaderSpinner
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -1694,20 +1694,6 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 12px;
-}
-
-.loader {
-  width: 30px;
-  height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .fade-list-enter-active,
