@@ -125,83 +125,91 @@
               v-else
               class="history-timeline"
             >
-              <div 
-                v-for="(item, index) in filteredHistory" 
-                :key="item.id" 
-                class="history-item"
+              <template
+                v-for="group in historyGroupedByDate"
+                :key="group.date"
               >
+                <div class="history-date-separator">
+                  {{ group.date }}
+                </div>
                 <div
-                  class="timeline-dot"
-                  :class="getActionClass(item.action_type)"
-                />
-                <div
-                  v-if="index < filteredHistory.length - 1"
-                  class="timeline-line"
-                />
-                            
-                <div class="history-content">
-                  <div class="history-header">
-                    <!-- Для системных действий показываем "Система" -->
-                    <span
-                      v-if="item.action_type === 'confirmation_change' || item.action_type === 'status_change' || !item.user_id"
-                      class="user-name system-name"
+                  v-for="(item, i) in group.items"
+                  :key="item.id"
+                  class="history-item"
+                >
+                  <div
+                    class="timeline-dot"
+                    :class="getActionClass(item.action_type)"
+                  />
+                  <div
+                    v-if="i < group.items.length - 1"
+                    class="timeline-line"
+                  />
+
+                  <div class="history-content">
+                    <div class="history-header">
+                      <!-- Для системных действий показываем "Система" -->
+                      <span
+                        v-if="item.action_type === 'confirmation_change' || item.action_type === 'status_change' || !item.user_id"
+                        class="user-name system-name"
+                      >
+                        Система
+                      </span>
+                      <span
+                        v-else
+                        class="user-name"
+                      >{{ item.user_name }}</span>
+                      <span class="action-time">{{ formatTime(item.created_at) }}</span>
+                    </div>
+
+                    <div class="action-text">
+                      {{ getActionText(item) }}
+                    </div>
+
+                    <!-- Для пересылки показываем дополнительную информацию -->
+                    <div
+                      v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
+                      class="forward-info"
                     >
-                      Система
-                    </span>
-                    <span
-                      v-else
-                      class="user-name"
-                    >{{ item.user_name }}</span>
-                    <span class="action-time">{{ formatTime(item.created_at) }}</span>
-                  </div>
-                                
-                  <div class="action-text">
-                    {{ getActionText(item) }}
-                  </div>
-                                
-                  <!-- Для пересылки показываем дополнительную информацию -->
-                  <div
-                    v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
-                    class="forward-info"
-                  >
-                    Переслано пользователем {{ item.metadata.forwarded_by }}
-                  </div>
-                                
-                  <!-- Для просмотра показываем дополнительную информацию -->
-                  <div
-                    v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by"
-                    class="forward-info"
-                  >
-                    Переслано пользователем {{ item.metadata.forwarded_by }}
-                  </div>
-                                
-                  <!-- Бейдж обязательного согласования -->
-                  <div
-                    v-if="item.metadata?.required_approval"
-                    class="required-badge"
-                  >
-                    Обязательно
-                  </div>
-                                
-                  <!-- Статус изменения -->
-                  <div
-                    v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
-                    class="status-change"
-                  >
-                    <span class="old-status">{{ item.old_value }}</span>
-                    <span class="arrow">→</span>
-                    <span class="new-status">{{ item.new_value }}</span>
-                  </div>
-                                
-                  <!-- Комментарий (если есть) -->
-                  <div
-                    v-if="item.comment && item.action_type !== 'revoke_approval'"
-                    class="action-comment"
-                  >
-                    {{ item.comment }}
+                      Переслано пользователем {{ item.metadata.forwarded_by }}
+                    </div>
+
+                    <!-- Для просмотра показываем дополнительную информацию -->
+                    <div
+                      v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by"
+                      class="forward-info"
+                    >
+                      Переслано пользователем {{ item.metadata.forwarded_by }}
+                    </div>
+
+                    <!-- Бейдж обязательного согласования -->
+                    <div
+                      v-if="item.metadata?.required_approval"
+                      class="required-badge"
+                    >
+                      Обязательно
+                    </div>
+
+                    <!-- Статус изменения -->
+                    <div
+                      v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
+                      class="status-change"
+                    >
+                      <span class="old-status">{{ item.old_value }}</span>
+                      <span class="arrow">→</span>
+                      <span class="new-status">{{ item.new_value }}</span>
+                    </div>
+
+                    <!-- Комментарий (если есть) -->
+                    <div
+                      v-if="item.comment && item.action_type !== 'revoke_approval'"
+                      class="action-comment"
+                    >
+                      {{ item.comment }}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </template>
             </div>
           </div>
         </div>
@@ -310,6 +318,23 @@ export default {
                     return timeA - timeB;
                 }
             });
+        },
+
+        historyGroupedByDate() {
+            const groups = [];
+            const seen = new Map();
+            this.filteredHistory.forEach((item) => {
+                const date = new Date(item.created_at).toLocaleDateString('ru-RU', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                });
+                if (!seen.has(date)) {
+                    const group = { date, items: [] };
+                    groups.push(group);
+                    seen.set(date, group);
+                }
+                seen.get(date).items.push(item);
+            });
+            return groups;
         },
 
         // Данные для экспорта в формате таблицы
@@ -1034,6 +1059,17 @@ export default {
 
 .history-timeline {
     position: relative;
+}
+
+.history-date-separator {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a2a2a2;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 0 4px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #f0f0f0;
 }
 
 .history-item {
