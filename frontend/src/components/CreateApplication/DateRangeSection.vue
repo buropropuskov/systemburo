@@ -11,10 +11,11 @@
         >*</span></label>
         <div class="qd-dropdown">
           <button
+            ref="qdTrigger"
             type="button"
             class="qd-trigger"
             :class="{ 'qd-trigger--open': showQuickMenu }"
-            @click.stop="showQuickMenu = !showQuickMenu"
+            @click.stop="toggleQuickMenu"
           >
             <span>Быстрый выбор</span>
             <svg
@@ -33,55 +34,58 @@
               />
             </svg>
           </button>
-          <transition name="qd-fade">
-            <div
-              v-if="showQuickMenu"
-              class="qd-menu"
-              @click.stop
-            >
-              <button
-                type="button"
-                class="qd-item"
-                @click="setQuickDate('today')"
+          <Teleport to="body">
+            <transition name="qd-fade">
+              <div
+                v-if="showQuickMenu"
+                class="qd-menu"
+                :style="qdMenuStyle"
+                @click.stop
               >
-                <span class="qd-item__label">Сегодня</span>
-                <span class="qd-item__date">{{ quickDateOptions.today }}</span>
-              </button>
-              <button
-                type="button"
-                class="qd-item"
-                @click="setQuickDate('tomorrow')"
-              >
-                <span class="qd-item__label">Завтра</span>
-                <span class="qd-item__date">{{ quickDateOptions.tomorrow }}</span>
-              </button>
-              <button
-                type="button"
-                class="qd-item"
-                @click="setQuickDate('after-tomorrow')"
-              >
-                <span class="qd-item__label">Послезавтра</span>
-                <span class="qd-item__date">{{ quickDateOptions.afterTomorrow }}</span>
-              </button>
-              <div class="qd-sep" />
-              <button
-                type="button"
-                class="qd-item"
-                @click="setQuickDate('current-month')"
-              >
-                <span class="qd-item__label">{{ quickDateOptions.currentMonthLabel }}</span>
-                <span class="qd-item__date">{{ quickDateOptions.currentMonthRange }}</span>
-              </button>
-              <button
-                type="button"
-                class="qd-item"
-                @click="setQuickDate('next-month')"
-              >
-                <span class="qd-item__label">{{ quickDateOptions.nextMonthLabel }}</span>
-                <span class="qd-item__date">{{ quickDateOptions.nextMonthRange }}</span>
-              </button>
-            </div>
-          </transition>
+                <button
+                  type="button"
+                  class="qd-item"
+                  @click="setQuickDate('today')"
+                >
+                  <span class="qd-item__label">Сегодня</span>
+                  <span class="qd-item__date">{{ quickDateOptions.today }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="qd-item"
+                  @click="setQuickDate('tomorrow')"
+                >
+                  <span class="qd-item__label">Завтра</span>
+                  <span class="qd-item__date">{{ quickDateOptions.tomorrow }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="qd-item"
+                  @click="setQuickDate('after-tomorrow')"
+                >
+                  <span class="qd-item__label">Послезавтра</span>
+                  <span class="qd-item__date">{{ quickDateOptions.afterTomorrow }}</span>
+                </button>
+                <div class="qd-sep" />
+                <button
+                  type="button"
+                  class="qd-item"
+                  @click="setQuickDate('current-month')"
+                >
+                  <span class="qd-item__label">{{ quickDateOptions.currentMonthLabel }}</span>
+                  <span class="qd-item__date">{{ quickDateOptions.currentMonthRange }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="qd-item"
+                  @click="setQuickDate('next-month')"
+                >
+                  <span class="qd-item__label">{{ quickDateOptions.nextMonthLabel }}</span>
+                  <span class="qd-item__date">{{ quickDateOptions.nextMonthRange }}</span>
+                </button>
+              </div>
+            </transition>
+          </Teleport>
         </div>
       </div>
       <div class="date-container">
@@ -514,7 +518,8 @@ export default {
             currentDate: today,
             weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
             internalToggle: false,
-            showQuickMenu: false
+            showQuickMenu: false,
+            qdMenuStyle: {}
         }
     },
     computed: {
@@ -622,14 +627,45 @@ export default {
             if (!e.target.closest('.datepicker-wrapper')) {
                 this.closeDatepicker();
             }
-            if (!e.target.closest('.qd-dropdown')) {
+            // Меню "Быстрый выбор" телепортится в body, поэтому исключаем и .qd-menu.
+            if (!e.target.closest('.qd-dropdown') && !e.target.closest('.qd-menu')) {
                 this.showQuickMenu = false;
             }
         });
+        // Меню позиционируется fixed от триггера - при скролле отрываться нельзя, закрываем.
+        window.addEventListener('scroll', this.closeQuickMenuOnScroll, true);
         this.validateDateRange();
         this.validateTimeCrossing();
     },
+    beforeUnmount() {
+        window.removeEventListener('scroll', this.closeQuickMenuOnScroll, true);
+    },
     methods: {
+        // "Быстрый выбор": меню телепортится в body (иначе тонет под гейтом/инпутами
+        // из-за вложенных stacking-контекстов). Позицию считаем от триггера.
+        toggleQuickMenu() {
+            if (this.showQuickMenu) {
+                this.showQuickMenu = false;
+                return;
+            }
+            const btn = this.$refs.qdTrigger;
+            if (!btn) return;
+            const r = btn.getBoundingClientRect();
+            const width = 230;
+            const left = Math.max(8, r.right - width);
+            this.qdMenuStyle = {
+                position: 'fixed',
+                top: `${Math.round(r.bottom + 6)}px`,
+                left: `${Math.round(left)}px`,
+                right: 'auto',
+                width: `${width}px`,
+                zIndex: 12000
+            };
+            this.showQuickMenu = true;
+        },
+        closeQuickMenuOnScroll() {
+            if (this.showQuickMenu) this.showQuickMenu = false;
+        },
         setQuickDate(kind) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
