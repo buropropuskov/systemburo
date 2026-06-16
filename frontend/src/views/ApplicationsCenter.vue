@@ -320,11 +320,8 @@
                 <div class="application-col tags-col">
                   <div
                     v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important"
+                    v-tag-fit
                     class="application-tags"
-                    :class="{
-                      'application-tags--both': application.has_roof_access && application.has_free_parking,
-                      'application-tags--chs': blacklistFlagCount(application) > 0
-                    }"
                   >
                     <Badge
                       v-if="blacklistFlagCount(application) > 0"
@@ -382,6 +379,17 @@
                       class="rt-tag rt-tag--important tag-hint"
                       data-hint="Важный пользователь"
                     >
+                      <svg
+                        class="rt-tag__icon"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
                       <span class="rt-tag__text">Важный</span>
                     </Badge>
                   </div>
@@ -468,6 +476,34 @@ export default {
         LoaderSpinner,
         DownloadBlanksModal,
         Badge,
+    },
+    directives: {
+        // Сворачивает строку тегов в иконки, когда текстовые теги не влезают в фикс-колонку
+        // (без переноса на новую строку). Мерим реальный overflow: форсим полный текст без
+        // анимации (--measuring), сравниваем scrollWidth с clientWidth, вешаем/снимаем --compact.
+        // ResizeObserver слушает РОДИТЕЛЬСКУЮ ячейку (её ширина стабильна), иначе toggle --compact
+        // менял бы размер самого элемента и зациклил наблюдатель.
+        tagFit: {
+            mounted(el) {
+                const fit = () => {
+                    el.classList.add('application-tags--measuring');
+                    const overflow = el.scrollWidth > el.clientWidth + 1;
+                    el.classList.remove('application-tags--measuring');
+                    el.classList.toggle('application-tags--compact', overflow);
+                };
+                el.__tagFit = fit;
+                el.__tagRO = new ResizeObserver(fit);
+                el.__tagRO.observe(el.parentElement || el);
+            },
+            updated(el) {
+                el.__tagFit && el.__tagFit();
+            },
+            unmounted(el) {
+                el.__tagRO && el.__tagRO.disconnect();
+                el.__tagRO = null;
+                el.__tagFit = null;
+            },
+        },
     },
     emits: ['refresh-data'],
     data() {
@@ -1488,6 +1524,7 @@ export default {
     gap: 4px;
     flex-wrap: nowrap;
     align-items: center;
+    min-width: 0;
 }
 
 /* Анимация сворачивания крыша/парковка: текст схлопывается по ширине, иконка раскрывается
@@ -1573,24 +1610,48 @@ export default {
     opacity: 1;
 }
 
-/* ЧС в строке -> крыша/парковка ВСЕГДА иконки (любая ширина). ЧС держим полным текстом,
-   а два-три текстовых тега рядом в одну строку не влезают. Одиночные крыша/парковка без
-   ЧС остаются текстом. */
-.application-tags--chs .rt-tag--roof .rt-tag__text,
-.application-tags--chs .rt-tag--parking .rt-tag__text {
+/* Свёртка тегов по реальному overflow: директива v-tag-fit мерит, влезает ли строка тегов
+   в фикс-колонку, и при нехватке места вешает --compact -> крыша/парковка/важный схлопывают
+   текст в иконку (без переноса на новую строку). ЧС держим полным текстом - критичный флаг,
+   его не прячем. --measuring снимает transition на момент замера натуральной ширины (иначе
+   анимация max-width даёт промежуточное значение и замер врёт). */
+.application-tags--compact .rt-tag--roof .rt-tag__text,
+.application-tags--compact .rt-tag--parking .rt-tag__text,
+.application-tags--compact .rt-tag--important .rt-tag__text {
     max-width: 0;
     opacity: 0;
 }
 
-.application-tags--chs .rt-tag--roof .rt-tag__icon,
-.application-tags--chs .rt-tag--parking .rt-tag__icon {
+.application-tags--compact .rt-tag--roof .rt-tag__icon,
+.application-tags--compact .rt-tag--parking .rt-tag__icon,
+.application-tags--compact .rt-tag--important .rt-tag__icon {
     width: 13px;
     opacity: 1;
 }
 
-.application-tags--chs .rt-tag--roof.badge--sm,
-.application-tags--chs .rt-tag--parking.badge--sm {
+.application-tags--compact .rt-tag--roof.badge--sm,
+.application-tags--compact .rt-tag--parking.badge--sm,
+.application-tags--compact .rt-tag--important.badge--sm {
     padding: 4px;
+}
+
+/* Замер натуральной ширины: форсим полный текст + скрытую иконку без анимации (перебивает
+   --compact по порядку источника - блок идёт ниже). */
+.application-tags--measuring .rt-tag__text {
+    max-width: 150px;
+    opacity: 1;
+    transition: none;
+}
+
+.application-tags--measuring .rt-tag__icon {
+    width: 0;
+    opacity: 0;
+    transition: none;
+}
+
+.application-tags--measuring .rt-tag.badge--sm {
+    padding: 3px 8px;
+    transition: none;
 }
 
 /* Колонка тегов фиксированная: 120px когда таблица просторная, 90px когда тесно (нав-меню
@@ -1605,28 +1666,11 @@ export default {
     overflow: visible;
 }
 
-/* тесно (нав-меню закреплено, ширина таблицы < 1300): теги -> 90px, крыша+парковка БЕЗ ЧС
-   -> иконки. Порог - ширина таблицы (.applications-table - container). */
+/* тесно (нав-меню закреплено, ширина таблицы < 1300): колонка тегов -> 90px. Свёртку текста
+   в иконки на этой ширине делает та же директива v-tag-fit по реальному overflow. */
 @container (max-width: 1300px) {
     .tags-col {
         flex: 0 0 90px;
-    }
-
-    .application-tags--both .rt-tag--roof .rt-tag__text,
-    .application-tags--both .rt-tag--parking .rt-tag__text {
-        max-width: 0;
-        opacity: 0;
-    }
-
-    .application-tags--both .rt-tag--roof .rt-tag__icon,
-    .application-tags--both .rt-tag--parking .rt-tag__icon {
-        width: 13px;
-        opacity: 1;
-    }
-
-    .application-tags--both .rt-tag--roof.badge--sm,
-    .application-tags--both .rt-tag--parking.badge--sm {
-        padding: 4px;
     }
 }
 

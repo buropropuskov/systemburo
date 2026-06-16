@@ -356,14 +356,12 @@
             <!-- Полноширинные элементы -->
             <div class="full-width-groups">
               <div class="detail-group detail-group--checkbox">
-                <label class="detail-label detail-label--checkbox">
-                  <input
-                    type="checkbox"
-                    v-model="selectedUser.is_important"
-                    @change="updateUserInfo(selectedUser)"
-                  >
+                <ToggleSwitch
+                  :model-value="!!selectedUser.is_important"
+                  @update:model-value="val => { selectedUser.is_important = val; updateUserInfo(selectedUser); }"
+                >
                   Важный пользователь
-                </label>
+                </ToggleSwitch>
               </div>
 
               <div class="detail-group">
@@ -660,6 +658,7 @@ import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import ToggleSwitch from './ui/ToggleSwitch.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
 import UserAccessModal from './admin/UserAccessModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -671,6 +670,7 @@ export default {
     PasswordInput,
     ConfirmationModal,
     BaseDropdown,
+    ToggleSwitch,
     UserHistoryModal,
     UserAccessModal
   },
