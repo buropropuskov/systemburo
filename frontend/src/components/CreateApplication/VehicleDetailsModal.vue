@@ -510,9 +510,8 @@ export default {
         overlayZIndex() {
             return this.source === 'application' ? 10003 : 10001;
         },
-        // "Открыть заявку" доступна, когда у машины есть активная заявка и карточка
-        // открыта не из самой заявки/ЧС (там переход не нужен). От showCarFeatures НЕ
-        // зависит: на вкладке Автомобили features выкл, но открыть заявку нужно.
+        // Намеренно НЕ зависит от showCarFeatures: на вкладке Автомобили features выкл,
+        // но переход в заявку нужен. Гейт - наличие заявки (как у EmployeeDetailsModal).
         canOpenApplication() {
             return this.source !== 'application' && this.source !== 'blacklist'
                 && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
