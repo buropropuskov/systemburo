@@ -2442,7 +2442,11 @@ export default {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(244, 245, 248, 0.5);
+        /* Светлый серый тон сам по себе сливался с фоном формы - frosted-blur
+           делает заблокированное состояние читаемым, оставаясь светлым. */
+        background: rgba(216, 220, 233, 0.62);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
     }
 
     .form__data-lock-target {
