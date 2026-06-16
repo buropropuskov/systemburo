@@ -109,9 +109,10 @@
           <!-- Сообщение заявки -->
           <div class="message-section">
             <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
-            <div class="message-content">
-              {{ applicationData.message || 'Сообщение отсутствует' }}
-            </div>
+            <div
+              class="message-content"
+              v-html="applicationData.message ? sanitizeHtml(applicationData.message) : 'Сообщение отсутствует'"
+            />
           </div>
 
           <!-- Детали выбранного вложения -->
@@ -343,6 +344,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { markAsRead } from '@/api/applications'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
 import ApplicationAttachments from './ApplicationAttachments.vue'
@@ -514,6 +516,8 @@ export default {
         this.loadCommonData();
     },
     methods: {
+        sanitizeHtml,
+
         handleActionCompleted({ success, message, type }) {
             this.showNotification(message, type || (success ? 'success' : 'error'));
             if (success) {
@@ -1526,8 +1530,66 @@ export default {
     font-size: 15px;
     line-height: 150%;
     color: #000;
-    white-space: pre-wrap;
 }
+
+.message-content :deep(ul),
+.message-content :deep(ol) {
+    padding-left: 24px;
+    margin: 6px 0;
+}
+
+.message-content :deep(li) {
+    line-height: 1.5;
+    margin: 2px 0;
+}
+
+.message-content :deep(em) {
+    font-style: italic;
+}
+
+.message-content :deep(u) {
+    text-decoration: underline;
+}
+
+.message-content :deep(strong) {
+    font-weight: 600;
+}
+
+.message-content :deep(h1),
+.message-content :deep(.heading-h1) {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 12px 0 6px;
+    line-height: 1.2;
+    color: #000;
+}
+
+.message-content :deep(h2),
+.message-content :deep(.heading-h2) {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 10px 0 5px;
+    line-height: 1.3;
+    color: #000;
+}
+
+.message-content :deep(.black-text) { color: #000; }
+.message-content :deep(.red-text) { color: #FF0000; }
+.message-content :deep(.green-text) { color: #079D1D; }
+.message-content :deep(.blue-text) { color: #4F5BDF; }
+
+.message-content :deep(.font-size-10) { font-size: 10px; }
+.message-content :deep(.font-size-12) { font-size: 12px; }
+.message-content :deep(.font-size-14) { font-size: 14px; }
+.message-content :deep(.font-size-16) { font-size: 16px; }
+.message-content :deep(.font-size-18) { font-size: 18px; }
+.message-content :deep(.font-size-20) { font-size: 20px; }
+
+.message-content :deep(.font-weight-300) { font-weight: 300; }
+.message-content :deep(.font-weight-400) { font-weight: 400; }
+.message-content :deep(.font-weight-500) { font-weight: 500; }
+.message-content :deep(.font-weight-600) { font-weight: 600; }
+.message-content :deep(.font-weight-900) { font-weight: 900; }
 
 .basic-info-section {
     background: white;
