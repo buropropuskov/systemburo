@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>п.20 — DateRangeSection: размещение кнопок быстрых дат</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#4F5BDF;
+    --border:#e6e6e6;
+    --label:#a2a2a2;
+    --text:#333;
+    --radius-input:15px;
+    --radius-pill:50px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:#f4f5fa;
+    font-family:'Montserrat',sans-serif;
+    color:var(--text);
+    padding:48px 32px 80px;
+  }
+  .page-head{max-width:1080px;margin:0 auto 40px}
+  .page-head h1{font-size:24px;font-weight:800;color:#1a1a2e;margin:0 0 8px}
+  .page-head p{font-size:14px;color:#5a5a6e;line-height:1.5;margin:4px 0;max-width:760px}
+  .page-head code{background:#e8ebff;color:var(--primary);padding:1px 6px;border-radius:6px;font-size:12px}
+
+  .grid{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+  .card{
+    background:#fff;border-radius:24px;padding:28px 30px;
+    box-shadow:0 6px 24px rgba(20,22,60,.06);
+    border:1px solid #edeef5;
+  }
+  .card.problem{border:1px solid #ffd0d0;background:#fffafa}
+  .card.pick{border:1.5px solid var(--primary);box-shadow:0 8px 28px rgba(79,91,223,.16)}
+  .card-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 10px;border-radius:50px}
+  .tag.bad{background:#ffe3e3;color:#d23b3b}
+  .tag.rec{background:#e3e7ff;color:var(--primary)}
+  .tag.alt{background:#eef0f4;color:#6a6a7d}
+  .card h2{font-size:17px;font-weight:700;margin:0;color:#1a1a2e}
+  .card .desc{font-size:13px;color:#6a6a7d;margin:8px 0 22px;line-height:1.5}
+  .card .desc b{color:#333}
+
+  /* ===== реплика реальных стилей DateRangeSection ===== */
+  .date-range-section{display:flex;gap:30px;align-items:flex-start}
+  .date__input{display:flex;flex-direction:column;gap:5px;position:relative}
+  .input__label{font-size:13px;color:var(--label)}
+  .required{color:#ff4444}
+  .date-container{min-height:40px;display:flex;flex-direction:column;gap:5px;width:250px}
+  .date{display:flex;align-items:center;gap:5px;width:100%}
+  .input__date{
+    width:105px;height:40px;border:1px solid var(--border);outline:none;background:#fff;
+    border-radius:var(--radius-input);padding:5px 10px;font-family:inherit;font-size:13px;color:#888;
+  }
+  .date__text{color:var(--primary);font-weight:600;white-space:nowrap}
+  .time-wrapper{display:flex;gap:10px;align-items:center}
+  .time-input-group{display:flex;align-items:center;gap:5px}
+  .input__time{
+    width:65px;height:40px;border:1px solid var(--border);border-radius:var(--radius-input);
+    padding:5px 10px;font-family:inherit;font-size:13px;background:#fff;text-align:center;color:#888;
+  }
+  .quick-dates{display:flex;gap:6px;flex-wrap:wrap}
+  .quick-dates__btn{
+    height:24px;padding:0 10px;border-radius:var(--radius-pill);border:1px solid var(--border);
+    background:#fff;font-family:inherit;font-size:11px;color:var(--primary);font-weight:500;
+    cursor:pointer;white-space:nowrap;transition:background-color .2s,border-color .2s;
+  }
+  .quick-dates__btn:hover{background:#f2f2f2;border-color:#d6d6d6}
+  .quick-dates__btn.period{border-color:#cfd4ff;background:#f6f7ff}
+  .one-day{display:flex;gap:5px;align-items:center;margin-top:5px}
+  .one-day p{font-size:12px;margin:0}
+  .one-day input{width:13px;height:13px}
+
+  /* визуальная линейка для наглядности выравнивания инпутов */
+  .align-guide{position:relative}
+  .align-guide::before{
+    content:'';position:absolute;left:-14px;top:var(--guide-top,0);width:6px;height:40px;
+    border-radius:3px;background:repeating-linear-gradient(45deg,#9aa0ff,#9aa0ff 3px,transparent 3px,transparent 6px);
+    opacity:.0;
+  }
+
+  .note{margin-top:18px;font-size:12px;color:#8a8a9a;line-height:1.5;border-top:1px dashed #e3e3ec;padding-top:12px}
+  .note b{color:#555}
+
+  /* dropdown вариант */
+  .qd-dropdown{position:relative}
+  .qd-trigger{
+    height:28px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid #cfd4ff;background:#f6f7ff;
+    color:var(--primary);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;
+    align-items:center;gap:6px;
+  }
+  .qd-menu{
+    margin-top:8px;border:1px solid var(--border);border-radius:14px;background:#fff;padding:6px;
+    box-shadow:0 8px 24px rgba(0,0,0,.1);width:190px;display:flex;flex-direction:column;gap:2px;
+  }
+  .qd-menu button{
+    text-align:left;border:none;background:none;font-family:inherit;font-size:13px;color:#333;
+    padding:8px 10px;border-radius:9px;cursor:pointer;display:flex;justify-content:space-between;
+  }
+  .qd-menu button:hover{background:#eef0ff}
+  .qd-menu button span{color:#a2a2a2;font-size:11px}
+  .qd-sep{height:1px;background:#f0f0f4;margin:3px 6px}
+  .legend{font-size:11px;color:#a8a8b8;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>п.20 — Кнопки быстрых дат в «Оформление заявки» → DateRangeSection</h1>
+    <p><b>Проблема (твоё замечание):</b> кнопки строкой <b>над</b> инпутом даты сдвигают сам инпут вниз, и он перестаёт совпадать по высоте с полем «Время» рядом — «криво и всё сдвигает».</p>
+    <p><b>Зафиксировано по периодам:</b> <code>На &lt;текущий месяц&gt;</code> = сегодня → последний день месяца; <code>На &lt;следующий месяц&gt;</code> = 1-е → последнее число след. месяца. Катящаяся <code>На месяц</code> (30 дней) убирается. Лейбл секции сохраняется.</p>
+    <p>Ниже — текущее состояние и 3 варианта размещения. Поля даты и времени показаны рядом, чтобы было видно выравнивание. Даты на скрине: «сегодня» = 16.06.</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- ПРОБЛЕМА / СЕЙЧАС -->
+    <div class="card problem">
+      <div class="card-head"><span class="tag bad">Сейчас</span><h2>Кнопки строкой над инпутом</h2></div>
+      <div class="desc">Инпут «с … по …» уехал вниз на высоту ряда кнопок, поле «Время» рядом осталось вверху → рассинхрон по вертикали.</div>
+      <div class="date-range-section">
+        <div class="date__input">
+          <label class="input__label">Дата действия <span class="required">*</span></label>
+          <div class="quick-dates">
+            <button class="quick-dates__btn">Сегодня</button>
+            <button class="quick-dates__btn">Завтра</button>
+            <button class="quick-dates__btn">Послезавтра</button>
+            <button class="quick-dates__btn">На месяц</button>
+          </div>
+          <div class="date-container">
+            <div class="date">
+              <span class="date__text">с</span><input class="input__date" value="16.06.2026">
+              <span class="date__text">по</span><input class="input__date" value="30.06.2026">
+            </div>
+          </div>
+          <div class="one-day"><input type="checkbox"><p>однодневная заявка</p></div>
+        </div>
+        <div class="date__input">
+          <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+          <div class="time-wrapper">
+            <div class="time-input-group"><span class="date__text">с</span><input class="input__time" value="08:00"></div>
+            <div class="time-input-group"><span class="date__text">по</span><input class="input__time" value="18:00"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ВАРИАНТ B (рекомендуемый): кнопки ПОД инпутом, два под-ряда -->
+    <div class="card pick">
+      <div class="card-head"><span class="tag rec">Вариант B — рекомендую</span><h2>Кнопки под инпутом, две группы</h2></div>
+      <div class="desc">Инпут «с … по …» <b>сразу под лейблом</b> → по высоте совпадает с полем «Время». Кнопки уходят <b>вниз</b>, в свободное место, и разбиты на «однодневные» и «периоды» — ничего не разъезжается выше.</div>
+      <div class="date-range-section">
+        <div class="date__input">
+          <label class="input__label">Дата действия <span class="required">*</span></label>
+          <div class="date-container">
+            <div class="date">
+              <span class="date__text">с</span><input class="input__date" value="16.06.2026">
+              <span class="date__text">по</span><input class="input__date" value="30.06.2026">
+            </div>
+          </div>
+          <div class="quick-dates" style="margin-top:8px">
+            <button class="quick-dates__btn">Сегодня</button>
+            <button class="quick-dates__btn">Завтра</button>
+            <button class="quick-dates__btn">Послезавтра</button>
+          </div>
+          <div class="quick-dates" style="margin-top:6px">
+            <button class="quick-dates__btn period">На июнь</button>
+            <button class="quick-dates__btn period">На июль</button>
+          </div>
+          <div class="one-day"><input type="checkbox"><p>однодневная заявка</p></div>
+        </div>
+        <div class="date__input">
+          <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+          <div class="time-wrapper">
+            <div class="time-input-group"><span class="date__text">с</span><input class="input__time" value="08:00"></div>
+            <div class="time-input-group"><span class="date__text">по</span><input class="input__time" value="18:00"></div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Плюсы:</b> инпут даты выровнен с временем; кнопки сгруппированы (день/период) и не толкают поля. <b>Минус:</b> секция чуть выше вниз (там обычно пусто).</div>
+    </div>
+
+    <!-- ВАРИАНТ A: кнопки справа от инпутов -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вариант A</span><h2>Кнопки справа от инпутов даты</h2></div>
+      <div class="desc">Кнопки в один ряд <b>справа</b> от «с … по …», на той же высоте. Инпут не сдвигается. При узком экране кнопки переносятся под инпут (flex-wrap).</div>
+      <div class="date-range-section">
+        <div class="date__input">
+          <label class="input__label">Дата действия <span class="required">*</span></label>
+          <div class="date-container" style="width:auto">
+            <div class="date" style="flex-wrap:wrap">
+              <span class="date__text">с</span><input class="input__date" value="16.06.2026">
+              <span class="date__text">по</span><input class="input__date" value="30.06.2026">
+              <div class="quick-dates" style="margin-left:8px">
+                <button class="quick-dates__btn">Сегодня</button>
+                <button class="quick-dates__btn">Завтра</button>
+                <button class="quick-dates__btn">Послезавтра</button>
+                <button class="quick-dates__btn period">На июнь</button>
+                <button class="quick-dates__btn period">На июль</button>
+              </div>
+            </div>
+          </div>
+          <div class="one-day"><input type="checkbox"><p>однодневная заявка</p></div>
+        </div>
+        <div class="date__input">
+          <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+          <div class="time-wrapper">
+            <div class="time-input-group"><span class="date__text">с</span><input class="input__time" value="08:00"></div>
+            <div class="time-input-group"><span class="date__text">по</span><input class="input__time" value="18:00"></div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Плюсы:</b> компактно по высоте. <b>Минус:</b> 5 кнопок справа — длинно; на узких ширинах перенесутся и частично вернут «сдвиг».</div>
+    </div>
+
+    <!-- ВАРИАНТ C: компактный dropdown -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вариант C</span><h2>Компактный «Быстрый выбор ▾»</h2></div>
+      <div class="desc">Вместо ряда кнопок — одна компактная кнопка-дропдаун рядом с инпутом. <b>Нулевой</b> след по высоте, инпут идеально выровнен. Выбор периода — в выпадающем списке.</div>
+      <div class="date-range-section">
+        <div class="date__input">
+          <label class="input__label">Дата действия <span class="required">*</span></label>
+          <div class="date-container" style="width:auto">
+            <div class="date">
+              <span class="date__text">с</span><input class="input__date" value="16.06.2026">
+              <span class="date__text">по</span><input class="input__date" value="30.06.2026">
+              <div class="qd-dropdown" style="margin-left:8px">
+                <button class="qd-trigger">Быстрый выбор ▾</button>
+                <div class="qd-menu">
+                  <button>Сегодня <span>16.06</span></button>
+                  <button>Завтра <span>17.06</span></button>
+                  <button>Послезавтра <span>18.06</span></button>
+                  <div class="qd-sep"></div>
+                  <button>На июнь <span>16.06–30.06</span></button>
+                  <button>На июль <span>01.07–31.07</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="one-day"><input type="checkbox"><p>однодневная заявка</p></div>
+        </div>
+        <div class="date__input">
+          <label class="input__label">Время пребывания (проезда) <span class="required">*</span></label>
+          <div class="time-wrapper">
+            <div class="time-input-group"><span class="date__text">с</span><input class="input__time" value="08:00"></div>
+            <div class="time-input-group"><span class="date__text">по</span><input class="input__time" value="18:00"></div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Плюсы:</b> минимальный след, всё ровно, периоды с подсказкой дат. <b>Минус:</b> на один клик больше (раскрыть список), быстрые даты менее «на виду».</div>
+    </div>
+
+  </div>
+</body>
+</html>
