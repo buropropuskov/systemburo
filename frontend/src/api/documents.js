@@ -1,4 +1,4 @@
-import { apiRequest, apiRequestRaw } from './client';
+import { apiRequest } from './client';
 import { useAuthStore } from '@/stores/auth';
 
 /**
