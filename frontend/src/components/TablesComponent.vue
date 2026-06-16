@@ -130,7 +130,10 @@
             alt=""
           >
         </RouterLink>
-        <button class="options__export">
+        <button
+          class="options__export"
+          @click="handleExport"
+        >
           <img
             src="@/assets/icons/export.png"
             class="tables__icon"
@@ -150,6 +153,7 @@
       >
         <FactTable
           v-if="currentUserId"
+          ref="factTable"
           :table-type="tableType"
           :table-id="tableData?.table?.id"
           :table-data="tableData"
@@ -181,6 +185,7 @@
       <!-- Основная таблица - разные компоненты для разных типов -->
       <CarsTable
         v-if="tableType === 'cars' && currentUserId"
+        ref="carsTable"
         :table-name="tableSystemName"
         :table-id="tableData?.table?.id"
         :search-query="searchQuery"
@@ -198,6 +203,7 @@
 
       <PeopleTable
         v-if="tableType === 'people'"
+        ref="peopleTable"
         :table-name="tableSystemName"
         :search-query="searchQuery"
         :selected-organization-id="selectedOrganizationId"
@@ -222,6 +228,12 @@
       @close="closeApplicationDetail"
       @application-changed="handleApplicationChanged"
     />
+
+    <TableExportModal
+      :show="showExportModal"
+      @close="showExportModal = false"
+      @export="handleExportChoice"
+    />
   </div>
 </template>
 
@@ -235,6 +247,7 @@ import FactTable from './FactTable.vue';
 import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
+import TableExportModal from './TableExportModal.vue';
 
 export default {
     name: 'TablesComponent',
@@ -245,7 +258,8 @@ export default {
         FactTable,
         CarsTable,
         PeopleTable,
-        ApplicationDetail
+        ApplicationDetail,
+        TableExportModal,
     },
     emits: ['refresh-data'],
     data() {
@@ -272,7 +286,8 @@ export default {
             currentUserName: '',
 
             showApplicationDetail: false,
-            selectedApplication: null
+            selectedApplication: null,
+            showExportModal: false,
         };
     },
     computed: {
@@ -528,7 +543,36 @@ export default {
 
         handleApplicationChanged() {
             this.refreshData();
-        }
+        },
+
+        handleExport() {
+            if (this.showFactTable) {
+                // Показываем модалку выбора только когда есть факт-таблица
+                this.showExportModal = true;
+            } else {
+                // Только основная таблица — экспортируем сразу без диалога
+                this.exportMainTable();
+            }
+        },
+
+        async handleExportChoice(choice) {
+            if (choice === 'both' || choice === 'fact') {
+                const factRef = this.$refs.factTable;
+                if (factRef && typeof factRef.exportToExcel === 'function') {
+                    await factRef.exportToExcel();
+                }
+            }
+            if (choice === 'both' || choice === 'main') {
+                await this.exportMainTable();
+            }
+        },
+
+        async exportMainTable() {
+            const mainRef = this.$refs.carsTable || this.$refs.peopleTable;
+            if (mainRef && typeof mainRef.exportToExcel === 'function') {
+                await mainRef.exportToExcel();
+            }
+        },
     }
 }
 </script>

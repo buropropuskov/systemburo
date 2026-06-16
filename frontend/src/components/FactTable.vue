@@ -367,6 +367,7 @@ import RefreshButton from './RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
+import ExcelJS from 'exceljs';
 
 export default {
   name: 'FactTable',
@@ -879,7 +880,129 @@ export default {
         clearInterval(this.pollingInterval);
         this.pollingInterval = null;
       }
-    }
+    },
+
+    async exportToExcel() {
+      const rows = this.filteredData;
+      if (!rows.length) return;
+
+      const isCars = this.tableType === 'cars';
+      const workbook = new ExcelJS.Workbook();
+      const sheetName = isCars ? 'Fakt_Avtomobili' : 'Fakt_Lyudi';
+      const worksheet = workbook.addWorksheet(sheetName);
+
+      const headers = isCars
+        ? ['Въезд', 'Выезд', 'Номер Т/С', 'Марка', 'Организация', 'Компания', 'Дата до', 'Время', 'Статус']
+        : ['Въезд', 'Выезд', 'Фамилия', 'Имя', 'Отчество', 'Должность', 'Гражданство', 'Организация', 'Дата до', 'Время прохода', 'Статус'];
+
+      const headerRow = worksheet.addRow(headers);
+      headerRow.height = 25;
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
+        cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+        };
+      });
+
+      rows.forEach((item, index) => {
+        const rowData = isCars
+          ? [
+              item.entry_checked ? 'Да' : 'Нет',
+              item.exit_checked ? 'Да' : 'Нет',
+              item.car_number || '-',
+              item.car_brand || '-',
+              item.organization_name || '-',
+              item.company || '-',
+              this.formatDate(item.entry_date_to),
+              this.formatTimeRange(item.entry_time_from, item.entry_time_to),
+              item.status || '-',
+            ]
+          : [
+              item.entry_checked ? 'Да' : 'Нет',
+              item.exit_checked ? 'Да' : 'Нет',
+              item.last_name || '-',
+              item.first_name || '-',
+              item.middle_name || '-',
+              item.position || '-',
+              item.citizenshipName || item.citizenship_name || '-',
+              item.organization_name || '-',
+              this.formatDate(item.entry_date_to),
+              this.formatPassTime(item.pass_time),
+              item.status || '-',
+            ];
+
+        const row = worksheet.addRow(rowData);
+        row.height = 20;
+        const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF';
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+          cell.font = { name: 'Verdana', size: 9, color: { argb: 'FF333333' } };
+          cell.alignment = { vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          };
+        });
+      });
+
+      const colCount = headers.length;
+      const lastDataRow = rows.length;
+      for (let r = 1; r <= lastDataRow + 1; r++) {
+        const rc = worksheet.getCell(r, colCount);
+        rc.border = { ...rc.border, right: { style: 'medium', color: { argb: 'FF000000' } } };
+        const lc = worksheet.getCell(r, 1);
+        lc.border = { ...lc.border, left: { style: 'medium', color: { argb: 'FF000000' } } };
+      }
+      for (let c = 1; c <= colCount; c++) {
+        const tc = worksheet.getCell(1, c);
+        tc.border = { ...tc.border, top: { style: 'medium', color: { argb: 'FF000000' } } };
+        const bc = worksheet.getCell(lastDataRow + 1, c);
+        bc.border = { ...bc.border, bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+      }
+
+      worksheet.addRow([]);
+      const now = new Date();
+      const dateStr = now.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).replace(',', '');
+      const userDisplay = (this.currentUserName || '').trim() || 'Пользователь';
+      [
+        worksheet.addRow(['Отчёт сформировал:', userDisplay]),
+        worksheet.addRow(['Дата формирования:', dateStr]),
+      ].forEach(row => {
+        row.eachCell((cell) => {
+          cell.font = { name: 'Verdana', size: 10, color: { argb: 'FF333333' } };
+          cell.alignment = { vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          };
+        });
+      });
+
+      worksheet.columns = isCars
+        ? [{ width: 10 }, { width: 10 }, { width: 18 }, { width: 22 }, { width: 35 }, { width: 25 }, { width: 14 }, { width: 18 }, { width: 20 }]
+        : [{ width: 10 }, { width: 10 }, { width: 22 }, { width: 18 }, { width: 18 }, { width: 22 }, { width: 20 }, { width: 35 }, { width: 14 }, { width: 16 }, { width: 20 }];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.download = `${sheetName}_${dateStr.replace(/[.:,\s]/g, '-')}.xlsx`;
+      a.href = url;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    },
   }
 };
 </script>
