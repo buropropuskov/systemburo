@@ -83,6 +83,17 @@
           @change="handleOrganizationChange"
         />
 
+        <!-- Компания через тот же компонент (reuse OrganizationFilter) -->
+        <OrganizationFilter
+          v-if="showOrganizationFilter"
+          ref="companyFilter"
+          v-model="selectedCompanyId"
+          :organizations="companies"
+          all-label="Все компании"
+          placeholder-text="Компания"
+          @change="handleCompanyChange"
+        />
+
         <!-- Место разгрузки через компонент -->
         <UnloadingPlaceFilter
           v-if="showUnloadingFilter"
@@ -143,7 +154,8 @@
           :table-id="tableData?.table?.id"
           :table-data="tableData"
           :search-query="searchQuery"
-          :selected-organization="selectedOrganizationName"
+          :selected-organization-id="selectedOrganizationId"
+          :selected-company-id="selectedCompanyId"
           :selected-unloading-place="selectedUnloadingPlaceName"
           :date-range-start="dateRangeStart"
           :date-range-end="dateRangeEnd"
@@ -173,6 +185,7 @@
         :table-id="tableData?.table?.id"
         :search-query="searchQuery"
         :selected-organization-id="selectedOrganizationId"
+        :selected-company-id="selectedCompanyId"
         :selected-unloading-place-id="selectedUnloadingPlaceId"
         :date-range-start="dateRangeStart"
         :date-range-end="dateRangeEnd"
@@ -182,12 +195,13 @@
         @refresh-data="refreshData"
         @open-application="handleOpenApplication"
       />
-            
+
       <PeopleTable
         v-if="tableType === 'people'"
         :table-name="tableSystemName"
         :search-query="searchQuery"
         :selected-organization-id="selectedOrganizationId"
+        :selected-company-id="selectedCompanyId"
         :selected-unloading-place-id="selectedUnloadingPlaceId"
         :date-range-start="dateRangeStart"
         :date-range-end="dateRangeEnd"
@@ -241,11 +255,14 @@ export default {
             searchQuery: '',
             selectedOrganizationId: null,
             selectedOrganizationName: '',
+            selectedCompanyId: null,
+            selectedCompanyName: '',
             selectedUnloadingPlaceId: null,
             selectedUnloadingPlaceName: '',
 
             organizations: [],
-            
+            companies: [],
+
             showInstruction: false,
             selectedDate: null,
             dateRangeStart: null,
@@ -300,8 +317,9 @@ export default {
         },
         
         hasActiveFilters() {
-            return !!this.searchQuery.trim() || 
-                   !!this.selectedOrganizationId || 
+            return !!this.searchQuery.trim() ||
+                   !!this.selectedOrganizationId ||
+                   !!this.selectedCompanyId ||
                    !!this.selectedUnloadingPlaceId ||
                    !!this.selectedDate ||
                    (this.dateRangeStart && this.dateRangeEnd);
@@ -369,8 +387,9 @@ export default {
                     const data = await response.json();
                     console.log('Table data received:', data);
                     this.tableData = data;
-                    
+
                     await this.fetchOrganizationsForTable();
+                    await this.fetchCompaniesForTable();
                 } else {
                     console.error('Table not found');
                     this.$router.push('/404');
@@ -398,12 +417,34 @@ export default {
             }
         },
 
+        async fetchCompaniesForTable() {
+            try {
+                const response = await apiRequest("/companies", {
+                    method: "GET",
+                });
+
+                if (response.ok) {
+                    this.companies = await response.json();
+                } else {
+                    console.error("Ошибка при загрузке компаний");
+                }
+            } catch (error) {
+                console.error("Ошибка сети при загрузке компаний:", error);
+            }
+        },
+
         handleOrganizationChange({ id, name }) {
             this.selectedOrganizationId = id;
             this.selectedOrganizationName = name;
             this.applyFilters();
         },
-        
+
+        handleCompanyChange({ id, name }) {
+            this.selectedCompanyId = id;
+            this.selectedCompanyName = name;
+            this.applyFilters();
+        },
+
         handleUnloadingPlaceChange({ id, name }) {
             this.selectedUnloadingPlaceId = id;
             this.selectedUnloadingPlaceName = name;
@@ -451,7 +492,11 @@ export default {
             if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
                 this.$refs.organizationFilter.reset();
             }
-            
+
+            if (this.$refs.companyFilter && this.$refs.companyFilter.reset) {
+                this.$refs.companyFilter.reset();
+            }
+
             if (this.$refs.unloadingPlaceFilter && this.$refs.unloadingPlaceFilter.reset) {
                 this.$refs.unloadingPlaceFilter.reset();
             }

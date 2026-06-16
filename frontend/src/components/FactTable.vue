@@ -382,6 +382,7 @@ export default {
     tableData: { type: Object, default: null },
     searchQuery: { type: String, default: '' },
     selectedOrganizationId: { type: [Number, String], default: null },
+    selectedCompanyId: { type: [Number, String], default: null },
     selectedUnloadingPlaceId: { type: [Number, String], default: null },
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
@@ -431,6 +432,9 @@ export default {
       }
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
+      }
+      if (this.selectedCompanyId) {
+        filtered = filtered.filter(item => item.company_id == this.selectedCompanyId);
       }
       if (this.selectedUnloadingPlaceId && this.tableType === 'cars') {
         filtered = filtered.filter(item => {
@@ -495,6 +499,7 @@ export default {
       return !!(
         this.searchQuery ||
         this.selectedOrganizationId ||
+        this.selectedCompanyId ||
         (this.tableType === 'cars' && this.selectedUnloadingPlaceId) ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)

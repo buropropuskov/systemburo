@@ -42,15 +42,15 @@
           ref="listContainer"
           class="dropdown-list"
         >
-          <div 
+          <div
             class="dropdown-item"
             :class="{ 'dropdown-item--selected': !internalValue }"
-            @click="selectItem(null, 'Все организации')"
+            @click="selectItem(null, allLabel)"
           >
             <span
               class="item-text"
-              title="Все организации"
-            >Все организации</span>
+              :title="allLabel"
+            >{{ allLabel }}</span>
           </div>
                     
           <div 
@@ -90,6 +90,17 @@ export default {
         organizations: {
             type: Array,
             default: () => []
+        },
+        // Add-only пропсы, чтобы переиспользовать фильтр под другую сущность
+        // (например "Компания"), не плодя копию компонента. Дефолты сохраняют
+        // прежнее поведение фильтра организаций.
+        allLabel: {
+            type: String,
+            default: 'Все организации'
+        },
+        placeholderText: {
+            type: String,
+            default: 'Организация'
         }
     },
     emits: ['change', 'input'],
@@ -105,7 +116,7 @@ export default {
     computed: {
         displayText() {
             if (this.selectedName && this.selectedName.trim()) return this.selectedName;
-            return 'Организация';
+            return this.placeholderText;
         },
         
         filteredOrganizations() {
