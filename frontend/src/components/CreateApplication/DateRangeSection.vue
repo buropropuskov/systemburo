@@ -111,77 +111,6 @@
               @keydown.tab="onTabFromStart"
               @paste="preventNonNumericPaste"
             >
-            <transition name="calendar">
-              <div
-                v-if="showStartDatepicker"
-                class="datepicker"
-                @click.stop
-              >
-                <div class="datepicker__header">
-                  <button
-                    class="datepicker__nav"
-                    tabindex="-1"
-                    @click="prevMonth"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <path
-                        d="M15 18L9 12L15 6"
-                        stroke="#4F5BDF"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                  <button
-                    class="datepicker__nav"
-                    tabindex="-1"
-                    @click="nextMonth"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <path
-                        d="M9 18L15 12L9 6"
-                        stroke="#4F5BDF"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <div class="datepicker__weekdays">
-                  <div
-                    v-for="day in weekdays"
-                    :key="day"
-                    class="datepicker__weekday"
-                  >
-                    {{ day }}
-                  </div>
-                </div>
-                <div class="datepicker__days">
-                  <div
-                    v-for="day in calendarDays"
-                    :key="day.date"
-                    class="datepicker__day"
-                    :class="getDayClass(day, startDate)"
-                    @click="selectStartDate(day)"
-                  >
-                    {{ day.day }}
-                  </div>
-                </div>
-              </div>
-            </transition>
           </div>
           <p class="date__text">
             по
@@ -200,77 +129,6 @@
               @keydown="preventNonNumeric"
               @paste="preventNonNumericPaste"
             >
-            <transition name="calendar">
-              <div
-                v-if="showEndDatepicker"
-                class="datepicker"
-                @click.stop
-              >
-                <div class="datepicker__header">
-                  <button
-                    class="datepicker__nav"
-                    tabindex="-1"
-                    @click="prevMonth"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <path
-                        d="M15 18L9 12L15 6"
-                        stroke="#4F5BDF"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                  <button
-                    class="datepicker__nav"
-                    tabindex="-1"
-                    @click="nextMonth"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <path
-                        d="M9 18L15 12L9 6"
-                        stroke="#4F5BDF"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <div class="datepicker__weekdays">
-                  <div
-                    v-for="day in weekdays"
-                    :key="day"
-                    class="datepicker__weekday"
-                  >
-                    {{ day }}
-                  </div>
-                </div>
-                <div class="datepicker__days">
-                  <div
-                    v-for="day in calendarDays"
-                    :key="day.date"
-                    class="datepicker__day"
-                    :class="getDayClass(day, endDate)"
-                    @click="selectEndDate(day)"
-                  >
-                    {{ day.day }}
-                  </div>
-                </div>
-              </div>
-            </transition>
           </div>
         </div>
         <div
@@ -291,77 +149,6 @@
               @keydown="preventNonNumeric"
               @paste="preventNonNumericPaste"
             >
-            <transition name="calendar">
-              <div
-                v-if="showSingleDatepicker"
-                class="datepicker"
-                @click.stop
-              >
-                <div class="datepicker__header">
-                  <button
-                    class="datepicker__nav"
-                    tabindex="-1"
-                    @click="prevMonth"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <path
-                        d="M15 18L9 12L15 6"
-                        stroke="#4F5BDF"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
-                  <button
-                    class="datepicker__nav"
-                    tabindex="-1"
-                    @click="nextMonth"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <path
-                        d="M9 18L15 12L9 6"
-                        stroke="#4F5BDF"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <div class="datepicker__weekdays">
-                  <div
-                    v-for="day in weekdays"
-                    :key="day"
-                    class="datepicker__weekday"
-                  >
-                    {{ day }}
-                  </div>
-                </div>
-                <div class="datepicker__days">
-                  <div
-                    v-for="day in calendarDays"
-                    :key="day.date"
-                    class="datepicker__day"
-                    :class="getDayClass(day, singleDate)"
-                    @click="selectSingleDate(day)"
-                  >
-                    {{ day.day }}
-                  </div>
-                </div>
-              </div>
-            </transition>
           </div>
         </div>
         <div
@@ -370,6 +157,80 @@
         >
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
+        <Teleport to="body">
+          <transition name="calendar">
+            <div
+              v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
+              class="datepicker"
+              :style="datepickerStyle"
+              @click.stop
+            >
+              <div class="datepicker__header">
+                <button
+                  class="datepicker__nav"
+                  tabindex="-1"
+                  @click="prevMonth"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M15 18L9 12L15 6"
+                      stroke="#4F5BDF"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <span class="datepicker__month">{{ currentMonth }} {{ currentYear }}</span>
+                <button
+                  class="datepicker__nav"
+                  tabindex="-1"
+                  @click="nextMonth"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M9 18L15 12L9 6"
+                      stroke="#4F5BDF"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div class="datepicker__weekdays">
+                <div
+                  v-for="day in weekdays"
+                  :key="day"
+                  class="datepicker__weekday"
+                >
+                  {{ day }}
+                </div>
+              </div>
+              <div class="datepicker__days">
+                <div
+                  v-for="day in calendarDays"
+                  :key="day.date"
+                  class="datepicker__day"
+                  :class="getDayClass(day, activeDateValue)"
+                  @click="selectActiveDate(day)"
+                >
+                  {{ day.day }}
+                </div>
+              </div>
+            </div>
+          </transition>
+        </Teleport>
       </div>
       <div class="one-day">
         <input
@@ -519,7 +380,8 @@ export default {
             weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
             internalToggle: false,
             showQuickMenu: false,
-            qdMenuStyle: {}
+            qdMenuStyle: {},
+            datepickerStyle: {}
         }
     },
     computed: {
@@ -556,6 +418,12 @@ export default {
                 nextMonthLabel: 'На ' + months[nextMonthStart.getMonth()],
                 nextMonthRange: `${this.formatDate(nextMonthStart)} - ${this.formatDate(nextMonthEnd)}`
             };
+        },
+        activeDateValue() {
+            if (this.showStartDatepicker) return this.startDate;
+            if (this.showEndDatepicker) return this.endDate;
+            if (this.showSingleDatepicker) return this.singleDate;
+            return '';
         },
         calendarDays() {
             const year = this.currentDate.getFullYear();
@@ -624,7 +492,10 @@ export default {
     },
     mounted() {
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.datepicker-wrapper')) {
+            // Календарь телепортирован в body (вне .datepicker-wrapper) и имеет @click.stop,
+            // поэтому клики внутри него не всплывают сюда - дополнительное исключение не нужно.
+            // Но если клик всё же дошёл и попал в .datepicker - не закрываем.
+            if (!e.target.closest('.datepicker-wrapper') && !e.target.closest('.datepicker')) {
                 this.closeDatepicker();
             }
             // Меню "Быстрый выбор" телепортится в body, поэтому исключаем и .qd-menu.
@@ -667,6 +538,10 @@ export default {
         },
         closeQuickMenuOnScroll() {
             if (this.showQuickMenu) this.showQuickMenu = false;
+            // Календарь тоже fixed - при скролле позиция отрывается от инпута, закрываем.
+            if (this.showStartDatepicker || this.showEndDatepicker || this.showSingleDatepicker) {
+                this.closeDatepicker();
+            }
         },
         setQuickDate(kind) {
             const today = new Date();
@@ -1077,6 +952,19 @@ export default {
             // Взаимоисключение: открытый календарь закрывает "Быстрый выбор".
             this.showQuickMenu = false;
 
+            // Позиционирование телепортнутого календаря от инпута (аналог qdMenuStyle).
+            const refByType = { start: 'startDateInput', end: 'endDateInput', single: 'singleDateInput' };
+            const input = this.$refs[refByType[type]];
+            if (input) {
+                const r = input.getBoundingClientRect();
+                this.datepickerStyle = {
+                    position: 'fixed',
+                    top: `${Math.round(r.bottom + 8)}px`,
+                    left: `${Math.round(r.left)}px`,
+                    zIndex: 12000
+                };
+            }
+
             if (type === 'start') {
                 this.showStartDatepicker = true;
                 const parsed = this.parseDate(this.startDate);
@@ -1096,6 +984,12 @@ export default {
             this.showStartDatepicker = false;
             this.showEndDatepicker = false;
             this.showSingleDatepicker = false;
+        },
+
+        selectActiveDate(day) {
+            if (this.showStartDatepicker) this.selectStartDate(day);
+            else if (this.showEndDatepicker) this.selectEndDate(day);
+            else if (this.showSingleDatepicker) this.selectSingleDate(day);
         },
 
         selectStartDate(day) {
@@ -1394,9 +1288,7 @@ export default {
 }
 
 .datepicker {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
+    /* Позиционирование через datepickerStyle (position:fixed + координаты от инпута). */
     background: white;
     border-radius: 16px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
