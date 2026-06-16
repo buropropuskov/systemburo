@@ -319,7 +319,7 @@
                 </div>
                 <div class="application-col tags-col">
                   <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking"
+                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important"
                     class="application-tags"
                     :class="{
                       'application-tags--both': application.has_roof_access && application.has_free_parking,
@@ -374,6 +374,15 @@
                         stroke-linejoin="round"
                       ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
                       <span class="rt-tag__text">Парковка</span>
+                    </Badge>
+                    <Badge
+                      v-if="application.sender_is_important"
+                      variant="info"
+                      size="sm"
+                      class="rt-tag rt-tag--important tag-hint"
+                      data-hint="Важный пользователь"
+                    >
+                      <span class="rt-tag__text">Важный</span>
                     </Badge>
                   </div>
                 </div>

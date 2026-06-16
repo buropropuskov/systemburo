@@ -146,7 +146,7 @@ func (s *userService) GetAll(ctx context.Context, callerTypeID int, includeArchi
 	result := make([]models.UserInfoResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("users u").
-		Select(`u.id, u.username, u.is_active, u.is_banned, u.is_super_admin,
+		Select(`u.id, u.username, u.is_active, u.is_banned, u.is_super_admin, u.is_important,
 			o.name as organization, u.organization_id,
 			c.name as company, u.company_id,
 			u.type_id, ut.name as user_type, u.role_id,
@@ -308,30 +308,36 @@ func (s *userService) UpdateInfo(ctx context.Context, callerTypeID, callerUserID
 	// Снимок старых значений до апдейта - чтобы в историю писать дифф "старое -> новое"
 	// и только по реально изменившимся полям (фронт шлёт все поля каждый раз).
 	var prev struct {
-		LastName   string
-		FirstName  string
-		MiddleName string
-		Position   string
-		Email      string
-		Phone      string
+		LastName    string
+		FirstName   string
+		MiddleName  string
+		Position    string
+		Email       string
+		Phone       string
+		IsImportant bool
 	}
 	s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
-		Select("last_name", "first_name", "middle_name", "position", "email", "phone").
+		Select("last_name", "first_name", "middle_name", "position", "email", "phone", "is_important").
 		Scan(&prev)
+
+	updates := map[string]interface{}{
+		"last_name":   req.LastName,
+		"first_name":  req.FirstName,
+		"middle_name": req.MiddleName,
+		"position":    req.Position,
+		"email":       req.Email,
+		"phone":       req.Phone,
+	}
+	if req.IsImportant != nil {
+		updates["is_important"] = *req.IsImportant
+	}
 
 	if err := s.db.WithContext(ctx).
 		Table("users").
 		Where("username = ?", username).
-		Updates(map[string]interface{}{
-			"last_name":   req.LastName,
-			"first_name":  req.FirstName,
-			"middle_name": req.MiddleName,
-			"position":    req.Position,
-			"email":       req.Email,
-			"phone":       req.Phone,
-		}).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating user info")
 	}
 
@@ -349,6 +355,9 @@ func (s *userService) UpdateInfo(ctx context.Context, callerTypeID, callerUserID
 		diff("position", req.Position, prev.Position)
 		diff("email", req.Email, prev.Email)
 		diff("phone", req.Phone, prev.Phone)
+		if req.IsImportant != nil && *req.IsImportant != prev.IsImportant {
+			details["is_important"] = map[string]any{"old": prev.IsImportant, "new": *req.IsImportant}
+		}
 		if len(details) > 0 {
 			s.history.Log(ctx, id, &callerUserID, models.UserActionUpdated, details)
 		}

@@ -292,6 +292,7 @@ type ApplicationWithDetails struct {
 	SenderUserID         int        `json:"sender_user_id"`
 	SenderFullName       *string    `json:"sender_full_name"`
 	SenderName           string     `json:"sender_name"`
+	SenderIsImportant    bool       `json:"sender_is_important"`
 	Message              *string    `json:"message"`
 	Status               string     `json:"status"`
 	ResponsibleUserID    *int       `json:"responsible_user_id"`
@@ -533,6 +534,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 			c.name as company_name,
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			u.is_important as sender_is_important,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
 			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
@@ -600,6 +602,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 			c.name as company_name,
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			u.is_important as sender_is_important,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
 			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
@@ -635,6 +638,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 			c.name as company_name,
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			u.is_important as sender_is_important,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
 			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
@@ -684,6 +688,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		CompanyName         *string `gorm:"column:company_name"`
 		SenderFullName      *string `gorm:"column:sender_full_name"`
 		SenderName          *string `gorm:"column:sender_name"`
+		SenderIsImportant   bool    `gorm:"column:sender_is_important"`
 		ResponsibleFullName *string `gorm:"column:responsible_full_name"`
 		ResponsibleName     *string `gorm:"column:responsible_name"`
 	}
@@ -695,6 +700,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 			c.name as company_name,
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			u.is_important as sender_is_important,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
@@ -768,6 +774,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		"sender_user_id":        row.SenderUserID,
 		"sender_full_name":      row.SenderFullName,
 		"sender_name":           senderName,
+		"sender_is_important":   row.SenderIsImportant,
 		"message":               row.Message,
 		"status":                row.Status,
 		"responsible_user_id":   row.ResponsibleUserID,
@@ -789,6 +796,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		CompanyName         *string `gorm:"column:company_name"`
 		SenderFullName      *string `gorm:"column:sender_full_name"`
 		SenderName          *string `gorm:"column:sender_name"`
+		SenderIsImportant   bool    `gorm:"column:sender_is_important"`
 		ResponsibleFullName *string `gorm:"column:responsible_full_name"`
 		ResponsibleName     *string `gorm:"column:responsible_name"`
 	}
@@ -800,6 +808,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 			c.name as company_name,
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+			u.is_important as sender_is_important,
 			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
 			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name
 		`).
@@ -858,6 +867,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"sender_user_id":        row.SenderUserID,
 		"sender_full_name":      row.SenderFullName,
 		"sender_name":           senderName,
+		"sender_is_important":   row.SenderIsImportant,
 		"message":               row.Message,
 		"status":                row.Status,
 		"responsible_user_id":   row.ResponsibleUserID,

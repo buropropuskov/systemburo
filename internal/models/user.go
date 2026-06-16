@@ -17,6 +17,7 @@ type User struct {
 	IsSuperAdmin     bool         `gorm:"default:false;index" json:"is_super_admin"`
 	IsActive         bool         `gorm:"default:true;index" json:"is_active"`
 	IsBanned         bool         `gorm:"default:false;index" json:"is_banned"`
+	IsImportant      bool         `gorm:"default:false" json:"is_important"`
 	BannedAt         *time.Time   `json:"banned_at,omitempty"`
 	BannedBy         *int         `json:"banned_by,omitempty"`
 	LastName         *string      `gorm:"size:100" json:"last_name"`
@@ -65,6 +66,7 @@ type UserInfoResponse struct {
 	IsActive       bool    `json:"is_active"`
 	IsBanned       bool    `json:"is_banned"`
 	IsSuperAdmin   bool    `json:"is_super_admin"`
+	IsImportant    bool    `json:"is_important"`
 	Organization   *string `json:"organization"`
 	OrganizationID *int    `json:"organization_id"`
 	Company        *string `json:"company"`
@@ -92,12 +94,13 @@ type UpdatePasswordRequest struct {
 
 // UpdateUserInfoRequest — запрос на обновление персональных данных пользователя.
 type UpdateUserInfoRequest struct {
-	LastName   *string `json:"last_name"`
-	FirstName  *string `json:"first_name"`
-	MiddleName *string `json:"middle_name"`
-	Position   *string `json:"position"`
-	Email      *string `json:"email"`
-	Phone      *string `json:"phone"`
+	LastName    *string `json:"last_name"`
+	FirstName   *string `json:"first_name"`
+	MiddleName  *string `json:"middle_name"`
+	Position    *string `json:"position"`
+	Email       *string `json:"email"`
+	Phone       *string `json:"phone"`
+	IsImportant *bool   `json:"is_important"`
 }
 
 // UpdateUserOrganizationRequest — запрос на обновление организации пользователя.
