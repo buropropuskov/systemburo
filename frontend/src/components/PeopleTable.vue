@@ -522,6 +522,10 @@ export default {
       type: [Number, String],
       default: null
     },
+    selectedCompanyId: {
+      type: [Number, String],
+      default: null
+    },
     selectedUnloadingPlace: {
       type: String,
       default: ''
@@ -610,6 +614,10 @@ export default {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
       }
 
+      if (this.selectedCompanyId) {
+        filtered = filtered.filter(item => item.company_id == this.selectedCompanyId);
+      }
+
       if (this.selectedDate) {
         const selectedDateStr = this.selectedDate.toISOString().split('T')[0];
         filtered = filtered.filter(item => item.entry_date_to === selectedDateStr);
@@ -671,6 +679,7 @@ export default {
       return !!(
         this.searchQuery ||
         this.selectedOrganizationId ||
+        this.selectedCompanyId ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)
       );
