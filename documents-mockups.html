@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>п.39 — Управление документами + блок «Документы» на «Обзор и новости»</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#4F5BDF;
+    --primary-dk:#3a45c0;
+    --border:#e6e6e6;
+    --label:#a2a2a2;
+    --text:#333;
+    --radius-input:15px;
+    --radius-md:15px;
+    --radius-pill:50px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:#f4f5fa;font-family:'Montserrat',sans-serif;color:var(--text);
+    padding:0 0 100px;
+  }
+  /* ---------- верхняя навигация по сценам ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;background:rgba(244,245,250,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid #e6e8f2;padding:14px 32px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  }
+  .topbar .brand{font-weight:800;font-size:14px;color:#1a1a2e;margin-right:14px}
+  .tab-btn{
+    border:1px solid var(--border);background:#fff;border-radius:var(--radius-pill);padding:7px 16px;
+    font-family:inherit;font-size:12.5px;font-weight:600;color:#6a6a7d;cursor:pointer;transition:all .18s;
+  }
+  .tab-btn:hover{border-color:#cfd4ff;color:var(--primary)}
+  .tab-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+
+  .page-head{max-width:1180px;margin:36px auto 30px;padding:0 32px}
+  .page-head h1{font-size:23px;font-weight:800;color:#1a1a2e;margin:0 0 10px}
+  .page-head p{font-size:13.5px;color:#5a5a6e;line-height:1.55;margin:5px 0;max-width:880px}
+  .page-head code{background:#e8ebff;color:var(--primary);padding:1px 6px;border-radius:6px;font-size:12px}
+
+  .scene{display:none}
+  .scene.active{display:block}
+
+  .grid{max-width:1180px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column;gap:30px}
+  .card{
+    background:#fff;border-radius:24px;padding:26px 28px;
+    box-shadow:0 6px 24px rgba(20,22,60,.06);border:1px solid #edeef5;
+  }
+  .card.pick{border:1.5px solid var(--primary);box-shadow:0 8px 28px rgba(79,91,223,.16)}
+  .card-head{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+  .tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 10px;border-radius:50px}
+  .tag.rec{background:#e3e7ff;color:var(--primary)}
+  .tag.alt{background:#eef0f4;color:#6a6a7d}
+  .tag.modal{background:#fff0e3;color:#c4651a}
+  .card h2{font-size:16.5px;font-weight:700;margin:0;color:#1a1a2e}
+  .card .desc{font-size:12.5px;color:#6a6a7d;margin:8px 0 20px;line-height:1.5}
+  .card .desc b{color:#333}
+  .note{margin-top:18px;font-size:12px;color:#8a8a9a;line-height:1.55;border-top:1px dashed #e3e3ec;padding-top:12px}
+  .note b{color:#555}
+
+  /* ===================== общие элементы ===================== */
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 16px;border-radius:var(--radius-pill);
+    font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:1px solid;transition:all .18s;white-space:nowrap;
+  }
+  .pill.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .pill.primary:hover{background:var(--primary-dk)}
+  .pill.ghost{background:#fff;border-color:var(--border);color:#666}
+  .pill.ghost:hover{border-color:#cfd4ff;color:var(--primary)}
+  .pill.danger{background:#fff;border-color:#f3c2c2;color:#d23b3b}
+  .pill.danger:hover{background:#fff5f5}
+
+  /* кнопка «Скачать» как в Центре заявок */
+  .dl-btn{
+    display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-radius:var(--radius-pill);
+    border:1px solid #cfd4ff;background:#f6f7ff;color:var(--primary);font-weight:600;font-size:12px;
+    font-family:inherit;cursor:pointer;transition:all .18s;
+  }
+  .dl-btn:hover{background:#eef0ff;border-color:var(--primary)}
+
+  .group-tabs{display:flex;gap:7px;flex-wrap:wrap}
+  .group-tab{
+    height:26px;padding:0 13px;border-radius:var(--radius-pill);border:1px solid var(--border);background:#fff;
+    font-family:inherit;font-size:11.5px;font-weight:600;color:#6a6a7d;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  }
+  .group-tab .cnt{font-size:10px;color:#b3b3c2}
+  .group-tab.active{background:#f0f4ff;border-color:#cfd4ff;color:var(--primary)}
+  .group-tab.active .cnt{color:var(--primary)}
+
+  .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:12px}
+  .badge.hidden{background:#f0f0f4;color:#8a8a9a}
+  .badge.group{background:#eef0ff;color:var(--primary)}
+  .badge.new{background:#e6f7ec;color:#1d7044}
+
+  /* ===================== file icons ===================== */
+  .icon-row{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end}
+  .icon-cell{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .icon-cell .lbl{font-size:11px;color:#8a8a9a;font-weight:600}
+
+  /* строка документа на /news */
+  .doc-row{
+    display:flex;align-items:center;gap:13px;padding:10px 12px;border-radius:16px;border:1px solid transparent;transition:all .18s;
+  }
+  .doc-row:hover{background:#fafbff;border-color:#eceefb}
+  .doc-row .ic{flex-shrink:0;cursor:pointer}
+  .doc-main{flex:1;min-width:0;cursor:pointer}
+  .doc-name{font-size:13.5px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doc-name:hover{color:var(--primary)}
+  .doc-desc{font-size:11px;color:var(--label);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ===================== «Обзор и новости» макет ===================== */
+  .news-wrap{display:flex;gap:18px;align-items:flex-start;background:linear-gradient(135deg,#f8f9ff,#fff);padding:18px;border-radius:24px;border:1px solid #eef0f8}
+  .news-left{flex:1;background:#fff;border:1px solid var(--border);border-radius:24px;min-height:300px;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.04)}
+  .news-left .nl-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+  .news-left .nl-head h3{margin:0;font-size:15px;font-weight:700;color:#1a1a1a}
+  .news-stub{padding:16px 18px;color:#c2c2cf;font-size:12px}
+  .news-stub .row{height:54px;border-bottom:1px solid #f3f3f8;display:flex;flex-direction:column;justify-content:center;gap:6px}
+  .news-stub .bar{height:8px;border-radius:4px;background:#eef0f6}
+  .news-right{width:430px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+
+  .guide-card{
+    background:#fff;border:1px solid var(--border);border-radius:22px;padding:18px;height:120px;display:flex;gap:14px;align-items:flex-start;
+  }
+  .guide-ic{width:42px;height:42px;border-radius:12px;background:#eef0ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--primary);font-size:22px}
+  .guide-card h4{margin:0 0 8px;font-size:17px;font-weight:700;color:#1a1a1a;line-height:1.2}
+  .guide-card h4 span{color:var(--primary)}
+  .guide-card p{margin:0;font-size:11px;color:var(--label);line-height:1.4}
+
+  /* блок «Документы» */
+  .docs-block{background:#fff;border:1px solid var(--border);border-radius:22px;overflow:hidden}
+  .docs-block .db-head{display:flex;justify-content:space-between;align-items:center;padding:13px 16px 11px;gap:10px}
+  .docs-block .db-head .ttl{font-size:14px;font-weight:700;color:#1a1a1a;display:flex;align-items:center;gap:8px}
+  .docs-block .db-nav{padding:0 12px 10px;border-bottom:1px solid var(--border)}
+  .docs-block .db-list{padding:6px;max-height:188px;overflow-y:auto}
+  .docs-block .db-list.tall{max-height:300px}
+  .docs-block .db-list::-webkit-scrollbar{width:5px}
+  .docs-block .db-list::-webkit-scrollbar-thumb{background:#D9E2FF;border-radius:4px}
+  .empty{padding:30px;text-align:center;color:#b9b9c6;font-size:12px}
+
+  /* grid-вариант карточек */
+  .docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}
+  .doc-card{border:1px solid var(--border);border-radius:14px;padding:10px;display:flex;gap:10px;align-items:center}
+  .doc-card .ic{flex-shrink:0}
+  .doc-card .nm{font-size:12px;font-weight:600;color:#1a1a2e;line-height:1.25}
+  .doc-card .ds{font-size:10px;color:var(--label);margin-top:2px}
+
+  /* аккордеон-вариант */
+  .acc-group{border-bottom:1px solid #f2f2f7}
+  .acc-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;font-size:12.5px;font-weight:600;color:#333}
+  .acc-head .chev{margin-left:auto;color:#b3b3c2;transition:transform .2s}
+  .acc-head.open .chev{transform:rotate(90deg)}
+
+  /* ===================== Админка «Документы» (эталон master-detail) ===================== */
+  .admin{border:1px solid var(--border);border-radius:24px;overflow:hidden;background:#fff}
+  .admin .a-head{display:flex;justify-content:space-between;align-items:center;padding:0 20px;height:54px;border-bottom:1px solid var(--border)}
+  .admin .a-head h3{margin:0;font-size:16px;font-weight:700;color:#1a1a1a}
+  .admin .a-toolbar{display:flex;gap:8px;align-items:center}
+  .a-body{display:flex;min-height:340px}
+  .a-list{width:46%;border-right:1px solid var(--border);display:flex;flex-direction:column}
+  .a-list .lst-top{display:flex;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid #f2f2f7}
+  .a-list .search{flex:1;height:32px;border:1px solid var(--border);border-radius:var(--radius-md);padding:0 12px;font-family:inherit;font-size:12px;color:#888}
+  .a-rows{flex:1;overflow-y:auto;padding:8px}
+  .a-row{display:flex;align-items:center;gap:11px;padding:10px;border-radius:14px;cursor:pointer;border:1px solid transparent}
+  .a-row:hover{background:#fafbff}
+  .a-row.sel{background:#f0f4ff;border-color:#cfd4ff}
+  .a-row .drag{color:#cdd0e0;font-size:14px;cursor:grab}
+  .a-row .rmain{flex:1;min-width:0}
+  .a-row .rname{font-size:13px;font-weight:600;color:#1a1a2e;display:flex;align-items:center;gap:7px}
+  .a-row .rmeta{font-size:10.5px;color:var(--label);margin-top:3px}
+  .a-foot{padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:#8a8a9a;background:#fafbfd}
+  .a-detail{flex:1;padding:22px 24px}
+  .a-detail .d-prev{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .a-detail .d-prev .pn{font-size:15px;font-weight:700;color:#1a1a2e}
+  .a-detail .d-prev .pm{font-size:11px;color:var(--label);margin-top:3px}
+  .fld{margin-bottom:14px}
+  .fld label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:6px}
+  .fld input,.fld textarea,.fld select{
+    width:100%;border:1px solid var(--border);border-radius:var(--radius-md);padding:9px 12px;font-family:inherit;font-size:12.5px;color:#333;background:#fff;
+  }
+  .fld textarea{resize:vertical;min-height:54px}
+  .switch-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid #f2f2f7}
+  .switch-row .sl{font-size:12.5px;font-weight:600;color:#444}
+  .switch-row .sd{font-size:10.5px;color:var(--label);margin-top:2px}
+  .toggle{width:42px;height:24px;border-radius:50px;background:var(--primary);position:relative;flex-shrink:0;cursor:pointer}
+  .toggle.off{background:#d4d7e3}
+  .toggle::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:21px;transition:left .18s}
+  .toggle.off::after{left:3px}
+  .d-actions{display:flex;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid #f2f2f7}
+
+  /* dropzone */
+  .dropzone{border:2px dashed #cfd4ff;border-radius:16px;background:#f8f9ff;padding:26px;text-align:center;color:#8a8fb5;font-size:12.5px}
+  .dropzone b{color:var(--primary)}
+  .dropzone .hint{font-size:11px;color:#b3b6cf;margin-top:6px}
+
+  /* модалки */
+  .modal-demo{display:flex;justify-content:center;padding:8px 0}
+  .modal{width:480px;max-width:100%;background:#fff;border-radius:28px;box-shadow:0 20px 60px rgba(20,22,60,.18);overflow:hidden;border:1px solid #edeef5}
+  .modal .m-head{display:flex;justify-content:space-between;align-items:center;padding:20px 24px 0}
+  .modal .m-head h3{margin:0;font-size:16px;font-weight:700;color:#1a1a2e}
+  .modal .m-head .x{color:#b3b3c2;cursor:pointer;font-size:18px;line-height:1}
+  .modal .m-body{padding:18px 24px}
+  .modal .m-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 24px 22px}
+
+  /* чипсы выбора документов в группу */
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--border);border-radius:50px;font-size:11.5px;color:#555;cursor:pointer}
+  .chip.on{background:#f0f4ff;border-color:#cfd4ff;color:var(--primary)}
+  .chip .ck{width:14px;height:14px;border-radius:4px;border:1.5px solid #cfd0e0;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff}
+  .chip.on .ck{background:var(--primary);border-color:var(--primary)}
+
+  /* список групп в управлении */
+  .grp-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:14px;margin-bottom:8px}
+  .grp-row .gn{font-size:12.5px;font-weight:600;color:#1a1a2e}
+  .grp-row .gc{font-size:10.5px;color:var(--label);margin-top:2px}
+  .grp-row .drag{color:#cdd0e0;cursor:grab}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">п.39 · Документы</span>
+  <button class="tab-btn active" data-scene="s-intro">Обзор ТЗ</button>
+  <button class="tab-btn" data-scene="s-icons">SVG-иконки</button>
+  <button class="tab-btn" data-scene="s-news">Блок на «Обзор и новости»</button>
+  <button class="tab-btn" data-scene="s-admin">Админка «Документы»</button>
+  <button class="tab-btn" data-scene="s-modals">Модалки (загрузка / группы)</button>
+</div>
+
+<!-- ============================================================ ОБЗОР ТЗ -->
+<section class="scene active" id="s-intro">
+  <div class="page-head">
+    <h1>п.39 — «Управление документами» → блок «Документы» на «Обзор и новости»</h1>
+    <p><b>Суть.</b> В админ-панели раздел <code>/admin/documents</code>: список документов, загрузка (<code>doc, docx, pdf, xlsx, pptx</code>), удаление, скрытие. У документа — <b>наименование</b> (видно на сайте) и <b>описание</b> (мелкий серый текст). Документы объединяются в <b>группы</b> («Бланки заявок», «Правила КПР», «Информация» …).</p>
+    <p><b>На <code>/news</code></b> под кнопкой «Руководство пользования…» — блок <b>«Документы»</b>: навигационная шапка групп, ниже список не-скрытых документов. У строки: слева кастомная <b>SVG-иконка расширения</b>, имя + описание, справа кнопка <b>«Скачать»</b>. Клик по иконке / имени / кнопке — всё качает файл. Блок невысокий — примерно как 3 карточки-гайда.</p>
+    <p><b>Доступ.</b> Управляет суперадмин или у кого есть доступ к <code>Администрирование → Документы</code>. На <code>/news</code> блок видят все авторизованные.</p>
+    <p style="margin-top:14px"><b>Открытые вопросы (нужен твой выбор):</b></p>
+    <p>1. Ты отметил <b>«Дата/период актуальности»</b> и <b>«Версионирование»</b>, но в описании их нет. Предлагаю: дату публикации — оставить (для сортировки), <b>версионирование — отложить в v2</b> (отдельная подсистема истории файлов, сильно усложняет). В мокапе показал оба как опциональные.</p>
+    <p>2. «Скрыть» — это soft-hide (флаг <code>is_visible</code>), документ остаётся в админке. Нужен ли ещё отдельный «Архив» по эталону (как у справочников)? Пока сделал «Скрыт/Показан» + «Удалить».</p>
+    <p>3. Документ без группы — показывать во вкладке «Все» / в «Прочее»? В мокапе вкладка «Все» показывает всё.</p>
+    <p>4. Лимит размера файла и проверка реального MIME (не только расширения) — для безопасности скачиваемых файлов. Предлагаю лимит ~20 МБ.</p>
+    <p style="margin-top:12px;color:#8a8fb5">Ниже — варианты. Отметь, что нравится по каждой сцене (можно «вид A для блока + вид C для админки»).</p>
+  </div>
+</section>
+
+<!-- ============================================================ ИКОНКИ -->
+<section class="scene" id="s-icons">
+  <div class="page-head">
+    <h1>Кастомные SVG-иконки расширений</h1>
+    <p>Единый стиль: лист с загнутым углом + цветная плашка с расширением. Цвета — по семейству формата (как в офисных пакетах). Иконка кликабельна (= скачать). Эти SVG переиспользуются в реальной реализации.</p>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><span class="tag rec">Набор</span><h2>Иконки по типам файлов (40×48)</h2></div>
+      <div class="desc">PDF — красный, DOC/DOCX — синий, XLS/XLSX — зелёный, PPT/PPTX — оранжевый, неизвестный — серый fallback.</div>
+      <div class="icon-row" id="icon-showcase"></div>
+      <div class="note"><b>Альтернатива размера:</b> в строке <code>/news</code> иконка 34×40 (компактнее), в админке-превью 48×58. Форма та же, масштаб через <code>width/height</code>.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вариант B</span><h2>Минималистичные (моно-цвет primary)</h2></div>
+      <div class="desc">Если не хочется «радуги» — один цвет бренда, расширение текстом. Спокойнее, но хуже различимость на глаз.</div>
+      <div class="icon-row" id="icon-showcase-mono"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ БЛОК НА /news -->
+<section class="scene" id="s-news">
+  <div class="page-head">
+    <h1>Блок «Документы» на странице «Обзор и новости»</h1>
+    <p>Правая колонка <code>/news</code>: сверху карточка-гайд (как сейчас), под ней — блок «Документы». Высота ограничена (~3 карточки-гайда), длинный список скроллится внутри. Ниже 4 вида навигации по группам — в реальном правом столбце шириной 430px.</p>
+  </div>
+  <div class="grid">
+
+    <!-- B1 -->
+    <div class="card pick">
+      <div class="card-head"><span class="tag rec">Вид A · рекомендую</span><h2>Горизонтальные таб-пилюли групп + список</h2></div>
+      <div class="desc">Шапка-навигация группами строкой (как фильтры в проекте), под ней компактные строки документов. Самый плотный по высоте, привычная механика табов.</div>
+      <div class="news-wrap">
+        <div class="news-left">
+          <div class="nl-head"><h3>Последние новости</h3></div>
+          <div class="news-stub">
+            <div class="row"><div class="bar" style="width:40%"></div><div class="bar" style="width:80%"></div></div>
+            <div class="row"><div class="bar" style="width:35%"></div><div class="bar" style="width:70%"></div></div>
+            <div class="row"><div class="bar" style="width:45%"></div><div class="bar" style="width:75%"></div></div>
+          </div>
+        </div>
+        <div class="news-right">
+          <div class="guide-card">
+            <div class="guide-ic">📘</div>
+            <div>
+              <h4>Руководство пользования системой <span>подачи заявок</span></h4>
+              <p>Узнайте, как пользоваться системой, легко и быстро подать заявку: <b>пошаговая инструкция</b></p>
+            </div>
+          </div>
+          <div class="docs-block">
+            <div class="db-head"><span class="ttl">📄 Документы</span></div>
+            <div class="db-nav">
+              <div class="group-tabs">
+                <button class="group-tab active">Все <span class="cnt">7</span></button>
+                <button class="group-tab">Бланки заявок <span class="cnt">3</span></button>
+                <button class="group-tab">Правила КПР <span class="cnt">2</span></button>
+                <button class="group-tab">Информация <span class="cnt">2</span></button>
+              </div>
+            </div>
+            <div class="db-list" data-fill="rows"></div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Почему рекомендую:</b> минимум высоты, группы как привычные пилюли-фильтры, список однострочный. Если групп много — пилюли переносятся / можно горизонтальный скролл.</div>
+    </div>
+
+    <!-- B2 -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вид B</span><h2>Чипы групп + сетка карточек 2 колонки</h2></div>
+      <div class="desc">Документы карточками по 2 в ряд. Красивее, но выше по высоте и хуже для длинных названий.</div>
+      <div class="news-wrap">
+        <div class="news-right" style="width:460px">
+          <div class="docs-block">
+            <div class="db-head"><span class="ttl">📄 Документы</span></div>
+            <div class="db-nav"><div class="group-tabs">
+              <button class="group-tab active">Все</button>
+              <button class="group-tab">Бланки заявок</button>
+              <button class="group-tab">Правила КПР</button>
+              <button class="group-tab">Информация</button>
+            </div></div>
+            <div class="docs-grid" data-fill="cards"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B3 -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вид C</span><h2>Аккордеон по группам</h2></div>
+      <div class="desc">Каждая группа — сворачиваемая секция. Хорошо когда групп немного, а внутри много файлов. По умолчанию первая раскрыта.</div>
+      <div class="news-wrap">
+        <div class="news-right">
+          <div class="docs-block">
+            <div class="db-head"><span class="ttl">📄 Документы</span></div>
+            <div class="db-list tall" style="padding:0">
+              <div class="acc-group">
+                <div class="acc-head open">📁 Бланки заявок <span class="badge group" style="margin-left:4px">3</span><span class="chev">›</span></div>
+                <div data-fill="rows-blanks"></div>
+              </div>
+              <div class="acc-group"><div class="acc-head">📁 Правила КПР <span class="badge group" style="margin-left:4px">2</span><span class="chev">›</span></div></div>
+              <div class="acc-group"><div class="acc-head">📁 Информация <span class="badge group" style="margin-left:4px">2</span><span class="chev">›</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B4 -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вид D</span><h2>Выпадающий выбор группы + список</h2></div>
+      <div class="desc">Самый компактный по ширине: группа выбирается дропдауном. Минус — лишний клик, группы не видны сразу.</div>
+      <div class="news-wrap">
+        <div class="news-right">
+          <div class="docs-block">
+            <div class="db-head">
+              <span class="ttl">📄 Документы</span>
+              <button class="group-tab active" style="height:28px">Все группы ▾</button>
+            </div>
+            <div class="db-list" data-fill="rows"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B5 пустое состояние -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Состояния</span><h2>Пусто / одна строка</h2></div>
+      <div class="desc">Как выглядит блок без документов и как — со скрытыми (на /news скрытые не показываются вовсе).</div>
+      <div class="news-wrap">
+        <div class="news-right">
+          <div class="docs-block">
+            <div class="db-head"><span class="ttl">📄 Документы</span></div>
+            <div class="empty">Пока нет опубликованных документов</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ АДМИНКА -->
+<section class="scene" id="s-admin">
+  <div class="page-head">
+    <h1>Админ-раздел «Документы» (<code>/admin/documents</code>)</h1>
+    <p>Эталон проекта — <code>TableConstructor</code>: master-detail (слева список, справа панель деталей), шапка 54px, футер «Всего: N», без колонки «Действия». Ниже основной вариант по эталону и 2 альтернативы компоновки групп.</p>
+  </div>
+  <div class="grid">
+
+    <!-- A1 эталон master-detail -->
+    <div class="card pick">
+      <div class="card-head"><span class="tag rec">Вид A · по эталону</span><h2>Master-detail: список слева, деталь справа</h2></div>
+      <div class="desc">Группа выбирается дропдауном/табами над списком. Клик по документу — деталь справа: превью, наименование, описание, группа, переключатель «Показывать на сайте», даты, кнопки.</div>
+      <div class="admin">
+        <div class="a-head">
+          <h3>Документы</h3>
+          <div class="a-toolbar">
+            <button class="group-tab active" style="height:32px">Все группы ▾</button>
+            <button class="pill ghost">Группы</button>
+            <button class="pill primary">＋ Загрузить документ</button>
+            <button class="pill ghost" title="Обновить">⟳</button>
+          </div>
+        </div>
+        <div class="a-body">
+          <div class="a-list">
+            <div class="lst-top">
+              <input class="search" placeholder="Поиск по названию…">
+            </div>
+            <div class="a-rows" data-fill="admin-rows"></div>
+            <div class="a-foot">Всего: 7</div>
+          </div>
+          <div class="a-detail">
+            <div class="d-prev">
+              <span class="ic" data-ic="pdf" data-size="48"></span>
+              <div><div class="pn">Правила КПР 2026.pdf</div><div class="pm">2.4 МБ · загружен 14.06.2026 · admin</div></div>
+            </div>
+            <div class="fld"><label>Наименование (видно на сайте)</label><input value="Правила контрольно-пропускного режима"></div>
+            <div class="fld"><label>Описание (серый текст под названием)</label><textarea>Актуальная редакция от июня 2026. Обязательно к ознакомлению.</textarea></div>
+            <div class="fld"><label>Группа</label><select><option>Правила КПР</option><option>Бланки заявок</option><option>Информация</option><option>— без группы —</option></select></div>
+            <div class="fld"><label>Дата публикации <span style="color:#b3b6cf;font-weight:500">(опц.)</span></label><input value="14.06.2026" style="width:160px"></div>
+            <div class="switch-row">
+              <div><div class="sl">Показывать на «Обзор и новости»</div><div class="sd">Скрытый документ остаётся в админке, но не виден пользователям</div></div>
+              <div class="toggle"></div>
+            </div>
+            <div class="d-actions">
+              <button class="dl-btn"><span data-ic="dl"></span> Скачать</button>
+              <button class="pill ghost">Заменить файл</button>
+              <button class="pill primary">Сохранить</button>
+              <button class="pill danger">Удалить</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Версионирование</b> (если оставляем): «Заменить файл» пишет новую версию + кнопка «История версий» рядом. В v1 предлагаю «Заменить файл» = перезапись без истории.</div>
+    </div>
+
+    <!-- A2 группы-аккордеон слева -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вид B</span><h2>Дерево групп слева, документы внутри</h2></div>
+      <div class="desc">Левая колонка — группы (аккордеон), внутри — документы. Деталь справа та же. Нагляднее структура групп, но дерево тяжелее эталона.</div>
+      <div class="admin">
+        <div class="a-head"><h3>Документы</h3><div class="a-toolbar"><button class="pill ghost">＋ Группа</button><button class="pill primary">＋ Загрузить</button></div></div>
+        <div class="a-body">
+          <div class="a-list">
+            <div class="a-rows" style="padding:8px">
+              <div class="acc-group" style="border:none">
+                <div class="acc-head open" style="padding:8px 6px">📁 Бланки заявок <span class="badge group" style="margin-left:4px">3</span><span class="chev">›</span></div>
+                <div style="padding-left:8px" data-fill="tree-blanks"></div>
+              </div>
+              <div class="acc-group" style="border:none"><div class="acc-head" style="padding:8px 6px">📁 Правила КПР <span class="badge group" style="margin-left:4px">2</span><span class="chev">›</span></div></div>
+              <div class="acc-group" style="border:none"><div class="acc-head" style="padding:8px 6px">📁 Информация <span class="badge group" style="margin-left:4px">2</span><span class="chev">›</span></div></div>
+            </div>
+            <div class="a-foot">Групп: 3 · документов: 7</div>
+          </div>
+          <div class="a-detail">
+            <div class="d-prev"><span data-ic="doc" data-size="48"></span><div><div class="pn">Заявка на пропуск (бланк).docx</div><div class="pm">88 КБ · 10.06.2026</div></div></div>
+            <div class="fld"><label>Наименование</label><input value="Бланк заявки на пропуск"></div>
+            <div class="fld"><label>Описание</label><textarea>Заполните и приложите при подаче.</textarea></div>
+            <div class="switch-row"><div><div class="sl">Показывать на сайте</div></div><div class="toggle"></div></div>
+            <div class="d-actions"><button class="dl-btn"><span data-ic="dl"></span> Скачать</button><button class="pill primary">Сохранить</button><button class="pill danger">Удалить</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- A3 табы групп сверху + таблица -->
+    <div class="card">
+      <div class="card-head"><span class="tag alt">Вид C</span><h2>Табы групп сверху + список выбранной группы</h2></div>
+      <div class="desc">Группы — пилюли-табы во всю ширину, под ними документы только выбранной группы. Ближе к виду на /news, единая ментальная модель.</div>
+      <div class="admin">
+        <div class="a-head"><h3>Документы</h3><div class="a-toolbar"><button class="pill ghost">Управление группами</button><button class="pill primary">＋ Загрузить документ</button></div></div>
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+          <div class="group-tabs">
+            <button class="group-tab active">Все <span class="cnt">7</span></button>
+            <button class="group-tab">Бланки заявок <span class="cnt">3</span></button>
+            <button class="group-tab">Правила КПР <span class="cnt">2</span></button>
+            <button class="group-tab">Информация <span class="cnt">2</span></button>
+            <button class="group-tab" style="border-style:dashed">＋ группа</button>
+          </div>
+        </div>
+        <div class="a-body" style="min-height:230px">
+          <div class="a-list" style="width:100%;border-right:none">
+            <div class="a-rows" data-fill="admin-rows"></div>
+            <div class="a-foot">Всего в «Все»: 7</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">Деталь открывается модалкой по клику (как в списках новостей), а не боковой панелью. Менее «эталонно», зато список во всю ширину.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ МОДАЛКИ -->
+<section class="scene" id="s-modals">
+  <div class="page-head">
+    <h1>Модалки: загрузка документа и управление группами</h1>
+    <p>По эталону: <code>Teleport to body</code>, border-radius 30px, закрытие по overlay/Escape, анимация. Ниже — макеты содержимого.</p>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><span class="tag modal">Модалка</span><h2>Загрузить документ</h2></div>
+      <div class="desc">Drag&drop или выбор файла, затем наименование, описание, группа. Валидация расширения и размера.</div>
+      <div class="modal-demo">
+        <div class="modal">
+          <div class="m-head"><h3>Загрузить документ</h3><span class="x">✕</span></div>
+          <div class="m-body">
+            <div class="dropzone">Перетащите файл сюда или <b>выберите на устройстве</b><div class="hint">doc, docx, pdf, xlsx, pptx · до 20 МБ</div></div>
+            <div style="display:flex;align-items:center;gap:11px;margin:14px 0;padding:10px;border:1px solid var(--border);border-radius:14px">
+              <span data-ic="xls" data-size="40"></span>
+              <div style="flex:1"><div class="doc-name">Список_организаций.xlsx</div><div class="doc-desc">1.1 МБ</div></div>
+              <span class="x" style="cursor:pointer">✕</span>
+            </div>
+            <div class="fld"><label>Наименование (видно на сайте)</label><input placeholder="Напр. Перечень аккредитованных организаций"></div>
+            <div class="fld"><label>Описание</label><textarea placeholder="Короткое пояснение, серый текст под названием"></textarea></div>
+            <div class="fld"><label>Группа</label><select><option>— выберите группу —</option><option>Бланки заявок</option><option>Правила КПР</option><option>Информация</option></select></div>
+          </div>
+          <div class="m-foot"><button class="pill ghost">Отмена</button><button class="pill primary">Загрузить</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="tag modal">Модалка</span><h2>Управление группами</h2></div>
+      <div class="desc">Создать/переименовать/удалить группу, задать порядок (drag), назначить документы в группу чипсами.</div>
+      <div class="modal-demo">
+        <div class="modal">
+          <div class="m-head"><h3>Группы документов</h3><span class="x">✕</span></div>
+          <div class="m-body">
+            <div class="grp-row"><span class="drag">⋮⋮</span><div style="flex:1"><div class="gn">Бланки заявок</div><div class="gc">3 документа</div></div><span class="pill ghost" style="height:26px">Переименовать</span></div>
+            <div class="grp-row"><span class="drag">⋮⋮</span><div style="flex:1"><div class="gn">Правила КПР</div><div class="gc">2 документа</div></div><span class="pill ghost" style="height:26px">Переименовать</span></div>
+            <div class="grp-row"><span class="drag">⋮⋮</span><div style="flex:1"><div class="gn">Информация</div><div class="gc">2 документа</div></div><span class="pill ghost" style="height:26px">Переименовать</span></div>
+            <div class="fld" style="margin-top:14px"><label>Новая группа</label>
+              <div style="display:flex;gap:8px"><input placeholder="Название группы"><button class="pill primary">Создать</button></div>
+            </div>
+          </div>
+          <div class="m-foot"><button class="pill ghost">Закрыть</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="tag modal">Альтернатива</span><h2>Назначение документов в группу (чипсы)</h2></div>
+      <div class="desc">Если документы заводятся отдельно от групп — внутри группы отмечаем, какие документы в неё входят.</div>
+      <div class="modal-demo">
+        <div class="modal">
+          <div class="m-head"><h3>Группа «Бланки заявок»</h3><span class="x">✕</span></div>
+          <div class="m-body">
+            <div class="fld"><label>Название группы</label><input value="Бланки заявок"></div>
+            <label style="font-size:12px;font-weight:600;color:#555">Документы в группе</label>
+            <div class="chips">
+              <span class="chip on"><span class="ck">✓</span> Бланк заявки.docx</span>
+              <span class="chip on"><span class="ck">✓</span> Согласие на ПДн.pdf</span>
+              <span class="chip on"><span class="ck">✓</span> Доверенность.docx</span>
+              <span class="chip"><span class="ck"></span> Правила КПР.pdf</span>
+              <span class="chip"><span class="ck"></span> Список орг.xlsx</span>
+              <span class="chip"><span class="ck"></span> Презентация.pptx</span>
+            </div>
+          </div>
+          <div class="m-foot"><button class="pill ghost">Отмена</button><button class="pill primary">Сохранить</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------- иконки расширений (кастомные SVG) ---------- */
+function fileIcon(ext, size, mono){
+  const map={
+    pdf:['#E5252A','PDF'], doc:['#2B579A','DOC'], docx:['#2B579A','DOCX'],
+    xls:['#1D7044','XLS'], xlsx:['#1D7044','XLSX'], ppt:['#C13B1B','PPT'], pptx:['#C13B1B','PPTX'],
+    file:['#8A8F9E','FILE']
+  };
+  const [color,label]=map[ext]||map.file;
+  const c=mono?'#4F5BDF':color;
+  const h=Math.round(size*1.2);
+  const fs= label.length>3?6.2:7.4;
+  return `<svg width="${size}" height="${h}" viewBox="0 0 36 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5 3h18l8 8v28a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="#fff" stroke="#E2E4EE" stroke-width="1.6"/>
+    <path d="M23 3l8 8h-6a2 2 0 0 1-2-2V3z" fill="${mono?'#E7E9F8':'#EDEFF7'}"/>
+    <rect x="3" y="24" width="22" height="12" rx="2.6" fill="${c}"/>
+    <text x="14" y="32.6" font-size="${fs}" font-weight="800" fill="#fff" text-anchor="middle" font-family="Montserrat,Arial">${label}</text>
+  </svg>`;
+}
+function dlIcon(){
+  return `<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1v9m0 0L4.5 6.5M8 10l3.5-3.5M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+/* showcase */
+const exts=['pdf','doc','xls','ppt','file'];
+const labelsRu={pdf:'PDF',doc:'DOC / DOCX',xls:'XLS / XLSX',ppt:'PPT / PPTX',file:'неизвестный'};
+function renderShowcase(id,mono){
+  const el=document.getElementById(id); if(!el)return;
+  el.innerHTML=exts.map(e=>`<div class="icon-cell">${fileIcon(e,46,mono)}<span class="lbl">${labelsRu[e]}</span></div>`).join('');
+}
+renderShowcase('icon-showcase',false);
+renderShowcase('icon-showcase-mono',true);
+
+/* данные документов */
+const DOCS=[
+  {ext:'docx',name:'Бланк заявки на пропуск',desc:'Заполните и приложите при подаче',grp:'Бланки заявок'},
+  {ext:'pdf', name:'Согласие на обработку ПДн',desc:'Подписывается всеми посетителями',grp:'Бланки заявок'},
+  {ext:'docx',name:'Доверенность (шаблон)',desc:'Для представителей организаций',grp:'Бланки заявок'},
+  {ext:'pdf', name:'Правила контрольно-пропускного режима',desc:'Редакция от июня 2026',grp:'Правила КПР'},
+  {ext:'pdf', name:'Регламент въезда транспорта',desc:'Часы работы, ограничения',grp:'Правила КПР'},
+  {ext:'xlsx',name:'Перечень аккредитованных организаций',desc:'Обновляется ежемесячно',grp:'Информация'},
+  {ext:'pptx',name:'Презентация о пропускной системе',desc:'Кратко о порядке оформления',grp:'Информация'},
+];
+function rowHTML(d){
+  return `<div class="doc-row">
+    <span class="ic">${fileIcon(d.ext,30)}</span>
+    <div class="doc-main"><div class="doc-name">${d.name}</div><div class="doc-desc">${d.desc}</div></div>
+    <button class="dl-btn">${dlIcon()} Скачать</button>
+  </div>`;
+}
+function cardHTML(d){
+  return `<div class="doc-card"><span class="ic">${fileIcon(d.ext,32)}</span><div><div class="nm">${d.name}</div><div class="ds">${d.desc}</div></div></div>`;
+}
+function adminRowHTML(d,i){
+  const hidden=i===4?`<span class="badge hidden">скрыт</span>`:'';
+  return `<div class="a-row${i===3?' sel':''}">
+    <span class="drag">⋮⋮</span>
+    <span>${fileIcon(d.ext,28)}</span>
+    <div class="rmain"><div class="rname">${d.name} ${hidden}</div><div class="rmeta">${d.grp} · ${d.ext.toUpperCase()}</div></div>
+  </div>`;
+}
+document.querySelectorAll('[data-fill="rows"]').forEach(el=>el.innerHTML=DOCS.map(rowHTML).join(''));
+document.querySelectorAll('[data-fill="cards"]').forEach(el=>el.innerHTML=DOCS.map(cardHTML).join(''));
+document.querySelectorAll('[data-fill="rows-blanks"]').forEach(el=>el.innerHTML=DOCS.filter(d=>d.grp==='Бланки заявок').map(rowHTML).join(''));
+document.querySelectorAll('[data-fill="tree-blanks"]').forEach(el=>el.innerHTML=DOCS.filter(d=>d.grp==='Бланки заявок').map(rowHTML).join(''));
+document.querySelectorAll('[data-fill="admin-rows"]').forEach(el=>el.innerHTML=DOCS.map(adminRowHTML).join(''));
+
+/* инлайновые иконки в превью/кнопках */
+document.querySelectorAll('[data-ic]').forEach(el=>{
+  const k=el.getAttribute('data-ic');
+  if(k==='dl'){el.innerHTML=dlIcon();return;}
+  el.innerHTML=fileIcon(k,parseInt(el.getAttribute('data-size')||'40'));
+});
+
+/* переключение сцен */
+document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.scene').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById(b.dataset.scene).classList.add('active');
+  window.scrollTo(0,0);
+}));
+
+/* демо-интерактив групп-табов и аккордеона */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('.group-tab');
+  if(t && t.parentElement.classList.contains('group-tabs')){
+    t.parentElement.querySelectorAll('.group-tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+  }
+  const a=e.target.closest('.acc-head');
+  if(a){a.classList.toggle('open');}
+  const r=e.target.closest('.a-row');
+  if(r){r.parentElement.querySelectorAll('.a-row').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');}
+});
+</script>
+</body>
+</html>
