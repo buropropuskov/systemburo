@@ -104,6 +104,23 @@ func TestUniqueCars_ActiveCarIDForActiveApplication(t *testing.T) {
 	assert.Equal(t, true, found["status"], "у машины с активной заявкой status=true")
 	require.NotNil(t, found["active_car_id"], "active_car_id должен быть заполнен для активной машины")
 	assert.Equal(t, float64(carID), found["active_car_id"], "active_car_id = id активной заявочной машины")
+
+	// Машина в реестре без активной заявки: active_car_id пустой (фронт полагается на это,
+	// чтобы не дёргать статус/места по чужому id).
+	testutil.POST(t, e, "/unique-cars", `{"number":"NOAPP777","mark":"Lada"}`, h)
+	rec = testutil.GET(t, e, "/unique-cars?filter_type=all_system", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	rows = testutil.ParseSlice(t, rec)
+	var idle map[string]interface{}
+	for _, r := range rows {
+		if n, _ := r["number"].(string); n == "NOAPP777" {
+			idle = r
+			break
+		}
+	}
+	require.NotNil(t, idle, "машина без заявки должна быть в реестре")
+	assert.Equal(t, false, idle["status"], "без активной заявки status=false")
+	assert.Nil(t, idle["active_car_id"], "без активной заявки active_car_id пустой")
 }
 
 func TestUniqueCars_DuplicateCreate(t *testing.T) {

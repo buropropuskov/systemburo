@@ -763,10 +763,9 @@ export default {
             this.fetchOwnershipInfo(),
             this.fetchFormats(),
             this.loadMarks(),
-            this.loadBlacklist(),
-            this.fetchUnloadingPlaces(),
-            this.fetchCarUnloadPlaces()
+            this.loadBlacklist()
         ]);
+        // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
         
         // Закрытие dropdown при клике вне
@@ -869,6 +868,9 @@ export default {
 
                 if (response.ok) {
                     this.carsData = await response.json();
+                    // Места разгрузки тоже перезагружаем: при смене активной заявки у машины
+                    // меняется active_car_id и набор мест, иначе карта устаревает после рефреша.
+                    await Promise.all([this.fetchUnloadingPlaces(), this.fetchCarUnloadPlaces()]);
                 } else {
                     console.error("Ошибка при загрузке машин");
                     this.carsData = [];
