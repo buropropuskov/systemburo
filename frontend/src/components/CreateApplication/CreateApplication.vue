@@ -2417,6 +2417,10 @@ export default {
         display: flex;
         gap: 50px;
         border-bottom: 1px solid #e6e6e6;
+        /* Поднимаем ряд дат над form__data: иначе выпадающее меню "Быстрый выбор"
+           (открывается вниз) уходит под серый гейт-оверлей и кнопки формы ниже. */
+        position: relative;
+        z-index: 1;
     }
 
     h4 {
