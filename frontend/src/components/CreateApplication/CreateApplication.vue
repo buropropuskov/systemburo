@@ -3,7 +3,11 @@
     <div class="create__header">
       <div class="create__title">
         <h3>Оформление и подача заявки</h3>
-        <button class="tables__instruction">
+        <button
+          v-if="selectedAttachment && selectedAttachment.instruction"
+          class="tables__instruction"
+          @click="showAttachmentInstruction = true"
+        >
           <img
             src="@/assets/icons/instruction.png"
             class="tables__icon"
@@ -15,6 +19,34 @@
       </div>
       <h4>{{ currentFormTitle }}</h4>
     </div>
+
+    <!-- Модальное окно инструкции к вложению -->
+    <Teleport to="body">
+      <div
+        v-if="showAttachmentInstruction"
+        class="modal-overlay"
+        @click.self="showAttachmentInstruction = false"
+      >
+        <div class="instruction-modal-large">
+          <div class="modal-header">
+            <h3>Инструкция: <span class="blue">{{ selectedAttachment && selectedAttachment.display_name }}</span></h3>
+            <button
+              class="modal-close"
+              @click="showAttachmentInstruction = false"
+            >
+              ×
+            </button>
+          </div>
+          <div class="instruction-content">
+            <div
+              class="text-constructor-content"
+              v-html="sanitizedAttachmentInstruction"
+            />
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <div class="create__container">
       <BlankSelector
         ref="blankSelector"
@@ -344,6 +376,7 @@
 </template>
 
 <script>
+import { sanitizeHtml } from '@/utils/sanitize'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
@@ -438,6 +471,8 @@ export default {
             showSubmitTooltip: false,
             tooltipTimer: null,
 
+            showAttachmentInstruction: false,
+
             customFieldsByAttachment: {},
             customFieldDefinitions: {},
             // Настройка полей по UniqueAttachment (#529): { [uaId]: { [fieldKey]: { visible, required, locked, requirable } } }.
@@ -446,6 +481,10 @@ export default {
         }
     },
     computed: {
+        sanitizedAttachmentInstruction() {
+            return sanitizeHtml(this.selectedAttachment?.instruction || '');
+        },
+
         currentFormTitle() {
             if (this.selectedAttachment) {
                 return this.selectedAttachment.display_name;
@@ -744,17 +783,24 @@ export default {
         this.loadAllUnloadingPlaces();
         this.loadLicensePlateFormats();
         this.loadPassageTables();
-        
+
         window.addEventListener('beforeunload', () => {
             this.saveCurrentAttachmentData();
             this.saveToLocalStorage();
         });
+        window.addEventListener('keydown', this.handleGlobalKeyDown);
     },
     beforeUnmount() {
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
+        window.removeEventListener('keydown', this.handleGlobalKeyDown);
     },
     methods: {
-        
+        handleGlobalKeyDown(e) {
+            if (e.key === 'Escape' && this.showAttachmentInstruction) {
+                this.showAttachmentInstruction = false;
+            }
+        },
+
         async loadPassageTables() {
             try {
                 const response = await apiRequest("/system-tables", {
