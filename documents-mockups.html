@@ -140,6 +140,21 @@
   .docs-block .db-list::-webkit-scrollbar-thumb{background:#D9E2FF;border-radius:4px}
   .empty{padding:30px;text-align:center;color:#b9b9c6;font-size:12px}
 
+  /* строка групп: одна строка, хвост в «Ещё» */
+  .grp-bar{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;overflow:hidden}
+  .grp-more{position:relative}
+  .grp-more-menu{
+    position:absolute;top:32px;right:0;z-index:5;background:#fff;border:1px solid var(--border);border-radius:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.1);padding:6px;min-width:170px;display:none;flex-direction:column;gap:2px;
+  }
+  .grp-more.open .grp-more-menu{display:flex}
+  .grp-more-menu button{
+    text-align:left;border:none;background:none;font-family:inherit;font-size:12px;color:#444;padding:8px 10px;
+    border-radius:9px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;
+  }
+  .grp-more-menu button:hover{background:#eef0ff;color:var(--primary)}
+  .grp-more-menu button span{color:#b3b3c2;font-size:10px}
+
   /* grid-вариант карточек */
   .docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}
   .doc-card{border:1px solid var(--border);border-radius:14px;padding:10px;display:flex;gap:10px;align-items:center}
@@ -195,6 +210,15 @@
   .dropzone b{color:var(--primary)}
   .dropzone .hint{font-size:11px;color:#b3b6cf;margin-top:6px}
 
+  /* очередь мульти-загрузки */
+  .uq-row{display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--border);border-radius:14px;margin-bottom:8px;background:#fff}
+  .uq-row .ord{width:20px;height:20px;border-radius:6px;background:#eef0ff;color:var(--primary);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+  .uq-row .drag{color:#cdd0e0;cursor:grab;font-size:13px;margin-top:3px}
+  .uq-fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .uq-fields .fn{font-size:12px;font-weight:600;color:#1a1a2e}
+  .uq-fields input{width:100%;border:1px solid var(--border);border-radius:10px;padding:6px 9px;font-family:inherit;font-size:11.5px;color:#333}
+  .uq-row .rm{color:#cdaeb0;cursor:pointer;font-size:13px;margin-top:3px}
+
   /* модалки */
   .modal-demo{display:flex;justify-content:center;padding:8px 0}
   .modal{width:480px;max-width:100%;background:#fff;border-radius:28px;box-shadow:0 20px 60px rgba(20,22,60,.18);overflow:hidden;border:1px solid #edeef5}
@@ -236,12 +260,14 @@
     <p><b>Суть.</b> В админ-панели раздел <code>/admin/documents</code>: список документов, загрузка (<code>doc, docx, pdf, xlsx, pptx</code>), удаление, скрытие. У документа — <b>наименование</b> (видно на сайте) и <b>описание</b> (мелкий серый текст). Документы объединяются в <b>группы</b> («Бланки заявок», «Правила КПР», «Информация» …).</p>
     <p><b>На <code>/news</code></b> под кнопкой «Руководство пользования…» — блок <b>«Документы»</b>: навигационная шапка групп, ниже список не-скрытых документов. У строки: слева кастомная <b>SVG-иконка расширения</b>, имя + описание, справа кнопка <b>«Скачать»</b>. Клик по иконке / имени / кнопке — всё качает файл. Блок невысокий — примерно как 3 карточки-гайда.</p>
     <p><b>Доступ.</b> Управляет суперадмин или у кого есть доступ к <code>Администрирование → Документы</code>. На <code>/news</code> блок видят все авторизованные.</p>
-    <p style="margin-top:14px"><b>Открытые вопросы (нужен твой выбор):</b></p>
-    <p>1. Ты отметил <b>«Дата/период актуальности»</b> и <b>«Версионирование»</b>, но в описании их нет. Предлагаю: дату публикации — оставить (для сортировки), <b>версионирование — отложить в v2</b> (отдельная подсистема истории файлов, сильно усложняет). В мокапе показал оба как опциональные.</p>
-    <p>2. «Скрыть» — это soft-hide (флаг <code>is_visible</code>), документ остаётся в админке. Нужен ли ещё отдельный «Архив» по эталону (как у справочников)? Пока сделал «Скрыт/Показан» + «Удалить».</p>
-    <p>3. Документ без группы — показывать во вкладке «Все» / в «Прочее»? В мокапе вкладка «Все» показывает всё.</p>
-    <p>4. Лимит размера файла и проверка реального MIME (не только расширения) — для безопасности скачиваемых файлов. Предлагаю лимит ~20 МБ.</p>
-    <p style="margin-top:12px;color:#8a8fb5">Ниже — варианты. Отметь, что нравится по каждой сцене (можно «вид A для блока + вид C для админки»).</p>
+    <p style="margin-top:14px"><b>Решения (согласовано 16.06):</b></p>
+    <p>• <b>Дата публикации</b> — есть, показывается в строке на /news. <b>Версионирование — нет</b> (в v2, если понадобится).</p>
+    <p>• <b>Архива нет</b>: только «Скрыть» (флаг <code>is_visible</code>, остаётся в админке) + «Удалить».</p>
+    <p>• Документ без группы попадает в группу <b>«Прочее»</b>.</p>
+    <p>• <b>Лимит размера</b> — из общей настройки <code>Администрирование → Настройки → Загрузка файлов</code> (<code>upload.max_file_size</code>, дефолт 10 МБ). Форматы — фикс. allowlist фичи: doc/docx/pdf/xlsx/pptx (+ проверка реального MIME, не только расширения).</p>
+    <p>• <b>drag-сортировка</b> документов и групп — только в админке.</p>
+    <p>• Иконки — <b>цветные</b>. Блок на /news — <b>Вид A</b> (случайные группы в строку + «Ещё»). Админка — <b>Вид A</b> (master-detail). Модалка загрузки — мульти-файл с порядком.</p>
+    <p style="margin-top:12px;color:#8a8fb5">Единственный открытый вопрос — ротация групп в строке: «случайно каждый раз» (как сейчас в мокапе) или фиксированный порядок из админки. См. примечание под блоком на вкладке «Блок на /news».</p>
   </div>
 </section>
 
@@ -270,14 +296,14 @@
 <section class="scene" id="s-news">
   <div class="page-head">
     <h1>Блок «Документы» на странице «Обзор и новости»</h1>
-    <p>Правая колонка <code>/news</code>: сверху карточка-гайд (как сейчас), под ней — блок «Документы». Высота ограничена (~3 карточки-гайда), длинный список скроллится внутри. Ниже 4 вида навигации по группам — в реальном правом столбце шириной 430px.</p>
+    <p><b>Выбран Вид A (финал, см. первую карточку):</b> группы строкой, помещающиеся в одну строку показываются как пилюли, остальные прячутся в дропдаут «Ещё ▾». Какие группы попадают в строку — выбирается <b>случайно при каждой загрузке</b> (обнови страницу — набор меняется). В строке у документа: иконка, имя, описание + <b>дата публикации</b>, кнопка «Скачать». Остальные виды ниже — архив идей, не выбраны.</p>
   </div>
   <div class="grid">
 
-    <!-- B1 -->
+    <!-- B1 — ФИНАЛ -->
     <div class="card pick">
-      <div class="card-head"><span class="tag rec">Вид A · рекомендую</span><h2>Горизонтальные таб-пилюли групп + список</h2></div>
-      <div class="desc">Шапка-навигация группами строкой (как фильтры в проекте), под ней компактные строки документов. Самый плотный по высоте, привычная механика табов.</div>
+      <div class="card-head"><span class="tag rec">Вид A · ФИНАЛ</span><h2>Случайные группы в строку + дропдаут «Ещё»</h2></div>
+      <div class="desc">Пилюли групп, что влезают в одну строку (случайный набор при каждой загрузке), хвост — в «Ещё ▾». Под ними однострочные документы с датой публикации. Обнови страницу — набор групп в строке меняется.</div>
       <div class="news-wrap">
         <div class="news-left">
           <div class="nl-head"><h3>Последние новости</h3></div>
@@ -297,19 +323,12 @@
           </div>
           <div class="docs-block">
             <div class="db-head"><span class="ttl">📄 Документы</span></div>
-            <div class="db-nav">
-              <div class="group-tabs">
-                <button class="group-tab active">Все <span class="cnt">7</span></button>
-                <button class="group-tab">Бланки заявок <span class="cnt">3</span></button>
-                <button class="group-tab">Правила КПР <span class="cnt">2</span></button>
-                <button class="group-tab">Информация <span class="cnt">2</span></button>
-              </div>
-            </div>
+            <div class="db-nav" id="news-group-nav"></div>
             <div class="db-list" data-fill="rows"></div>
           </div>
         </div>
       </div>
-      <div class="note"><b>Почему рекомендую:</b> минимум высоты, группы как привычные пилюли-фильтры, список однострочный. Если групп много — пилюли переносятся / можно горизонтальный скролл.</div>
+      <div class="note"><b>Поведение:</b> ширина строки групп фиксирована; в неё влезает столько пилюль, сколько помещается, остальные — в «Ещё ▾». Набор в строке случайный при каждой загрузке (даёт ротацию видимости группам). <b>Вопрос:</b> «случайный каждый раз» точно ок? Альтернатива — фиксированный порядок (заданный в админке drag-ом), а в «Ещё» уходит хвост. Скажи, какой вариант ротации.</div>
     </div>
 
     <!-- B2 -->
@@ -504,26 +523,24 @@
     <p>По эталону: <code>Teleport to body</code>, border-radius 30px, закрытие по overlay/Escape, анимация. Ниже — макеты содержимого.</p>
   </div>
   <div class="grid">
-    <div class="card">
-      <div class="card-head"><span class="tag modal">Модалка</span><h2>Загрузить документ</h2></div>
-      <div class="desc">Drag&drop или выбор файла, затем наименование, описание, группа. Валидация расширения и размера.</div>
+    <div class="card pick">
+      <div class="card-head"><span class="tag rec">Модалка · ФИНАЛ</span><h2>Загрузить документы (несколько сразу + порядок)</h2></div>
+      <div class="desc">Можно выбрать/перетащить сразу несколько файлов. Каждый — отдельная строка очереди с ручкой drag для порядка, своим наименованием и описанием. Общая группа задаётся сверху (или у каждого своя). Лимит размера берётся из <code>Настройки → Загрузка файлов</code>, форматы — doc/docx/pdf/xlsx/pptx.</div>
       <div class="modal-demo">
-        <div class="modal">
-          <div class="m-head"><h3>Загрузить документ</h3><span class="x">✕</span></div>
+        <div class="modal" style="width:560px">
+          <div class="m-head"><h3>Загрузить документы</h3><span class="x">✕</span></div>
           <div class="m-body">
-            <div class="dropzone">Перетащите файл сюда или <b>выберите на устройстве</b><div class="hint">doc, docx, pdf, xlsx, pptx · до 20 МБ</div></div>
-            <div style="display:flex;align-items:center;gap:11px;margin:14px 0;padding:10px;border:1px solid var(--border);border-radius:14px">
-              <span data-ic="xls" data-size="40"></span>
-              <div style="flex:1"><div class="doc-name">Список_организаций.xlsx</div><div class="doc-desc">1.1 МБ</div></div>
-              <span class="x" style="cursor:pointer">✕</span>
+            <div class="dropzone">Перетащите файлы сюда или <b>выберите на устройстве</b><div class="hint">doc, docx, pdf, xlsx, pptx · до 10 МБ (из настроек) · можно несколько</div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px">
+              <label style="font-size:12px;font-weight:600;color:#555">Очередь загрузки (3) — порядок задаёт позицию в группе</label>
+              <select style="height:30px;border:1px solid var(--border);border-radius:var(--radius-md);font-family:inherit;font-size:12px;color:#555;padding:0 10px"><option>Группа для всех: Бланки заявок</option><option>у каждого своя</option></select>
             </div>
-            <div class="fld"><label>Наименование (видно на сайте)</label><input placeholder="Напр. Перечень аккредитованных организаций"></div>
-            <div class="fld"><label>Описание</label><textarea placeholder="Короткое пояснение, серый текст под названием"></textarea></div>
-            <div class="fld"><label>Группа</label><select><option>— выберите группу —</option><option>Бланки заявок</option><option>Правила КПР</option><option>Информация</option></select></div>
+            <div id="upload-queue"></div>
           </div>
-          <div class="m-foot"><button class="pill ghost">Отмена</button><button class="pill primary">Загрузить</button></div>
+          <div class="m-foot"><button class="pill ghost">Отмена</button><button class="pill primary">Загрузить 3 файла</button></div>
         </div>
       </div>
+      <div class="note">Drag-ручка <b>⋮⋮</b> слева задаёт порядок (= позиция документа на /news внутри группы). Крестик убирает файл из очереди. Реально drag-сортировку в мокапе не подключал — показана раскладка строки.</div>
     </div>
 
     <div class="card">
@@ -605,18 +622,18 @@ renderShowcase('icon-showcase-mono',true);
 
 /* данные документов */
 const DOCS=[
-  {ext:'docx',name:'Бланк заявки на пропуск',desc:'Заполните и приложите при подаче',grp:'Бланки заявок'},
-  {ext:'pdf', name:'Согласие на обработку ПДн',desc:'Подписывается всеми посетителями',grp:'Бланки заявок'},
-  {ext:'docx',name:'Доверенность (шаблон)',desc:'Для представителей организаций',grp:'Бланки заявок'},
-  {ext:'pdf', name:'Правила контрольно-пропускного режима',desc:'Редакция от июня 2026',grp:'Правила КПР'},
-  {ext:'pdf', name:'Регламент въезда транспорта',desc:'Часы работы, ограничения',grp:'Правила КПР'},
-  {ext:'xlsx',name:'Перечень аккредитованных организаций',desc:'Обновляется ежемесячно',grp:'Информация'},
-  {ext:'pptx',name:'Презентация о пропускной системе',desc:'Кратко о порядке оформления',grp:'Информация'},
+  {ext:'docx',name:'Бланк заявки на пропуск',desc:'Заполните и приложите при подаче',grp:'Бланки заявок',date:'10.06.2026'},
+  {ext:'pdf', name:'Согласие на обработку ПДн',desc:'Подписывается всеми посетителями',grp:'Бланки заявок',date:'10.06.2026'},
+  {ext:'docx',name:'Доверенность (шаблон)',desc:'Для представителей организаций',grp:'Бланки заявок',date:'08.06.2026'},
+  {ext:'pdf', name:'Правила контрольно-пропускного режима',desc:'Редакция от июня 2026',grp:'Правила КПР',date:'14.06.2026'},
+  {ext:'pdf', name:'Регламент въезда транспорта',desc:'Часы работы, ограничения',grp:'Правила КПР',date:'02.06.2026'},
+  {ext:'xlsx',name:'Перечень аккредитованных организаций',desc:'Обновляется ежемесячно',grp:'Информация',date:'01.06.2026'},
+  {ext:'pptx',name:'Презентация о пропускной системе',desc:'Кратко о порядке оформления',grp:'Прочее',date:'28.05.2026'},
 ];
 function rowHTML(d){
   return `<div class="doc-row">
     <span class="ic">${fileIcon(d.ext,30)}</span>
-    <div class="doc-main"><div class="doc-name">${d.name}</div><div class="doc-desc">${d.desc}</div></div>
+    <div class="doc-main"><div class="doc-name">${d.name}</div><div class="doc-desc">${d.desc} · <span style="color:#b3b6cf">${d.date}</span></div></div>
     <button class="dl-btn">${dlIcon()} Скачать</button>
   </div>`;
 }
@@ -637,6 +654,43 @@ document.querySelectorAll('[data-fill="rows-blanks"]').forEach(el=>el.innerHTML=
 document.querySelectorAll('[data-fill="tree-blanks"]').forEach(el=>el.innerHTML=DOCS.filter(d=>d.grp==='Бланки заявок').map(rowHTML).join(''));
 document.querySelectorAll('[data-fill="admin-rows"]').forEach(el=>el.innerHTML=DOCS.map(adminRowHTML).join(''));
 
+/* строка групп на /news: случайный набор в одну строку + «Ещё» */
+function renderNewsGroupNav(){
+  const host=document.getElementById('news-group-nav'); if(!host)return;
+  const groups=[...new Set(DOCS.map(d=>d.grp))].map(g=>({name:g,cnt:DOCS.filter(d=>d.grp===g).length}));
+  // случайная перестановка групп при каждой загрузке
+  for(let i=groups.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[groups[i],groups[j]]=[groups[j],groups[i]];}
+  const INLINE=2; // сколько влезает в строку (демо-фиксировано; в реале считается по ширине)
+  const inline=groups.slice(0,INLINE), rest=groups.slice(INLINE);
+  const pills=`<button class="group-tab active">Все <span class="cnt">${DOCS.length}</span></button>`+
+    inline.map(g=>`<button class="group-tab">${g.name} <span class="cnt">${g.cnt}</span></button>`).join('');
+  const more=rest.length?`<div class="grp-more"><button class="group-tab">Ещё ▾ <span class="cnt">${rest.length}</span></button>
+    <div class="grp-more-menu">${rest.map(g=>`<button>${g.name}<span>${g.cnt}</span></button>`).join('')}</div></div>`:'';
+  host.innerHTML=`<div class="grp-bar">${pills}${more}</div>`;
+}
+renderNewsGroupNav();
+
+/* очередь мульти-загрузки */
+(function(){
+  const host=document.getElementById('upload-queue'); if(!host)return;
+  const q=[
+    {ext:'docx',name:'Заявка_на_пропуск.docx',size:'88 КБ'},
+    {ext:'pdf', name:'Согласие_ПДн.pdf',size:'210 КБ'},
+    {ext:'docx',name:'Доверенность.docx',size:'64 КБ'},
+  ];
+  host.innerHTML=q.map((f,i)=>`<div class="uq-row">
+    <span class="drag">⋮⋮</span>
+    <span class="ord">${i+1}</span>
+    <span>${fileIcon(f.ext,30)}</span>
+    <div class="uq-fields">
+      <div class="fn">${f.name} <span style="color:#b3b6cf;font-weight:500">· ${f.size}</span></div>
+      <input placeholder="Наименование на сайте" value="${f.name.replace(/[_.].*$/,'').replace(/_/g,' ')}">
+      <input placeholder="Описание (необязательно)">
+    </div>
+    <span class="rm">✕</span>
+  </div>`).join('');
+})();
+
 /* инлайновые иконки в превью/кнопках */
 document.querySelectorAll('[data-ic]').forEach(el=>{
   const k=el.getAttribute('data-ic');
@@ -655,8 +709,12 @@ document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>
 
 /* демо-интерактив групп-табов и аккордеона */
 document.addEventListener('click',e=>{
+  // дропдаут «Ещё»
+  const more=e.target.closest('.grp-more > .group-tab');
+  document.querySelectorAll('.grp-more').forEach(m=>{ if(!more||!m.contains(more)) m.classList.remove('open'); });
+  if(more){more.parentElement.classList.toggle('open');return;}
   const t=e.target.closest('.group-tab');
-  if(t && t.parentElement.classList.contains('group-tabs')){
+  if(t && (t.parentElement.classList.contains('group-tabs')||t.parentElement.classList.contains('grp-bar'))){
     t.parentElement.querySelectorAll('.group-tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
   }
