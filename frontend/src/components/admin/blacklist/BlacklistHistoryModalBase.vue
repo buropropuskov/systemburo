@@ -143,69 +143,77 @@
             v-else
             class="history-timeline"
           >
-            <div
-              v-for="(item, index) in filteredHistory"
-              :key="item.id"
-              class="history-item"
+            <template
+              v-for="group in historyGroupedByDate"
+              :key="group.date"
             >
+              <div class="history-date-separator">
+                {{ group.date }}
+              </div>
               <div
-                class="timeline-dot"
-                :class="getActionClass(item.action_type)"
-              />
-              <div
-                v-if="index < filteredHistory.length - 1"
-                class="timeline-line"
-              />
-
-              <div class="history-content">
+                v-for="(item, i) in group.items"
+                :key="item.id"
+                class="history-item"
+              >
                 <div
-                  v-if="getEntityLabel(item)"
-                  class="history-entity"
-                >
-                  {{ getEntityLabel(item) }}
-                </div>
-
-                <div class="history-header">
-                  <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                  <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                </div>
-
-                <div class="action-text">
-                  {{ getActionText(item) }}
-                </div>
-
+                  class="timeline-dot"
+                  :class="getActionClass(item.action_type)"
+                />
                 <div
-                  v-if="getReasonDiff(item)"
-                  class="action-diff"
-                >
-                  <span class="diff-old">{{ getReasonDiff(item).from }}</span>
-                  <svg
-                    class="diff-arrow"
-                    viewBox="0 0 24 24"
-                    width="16"
-                    height="16"
-                    aria-hidden="true"
+                  v-if="i < group.items.length - 1"
+                  class="timeline-line"
+                />
+
+                <div class="history-content">
+                  <div
+                    v-if="getEntityLabel(item)"
+                    class="history-entity"
                   >
-                    <path
-                      d="M4 12h14M13 6l6 6-6 6"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                  <span class="diff-new">{{ getReasonDiff(item).to }}</span>
-                </div>
+                    {{ getEntityLabel(item) }}
+                  </div>
 
-                <div
-                  v-else-if="getActionComment(item)"
-                  class="action-comment"
-                >
-                  {{ getActionComment(item) }}
+                  <div class="history-header">
+                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                  </div>
+
+                  <div class="action-text">
+                    {{ getActionText(item) }}
+                  </div>
+
+                  <div
+                    v-if="getReasonDiff(item)"
+                    class="action-diff"
+                  >
+                    <span class="diff-old">{{ getReasonDiff(item).from }}</span>
+                    <svg
+                      class="diff-arrow"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M4 12h14M13 6l6 6-6 6"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    <span class="diff-new">{{ getReasonDiff(item).to }}</span>
+                  </div>
+
+                  <div
+                    v-else-if="getActionComment(item)"
+                    class="action-comment"
+                  >
+                    {{ getActionComment(item) }}
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
           </div>
         </div>
       </div>
@@ -329,6 +337,23 @@ export default {
         const timeB = new Date(b.created_at).getTime();
         return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
       });
+    },
+
+    historyGroupedByDate() {
+      const groups = [];
+      const seen = new Map();
+      this.filteredHistory.forEach((item) => {
+        const date = new Date(item.created_at).toLocaleDateString('ru-RU', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        });
+        if (!seen.has(date)) {
+          const group = { date, items: [] };
+          groups.push(group);
+          seen.set(date, group);
+        }
+        seen.get(date).items.push(item);
+      });
+      return groups;
     },
 
     formattedCurrentDateTime() {
@@ -911,6 +936,17 @@ export default {
   position: relative;
   padding-left: 20px;
   min-height: 100px;
+}
+
+.history-date-separator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a2a2a2;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 0 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .history-item {

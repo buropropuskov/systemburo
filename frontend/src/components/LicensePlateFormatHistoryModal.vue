@@ -150,52 +150,60 @@
               v-else
               class="history-timeline"
             >
-              <div
-                v-for="(item, index) in displayHistory"
-                :key="item.id"
-                class="history-item"
+              <template
+                v-for="group in historyGroupedByDate"
+                :key="group.date"
               >
+                <div class="history-date-separator">
+                  {{ group.date }}
+                </div>
                 <div
-                  class="timeline-dot"
-                  :class="getActionClass(item.action_type)"
-                />
-                <div
-                  v-if="index < displayHistory.length - 1"
-                  class="timeline-line"
-                />
-
-                <div class="history-content">
-                  <div class="history-header">
-                    <span class="user-name">{{ item.actor_name || 'Система' }}</span>
-                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                  </div>
-
-                  <div class="action-text">
-                    {{ getActionText(item) }}
-                  </div>
-
+                  v-for="(item, i) in group.items"
+                  :key="item.id"
+                  class="history-item"
+                >
                   <div
-                    v-if="item.changes.length"
-                    class="change-list"
-                  >
+                    class="timeline-dot"
+                    :class="getActionClass(item.action_type)"
+                  />
+                  <div
+                    v-if="i < group.items.length - 1"
+                    class="timeline-line"
+                  />
+
+                  <div class="history-content">
+                    <div class="history-header">
+                      <span class="user-name">{{ item.actor_name || 'Система' }}</span>
+                      <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                    </div>
+
+                    <div class="action-text">
+                      {{ getActionText(item) }}
+                    </div>
+
                     <div
-                      v-for="(change, ci) in item.changes"
-                      :key="ci"
-                      class="change-row"
+                      v-if="item.changes.length"
+                      class="change-list"
                     >
-                      <span class="change-label">{{ change.label }}:</span>
-                      <template v-if="change.kind === 'single'">
-                        <span class="change-new">{{ change.value }}</span>
-                      </template>
-                      <template v-else>
-                        <span class="change-old">{{ change.old }}</span>
-                        <span class="change-arrow">→</span>
-                        <span class="change-new">{{ change.new }}</span>
-                      </template>
+                      <div
+                        v-for="(change, ci) in item.changes"
+                        :key="ci"
+                        class="change-row"
+                      >
+                        <span class="change-label">{{ change.label }}:</span>
+                        <template v-if="change.kind === 'single'">
+                          <span class="change-new">{{ change.value }}</span>
+                        </template>
+                        <template v-else>
+                          <span class="change-old">{{ change.old }}</span>
+                          <span class="change-arrow">→</span>
+                          <span class="change-new">{{ change.new }}</span>
+                        </template>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </template>
             </div>
           </div>
         </div>
@@ -363,6 +371,23 @@ export default {
     // шаблоне дважды на item (v-if + v-for).
     displayHistory() {
       return this.filteredHistory.map((item) => ({ ...item, changes: this.getChanges(item) }));
+    },
+
+    historyGroupedByDate() {
+      const groups = [];
+      const seen = new Map();
+      this.displayHistory.forEach((item) => {
+        const date = new Date(item.created_at).toLocaleDateString('ru-RU', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        });
+        if (!seen.has(date)) {
+          const group = { date, items: [] };
+          groups.push(group);
+          seen.set(date, group);
+        }
+        seen.get(date).items.push(item);
+      });
+      return groups;
     },
 
     formattedCurrentDateTime() {
@@ -960,6 +985,17 @@ export default {
   position: relative;
   padding-left: 20px;
   min-height: 100px;
+}
+
+.history-date-separator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a2a2a2;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 0 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .history-item {
