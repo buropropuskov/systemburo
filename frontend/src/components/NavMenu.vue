@@ -577,6 +577,10 @@ export default {
       hoverTimeout: null,
       systemTables: [],
       newApplicationsCount: 0,
+      // Звук новой заявки: primed=true после ПЕРВОЙ загрузки счётчика (чтобы не играть на
+      // логине при 0 -> N); lastSoundAt - метка для кулдауна (пачка заявок -> один звук).
+      soundPrimed: false,
+      lastSoundAt: 0,
       applicationsPollingInterval: null,
       tablesPollingInterval: null,
       mobileOpen: false,
@@ -706,11 +710,6 @@ export default {
     },
   },
   watch: {
-    newApplicationsCount(newVal, oldVal) {
-      if (newVal > oldVal && this.soundStore.enabled) {
-        playPreset(this.soundStore.selectedPreset, this.soundStore.volume)
-      }
-    },
     // Закрываем drawer при переходе по пункту меню; покинули раздел Админки
     // (клик «РАБОТА»/кабинет) - закрываем колонку.
     '$route'() {
@@ -958,11 +957,24 @@ export default {
     },
 
     async fetchNewApplicationsCount() {
+      const SOUND_COOLDOWN_MS = 5000
       try {
         const data = await getUnreadCount()
-        this.newApplicationsCount = data.count || 0
+        const count = data.count || 0
+        // Звук только при РОСТЕ счётчика после первичной загрузки (не на логине) и не чаще
+        // кулдауна - пачка заявок в одном опросе даёт +N за раз = один звук.
+        if (this.soundPrimed && count > this.newApplicationsCount && this.soundStore.enabled) {
+          const now = Date.now()
+          if (now - this.lastSoundAt > SOUND_COOLDOWN_MS) {
+            playPreset(this.soundStore.selectedPreset, this.soundStore.volume)
+            this.lastSoundAt = now
+          }
+        }
+        this.newApplicationsCount = count
+        this.soundPrimed = true
       } catch {
         this.newApplicationsCount = 0
+        this.soundPrimed = true
       }
     },
 
