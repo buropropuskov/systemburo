@@ -297,9 +297,8 @@
           v-for="place in allUnloadingPlaces" 
           :key="place.id"
           class="unloading__item"
-          :class="{ 
+          :class="{
             'unloading__item--active': selectedUnloadingPlaces.includes(place.id) && place.status === 'active',
-            'unloading__item--attached': attachedPlacesIds.includes(place.id),
             'unloading__item--inactive': place.status !== 'active'
           }"
           @click="toggleUnloadingPlace(place)"
@@ -481,9 +480,6 @@ export default {
     computed: {
         selectedFormatText() {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
-        },
-        attachedPlacesIds() {
-            return this.attachedUnloadingPlaces.map(place => place.id);
         },
         canAddExistingCars() {
             // Проверяем, что среди выбранных мест нет неактивных
@@ -1663,10 +1659,6 @@ export default {
     border-color: #ffcccc;
     cursor: not-allowed;
     opacity: 0.7;
-}
-
-.unloading__item--attached {
-    border-left: 3px solid #4F5BDF;
 }
 
 .error-message {
