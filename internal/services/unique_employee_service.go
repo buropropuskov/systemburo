@@ -91,6 +91,9 @@ type UniqueEmployeeWithRelations struct {
 	// не реестр). Нужен фронту, чтобы подтянуть территориальный статус сотрудника
 	// (current-status ключуется по employees.id, а не по unique_employees.id).
 	ActiveEmployeeID *int `json:"active_employee_id"`
+	// ActiveApplicationID -- id заявки (applications.id) той же активной заявки, что и
+	// прочие active_*-поля. Нужен фронту для кнопки "Открыть заявку" на вкладке Сотрудники.
+	ActiveApplicationID *int `json:"active_application_id"`
 }
 
 // NewUniqueEmployeeRequest -- тело запроса на создание/обновление сотрудника.
@@ -298,7 +301,15 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 				AND CURRENT_DATE <= a.entry_date_to::date
 				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_employee_id`).
+			) as active_employee_id,
+			(SELECT app.id FROM employees e
+				JOIN attachments a ON e.attachment_id = a.id
+				JOIN applications app ON a.application_id = app.id
+				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+				AND CURRENT_DATE <= a.entry_date_to::date
+				ORDER BY a.entry_date_to DESC LIMIT 1
+			) as active_application_id`).
 		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id")

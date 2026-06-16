@@ -599,6 +599,8 @@ export default {
                 // id заявочной строки активной заявки; по нему карточка тянет статус
                 // территории (current-status ключуется по employees.id, не по реестру).
                 activeEmployeeId: employee.active_employee_id || null,
+                // id самой заявки - для кнопки "Открыть заявку" (open-application).
+                applicationId: employee.active_application_id || null,
                 last_name: employee.last_name,
                 first_name: employee.first_name,
                 middle_name: employee.middle_name,

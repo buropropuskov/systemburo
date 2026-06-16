@@ -20,6 +20,63 @@ func TestUniqueEmployees_Unauthorized(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
+// active_application_id связывает строку реестра сотрудников с id активной заявки.
+// Без него вкладка "Сотрудники" не может открыть заявку (кнопка "Открыть заявку").
+// Реестр и заявочный сотрудник связаны по passport_series_number_hmac, поэтому
+// реестровую запись активного сотрудника заводим с тем же паспортом, что и в seed-заявке.
+func TestUniqueEmployees_ActiveApplicationIDForActiveApplication(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	appID, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	// Паспорт совпадает с сотрудником из seed-заявки ("1234 567890") - так подзапрос
+	// активной заявки сматчится по passport_series_number_hmac.
+	active := fmt.Sprintf(`{"last_name":"RegActive","first_name":"A","passport_series_number":"1234 567890","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	testutil.POST(t, e, "/unique-employees", active, h)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	rows := testutil.ParseSlice(t, rec)
+
+	var found map[string]interface{}
+	for _, r := range rows {
+		if n, _ := r["last_name"].(string); n == "RegActive" {
+			found = r
+			break
+		}
+	}
+	require.NotNil(t, found, "реестровый сотрудник RegActive должен быть в списке")
+	assert.Equal(t, true, found["status"], "у сотрудника с активной заявкой status=true")
+	require.NotNil(t, found["active_employee_id"], "active_employee_id заполнен для активного сотрудника")
+	assert.Equal(t, float64(empID), found["active_employee_id"], "active_employee_id = id активной заявочной строки")
+	require.NotNil(t, found["active_application_id"], "active_application_id заполнен для активного сотрудника")
+	assert.Equal(t, float64(appID), found["active_application_id"], "active_application_id = id активной заявки")
+
+	// Сотрудник без активной заявки: active_* пустые (фронт прячет кнопку "Открыть заявку").
+	idle := fmt.Sprintf(`{"last_name":"RegIdle","first_name":"B","passport_series_number":"0000 000111","organization_id":%d,"company_id":%d}`, td.OrgID, td.CompanyID)
+	testutil.POST(t, e, "/unique-employees", idle, h)
+	rec = testutil.GET(t, e, "/unique-employees?filter_type=all_system", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	rows = testutil.ParseSlice(t, rec)
+	var idleRow map[string]interface{}
+	for _, r := range rows {
+		if n, _ := r["last_name"].(string); n == "RegIdle" {
+			idleRow = r
+			break
+		}
+	}
+	require.NotNil(t, idleRow, "сотрудник без заявки должен быть в реестре")
+	assert.Equal(t, false, idleRow["status"], "без активной заявки status=false")
+	assert.Nil(t, idleRow["active_employee_id"], "без активной заявки active_employee_id пустой")
+	assert.Nil(t, idleRow["active_application_id"], "без активной заявки active_application_id пустой")
+}
+
 func TestUniqueEmployees_CRUD(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
