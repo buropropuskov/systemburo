@@ -257,7 +257,7 @@
 
                 <!-- Секция Статус (только для автомобилей; в корзине не показываем) -->
                 <div
-                  v-if="showCarFeatures && source !== 'trash'"
+                  v-if="showStatusSection"
                   class="details-section"
                 >
                   <div class="section-header">
@@ -532,6 +532,11 @@ export default {
             if (this.entryChecked && !this.exitChecked) return 'На территории';
             if (this.exitChecked) return 'Выехал';
             return 'Не въезжал';
+        },
+        // Статус территории нужен на вкладке "Автомобили" (source='carsview', features выкл)
+        // наравне с Центром/деталью заявки. Скрываем только в корзине.
+        showStatusSection() {
+            return (this.showCarFeatures || this.source === 'carsview') && this.source !== 'trash';
         },
         // Только события въезда/выезда
         entryExitHistory() {
@@ -835,12 +840,17 @@ export default {
         },
 
         async loadCarStatus() {
-            if (!this.vehicle?.id) return;
+            // На вкладке "Автомобили" (carsview) vehicle.id - id реестра уникальных машин,
+            // а статус ключуется по cars.id (заявочная таблица), поэтому берём только
+            // activeCarId (без отката на vehicle.id - id-пространства разные, возможно ложное
+            // совпадение). В прочих источниках vehicle.id уже = cars.id.
+            const statusCarId = this.source === 'carsview' ? this.vehicle?.activeCarId : this.vehicle?.id;
+            if (!statusCarId) return;
             try {
                 const response = await apiRequest('/cars/history/current-status', {});
                 if (response.ok) {
                     const statuses = await response.json();
-                    const status = statuses.find(s => s.car_id === this.vehicle.id);
+                    const status = statuses.find(s => s.car_id === statusCarId);
                     if (status) {
                         this.entryChecked = status.territory_status === 1;
                         this.exitChecked = status.territory_status === 2;

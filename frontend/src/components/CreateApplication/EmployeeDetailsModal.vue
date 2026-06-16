@@ -787,12 +787,17 @@ export default {
         },
 
         async loadEmployeeStatus() {
-            if (!this.employee?.id) return;
+            // На вкладке "Сотрудники" (employeesview) employee.id - id реестра, а статус
+            // ключуется по employees.id (заявочная таблица), поэтому берём только
+            // activeEmployeeId (без отката на employee.id - id-пространства разные).
+            // В прочих источниках employee.id уже = employees.id.
+            const statusEmployeeId = this.source === 'employeesview' ? this.employee?.activeEmployeeId : this.employee?.id;
+            if (!statusEmployeeId) return;
             try {
                 const response = await apiRequest('/employees/history/current-status', { method: 'GET' });
                 if (response.ok) {
                     const statuses = await response.json();
-                    const status = statuses.find(s => s.employee_id === this.employee.id);
+                    const status = statuses.find(s => s.employee_id === statusEmployeeId);
                     if (status) {
                         this.territoryStatus = status.territory_status;
                     } else {
