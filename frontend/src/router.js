@@ -191,6 +191,12 @@ const routes = [
     meta: { requiresAuth: true, requiresBuro: true }
   },
   {
+    path: '/admin/documents',
+    name: 'AdminDocuments',
+    component: () => import('./views/admin/DocumentsView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
+  },
+  {
     path: '/500',
     name: 'Error500',
     component: () => import('./views/Error500.vue'),

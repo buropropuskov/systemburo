@@ -148,6 +148,7 @@
             Читать далее
           </button>
         </div>
+        <DocumentsBlock />
       </div>
     </div>
 
@@ -570,6 +571,7 @@ import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
 import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
 import { useAuthStore } from '@/stores/auth'
 import { sanitizeHtml } from '@/utils/sanitize.js'
+import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 
 export default {
   name: 'LatestNews',
@@ -578,7 +580,8 @@ export default {
     AnnouncementModal,
     LoaderSpinner,
     UserGuideModal,
-    TextConstructor
+    TextConstructor,
+    DocumentsBlock,
   },
   data() {
     return {

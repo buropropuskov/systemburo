@@ -609,6 +609,7 @@ export default {
             { label: 'Типы вложений', icon: 'attachment-types', path: '/admin/attachment-types' },
             { label: 'Типы пользователей', icon: 'user-types', path: '/admin/user-types' },
             { label: 'Принимающие', icon: 'approvers', path: '/admin/approvers' },
+            { label: 'Документы', icon: 'documents', path: '/admin/documents' },
           ],
         },
         {
