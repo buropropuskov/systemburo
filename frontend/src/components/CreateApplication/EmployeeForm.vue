@@ -4,12 +4,6 @@
     :class="{ 'data__completion--locked': disabled }"
     :inert="disabled ? '' : undefined"
   >
-    <div
-      v-if="disabled"
-      class="completion__lock"
-    >
-      <span>Сначала заполните обязательные поля вложения</span>
-    </div>
     <div class="completion__header">
       <h3>Новый сотрудник</h3>
       <button
@@ -1184,26 +1178,6 @@ export default {
 
 .data__completion--locked {
     position: relative;
-}
-
-.completion__lock {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 24px;
-    background: rgba(244, 245, 248, 0.7);
-}
-
-.completion__lock span {
-    max-width: 240px;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: #8a8f9a;
 }
 
 .completion__citizenship {
