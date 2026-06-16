@@ -1124,21 +1124,25 @@ export default {
 
 /* Лейбл + компактный "Быстрый выбор" в одной строке - кнопки не сдвигают инпут вниз */
 .date__label-row {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
 }
 
+/* Дропдаун вне потока: строка лейбла остаётся высотой лейбла -
+   инпуты даты совпадают по уровню с инпутами времени. */
 .qd-dropdown {
-    position: relative;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
 }
 
 .qd-trigger {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    height: 26px;
+    height: 24px;
     padding: 0 10px;
     border-radius: 50px;
     border: 1px solid #cfd4ff;
