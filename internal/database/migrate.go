@@ -147,6 +147,10 @@ func AllModels() []interface{} {
 		// PD consent & audit (152-FZ)
 		&models.PDConsent{},
 		&models.PDAuditLog{},
+
+		// Documents (#39)
+		&models.DocumentGroup{},
+		&models.Document{},
 	}
 }
 

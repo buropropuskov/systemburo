@@ -42,6 +42,7 @@ var tables = []string{
 	"role_default_groups", "permission_groups",
 	"user_permissions", "permissions",
 	"bug_reports",
+	"documents", "document_groups",
 	"request_log", "request_logs", "notifications", "news", "announcements",
 	"feedback", "application_items", "items",
 	"application_blacklist_overrides", "application_blacklist_flags",
@@ -144,6 +145,9 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	attachmentBlankService := services.NewAttachmentBlankService(db)
 	trashService := services.NewTrashService(db)
 	trashDBRef := services.NewTrashDBRef(db)
+	documentFileService := services.NewDocumentFileService("./uploads")
+	documentGroupService := services.NewDocumentGroupService(db)
+	documentService := services.NewDocumentService(db, documentFileService, settingsService)
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, false, 168*time.Hour)
@@ -185,6 +189,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService, attachmentFieldConfigService)
 	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
+	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
+	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -230,6 +236,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		AttachmentTemplates: attachmentTemplateHandler,
 		AttachmentBlanks:    attachmentBlankHandler,
 		Trash:               trashHandler,
+		DocumentGroups:      documentGroupHandler,
+		Documents:           documentHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		JWTSecret:           []byte(TestJWTSecret),
