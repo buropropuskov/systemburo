@@ -148,15 +148,27 @@
               </div>
               <div class="info-row">
                 <span class="info-label">Отправитель:</span>
-                <span class="info-value">{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
-                <Badge
-                  v-if="applicationData.sender_is_important"
-                  variant="info"
-                  size="sm"
-                  class="sender-important-badge"
-                >
-                  Важный
-                </Badge>
+                <span class="info-value sender-value">
+                  <span>{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
+                  <Badge
+                    v-if="applicationData.sender_is_important"
+                    variant="info"
+                    size="sm"
+                    class="sender-important-tag"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
+                    Важный
+                  </Badge>
+                </span>
               </div>
             </div>
           </div>
@@ -1559,6 +1571,19 @@ export default {
     text-align: left;
     flex: 1;
     font-weight: 400;
+}
+
+/* Имя отправителя и тег "Важный" в одну строку: тег - пилюль рядом с именем (как теги
+   Крыша/Парковка), а не отдельной строкой под ним. */
+.sender-value {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sender-important-tag {
+    flex-shrink: 0;
 }
 
 .duplicate-btn {
