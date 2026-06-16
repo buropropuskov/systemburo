@@ -989,7 +989,9 @@ export default {
   display: flex;
   flex-direction: column;
   background: #fff;
-  border-radius: 30px;
+  border-radius: 16px;
+  border: 1px solid #e6e6e6;
+  overflow: hidden;
 }
 
 /* --- Шапка --- */
@@ -1005,9 +1007,9 @@ export default {
 
 .management-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a1a1a;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #000;
   flex-shrink: 0;
 }
 
