@@ -1169,7 +1169,7 @@ export default {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    z-index: 20;
+    z-index: 1001;
     width: 230px;
     display: flex;
     flex-direction: column;
