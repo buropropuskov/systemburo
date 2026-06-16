@@ -96,55 +96,63 @@
               v-else
               class="history-timeline"
             >
-              <div
-                v-for="(item, index) in filteredHistory"
-                :key="item.id"
-                class="history-item"
+              <template
+                v-for="group in historyGroupedByDate"
+                :key="group.date"
               >
-                <div
-                  class="timeline-dot"
-                  :class="getActionClass(item.action_type)"
-                />
-                <div
-                  v-if="index < filteredHistory.length - 1"
-                  class="timeline-line"
-                />
-                <div class="history-content">
-                  <div class="history-header">
-                    <span class="action-title">{{ actionTitle(item) }}</span>
-                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                  </div>
-                  <div class="action-user">
-                    {{ item.user_name || 'Система' }}
-                  </div>
-                  <template v-if="itemDetails(item).length > 1">
-                    <button
-                      class="detail-toggle"
-                      @click="toggleExpand(item.id)"
-                    >
-                      {{ expanded[item.id] ? 'Свернуть' : `Раскрыть (${itemDetails(item).length})` }}
-                    </button>
-                    <ul
-                      v-if="expanded[item.id]"
-                      class="detail-list"
-                    >
-                      <li
-                        v-for="(d, i) in visibleDetails(item)"
-                        :key="i"
-                      >
-                        {{ d.label || ('ID ' + d.id) }}
-                      </li>
-                    </ul>
-                    <button
-                      v-if="expanded[item.id] && visibleDetails(item).length < filteredDetails(item).length"
-                      class="detail-more"
-                      @click="showMore(item.id)"
-                    >
-                      Показать ещё
-                    </button>
-                  </template>
+                <div class="history-date-separator">
+                  {{ group.date }}
                 </div>
-              </div>
+                <div
+                  v-for="(item, i) in group.items"
+                  :key="item.id"
+                  class="history-item"
+                >
+                  <div
+                    class="timeline-dot"
+                    :class="getActionClass(item.action_type)"
+                  />
+                  <div
+                    v-if="i < group.items.length - 1"
+                    class="timeline-line"
+                  />
+                  <div class="history-content">
+                    <div class="history-header">
+                      <span class="action-title">{{ actionTitle(item) }}</span>
+                      <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                    </div>
+                    <div class="action-user">
+                      {{ item.user_name || 'Система' }}
+                    </div>
+                    <template v-if="itemDetails(item).length > 1">
+                      <button
+                        class="detail-toggle"
+                        @click="toggleExpand(item.id)"
+                      >
+                        {{ expanded[item.id] ? 'Свернуть' : `Раскрыть (${itemDetails(item).length})` }}
+                      </button>
+                      <ul
+                        v-if="expanded[item.id]"
+                        class="detail-list"
+                      >
+                        <li
+                          v-for="(d, idx) in visibleDetails(item)"
+                          :key="idx"
+                        >
+                          {{ d.label || ('ID ' + d.id) }}
+                        </li>
+                      </ul>
+                      <button
+                        v-if="expanded[item.id] && visibleDetails(item).length < filteredDetails(item).length"
+                        class="detail-more"
+                        @click="showMore(item.id)"
+                      >
+                        Показать ещё
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -201,6 +209,21 @@ export default {
         return this.sortOrder === 'asc' ? da - db : db - da;
       });
       return arr;
+    },
+    historyGroupedByDate() {
+      const groups = [];
+      const dateMap = new Map();
+      for (const item of this.filteredHistory) {
+        const dateKey = new Date(item.created_at).toLocaleDateString('ru-RU', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        });
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, []);
+          groups.push({ date: dateKey, items: dateMap.get(dateKey) });
+        }
+        dateMap.get(dateKey).push(item);
+      }
+      return groups;
     },
     formattedCurrentDateTime() {
       return new Date().toLocaleString('ru-RU', {
@@ -347,6 +370,16 @@ export default {
 </script>
 
 <style scoped>
+.history-date-separator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4F5BDF;
+  padding: 8px 0 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e6f0ff;
+  letter-spacing: 0.02em;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

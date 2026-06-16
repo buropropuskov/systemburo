@@ -151,72 +151,80 @@
               v-else
               class="history-timeline"
             >
-              <div 
-                v-for="(item, index) in filteredHistory" 
-                :key="item.id" 
-                class="history-item"
+              <template
+                v-for="group in historyGroupedByDate"
+                :key="group.date"
               >
+                <div class="history-date-separator">
+                  {{ group.date }}
+                </div>
                 <div
-                  class="timeline-dot"
-                  :class="getActionClass(item.action_type)"
-                />
-                <div
-                  v-if="index < filteredHistory.length - 1"
-                  class="timeline-line"
-                />
-            
-                <div
-                  class="history-content"
-                  :class="{ 'history-content--link': isApplicationLink(item) }"
-                  @click="handleHistoryClick(item)"
+                  v-for="(item, i) in group.items"
+                  :key="item.id"
+                  class="history-item"
                 >
-                  <div class="history-header">
-                    <span class="user-name">{{ item.user_name || 'Система' }}</span>
-                    <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
-                  </div>
-              
-                  <div class="action-text">
-                    {{ getActionText(item) }}
-                  </div>
-              
                   <div
-                    v-if="item.action_type === 'entry' || item.action_type === 'exit'"
-                    class="action-comment"
-                  >
-                    {{ getActionComment(item) }}
-                  </div>
-              
+                    class="timeline-dot"
+                    :class="getActionClass(item.action_type)"
+                  />
                   <div
-                    v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'"
-                    class="action-comment"
-                  >
-                    {{ item.comment }}
-                  </div>
-              
+                    v-if="i < group.items.length - 1"
+                    class="timeline-line"
+                  />
+
                   <div
-                    v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
-                    class="value-change"
+                    class="history-content"
+                    :class="{ 'history-content--link': isApplicationLink(item) }"
+                    @click="handleHistoryClick(item)"
                   >
-                    <span class="old-value">{{ item.old_value }}</span>
-                    <span class="arrow">→</span>
-                    <span class="new-value">{{ item.new_value }}</span>
-                  </div>
-              
-                  <div
-                    v-if="item.field_name"
-                    class="field-name"
-                  >
-                    Поле: {{ item.field_name }}
-                  </div>
-              
-                  <div
-                    v-if="item.table_name"
-                    class="place-name"
-                  >
-                    {{ item.table_name }}
+                    <div class="history-header">
+                      <span class="user-name">{{ item.user_name || 'Система' }}</span>
+                      <span class="action-time">{{ formatDateTime(item.created_at) }}</span>
+                    </div>
+
+                    <div class="action-text">
+                      {{ getActionText(item) }}
+                    </div>
+
+                    <div
+                      v-if="item.action_type === 'entry' || item.action_type === 'exit'"
+                      class="action-comment"
+                    >
+                      {{ getActionComment(item) }}
+                    </div>
+
+                    <div
+                      v-if="item.comment && item.action_type !== 'entry' && item.action_type !== 'exit'"
+                      class="action-comment"
+                    >
+                      {{ item.comment }}
+                    </div>
+
+                    <div
+                      v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
+                      class="value-change"
+                    >
+                      <span class="old-value">{{ item.old_value }}</span>
+                      <span class="arrow">→</span>
+                      <span class="new-value">{{ item.new_value }}</span>
+                    </div>
+
+                    <div
+                      v-if="item.field_name"
+                      class="field-name"
+                    >
+                      Поле: {{ item.field_name }}
+                    </div>
+
+                    <div
+                      v-if="item.table_name"
+                      class="place-name"
+                    >
+                      {{ item.table_name }}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </template>
             </div>
           </div>
         </div>
@@ -365,6 +373,22 @@ export default {
         const timeB = new Date(b.created_at).getTime();
         return this.sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
       });
+    },
+
+    historyGroupedByDate() {
+      const groups = [];
+      const dateMap = new Map();
+      for (const item of this.filteredHistory) {
+        const dateKey = new Date(item.created_at).toLocaleDateString('ru-RU', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        });
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, []);
+          groups.push({ date: dateKey, items: dateMap.get(dateKey) });
+        }
+        dateMap.get(dateKey).push(item);
+      }
+      return groups;
     },
 
     exportData() {
@@ -770,6 +794,16 @@ export default {
 </script>
 
 <style scoped>
+.history-date-separator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4F5BDF;
+  padding: 8px 0 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e6f0ff;
+  letter-spacing: 0.02em;
+}
+
 .place-name {
   font-size: 11px;
   color: #4F5BDF;
