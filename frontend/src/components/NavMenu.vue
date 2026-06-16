@@ -552,6 +552,8 @@ import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { useSoundStore } from '@/stores/sound'
+import { playPreset } from '@/utils/notificationSound'
 import NavIcon from '@/components/icons/NavIcon.vue'
 
 export default {
@@ -563,7 +565,8 @@ export default {
     // Администрирования, uiStore - состояния рельса (пин/hide, персист).
     const authStore = useAuthStore()
     const uiStore = useUiStore()
-    return { authStore, uiStore }
+    const soundStore = useSoundStore()
+    return { authStore, uiStore, soundStore }
   },
   data() {
     return {
@@ -702,6 +705,11 @@ export default {
     },
   },
   watch: {
+    newApplicationsCount(newVal, oldVal) {
+      if (newVal > oldVal && this.soundStore.enabled) {
+        playPreset(this.soundStore.selectedPreset, this.soundStore.volume)
+      }
+    },
     // Закрываем drawer при переходе по пункту меню; покинули раздел Админки
     // (клик «РАБОТА»/кабинет) - закрываем колонку.
     '$route'() {
