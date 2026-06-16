@@ -303,7 +303,7 @@
                   fill="#fff"
                 />
               </svg>
-              <span class="form__data-lock-hint">сначала заполните основные поля заявки выше</span>
+              <span class="form__data-lock-hint">Сначала заполните основные поля заявки выше</span>
             </div>
           </div>
         </div>
@@ -2442,9 +2442,8 @@ export default {
         display: flex;
         align-items: center;
         justify-content: center;
-        /* Светлый серый тон сам по себе сливался с фоном формы - frosted-blur
-           делает заблокированное состояние читаемым, оставаясь светлым. */
-        background: rgba(216, 220, 233, 0.62);
+        /* Светлая полупрозрачная заливка + лёгкое размытие - блок читается как заблокированный. */
+        background: #f5f5f59e;
         backdrop-filter: blur(2px);
         -webkit-backdrop-filter: blur(2px);
     }
