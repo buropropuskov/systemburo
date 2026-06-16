@@ -129,9 +129,33 @@
         <div class="tab-content">
           <div class="details-header">
             <div class="details-title-wrapper">
-              <h3 class="details-title">
-                {{ original.display_name }}
-              </h3>
+              <input
+                v-if="editingName"
+                ref="nameEditInput"
+                v-model="editingNameValue"
+                class="lk-input name-edit-input"
+                maxlength="255"
+                @keyup.enter="saveNameEdit"
+                @keyup.escape="cancelNameEdit"
+                @blur="saveNameEdit"
+              >
+              <template v-else>
+                <h3 class="details-title">
+                  {{ original.display_name }}
+                </h3>
+                <button
+                  v-if="selectedAttachment.is_active"
+                  class="name-edit-btn"
+                  title="Переименовать"
+                  @click="startNameEdit"
+                >
+                  <img
+                    src="@/assets/icons/edit.png"
+                    class="name-edit-icon"
+                    alt=""
+                  >
+                </button>
+              </template>
               <span
                 class="type-badge details-type-badge"
                 :class="selectedAttachment.attachment_type"
@@ -526,6 +550,8 @@ export default {
       archiveConfirm: null,
       historyForAttachment: null,
       fieldsForAttachment: null,
+      editingName: false,
+      editingNameValue: '',
       currentUserName: '',
       archiveOptions: [
         { label: 'Активные', value: 'active' },
@@ -832,6 +858,25 @@ export default {
       } catch (e) {
         this.deletions.notify({ prefix: 'Не удалось восстановить: ', bold: e?.message || 'ошибка', type: 'error' });
       }
+    },
+    startNameEdit() {
+      this.editingNameValue = this.original.display_name;
+      this.editingName = true;
+      this.$nextTick(() => {
+        this.$refs.nameEditInput?.focus();
+        this.$refs.nameEditInput?.select();
+      });
+    },
+    saveNameEdit() {
+      if (!this.editingName) return;
+      const trimmed = this.editingNameValue.trim();
+      this.editingName = false;
+      if (!trimmed || trimmed === this.original.display_name) return;
+      this.form.display_name = trimmed;
+      this.saveSelected();
+    },
+    cancelNameEdit() {
+      this.editingName = false;
     },
     openHistory(a) {
       // Подпись в заголовке - актуальное наименование (из формы, если правилось).
@@ -1476,5 +1521,38 @@ export default {
   .type-dropdown {
     max-width: 100%;
   }
+}
+
+/* Inline-редактирование имени в заголовке детали */
+.name-edit-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.name-edit-btn:hover {
+  opacity: 1;
+  background: #f0f0f0;
+}
+
+.name-edit-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.name-edit-input {
+  font-size: 1.2em;
+  font-weight: 600;
+  padding: 2px 8px;
+  min-width: 0;
+  flex: 1;
 }
 </style>
