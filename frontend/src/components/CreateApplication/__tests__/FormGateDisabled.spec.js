@@ -7,7 +7,8 @@ import ItemsForm from '../ItemsForm.vue';
 
 // п.36: формы добавления (авто/сотрудник/ТМЦ) недоступны, пока не заполнены
 // обязательные поля вложения. CreateApplication отдаёт это через prop `disabled`:
-// форма получает класс-замок, атрибут inert и оверлей-плашку с подсказкой.
+// форма получает класс-замок и атрибут inert (барьер взаимодействия). Сам серый
+// оверлей с замком и подсказкой живёт уровнем выше - на form__data в CreateApplication.
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
@@ -43,21 +44,20 @@ beforeEach(() => {
 });
 
 describe('Гейт форм вложения (п.36)', () => {
-  it.each(FORMS)('%s: по умолчанию доступна - нет замка и inert', (_name, Form) => {
+  it.each(FORMS)('%s: по умолчанию доступна - нет класса-замка и inert', (_name, Form) => {
     const w = mount(Form);
     const root = w.find('.data__completion');
     expect(root.classes()).not.toContain('data__completion--locked');
     expect(root.attributes('inert')).toBeUndefined();
-    expect(w.find('.completion__lock').exists()).toBe(false);
   });
 
-  it.each(FORMS)('%s: disabled=true - замок, inert и плашка с подсказкой', (_name, Form) => {
+  it.each(FORMS)('%s: disabled=true - класс-замок и inert (барьер взаимодействия)', (_name, Form) => {
     const w = mount(Form, { props: { disabled: true } });
     const root = w.find('.data__completion');
     expect(root.classes()).toContain('data__completion--locked');
     expect(root.attributes('inert')).toBeDefined();
-    const lock = w.find('.completion__lock');
-    expect(lock.exists()).toBe(true);
-    expect(lock.text()).toContain('обязательные поля вложения');
+    // Визуальный замок и подсказка перенесены на form__data (CreateApplication) -
+    // внутри самой формы их больше нет.
+    expect(w.find('.completion__lock').exists()).toBe(false);
   });
 });

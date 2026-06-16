@@ -258,9 +258,9 @@
             />
           </template>
 
-          <!-- Серый замок-гейт поверх формы И списка, пока не заполнены основные поля вложения -->
+          <!-- Гейт на уровне form__data: накрывает и форму, и список (в самих формах его нет) -->
           <div
-            v-if="!currentAttachmentReady"
+            v-if="selectedAttachment && !currentAttachmentReady"
             class="form__data-lock"
           >
             <div
@@ -2434,7 +2434,7 @@ export default {
         position: relative;
     }
 
-    /* Серый замок-гейт: накрывает форму и список вложения, пока не заполнены основные поля */
+    /* Гейт на уровне form__data - один оверлей и на форму, и на список */
     .form__data-lock {
         position: absolute;
         inset: 0;
