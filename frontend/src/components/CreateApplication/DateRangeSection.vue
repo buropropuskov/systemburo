@@ -4,39 +4,85 @@
       v-if="fieldVisible('entry_date_from')"
       class="date__input"
     >
-      <label class="input__label">Дата действия <span
-        v-if="fieldRequired('entry_date_from')"
-        class="required"
-      >*</span></label>
-      <div class="quick-dates">
-        <button
-          type="button"
-          class="quick-dates__btn"
-          @click="setQuickDate('today')"
-        >
-          Сегодня
-        </button>
-        <button
-          type="button"
-          class="quick-dates__btn"
-          @click="setQuickDate('tomorrow')"
-        >
-          Завтра
-        </button>
-        <button
-          type="button"
-          class="quick-dates__btn"
-          @click="setQuickDate('after-tomorrow')"
-        >
-          Послезавтра
-        </button>
-        <button
-          type="button"
-          class="quick-dates__btn"
-          @click="setQuickDate('month')"
-        >
-          На месяц
-        </button>
+      <div class="date__label-row">
+        <label class="input__label">Дата действия <span
+          v-if="fieldRequired('entry_date_from')"
+          class="required"
+        >*</span></label>
+        <div class="qd-dropdown">
+          <button
+            type="button"
+            class="qd-trigger"
+            :class="{ 'qd-trigger--open': showQuickMenu }"
+            @click.stop="showQuickMenu = !showQuickMenu"
+          >
+            <span>Быстрый выбор</span>
+            <svg
+              class="qd-caret"
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M6 9L12 15L18 9"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <transition name="qd-fade">
+            <div
+              v-if="showQuickMenu"
+              class="qd-menu"
+              @click.stop
+            >
+              <button
+                type="button"
+                class="qd-item"
+                @click="setQuickDate('today')"
+              >
+                <span class="qd-item__label">Сегодня</span>
+                <span class="qd-item__date">{{ quickDateOptions.today }}</span>
+              </button>
+              <button
+                type="button"
+                class="qd-item"
+                @click="setQuickDate('tomorrow')"
+              >
+                <span class="qd-item__label">Завтра</span>
+                <span class="qd-item__date">{{ quickDateOptions.tomorrow }}</span>
+              </button>
+              <button
+                type="button"
+                class="qd-item"
+                @click="setQuickDate('after-tomorrow')"
+              >
+                <span class="qd-item__label">Послезавтра</span>
+                <span class="qd-item__date">{{ quickDateOptions.afterTomorrow }}</span>
+              </button>
+              <div class="qd-sep" />
+              <button
+                type="button"
+                class="qd-item"
+                @click="setQuickDate('current-month')"
+              >
+                <span class="qd-item__label">{{ quickDateOptions.currentMonthLabel }}</span>
+                <span class="qd-item__date">{{ quickDateOptions.currentMonthRange }}</span>
+              </button>
+              <button
+                type="button"
+                class="qd-item"
+                @click="setQuickDate('next-month')"
+              >
+                <span class="qd-item__label">{{ quickDateOptions.nextMonthLabel }}</span>
+                <span class="qd-item__date">{{ quickDateOptions.nextMonthRange }}</span>
+              </button>
+            </div>
+          </transition>
+        </div>
       </div>
       <div class="date-container">
         <div
@@ -467,7 +513,8 @@ export default {
             showSingleDatepicker: false,
             currentDate: today,
             weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
-            internalToggle: false
+            internalToggle: false,
+            showQuickMenu: false
         }
     },
     computed: {
@@ -480,6 +527,30 @@ export default {
                 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
             ];
             return months[this.currentDate.getMonth()];
+        },
+        // Опции "Быстрого выбора": полные даты для одиночных дней и календарных периодов.
+        // "На <тек.месяц>" = сегодня..конец месяца, "На <след.месяц>" = весь следующий месяц.
+        quickDateOptions() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const months = [
+                'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+                'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'
+            ];
+            const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+            const afterTomorrow = new Date(today); afterTomorrow.setDate(today.getDate() + 2);
+            const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+            const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+            return {
+                today: this.formatDate(today),
+                tomorrow: this.formatDate(tomorrow),
+                afterTomorrow: this.formatDate(afterTomorrow),
+                currentMonthLabel: 'На ' + months[today.getMonth()],
+                currentMonthRange: `${this.formatDate(today)} - ${this.formatDate(currentMonthEnd)}`,
+                nextMonthLabel: 'На ' + months[nextMonthStart.getMonth()],
+                nextMonthRange: `${this.formatDate(nextMonthStart)} - ${this.formatDate(nextMonthEnd)}`
+            };
         },
         calendarDays() {
             const year = this.currentDate.getFullYear();
@@ -551,6 +622,9 @@ export default {
             if (!e.target.closest('.datepicker-wrapper')) {
                 this.closeDatepicker();
             }
+            if (!e.target.closest('.qd-dropdown')) {
+                this.showQuickMenu = false;
+            }
         });
         this.validateDateRange();
         this.validateTimeCrossing();
@@ -569,15 +643,20 @@ export default {
                     this.$emit('update:end-date', '');
                     this.$emit('update:single-date', this.formatDate(target));
                     this.$emit('update:is-one-day', true);
-                } else if (kind === 'month') {
-                    const end = new Date(today);
-                    end.setDate(today.getDate() + 30);
+                } else if (kind === 'current-month' || kind === 'next-month') {
+                    const start = kind === 'current-month'
+                        ? today
+                        : new Date(today.getFullYear(), today.getMonth() + 1, 1);
+                    const end = kind === 'current-month'
+                        ? new Date(today.getFullYear(), today.getMonth() + 1, 0)
+                        : new Date(today.getFullYear(), today.getMonth() + 2, 0);
                     this.$emit('update:single-date', '');
                     this.$emit('update:is-one-day', false);
-                    this.$emit('update:start-date', this.formatDate(today));
+                    this.$emit('update:start-date', this.formatDate(start));
                     this.$emit('update:end-date', this.formatDate(end));
                 }
             } finally {
+                this.showQuickMenu = false;
                 this.$nextTick(() => {
                     this.internalToggle = false;
                     this.$emit('validate-field', 'isOneDay');
@@ -1043,35 +1122,111 @@ export default {
     width: 250px;
 }
 
-.quick-dates {
+/* Лейбл + компактный "Быстрый выбор" в одной строке - кнопки не сдвигают инпут вниз */
+.date__label-row {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-bottom: 4px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
-.quick-dates__btn {
-    height: 24px;
+.qd-dropdown {
+    position: relative;
+}
+
+.qd-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
     padding: 0 10px;
     border-radius: 50px;
-    border: 1px solid #e6e6e6;
-    background: #FFF;
+    border: 1px solid #cfd4ff;
+    background: #f6f7ff;
     font-family: inherit;
     font-size: 11px;
+    font-weight: 600;
     color: #4F5BDF;
-    font-weight: 500;
     cursor: pointer;
+    white-space: nowrap;
     transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.qd-trigger:hover {
+    background: #eef0ff;
+    border-color: #b9c0ff;
+}
+
+.qd-caret {
+    transition: transform 0.2s ease;
+}
+
+.qd-trigger--open .qd-caret {
+    transform: rotate(180deg);
+}
+
+.qd-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    width: 230px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    background: #fff;
+    border: 1px solid var(--border, #e6e6e6);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.qd-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border: none;
+    background: none;
+    border-radius: 9px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.15s ease;
+}
+
+.qd-item:hover {
+    background: #eef0ff;
+}
+
+.qd-item__label {
+    font-size: 13px;
+    color: #333;
     white-space: nowrap;
 }
 
-.quick-dates__btn:hover {
-    background-color: #f2f2f2;
-    border-color: #d6d6d6;
+.qd-item__date {
+    font-size: 11px;
+    color: #a2a2a2;
+    white-space: nowrap;
 }
 
-.quick-dates__btn:active {
-    background-color: #e8ebff;
+.qd-sep {
+    height: 1px;
+    background: #f0f0f4;
+    margin: 3px 6px;
+}
+
+.qd-fade-enter-active,
+.qd-fade-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.qd-fade-enter-from,
+.qd-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-6px);
 }
 
 .date {
