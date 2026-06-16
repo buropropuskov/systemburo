@@ -320,8 +320,8 @@
                 <div class="application-col tags-col">
                   <div
                     v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important"
-                    v-tag-fit
                     class="application-tags"
+                    :class="{ 'application-tags--compact': tagsAreCompact(application) }"
                   >
                     <Badge
                       v-if="blacklistFlagCount(application) > 0"
@@ -476,34 +476,6 @@ export default {
         LoaderSpinner,
         DownloadBlanksModal,
         Badge,
-    },
-    directives: {
-        // Сворачивает строку тегов в иконки, когда текстовые теги не влезают в фикс-колонку
-        // (без переноса на новую строку). Мерим реальный overflow: форсим полный текст без
-        // анимации (--measuring), сравниваем scrollWidth с clientWidth, вешаем/снимаем --compact.
-        // ResizeObserver слушает РОДИТЕЛЬСКУЮ ячейку (её ширина стабильна), иначе toggle --compact
-        // менял бы размер самого элемента и зациклил наблюдатель.
-        tagFit: {
-            mounted(el) {
-                const fit = () => {
-                    el.classList.add('application-tags--measuring');
-                    const overflow = el.scrollWidth > el.clientWidth + 1;
-                    el.classList.remove('application-tags--measuring');
-                    el.classList.toggle('application-tags--compact', overflow);
-                };
-                el.__tagFit = fit;
-                el.__tagRO = new ResizeObserver(fit);
-                el.__tagRO.observe(el.parentElement || el);
-            },
-            updated(el) {
-                el.__tagFit && el.__tagFit();
-            },
-            unmounted(el) {
-                el.__tagRO && el.__tagRO.disconnect();
-                el.__tagRO = null;
-                el.__tagFit = null;
-            },
-        },
     },
     emits: ['refresh-data'],
     data() {
@@ -965,6 +937,18 @@ export default {
         blacklistFlagLabel,
         blacklistFlagTitle() {
             return BLACKLIST_FLAG_TITLE;
+        },
+
+        // Колонка тегов фиксированная (120/90px) - один текстовый тег влезает, два и больше нет.
+        // При 2+ тегах сворачиваем крыша/парковка/важный в иконки (ЧС держим текстом). Решение
+        // по данным, а не замером DOM - реактивно, без дёрганья на ре-рендерах.
+        tagsAreCompact(application) {
+            const count =
+                (this.blacklistFlagCount(application) > 0 ? 1 : 0) +
+                (application.has_roof_access ? 1 : 0) +
+                (application.has_free_parking ? 1 : 0) +
+                (application.sender_is_important ? 1 : 0);
+            return count >= 2;
         },
 
         // API методы
@@ -1610,11 +1594,9 @@ export default {
     opacity: 1;
 }
 
-/* Свёртка тегов по реальному overflow: директива v-tag-fit мерит, влезает ли строка тегов
-   в фикс-колонку, и при нехватке места вешает --compact -> крыша/парковка/важный схлопывают
-   текст в иконку (без переноса на новую строку). ЧС держим полным текстом - критичный флаг,
-   его не прячем. --measuring снимает transition на момент замера натуральной ширины (иначе
-   анимация max-width даёт промежуточное значение и замер врёт). */
+/* Свёртка тегов: при 2+ тегах в фикс-колонке (класс --compact вешается по данным в
+   tagsAreCompact) крыша/парковка/важный схлопывают текст в иконку, без переноса на новую
+   строку. ЧС держим полным текстом - критичный флаг, его не прячем. */
 .application-tags--compact .rt-tag--roof .rt-tag__text,
 .application-tags--compact .rt-tag--parking .rt-tag__text,
 .application-tags--compact .rt-tag--important .rt-tag__text {
@@ -1635,25 +1617,6 @@ export default {
     padding: 4px;
 }
 
-/* Замер натуральной ширины: форсим полный текст + скрытую иконку без анимации (перебивает
-   --compact по порядку источника - блок идёт ниже). */
-.application-tags--measuring .rt-tag__text {
-    max-width: 150px;
-    opacity: 1;
-    transition: none;
-}
-
-.application-tags--measuring .rt-tag__icon {
-    width: 0;
-    opacity: 0;
-    transition: none;
-}
-
-.application-tags--measuring .rt-tag.badge--sm {
-    padding: 3px 8px;
-    transition: none;
-}
-
 /* Колонка тегов фиксированная: 120px когда таблица просторная, 90px когда тесно (нав-меню
    закреплено). Базовое правило ДО @container, чтобы контейнерное переопределение (90px)
    победило по порядку источника при равной специфичности. */
@@ -1667,7 +1630,7 @@ export default {
 }
 
 /* тесно (нав-меню закреплено, ширина таблицы < 1300): колонка тегов -> 90px. Свёртку текста
-   в иконки на этой ширине делает та же директива v-tag-fit по реальному overflow. */
+   в иконки делает tagsAreCompact по числу тегов (см. выше). */
 @container (max-width: 1300px) {
     .tags-col {
         flex: 0 0 90px;
