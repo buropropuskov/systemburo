@@ -610,9 +610,9 @@ export default {
       document.body.style.overflow = '';
     },
 
-    handleDuplicate(application) {
-      console.log('Дублирование заявки из UserApplications:', application.application_number);
-      this.showNotification('Функция дублирования пока не реализована', 'error');
+    handleDuplicate() {
+      this.closeApplicationDetail();
+      this.$router.push('/new-application');
     },
 
     downloadApplication(application) {

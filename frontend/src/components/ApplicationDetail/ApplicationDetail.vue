@@ -737,10 +737,112 @@ export default {
             }
         },
 
-        duplicateApplication() {
-            console.log('Дублирование заявки:', this.applicationData.application_number);
-            this.$emit('duplicate', this.applicationData);
-            this.showNotification('Функция дублирования пока не реализована', 'error');
+        async duplicateApplication() {
+            try {
+                const fetchResults = await Promise.all(
+                    this.attachments.map(attachment => {
+                        const endpoint = {
+                            cars: `/attachments/${attachment.id}/cars`,
+                            people: `/attachments/${attachment.id}/employees`,
+                            items: `/attachments/${attachment.id}/items`,
+                        }[attachment.attachment_type];
+
+                        if (!endpoint) return Promise.resolve({ attachment, data: [] });
+
+                        return apiRequest(endpoint, { method: 'GET' })
+                            .then(r => r.ok ? r.json() : [])
+                            .then(data => ({ attachment, data }));
+                    })
+                );
+
+                // Шаблоны вложений нужны для поля title (категория): BlankSelector
+                // раскладывает бланки по категориям именно по attachment.title, и без
+                // него восстановленный черновик не отображается (0/0 в категориях).
+                const templatesResp = await apiRequest('/attachments', { method: 'GET' });
+                const templates = templatesResp.ok ? await templatesResp.json() : [];
+
+                const newAttachments = [];
+                const vehiclesByAttachment = {};
+                const employeesByAttachment = {};
+                const itemsByAttachment = {};
+
+                for (const { attachment, data } of fetchResults) {
+                    // local_id как в BlankSelector.addAttachment — числовой ключ без id существующего вложения
+                    const localId = Date.now() + Math.random();
+                    const template = templates.find(t => t.id === attachment.unique_attachment_id)
+                        || templates.find(t => t.attachment_type === attachment.attachment_type);
+
+                    newAttachments.push({
+                        id: template ? template.id : attachment.unique_attachment_id,
+                        local_id: localId,
+                        template_id: template ? template.id : attachment.unique_attachment_id,
+                        title: template ? template.title : null,
+                        name: template ? template.name : attachment.attachment_name,
+                        display_name: attachment.attachment_display_name || (template && template.display_name),
+                        attachment_type: attachment.attachment_type,
+                        instruction: template ? template.instruction : null,
+                        created_at: new Date().toISOString(),
+                        is_active: true,
+                    });
+
+                    if (attachment.attachment_type === 'cars') {
+                        vehiclesByAttachment[localId] = data.map((car, idx) => ({
+                            id: idx + 1,
+                            plateNumber: car.car_number,
+                            mark: car.car_brand,
+                            markId: null,
+                            markName: car.car_brand || null,
+                            unloadingPlace: car.unload_place || '',
+                            unloadPlaces: car.unload_places || [],
+                            formatId: null,
+                            isExisting: false,
+                        }));
+                    } else if (attachment.attachment_type === 'people') {
+                        employeesByAttachment[localId] = data.map((emp, idx) => ({
+                            id: idx + 1,
+                            lastName: emp.last_name,
+                            firstName: emp.first_name,
+                            middleName: emp.middle_name || '',
+                            position: emp.position || '',
+                            citizenshipId: emp.citizenship_id || null,
+                            citizenshipName: emp.citizenship_name || '',
+                            passportSeriesNumber: emp.passport_series_number || '',
+                            patentNumber: emp.patent_number || null,
+                            otherPermission: emp.other_permission || null,
+                            targetTables: emp.target_tables || [],
+                            passageTables: '',
+                            isExisting: false,
+                        }));
+                    } else if (attachment.attachment_type === 'items') {
+                        itemsByAttachment[localId] = data.map((item, idx) => ({
+                            id: idx + 1,
+                            itemName: item.name,
+                            quantity: item.count,
+                        }));
+                    }
+                }
+
+                const draftState = {
+                    message: this.applicationData.message || '',
+                    attachments: newAttachments,
+                    vehiclesByAttachment,
+                    employeesByAttachment,
+                    itemsByAttachment,
+                    // Даты не копируем — пользователь выберет новый период
+                    attachmentDatesByAttachment: {},
+                    customFieldsByAttachment: {},
+                    consentGiven: false,
+                    vehicleIdCounter: 1,
+                    employeeIdCounter: 1,
+                    itemIdCounter: 1,
+                };
+
+                localStorage.setItem('draftApplicationState', JSON.stringify(draftState));
+                this.$emit('duplicate');
+            } catch (error) {
+                console.error('Ошибка при дублировании заявки:', error);
+                this.showNotification('Ошибка при дублировании заявки', 'error');
+            }
         },
 
         showNotification(message, type = 'success') {
