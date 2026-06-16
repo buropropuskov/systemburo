@@ -1,5 +1,6 @@
 <template>
   <section
+    ref="root"
     class="employeesview"
     data-testid="employees-page"
   >
@@ -454,8 +455,42 @@ export default {
             this.loadBlacklist()
         ]);
         await this.fetchEmployees();
+        this._lastHeight = -1;
+        this.$nextTick(this._applyHeight);
+        window.addEventListener('resize', this._applyHeight);
+        const header = document.querySelector('.theheader');
+        if (header && typeof ResizeObserver !== 'undefined') {
+            this._headerObs = new ResizeObserver(this._applyHeight);
+            this._headerObs.observe(header);
+        }
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this._applyHeight);
+        if (this._headerObs) {
+            this._headerObs.disconnect();
+            this._headerObs = null;
+        }
     },
     methods: {
+        /**
+         * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
+         * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем:
+         * там естественный поток и горизонтальный скролл таблицы.
+         */
+        _applyHeight() {
+            const el = this.$refs.root;
+            if (!el) return;
+            if (window.innerWidth <= 768) {
+                el.style.height = '';
+                this._lastHeight = -1;
+                return;
+            }
+            const top = el.getBoundingClientRect().top;
+            const height = Math.max(0, Math.round(window.innerHeight - top));
+            if (height === this._lastHeight) return;
+            this._lastHeight = height;
+            el.style.height = `${height}px`;
+        },
         /**
          * Можно ли редактировать/удалять сотрудника. Совпадает с backend
          * canEditEmployee (unique_employee_service.go).
@@ -670,16 +705,26 @@ export default {
 <style scoped>
 .employeesview {
     padding: 20px;
+    display: flex;
+    flex-direction: column;
 }
 
 .employeesview__container {
     display: flex;
     gap: 30px;
     margin-top: 20px;
+    flex: 1;
+    min-height: 0;
 }
 
 .employeesview__right-side {
-    width: 40%;
+    width: 25%;
+}
+
+.employeesview__help {
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    padding: 16px 20px;
 }
 
 .employeesview__header {
@@ -750,8 +795,11 @@ export default {
     border-radius: 30px;
     border: 1px solid #e6e6e6;
     overflow: hidden;
-    width: 60%;
-    height: 450px;
+    width: 75%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
@@ -762,6 +810,7 @@ export default {
     align-items: center;
     padding: 0px 20px;
     height: 40px;
+    flex-shrink: 0;
 }
 
 .card-header__title {
@@ -810,7 +859,8 @@ export default {
 
 .card-content {
     padding: 0;
-    height: calc(100% - 40px);
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
@@ -818,7 +868,8 @@ export default {
 .employees-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 
@@ -897,8 +948,8 @@ export default {
 }
 
 .status-col {
-    width: 17%;
-    min-width: 100px;
+    width: 20%;
+    min-width: 135px;
 }
 
 .actions-col {
@@ -1037,7 +1088,7 @@ export default {
 @media (max-width: 768px) {
     .employees-card {
         width: 100%;
-        height: auto;
+        flex: none;
     }
 
     /* Синхронный horizontal scroll: scroll на .card-content */

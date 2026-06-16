@@ -44,6 +44,7 @@ export default {
 .status-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 4px 10px;
   border-radius: 12px;
@@ -51,6 +52,7 @@ export default {
   font-weight: 500;
   white-space: nowrap;
   line-height: 1.4;
+  min-width: 120px;
 }
 
 .status-badge__dot {
