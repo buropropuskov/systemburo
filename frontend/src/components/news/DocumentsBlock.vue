@@ -336,8 +336,10 @@ export default {
 
 /* --- Список документов --- */
 .docs-block__list {
-  padding: 6px;
-  max-height: 188px;
+  padding: 0;
+  /* Ровно 3 строки документа (высота строки фикс. через .doc-row min-height),
+     4-я и далее - скроллом. Гарантирует, что минимум 3 документа видны без обрезка. */
+  max-height: 171px;
   overflow-y: auto;
 }
 
@@ -362,15 +364,19 @@ export default {
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 10px 12px;
-  border-radius: 16px;
-  border: 1px solid transparent;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  height: 57px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.15s ease;
+}
+
+.doc-row:last-child {
+  border-bottom: none;
 }
 
 .doc-row:hover {
   background: #fafbff;
-  border-color: #eceefb;
 }
 
 .doc-row__icon {
