@@ -596,6 +596,9 @@ export default {
             // и поддерживает source=employeesview - заголовок \"Информация о сотруднике\"
             this.detailsEmployee = {
                 id: employee.id,
+                // id заявочной строки активной заявки; по нему карточка тянет статус
+                // территории (current-status ключуется по employees.id, не по реестру).
+                activeEmployeeId: employee.active_employee_id || null,
                 last_name: employee.last_name,
                 first_name: employee.first_name,
                 middle_name: employee.middle_name,

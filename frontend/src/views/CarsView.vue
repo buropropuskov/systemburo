@@ -543,7 +543,7 @@
     <VehicleDetailsModal
       :show="showDetailsViewModal"
       :vehicle="detailsCar"
-      :all-unloading-places="[]"
+      :all-unloading-places="allUnloadingPlaces"
       :license-plate-formats="[]"
       :current-user-id="ownershipInfo?.user_id || null"
       :current-user-name="''"
@@ -607,6 +607,9 @@ export default {
             detailsCar: null,
             showApplicationDetail: false,
             selectedApplication: null,
+            // Места разгрузки: список для имён + карта active_car_id -> [place ids]
+            allUnloadingPlaces: [],
+            carUnloadPlacesMap: {},
 
             
             // Формат номера
@@ -762,6 +765,7 @@ export default {
             this.loadMarks(),
             this.loadBlacklist()
         ]);
+        // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
         
         // Закрытие dropdown при клике вне
@@ -787,7 +791,10 @@ export default {
                 company: car.active_app_company_name || car.company_name || null,
                 companyId: car.company_id || null,
                 isExisting: true,
-                unloadPlaces: [],
+                // active_car_id - id заявочной строки активной заявки; по нему тянем
+                // места разгрузки и статус территории (в реестре их нет).
+                activeCarId: car.active_car_id || null,
+                unloadPlaces: this.carUnloadPlacesMap[car.active_car_id] || [],
                 entry_date_to: car.active_entry_date_to,
                 entry_time_from: car.active_entry_time_from,
                 entry_time_to: car.active_entry_time_to,
@@ -861,6 +868,9 @@ export default {
 
                 if (response.ok) {
                     this.carsData = await response.json();
+                    // Места разгрузки тоже перезагружаем: при смене активной заявки у машины
+                    // меняется active_car_id и набор мест, иначе карта устаревает после рефреша.
+                    await Promise.all([this.fetchUnloadingPlaces(), this.fetchCarUnloadPlaces()]);
                 } else {
                     console.error("Ошибка при загрузке машин");
                     this.carsData = [];
@@ -900,6 +910,35 @@ export default {
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке форматов:", error);
+            }
+        },
+
+        async fetchUnloadingPlaces() {
+            try {
+                const response = await apiRequest('/unload-places', { method: 'GET' });
+                if (response.ok) this.allUnloadingPlaces = await response.json();
+            } catch (error) {
+                console.error('Ошибка при загрузке мест разгрузки:', error);
+            }
+        },
+
+        // Карта active_car_id -> [unload_place_id]. Реестр /unique-cars не несёт места
+        // разгрузки (они в заявочной cars), поэтому мапим по id активной заявочной строки.
+        async fetchCarUnloadPlaces() {
+            try {
+                const response = await apiRequest('/cars/unload-places', { method: 'GET' });
+                if (!response.ok) return;
+                const rows = await response.json();
+                const map = {};
+                (rows || []).forEach(cup => {
+                    if (!map[cup.car_id]) map[cup.car_id] = [];
+                    if (!map[cup.car_id].includes(cup.unload_place_id)) {
+                        map[cup.car_id].push(cup.unload_place_id);
+                    }
+                });
+                this.carUnloadPlacesMap = map;
+            } catch (error) {
+                console.error('Ошибка при загрузке мест разгрузки машин:', error);
             }
         },
 
