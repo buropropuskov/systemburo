@@ -1020,6 +1020,18 @@ export default {
   margin-left: auto;
 }
 
+/* Фиксированная ширина фильтра групп - не прыгает от длины выбранной группы
+   (длинные имена обрезаются по ellipsis внутри BaseDropdown). */
+.group-filter-dropdown {
+  width: 190px;
+  flex-shrink: 0;
+}
+
+/* Шрифт фильтра выравниваем под соседние .lk-button (13px), а не дефолтные 14px BaseDropdown. */
+.group-filter-dropdown :deep(.base-dropdown__text) {
+  font-size: 13px;
+}
+
 /* --- Master-detail --- */
 .content-container {
   display: flex;
@@ -1050,7 +1062,6 @@ export default {
 .table-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
 }
 
 .table-footer {
@@ -1071,11 +1082,14 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
-  border-radius: 14px;
+  padding: 10px 16px;
   cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.15s ease;
+}
+
+.docs-row:last-child {
+  border-bottom: none;
 }
 
 .docs-row:hover {
@@ -1084,7 +1098,6 @@ export default {
 
 .docs-row.selected {
   background: #f0f4ff;
-  border-color: #cfd4ff;
 }
 
 .docs-drag-handle {
