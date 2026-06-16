@@ -51,6 +51,8 @@ type Dependencies struct {
 	AttachmentTemplates *handlers.AttachmentTemplateHandler
 	AttachmentBlanks    *handlers.AttachmentBlankHandler
 	Trash               *handlers.TrashHandler
+	DocumentGroups      *handlers.DocumentGroupHandler
+	Documents           *handlers.DocumentHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -103,6 +105,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attachmentTemplates := d.AttachmentTemplates
 	attachmentBlanks := d.AttachmentBlanks
 	trash := d.Trash
+	docGroups := d.DocumentGroups
+	docs := d.Documents
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	maintenanceBlock := d.MaintenanceBlock
@@ -551,4 +555,27 @@ func Setup(e *echo.Echo, d Dependencies) {
 	adminMaint := protected.Group("/admin")
 	adminMaint.GET("/maintenance", maintenance.GetAdminStatus)
 	adminMaint.PUT("/maintenance", maintenance.ToggleMaintenance)
+
+	// Документы (#39). Admin-операции под page.admin; скачивание и публичный список -- под auth.
+	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
+	if docGroups != nil {
+		dgGroup := protected.Group("/document-groups")
+		dgGroup.GET("", docGroups.List, requireAdmin)
+		dgGroup.POST("", docGroups.Create, requireAdmin)
+		dgGroup.PUT("/reorder", docGroups.Reorder, requireAdmin)
+		dgGroup.PUT("/:id", docGroups.Update, requireAdmin)
+		dgGroup.DELETE("/:id", docGroups.Delete, requireAdmin)
+	}
+	if docs != nil {
+		docsGroup := protected.Group("/documents")
+		docsGroup.GET("", docs.List, requireAdmin)
+		docsGroup.POST("", docs.Upload, requireAdmin)
+		docsGroup.PUT("/reorder", docs.Reorder, requireAdmin)
+		docsGroup.PUT("/:id", docs.UpdateMeta, requireAdmin)
+		docsGroup.PUT("/:id/file", docs.ReplaceFile, requireAdmin)
+		docsGroup.DELETE("/:id", docs.Delete, requireAdmin)
+		docsGroup.GET("/:id/download", docs.Download)
+
+		protected.GET("/public/documents", docs.GetPublic)
+	}
 }
