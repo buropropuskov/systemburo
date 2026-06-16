@@ -137,16 +137,17 @@ export default {
       loading: false,
       documents: [],
       groups: [],
+      shuffledGroups: [],
       activeGroupId: null,
       moreOpen: false,
     };
   },
   computed: {
     visibleGroups() {
-      return this.groups.slice(0, VISIBLE_GROUPS_COUNT);
+      return this.shuffledGroups.slice(0, VISIBLE_GROUPS_COUNT);
     },
     hiddenGroups() {
-      return this.groups.slice(VISIBLE_GROUPS_COUNT);
+      return this.shuffledGroups.slice(VISIBLE_GROUPS_COUNT);
     },
     filteredDocs() {
       if (this.activeGroupId === null) return this.documents;
@@ -165,31 +166,29 @@ export default {
       this.loading = true;
       try {
         const data = await listPublicDocuments();
-        // Бэкенд может вернуть { groups: [...] } где каждая группа содержит documents[]
-        // или плоский { documents: [], groups: [] } — обрабатываем оба варианта.
-        // TODO: уточнить форму ответа когда бэкенд будет готов
-        if (Array.isArray(data)) {
-          this.documents = data;
-          this.groups = [];
-        } else if (data.groups) {
-          // Сгруппированный формат: { groups: [{ id, name, doc_count, documents:[] }] }
-          this.groups = data.groups.map((g) => ({ id: g.id, name: g.name, doc_count: g.doc_count || 0 }));
-          this.documents = data.groups.flatMap((g) =>
-            (g.documents || []).map((d) => ({ ...d, group_id: g.id }))
-          );
-          // Добавляем «Прочее» (group_id = null) если есть
-          if (data.misc && data.misc.length) {
-            this.documents.push(...data.misc.map((d) => ({ ...d, group_id: null })));
-          }
-        } else {
-          this.documents = data.documents || [];
-          this.groups = data.group_list || [];
-        }
+        // Бэкенд отдаёт плоский массив групп: [{ id, name, sort_order, documents: [] }].
+        // Виртуальная группа «Прочее» приходит с id=0. Нормализуем group_id документа под id
+        // его группы, чтобы фильтрация по пилюле работала единообразно (в т.ч. для «Прочее»,
+        // где документы приходят с group_id=null).
+        const groups = Array.isArray(data) ? data : (data.groups || []);
+        this.groups = groups.map((g) => ({ id: g.id, name: g.name, doc_count: (g.documents || []).length }));
+        this.documents = groups.flatMap((g) =>
+          (g.documents || []).map((d) => ({ ...d, group_id: g.id }))
+        );
+        // Случайный набор видимых разделов на каждую загрузку, остальное в «Ещё» (по ТЗ п.39).
+        this.shuffledGroups = this.shuffle([...this.groups]);
       } catch (e) {
         useDeletionsStore().notify({ prefix: 'Ошибка загрузки документов', bold: '', type: 'error' });
       } finally {
         this.loading = false;
       }
+    },
+    shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
     },
     setGroup(id) {
       this.activeGroupId = id;

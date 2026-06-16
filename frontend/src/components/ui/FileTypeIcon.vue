@@ -55,7 +55,9 @@ export default {
   },
   computed: {
     svgMarkup() {
-      return buildSvg(this.ext.toLowerCase(), this.size);
+      // Бэкенд отдаёт расширение с ведущей точкой (".pdf"), COLOR_MAP — без неё.
+      const ext = this.ext.toLowerCase().replace(/^\./, '');
+      return buildSvg(ext, this.size);
     },
   },
 };
