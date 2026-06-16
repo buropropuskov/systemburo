@@ -163,13 +163,47 @@
                 <p :class="{ 'active-sort': sortField === 'status' }">
                   Статус
                 </p>
-                <img 
-                  src="@/assets/icons/sort.png" 
-                  class="sort-icon" 
-                  :class="{ 
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
                     'sorted': sortField === 'status',
                     'desc': sortField === 'status' && sortDirection === 'desc'
-                  }" 
+                  }"
+                >
+              </div>
+              <div
+                v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
+                class="header-col org-col"
+                @click="sortBy('organization_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'organization_name' }">
+                  Организация
+                </p>
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
+                    'sorted': sortField === 'organization_name',
+                    'desc': sortField === 'organization_name' && sortDirection === 'desc'
+                  }"
+                >
+              </div>
+              <div
+                v-if="currentFilter === 'company' || currentFilter === 'all_system'"
+                class="header-col company-col"
+                @click="sortBy('company_name')"
+              >
+                <p :class="{ 'active-sort': sortField === 'company_name' }">
+                  Компания
+                </p>
+                <img
+                  src="@/assets/icons/sort.png"
+                  class="sort-icon"
+                  :class="{
+                    'sorted': sortField === 'company_name',
+                    'desc': sortField === 'company_name' && sortDirection === 'desc'
+                  }"
                 >
               </div>
               <div class="header-col actions-col">
@@ -225,6 +259,20 @@
                         v-else
                         :status="employee.status ? 'Активен' : 'Неактивен'"
                       />
+                    </div>
+                    <div
+                      v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
+                      class="employee-col org-col"
+                      :title="employee.organization_name || ''"
+                    >
+                      {{ employee.organization_name || '—' }}
+                    </div>
+                    <div
+                      v-if="currentFilter === 'company' || currentFilter === 'all_system'"
+                      class="employee-col company-col"
+                      :title="employee.company_name || ''"
+                    >
+                      {{ employee.company_name || '—' }}
                     </div>
                     <div class="employee-col actions-col">
                       <button
@@ -421,11 +469,21 @@ export default {
                         valueA = a.status;
                         valueB = b.status;
                         break;
-                        
+
+                    case 'organization_name':
+                        valueA = (a.organization_name || '').toLowerCase();
+                        valueB = (b.organization_name || '').toLowerCase();
+                        break;
+
+                    case 'company_name':
+                        valueA = (a.company_name || '').toLowerCase();
+                        valueB = (b.company_name || '').toLowerCase();
+                        break;
+
                     default:
                         return 0;
                 }
-                
+
                 if (valueA < valueB) {
                     return this.sortDirection === 'asc' ? -1 : 1;
                 }
@@ -956,6 +1014,22 @@ export default {
     width: 15%;
     min-width: 100px;
     justify-content: center;
+}
+
+.org-col {
+    width: 18%;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.company-col {
+    width: 18%;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Тело таблицы */

@@ -260,7 +260,7 @@
                       v-model="bindToOrganization"
                       type="checkbox"
                     >
-                    <span>Привязать к организации</span>
+                    <span>Привязать к организации<template v-if="ownershipInfo.organization_name"> «{{ ownershipInfo.organization_name }}»</template></span>
                   </label>
                   <label
                     v-if="ownershipInfo && ownershipInfo.has_company"
@@ -270,7 +270,7 @@
                       v-model="bindToCompany"
                       type="checkbox"
                     >
-                    <span>Привязать к компании</span>
+                    <span>Привязать к компании<template v-if="ownershipInfo.company_name"> «{{ ownershipInfo.company_name }}»</template></span>
                   </label>
                   <div class="user-binding">
                     <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке сотрудника к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>

@@ -38,11 +38,13 @@ func diffUniqueCar(before, after *models.UniqueCar) []fieldChange {
 
 // CarOwnerInfo -- информация о владельце для фильтрации машин.
 type CarOwnerInfo struct {
-	HasOrganization bool `json:"has_organization"`
-	HasCompany      bool `json:"has_company"`
-	OrganizationID  *int `json:"organization_id"`
-	CompanyID       *int `json:"company_id"`
-	UserID          int  `json:"user_id"`
+	HasOrganization  bool    `json:"has_organization"`
+	HasCompany       bool    `json:"has_company"`
+	OrganizationID   *int    `json:"organization_id"`
+	CompanyID        *int    `json:"company_id"`
+	UserID           int     `json:"user_id"`
+	OrganizationName *string `json:"organization_name"`
+	CompanyName      *string `json:"company_name"`
 }
 
 // UniqueCarWithRelations -- машина с данными связанных сущностей.
@@ -155,18 +157,21 @@ func NewUniqueCarService(db *gorm.DB) UniqueCarService {
 // getCarOwnerInfo получает информацию о владельце по username.
 func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string) (*CarOwnerInfo, error) {
 	var result struct {
-		UserID          int  `gorm:"column:user_id"`
-		OrganizationID  *int `gorm:"column:organization_id"`
-		CompanyID       *int `gorm:"column:company_id"`
-		HasOrganization bool `gorm:"column:has_organization"`
-		HasCompany      bool `gorm:"column:has_company"`
+		UserID           int     `gorm:"column:user_id"`
+		OrganizationID   *int    `gorm:"column:organization_id"`
+		CompanyID        *int    `gorm:"column:company_id"`
+		HasOrganization  bool    `gorm:"column:has_organization"`
+		HasCompany       bool    `gorm:"column:has_company"`
+		OrganizationName *string `gorm:"column:organization_name"`
+		CompanyName      *string `gorm:"column:company_name"`
 	}
 
 	err := s.db.WithContext(ctx).
 		Table("users u").
 		Select(`u.id as user_id, u.organization_id, u.company_id,
 			CASE WHEN o.id IS NOT NULL THEN true ELSE false END as has_organization,
-			CASE WHEN c.id IS NOT NULL THEN true ELSE false END as has_company`).
+			CASE WHEN c.id IS NOT NULL THEN true ELSE false END as has_company,
+			o.name as organization_name, c.name as company_name`).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
 		Where("u.username = ?", username).
@@ -176,11 +181,13 @@ func (s *uniqueCarService) getCarOwnerInfo(ctx context.Context, username string)
 	}
 
 	return &CarOwnerInfo{
-		HasOrganization: result.HasOrganization,
-		HasCompany:      result.HasCompany,
-		OrganizationID:  result.OrganizationID,
-		CompanyID:       result.CompanyID,
-		UserID:          result.UserID,
+		HasOrganization:  result.HasOrganization,
+		HasCompany:       result.HasCompany,
+		OrganizationID:   result.OrganizationID,
+		CompanyID:        result.CompanyID,
+		UserID:           result.UserID,
+		OrganizationName: result.OrganizationName,
+		CompanyName:      result.CompanyName,
 	}, nil
 }
 
