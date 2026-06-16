@@ -755,6 +755,12 @@ export default {
                     })
                 );
 
+                // Шаблоны вложений нужны для поля title (категория): BlankSelector
+                // раскладывает бланки по категориям именно по attachment.title, и без
+                // него восстановленный черновик не отображается (0/0 в категориях).
+                const templatesResp = await apiRequest('/attachments', { method: 'GET' });
+                const templates = templatesResp.ok ? await templatesResp.json() : [];
+
                 const newAttachments = [];
                 const vehiclesByAttachment = {};
                 const employeesByAttachment = {};
@@ -763,14 +769,19 @@ export default {
                 for (const { attachment, data } of fetchResults) {
                     // local_id как в BlankSelector.addAttachment — числовой ключ без id существующего вложения
                     const localId = Date.now() + Math.random();
+                    const template = templates.find(t => t.id === attachment.unique_attachment_id)
+                        || templates.find(t => t.attachment_type === attachment.attachment_type);
 
                     newAttachments.push({
-                        id: attachment.unique_attachment_id,
+                        id: template ? template.id : attachment.unique_attachment_id,
                         local_id: localId,
-                        template_id: attachment.unique_attachment_id,
-                        name: attachment.attachment_name,
-                        display_name: attachment.attachment_display_name,
+                        template_id: template ? template.id : attachment.unique_attachment_id,
+                        title: template ? template.title : null,
+                        name: template ? template.name : attachment.attachment_name,
+                        display_name: attachment.attachment_display_name || (template && template.display_name),
                         attachment_type: attachment.attachment_type,
+                        instruction: template ? template.instruction : null,
+                        created_at: new Date().toISOString(),
                         is_active: true,
                     });
 
