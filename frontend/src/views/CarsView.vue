@@ -231,15 +231,15 @@
                     
           <!-- Тело таблицы -->
           <div class="cars-container">
-            <SkeletonTransition :loading="loading">
-              <template #skeleton>
-                <SkeletonTable
-                  :rows="6"
-                  :columns="5"
-                />
-              </template>
+            <div class="cars-table-area">
               <div
-                v-if="filteredCars.length > 0"
+                v-if="loading"
+                class="loading-message"
+              >
+                <LoaderSpinner label="Загрузка машин…" />
+              </div>
+              <div
+                v-else-if="filteredCars.length > 0"
                 class="cars-body"
               >
                 <div
@@ -330,7 +330,7 @@
               >
                 {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Автомобилей нет' }}
               </p>
-            </SkeletonTransition>
+            </div>
           </div>
         </div>
       </div>
@@ -620,8 +620,7 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
-import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
@@ -632,8 +631,7 @@ export default {
     components: {
         SearchComponent,
         RefreshButton,
-        SkeletonTransition,
-        SkeletonTable,
+        LoaderSpinner,
         StatusBadge,
         ConfirmationModal,
         VehicleDetailsModal,
@@ -1881,6 +1879,28 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Обёртка тела таблицы (заменила SkeletonTransition): держит flex-контекст, чтобы
+   .cars-body растягивался и скроллился, а кольцо/пусто центрировались по высоте. */
+.cars-table-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.loading-message {
+    text-align: center;
+    color: #a2a2a2;
+    padding: 40px 20px;
+    font-size: 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
 }
 
 .help__text {

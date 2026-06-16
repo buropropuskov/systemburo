@@ -214,15 +214,15 @@
                     
           <!-- Тело таблицы -->
           <div class="employees-container">
-            <SkeletonTransition :loading="loading">
-              <template #skeleton>
-                <SkeletonTable
-                  :rows="6"
-                  :columns="5"
-                />
-              </template>
+            <div class="employees-table-area">
               <div
-                v-if="filteredEmployees.length > 0"
+                v-if="loading"
+                class="loading-message"
+              >
+                <LoaderSpinner label="Загрузка сотрудников…" />
+              </div>
+              <div
+                v-else-if="filteredEmployees.length > 0"
                 class="employees-body"
               >
                 <div
@@ -309,7 +309,7 @@
               >
                 {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Сотрудников нет' }}
               </p>
-            </SkeletonTransition>
+            </div>
           </div>
         </div>
       </div>
@@ -385,8 +385,7 @@
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
-import SkeletonTable from '@/components/ui/SkeletonTable.vue';
+import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
@@ -397,8 +396,7 @@ export default {
     components: {
         SearchComponent,
         RefreshButton,
-        SkeletonTransition,
-        SkeletonTable,
+        LoaderSpinner,
         StatusBadge,
         EmployeeEditModal,
         EmployeeDetailsModal,
@@ -1153,6 +1151,28 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Обёртка тела таблицы (заменила SkeletonTransition): держит flex-контекст, чтобы
+   .employees-body растягивался и скроллился, а кольцо/пусто центрировались по высоте. */
+.employees-table-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.loading-message {
+    text-align: center;
+    color: #a2a2a2;
+    padding: 40px 20px;
+    font-size: 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
 }
 
 .help__text {
