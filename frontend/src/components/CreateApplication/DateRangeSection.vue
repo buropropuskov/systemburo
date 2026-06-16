@@ -648,6 +648,8 @@ export default {
                 this.showQuickMenu = false;
                 return;
             }
+            // Взаимоисключение: "Быстрый выбор" закрывает любой открытый календарь.
+            this.closeDatepicker();
             const btn = this.$refs.qdTrigger;
             if (!btn) return;
             const r = btn.getBoundingClientRect();
@@ -1072,6 +1074,8 @@ export default {
             this.showStartDatepicker = false;
             this.showEndDatepicker = false;
             this.showSingleDatepicker = false;
+            // Взаимоисключение: открытый календарь закрывает "Быстрый выбор".
+            this.showQuickMenu = false;
 
             if (type === 'start') {
                 this.showStartDatepicker = true;
