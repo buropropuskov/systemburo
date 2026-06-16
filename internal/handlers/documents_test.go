@@ -145,10 +145,12 @@ func TestDocuments_GetPublic_OnlyVisible(t *testing.T) {
 	}
 	hidden := models.Document{
 		Title: "Скрытый", FileName: "h.pdf", StoredName: "h.pdf",
-		FileExt: ".pdf", MimeType: "application/pdf", FileSize: 100, IsVisible: false,
+		FileExt: ".pdf", MimeType: "application/pdf", FileSize: 100, IsVisible: true,
 	}
 	require.NoError(t, db.Create(&visible).Error)
 	require.NoError(t, db.Create(&hidden).Error)
+	// IsVisible=false нужно обновить отдельно (GORM пропускает zero-value bool при Create)
+	require.NoError(t, db.Model(&hidden).Update("is_visible", false).Error)
 
 	token := testutil.RegisterAndLogin(t, e, "pubuser1", "password123!ABCabc", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)

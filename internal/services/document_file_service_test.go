@@ -132,8 +132,9 @@ func TestDocumentFileService_ValidateMagicBytes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			uploadDir := filepath.Join(dir, "uploads")
 			svc := NewDocumentFileService(dir)
+			// UploadDir = dir/documents
+			uploadDir := svc.UploadDir()
 
 			fh := testableFile(t, t.TempDir(), tc.fname, tc.content)
 
@@ -146,10 +147,10 @@ func TestDocumentFileService_ValidateMagicBytes(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				} else {
-					// Проверяем что файл создан
+					// Проверяем что файл создан в upload dir
 					entries, _ := os.ReadDir(uploadDir)
 					if len(entries) == 0 {
-						t.Error("expected file in upload dir, none found")
+						t.Errorf("expected file in upload dir %s, none found", uploadDir)
 					}
 				}
 			}
