@@ -1,5 +1,6 @@
 <template>
   <section
+    ref="root"
     class="carsview"
     data-testid="cars-page"
   >
@@ -323,211 +324,213 @@
 
     <!-- Модальное окно добавления машины -->
     <Teleport to="body">
-      <div
-        v-if="showModal && currentFilter !== 'all_system'"
-        class="modal-overlay"
-        data-testid="cars-view-modal"
-        @click="closeModal"
-      >
+      <Transition name="modal-fade">
         <div
-          class="modal-content"
-          @click.stop
+          v-if="showModal && currentFilter !== 'all_system'"
+          class="modal-overlay"
+          data-testid="cars-view-modal"
+          @click="closeModal"
         >
-          <div class="modal-header">
-            <div class="modal-header__top">
-              <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
-              <div
-                v-if="notification.show"
-                class="notification-badge"
-                :class="notification.type"
-              >
-                {{ notification.message }}
-              </div>
-            </div>
-            <button
-              class="modal-close"
-              data-testid="cars-view-modal-close"
-              @click="closeModal"
-            >
-              ×
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="data__completion">
-              <div class="completion__format">
-                <div class="format__header">
-                  <label class="format__label">Формат номеров</label>
-                  <button
-                    class="add-button"
-                    :disabled="!canSaveCar"
-                    @click="saveCar"
-                  >
-                    {{ editingCar ? 'Сохранить' : 'Добавить' }}
-                  </button>
+          <div
+            class="modal-content"
+            @click.stop
+          >
+            <div class="modal-header">
+              <div class="modal-header__top">
+                <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
+                <div
+                  v-if="notification.show"
+                  class="notification-badge"
+                  :class="notification.type"
+                >
+                  {{ notification.message }}
                 </div>
-                <div class="format__dropdown">
-                  <button
-                    class="dropdown__button"
-                    data-testid="cars-view-format-dropdown"
-                    @click="toggleFormatDropdown"
-                  >
-                    <div class="button__content">
-                      <span class="button__text">{{ selectedFormatText }}</span>
-                      <img
-                        src="@/assets/icons/arrow.png"
-                        class="button__arrow"
-                        :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+              </div>
+              <button
+                class="modal-close"
+                data-testid="cars-view-modal-close"
+                @click="closeModal"
+              >
+                ×
+              </button>
+            </div>
+            <div class="modal-body">
+              <div class="data__completion">
+                <div class="completion__format">
+                  <div class="format__header">
+                    <label class="format__label">Формат номеров</label>
+                    <button
+                      class="add-button"
+                      :disabled="!canSaveCar"
+                      @click="saveCar"
+                    >
+                      {{ editingCar ? 'Сохранить' : 'Добавить' }}
+                    </button>
+                  </div>
+                  <div class="format__dropdown">
+                    <button
+                      class="dropdown__button"
+                      data-testid="cars-view-format-dropdown"
+                      @click="toggleFormatDropdown"
+                    >
+                      <div class="button__content">
+                        <span class="button__text">{{ selectedFormatText }}</span>
+                        <img
+                          src="@/assets/icons/arrow.png"
+                          class="button__arrow"
+                          :class="{ 'button__arrow--open': isFormatDropdownOpen }"
+                        >
+                      </div>
+                    </button>
+                    <transition name="dropdown">
+                      <div
+                        v-if="isFormatDropdownOpen"
+                        class="dropdown__menu"
+                      >
+                        <div 
+                          v-for="format in availableFormats" 
+                          :key="format.format.id"
+                          class="dropdown__item" 
+                          @click="selectFormat(format)"
+                        >
+                          <span class="item__text">{{ format.format.name }}</span>
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+                        
+                <div class="completion__fields">
+                  <div class="completion__number">
+                    <div class="completion__number-header">
+                      <label class="input__label">Номер Т/C <span class="required">*</span></label>
+                    </div>
+                                
+                    <!-- Динамический формат из базы данных -->
+                    <div
+                      v-if="selectedFormat"
+                      class="number__field"
+                    >
+                      <input 
+                        v-for="(cell, index) in selectedFormat.cells" 
+                        :key="index"
+                        v-model="numberParts[index]" 
+                        class="number__input"
+                        :placeholder="getPlaceholder(cell)"
+                        :maxlength="cell.max_length"
+                        :style="{ width: getInputWidth(cell) }"
+                        @input="validatePart(index, $event, cell)"
+                        @blur="formatPart(index, cell)"
                       >
                     </div>
-                  </button>
-                  <transition name="dropdown">
                     <div
-                      v-if="isFormatDropdownOpen"
-                      class="dropdown__menu"
+                      v-else
+                      class="no-format-message"
                     >
-                      <div 
-                        v-for="format in availableFormats" 
-                        :key="format.format.id"
-                        class="dropdown__item" 
-                        @click="selectFormat(format)"
-                      >
-                        <span class="item__text">{{ format.format.name }}</span>
+                      Выберите формат номера
+                    </div>
+                  </div>
+                            
+                  <div class="completion__mark">
+                    <div class="completion__mark-header">
+                      <label class="input__label">Марка Т/С <span class="required">*</span></label>
+                    </div>
+                    <div class="mark__field">
+                      <div class="mark__dropdown">
+                        <button
+                          class="mark__dropdown-button"
+                          @click="toggleMarkDropdown"
+                        >
+                          <div class="mark__button-content">
+                            <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
+                            <img
+                              src="@/assets/icons/arrow.png"
+                              class="mark__button-arrow"
+                              :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
+                            >
+                          </div>
+                        </button>
+                        <transition name="dropdown">
+                          <div
+                            v-if="isMarkDropdownOpen"
+                            class="mark__dropdown-menu"
+                          >
+                            <div class="mark__search">
+                              <input 
+                                v-model="markSearch" 
+                                class="mark__search-input"
+                                placeholder="Поиск марки..."
+                                @input="filterMarks"
+                              >
+                            </div>
+                            <div class="mark__dropdown-list">
+                              <div
+                                v-for="mark in filteredMarks"
+                                :key="mark.id"
+                                class="mark__dropdown-item"
+                                @click="selectMark(mark)"
+                              >
+                                <span class="mark__item-text">{{ mark.name }}</span>
+                              </div>
+                              <div
+                                v-if="!filteredMarks.length"
+                                class="mark__dropdown-empty"
+                              >
+                                Марки не найдены
+                              </div>
+                            </div>
+                          </div>
+                        </transition>
                       </div>
                     </div>
-                  </transition>
-                </div>
-              </div>
-                        
-              <div class="completion__fields">
-                <div class="completion__number">
-                  <div class="completion__number-header">
-                    <label class="input__label">Номер Т/C <span class="required">*</span></label>
-                  </div>
-                                
-                  <!-- Динамический формат из базы данных -->
-                  <div
-                    v-if="selectedFormat"
-                    class="number__field"
-                  >
-                    <input 
-                      v-for="(cell, index) in selectedFormat.cells" 
-                      :key="index"
-                      v-model="numberParts[index]" 
-                      class="number__input"
-                      :placeholder="getPlaceholder(cell)"
-                      :maxlength="cell.max_length"
-                      :style="{ width: getInputWidth(cell) }"
-                      @input="validatePart(index, $event, cell)"
-                      @blur="formatPart(index, cell)"
-                    >
-                  </div>
-                  <div
-                    v-else
-                    class="no-format-message"
-                  >
-                    Выберите формат номера
                   </div>
                 </div>
-                            
-                <div class="completion__mark">
-                  <div class="completion__mark-header">
-                    <label class="input__label">Марка Т/С <span class="required">*</span></label>
-                  </div>
-                  <div class="mark__field">
-                    <div class="mark__dropdown">
-                      <button
-                        class="mark__dropdown-button"
-                        @click="toggleMarkDropdown"
-                      >
-                        <div class="mark__button-content">
-                          <span class="mark__button-text">{{ selectedMark || 'Выберите марку' }}</span>
-                          <img
-                            src="@/assets/icons/arrow.png"
-                            class="mark__button-arrow"
-                            :class="{ 'mark__button-arrow--open': isMarkDropdownOpen }"
-                          >
-                        </div>
-                      </button>
-                      <transition name="dropdown">
-                        <div
-                          v-if="isMarkDropdownOpen"
-                          class="mark__dropdown-menu"
-                        >
-                          <div class="mark__search">
-                            <input 
-                              v-model="markSearch" 
-                              class="mark__search-input"
-                              placeholder="Поиск марки..."
-                              @input="filterMarks"
-                            >
-                          </div>
-                          <div class="mark__dropdown-list">
-                            <div
-                              v-for="mark in filteredMarks"
-                              :key="mark.id"
-                              class="mark__dropdown-item"
-                              @click="selectMark(mark)"
-                            >
-                              <span class="mark__item-text">{{ mark.name }}</span>
-                            </div>
-                            <div
-                              v-if="!filteredMarks.length"
-                              class="mark__dropdown-empty"
-                            >
-                              Марки не найдены
-                            </div>
-                          </div>
-                        </div>
-                      </transition>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              <!-- Привязка -->
-              <div
-                v-if="currentFilter !== 'all_system'"
-                class="completion__binding"
-              >
-                <label class="input__label">Привязка</label>
-                <div class="binding-info">
-                  <p class="binding-note">
-                    <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
-                    Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
-                  </p>
-                </div>
-                <div class="binding-options">
-                  <label
-                    v-if="ownershipInfo && ownershipInfo.has_organization"
-                    class="binding-option"
-                  >
-                    <input 
-                      v-model="bindToOrganization" 
-                      type="checkbox"
-                      :disabled="bindToCompany"
+                <!-- Привязка -->
+                <div
+                  v-if="currentFilter !== 'all_system'"
+                  class="completion__binding"
+                >
+                  <label class="input__label">Привязка</label>
+                  <div class="binding-info">
+                    <p class="binding-note">
+                      <strong>Добавляемый автомобиль автоматически привязывается к аккаунту пользователя.</strong>
+                      Автомобиль можно привязать к организации или компании, для использования <strong>другими сотрудниками</strong>:
+                    </p>
+                  </div>
+                  <div class="binding-options">
+                    <label
+                      v-if="ownershipInfo && ownershipInfo.has_organization"
+                      class="binding-option"
                     >
-                    <span>Привязать к организации</span>
-                  </label>
-                  <label
-                    v-if="ownershipInfo && ownershipInfo.has_company"
-                    class="binding-option"
-                  >
-                    <input 
-                      v-model="bindToCompany" 
-                      type="checkbox"
-                      :disabled="bindToOrganization"
+                      <input 
+                        v-model="bindToOrganization" 
+                        type="checkbox"
+                        :disabled="bindToCompany"
+                      >
+                      <span>Привязать к организации</span>
+                    </label>
+                    <label
+                      v-if="ownershipInfo && ownershipInfo.has_company"
+                      class="binding-option"
                     >
-                    <span>Привязать к компании</span>
-                  </label>
-                  <div class="user-binding">
-                    <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+                      <input 
+                        v-model="bindToCompany" 
+                        type="checkbox"
+                        :disabled="bindToOrganization"
+                      >
+                      <span>Привязать к компании</span>
+                    </label>
+                    <div class="user-binding">
+                      <span class="user-binding-text"><strong class="red">Внимание!</strong> При привязке автомобиля к организации или компании, он будет доступен для отображения и использования для всех сотрудников, привязанных к организации/компании. </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
     <ConfirmationModal
       :show="showDeleteCarModal"
@@ -773,13 +776,47 @@ export default {
             if (!e.target.closest('.format__dropdown')) {
                 this.isFormatDropdownOpen = false;
             }
-            
+
             if (!e.target.closest('.mark__dropdown')) {
                 this.isMarkDropdownOpen = false;
             }
         });
+
+        this._lastHeight = -1;
+        this.$nextTick(this._applyHeight);
+        window.addEventListener('resize', this._applyHeight);
+        const header = document.querySelector('.theheader');
+        if (header && typeof ResizeObserver !== 'undefined') {
+            this._headerObs = new ResizeObserver(this._applyHeight);
+            this._headerObs.observe(header);
+        }
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this._applyHeight);
+        if (this._headerObs) {
+            this._headerObs.disconnect();
+            this._headerObs = null;
+        }
     },
     methods: {
+        /**
+         * Тянет страницу на доступную высоту вьюпорта (под шапкой), чтобы таблица
+         * занимала весь экран без скролла страницы. На мобильном (<=768px) сбрасываем.
+         */
+        _applyHeight() {
+            const el = this.$refs.root;
+            if (!el) return;
+            if (window.innerWidth <= 768) {
+                el.style.height = '';
+                this._lastHeight = -1;
+                return;
+            }
+            const top = el.getBoundingClientRect().top;
+            const height = Math.max(0, Math.round(window.innerHeight - top));
+            if (height === this._lastHeight) return;
+            this._lastHeight = height;
+            el.style.height = `${height}px`;
+        },
         openCarDetails(car) {
             this.detailsCar = {
                 id: car.id,
@@ -1385,16 +1422,26 @@ export default {
 <style scoped>
 .carsview {
     padding: 20px;
+    display: flex;
+    flex-direction: column;
 }
 
 .carsview__container {
     display: flex;
     gap: 30px;
     margin-top: 20px;
+    flex: 1;
+    min-height: 0;
 }
 
 .carsview__right-side {
-    width: 40%;
+    width: 25%;
+}
+
+.carsview__help {
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    padding: 16px 20px;
 }
 
 .carsview__header {
@@ -1465,8 +1512,11 @@ export default {
     border-radius: 30px;
     border: 1px solid #e6e6e6;
     overflow: hidden;
-    width: 60%;
-    height: 450px;
+    width: 75%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 3px 10px rgba(0,0,0,0.05);
 }
 
@@ -1477,6 +1527,7 @@ export default {
     align-items: center;
     padding: 0px 20px;
     height: 40px;
+    flex-shrink: 0;
 }
 
 .card-header__title {
@@ -1525,7 +1576,8 @@ export default {
 
 .card-content {
     padding: 0;
-    height: calc(100% - 40px);
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
@@ -1533,7 +1585,8 @@ export default {
 .cars-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 
@@ -1617,8 +1670,8 @@ export default {
 }
 
 .status-col {
-    width: 18%;
-    min-width: 100px;
+    width: 21%;
+    min-width: 135px;
 }
 
 .actions-col {
@@ -1774,6 +1827,25 @@ export default {
     z-index: 1000;
     backdrop-filter: blur(0.1px);
     -webkit-backdrop-filter: blur(0.1px);
+}
+
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active {
+    transition: opacity 0.18s ease;
+}
+.modal-fade-leave-active {
+    transition: opacity 0.18s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
+}
+.modal-fade-enter-active .modal-content {
+    animation: modal-scale-in 0.18s ease;
+}
+@keyframes modal-scale-in {
+    from { transform: scale(0.96); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 .modal-content {
@@ -2308,10 +2380,15 @@ export default {
         justify-content: flex-end;
     }
     
+    .cars-card {
+        width: 100%;
+        flex: none;
+    }
+
     .carsview__container {
         flex-direction: column;
     }
-    
+
     .carsview__right-side {
         width: 100%;
     }
