@@ -184,6 +184,7 @@
               :key="vehicleFormKey"
               ref="vehicleForm"
               :field-config="currentFieldConfig"
+              :disabled="!currentAttachmentReady"
               :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
@@ -212,6 +213,7 @@
               :key="employeeFormKey"
               ref="employeeForm"
               :field-config="currentFieldConfig"
+              :disabled="!currentAttachmentReady"
               :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
@@ -239,6 +241,7 @@
               :key="itemsFormKey"
               ref="itemsForm"
               :field-config="currentFieldConfig"
+              :disabled="!currentAttachmentReady"
               :existing-items="items"
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
@@ -447,6 +450,15 @@ export default {
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
             return data?.errors || {};
         },
+
+        // Гейт п.36: формы добавления (авто/сотрудник/ТМЦ) доступны только когда
+        // обязательные поля текущего вложения (даты/время + обязательные доп. поля) заполнены.
+        currentAttachmentReady() {
+            if (!this.selectedAttachment) return false;
+            const key = this.attachmentKey(this.selectedAttachment);
+            if (!this.attachmentDatesComplete(this.attachmentDatesByAttachment[key])) return false;
+            return this.emptyRequiredCustomFields(this.selectedAttachment, key).length === 0;
+        },
         
         submitValidation() {
             const reasons = [];
@@ -488,16 +500,10 @@ export default {
                     reasons.push(`"${label}": укажите даты действия`);
                     return;
                 }
-                const hasValidDates = dateData.isOneDay
-                    ? !!(dateData.singleDate && dateData.startTime && dateData.endTime)
-                    : !!(dateData.startDate && dateData.endDate && dateData.startTime && dateData.endTime);
-                if (!hasValidDates) {
+                if (!this.attachmentDatesComplete(dateData)) {
                     reasons.push(`"${label}": заполните даты и время действия`);
                 }
-                const uaId = attachment.template_id || attachment.id;
-                const fields = this.customFieldDefinitions[uaId] || [];
-                const values = this.customFieldsByAttachment[key] || {};
-                const emptyFields = fields.filter(f => f.is_required && (!values[f.id] || !values[f.id].trim()));
+                const emptyFields = this.emptyRequiredCustomFields(attachment, key);
                 if (emptyFields.length > 0) {
                     reasons.push(`"${label}": заполните доп. поля: ${emptyFields.map(f => f.label).join(', ')}`);
                 }
@@ -563,10 +569,7 @@ export default {
                     errors.push('Не заполнены даты действия и время пребывания');
                 }
 
-                const uaId = attachment.template_id || attachment.id;
-                const cfFields = this.customFieldDefinitions[uaId] || [];
-                const cfValues = this.customFieldsByAttachment[key] || {};
-                const emptyCf = cfFields.filter(f => f.is_required && (!cfValues[f.id] || !cfValues[f.id].trim()));
+                const emptyCf = this.emptyRequiredCustomFields(attachment, key);
                 if (emptyCf.length > 0) {
                     emptyCf.forEach(f => errors.push(`Не заполнено доп. поле "${f.label}"`));
                 }
@@ -794,6 +797,22 @@ export default {
                 freeParking: false,
                 errors: {}
             };
+        },
+
+        // Дата+время вложения заполнены полностью (одиночная дата либо диапазон).
+        attachmentDatesComplete(dateData) {
+            if (!dateData) return false;
+            return dateData.isOneDay
+                ? !!(dateData.singleDate && dateData.startTime && dateData.endTime)
+                : !!(dateData.startDate && dateData.endDate && dateData.startTime && dateData.endTime);
+        },
+
+        // Незаполненные обязательные доп. поля вложения.
+        emptyRequiredCustomFields(attachment, key) {
+            const uaId = attachment.template_id || attachment.id;
+            const fields = this.customFieldDefinitions[uaId] || [];
+            const values = this.customFieldsByAttachment[key] || {};
+            return fields.filter(f => f.is_required && (!values[f.id] || !values[f.id].trim()));
         },
 
         updateAttachmentData(field, value) {
