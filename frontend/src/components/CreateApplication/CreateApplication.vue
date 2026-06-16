@@ -215,9 +215,7 @@
             <VehicleForm
               :key="vehicleFormKey"
               ref="vehicleForm"
-              :field-config="currentFieldConfig"
-              :disabled="!currentAttachmentReady"
-              :user-organization="organization"
+              :field-config="currentFieldConfig"              :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
               :user-company-id="companyId"
@@ -244,9 +242,7 @@
             <EmployeeForm
               :key="employeeFormKey"
               ref="employeeForm"
-              :field-config="currentFieldConfig"
-              :disabled="!currentAttachmentReady"
-              :user-organization="organization"
+              :field-config="currentFieldConfig"              :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
               :user-company-id="companyId"
@@ -272,9 +268,7 @@
             <ItemsForm
               :key="itemsFormKey"
               ref="itemsForm"
-              :field-config="currentFieldConfig"
-              :disabled="!currentAttachmentReady"
-              :existing-items="items"
+              :field-config="currentFieldConfig"              :existing-items="items"
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
               @item-updated="handleItemUpdated"
@@ -290,54 +284,6 @@
             />
           </template>
 
-          <!-- Гейт на уровне form__data: накрывает и форму, и список (в самих формах его нет) -->
-          <div
-            v-if="selectedAttachment && !currentAttachmentReady"
-            class="form__data-lock"
-          >
-            <div
-              class="form__data-lock-target"
-              tabindex="0"
-            >
-              <svg
-                width="38"
-                height="38"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <rect
-                  x="5"
-                  y="10.5"
-                  width="14"
-                  height="10"
-                  rx="2.5"
-                  fill="#1a1a1a"
-                />
-                <path
-                  d="M8 10.5V7.5a4 4 0 0 1 8 0v3"
-                  stroke="#1a1a1a"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-                <circle
-                  cx="12"
-                  cy="14.5"
-                  r="1.5"
-                  fill="#fff"
-                />
-                <rect
-                  x="11.25"
-                  y="15"
-                  width="1.5"
-                  height="3"
-                  rx="0.75"
-                  fill="#fff"
-                />
-              </svg>
-              <span class="form__data-lock-hint">Сначала заполните основные поля заявки выше</span>
-            </div>
-          </div>
         </div>
       </div>
             
@@ -537,15 +483,6 @@ export default {
             if (!this.selectedAttachment) return {};
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
             return data?.errors || {};
-        },
-
-        // Гейт п.36: формы добавления (авто/сотрудник/ТМЦ) доступны только когда
-        // обязательные поля текущего вложения (даты/время + обязательные доп. поля) заполнены.
-        currentAttachmentReady() {
-            if (!this.selectedAttachment) return false;
-            const key = this.attachmentKey(this.selectedAttachment);
-            if (!this.attachmentDatesComplete(this.attachmentDatesByAttachment[key])) return false;
-            return this.emptyRequiredCustomFields(this.selectedAttachment, key).length === 0;
         },
         
         submitValidation() {
@@ -2482,55 +2419,6 @@ export default {
     .form__data {
         display: flex;
         position: relative;
-    }
-
-    /* Гейт на уровне form__data - один оверлей и на форму, и на список */
-    .form__data-lock {
-        position: absolute;
-        inset: 0;
-        z-index: 5;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        /* Светлая полупрозрачная заливка + лёгкое размытие - блок читается как заблокированный. */
-        background: #f5f5f59e;
-        backdrop-filter: blur(2px);
-        -webkit-backdrop-filter: blur(2px);
-    }
-
-    .form__data-lock-target {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: help;
-        outline: none;
-    }
-
-    /* Подсказка под замком - только по наведению/фокусу */
-    .form__data-lock-hint {
-        position: absolute;
-        top: calc(100% + 10px);
-        left: 50%;
-        transform: translateX(-50%) translateY(4px);
-        white-space: nowrap;
-        background: #fff;
-        color: #333;
-        font-size: 12px;
-        font-weight: 500;
-        padding: 7px 12px;
-        border-radius: 10px;
-        border: 1px solid #e6e6e6;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.18s ease, transform 0.18s ease;
-    }
-
-    .form__data-lock-target:hover .form__data-lock-hint,
-    .form__data-lock-target:focus-visible .form__data-lock-hint {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
     }
 
     .blue {
