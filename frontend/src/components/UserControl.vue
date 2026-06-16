@@ -355,6 +355,17 @@
             
             <!-- Полноширинные элементы -->
             <div class="full-width-groups">
+              <div class="detail-group detail-group--checkbox">
+                <label class="detail-label detail-label--checkbox">
+                  <input
+                    type="checkbox"
+                    v-model="selectedUser.is_important"
+                    @change="updateUserInfo(selectedUser)"
+                  >
+                  Важный пользователь
+                </label>
+              </div>
+
               <div class="detail-group">
                 <label class="detail-label">Тип пользователя:</label>
                 <BaseDropdown
@@ -1041,13 +1052,14 @@ export default {
         const response = await apiRequest(`/users/${user.username}/info`,
           {
             method: "PUT",
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               last_name: user.last_name || null,
               first_name: user.first_name || null,
               middle_name: user.middle_name || null,
               position: user.position || null,
               email: user.email || null,
-              phone: user.phone || null
+              phone: user.phone || null,
+              is_important: !!user.is_important,
             }),
           }
         );

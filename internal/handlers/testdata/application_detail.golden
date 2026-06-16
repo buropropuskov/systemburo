@@ -15,6 +15,7 @@ data.responsible_name
 data.responsible_user_id
 data.responsible_users
 data.sender_full_name
+data.sender_is_important
 data.sender_name
 data.sender_user_id
 data.sending_datetime

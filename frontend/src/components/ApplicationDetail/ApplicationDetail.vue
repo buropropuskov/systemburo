@@ -149,6 +149,14 @@
               <div class="info-row">
                 <span class="info-label">Отправитель:</span>
                 <span class="info-value">{{ applicationData.sender_full_name || applicationData.sender_name }}</span>
+                <Badge
+                  v-if="applicationData.sender_is_important"
+                  variant="info"
+                  size="sm"
+                  class="sender-important-badge"
+                >
+                  Важный
+                </Badge>
               </div>
             </div>
           </div>
@@ -334,6 +342,7 @@ import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
 import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
 import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
+import Badge from '@/components/ui/Badge.vue'
 
 export default {
     name: 'ApplicationDetail',
@@ -346,7 +355,8 @@ export default {
         ApplicationAttachmentDetail,
         BlacklistOverrideModal,
         VehicleDetailsModal,
-        EmployeeDetailsModal
+        EmployeeDetailsModal,
+        Badge
     },
     props: {
         application: {
