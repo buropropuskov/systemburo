@@ -27,6 +27,13 @@ describe('sanitizeHtml', () => {
     expect(out).toContain('font-weight-600');
   });
 
+  it('сохраняет <strong> и классы выравнивания (bold + align round-trip)', () => {
+    const html = '<p class="text-align-center"><strong>жирный по центру</strong></p>';
+    const out = sanitizeHtml(html);
+    expect(out).toContain('<strong>');
+    expect(out).toContain('text-align-center');
+  });
+
   it('вырезает скрипты и обработчики событий', () => {
     expect(sanitizeHtml('<script>alert(1)</script><p>ok</p>')).not.toContain('<script');
     expect(sanitizeHtml('<img src="x" onerror="alert(1)">')).not.toContain('onerror');

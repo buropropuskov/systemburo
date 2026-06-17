@@ -891,12 +891,16 @@ export default {
     line-height: 1.2 !important;
 }
 
-.text-constructor-content :deep(.heading-h2) { 
-    font-size: 20px !important; 
+.text-constructor-content :deep(.heading-h2) {
+    font-size: 20px !important;
     font-weight: 600 !important;
     margin: 8px 0 6px 0 !important;
     line-height: 1.3 !important;
 }
+
+.text-constructor-content :deep(.text-align-left) { text-align: left !important; }
+.text-constructor-content :deep(.text-align-center) { text-align: center !important; }
+.text-constructor-content :deep(.text-align-right) { text-align: right !important; }
 
 /* Hint specific styles */
 .hint-content :deep(*) {
@@ -907,6 +911,10 @@ export default {
 .hint-content :deep(.red-text) { color: #FFB3B3 !important; }
 .hint-content :deep(.green-text) { color: #B3FFC6 !important; }
 .hint-content :deep(.blue-text) { color: #B3C6FF !important; }
+
+.hint-content :deep(.text-align-left) { text-align: left !important; }
+.hint-content :deep(.text-align-center) { text-align: center !important; }
+.hint-content :deep(.text-align-right) { text-align: right !important; }
 
 /* Instruction Modal */
 .modal-overlay {

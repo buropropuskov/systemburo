@@ -1,4 +1,4 @@
-import { Mark, mergeAttributes } from '@tiptap/core';
+import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import Heading from '@tiptap/extension-heading';
 import Image from '@tiptap/extension-image';
@@ -30,6 +30,8 @@ export const FONT_WEIGHT_CLASSES = [
   'font-weight-600',
   'font-weight-900',
 ];
+export const TEXT_ALIGN_TYPES = ['paragraph', 'heading'];
+export const TEXT_ALIGNMENTS = ['left', 'center', 'right'];
 
 /**
  * Фабрика марки, которая хранит один класс из набора на `<span>` и round-trip'ит его.
@@ -158,5 +160,64 @@ export const ConstructorImage = Image.extend({
 
   addNodeView() {
     return VueNodeViewRenderer(ResizableImage);
+  },
+});
+
+/**
+ * Выравнивание абзацев и заголовков через CSS-класс `text-align-left|center|right`,
+ * а НЕ inline-style. Консистентно с остальными марками TextConstructor (цвет/размер/жирность
+ * тоже class-based) и не завязывается на санитизацию значений inline-style. Глобальный
+ * атрибут вешается на paragraph/heading; потребители рендерят его через `:deep(.text-align-*)`.
+ * parseHTML дополнительно понимает inline `style="text-align:..."` - на случай уже сохранённого
+ * чужого контента, но сериализует всегда в класс.
+ */
+export const TextAlignClass = Extension.create({
+  name: 'textAlignClass',
+
+  addOptions() {
+    return {
+      types: TEXT_ALIGN_TYPES,
+      alignments: TEXT_ALIGNMENTS,
+    };
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          textAlign: {
+            default: null,
+            parseHTML: (element) => {
+              const cls = this.options.alignments.find((a) =>
+                element.classList.contains(`text-align-${a}`)
+              );
+              if (cls) return cls;
+              const styleAlign = element.style?.textAlign;
+              return this.options.alignments.includes(styleAlign) ? styleAlign : null;
+            },
+            renderHTML: (attributes) =>
+              attributes.textAlign ? { class: `text-align-${attributes.textAlign}` } : {},
+          },
+        },
+      },
+    ];
+  },
+
+  addCommands() {
+    return {
+      setTextAlignClass:
+        (alignment) =>
+        ({ commands }) => {
+          if (!this.options.alignments.includes(alignment)) return false;
+          return this.options.types.every((type) =>
+            commands.updateAttributes(type, { textAlign: alignment })
+          );
+        },
+      unsetTextAlignClass:
+        () =>
+        ({ commands }) =>
+          this.options.types.every((type) => commands.resetAttributes(type, 'textAlign')),
+    };
   },
 });

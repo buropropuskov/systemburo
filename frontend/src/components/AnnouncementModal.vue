@@ -280,4 +280,7 @@ export default {
 .announcement-body-html :deep(ul),
 .announcement-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
 .announcement-body-html :deep(img) { max-width: 100%; height: auto; border-radius: 8px; }
+.announcement-body-html :deep(.text-align-left) { text-align: left; }
+.announcement-body-html :deep(.text-align-center) { text-align: center; }
+.announcement-body-html :deep(.text-align-right) { text-align: right; }
 </style>
