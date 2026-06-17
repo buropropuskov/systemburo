@@ -19,6 +19,17 @@
     <template v-else-if="catalog">
       <section class="reports__block">
         <h2 class="reports__heading">
+          Готовые отчёты
+        </h2>
+        <ReportGallery
+          :catalog="catalog"
+          :active-id="activePresetId"
+          @apply="onApplyPreset"
+        />
+      </section>
+
+      <section class="reports__block">
+        <h2 class="reports__heading">
           Сформировать отчёт
         </h2>
         <p class="reports__lead">
@@ -28,6 +39,7 @@
           :catalog="catalog"
           :period="period"
           :loading="running"
+          :preset="presetPayload"
           @run="onRun"
         />
       </section>
@@ -50,6 +62,7 @@
 import { ref, computed, onMounted } from 'vue';
 import ReportBuilder from './ReportBuilder.vue';
 import ReportResult from './ReportResult.vue';
+import ReportGallery from './ReportGallery.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { getReportCatalog, runReport } from '@/api/statistics';
 
@@ -67,6 +80,16 @@ const catalogError = ref('');
 const result = ref(null);
 const running = ref(false);
 const runError = ref('');
+
+// Пресет из галереи: новый объект на каждый клик (даже по той же карточке),
+// чтобы watch в ReportBuilder сработал повторно и перезаполнил конструктор.
+const presetPayload = ref(null);
+const activePresetId = ref('');
+
+function onApplyPreset(preset) {
+  activePresetId.value = preset.id;
+  presetPayload.value = { ...preset.form };
+}
 
 onMounted(async () => {
   try {
