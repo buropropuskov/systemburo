@@ -24,6 +24,15 @@ describe('sanitizeHtml', () => {
     expect(out).toContain('height="200"');
   });
 
+  it('сохраняет класс выравнивания картинки img-align-* (round-trip обтекания)', () => {
+    const html =
+      '<img class="constructor-image img-align-right" src="data:image/png;base64,ZmFrZQ==" alt="x" width="320">';
+    const out = sanitizeHtml(html);
+    expect(out).toContain('img-align-right');
+    expect(out).toContain('constructor-image');
+    expect(out).toContain('width="320"');
+  });
+
   it('сохраняет классы форматирования (цвета, размер, жирность)', () => {
     const html =
       '<span class="red-text">a</span>' +

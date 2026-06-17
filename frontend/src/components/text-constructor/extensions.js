@@ -32,6 +32,7 @@ export const FONT_WEIGHT_CLASSES = [
 ];
 export const TEXT_ALIGN_TYPES = ['paragraph', 'heading'];
 export const TEXT_ALIGNMENTS = ['left', 'center', 'right'];
+export const IMAGE_ALIGNMENTS = ['left', 'center', 'right'];
 
 /**
  * Фабрика марки, которая хранит один класс из набора на `<span>` и round-trip'ит его.
@@ -171,11 +172,30 @@ export const ConstructorImage = Image.extend({
         parseHTML: (element) => parseImageDimension(element, 'height'),
         renderHTML: (attributes) => (attributes.height > 0 ? { height: attributes.height } : {}),
       },
+      align: {
+        default: null,
+        parseHTML: (element) =>
+          IMAGE_ALIGNMENTS.find((a) => element.classList.contains(`img-align-${a}`)) || null,
+        renderHTML: (attributes) =>
+          attributes.align ? { class: `img-align-${attributes.align}` } : {},
+      },
     };
   },
 
   addNodeView() {
     return VueNodeViewRenderer(ResizableImage);
+  },
+
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      setImageAlign:
+        (align) =>
+        ({ commands }) => {
+          if (align !== null && !IMAGE_ALIGNMENTS.includes(align)) return false;
+          return commands.updateAttributes(this.name, { align });
+        },
+    };
   },
 });
 

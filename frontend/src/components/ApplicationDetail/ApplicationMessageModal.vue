@@ -184,6 +184,11 @@ onBeforeUnmount(() => {
   height: auto;
 }
 
+.text-constructor-content :deep(.constructor-image.img-align-left) { float: left; margin: 0 14px 10px 0; }
+.text-constructor-content :deep(.constructor-image.img-align-right) { float: right; margin: 0 0 10px 14px; }
+.text-constructor-content :deep(.constructor-image.img-align-center) { display: block; margin: 10px auto; float: none; }
+.text-constructor-content::after { content: ''; display: block; clear: both; }
+
 .text-constructor-content :deep(strong) { font-weight: 700; }
 .text-constructor-content :deep(em) { font-style: italic; }
 .text-constructor-content :deep(u) { text-decoration: underline; }

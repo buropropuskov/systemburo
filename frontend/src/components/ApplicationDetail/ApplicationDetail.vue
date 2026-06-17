@@ -1624,6 +1624,10 @@ export default {
     height: auto;
 }
 
+.message-preview :deep(.constructor-image.img-align-left) { float: left; margin: 0 14px 10px 0; }
+.message-preview :deep(.constructor-image.img-align-right) { float: right; margin: 0 0 10px 14px; }
+.message-preview :deep(.constructor-image.img-align-center) { display: block; margin: 10px auto; float: none; }
+
 .message-preview :deep(p) { margin: 4px 0; }
 
 .message-preview :deep(ul),

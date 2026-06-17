@@ -1,7 +1,7 @@
 <template>
   <node-view-wrapper
     class="ci-image"
-    :class="{ 'is-selected': isEditable && selected }"
+    :class="[{ 'is-selected': isEditable && selected }, alignClass]"
   >
     <span class="ci-image-frame">
       <img
@@ -11,6 +11,7 @@
         class="constructor-image"
         :style="imgStyle"
         draggable="false"
+        data-drag-handle
       >
       <span
         v-for="handle in HANDLES"
@@ -55,6 +56,10 @@ const dragSize = ref(null);
 let stopDrag = null;
 
 const isEditable = computed(() => Boolean(props.editor?.isEditable));
+
+const alignClass = computed(() =>
+  props.node.attrs.align ? `img-align-${props.node.attrs.align}` : ''
+);
 
 const imgStyle = computed(() => {
   const width = dragSize.value?.width ?? props.node.attrs.width;
@@ -140,6 +145,25 @@ onBeforeUnmount(() => {
 <style scoped>
 .ci-image {
   display: block;
+}
+
+.ci-image.img-align-left {
+  float: left;
+  margin: 0 14px 10px 0;
+  max-width: 100%;
+}
+
+.ci-image.img-align-right {
+  float: right;
+  margin: 0 0 10px 14px;
+  max-width: 100%;
+}
+
+.ci-image.img-align-center {
+  display: block;
+  float: none;
+  margin: 10px auto;
+  text-align: center;
 }
 
 .ci-image-frame {
