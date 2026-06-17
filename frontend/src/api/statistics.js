@@ -6,7 +6,8 @@ import { apiRequest } from './client';
  * @param {string} to   - дата конца в формате YYYY-MM-DD
  * @returns {Promise<{
  *   total_applications: number,
- *   by_attachment_type: Record<string, number>,
+ *   by_attachment_type: Array<{name: string, count: number}>,
+ *   by_status: Array<{status: string, count: number}>,
  *   processed: number,
  *   in_work: number,
  *   cars_entered: number,
@@ -55,8 +56,8 @@ export async function getTimeline({ from, to, metric, granularity }) {
  * Получить последние проходы/проезды.
  * @param {number} [limit=15] - максимальное количество записей на тип
  * @returns {Promise<{
- *   people: Array<{subject: string, organization: string, place: string, time: string, action_type: 'entry'|'exit'}>,
- *   cars:   Array<{subject: string, mark: string, organization: string, place: string, time: string, action_type: 'entry'|'exit'}>,
+ *   people: Array<{subject: string, organization: string, place: string, created_at: string, action_type: 'entry'|'exit'}>,
+ *   cars:   Array<{subject: string, mark: string, organization: string, place: string, created_at: string, action_type: 'entry'|'exit'}>,
  * }>}
  */
 export async function getRecentPassages(limit = 15) {

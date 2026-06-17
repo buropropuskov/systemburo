@@ -222,7 +222,7 @@
                 </div>
               </div>
               <div class="dashboard__feed-right">
-                <div class="dashboard__feed-time">{{ formatTime(row.time) }}</div>
+                <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
                 <span
                   class="dashboard__dir-badge"
                   :class="row.action_type === 'entry' ? 'dashboard__dir-badge--in' : 'dashboard__dir-badge--out'"
@@ -272,7 +272,7 @@
                 </div>
               </div>
               <div class="dashboard__feed-right">
-                <div class="dashboard__feed-time">{{ formatTime(row.time) }}</div>
+                <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
                 <span
                   class="dashboard__dir-badge"
                   :class="row.action_type === 'entry' ? 'dashboard__dir-badge--in' : 'dashboard__dir-badge--out'"
@@ -349,15 +349,15 @@ const chartData = computed(() =>
 
 // ---- вычисляемые из summary ----
 const attachmentsTotal = computed(() => {
-  const map = summary.value.by_attachment_type;
-  if (!map || typeof map !== 'object') return 0;
-  return Object.values(map).reduce((s, v) => s + (v || 0), 0);
+  const list = summary.value.by_attachment_type;
+  if (!Array.isArray(list)) return 0;
+  return list.reduce((s, item) => s + (item?.count || 0), 0);
 });
 
 const attachmentBreakdown = computed(() => {
-  const map = summary.value.by_attachment_type;
-  if (!map || typeof map !== 'object') return [];
-  return Object.entries(map).map(([label, count]) => ({ label, count }));
+  const list = summary.value.by_attachment_type;
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => ({ label: item.name, count: item.count }));
 });
 
 // ---- форматирование ----
