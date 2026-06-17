@@ -116,25 +116,6 @@
                 class="lk-button lk-button--secondary message-open-btn"
                 @click="showMessageModal = true"
               >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line
-                    x1="10"
-                    y1="14"
-                    x2="21"
-                    y2="3"
-                  />
-                </svg>
                 Открыть в окне
               </button>
             </div>
@@ -1584,6 +1565,7 @@ export default {
     border-radius: 20px;
     padding: 15px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
 }
 
 .message-section-header {
@@ -1591,7 +1573,9 @@ export default {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 8px;
+    margin: -15px -15px 12px;
+    padding: 12px 15px;
+    border-bottom: 1px solid #e6e6e6;
 }
 
 .message-section h4 {
@@ -1603,6 +1587,7 @@ export default {
 
 .message-open-btn {
     flex-shrink: 0;
+    padding: 4px 18px;
 }
 
 .message-content {

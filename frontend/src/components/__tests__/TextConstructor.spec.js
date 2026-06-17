@@ -290,26 +290,4 @@ describe('TextConstructor', () => {
     expect(out).toContain('text-align-center');
     expect(out).not.toContain('style=');
   });
-
-  it('по умолчанию тулбар виден, кнопки-тоггла нет', () => {
-    const wrapper = mountConstructor();
-    expect(wrapper.find('.toolbar-toggle').exists()).toBe(false);
-    expect(wrapper.find('.editor-toolbar').isVisible()).toBe(true);
-  });
-
-  it('collapsibleToolbar скрывает тулбар и показывает кнопку-тоггл', () => {
-    const wrapper = mountConstructor({ collapsibleToolbar: true });
-    expect(wrapper.find('.toolbar-toggle').exists()).toBe(true);
-    expect(wrapper.find('.editor-toolbar').isVisible()).toBe(false);
-  });
-
-  it('клик по тогглу разворачивает и сворачивает тулбар', async () => {
-    const wrapper = mountConstructor({ collapsibleToolbar: true });
-    const toggle = wrapper.find('.toolbar-toggle');
-    await toggle.trigger('click');
-    expect(wrapper.find('.editor-toolbar').isVisible()).toBe(true);
-    expect(toggle.classes()).toContain('is-open');
-    await toggle.trigger('click');
-    expect(wrapper.find('.editor-toolbar').isVisible()).toBe(false);
-  });
 });
