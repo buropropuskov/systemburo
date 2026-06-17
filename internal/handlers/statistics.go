@@ -181,6 +181,9 @@ func (h *StatisticsHandler) RunReport(c echo.Context) error {
 		// list-режим (выгрузка строк) добавляется отдельным срезом.
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported report mode")
 	}
+	if req.Metric == "" || req.Dimension == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "metric and dimension are required")
+	}
 
 	res, err := h.service.RunReport(c.Request().Context(), req)
 	if err != nil {

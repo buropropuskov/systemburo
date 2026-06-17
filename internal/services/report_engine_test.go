@@ -173,6 +173,35 @@ func TestAggregatePlan_ItemsSumAlwaysJoins(t *testing.T) {
 	}
 }
 
+func TestAggregatePlan_ItemsSumDateRangeFilterJoins(t *testing.T) {
+	// items_sum: tsColumn=app.sending_datetime лежит за join'ом. Фильтр date_range
+	// должен тянуть joinBlock через свой tsJoin даже без разреза period.
+	req := models.ReportRequest{
+		Metric:    "items_sum",
+		Dimension: "organization",
+		Filters: []models.ReportFilterValue{
+			{Key: "date_range", From: "2026-06-01", To: "2026-06-17"},
+		},
+	}
+	plan, err := buildAggregatePlan(req)
+	if err != nil {
+		t.Fatalf("неожиданная ошибка: %v", err)
+	}
+	joined := strings.Join(plan.joins, " ")
+	if !strings.Contains(joined, "applications app") {
+		t.Errorf("date_range фильтр items_sum должен тянуть join к applications, got %v", plan.joins)
+	}
+	var hasRange bool
+	for _, w := range plan.wheres {
+		if strings.Contains(w.expr, "app.sending_datetime >= ?") {
+			hasRange = true
+		}
+	}
+	if !hasRange {
+		t.Errorf("date_range по app.sending_datetime не попал в where: %+v", plan.wheres)
+	}
+}
+
 func TestAggregatePlan_RejectsInvalid(t *testing.T) {
 	cases := []struct {
 		name string
