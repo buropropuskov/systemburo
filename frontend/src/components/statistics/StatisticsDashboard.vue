@@ -14,7 +14,7 @@
         class="dashboard__tiles"
       >
         <div
-          v-for="n in 10"
+          v-for="n in 9"
           :key="n"
           class="dashboard__tile dashboard__tile--skeleton"
         />
@@ -55,10 +55,6 @@
           <div class="dashboard__tile-val">{{ fmt(summary.cars_entered) }}</div>
         </div>
         <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Среднее машин / день</div>
-          <div class="dashboard__tile-val">{{ fmtAvg(summary.avg_cars_per_day) }}</div>
-        </div>
-        <div class="dashboard__tile">
           <div class="dashboard__tile-label">Людей прошло</div>
           <div class="dashboard__tile-val">{{ fmt(summary.people_entered) }}</div>
         </div>
@@ -90,7 +86,7 @@
         class="dashboard__tiles"
       >
         <div
-          v-for="n in 9"
+          v-for="n in 4"
           :key="n"
           class="dashboard__tile dashboard__tile--skeleton"
         />
@@ -115,26 +111,6 @@
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Открытых обращений</div>
           <div class="dashboard__tile-val">{{ fmt(summary.open_feedback) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Активных мест разгрузки</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.active_unload_places) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">ЧС: машины</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.blacklist_cars) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">ЧС: люди</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.blacklist_people) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Уникальных машин</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.unique_cars) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Уникальных людей</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.unique_people) }}</div>
         </div>
       </div>
     </div>
@@ -364,11 +340,6 @@ const attachmentBreakdown = computed(() => {
 function fmt(val) {
   if (val == null) return '—';
   return Number(val).toLocaleString('ru-RU');
-}
-
-function fmtAvg(val) {
-  if (val == null) return '—';
-  return Math.round(Number(val)).toLocaleString('ru-RU');
 }
 
 function formatTime(iso) {
@@ -810,7 +781,7 @@ onUnmounted(() => {
   min-width: 64px;
   padding: 3px 8px;
   border: 2px solid var(--color-text);
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 700;
   color: var(--color-text);
