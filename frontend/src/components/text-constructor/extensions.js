@@ -118,13 +118,35 @@ export const ClassHeading = Heading.extend({
 });
 
 /**
+ * Парсит размер картинки (`width`/`height`) из HTML-атрибута, а если его нет - из inline-style
+ * `<dim>:Npx`. Возвращает целое число px > 0 либо null. Хранение и сериализация идут в HTML-атрибут
+ * (он проходит whitelist DOMPurify); inline-style понимаем только ради уже сохранённого чужого контента.
+ * @param {HTMLElement} element
+ * @param {'width'|'height'} attr
+ * @returns {number|null}
+ */
+function parseImageDimension(element, attr) {
+  const raw = element.getAttribute(attr);
+  if (raw && /^\d+(?:\.\d+)?$/.test(raw)) {
+    const value = Math.round(parseFloat(raw));
+    return value > 0 ? value : null;
+  }
+  const styleValue = element.style?.[attr] || '';
+  const match = styleValue.match(/^(\d+(?:\.\d+)?)px$/);
+  if (!match) return null;
+  const value = Math.round(parseFloat(match[1]));
+  return value > 0 ? value : null;
+}
+
+/**
  * Image с классом `constructor-image` и поддержкой data:URL (картинки вставляются в base64).
  *
- * Размер настраивается перетаскиванием маркера (NodeView `ResizableImage.vue`): ширина хранится
- * в HTML-атрибуте `width` (число px) и round-trip'ит через него. Атрибут `width` проходит санитайзер
- * DOMPurify по умолчанию (см. utils/sanitize.js + sanitize.spec.js), поэтому размер переживает
- * сохранение/перезагрузку. Без заданной ширины картинка рендерится в натуральном размере и
- * ограничена `max-width:100%` у потребителей (не растягивается на максимум).
+ * Размер настраивается перетаскиванием маркеров (NodeView `ResizableImage.vue`): 8 маркеров
+ * (4 угла + 4 стороны), свободный ресайз ширины и высоты независимо, Shift = пропорционально.
+ * Ширина и высота хранятся в HTML-атрибутах `width`/`height` (число px) и round-trip'ят через них.
+ * Эти атрибуты проходят санитайзер DOMPurify по умолчанию (см. utils/sanitize.js + sanitize.spec.js),
+ * поэтому размер переживает сохранение/перезагрузку. Без заданных размеров картинка рендерится в
+ * натуральном размере и ограничена `max-width:100%` у потребителей (не растягивается на максимум).
  */
 export const ConstructorImage = Image.extend({
   addOptions() {
@@ -141,19 +163,13 @@ export const ConstructorImage = Image.extend({
       ...this.parent?.(),
       width: {
         default: null,
-        parseHTML: (element) => {
-          const attr = element.getAttribute('width');
-          if (attr && /^\d+(?:\.\d+)?$/.test(attr)) {
-            const value = Math.round(parseFloat(attr));
-            return value > 0 ? value : null;
-          }
-          const styleWidth = element.style?.width || '';
-          const match = styleWidth.match(/^(\d+(?:\.\d+)?)px$/);
-          if (!match) return null;
-          const value = Math.round(parseFloat(match[1]));
-          return value > 0 ? value : null;
-        },
+        parseHTML: (element) => parseImageDimension(element, 'width'),
         renderHTML: (attributes) => (attributes.width > 0 ? { width: attributes.width } : {}),
+      },
+      height: {
+        default: null,
+        parseHTML: (element) => parseImageDimension(element, 'height'),
+        renderHTML: (attributes) => (attributes.height > 0 ? { height: attributes.height } : {}),
       },
     };
   },

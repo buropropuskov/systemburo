@@ -909,7 +909,11 @@ defineExpose({ editor });
 .editor-content :deep(img),
 .preview-modal-content :deep(img) {
   max-width: 100%;
-  height: auto;
   border-radius: 8px;
+}
+
+.editor-content :deep(img:not([height])),
+.preview-modal-content :deep(img:not([height])) {
+  height: auto;
 }
 </style>

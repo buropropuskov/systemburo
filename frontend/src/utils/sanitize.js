@@ -8,8 +8,8 @@ import DOMPurify from 'dompurify'
  * Используется для admin-editable контента (инструкции в таблицах, текстовый
  * конструктор) - input не доверенный, хотя authored админом.
  *
- * Ресайз картинок (TextConstructor) хранит ширину в HTML-атрибуте `width` (число px) -
- * он входит в whitelist html-профиля DOMPurify и не вырезается, поэтому размер картинки
+ * Ресайз картинок (TextConstructor) хранит размер в HTML-атрибутах `width`/`height` (число px) -
+ * оба входят в whitelist html-профиля DOMPurify и не вырезаются, поэтому размер картинки
  * переживает санитизацию и round-trip. Контракт зафиксирован в utils/__tests__/sanitize.spec.js.
  *
  * @param {string} dirty - исходный HTML

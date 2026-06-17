@@ -16,6 +16,14 @@ describe('sanitizeHtml', () => {
     expect(out).toContain('data:image/png;base64,');
   });
 
+  it('сохраняет атрибуты width и height у картинки (свободный ресайз round-trip)', () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="x" width="320" height="200">';
+    const out = sanitizeHtml(html);
+    expect(out).toContain('width="320"');
+    expect(out).toContain('height="200"');
+  });
+
   it('сохраняет классы форматирования (цвета, размер, жирность)', () => {
     const html =
       '<span class="red-text">a</span>' +
