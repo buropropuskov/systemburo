@@ -53,6 +53,7 @@ type Dependencies struct {
 	Trash               *handlers.TrashHandler
 	DocumentGroups      *handlers.DocumentGroupHandler
 	Documents           *handlers.DocumentHandler
+	Statistics          *handlers.StatisticsHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -107,6 +108,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	trash := d.Trash
 	docGroups := d.DocumentGroups
 	docs := d.Documents
+	statistics := d.Statistics
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	maintenanceBlock := d.MaintenanceBlock
@@ -577,5 +579,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 		docsGroup.GET("/:id/download", docs.Download)
 
 		protected.GET("/public/documents", docs.GetPublic)
+	}
+
+	// Статистика дашборда (#632). Доступ ограничен page.statistics.
+	if statistics != nil {
+		requireStats := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics)
+		statsGroup := protected.Group("/statistics")
+		statsGroup.GET("/summary", statistics.GetSummary, requireStats)
+		statsGroup.GET("/timeline", statistics.GetTimeline, requireStats)
 	}
 }

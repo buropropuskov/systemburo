@@ -188,6 +188,7 @@ func main() {
 	documentFileService := services.NewDocumentFileService(cfg.UploadPath)
 	documentGroupService := services.NewDocumentGroupService(db)
 	documentService := services.NewDocumentService(db, documentFileService, settingsService)
+	statisticsService := services.NewStatisticsService(db)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
@@ -229,6 +230,7 @@ func main() {
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
+	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -286,6 +288,7 @@ func main() {
 		Trash:               trashHandler,
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,
+		Statistics:          statisticsHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,
