@@ -196,6 +196,16 @@ describe('TextConstructor', () => {
     expect(out).not.toContain('width=');
   });
 
+  it('нулевая ширина не сериализуется (невалидный размер)', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" width="0">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).not.toContain('width=');
+  });
+
   it('кнопки форматирования имеют data-tooltip', () => {
     const wrapper = mountConstructor();
     const italicBtn = wrapper.findAll('.toolbar-btn').find((b) => b.attributes('data-tooltip') === 'Курсив');

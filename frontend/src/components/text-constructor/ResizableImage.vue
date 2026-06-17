@@ -53,6 +53,7 @@ function maxWidth() {
 
 function startResize(event) {
   if (!isEditable.value || !imgEl.value) return;
+  if (stopDrag) stopDrag();
   event.preventDefault();
   event.stopPropagation();
 

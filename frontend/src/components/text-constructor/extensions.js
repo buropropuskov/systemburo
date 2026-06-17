@@ -141,12 +141,17 @@ export const ConstructorImage = Image.extend({
         default: null,
         parseHTML: (element) => {
           const attr = element.getAttribute('width');
-          if (attr && /^\d+(?:\.\d+)?$/.test(attr)) return Math.round(parseFloat(attr));
+          if (attr && /^\d+(?:\.\d+)?$/.test(attr)) {
+            const value = Math.round(parseFloat(attr));
+            return value > 0 ? value : null;
+          }
           const styleWidth = element.style?.width || '';
           const match = styleWidth.match(/^(\d+(?:\.\d+)?)px$/);
-          return match ? Math.round(parseFloat(match[1])) : null;
+          if (!match) return null;
+          const value = Math.round(parseFloat(match[1]));
+          return value > 0 ? value : null;
         },
-        renderHTML: (attributes) => (attributes.width ? { width: attributes.width } : {}),
+        renderHTML: (attributes) => (attributes.width > 0 ? { width: attributes.width } : {}),
       },
     };
   },
