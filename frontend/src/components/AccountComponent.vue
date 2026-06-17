@@ -52,66 +52,6 @@
         />
       </div>
 
-      <!-- Настройки звука -->
-      <div class="sound-settings dashboard-card-animated">
-        <div class="sound-settings__header">
-          <h3 class="sound-settings__title">
-            Звук
-          </h3>
-          <label
-            class="sound-toggle"
-            :aria-label="soundStore.enabled ? 'Выключить звук' : 'Включить звук'"
-          >
-            <input
-              type="checkbox"
-              class="sound-toggle__input"
-              :checked="soundStore.enabled"
-              @change="soundStore.setEnabled($event.target.checked)"
-            >
-            <span class="sound-toggle__track" />
-          </label>
-        </div>
-
-        <template v-if="soundStore.enabled">
-          <div class="sound-settings__field">
-            <label class="sound-settings__label">Пресет</label>
-            <select
-              class="lk-select"
-              :value="soundStore.selectedPreset"
-              @change="soundStore.setPreset($event.target.value)"
-            >
-              <option
-                v-for="p in soundPresets"
-                :key="p.value"
-                :value="p.value"
-              >
-                {{ p.label }}
-              </option>
-            </select>
-          </div>
-
-          <div class="sound-settings__field">
-            <label class="sound-settings__label">Громкость {{ Math.round(soundStore.volume * 100) }}%</label>
-            <input
-              type="range"
-              class="sound-volume"
-              min="0"
-              max="1"
-              step="0.05"
-              :value="soundStore.volume"
-              @input="soundStore.setVolume($event.target.value)"
-            >
-          </div>
-
-          <button
-            type="button"
-            class="lk-button lk-button--ghost sound-settings__preview"
-            @click="previewSound"
-          >
-            Прослушать
-          </button>
-        </template>
-      </div>
     </div>
   </div>
 </template>
@@ -119,8 +59,6 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
-import { useSoundStore } from '@/stores/sound'
-import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotificationsInline from './UserNotificationsInline.vue';
@@ -134,14 +72,9 @@ export default {
     SkeletonTransition,
     SkeletonBlock,
   },
-  setup() {
-    const soundStore = useSoundStore()
-    return { soundStore }
-  },
   data() {
     return {
       loading: true,
-      soundPresets: SOUND_PRESETS,
       organization: "",
       company: "",
       username: "",
@@ -229,10 +162,6 @@ export default {
         this.loading = false;
       }
     },
-    previewSound() {
-      playPreset(this.soundStore.selectedPreset, this.soundStore.volume)
-    },
-
     updateUserData(userData) {
       this.organization = userData.organization || "";
       this.company = userData.company || "";
@@ -323,107 +252,6 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* Блок настроек звука */
-.sound-settings {
-  margin-top: 15px;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 30px;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex-shrink: 0;
-  animation-delay: 0.15s;
-}
-
-.sound-settings__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.sound-settings__title {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0;
-  color: #1a1a1a;
-}
-
-/* Toggle-переключатель в стиле карточек ЛК */
-.sound-toggle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.sound-toggle__input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.sound-toggle__track {
-  display: inline-block;
-  width: 36px;
-  height: 20px;
-  background: var(--color-border);
-  border-radius: 999px;
-  transition: background 0.2s ease;
-  position: relative;
-}
-
-.sound-toggle__track::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-}
-
-.sound-toggle__input:checked + .sound-toggle__track {
-  background: var(--color-primary);
-}
-
-.sound-toggle__input:checked + .sound-toggle__track::after {
-  transform: translateX(16px);
-}
-
-.sound-settings__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sound-settings__label {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-.sound-volume {
-  width: 100%;
-  accent-color: var(--color-primary);
-  cursor: pointer;
-  height: 4px;
-  border-radius: 4px;
-}
-
-.sound-settings__preview {
-  align-self: flex-start;
-  font-size: 12px;
-  padding: 6px 16px;
 }
 
 /* Адаптивность */
