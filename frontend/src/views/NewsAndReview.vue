@@ -1046,7 +1046,7 @@ export default {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 20px;
 }
 
 .news-card {
