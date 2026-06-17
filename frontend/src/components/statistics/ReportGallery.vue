@@ -67,7 +67,8 @@ const availablePresets = computed(() =>
   border-radius: var(--radius-md);
   cursor: pointer;
   font-family: inherit;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  /* Анимируем только transform (правило проекта); border/shadow меняются мгновенно. */
+  transition: transform 0.18s ease;
 }
 
 .gallery__card:hover {

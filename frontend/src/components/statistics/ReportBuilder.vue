@@ -406,7 +406,7 @@ function run() {
 .rb__footer {
   position: relative;
   z-index: 1001;
-  background: #fff;
+  background: var(--color-surface, #fff);
   display: flex;
   align-items: center;
   justify-content: flex-end;

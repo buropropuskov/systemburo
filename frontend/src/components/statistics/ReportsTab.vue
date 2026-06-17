@@ -101,16 +101,24 @@ onMounted(async () => {
   }
 });
 
+// Быстрое переключение пресетов запускает несколько runReport параллельно;
+// токен последовательности гарантирует, что результат покажет только последний
+// запрос (иначе медленный ответ предыдущего пресета затёр бы актуальный).
+let runSeq = 0;
 async function onRun(request) {
+  const seq = ++runSeq;
   running.value = true;
   runError.value = '';
   try {
-    result.value = await runReport(request);
+    const r = await runReport(request);
+    if (seq !== runSeq) return;
+    result.value = r;
   } catch (e) {
+    if (seq !== runSeq) return;
     result.value = null;
     runError.value = e?.message || 'Не удалось построить отчёт. Проверьте параметры.';
   } finally {
-    running.value = false;
+    if (seq === runSeq) running.value = false;
   }
 }
 </script>

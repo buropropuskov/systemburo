@@ -144,4 +144,19 @@ describe('ReportBuilder', () => {
     // У машин нет date_range -> период не попадает в запрос.
     expect(req.filters.find((f) => f.key === 'date_range')).toBeUndefined();
   });
+
+  it('повторное применение пресета новым объектом (тот же контент) строит заново', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
+    await flushPromises();
+    const firstCount = wrapper.emitted('run').length;
+
+    // ReportsTab отдаёт { ...preset.form } на каждый клик — новый объект с тем же
+    // содержимым должен повторно дёрнуть watch и построить отчёт заново.
+    await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
+    await flushPromises();
+    expect(wrapper.emitted('run').length).toBe(firstCount + 1);
+  });
 });
