@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аналитика — Бюро пропусков</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --primary: #4F5BDF;
+    --primary-hover: #3d49c7;
+    --primary-soft: rgba(79, 91, 223, .08);
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #ffc107;
+    --text: #333;
+    --muted: #999;
+    --border: #e6e6e6;
+    --bg: #f8f9ff;
+    --card: #fff;
+    --r-sm: 8px;
+    --r-md: 15px;
+    --r-lg: 20px;
+    --r-xl: 35px;
+    --r-pill: 999px;
+    --shadow: 0 2px 8px rgba(15, 23, 42, .06);
+    --shadow-hover: 0 8px 24px rgba(15, 23, 42, .12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 250px;
+    flex-shrink: 0;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px 24px;
+  }
+  .logo-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary), #7a85ff);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .logo-text { font-weight: 700; font-size: 15px; line-height: 1.2; }
+  .logo-text span { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+
+  .nav { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: var(--r-md);
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+    transition: background .18s ease, color .18s ease;
+  }
+  .nav-item:hover { background: var(--primary-soft); color: var(--primary); }
+  .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .nav-item.active {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(79, 91, 223, .35);
+  }
+  .nav-item.active:hover { background: var(--primary); color: #fff; }
+
+  .nav-foot {
+    margin-top: auto;
+    padding: 14px;
+    border-radius: var(--r-md);
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .nav-foot b { color: var(--text); font-weight: 600; }
+
+  /* ---------- Main ---------- */
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: 22px;
+    display: flex;
+  }
+
+  .shell {
+    background: var(--card);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* ---------- Shell header ---------- */
+  .shell-head {
+    padding: 26px 32px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .shell-head h1 { font-size: 26px; font-weight: 700; letter-spacing: -.4px; }
+  .shell-head .sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+
+  .head-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .period-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+  .period-pill:hover { border-color: var(--primary); }
+  .period-pill svg { width: 15px; height: 15px; color: var(--primary); }
+
+  .presets { display: inline-flex; gap: 4px; background: var(--bg); border-radius: var(--r-pill); padding: 4px; }
+  .preset {
+    border: none;
+    background: transparent;
+    border-radius: var(--r-pill);
+    padding: 7px 15px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+  }
+  .preset:hover { color: var(--primary); }
+  .preset.active { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(79, 91, 223, .3); }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: var(--r-pill);
+    padding: 10px 20px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .12s ease;
+    white-space: nowrap;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn.primary { background: var(--primary); color: #fff; box-shadow: 0 6px 16px rgba(79, 91, 223, .3); }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn.secondary { background: var(--card); color: var(--primary); border-color: var(--primary); }
+  .btn.secondary:hover { background: var(--primary-soft); }
+  .btn.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+  .btn.ghost:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.green { background: var(--green); color: #fff; box-shadow: 0 6px 16px rgba(16, 185, 129, .28); }
+  .btn.green:hover { background: #0ea271; }
+  .btn .spin { transition: transform .5s ease; }
+  .btn:hover .spin { transform: rotate(180deg); }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+  .tab {
+    border: none;
+    background: transparent;
+    padding: 16px 6px;
+    margin-right: 24px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    position: relative;
+    transition: color .18s ease;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--primary); }
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 3px;
+    background: var(--primary);
+    border-radius: 3px 3px 0 0;
+  }
+  .tab .badge {
+    display: inline-block;
+    margin-left: 7px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border-radius: var(--r-pill);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    vertical-align: middle;
+  }
+
+  /* ---------- Tab body ---------- */
+  .tab-body { padding: 28px 32px 40px; overflow-y: auto; flex: 1; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* staggered entrance */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim { opacity: 0; animation: rise .5s cubic-bezier(.22,.61,.36,1) forwards; }
+
+  .section-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; font-weight: 500; }
+
+  /* ---------- Metric cards ---------- */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .metric {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 18px 20px;
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+  }
+  .metric:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); border-color: #d6daff; }
+  .metric .label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+  .metric .value { font-size: 30px; font-weight: 700; margin-top: 8px; letter-spacing: -.5px; line-height: 1; }
+  .metric .value small { font-size: 15px; font-weight: 600; color: var(--muted); }
+  .metric .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  .trend { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; }
+  .trend.up { color: var(--green); }
+  .trend.down { color: var(--red); }
+  .trend svg { width: 13px; height: 13px; }
+  .metric .hint { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+  .breakdown { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .bd-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
+  .bd-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .bd-row .nm { color: var(--muted); flex: 1; }
+  .bd-row .nb { color: var(--text); }
+
+  .split-value { display: flex; gap: 22px; margin-top: 8px; }
+  .split-value .sv { }
+  .split-value .sv b { font-size: 26px; font-weight: 700; display: block; line-height: 1; }
+  .split-value .sv span { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+
+  /* ---------- Chart cards ---------- */
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 22px;
+    margin-top: 22px;
+  }
+  .chart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .chart-head h3 { font-size: 16px; font-weight: 700; }
+  .chart-wrap { position: relative; height: 300px; }
+  .chart-wrap.short { height: 240px; }
+
+  .live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+  }
+  .live-dot .pulse {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--green);
+    position: relative;
+  }
+  .live-dot .pulse::after {
+    content: '';
+    position: absolute; inset: -4px;
+    border-radius: 50%;
+    background: var(--green);
+    opacity: .4;
+    animation: pulse 1.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { transform: scale(.6); opacity: .5; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .refresh-note { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .mini-refresh {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    display: grid; place-items: center;
+    cursor: pointer;
+    color: var(--primary);
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .mini-refresh:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .mini-refresh svg { width: 14px; height: 14px; transition: transform .5s ease; }
+  .mini-refresh:hover svg { transform: rotate(180deg); }
+
+  /* ---------- Reports: gallery ---------- */
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+  }
+  .preset-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    cursor: pointer;
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    font-family: inherit;
+  }
+  .preset-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-3px); border-color: var(--primary); }
+  .preset-card.selected { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .preset-card .pc-preview {
+    height: 78px;
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    padding: 8px;
+    gap: 5px;
+  }
+  .preset-card .pc-title { font-size: 14px; font-weight: 700; }
+  .preset-card .pc-desc { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 5px; line-height: 1.4; }
+  .preset-card .pc-tag {
+    align-self: flex-start;
+    margin-top: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-soft);
+    border-radius: var(--r-pill);
+    padding: 3px 10px;
+  }
+  .preset-card .pc-tag.mine { color: var(--yellow); background: rgba(255, 193, 7, .14); }
+
+  /* CSS mini bars for previews */
+  .mini-bars { display: flex; align-items: flex-end; gap: 5px; width: 100%; height: 100%; }
+  .mini-bars i { flex: 1; background: var(--primary); border-radius: 3px 3px 0 0; opacity: .85; display: block; }
+  .mini-bars.green i { background: var(--green); }
+
+  .add-card {
+    border: 2px dashed var(--border);
+    border-radius: var(--r-lg);
+    background: var(--bg);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 14px;
+    font-family: inherit;
+    min-height: 180px;
+    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .add-card:hover { border-color: var(--primary); background: var(--primary-soft); transform: translateY(-3px); }
+  .add-card .plus {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: grid; place-items: center;
+    font-size: 26px;
+    font-weight: 400;
+    box-shadow: 0 6px 16px rgba(79, 91, 223, .3);
+  }
+  .add-card span { font-size: 12px; font-weight: 500; color: var(--muted); }
+
+  /* ---------- Builder ("phrase") ---------- */
+  .builder {
+    margin-top: 26px;
+    background: linear-gradient(180deg, #fbfcff, var(--card));
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 24px 26px;
+  }
+  .builder-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  .builder-head h3 { font-size: 16px; font-weight: 700; }
+  .builder-head .ai-hint { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+  .phrase {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 9px;
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 2;
+    margin: 16px 0 4px;
+  }
+  .phrase .word { color: var(--muted); font-weight: 600; }
+
+  .chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: 1px solid transparent;
+    border-radius: var(--r-pill);
+    padding: 7px 14px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .chip:hover { background: #e3e6ff; }
+  .chip.open { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); background: #fff; }
+  .chip .caret { width: 12px; height: 12px; transition: transform .2s ease; }
+  .chip.open .caret { transform: rotate(180deg); }
+
+  .chip.filter { background: #fff; border: 1px solid var(--border); color: var(--text); }
+  .chip.filter:hover { border-color: var(--primary); }
+  .chip.filter .fx {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    transition: background .15s ease, color .15s ease;
+  }
+  .chip.filter .fx:hover { background: var(--red); color: #fff; }
+  .chip.filter b { color: var(--primary); font-weight: 700; }
+
+  .chip.add {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .chip.add:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* dropdown menu for chips */
+  .chip-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 50;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-hover);
+    padding: 6px;
+    min-width: 230px;
+    max-height: 290px;
+    overflow-y: auto;
+    display: none;
+    animation: rise .2s ease forwards;
+  }
+  .chip.open .chip-menu { display: block; }
+  .chip-menu .opt {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-radius: var(--r-sm);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .14s ease;
+  }
+  .chip-menu .opt:hover { background: var(--bg); }
+  .chip-menu .opt.sel { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+  .chip-menu .opt .ck { width: 14px; opacity: 0; color: var(--primary); }
+  .chip-menu .opt.sel .ck { opacity: 1; }
+  .chip-menu .grp { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; padding: 8px 12px 4px; letter-spacing: .4px; }
+
+  .phrase-read {
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: var(--primary-soft);
+    border-radius: var(--r-md);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .phrase-read svg { width: 16px; height: 16px; color: var(--primary); flex-shrink: 0; }
+  .phrase-read b { color: var(--primary); font-weight: 700; }
+
+  .builder-actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ---------- Result block ---------- */
+  .result {
+    margin-top: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 22px;
+  }
+  .result-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .result-head h3 { font-size: 16px; font-weight: 700; }
+
+  .view-toggle { display: inline-flex; background: var(--bg); border-radius: var(--r-pill); padding: 4px; }
+  .view-toggle button {
+    border: none; background: transparent;
+    border-radius: var(--r-pill);
+    padding: 7px 16px;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--muted); cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .view-toggle button svg { width: 14px; height: 14px; }
+  .view-toggle button.active { background: var(--card); color: var(--primary); box-shadow: var(--shadow); }
+
+  .result-actions { display: inline-flex; gap: 10px; }
+
+  .view-pane { display: none; }
+  .view-pane.active { display: block; }
+
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.data th {
+    text-align: left;
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    padding: 12px 14px;
+    border-bottom: 2px solid var(--border);
+  }
+  table.data th.num, table.data td.num { text-align: right; }
+  table.data td {
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  table.data tbody tr { transition: background .14s ease; }
+  table.data tbody tr:hover { background: var(--bg); }
+  table.data td.place { font-weight: 600; }
+  table.data tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: none; padding-top: 14px; }
+  .bar-cell { display: flex; align-items: center; gap: 10px; }
+  .bar-cell .track { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--bg); overflow: hidden; min-width: 60px; }
+  .bar-cell .fill { height: 100%; background: var(--primary); border-radius: var(--r-pill); }
+  .bar-cell .pct { font-size: 12px; color: var(--muted); font-weight: 600; width: 38px; text-align: right; }
+
+  .status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
+  }
+  .st-done { background: rgba(16,185,129,.12); color: var(--green); }
+  .st-work { background: var(--primary-soft); color: var(--primary); }
+  .st-wait { background: rgba(255,193,7,.16); color: #b8860b; }
+
+  /* tooltip */
+  [data-tip] { position: relative; }
+  [data-tip]::before {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #1f2430;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease;
+    z-index: 100;
+  }
+  [data-tip]:hover::before { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* monitoring grid */
+  .mon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { padding: 12px; }
+    .shell { border-radius: 22px; }
+    .shell-head { padding: 20px 18px 14px; }
+    .tabs, .tab-body { padding-left: 18px; padding-right: 18px; }
+    .phrase { font-size: 16px; }
+    .chip { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= SIDEBAR ======================= -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">Б</div>
+    <div class="logo-text">Бюро пропусков
+      <span>панель управления</span>
+    </div>
+  </div>
+  <nav class="nav">
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z"/></svg>
+      Главная
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+      Заявки
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.87"/></svg>
+      Сотрудники
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l2-5a2 2 0 012-1h10a2 2 0 012 1l2 5v5a1 1 0 01-1 1h-2a1 1 0 01-1-1v-1H7v1a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><circle cx="7" cy="16" r="1"/><circle cx="17" cy="16" r="1"/></svg>
+      Машины
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 9l2-5h14l2 5M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9"/></svg>
+      Места разгрузки
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.13-1.3l2-1.55-2-3.46-2.36.95a7 7 0 00-2.26-1.31L13.9 2h-4l-.35 2.43a7 7 0 00-2.26 1.3l-2.36-.94-2 3.46 2 1.55A7 7 0 005 12c0 .44.04.88.13 1.3l-2 1.55 2 3.46 2.36-.95a7 7 0 002.26 1.31L9.9 22h4l.35-2.43a7 7 0 002.26-1.3l2.36.94 2-3.46-2-1.55c.09-.42.13-.86.13-1.3z"/></svg>
+      Администрирование
+    </a>
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+      Аналитика
+    </a>
+  </nav>
+  <div class="nav-foot">
+    <b>Аналитика 1.4</b><br>
+    Данные обновлены<br>17 июня 2026, 14:32
+  </div>
+</aside>
+
+<!-- ======================= MAIN ======================= -->
+<main class="main">
+  <section class="shell">
+
+    <!-- shell head -->
+    <header class="shell-head">
+      <div>
+        <h1>Аналитика</h1>
+        <div class="sub">Метрики, отчёты и мониторинг по бюро пропусков</div>
+      </div>
+      <div class="head-controls">
+        <button class="period-pill" data-tip="Выбрать произвольный период">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          Период: 1–7 июля 2026
+        </button>
+        <div class="presets">
+          <button class="preset active">Неделя</button>
+          <button class="preset">Месяц</button>
+          <button class="preset">Год</button>
+        </div>
+        <button class="btn primary" id="refreshBtn">
+          <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>
+          Обновить
+        </button>
+      </div>
+    </header>
+
+    <!-- tabs -->
+    <div class="tabs">
+      <button class="tab" data-tab="dashboard">Дашборд</button>
+      <button class="tab active" data-tab="reports">Отчёты<span class="badge">конструктор</span></button>
+      <button class="tab" data-tab="monitoring">Мониторинг<span class="badge">live</span></button>
+    </div>
+
+    <div class="tab-body">
+
+      <!-- ============ ДАШБОРД ============ -->
+      <section class="panel" id="dashboard">
+        <div class="metrics">
+
+          <div class="metric anim" style="animation-delay:.04s">
+            <div class="label">Всего заявок</div>
+            <div class="value">1 248</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+12%</span>
+              <span class="hint">к прошлой неделе</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.08s">
+            <div class="label">Вложения по типам</div>
+            <div class="breakdown">
+              <div class="bd-row"><span class="dot" style="background:var(--primary)"></span><span class="nm">Автозаявка</span><span class="nb">612</span></div>
+              <div class="bd-row"><span class="dot" style="background:var(--green)"></span><span class="nm">Заявка на работы</span><span class="nb">410</span></div>
+              <div class="bd-row"><span class="dot" style="background:var(--yellow)"></span><span class="nm">Разовые списки</span><span class="nb">226</span></div>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.12s">
+            <div class="label">Обработано заявок</div>
+            <div class="value">1 090</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+8%</span>
+              <span class="hint">87% от всех</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.16s">
+            <div class="label">Заявок в работе</div>
+            <div class="value">158</div>
+            <div class="foot">
+              <span class="trend down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 12l-7 7-7-7M12 19V5"/></svg>−4%</span>
+              <span class="hint">очередь сократилась</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.2s">
+            <div class="label">Машин заехало</div>
+            <div class="value">842</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+15%</span>
+              <span class="hint">за период</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.24s">
+            <div class="label">Машин в среднем / день</div>
+            <div class="value">120</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+3%</span>
+              <span class="hint">пик в среду</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.28s">
+            <div class="label">Сейчас на территории</div>
+            <div class="split-value">
+              <div class="sv"><b>37</b><span>машины</span></div>
+              <div class="sv"><b>54</b><span>люди</span></div>
+            </div>
+            <div class="foot" style="margin-top:14px">
+              <span class="live-dot"><span class="pulse"></span>реальное время</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.32s">
+            <div class="label">Активных пользователей</div>
+            <div class="value">28</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+2</span>
+              <span class="hint">операторов и охраны</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.36s">
+            <div class="label">Открытых обращений</div>
+            <div class="value">5</div>
+            <div class="foot">
+              <span class="trend down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 12l-7 7-7-7M12 19V5"/></svg>−2</span>
+              <span class="hint">в техподдержке</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="chart-card anim" style="animation-delay:.4s">
+          <div class="chart-head">
+            <h3>Заявки по дням</h3>
+            <span class="hint" style="font-size:12px;color:var(--muted);font-weight:600">1–7 июля 2026</span>
+          </div>
+          <div class="chart-wrap"><canvas id="dashLine"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ============ ОТЧЁТЫ (галерея + фраза) ============ -->
+      <section class="panel active" id="reports">
+
+        <div class="section-title">Готовые наборы</div>
+        <div class="section-sub">Выберите пресет, чтобы открыть конструктор с настроенными параметрами, или соберите свой отчёт</div>
+
+        <div class="gallery">
+          <button class="preset-card anim selected" style="animation-delay:.04s" data-preset>
+            <div class="pc-preview"><div class="mini-bars"><i style="height:55%"></i><i style="height:70%"></i><i style="height:48%"></i><i style="height:85%"></i><i style="height:62%"></i><i style="height:40%"></i><i style="height:78%"></i></div></div>
+            <div class="pc-title">Сводка за неделю</div>
+            <div class="pc-desc">Заявки, машины и проходы по дням за выбранную неделю</div>
+            <div class="pc-tag">системный</div>
+          </button>
+
+          <button class="preset-card anim" style="animation-delay:.08s" data-preset>
+            <div class="pc-preview"><div class="mini-bars green"><i style="height:88%"></i><i style="height:64%"></i><i style="height:72%"></i><i style="height:50%"></i><i style="height:40%"></i><i style="height:30%"></i></div></div>
+            <div class="pc-title">Машины по местам за месяц</div>
+            <div class="pc-desc">Распределение въездов по местам разгрузки</div>
+            <div class="pc-tag">системный</div>
+          </button>
+
+          <button class="preset-card anim" style="animation-delay:.12s" data-preset>
+            <div class="pc-preview"><div class="mini-bars"><i style="height:92%"></i><i style="height:78%"></i><i style="height:66%"></i><i style="height:52%"></i><i style="height:44%"></i></div></div>
+            <div class="pc-title">Самые популярные места</div>
+            <div class="pc-desc">Топ мест разгрузки по числу машин</div>
+            <div class="pc-tag">системный</div>
+          </button>
+
+          <button class="preset-card anim" style="animation-delay:.16s" data-preset>
+            <div class="pc-preview"><canvas id="prevPeople"></canvas></div>
+            <div class="pc-title">Проходы людей за период</div>
+            <div class="pc-desc">Динамика проходов сотрудников и гостей</div>
+            <div class="pc-tag">системный</div>
+          </button>
+
+          <button class="preset-card anim" style="animation-delay:.2s" data-preset>
+            <div class="pc-preview"><div class="mini-bars green"><i style="height:35%"></i><i style="height:55%"></i><i style="height:72%"></i><i style="height:88%"></i><i style="height:95%"></i></div></div>
+            <div class="pc-title">Обработка заявок</div>
+            <div class="pc-desc">Скорость и доля обработанных заявок по статусам</div>
+            <div class="pc-tag">системный</div>
+          </button>
+
+          <button class="preset-card anim" style="animation-delay:.24s" data-preset>
+            <div class="pc-preview"><div class="mini-bars"><i style="height:60%;background:var(--yellow)"></i><i style="height:80%;background:var(--yellow)"></i><i style="height:45%;background:var(--yellow)"></i><i style="height:70%;background:var(--yellow)"></i></div></div>
+            <div class="pc-title">Мои шаблоны</div>
+            <div class="pc-desc">3 сохранённых отчёта · последний: «ТрансКом по неделям»</div>
+            <div class="pc-tag mine">личное</div>
+          </button>
+
+          <button class="add-card anim" style="animation-delay:.28s" data-preset>
+            <div class="plus">+</div>
+            Собрать свой отчёт
+            <span>пустой конструктор с нуля</span>
+          </button>
+        </div>
+
+        <!-- builder phrase -->
+        <div class="builder anim" style="animation-delay:.32s" id="builder">
+          <div class="builder-head">
+            <h3>Конструктор отчёта</h3>
+            <span class="ai-hint">Собирайте отчёт как фразу — кликните по любому выделенному слову</span>
+          </div>
+
+          <div class="phrase">
+            <span class="word">Посчитать</span>
+
+            <!-- метрика -->
+            <span class="chip" data-chip="metric">
+              <span class="lbl">число машин</span>
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>
+              <div class="chip-menu">
+                <div class="grp">Метрика</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>число заявок</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>вложения по типам</div>
+                <div class="opt sel"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>число машин</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>людей прошло</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>выездов</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>уникальных</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>сумма товаров</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>среднее в день</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>популярность</div>
+              </div>
+            </span>
+
+            <span class="word">по</span>
+
+            <!-- разрез -->
+            <span class="chip" data-chip="dim">
+              <span class="lbl">местам разгрузки</span>
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>
+              <div class="chip-menu">
+                <div class="grp">Разрез</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>без разреза</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по дням</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по неделям</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по месяцам</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по часам суток</div>
+                <div class="opt sel"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по месту разгрузки</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по организации</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по компании</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по статусу</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по типу вложения</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по гражданству</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по человеку</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по машине</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>по товару</div>
+              </div>
+            </span>
+
+            <span class="word">за</span>
+
+            <!-- период -->
+            <span class="chip" data-chip="period">
+              <span class="lbl">июль</span>
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>
+              <div class="chip-menu">
+                <div class="grp">Период</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>сегодня</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>неделю</div>
+                <div class="opt sel"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>июль</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>квартал</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>год</div>
+                <div class="opt"><svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>произвольный диапазон…</div>
+              </div>
+            </span>
+
+            <span class="word">где</span>
+
+            <!-- фильтр-чип активный -->
+            <span class="chip filter">
+              организация = <b>ООО Логистик-Юг</b>
+              <span class="fx" data-tip="Убрать фильтр">×</span>
+            </span>
+
+            <!-- добавить фильтр -->
+            <span class="chip add" data-chip="addfilter">
+              + фильтр
+              <div class="chip-menu">
+                <div class="grp">Добавить фильтр</div>
+                <div class="opt">место разгрузки</div>
+                <div class="opt">человек</div>
+                <div class="opt">машина</div>
+                <div class="opt">организация</div>
+                <div class="opt">компания</div>
+                <div class="opt">тип вложения</div>
+                <div class="opt">статус</div>
+                <div class="opt">гражданство</div>
+                <div class="opt">направление (въезд / выезд)</div>
+              </div>
+            </span>
+          </div>
+
+          <div class="phrase-read">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <span>Отчёт читается так: <b>«Посчитать число машин в разрезе по местам разгрузки за июль, только по организации ООО Логистик-Юг»</b></span>
+          </div>
+
+          <div class="builder-actions">
+            <button class="btn primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+              Построить отчёт
+            </button>
+            <button class="btn secondary">Сбросить</button>
+          </div>
+        </div>
+
+        <!-- result -->
+        <div class="result anim" style="animation-delay:.36s">
+          <div class="result-head">
+            <h3>Число машин по местам разгрузки · июль 2026 · ООО Логистик-Юг</h3>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+              <div class="view-toggle" id="viewToggle">
+                <button class="active" data-view="table">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+                  Таблица
+                </button>
+                <button data-view="chart">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="13" width="3" height="5"/></svg>
+                  График
+                </button>
+              </div>
+              <div class="result-actions">
+                <button class="btn green" data-tip="Выгрузить таблицу в .xlsx">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+                  Экспорт в Excel
+                </button>
+                <button class="btn secondary" data-tip="Добавить в «Мои шаблоны»">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+                  Сохранить как шаблон
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- table view -->
+          <div class="view-pane active" data-pane="table">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Место разгрузки</th>
+                  <th class="num">Машин</th>
+                  <th style="width:30%">Доля</th>
+                  <th class="num">Ср. / день</th>
+                  <th>Преобл. статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="place">Док №1</td>
+                  <td class="num">214</td>
+                  <td><div class="bar-cell"><div class="track"><div class="fill" style="width:100%"></div></div><span class="pct">28%</span></div></td>
+                  <td class="num">6,9</td>
+                  <td><span class="status-badge st-done">Завершено</span></td>
+                </tr>
+                <tr>
+                  <td class="place">Восточные ворота</td>
+                  <td class="num">178</td>
+                  <td><div class="bar-cell"><div class="track"><div class="fill" style="width:83%"></div></div><span class="pct">23%</span></div></td>
+                  <td class="num">5,7</td>
+                  <td><span class="status-badge st-done">Завершено</span></td>
+                </tr>
+                <tr>
+                  <td class="place">Склад А</td>
+                  <td class="num">143</td>
+                  <td><div class="bar-cell"><div class="track"><div class="fill" style="width:67%"></div></div><span class="pct">19%</span></div></td>
+                  <td class="num">4,6</td>
+                  <td><span class="status-badge st-work">В работе</span></td>
+                </tr>
+                <tr>
+                  <td class="place">Пандус Б</td>
+                  <td class="num">96</td>
+                  <td><div class="bar-cell"><div class="track"><div class="fill" style="width:45%"></div></div><span class="pct">12%</span></div></td>
+                  <td class="num">3,1</td>
+                  <td><span class="status-badge st-done">Согласовано</span></td>
+                </tr>
+                <tr>
+                  <td class="place">Холодный склад</td>
+                  <td class="num">71</td>
+                  <td><div class="bar-cell"><div class="track"><div class="fill" style="width:33%"></div></div><span class="pct">9%</span></div></td>
+                  <td class="num">2,3</td>
+                  <td><span class="status-badge st-wait">Согласование</span></td>
+                </tr>
+                <tr>
+                  <td class="place">Рампа 3</td>
+                  <td class="num">66</td>
+                  <td><div class="bar-cell"><div class="track"><div class="fill" style="width:31%"></div></div><span class="pct">9%</span></div></td>
+                  <td class="num">2,1</td>
+                  <td><span class="status-badge st-work">В обработке</span></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>Всего: 6 мест</td>
+                  <td class="num">768</td>
+                  <td>100%</td>
+                  <td class="num">24,8</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- chart view -->
+          <div class="view-pane" data-pane="chart">
+            <div class="chart-wrap"><canvas id="reportBar"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ МОНИТОРИНГ ============ -->
+      <section class="panel" id="monitoring">
+        <div class="section-title">Состояние территории в реальном времени</div>
+        <div class="section-sub">
+          <span class="live-dot" style="display:inline-flex"><span class="pulse"></span>данные обновляются автоматически</span>
+        </div>
+
+        <div class="mon-grid">
+          <div class="metric anim" style="animation-delay:.04s">
+            <div class="label">Сейчас на территории</div>
+            <div class="split-value">
+              <div class="sv"><b>37</b><span>машины</span></div>
+              <div class="sv"><b>54</b><span>люди</span></div>
+            </div>
+            <div class="foot" style="margin-top:14px">
+              <span class="live-dot"><span class="pulse"></span>реальное время</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.08s">
+            <div class="label">Заехало сегодня</div>
+            <div class="value">214</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+9%</span>
+              <span class="hint">к среднему дню</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.12s">
+            <div class="label">Выехало сегодня</div>
+            <div class="value">177</div>
+            <div class="foot">
+              <span class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7M12 5v14"/></svg>+5%</span>
+              <span class="hint">оборот в норме</span>
+            </div>
+          </div>
+
+          <div class="metric anim" style="animation-delay:.16s">
+            <div class="label">Среднее / день за 30 дней</div>
+            <div class="value">120</div>
+            <div class="foot">
+              <span class="trend down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 12l-7 7-7-7M12 19V5"/></svg>−2%</span>
+              <span class="hint">машин в сутки</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card anim" style="animation-delay:.2s">
+          <div class="chart-head">
+            <h3>Въезды по часам суток</h3>
+            <div style="display:flex;align-items:center;gap:14px">
+              <span class="refresh-note">Обновление каждые 10 сек</span>
+              <button class="mini-refresh" data-tip="Обновить сейчас">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="chart-wrap short"><canvas id="monBar"></canvas></div>
+        </div>
+      </section>
+
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Tabs ---------- */
+  var tabs = document.querySelectorAll('.tab');
+  var panels = document.querySelectorAll('.panel');
+  var rendered = {};
+
+  function showTab(name) {
+    tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.tab === name); });
+    panels.forEach(function (p) {
+      var on = p.id === name;
+      p.classList.toggle('active', on);
+      if (on) replayAnim(p);
+    });
+    if (!rendered[name]) { renderCharts(name); rendered[name] = true; }
+  }
+
+  function replayAnim(panel) {
+    panel.querySelectorAll('.anim').forEach(function (el) {
+      el.style.animation = 'none';
+      void el.offsetWidth; // reflow
+      el.style.animation = '';
+    });
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { showTab(t.dataset.tab); });
+  });
+
+  /* ---------- Period presets ---------- */
+  document.querySelectorAll('.preset').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.preset').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+    });
+  });
+
+  /* ---------- Refresh spin ---------- */
+  document.getElementById('refreshBtn').addEventListener('click', function () {
+    var ic = this.querySelector('.spin');
+    ic.style.transition = 'transform .6s ease';
+    ic.style.transform = 'rotate(360deg)';
+    setTimeout(function () { ic.style.transition = 'none'; ic.style.transform = 'rotate(0deg)'; }, 650);
+  });
+
+  /* ---------- Report preset cards ---------- */
+  document.querySelectorAll('[data-preset]').forEach(function (c) {
+    if (c.classList.contains('add-card')) return;
+    c.addEventListener('click', function () {
+      document.querySelectorAll('[data-preset]').forEach(function (x) { x.classList.remove('selected'); });
+      c.classList.add('selected');
+      document.getElementById('builder').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+  var addCard = document.querySelector('.add-card');
+  if (addCard) addCard.addEventListener('click', function () {
+    document.querySelectorAll('[data-preset]').forEach(function (x) { x.classList.remove('selected'); });
+    document.getElementById('builder').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  /* ---------- Chip dropdowns ---------- */
+  var chips = document.querySelectorAll('.chip[data-chip]');
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function (e) {
+      if (e.target.closest('.chip-menu')) return; // option clicks handled below
+      var wasOpen = chip.classList.contains('open');
+      closeChips();
+      if (!wasOpen) chip.classList.add('open');
+      e.stopPropagation();
+    });
+    chip.querySelectorAll('.chip-menu .opt').forEach(function (opt) {
+      opt.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var menu = chip.querySelector('.chip-menu');
+        menu.querySelectorAll('.opt').forEach(function (o) { o.classList.remove('sel'); });
+        opt.classList.add('sel');
+        var lbl = chip.querySelector('.lbl');
+        if (lbl) lbl.textContent = opt.textContent.trim();
+        chip.classList.remove('open');
+        updateReadout();
+      });
+    });
+  });
+
+  function closeChips() { chips.forEach(function (c) { c.classList.remove('open'); }); }
+  document.addEventListener('click', closeChips);
+
+  function updateReadout() {
+    var get = function (sel) {
+      var el = document.querySelector('.chip[data-chip="' + sel + '"] .lbl');
+      return el ? el.textContent.trim() : '';
+    };
+    var readEl = document.querySelector('.phrase-read b');
+    if (readEl) {
+      readEl.textContent = '«Посчитать ' + get('metric') + ' в разрезе ' + get('dim') +
+        ' за ' + get('period') + ', только по организации ООО Логистик-Юг»';
+    }
+  }
+
+  /* remove filter chip */
+  document.querySelectorAll('.chip.filter .fx').forEach(function (x) {
+    x.addEventListener('click', function (e) {
+      e.stopPropagation();
+      x.closest('.chip.filter').style.display = 'none';
+    });
+  });
+
+  /* ---------- Result view toggle ---------- */
+  var vt = document.getElementById('viewToggle');
+  vt.querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      vt.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      document.querySelectorAll('.view-pane').forEach(function (p) {
+        p.classList.toggle('active', p.dataset.pane === b.dataset.view);
+      });
+      if (b.dataset.view === 'chart' && !rendered.reportBar) { drawReportBar(); rendered.reportBar = true; }
+    });
+  });
+
+  /* ---------- Charts ---------- */
+  var FONT = "Montserrat, sans-serif";
+  Chart.defaults.font.family = FONT;
+  Chart.defaults.color = '#999';
+  var PRIMARY = '#4F5BDF';
+
+  function gradient(ctx, color) {
+    var g = ctx.createLinearGradient(0, 0, 0, 300);
+    g.addColorStop(0, color + '40');
+    g.addColorStop(1, color + '00');
+    return g;
+  }
+
+  var baseScale = {
+    grid: { color: '#f0f1f8', drawBorder: false },
+    ticks: { font: { size: 11, weight: '500' } }
+  };
+  var noGridX = { grid: { display: false }, ticks: { font: { size: 11, weight: '600' } } };
+
+  function drawDashLine() {
+    var c = document.getElementById('dashLine');
+    if (!c) return;
+    var ctx = c.getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['1 июл', '2 июл', '3 июл', '4 июл', '5 июл', '6 июл', '7 июл'],
+        datasets: [{
+          label: 'Заявки',
+          data: [142, 168, 195, 210, 176, 158, 199],
+          borderColor: PRIMARY,
+          backgroundColor: gradient(ctx, PRIMARY),
+          borderWidth: 2.5,
+          fill: true,
+          tension: .38,
+          pointRadius: 4,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: PRIMARY,
+          pointBorderWidth: 2,
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tipStyle() },
+        scales: { y: Object.assign({ beginAtZero: true }, baseScale), x: noGridX }
+      }
+    });
+  }
+
+  function drawReportBar() {
+    var c = document.getElementById('reportBar');
+    if (!c) return;
+    new Chart(c.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Док №1', 'Восточные ворота', 'Склад А', 'Пандус Б', 'Холодный склад', 'Рампа 3'],
+        datasets: [{
+          label: 'Машин',
+          data: [214, 178, 143, 96, 71, 66],
+          backgroundColor: PRIMARY,
+          hoverBackgroundColor: '#3d49c7',
+          borderRadius: 8,
+          maxBarThickness: 54
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tipStyle() },
+        scales: { y: Object.assign({ beginAtZero: true }, baseScale), x: noGridX }
+      }
+    });
+  }
+
+  function drawMonBar() {
+    var c = document.getElementById('monBar');
+    if (!c) return;
+    var labels = [], data = [];
+    var profile = [2,1,1,0,1,3,8,18,42,67,71,58,49,52,55,47,38,29,22,15,10,7,5,3];
+    for (var h = 0; h < 24; h++) { labels.push(h + ':00'); data.push(profile[h]); }
+    new Chart(c.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Въезды',
+          data: data,
+          backgroundColor: function (ctx) {
+            return (ctx.raw >= 58) ? '#10b981' : PRIMARY;
+          },
+          borderRadius: 5,
+          maxBarThickness: 20
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tipStyle() },
+        scales: { y: Object.assign({ beginAtZero: true }, baseScale), x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } } }
+      }
+    });
+  }
+
+  function drawPrevPeople() {
+    var c = document.getElementById('prevPeople');
+    if (!c) return;
+    var ctx = c.getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['', '', '', '', '', '', ''],
+        datasets: [{
+          data: [30, 48, 41, 65, 58, 80, 72],
+          borderColor: PRIMARY,
+          backgroundColor: gradient(ctx, PRIMARY),
+          borderWidth: 2,
+          fill: true,
+          tension: .4,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { y: { display: false }, x: { display: false } }
+      }
+    });
+  }
+
+  function tipStyle() {
+    return {
+      backgroundColor: '#1f2430',
+      titleFont: { family: FONT, weight: '600', size: 12 },
+      bodyFont: { family: FONT, size: 12 },
+      padding: 10,
+      cornerRadius: 8,
+      displayColors: false
+    };
+  }
+
+  function renderCharts(name) {
+    if (name === 'dashboard') drawDashLine();
+    if (name === 'monitoring') drawMonBar();
+    if (name === 'reports') { drawPrevPeople(); /* report bar drawn on toggle */ }
+  }
+
+  /* init — default tab is Отчёты */
+  showTab('reports');
+})();
+</script>
+</body>
+</html>

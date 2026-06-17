@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аналитика — мокапы Фазы 0 (выбор направления)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#4F5BDF; --primary-hover:#3d49c7; --green:#10b981;
+    --text:#333; --muted:#999; --border:#e6e6e6; --bg:#f8f9ff;
+    --radius-lg:20px; --radius-pill:999px; --shadow:0 2px 8px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);padding:48px 24px;line-height:1.5}
+  .wrap{max-width:1100px;margin:0 auto}
+  h1{font-size:28px;font-weight:700;margin-bottom:8px}
+  .lead{color:var(--muted);font-size:15px;max-width:760px;margin-bottom:36px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:24px;display:flex;flex-direction:column;transition:transform .15s ease,box-shadow .15s ease}
+  .card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(15,23,42,.10)}
+  .tag{display:inline-block;font-size:12px;font-weight:600;color:var(--primary);background:rgba(79,91,223,.10);padding:4px 12px;border-radius:var(--radius-pill);margin-bottom:14px;align-self:flex-start}
+  .card h2{font-size:20px;font-weight:700;margin-bottom:10px}
+  .card p{font-size:14px;color:#555;margin-bottom:8px;flex-grow:0}
+  .card ul{font-size:13px;color:#666;margin:6px 0 18px 18px}
+  .card li{margin-bottom:4px}
+  .card .spacer{flex-grow:1}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-family:inherit;font-size:14px;font-weight:600;padding:11px 20px;border-radius:var(--radius-pill);background:var(--primary);color:#fff;transition:background .15s ease}
+  .btn:hover{background:var(--primary-hover)}
+  .note{margin-top:40px;padding:18px 22px;background:#fff;border:1px dashed var(--border);border-radius:var(--radius-lg);font-size:13px;color:#666}
+  .note b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Аналитика — мокапы Фазы 0</h1>
+  <p class="lead">Три направления страницы «Аналитика». Общий каркас одинаковый (вкладки Дашборд / Отчёты / Мониторинг, палитра и токены проекта) — различается <b>поток конструктора отчётов</b> (центральная часть по ТЗ). Открой каждый, покликай вкладки, выбери направление. По умолчанию открыта вкладка «Отчёты».</p>
+
+  <div class="grid">
+    <div class="card">
+      <span class="tag">Вариант 1</span>
+      <h2>Гид</h2>
+      <p>Пошаговый мастер, дружелюбный к оператору, который не знает систему наизусть.</p>
+      <ul>
+        <li>Слева — готовые наборы и мои шаблоны</li>
+        <li>Справа — степпер: что считаем → разрез → фильтры → период</li>
+        <li>Подсказки на каждом шаге, разумные дефолты</li>
+        <li>Максимальная обучаемость и «не страшно»</li>
+      </ul>
+      <div class="spacer"></div>
+      <a class="btn" href="variant-1-guided.html">Открыть вариант 1 →</a>
+    </div>
+
+    <div class="card">
+      <span class="tag">Вариант 2</span>
+      <h2>Студия</h2>
+      <p>Одноэкранная мощная панель в духе Metabase. Live-предпросмотр — герой.</p>
+      <ul>
+        <li>Слева — поиск + аккордеоны разделов с метриками/фильтрами</li>
+        <li>Центр — мгновенный предпросмотр (таблица + график)</li>
+        <li>Справа — пресеты и мои шаблоны с индикатором «изменено»</li>
+        <li>Плотно и быстро для повторяющихся отчётов</li>
+      </ul>
+      <div class="spacer"></div>
+      <a class="btn" href="variant-2-studio.html">Открыть вариант 2 →</a>
+    </div>
+
+    <div class="card">
+      <span class="tag">Вариант 3</span>
+      <h2>Галерея + фраза</h2>
+      <p>Самый понятный: отчёт собирается как предложение естественным языком.</p>
+      <ul>
+        <li>Сверху — галерея пресетов с мини-превью графиков</li>
+        <li>Конструктор-«фраза»: «Посчитать [X] по [Y] за [период] где [фильтр]»</li>
+        <li>Каждый chip — кликабельный дропдаун</li>
+        <li>Обучение на примерах, минимум порога входа</li>
+      </ul>
+      <div class="spacer"></div>
+      <a class="btn" href="variant-3-gallery.html">Открыть вариант 3 →</a>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Это прототипы для выбора направления, не финальный код.</b> Данные фейковые. После выбора варианта режу эпик на срезы по фазам А–Е (дашборд → конструктор → Excel → шаблоны → мониторинг → опц. инсайты) и согласую список срезов перед стартом кода. Можно выбрать гибрид (например «галерея пресетов из в.3 + панель из в.2»).
+  </div>
+</div>
+</body>
+</html>
