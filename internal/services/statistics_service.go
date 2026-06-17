@@ -361,6 +361,9 @@ func (s *statisticsService) GetReportCatalog(ctx context.Context) (*models.Repor
 func (s *statisticsService) loadDynamicReportOptions(ctx context.Context) (dynamicReportOptions, error) {
 	var dyn dynamicReportOptions
 
+	// load подставляет table/column/where прямо в SQL (GORM не экранирует
+	// строковые выражения), поэтому вызывать его допустимо ТОЛЬКО с константами
+	// кода - никогда с пользовательским вводом.
 	load := func(name, table, column, where string) ([]models.ReportOption, error) {
 		var names []string
 		tx := s.db.WithContext(ctx).Table(table).

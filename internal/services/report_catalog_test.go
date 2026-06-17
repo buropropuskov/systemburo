@@ -72,6 +72,16 @@ func TestReportRegistries_Consistency(t *testing.T) {
 			t.Errorf("filter order содержит отсутствующий ключ %q", key)
 		}
 	}
+	for _, key := range reportDimensionOrder {
+		if _, ok := reportDimensionRegistry[key]; !ok {
+			t.Errorf("dimension order содержит отсутствующий ключ %q", key)
+		}
+	}
+	for _, key := range reportListEntityOrder {
+		if _, ok := reportListEntityRegistry[key]; !ok {
+			t.Errorf("list entity order содержит отсутствующий ключ %q", key)
+		}
+	}
 }
 
 // TestBuildReportCatalog_DynamicOptions проверяет подстановку значений
