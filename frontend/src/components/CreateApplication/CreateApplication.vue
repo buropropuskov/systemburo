@@ -2179,6 +2179,16 @@ export default {
 </script>
 
 <style scoped>
+    .text-constructor-content :deep(*) {
+        overflow-wrap: break-word;
+    }
+
+    .text-constructor-content :deep(img) {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+    }
+
     .create {
         padding: 20px;
     }

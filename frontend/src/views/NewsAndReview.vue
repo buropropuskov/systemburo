@@ -1661,11 +1661,12 @@ export default {
 .news-body-html {
     line-height: 1.6;
 }
+.news-body-html :deep(*) { overflow-wrap: break-word; }
 .news-body-html :deep(h1),
 .news-body-html :deep(h2),
 .news-body-html :deep(h3) { font-weight: 600; margin: 0.75em 0 0.4em; }
 .news-body-html :deep(p) { margin: 0.5em 0; }
 .news-body-html :deep(ul),
 .news-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
-.news-body-html :deep(img) { max-width: 100%; border-radius: 8px; }
+.news-body-html :deep(img) { max-width: 100%; height: auto; border-radius: 8px; }
 </style>
