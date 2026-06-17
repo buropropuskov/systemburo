@@ -211,4 +211,42 @@ describe('TextConstructor', () => {
     const italicBtn = wrapper.findAll('.toolbar-btn').find((b) => b.attributes('data-tooltip') === 'Курсив');
     expect(italicBtn).toBeTruthy();
   });
+
+  it('тулбар содержит кнопку Жирный и три кнопки выравнивания', () => {
+    const wrapper = mountConstructor();
+    const tooltips = wrapper.findAll('.toolbar-btn').map((b) => b.attributes('data-tooltip'));
+    expect(tooltips).toContain('Жирный');
+    expect(tooltips).toContain('По левому краю');
+    expect(tooltips).toContain('По центру');
+    expect(tooltips).toContain('По правому краю');
+  });
+
+  it('кнопка Жирный оборачивает выделение в <strong>', async () => {
+    const wrapper = mountConstructor({ modelValue: '<p>текст</p>' });
+    await flushPromises();
+    wrapper.vm.editor.commands.selectAll();
+    wrapper.vm.editor.commands.toggleBold();
+    expect(wrapper.vm.editor.getHTML()).toContain('<strong>');
+  });
+
+  it('выравнивание добавляет класс text-align-* на абзац', async () => {
+    const wrapper = mountConstructor({ modelValue: '<p>текст</p>' });
+    await flushPromises();
+    wrapper.vm.editor.commands.setTextAlignClass('center');
+    expect(wrapper.vm.editor.getHTML()).toContain('text-align-center');
+  });
+
+  it('round-trip: сохранённое выравнивание (класс) переживает загрузку', async () => {
+    const wrapper = mountConstructor({ modelValue: '<p class="text-align-right">справа</p>' });
+    await flushPromises();
+    expect(wrapper.vm.editor.getHTML()).toContain('text-align-right');
+  });
+
+  it('round-trip: inline-style выравнивание сериализуется в класс', async () => {
+    const wrapper = mountConstructor({ modelValue: '<p style="text-align: center">центр</p>' });
+    await flushPromises();
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('text-align-center');
+    expect(out).not.toContain('style=');
+  });
 });

@@ -8,6 +8,16 @@
         <button
           type="button"
           class="toolbar-btn"
+          :class="{ active: editor && editor.isActive('bold') }"
+          data-tooltip="Жирный"
+          :disabled="disabled"
+          @click="runCommand((c) => c.toggleBold())"
+        >
+          <strong>B</strong>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn"
           :class="{ active: editor && editor.isActive('italic') }"
           data-tooltip="Курсив"
           :disabled="disabled"
@@ -70,6 +80,129 @@
           @click="runCommand((c) => c.toggleHeading({ level: 2 }))"
         >
           h2
+        </button>
+      </div>
+
+      <div class="toolbar-group align-group">
+        <button
+          type="button"
+          class="toolbar-btn align-btn"
+          :class="{ active: editor && editor.isActive({ textAlign: 'left' }) }"
+          data-tooltip="По левому краю"
+          :disabled="disabled"
+          @click="runCommand((c) => c.setTextAlignClass('left'))"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="2"
+              y="3"
+              width="12"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="2"
+              y="7.2"
+              width="8"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="2"
+              y="11.4"
+              width="11"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn align-btn"
+          :class="{ active: editor && editor.isActive({ textAlign: 'center' }) }"
+          data-tooltip="По центру"
+          :disabled="disabled"
+          @click="runCommand((c) => c.setTextAlignClass('center'))"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="2"
+              y="3"
+              width="12"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="4"
+              y="7.2"
+              width="8"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="2.5"
+              y="11.4"
+              width="11"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn align-btn"
+          :class="{ active: editor && editor.isActive({ textAlign: 'right' }) }"
+          data-tooltip="По правому краю"
+          :disabled="disabled"
+          @click="runCommand((c) => c.setTextAlignClass('right'))"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="2"
+              y="3"
+              width="12"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="6"
+              y="7.2"
+              width="8"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+            <rect
+              x="3"
+              y="11.4"
+              width="11"
+              height="1.6"
+              rx="0.8"
+              fill="currentColor"
+            />
+          </svg>
         </button>
       </div>
 
@@ -274,6 +407,7 @@ import {
   FontWeightClass,
   ClassHeading,
   ConstructorImage,
+  TextAlignClass,
 } from './text-constructor/extensions';
 
 const ALLOWED_IMAGE_TYPES = [
@@ -328,6 +462,7 @@ const editor = useEditor({
     FontSizeClass,
     FontWeightClass,
     ConstructorImage,
+    TextAlignClass,
     Placeholder.configure({ placeholder: () => props.placeholder }),
   ],
   onUpdate: ({ editor: instance }) => {
@@ -543,6 +678,16 @@ defineExpose({ editor });
   cursor: not-allowed;
 }
 
+.align-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.align-btn svg {
+  display: block;
+}
+
 .color-btn.black-text { color: #000; }
 .color-btn.red-text { color: #ff0000; }
 .color-btn.green-text { color: #079d1d; }
@@ -709,6 +854,13 @@ defineExpose({ editor });
 .preview-modal-content :deep(.font-weight-600) { font-weight: 600; }
 .editor-content :deep(.font-weight-900),
 .preview-modal-content :deep(.font-weight-900) { font-weight: 900; }
+
+.editor-content :deep(.text-align-left),
+.preview-modal-content :deep(.text-align-left) { text-align: left; }
+.editor-content :deep(.text-align-center),
+.preview-modal-content :deep(.text-align-center) { text-align: center; }
+.editor-content :deep(.text-align-right),
+.preview-modal-content :deep(.text-align-right) { text-align: right; }
 
 .editor-content :deep(img),
 .preview-modal-content :deep(img) {

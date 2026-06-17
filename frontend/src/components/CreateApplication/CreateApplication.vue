@@ -2189,6 +2189,10 @@ export default {
         border-radius: 8px;
     }
 
+    .text-constructor-content :deep(.text-align-left) { text-align: left; }
+    .text-constructor-content :deep(.text-align-center) { text-align: center; }
+    .text-constructor-content :deep(.text-align-right) { text-align: right; }
+
     .create {
         padding: 20px;
     }
