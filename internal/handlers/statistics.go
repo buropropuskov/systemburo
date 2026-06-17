@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -151,4 +153,45 @@ func (h *StatisticsHandler) GetMetrics(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, catalog)
+}
+
+// RunReport godoc
+// @Summary      Исполнение отчёта конструктора
+// @Description  Агрегатный отчёт: метрика x разрез x фильтры x период (mode=aggregate)
+// @Tags         statistics
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.ReportRequest true "Параметры отчёта"
+// @Success      200 {object} Response
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/report [post]
+func (h *StatisticsHandler) RunReport(c echo.Context) error {
+	var req models.ReportRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	if req.Mode == "" {
+		req.Mode = "aggregate"
+	}
+	if req.Mode != "aggregate" {
+		// list-режим (выгрузка строк) добавляется отдельным срезом.
+		return echo.NewHTTPError(http.StatusBadRequest, "unsupported report mode")
+	}
+	if req.Metric == "" || req.Dimension == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "metric and dimension are required")
+	}
+
+	res, err := h.service.RunReport(c.Request().Context(), req)
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidReportRequest) {
+			// Не эхаем ввод: неизвестная метрика/разрез/фильтр -> generic 400.
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid report request")
+		}
+		return err
+	}
+	return RespondSuccess(c, res)
 }

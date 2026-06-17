@@ -16,6 +16,7 @@ type StatisticsService interface {
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
+	RunReport(ctx context.Context, req models.ReportRequest) (*models.ReportResponse, error)
 }
 
 type statisticsService struct {
@@ -228,9 +229,9 @@ type timelineSource struct {
 // Вынесена отдельно для тестируемости без БД.
 func resolveTimelineSource(metric, granularity string) (src timelineSource, unit string, err error) {
 	metricMap := map[string]timelineSource{
-		"applications":    {table: "applications", tsColumn: "sending_datetime", filter: ""},
-		"car_entries":     {table: "cars_history", tsColumn: "created_at", filter: "action_type='entry'"},
-		"people_entries":  {table: "employees_history", tsColumn: "created_at", filter: "action_type='entry'"},
+		"applications":   {table: "applications", tsColumn: "sending_datetime", filter: ""},
+		"car_entries":    {table: "cars_history", tsColumn: "created_at", filter: "action_type='entry'"},
+		"people_entries": {table: "employees_history", tsColumn: "created_at", filter: "action_type='entry'"},
 	}
 	granularityMap := map[string]string{
 		"day":   "day",
@@ -372,7 +373,7 @@ func (s *statisticsService) loadDynamicReportOptions(ctx context.Context) (dynam
 		if where != "" {
 			tx = tx.Where(where)
 		}
-		if err := tx.Order(column + " ASC").Pluck(column, &names).Error; err != nil {
+		if err := tx.Order(column+" ASC").Pluck(column, &names).Error; err != nil {
 			return nil, fmt.Errorf("statistics: report catalog %s: %w", name, err)
 		}
 		opts := make([]models.ReportOption, 0, len(names))
@@ -400,4 +401,46 @@ func (s *statisticsService) loadDynamicReportOptions(ctx context.Context) (dynam
 	}
 
 	return dyn, nil
+}
+
+// RunReport исполняет агрегатный отчёт конструктора (mode=aggregate): метрика x
+// разрез x фильтры x период x sort/limit. План собирается чистой buildAggregatePlan
+// из whitelist-схем (report_engine.go) — ввод сверяется по ключам и подставляется
+// только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest (400 в handler).
+func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequest) (*models.ReportResponse, error) {
+	plan, err := buildAggregatePlan(req)
+	if err != nil {
+		return nil, err
+	}
+
+	tx := s.db.WithContext(ctx).Table(plan.table).Select(plan.selectStr)
+	for _, j := range plan.joins {
+		tx = tx.Joins(j)
+	}
+	for _, w := range plan.wheres {
+		tx = tx.Where(w.expr, w.args...)
+	}
+
+	rows := make([]models.ReportAggregateRow, 0)
+	if err := tx.
+		Group(plan.groupExpr).
+		Order(plan.orderStr).
+		Limit(plan.limit).
+		Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("statistics: run report: %w", err)
+	}
+
+	var total int64
+	for _, r := range rows {
+		total += r.Value
+	}
+
+	return &models.ReportResponse{
+		Mode:      "aggregate",
+		Metric:    req.Metric,
+		Dimension: req.Dimension,
+		Unit:      plan.unit,
+		Rows:      rows,
+		Total:     total,
+	}, nil
 }
