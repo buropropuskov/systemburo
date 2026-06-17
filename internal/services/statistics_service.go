@@ -15,6 +15,7 @@ type StatisticsService interface {
 	GetSummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
+	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
 }
 
 type statisticsService struct {
@@ -341,4 +342,62 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	return result, nil
+}
+
+// GetReportCatalog возвращает каталог конструктора отчётов: whitelist метрик,
+// разрезов, фильтров и list-сущностей с подставленными значениями динамических
+// справочников. Метаданные берутся из реестров (report_catalog.go), значения
+// справочников — из БД.
+func (s *statisticsService) GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error) {
+	dyn, err := s.loadDynamicReportOptions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	catalog := buildReportCatalog(dyn)
+	return &catalog, nil
+}
+
+// loadDynamicReportOptions подгружает значения справочников для dict-фильтров.
+func (s *statisticsService) loadDynamicReportOptions(ctx context.Context) (dynamicReportOptions, error) {
+	var dyn dynamicReportOptions
+
+	// load подставляет table/column/where прямо в SQL (GORM не экранирует
+	// строковые выражения), поэтому вызывать его допустимо ТОЛЬКО с константами
+	// кода - никогда с пользовательским вводом.
+	load := func(name, table, column, where string) ([]models.ReportOption, error) {
+		var names []string
+		tx := s.db.WithContext(ctx).Table(table).
+			Distinct(column).
+			Where(column + " IS NOT NULL AND " + column + " <> ''")
+		if where != "" {
+			tx = tx.Where(where)
+		}
+		if err := tx.Order(column + " ASC").Pluck(column, &names).Error; err != nil {
+			return nil, fmt.Errorf("statistics: report catalog %s: %w", name, err)
+		}
+		opts := make([]models.ReportOption, 0, len(names))
+		for _, n := range names {
+			opts = append(opts, models.ReportOption{Value: n, Label: n})
+		}
+		return opts, nil
+	}
+
+	var err error
+	if dyn.organizations, err = load("organizations", "organizations", "name", "is_active = true"); err != nil {
+		return dyn, err
+	}
+	if dyn.companies, err = load("companies", "companies", "name", "is_active = true"); err != nil {
+		return dyn, err
+	}
+	if dyn.attachmentTypes, err = load("attachment_types", "unique_attachments", "display_name", "is_active = true"); err != nil {
+		return dyn, err
+	}
+	if dyn.citizenships, err = load("citizenships", "citizenships", "name", "is_active = true"); err != nil {
+		return dyn, err
+	}
+	if dyn.unloadPlaces, err = load("unload_places", "unload_places", "name", "is_active = true"); err != nil {
+		return dyn, err
+	}
+
+	return dyn, nil
 }

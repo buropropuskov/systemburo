@@ -1,0 +1,64 @@
+package models
+
+// ReportFieldType — тип поля фильтра, по нему фронт выбирает контрол ввода.
+type ReportFieldType string
+
+const (
+	ReportFieldDate ReportFieldType = "date" // диапазон дат (from/to)
+	ReportFieldEnum ReportFieldType = "enum" // фиксированный набор значений (статусы)
+	ReportFieldDict ReportFieldType = "dict" // динамический справочник (орг, места, ...)
+)
+
+// ReportOption — вариант значения для enum/dict-фильтра.
+type ReportOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// ReportMetricInfo — метрика агрегатного отчёта (что измеряем).
+// Dimensions перечисляет ключи разрезов, по которым эту метрику можно группировать.
+type ReportMetricInfo struct {
+	Key        string   `json:"key"`
+	Label      string   `json:"label"`
+	Unit       string   `json:"unit,omitempty"`
+	Dimensions []string `json:"dimensions"`
+}
+
+// ReportDimensionInfo — разрез (ось группировки) агрегатного отчёта.
+type ReportDimensionInfo struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// ReportFilterInfo — поле фильтра. Для enum/dict Options заполнены значениями.
+type ReportFilterInfo struct {
+	Key     string          `json:"key"`
+	Label   string          `json:"label"`
+	Type    ReportFieldType `json:"type"`
+	Options []ReportOption  `json:"options,omitempty"`
+}
+
+// ReportColumnInfo — столбец list-режима (выгрузки строк).
+type ReportColumnInfo struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// ReportListEntityInfo — сущность list-режима: какие столбцы и фильтры доступны.
+type ReportListEntityInfo struct {
+	Key     string             `json:"key"`
+	Label   string             `json:"label"`
+	Columns []ReportColumnInfo `json:"columns"`
+	Filters []string           `json:"filters"`
+}
+
+// ReportCatalog — каталог конструктора отчётов: whitelist метрик, разрезов,
+// фильтров и list-сущностей с уже подставленными значениями динамических справочников.
+// Источник правды для UI конструктора (B3) и движка исполнения (B2).
+type ReportCatalog struct {
+	Metrics       []ReportMetricInfo     `json:"metrics"`
+	Dimensions    []ReportDimensionInfo  `json:"dimensions"`
+	Filters       []ReportFilterInfo     `json:"filters"`
+	ListEntities  []ReportListEntityInfo `json:"list_entities"`
+	Granularities []ReportOption         `json:"granularities"`
+}
