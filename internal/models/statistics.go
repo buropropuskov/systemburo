@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // AttachmentTypeCount — количество вложений по типу за период.
 type AttachmentTypeCount struct {
 	Name  string `json:"name"`
@@ -45,4 +47,22 @@ type StatsSummary struct {
 type StatsTimelinePoint struct {
 	Date  string `json:"date"`
 	Count int64  `json:"count"`
+}
+
+// RecentPassage — одна отметка прохода/проезда для живой ленты дашборда.
+// ActionType: entry|exit (фронт показывает людям вход/выход, машинам въезд/выезд).
+// CreatedAt в UTC; в UTC+3 переводит фронт.
+type RecentPassage struct {
+	ActionType   string    `json:"action_type"`
+	CreatedAt    time.Time `json:"created_at"`
+	Subject      string    `json:"subject"`         // ФИО (люди) или гос. номер (машины)
+	Mark         string    `json:"mark,omitempty"`  // марка машины
+	Organization string    `json:"organization"`
+	Place        string    `json:"place"`           // таблица системы, где отметка
+}
+
+// RecentPassages — последние проходы людей и проезды машин для живых лент.
+type RecentPassages struct {
+	People []RecentPassage `json:"people"`
+	Cars   []RecentPassage `json:"cars"`
 }

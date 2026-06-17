@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"systemburo/internal/services"
@@ -108,4 +109,28 @@ func (h *StatisticsHandler) GetTimeline(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid metric or granularity")
 	}
 	return RespondSuccess(c, points)
+}
+
+// GetRecentPassages godoc
+// @Summary      Последние проходы людей и проезды машин (живые ленты)
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Количество последних записей (1-50, по умолчанию 15)"
+// @Success      200 {object} Response
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/recent-passages [get]
+func (h *StatisticsHandler) GetRecentPassages(c echo.Context) error {
+	limit := 0
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	passages, err := h.service.GetRecentPassages(c.Request().Context(), limit)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, passages)
 }
