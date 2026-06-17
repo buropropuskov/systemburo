@@ -206,6 +206,47 @@ describe('TextConstructor', () => {
     expect(out).not.toContain('width=');
   });
 
+  it('round-trip: ширина и высота картинки сохраняются (свободный ресайз)', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" width="320" height="200">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('width="320"');
+    expect(out).toContain('height="200"');
+  });
+
+  it('высоту из inline-style парсит и сериализует в атрибут height', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" style="height: 150px">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('height="150"');
+  });
+
+  it('картинка без размера не получает атрибут height', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).not.toContain('height=');
+  });
+
+  it('нулевая высота не сериализуется (невалидный размер)', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" height="0">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).not.toContain('height=');
+  });
+
   it('кнопки форматирования имеют data-tooltip', () => {
     const wrapper = mountConstructor();
     const italicBtn = wrapper.findAll('.toolbar-btn').find((b) => b.attributes('data-tooltip') === 'Курсив');

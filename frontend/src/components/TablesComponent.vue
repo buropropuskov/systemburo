@@ -820,8 +820,11 @@ export default {
 
 .text-constructor-content :deep(img) {
     max-width: 100%;
-    height: auto;
     border-radius: 8px;
+}
+
+.text-constructor-content :deep(img:not([height])) {
+    height: auto;
 }
 
 .text-constructor-content :deep(strong) {

@@ -1668,7 +1668,8 @@ export default {
 .news-body-html :deep(p) { margin: 0.5em 0; }
 .news-body-html :deep(ul),
 .news-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
-.news-body-html :deep(img) { max-width: 100%; height: auto; border-radius: 8px; }
+.news-body-html :deep(img) { max-width: 100%; border-radius: 8px; }
+.news-body-html :deep(img:not([height])) { height: auto; }
 .news-body-html :deep(.text-align-left) { text-align: left; }
 .news-body-html :deep(.text-align-center) { text-align: center; }
 .news-body-html :deep(.text-align-right) { text-align: right; }
