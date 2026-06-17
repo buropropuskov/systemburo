@@ -14,6 +14,7 @@ import (
 type StatisticsService interface {
 	GetSummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
+	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 }
 
 type statisticsService struct {
@@ -281,4 +282,63 @@ func (s *statisticsService) GetTimeline(ctx context.Context, from, to time.Time,
 	}
 
 	return points, nil
+}
+
+// GetRecentPassages возвращает последние отметки проходов людей и проездов машин
+// (action_type entry/exit) для живых лент дашборда. Место отметки — таблица системы
+// (history.table_id -> system_tables), организация — через вложение/заявку.
+func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error) {
+	if limit <= 0 {
+		limit = 15
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	result := &models.RecentPassages{
+		People: make([]models.RecentPassage, 0),
+		Cars:   make([]models.RecentPassage, 0),
+	}
+
+	if err := s.db.WithContext(ctx).
+		Table("employees_history eh").
+		Joins("JOIN employees e ON e.id = eh.employee_id").
+		Joins("LEFT JOIN attachments a ON a.id = e.attachment_id").
+		Joins("LEFT JOIN applications app ON app.id = a.application_id").
+		Joins("LEFT JOIN organizations org ON org.id = app.organization_id").
+		Joins("LEFT JOIN companies comp ON comp.id = app.company_id").
+		Joins("LEFT JOIN system_tables st ON st.id = eh.table_id").
+		Where("eh.action_type IN ?", []string{"entry", "exit"}).
+		Select("eh.action_type AS action_type, eh.created_at AS created_at, " +
+			"TRIM(CONCAT(e.last_name, ' ', e.first_name, ' ', COALESCE(e.middle_name, ''))) AS subject, " +
+			"'' AS mark, " +
+			"COALESCE(org.name, comp.name, '') AS organization, " +
+			"COALESCE(st.display_name, '') AS place").
+		Order("eh.created_at DESC").
+		Limit(limit).
+		Scan(&result.People).Error; err != nil {
+		return nil, fmt.Errorf("statistics: recent people passages: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).
+		Table("cars_history ch").
+		Joins("JOIN cars c ON c.id = ch.car_id").
+		Joins("LEFT JOIN attachments a ON a.id = c.attachment_id").
+		Joins("LEFT JOIN applications app ON app.id = a.application_id").
+		Joins("LEFT JOIN organizations org ON org.id = app.organization_id").
+		Joins("LEFT JOIN companies comp ON comp.id = app.company_id").
+		Joins("LEFT JOIN system_tables st ON st.id = ch.table_id").
+		Where("ch.action_type IN ?", []string{"entry", "exit"}).
+		Select("ch.action_type AS action_type, ch.created_at AS created_at, " +
+			"c.car_number AS subject, " +
+			"COALESCE(c.mark_name, '') AS mark, " +
+			"COALESCE(org.name, comp.name, '') AS organization, " +
+			"COALESCE(st.display_name, '') AS place").
+		Order("ch.created_at DESC").
+		Limit(limit).
+		Scan(&result.Cars).Error; err != nil {
+		return nil, fmt.Errorf("statistics: recent car passages: %w", err)
+	}
+
+	return result, nil
 }
