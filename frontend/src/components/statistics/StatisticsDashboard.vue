@@ -156,7 +156,7 @@
         v-else
         :data="chartData"
         :height="300"
-        :color="'var(--color-primary)'"
+        color="#4F5BDF"
         interval-label="ед."
       />
     </div>
