@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аналитика — Бюро пропусков</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root{
+    --primary:#4F5BDF;
+    --primary-hover:#3d49c7;
+    --green:#10b981;
+    --red:#ef4444;
+    --yellow:#ffc107;
+    --text:#333;
+    --muted:#999;
+    --border:#e6e6e6;
+    --bg:#f8f9ff;
+    --card:#ffffff;
+    --r-sm:8px;
+    --r-md:15px;
+    --r-lg:20px;
+    --r-xl:35px;
+    --pill:999px;
+    --shadow-sm:0 2px 8px rgba(40,50,120,.06);
+    --shadow-md:0 8px 28px rgba(40,50,120,.10);
+    --shadow-lg:0 16px 48px rgba(40,50,120,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Montserrat',system-ui,sans-serif;
+    color:var(--text);
+    background:var(--bg);
+    font-size:14px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;min-height:100vh}
+
+  /* ===== SIDEBAR ===== */
+  .sidebar{
+    width:250px;flex:0 0 250px;
+    background:var(--card);
+    border-right:1px solid var(--border);
+    display:flex;flex-direction:column;
+    padding:24px 16px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 10px 22px;margin-bottom:8px;border-bottom:1px solid var(--border)}
+  .brand .logo{
+    width:40px;height:40px;border-radius:12px;flex:0 0 40px;
+    background:linear-gradient(135deg,var(--primary),#7a84ff);
+    display:flex;align-items:center;justify-content:center;color:#fff;
+    box-shadow:0 6px 16px rgba(79,91,223,.35);
+  }
+  .brand .logo svg{width:22px;height:22px}
+  .brand .name{font-weight:700;font-size:15px;line-height:1.15}
+  .brand .name small{display:block;font-weight:500;font-size:11px;color:var(--muted)}
+  .nav{display:flex;flex-direction:column;gap:4px;margin-top:14px}
+  .nav-item{
+    display:flex;align-items:center;gap:12px;
+    padding:11px 14px;border-radius:var(--r-md);
+    color:var(--muted);font-weight:500;cursor:pointer;
+    text-decoration:none;transition:background .15s,color .15s;
+  }
+  .nav-item svg{width:19px;height:19px;flex:0 0 19px;opacity:.85}
+  .nav-item:hover{background:var(--bg);color:var(--text)}
+  .nav-item.active{background:var(--primary);color:#fff;box-shadow:0 8px 20px rgba(79,91,223,.30)}
+  .nav-item.active svg{opacity:1}
+  .nav-spacer{flex:1}
+  .nav-user{
+    display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--r-md);
+    border:1px solid var(--border);
+  }
+  .nav-user .ava{width:34px;height:34px;border-radius:50%;background:#e9ebff;color:var(--primary);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .nav-user .info{line-height:1.2;font-size:12px}
+  .nav-user .info b{font-weight:600;font-size:12.5px;display:block}
+  .nav-user .info span{color:var(--muted)}
+
+  /* ===== MAIN ===== */
+  .main{flex:1;padding:24px;min-width:0;display:flex;flex-direction:column}
+  .shell{
+    background:var(--card);
+    border-radius:var(--r-xl);
+    box-shadow:var(--shadow-md);
+    flex:1;display:flex;flex-direction:column;
+    overflow:hidden;
+    min-height:calc(100vh - 48px);
+  }
+  .shell-header{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:24px 30px;border-bottom:1px solid var(--border);
+  }
+  .shell-title{font-size:24px;font-weight:800;letter-spacing:-.4px}
+  .shell-title small{display:block;font-size:12.5px;font-weight:500;color:var(--muted);margin-top:2px}
+  .shell-header .spacer{flex:1}
+
+  /* period switcher */
+  .period{display:flex;align-items:center;gap:8px;position:relative}
+  .period-presets{display:flex;background:var(--bg);border:1px solid var(--border);border-radius:var(--pill);padding:3px}
+  .preset{
+    border:none;background:transparent;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--muted);
+    padding:7px 14px;border-radius:var(--pill);cursor:pointer;transition:.15s;
+  }
+  .preset:hover{color:var(--text)}
+  .preset.active{background:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(79,91,223,.30)}
+  .active-period{
+    display:inline-flex;align-items:center;gap:7px;
+    background:#eef0ff;color:var(--primary);font-weight:700;font-size:12.5px;
+    padding:8px 14px;border-radius:var(--pill);
+  }
+  .active-period svg{width:15px;height:15px}
+
+  /* buttons */
+  .btn{
+    font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;
+    border-radius:var(--pill);padding:10px 18px;border:1px solid transparent;
+    display:inline-flex;align-items:center;gap:8px;transition:.15s;white-space:nowrap;
+  }
+  .btn svg{width:16px;height:16px}
+  .btn.primary{background:var(--primary);color:#fff}
+  .btn.primary:hover{background:var(--primary-hover);box-shadow:0 8px 18px rgba(79,91,223,.28)}
+  .btn.secondary{background:#fff;color:var(--text);border-color:var(--border)}
+  .btn.secondary:hover{border-color:var(--primary);color:var(--primary)}
+  .btn.ghost{background:transparent;color:var(--muted)}
+  .btn.ghost:hover{background:var(--bg);color:var(--text)}
+  .btn.green{background:var(--green);color:#fff}
+  .btn.green:hover{background:#0ea271;box-shadow:0 8px 18px rgba(16,185,129,.28)}
+  .btn.sm{padding:7px 14px;font-size:12px}
+
+  /* custom-period popover */
+  .cp-pop{
+    position:absolute;top:48px;right:0;z-index:40;
+    background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-lg);padding:18px;width:300px;
+    display:none;animation:pop .18s ease;
+  }
+  .cp-pop.open{display:block}
+  @keyframes pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .cp-pop h4{font-size:13px;margin-bottom:12px}
+  .cp-row{display:flex;gap:10px;margin-bottom:12px}
+  .cp-field{flex:1}
+  .cp-field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:600}
+  input[type=date],input[type=text],select,textarea{
+    font-family:inherit;font-size:13px;width:100%;
+    padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-md);
+    color:var(--text);background:#fff;transition:.15s;outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,91,223,.15)}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;padding:16px 30px 0;border-bottom:1px solid var(--border)}
+  .tab{
+    font-family:inherit;font-weight:600;font-size:14px;color:var(--muted);
+    background:transparent;border:none;cursor:pointer;
+    padding:12px 20px;border-radius:var(--r-md) var(--r-md) 0 0;position:relative;transition:.15s;
+  }
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--primary)}
+  .tab.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:3px;background:var(--primary);border-radius:3px 3px 0 0}
+
+  .panel{display:none;padding:24px 30px 36px;overflow-y:auto;flex:1}
+  .panel.active{display:block}
+
+  /* section title */
+  .sec-title{display:flex;align-items:center;gap:10px;margin:6px 0 14px;font-size:13px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.6px}
+  .sec-title .ico{width:22px;height:22px;border-radius:7px;background:#eef0ff;color:var(--primary);display:flex;align-items:center;justify-content:center}
+  .sec-title .ico svg{width:13px;height:13px}
+  .sec-title .count{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0;font-size:12px}
+
+  /* ===== KPI TILES ===== */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;margin-bottom:30px}
+  .tile{
+    background:#fff;border:1px solid var(--border);border-radius:var(--r-md);
+    padding:13px 15px;min-height:84px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    opacity:0;transform:translateY(10px);
+    transition:box-shadow .18s,border-color .18s,transform .18s;
+  }
+  .tile.in{animation:tileIn .42s cubic-bezier(.22,.61,.36,1) forwards}
+  @keyframes tileIn{to{opacity:1;transform:translateY(0)}}
+  .tile:hover{box-shadow:var(--shadow-sm);border-color:#d6d9f5;transform:translateY(-2px)}
+  .tile .lbl{font-size:11px;color:var(--muted);font-weight:600;line-height:1.25}
+  .tile .val{font-size:26px;font-weight:800;letter-spacing:-.6px;margin-top:4px}
+  .tile .val.split{font-size:21px}
+  .tile .val.split .sep{color:var(--border);font-weight:600;margin:0 2px}
+  .tile .val.split .m{color:var(--primary)}
+  .tile .val.split .p{color:var(--text)}
+  .tile .trend{font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;gap:3px;margin-top:6px}
+  .trend.up{color:var(--green)}
+  .trend.down{color:var(--red)}
+  .trend.flat{color:var(--muted)}
+  .trend svg{width:11px;height:11px}
+  .tile.danger .val{color:var(--red)}
+  .tile.warn .val{color:#d9a400}
+
+  /* ===== CHART CARD ===== */
+  .chart-card{
+    background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);
+    padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:24px;
+  }
+  .chart-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  .chart-head h3{font-size:16px;font-weight:700}
+  .chart-head .spacer{flex:1}
+  .seg{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:var(--pill);padding:3px}
+  .seg button{
+    border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);
+    padding:7px 13px;border-radius:var(--pill);cursor:pointer;transition:.15s;
+  }
+  .seg button:hover{color:var(--text)}
+  .seg button.active{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm)}
+  .chart-wrap{position:relative;height:300px}
+
+  /* ===== LIVE FEEDS ===== */
+  .feeds{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:1100px){.feeds{grid-template-columns:1fr}}
+  .feed{background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden;display:flex;flex-direction:column}
+  .feed-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)}
+  .feed-head h3{font-size:15px;font-weight:700;flex:1}
+  .live-dot{width:9px;height:9px;border-radius:50%;background:var(--green);position:relative}
+  .live-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--green);animation:pulse 1.8s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(3.2);opacity:0}}
+  .live-meta{font-size:10.5px;color:var(--muted);font-weight:600}
+  .feed-body{padding:8px 8px;max-height:330px;overflow-y:auto}
+  .feed-row{
+    display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--r-md);
+    animation:rowIn .45s ease;
+  }
+  .feed-row:hover{background:var(--bg)}
+  @keyframes rowIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+  .feed-row .who{flex:1;min-width:0}
+  .feed-row .who b{font-weight:600;font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .feed-row .who span{font-size:11.5px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plate{
+    font-family:'Montserrat';font-weight:700;font-size:13px;
+    background:#fff;border:1.5px solid #222;border-radius:6px;padding:3px 8px;letter-spacing:.5px;white-space:nowrap;
+  }
+  .feed-time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dir{font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:var(--pill);display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+  .dir svg{width:11px;height:11px}
+  .dir.in{background:#e6f8f1;color:#0c875f}
+  .dir.out{background:#f1f1f4;color:#666}
+
+  /* ===== REPORTS ===== */
+  .reports-layout{display:grid;grid-template-columns:270px 1fr;gap:22px;align-items:start}
+  @media(max-width:1200px){.reports-layout{grid-template-columns:1fr}}
+
+  .presets-col{display:flex;flex-direction:column;gap:18px}
+  .preset-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .preset-card .ph{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px}
+  .preset-card .ph svg{width:16px;height:16px;color:var(--primary)}
+  .preset-list{padding:8px}
+  .preset-item{
+    display:flex;align-items:flex-start;gap:10px;padding:10px 11px;border-radius:var(--r-md);cursor:pointer;transition:.15s;
+  }
+  .preset-item:hover{background:var(--bg)}
+  .preset-item .pi-ico{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:#eef0ff;color:var(--primary);display:flex;align-items:center;justify-content:center}
+  .preset-item .pi-ico svg{width:15px;height:15px}
+  .preset-item .pi-txt b{font-weight:600;font-size:12.5px;display:block;line-height:1.25}
+  .preset-item .pi-txt span{font-size:10.5px;color:var(--muted);line-height:1.3;display:block;margin-top:2px}
+  .tpl-row{display:flex;align-items:center;gap:8px;padding:10px 11px;border-radius:var(--r-md)}
+  .tpl-row:hover{background:var(--bg)}
+  .tpl-row .tpl-name{flex:1;font-size:12.5px;font-weight:600}
+  .tpl-row .tpl-name small{display:block;color:var(--muted);font-weight:500;font-size:10.5px}
+
+  .builder{display:flex;flex-direction:column;gap:20px}
+
+  /* step 0: report type */
+  .type-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:680px){.type-grid{grid-template-columns:1fr}}
+  .type-card{
+    background:#fff;border:2px solid var(--border);border-radius:var(--r-lg);
+    padding:20px;cursor:pointer;transition:.18s;position:relative;
+  }
+  .type-card:hover{border-color:#c8cdf5;box-shadow:var(--shadow-sm)}
+  .type-card.active{border-color:var(--primary);box-shadow:0 10px 30px rgba(79,91,223,.18)}
+  .type-card.active::after{content:"✓";position:absolute;top:14px;right:14px;width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .type-card .tc-ico{width:46px;height:46px;border-radius:14px;background:#eef0ff;color:var(--primary);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .type-card.active .tc-ico{background:var(--primary);color:#fff}
+  .type-card .tc-ico svg{width:24px;height:24px}
+  .type-card h4{font-size:16px;font-weight:700;margin-bottom:4px}
+  .type-card p{font-size:12.5px;color:#666;line-height:1.4}
+  .type-card .ex{margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5}
+  .type-card .ex b{color:#777;font-weight:600}
+
+  /* step card */
+  .step{background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);padding:18px 20px}
+  .step-head{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .step-num{width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:var(--primary);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .step-title{font-size:15px;font-weight:700}
+  .step-opt{font-size:11px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--border);padding:3px 10px;border-radius:var(--pill)}
+  .step-hint{font-size:11.5px;color:var(--muted);margin:0 0 14px 37px;line-height:1.45}
+  .step-body{margin-left:37px}
+
+  /* metric chips */
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{
+    font-family:inherit;font-size:12.5px;font-weight:600;color:var(--text);
+    background:#fff;border:1px solid var(--border);border-radius:var(--pill);
+    padding:9px 15px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:7px;
+  }
+  .chip:hover{border-color:var(--primary);color:var(--primary)}
+  .chip.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 6px 16px rgba(79,91,223,.25)}
+  .chip .tag{font-size:10px;font-weight:600;opacity:.7;background:rgba(0,0,0,.06);padding:1px 6px;border-radius:6px}
+  .chip.active .tag{background:rgba(255,255,255,.22);opacity:1}
+
+  /* columns checkboxes */
+  .cols-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px}
+  .chk{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;font-size:12.5px;font-weight:500;transition:.15s;user-select:none}
+  .chk:hover{border-color:#c8cdf5;background:var(--bg)}
+  .chk input{appearance:none;width:18px;height:18px;flex:0 0 18px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;position:relative;transition:.15s}
+  .chk input:checked{background:var(--primary);border-color:var(--primary)}
+  .chk input:checked::after{content:"";position:absolute;left:5px;top:1.5px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .chk:has(input:checked){border-color:var(--primary);background:#f4f5ff}
+
+  /* filters */
+  .filters-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .filter-field label{display:block;font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:6px}
+
+  .period-pick{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .period-pick .presets-mini{display:flex;background:var(--bg);border:1px solid var(--border);border-radius:var(--pill);padding:3px}
+  .period-pick .presets-mini button{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:6px 13px;border-radius:var(--pill);cursor:pointer}
+  .period-pick .presets-mini button.active{background:var(--primary);color:#fff}
+  .period-pick .dates{display:flex;gap:8px;align-items:center}
+  .period-pick .dates span{color:var(--muted);font-size:12px}
+  .period-pick input[type=date]{width:150px}
+
+  /* preview sticky */
+  .preview{
+    background:linear-gradient(180deg,#fbfcff,#fff);
+    border:1.5px solid #dfe2ff;border-radius:var(--r-lg);
+    box-shadow:var(--shadow-md);overflow:hidden;position:sticky;bottom:0;
+  }
+  .preview-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid var(--border);background:#fff}
+  .preview-head .pv-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--primary);display:flex;align-items:center;gap:7px}
+  .preview-head .pv-label svg{width:15px;height:15px}
+  .preview-head .spacer{flex:1}
+  .pv-sentence{
+    margin:14px 20px;padding:13px 16px;background:#eef0ff;border-radius:var(--r-md);
+    font-size:13.5px;font-weight:600;color:#2c2c2c;line-height:1.5;
+  }
+  .pv-sentence b{color:var(--primary)}
+  .pv-body{padding:0 20px 20px}
+  .pv-charts{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:18px}
+  @media(max-width:760px){.pv-charts{grid-template-columns:1fr}}
+  .pv-chart-box{border:1px solid var(--border);border-radius:var(--r-md);padding:12px;height:230px;position:relative;background:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead th{
+    text-align:left;font-weight:700;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;
+    padding:10px 12px;border-bottom:2px solid var(--border);white-space:nowrap;position:sticky;top:0;background:#fff;
+  }
+  tbody td{padding:11px 12px;border-bottom:1px solid #f0f0f4;vertical-align:top}
+  tbody tr:hover{background:#fafbff}
+  tbody td.num{font-variant-numeric:tabular-nums;font-weight:600}
+  .table-scroll{max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md)}
+  .tnum{color:var(--primary);font-weight:700}
+  .total-row{display:flex;justify-content:flex-end;gap:8px;padding:12px 4px 2px;font-weight:700;font-size:13px}
+  .total-row span{color:var(--muted);font-weight:600}
+
+  .status-badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:var(--pill)}
+  .st-done{background:#e6f8f1;color:#0c875f}
+  .st-work{background:#eef0ff;color:var(--primary)}
+  .st-proc{background:#fff6e0;color:#b8860b}
+  .st-deny{background:#fdeaea;color:var(--red)}
+
+  .pv-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+
+  /* tooltip */
+  [data-tip]{position:relative}
+  [data-tip]:hover::after{
+    content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    background:#222;color:#fff;font-size:11px;font-weight:500;padding:7px 10px;border-radius:8px;white-space:nowrap;
+    z-index:60;box-shadow:0 6px 16px rgba(0,0,0,.25);pointer-events:none;max-width:260px;white-space:normal;width:max-content;
+  }
+  .mockup-flag{
+    position:fixed;bottom:14px;right:16px;z-index:99;
+    background:#222;color:#fff;font-size:11px;font-weight:600;padding:6px 12px;border-radius:var(--pill);opacity:.55;
+  }
+  .helper-tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e9ebff;color:var(--primary);font-size:10px;font-weight:700;cursor:help;margin-left:5px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M9 14h6"/></svg>
+      </div>
+      <div class="name">Бюро пропусков<small>systemburo</small></div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>Главная</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 4h8l4 4v12H4V4z"/><path d="M8 12h8M8 16h5"/></svg>Заявки</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M15 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M16 3.5a3 3 0 010 5M21 21v-2a4 4 0 00-3-3.85"/></svg>Сотрудники</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l2-5h11l3 5M5 13h14v5H5z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="16.5" cy="18" r="1.5"/></svg>Машины</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13v9H3zM16 10h4l1 3v3h-5z"/><path d="M3 7l2-3h9l2 3"/></svg>Места разгрузки</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 00-1.7-1l-.4-2.6h-4l-.4 2.6a7 7 0 00-1.7 1l-2.4-1-2 3.4L4.1 11a7 7 0 000 2l-2 1.5 2 3.4 2.4-1a7 7 0 001.7 1l.4 2.6h4l.4-2.6a7 7 0 001.7-1l2.4 1 2-3.4-2-1.5a7 7 0 00.1-1z"/></svg>Администрирование</a>
+      <a class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Аналитика</a>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="nav-user">
+      <div class="ava">МС</div>
+      <div class="info"><b>Мякотных С. М.</b><span>Администратор</span></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <section class="shell">
+      <!-- HEADER -->
+      <header class="shell-header">
+        <div>
+          <div class="shell-title">Аналитика</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="period">
+          <button class="preset" data-period="today">Сегодня</button>
+          <div class="period-presets">
+            <button class="preset" data-period="week" >Неделя</button>
+            <button class="preset" data-period="month">Месяц</button>
+            <button class="preset" data-period="year">Год</button>
+          </div>
+          <button class="btn secondary sm" id="customBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+            Свой период
+          </button>
+          <span class="active-period" id="activePeriod">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+            11–17 июня 2026
+          </span>
+          <button class="btn primary" id="refreshBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-2.6-6.4M21 4v5h-5"/></svg>
+            Обновить
+          </button>
+          <!-- custom popover -->
+          <div class="cp-pop" id="cpPop">
+            <h4>Выберите свой период</h4>
+            <div class="cp-row">
+              <div class="cp-field"><label>С даты</label><input type="date" value="2026-06-11"></div>
+              <div class="cp-field"><label>По дату</label><input type="date" value="2026-06-17"></div>
+            </div>
+            <button class="btn primary sm" style="width:100%" id="cpApply">Применить</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <button class="tab active" data-tab="dashboard">Дашборд</button>
+        <button class="tab" data-tab="reports">Отчёты</button>
+      </div>
+
+      <!-- ===================== DASHBOARD ===================== -->
+      <div class="panel active" id="panel-dashboard">
+
+        <!-- group: system -->
+        <div class="sec-title">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          Система <span class="count">— текущее состояние</span>
+        </div>
+        <div class="tiles" id="tilesSystem">
+          <div class="tile"><div class="lbl">Пользователей онлайн</div><div class="val">3</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+1</div></div>
+          <div class="tile"><div class="lbl">Активных пользователей</div><div class="val">12</div><div class="trend flat">за неделю</div></div>
+          <div class="tile danger"><div class="lbl">Заблокировано</div><div class="val">1</div><div class="trend flat">учётная запись</div></div>
+          <div class="tile warn"><div class="lbl">Открытых обращений</div><div class="val">2</div><div class="trend down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 12l-7 7-7-7"/></svg>-1</div></div>
+          <div class="tile danger"><div class="lbl">Отказов доступа сегодня</div><div class="val">4</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+2</div></div>
+          <div class="tile"><div class="lbl">Активных мест разгрузки</div><div class="val">1</div><div class="trend flat">Дебаркадер №1</div></div>
+          <div class="tile danger"><div class="lbl">Чёрный список</div><div class="val split"><span class="m">5</span><span class="sep">/</span><span class="p">2</span></div><div class="trend flat">машины / люди</div></div>
+          <div class="tile"><div class="lbl">Уникальных машин</div><div class="val">18</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+3</div></div>
+          <div class="tile"><div class="lbl">Уникальных людей</div><div class="val">27</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+5</div></div>
+        </div>
+
+        <!-- group: data -->
+        <div class="sec-title">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
+          Данные <span class="count">— за период 11–17 июня 2026</span>
+        </div>
+        <div class="tiles" id="tilesData">
+          <div class="tile"><div class="lbl">Всего заявок</div><div class="val">34</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+8%</div></div>
+          <div class="tile"><div class="lbl">Автозаявки</div><div class="val">19</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+4</div></div>
+          <div class="tile"><div class="lbl">Заявки на работы</div><div class="val">9</div><div class="trend flat">без изм.</div></div>
+          <div class="tile"><div class="lbl">Разовые пропуска</div><div class="val">6</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+2</div></div>
+          <div class="tile"><div class="lbl">Обработано</div><div class="val">24</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+6</div></div>
+          <div class="tile"><div class="lbl">В работе</div><div class="val">6</div><div class="trend flat">сейчас</div></div>
+          <div class="tile"><div class="lbl">В обработке</div><div class="val">5</div><div class="trend flat">ожидают</div></div>
+          <div class="tile danger"><div class="lbl">Отказано</div><div class="val">1</div><div class="trend down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 12l-7 7-7-7"/></svg>-1</div></div>
+          <div class="tile"><div class="lbl">Машин заехало</div><div class="val">142</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+12%</div></div>
+          <div class="tile"><div class="lbl">Людей прошло</div><div class="val">318</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>+9%</div></div>
+          <div class="tile"><div class="lbl">Сейчас на территории</div><div class="val split"><span class="m">4</span><span class="sep">/</span><span class="p">7</span></div><div class="trend flat">машины / люди</div></div>
+          <div class="tile"><div class="lbl">Среднее заявок / день</div><div class="val">5</div><div class="trend flat">за период</div></div>
+          <div class="tile"><div class="lbl">Сумма товаров</div><div class="val" style="font-size:22px">≈1 240</div><div class="trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l7-7 7 7"/></svg>ед.</div></div>
+        </div>
+
+        <!-- chart -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <h3>Динамика по периоду</h3>
+            <div class="seg" id="metricSeg">
+              <button class="active" data-metric="apps">Заявки</button>
+              <button data-metric="people">Проходы людей</button>
+              <button data-metric="cars">Проезды машин</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="seg" id="granSeg">
+              <button class="active" data-gran="day">День</button>
+              <button data-gran="week">Неделя</button>
+              <button data-gran="month">Месяц</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+
+        <!-- live feeds -->
+        <div class="feeds">
+          <!-- people -->
+          <div class="feed">
+            <div class="feed-head">
+              <span class="live-dot"></span>
+              <h3>Проход людей</h3>
+              <span class="live-meta">реальное время · обновление каждые 10 сек</span>
+            </div>
+            <div class="feed-body" id="feedPeople"></div>
+          </div>
+          <!-- cars -->
+          <div class="feed">
+            <div class="feed-head">
+              <span class="live-dot"></span>
+              <h3>Проезд машин</h3>
+              <span class="live-meta">реальное время · обновление каждые 10 сек</span>
+            </div>
+            <div class="feed-body" id="feedCars"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== REPORTS ===================== -->
+      <div class="panel" id="panel-reports">
+        <div class="reports-layout">
+
+          <!-- presets column -->
+          <div class="presets-col">
+            <div class="preset-card">
+              <div class="ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>Готовые наборы</div>
+              <div class="preset-list">
+                <div class="preset-item" data-fill="weekly">
+                  <span class="pi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span>
+                  <span class="pi-txt"><b>Сводка за неделю</b><span>заявки и вложения по типам, обработка, машин заехало, среднее/день</span></span>
+                </div>
+                <div class="preset-item" data-fill="works">
+                  <span class="pi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2v6h6M4 2h10l6 6v14H4z"/><path d="M8 13h8M8 17h5"/></svg></span>
+                  <span class="pi-txt"><b>Проведение работ</b><span>список заявок на работы с ответственным и периодом</span></span>
+                </div>
+                <div class="preset-item" data-fill="cars-places">
+                  <span class="pi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l2-5h11l3 5M5 13h14v5H5z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="16.5" cy="18" r="1.5"/></svg></span>
+                  <span class="pi-txt"><b>Машины по местам</b><span>сколько машин заехало в разрезе мест разгрузки</span></span>
+                </div>
+                <div class="preset-item" data-fill="top-places">
+                  <span class="pi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-7-10a7 7 0 0114 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg></span>
+                  <span class="pi-txt"><b>Самые популярные места</b><span>рейтинг мест по числу проездов</span></span>
+                </div>
+                <div class="preset-item" data-fill="people">
+                  <span class="pi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M15 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/></svg></span>
+                  <span class="pi-txt"><b>Проходы людей</b><span>число людей прошло по дням</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="preset-card">
+              <div class="ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14a2 2 0 012 2v16l-9-4-9 4V5a2 2 0 012-2z"/></svg>Мои шаблоны</div>
+              <div class="preset-list">
+                <div class="tpl-row">
+                  <span class="tpl-name">Еженедельный для руководства<small>сводка · по типам · неделя</small></span>
+                  <button class="btn ghost sm" data-tip="Заполнить конструктор этим шаблоном">Применить</button>
+                  <button class="btn ghost sm" data-tip="Создать копию шаблона">Клон.</button>
+                </div>
+                <div class="tpl-row">
+                  <span class="tpl-name">Журнал работ за месяц<small>выгрузка · работы · месяц</small></span>
+                  <button class="btn ghost sm" data-tip="Заполнить конструктор этим шаблоном">Применить</button>
+                  <button class="btn ghost sm" data-tip="Создать копию шаблона">Клон.</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- builder -->
+          <div class="builder">
+
+            <!-- step 0: type -->
+            <div class="step" style="border:none;box-shadow:none;background:transparent;padding:0">
+              <div class="step-head">
+                <span class="step-num">0</span>
+                <span class="step-title">Какой отчёт вам нужен?</span>
+              </div>
+              <p class="step-hint" style="margin-bottom:14px">Сначала выберите тип — от этого зависят дальнейшие шаги. Сводка считает числа по разрезу, выгрузка собирает таблицу строк.</p>
+              <div class="step-body" style="margin-left:0">
+                <div class="type-grid">
+                  <div class="type-card" data-type="summary">
+                    <div class="tc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+                    <h4>Сводка <span style="font-weight:500;color:#888;font-size:13px">(посчитать)</span></h4>
+                    <p>Числа и графики по выбранному разрезу.</p>
+                    <div class="ex"><b>Примеры:</b> сколько машин заехало по местам · число заявок по дням · людей прошло по организациям</div>
+                  </div>
+                  <div class="type-card active" data-type="list">
+                    <div class="tc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
+                    <h4>Выгрузка-список</h4>
+                    <p>Таблица строк с выбранными столбцами.</p>
+                    <div class="ex"><b>Примеры:</b> список работ с ответственными · журнал проходов людей · реестр машин</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SUMMARY steps -->
+            <div id="summarySteps" style="display:none;flex-direction:column;gap:20px">
+              <div class="step">
+                <div class="step-head"><span class="step-num">1</span><span class="step-title">Что считаем</span></div>
+                <p class="step-hint">Метрика — то самое число, которое окажется в отчёте. Выбор один.</p>
+                <div class="step-body">
+                  <div class="chips" id="metricChips">
+                    <button class="chip" data-m="apps">Число заявок</button>
+                    <button class="chip active" data-m="entry">Машин заехало <span class="tag">entry</span></button>
+                    <button class="chip" data-m="people">Людей прошло</button>
+                    <button class="chip" data-m="exit">Выездов <span class="tag">exit</span></button>
+                    <button class="chip" data-m="unique">Уникальных</button>
+                    <button class="chip" data-m="goods">Сумма товаров</button>
+                    <button class="chip" data-m="avg">Среднее в день</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step">
+                <div class="step-head"><span class="step-num">2</span><span class="step-title">По чему разбить</span><span class="step-opt">по желанию</span></div>
+                <p class="step-hint">Разрез делит число на группы. Без разреза — одно общее значение. По часам суток — увидите пиковые часы.</p>
+                <div class="step-body">
+                  <div class="chips" id="groupChips">
+                    <button class="chip" data-g="none">Без разреза</button>
+                    <button class="chip" data-g="day">По дням</button>
+                    <button class="chip" data-g="week">По неделям</button>
+                    <button class="chip" data-g="month">По месяцам</button>
+                    <button class="chip" data-g="hour">По часам суток</button>
+                    <button class="chip active" data-g="place">По месту разгрузки</button>
+                    <button class="chip" data-g="org">По организации</button>
+                    <button class="chip" data-g="type">По типу вложения</button>
+                    <button class="chip" data-g="status">По статусу</button>
+                    <button class="chip" data-g="citizen">По гражданству</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step">
+                <div class="step-head"><span class="step-num">3</span><span class="step-title">Фильтры</span><span class="step-opt">по желанию</span></div>
+                <p class="step-hint">Сузить выборку. Пусто — берутся все данные за период.</p>
+                <div class="step-body">
+                  <div class="filters-grid">
+                    <div class="filter-field"><label>Организация</label><select multiple size="3">
+                      <option>Отдел контроля доступа</option><option>Технический департамент</option><option>ОРППиПдБиРОП</option><option>ООО Демо-Партнёр</option><option>Отдел аренды</option><option>ИП Иванов И.И.</option><option>АО Демо-Логистика</option>
+                    </select></div>
+                    <div class="filter-field"><label>Тип вложения</label><select multiple size="3">
+                      <option>Автозаявка</option><option>Заявка на работы</option><option>Разовый пропуск</option>
+                    </select></div>
+                    <div class="filter-field"><label>Место разгрузки</label><select multiple size="3"><option>Дебаркадер №1</option></select></div>
+                    <div class="filter-field"><label>Статус</label><select multiple size="3"><option>Завершено</option><option>В работе</option><option>В обработке</option><option>Отказано</option></select></div>
+                    <div class="filter-field"><label>Гражданство</label><select multiple size="3"><option>Российская Федерация</option><option>Таджикистан</option></select></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step">
+                <div class="step-head"><span class="step-num">4</span><span class="step-title">Период</span></div>
+                <p class="step-hint">За какой отрезок времени считать.</p>
+                <div class="step-body">
+                  <div class="period-pick">
+                    <div class="presets-mini"><button>Неделя</button><button class="active">Месяц</button><button>Год</button></div>
+                    <div class="dates"><input type="date" value="2026-06-11"><span>—</span><input type="date" value="2026-06-17"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIST steps (default visible) -->
+            <div id="listSteps" style="display:flex;flex-direction:column;gap:20px">
+              <div class="step">
+                <div class="step-head"><span class="step-num">1</span><span class="step-title">Что выгружаем</span></div>
+                <p class="step-hint">Сущность определяет, какие строки попадут в таблицу и какие столбцы доступны.</p>
+                <div class="step-body">
+                  <div class="chips" id="entityChips">
+                    <button class="chip" data-e="apps">Заявки</button>
+                    <button class="chip active" data-e="works">Работы <span class="tag">Заявка на работы</span></button>
+                    <button class="chip" data-e="people">Люди</button>
+                    <button class="chip" data-e="cars">Машины</button>
+                    <button class="chip" data-e="goods">Товары</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step">
+                <div class="step-head"><span class="step-num">2</span><span class="step-title">Столбцы</span></div>
+                <p class="step-hint">Отметьте колонки таблицы. Снятые столбцы в отчёт не попадут.</p>
+                <div class="step-body">
+                  <div class="cols-grid" id="colsGrid">
+                    <label class="chk"><input type="checkbox" checked>Номер заявки</label>
+                    <label class="chk"><input type="checkbox" checked>Организация / Компания</label>
+                    <label class="chk"><input type="checkbox" checked>Наименование работ</label>
+                    <label class="chk"><input type="checkbox" checked>Ответственный (ФИО + телефон)</label>
+                    <label class="chk"><input type="checkbox" checked>Период работ</label>
+                    <label class="chk"><input type="checkbox" checked>Время работ</label>
+                    <label class="chk"><input type="checkbox" checked>Кол-во людей</label>
+                    <label class="chk"><input type="checkbox">Статус</label>
+                    <label class="chk"><input type="checkbox">Место разгрузки</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step">
+                <div class="step-head"><span class="step-num">3</span><span class="step-title">Фильтры</span><span class="step-opt">по желанию</span></div>
+                <p class="step-hint">Сузить список. Пусто — все строки за период.</p>
+                <div class="step-body">
+                  <div class="filters-grid">
+                    <div class="filter-field"><label>Организация</label><select multiple size="3">
+                      <option>Отдел контроля доступа</option><option>Технический департамент</option><option>ОРППиПдБиРОП</option><option>ООО Демо-Партнёр</option><option>Отдел аренды</option><option>ИП Иванов И.И.</option><option>АО Демо-Логистика</option>
+                    </select></div>
+                    <div class="filter-field"><label>Компания</label><select multiple size="3">
+                      <option>Бюро пропусков</option><option>ООО "Парк развлечений"</option><option>АО "Регионы-Энтертейнмент"</option><option>АО "УК ЭФКО"</option><option>ООО "Максима Групп"</option><option>ЧОП "АРЕС"</option><option>ООО "Победа"</option>
+                    </select></div>
+                    <div class="filter-field"><label>Статус</label><select multiple size="3"><option>Завершено</option><option>В работе</option><option>В обработке</option><option>Отказано</option></select></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step">
+                <div class="step-head"><span class="step-num">4</span><span class="step-title">Период</span></div>
+                <p class="step-hint">За какой отрезок брать строки.</p>
+                <div class="step-body">
+                  <div class="period-pick">
+                    <div class="presets-mini"><button>Неделя</button><button class="active">Месяц</button><button>Год</button></div>
+                    <div class="dates"><input type="date" value="2026-06-13"><span>—</span><input type="date" value="2026-07-13"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PREVIEW -->
+            <div class="preview">
+              <div class="preview-head">
+                <span class="pv-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>Получится такой отчёт</span>
+                <div class="spacer"></div>
+                <button class="btn secondary sm" data-tip="Сохранить набор настроек как личный шаблон">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14a2 2 0 012 2v16l-9-4-9 4V5a2 2 0 012-2z"/></svg>Сохранить как шаблон
+                </button>
+                <button class="btn green sm" data-tip="Скачать готовый отчёт в .xlsx">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>Экспорт в Excel
+                </button>
+              </div>
+              <div class="pv-sentence" id="pvSentence">
+                <b>Список работ</b> (Заявка на работы): столбцы — номер, организация/компания, наименование, ответственный, период, время, кол-во людей · за <b>13 июня — 13 июля 2026</b>
+              </div>
+              <div class="pv-body">
+                <!-- summary preview: charts + table -->
+                <div id="pvSummary" style="display:none">
+                  <div class="pv-charts">
+                    <div class="pv-chart-box"><canvas id="pvBar"></canvas></div>
+                    <div class="pv-chart-box"><canvas id="pvPie"></canvas></div>
+                  </div>
+                  <div class="table-scroll">
+                    <table id="pvSummaryTable">
+                      <thead><tr><th>Место разгрузки</th><th>Машин заехало</th><th>Доля</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                  <div class="total-row"><span>Итого машин заехало:</span> <b>142</b></div>
+                </div>
+
+                <!-- list preview: works table -->
+                <div id="pvList">
+                  <div class="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Номер заявки</th>
+                          <th>Организация / Компания</th>
+                          <th>Наименование работ</th>
+                          <th>Ответственный</th>
+                          <th>Период работ</th>
+                          <th>Время</th>
+                          <th>Людей</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><span class="tnum">№ 20260613/006</span></td>
+                          <td>Отдел контроля доступа<br><small style="color:var(--muted)">Бюро пропусков</small></td>
+                          <td>Монтаж сцены</td>
+                          <td>Мякотных Сергей Михайлович<br><small style="color:var(--muted)">+7 999 000-00-00</small></td>
+                          <td>13.06 — 13.07.2026</td>
+                          <td>10:00–23:59</td>
+                          <td class="num">1</td>
+                        </tr>
+                        <tr>
+                          <td><span class="tnum">№ 20260612/004</span></td>
+                          <td>Технический департамент<br><small style="color:var(--muted)">ООО "Максима Групп"</small></td>
+                          <td>Замена освещения</td>
+                          <td>Мякотных Сергей Михайлович<br><small style="color:var(--muted)">+7 999 000-00-00</small></td>
+                          <td>12.06 — 20.06.2026</td>
+                          <td>08:00–18:00</td>
+                          <td class="num">3</td>
+                        </tr>
+                        <tr>
+                          <td><span class="tnum">№ 20260611/009</span></td>
+                          <td>Отдел аренды<br><small style="color:var(--muted)">ООО "Парк развлечений"</small></td>
+                          <td>Уборка территории</td>
+                          <td>Кафанова Арина Сергеевна<br><small style="color:var(--muted)">+7 999 111-22-33</small></td>
+                          <td>11.06 — 30.06.2026</td>
+                          <td>06:00–14:00</td>
+                          <td class="num">5</td>
+                        </tr>
+                        <tr>
+                          <td><span class="tnum">№ 20260610/002</span></td>
+                          <td>ОРППиПдБиРОП<br><small style="color:var(--muted)">АО "Регионы-Энтертейнмент"</small></td>
+                          <td>Ремонт кровли</td>
+                          <td>Мякотных Сергей Михайлович<br><small style="color:var(--muted)">+7 999 000-00-00</small></td>
+                          <td>10.06 — 25.06.2026</td>
+                          <td>09:00–17:00</td>
+                          <td class="num">4</td>
+                        </tr>
+                        <tr>
+                          <td><span class="tnum">№ 20260609/007</span></td>
+                          <td>АО Демо-Логистика<br><small style="color:var(--muted)">ЧОП "АРЕС"</small></td>
+                          <td>Монтаж ограждения</td>
+                          <td>Кафанова Арина Сергеевна<br><small style="color:var(--muted)">+7 999 111-22-33</small></td>
+                          <td>09.06 — 16.06.2026</td>
+                          <td>07:30–19:00</td>
+                          <td class="num">2</td>
+                        </tr>
+                        <tr>
+                          <td><span class="tnum">№ 20260608/005</span></td>
+                          <td>ООО Демо-Партнёр<br><small style="color:var(--muted)">АО "УК ЭФКО"</small></td>
+                          <td>Замена освещения</td>
+                          <td>Мякотных Сергей Михайлович<br><small style="color:var(--muted)">+7 999 000-00-00</small></td>
+                          <td>08.06 — 12.06.2026</td>
+                          <td>10:00–20:00</td>
+                          <td class="num">2</td>
+                        </tr>
+                        <tr>
+                          <td><span class="tnum">№ 20260607/001</span></td>
+                          <td>ИП Иванов И.И.<br><small style="color:var(--muted)">ООО "Победа"</small></td>
+                          <td>Уборка территории</td>
+                          <td>Кафанова Арина Сергеевна<br><small style="color:var(--muted)">+7 999 111-22-33</small></td>
+                          <td>07.06 — 14.06.2026</td>
+                          <td>06:00–15:00</td>
+                          <td class="num">6</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="total-row"><span>Всего работ:</span> <b>7</b></div>
+                </div>
+
+                <div class="pv-actions">
+                  <button class="btn green" data-tip="Скачать готовый отчёт в .xlsx">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>Экспорт в Excel
+                  </button>
+                  <button class="btn secondary" data-tip="Сохранить набор настроек как личный шаблон">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14a2 2 0 012 2v16l-9-4-9 4V5a2 2 0 012-2z"/></svg>Сохранить как шаблон
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /builder -->
+        </div>
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<div class="mockup-flag">Прототип · мокап</div>
+
+<script>
+/* ============ TABS ============ */
+const tabs = document.querySelectorAll('.tab');
+const panels = {
+  dashboard: document.getElementById('panel-dashboard'),
+  reports: document.getElementById('panel-reports'),
+};
+let chartsInited = false;
+let pvChartsInited = false;
+
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  Object.values(panels).forEach(p=>p.classList.remove('active'));
+  const key = t.dataset.tab;
+  panels[key].classList.add('active');
+  if(key==='dashboard' && !chartsInited){ initTrendChart(); chartsInited=true; }
+  if(key==='reports' && !pvChartsInited){ initPreviewCharts(); pvChartsInited=true; }
+}));
+
+/* ============ PERIOD SWITCHER ============ */
+const presets = document.querySelectorAll('.shell-header .preset');
+const activePeriodEl = document.getElementById('activePeriod');
+const labels = {today:'17 июня 2026', week:'11–17 июня 2026', month:'июнь 2026', year:'2026 год'};
+presets.forEach(p=>p.addEventListener('click',()=>{
+  presets.forEach(x=>x.classList.remove('active'));
+  p.classList.add('active');
+  const k=p.dataset.period;
+  activePeriodEl.lastChild.textContent=' '+labels[k];
+}));
+document.querySelector('.shell-header .preset[data-period="week"]').classList.add('active');
+
+const cpBtn=document.getElementById('customBtn');
+const cpPop=document.getElementById('cpPop');
+cpBtn.addEventListener('click',e=>{e.stopPropagation();cpPop.classList.toggle('open');});
+document.getElementById('cpApply').addEventListener('click',()=>{
+  presets.forEach(x=>x.classList.remove('active'));
+  activePeriodEl.lastChild.textContent=' 11–17 июня 2026';
+  cpPop.classList.remove('open');
+});
+document.addEventListener('click',e=>{ if(!cpPop.contains(e.target)&&e.target!==cpBtn) cpPop.classList.remove('open'); });
+
+/* refresh spin */
+const refreshBtn=document.getElementById('refreshBtn');
+refreshBtn.addEventListener('click',()=>{
+  const svg=refreshBtn.querySelector('svg');
+  svg.style.transition='transform .6s ease';svg.style.transform='rotate(360deg)';
+  setTimeout(()=>{svg.style.transition='none';svg.style.transform='rotate(0)';},650);
+});
+
+/* ============ STAGGERED TILE ANIMATION ============ */
+function animateTiles(){
+  document.querySelectorAll('.tile').forEach((tile,i)=>{
+    tile.classList.remove('in');
+    setTimeout(()=>tile.classList.add('in'), 40*i);
+  });
+}
+animateTiles();
+
+/* ============ TREND CHART ============ */
+let trendChart=null;
+const trendDays=['Чт 11','Пт 12','Сб 13','Вс 14','Пн 15','Вт 16','Ср 17'];
+const datasets={
+  apps:{label:'Заявки',data:[4,6,7,3,5,5,4],color:'#4F5BDF'},
+  people:{label:'Проходы людей',data:[38,52,61,28,47,49,43],color:'#10b981'},
+  cars:{label:'Проезды машин',data:[16,24,28,12,21,22,19],color:'#ffc107'},
+};
+function gradient(ctx,color){
+  const g=ctx.createLinearGradient(0,0,0,300);
+  g.addColorStop(0,color+'55');g.addColorStop(1,color+'00');return g;
+}
+function initTrendChart(){
+  const ctx=document.getElementById('trendChart').getContext('2d');
+  const cur=datasets.apps;
+  trendChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:trendDays,datasets:[{
+      label:cur.label,data:cur.data,borderColor:cur.color,
+      backgroundColor:gradient(ctx,cur.color),
+      borderWidth:3,fill:true,tension:.4,
+      pointRadius:4,pointHoverRadius:7,pointBackgroundColor:'#fff',pointBorderColor:cur.color,pointBorderWidth:2.5,
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:900,easing:'easeOutQuart'},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#222',padding:12,cornerRadius:10,titleFont:{family:'Montserrat',weight:'700'},
+          bodyFont:{family:'Montserrat'},displayColors:false,
+        },
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{family:'Montserrat',size:11},color:'#999'}},
+        y:{beginAtZero:true,grid:{color:'#f0f0f4'},ticks:{font:{family:'Montserrat',size:11},color:'#999'},border:{display:false}},
+      },
+    },
+  });
+}
+document.querySelectorAll('#metricSeg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#metricSeg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  const m=datasets[b.dataset.metric];
+  const ctx=trendChart.ctx;
+  trendChart.data.datasets[0].data=m.data;
+  trendChart.data.datasets[0].label=m.label;
+  trendChart.data.datasets[0].borderColor=m.color;
+  trendChart.data.datasets[0].pointBorderColor=m.color;
+  trendChart.data.datasets[0].backgroundColor=gradient(ctx,m.color);
+  trendChart.update();
+}));
+document.querySelectorAll('#granSeg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#granSeg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  const g=b.dataset.gran;
+  if(g==='day'){trendChart.data.labels=trendDays;}
+  else if(g==='week'){trendChart.data.labels=['Нед 22','Нед 23','Нед 24','Нед 25'];}
+  else{trendChart.data.labels=['Март','Апр','Май','Июнь'];}
+  const cur=document.querySelector('#metricSeg button.active').dataset.metric;
+  const base=datasets[cur].data;
+  const n=trendChart.data.labels.length;
+  trendChart.data.datasets[0].data=Array.from({length:n},(_,i)=> Math.round(base[i%base.length]*(g==='month'?6:g==='week'?2.5:1)) );
+  trendChart.update();
+}));
+
+/* ============ LIVE FEEDS ============ */
+const peopleSamples=[
+  {name:'Кафанова Арина Сергеевна',org:'Отдел контроля доступа',dir:'in'},
+  {name:'Сидоров Павел Андреевич',org:'Технический департамент',dir:'in'},
+  {name:'Нурматов Алишер',org:'АО Демо-Логистика',dir:'out'},
+  {name:'Петрова Ольга Викторовна',org:'Отдел аренды',dir:'in'},
+  {name:'Иванов Иван Иванович',org:'ИП Иванов И.И.',dir:'out'},
+  {name:'Каримов Рустам',org:'ООО Демо-Партнёр',dir:'in'},
+];
+const carSamples=[
+  {plate:'А123ВС777',model:'ГАЗель Next',org:'Отдел контроля доступа',dir:'in'},
+  {plate:'О777ОО199',model:'Volvo FH',org:'АО Демо-Логистика',dir:'in'},
+  {plate:'Е456КХ777',model:'КамАЗ 5490',org:'Технический департамент',dir:'out'},
+  {plate:'Т012МР750',model:'MAN TGX',org:'ООО Демо-Партнёр',dir:'in'},
+  {plate:'Н888НН777',model:'Ford Transit',org:'Отдел аренды',dir:'out'},
+  {plate:'К321РА197',model:'Hyundai HD',org:'ОРППиПдБиРОП',dir:'in'},
+];
+const place='Дебаркадер №1';
+function nowTime(offset){
+  const d=new Date(Date.now()-offset*1000);
+  const p=n=>String(n).padStart(2,'0');
+  return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+const dirBadge=dir=> dir==='in'
+  ? '<span class="dir in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12l7 7 7-7"/></svg>въезд</span>'
+  : '<span class="dir out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 19V5M5 12l7-7 7 7"/></svg>выезд</span>';
+
+function peopleRow(s,offset){
+  return `<div class="feed-row">
+    <div class="who"><b>${s.name}</b><span>${s.org} · ${place}</span></div>
+    <span class="feed-time">${nowTime(offset)} <small style="color:#bbb">UTC+3</small></span>
+    ${dirBadge(s.dir)}
+  </div>`;
+}
+function carRow(s,offset){
+  return `<div class="feed-row">
+    <span class="plate">${s.plate}</span>
+    <div class="who"><b>${s.model}</b><span>${s.org} · ${place}</span></div>
+    <span class="feed-time">${nowTime(offset)}</span>
+    ${dirBadge(s.dir)}
+  </div>`;
+}
+const feedPeople=document.getElementById('feedPeople');
+const feedCars=document.getElementById('feedCars');
+function renderFeeds(){
+  feedPeople.innerHTML=peopleSamples.map((s,i)=>peopleRow(s,i*47)).join('');
+  feedCars.innerHTML=carSamples.map((s,i)=>carRow(s,i*39)).join('');
+}
+renderFeeds();
+/* simulate "new arrival" every 10s by prepending a fresh-time row */
+let pIdx=0,cIdx=0;
+setInterval(()=>{
+  const s=peopleSamples[pIdx++%peopleSamples.length];
+  feedPeople.insertAdjacentHTML('afterbegin',peopleRow(s,0));
+  if(feedPeople.children.length>8) feedPeople.lastElementChild.remove();
+},10000);
+setInterval(()=>{
+  const s=carSamples[cIdx++%carSamples.length];
+  feedCars.insertAdjacentHTML('afterbegin',carRow(s,0));
+  if(feedCars.children.length>8) feedCars.lastElementChild.remove();
+},10000);
+
+/* ============ REPORTS: TYPE TOGGLE ============ */
+const typeCards=document.querySelectorAll('.type-card');
+const summarySteps=document.getElementById('summarySteps');
+const listSteps=document.getElementById('listSteps');
+const pvSummary=document.getElementById('pvSummary');
+const pvList=document.getElementById('pvList');
+const pvSentence=document.getElementById('pvSentence');
+
+typeCards.forEach(c=>c.addEventListener('click',()=>{
+  typeCards.forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');
+  if(c.dataset.type==='summary'){
+    summarySteps.style.display='flex';
+    listSteps.style.display='none';
+    pvSummary.style.display='block';
+    pvList.style.display='none';
+    updateSummarySentence();
+    if(pvChartsInited) drawPvCharts();
+  }else{
+    summarySteps.style.display='none';
+    listSteps.style.display='flex';
+    pvSummary.style.display='none';
+    pvList.style.display='block';
+    updateListSentence();
+  }
+}));
+
+/* metric / group chip selection (single) */
+function singleSelect(sel,cb){
+  document.querySelectorAll(sel).forEach(ch=>ch.addEventListener('click',()=>{
+    ch.parentElement.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+    ch.classList.add('active'); cb && cb();
+  }));
+}
+const metricNames={apps:'Число заявок',entry:'Число машин заехало',people:'Число людей прошло',exit:'Число выездов',unique:'Уникальных',goods:'Сумма товаров',avg:'Среднее в день'};
+const groupNames={none:'без разреза',day:'по дням',week:'по неделям',month:'по месяцам',hour:'по часам суток',place:'по местам разгрузки',org:'по организациям',type:'по типам вложения',status:'по статусам',citizen:'по гражданству'};
+function curMetric(){return document.querySelector('#metricChips .chip.active')?.dataset.m||'entry';}
+function curGroup(){return document.querySelector('#groupChips .chip.active')?.dataset.g||'place';}
+function updateSummarySentence(){
+  const m=metricNames[curMetric()], g=groupNames[curGroup()];
+  pvSentence.innerHTML=`<b>${m}</b>${g!=='без разреза'?', '+g:''}, за <b>11–17 июня 2026</b>`;
+}
+function updateListSentence(){
+  pvSentence.innerHTML=`<b>Список работ</b> (Заявка на работы): столбцы - номер, организация/компания, наименование, ответственный, период, время, кол-во людей · за <b>13 июня - 13 июля 2026</b>`;
+}
+singleSelect('#metricChips .chip',()=>{updateSummarySentence();if(pvChartsInited)drawPvCharts();});
+singleSelect('#groupChips .chip',()=>{updateSummarySentence();if(pvChartsInited)drawPvCharts();});
+singleSelect('#entityChips .chip');
+
+/* ============ PREVIEW CHARTS (summary) ============ */
+let pvBar=null,pvPie=null;
+const placeData={
+  labels:['Дебаркадер №1','Ворота А','Ворота Б','КПП Север'],
+  data:[142,0,0,0], // single real place dominates; others placeholder small
+};
+function initPreviewCharts(){
+  drawPvCharts();
+}
+function drawPvCharts(){
+  // realistic split: real place + plausible distribution
+  const labels=['Дебаркадер №1','Ворота А','Ворота Б','КПП Север'];
+  const data=[92,28,14,8];
+  const colors=['#4F5BDF','#10b981','#ffc107','#ef4444'];
+  const barCtx=document.getElementById('pvBar').getContext('2d');
+  if(pvBar) pvBar.destroy();
+  pvBar=new Chart(barCtx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:8,barThickness:34}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:700},
+      plugins:{legend:{display:false},title:{display:true,text:'Машин заехало по местам',font:{family:'Montserrat',weight:'700',size:12},color:'#333'},
+        tooltip:{backgroundColor:'#222',cornerRadius:10,bodyFont:{family:'Montserrat'}}},
+      scales:{x:{grid:{display:false},ticks:{font:{family:'Montserrat',size:10},color:'#999'}},
+        y:{grid:{color:'#f0f0f4'},ticks:{font:{family:'Montserrat',size:10},color:'#999'},border:{display:false}}}}
+  });
+  const pieCtx=document.getElementById('pvPie').getContext('2d');
+  if(pvPie) pvPie.destroy();
+  pvPie=new Chart(pieCtx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',animation:{duration:700},
+      plugins:{legend:{position:'bottom',labels:{font:{family:'Montserrat',size:10},boxWidth:10,padding:8,color:'#666'}},
+        title:{display:true,text:'Доля по местам',font:{family:'Montserrat',weight:'700',size:12},color:'#333'},
+        tooltip:{backgroundColor:'#222',cornerRadius:10,bodyFont:{family:'Montserrat'}}}}
+  });
+  // fill summary table
+  const tbody=document.querySelector('#pvSummaryTable tbody');
+  const total=data.reduce((a,b)=>a+b,0);
+  tbody.innerHTML=labels.map((l,i)=>`<tr><td>${l}</td><td class="num">${data[i]}</td><td class="num">${Math.round(data[i]/total*100)}%</td></tr>`).join('');
+}
+
+/* ============ PRESETS FILL ============ */
+document.querySelectorAll('.preset-item').forEach(p=>p.addEventListener('click',()=>{
+  const f=p.dataset.fill;
+  const setType=t=>{document.querySelector(`.type-card[data-type="${t}"]`).click();};
+  if(f==='works'){ setType('list'); }
+  else if(f==='weekly'||f==='cars-places'||f==='top-places'||f==='people'){
+    setType('summary');
+    // pick a sensible metric+group
+    const map={weekly:['apps','day'],'cars-places':['entry','place'],'top-places':['entry','place'],people:['people','day']};
+    const [m,g]=map[f];
+    const mc=document.querySelector(`#metricChips .chip[data-m="${m}"]`); if(mc) mc.click();
+    const gc=document.querySelector(`#groupChips .chip[data-g="${g}"]`); if(gc) gc.click();
+  }
+  // gentle scroll to preview
+  document.querySelector('.preview').scrollIntoView({behavior:'smooth',block:'nearest'});
+}));
+</script>
+</body>
+</html>
