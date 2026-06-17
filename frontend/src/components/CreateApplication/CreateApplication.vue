@@ -64,10 +64,12 @@
         <!-- 1 ряд: Письмо сопроводительное, Согласие, Отправка -->
         <div class="form__header">
           <div class="header__content">
-            <textarea 
-              v-model="message" 
+            <TextConstructor
+              v-model="message"
+              class="form__message-tc"
+              :collapsible-toolbar="true"
+              :rows="2"
               placeholder="Введите сопроводительное письмо / сообщение"
-              class="form__textarea"
             />
             <div class="header__right">
               <div class="consent-section">
@@ -338,6 +340,7 @@ import ItemsList from './ItemsList.vue';
 import UniversalBindingModal from './UniversalBindingModal.vue';
 import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
 import CustomFieldsSection from './CustomFieldsSection.vue';
+import TextConstructor from '@/components/TextConstructor.vue';
 
 export default {
     name: 'CreateApplication',
@@ -353,7 +356,8 @@ export default {
         ItemsList,
         UniversalBindingModal,
         ApplicationSuccessModal,
-        CustomFieldsSection
+        CustomFieldsSection,
+        TextConstructor
     },
     data() {
         return {
@@ -2256,7 +2260,7 @@ export default {
 
     .form__header {
         width: 100%;
-        height: 80px;
+        min-height: 80px;
         border-bottom: 1px solid #e6e6e6;
         padding: 15px;
     }
@@ -2264,17 +2268,12 @@ export default {
     .header__content {
         display: flex;
         gap: 20px;
-        height: 100%;
+        align-items: flex-start;
     }
 
-    .form__textarea {
+    .form__message-tc {
         width: 55%;
-        border: 1px solid #e6e6e6;
-        outline: none;
-        border-radius: 15px;
-        height: 50px;
-        padding: 10px;
-        resize: none;
+        margin-bottom: 0;
     }
 
     .header__right {

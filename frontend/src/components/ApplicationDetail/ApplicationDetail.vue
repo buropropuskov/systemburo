@@ -108,11 +108,57 @@
         <div class="detail-main-column">
           <!-- Сообщение заявки -->
           <div class="message-section">
-            <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
-            <div class="message-content">
-              {{ applicationData.message || 'Сообщение отсутствует' }}
+            <div class="message-section-header">
+              <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
+              <button
+                v-if="hasMessage"
+                type="button"
+                class="lk-button lk-button--secondary message-open-btn"
+                @click="showMessageModal = true"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line
+                    x1="10"
+                    y1="14"
+                    x2="21"
+                    y2="3"
+                  />
+                </svg>
+                Открыть в окне
+              </button>
+            </div>
+            <div
+              v-if="hasMessage"
+              ref="messagePreview"
+              class="message-content text-constructor-content message-preview"
+              :class="{ 'is-clamped': messageClamped }"
+              v-html="sanitizedMessage"
+            />
+            <div
+              v-else
+              class="message-content message-empty"
+            >
+              Сообщение отсутствует
             </div>
           </div>
+
+          <ApplicationMessageModal
+            :show="showMessageModal"
+            :message="applicationData.message || ''"
+            :application-number="applicationData.application_number"
+            @close="showMessageModal = false"
+          />
 
           <!-- Детали выбранного вложения -->
           <ApplicationAttachmentDetail
@@ -355,6 +401,8 @@ import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
 import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
+import { sanitizeHtml } from '@/utils/sanitize'
+import ApplicationMessageModal from './ApplicationMessageModal.vue'
 
 export default {
     name: 'ApplicationDetail',
@@ -368,7 +416,8 @@ export default {
         BlacklistOverrideModal,
         VehicleDetailsModal,
         EmployeeDetailsModal,
-        Badge
+        Badge,
+        ApplicationMessageModal
     },
     props: {
         application: {
@@ -392,6 +441,8 @@ export default {
     data() {
         return {
             applicationData: { ...this.application },
+            showMessageModal: false,
+            messageClamped: false,
             attachments: [],
             selectedAttachment: null,
             attachmentCars: [],
@@ -430,6 +481,16 @@ export default {
         }
     },
     computed: {
+        hasMessage() {
+            const m = this.applicationData?.message;
+            if (!m) return false;
+            return m.includes('<img') || m.replace(/<[^>]*>/g, '').trim().length > 0;
+        },
+
+        sanitizedMessage() {
+            return this.applicationData?.message ? sanitizeHtml(this.applicationData.message) : '';
+        },
+
         isResponsibleUser() {
             if (!this.currentUserId || !this.responsibleUsers.length) return false;
             return this.responsibleUsers.some(user => user.id === this.currentUserId);
@@ -499,6 +560,7 @@ export default {
             handler(newApplication, oldApplication) {
                 if (newApplication && newApplication.id) {
                     this.applicationData = { ...newApplication };
+                    this.showMessageModal = false;
                     this.storageKey = `app_comment_${this.currentUserId}_${newApplication.id}`;
                     this.loadCommentFromLocalStorage();
                     this.loadApplicationDetails(newApplication);
@@ -508,12 +570,21 @@ export default {
                 }
             },
             deep: true
+        },
+        sanitizedMessage() {
+            this.$nextTick(() => this.updateMessageClamp());
         }
     },
     mounted() {
         this.loadCommonData();
+        this.$nextTick(() => this.updateMessageClamp());
     },
     methods: {
+        updateMessageClamp() {
+            const el = this.$refs.messagePreview;
+            this.messageClamped = !!el && el.scrollHeight > el.clientHeight + 2;
+        },
+
         handleActionCompleted({ success, message, type }) {
             this.showNotification(message, type || (success ? 'success' : 'error'));
             if (success) {
@@ -1515,19 +1586,98 @@ export default {
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
+.message-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
 .message-section h4 {
+    margin: 0;
     font-size: 14px;
     color: #a2a2a2;
-    padding-bottom: 5px;
     font-weight: 400;
+}
+
+.message-open-btn {
+    flex-shrink: 0;
 }
 
 .message-content {
     font-size: 15px;
     line-height: 150%;
     color: #000;
-    white-space: pre-wrap;
 }
+
+.message-empty {
+    white-space: pre-wrap;
+    color: #a2a2a2;
+}
+
+.message-preview {
+    position: relative;
+    max-height: 150px;
+    overflow: hidden;
+    word-break: break-word;
+}
+
+.message-preview.is-clamped::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 46px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff);
+    pointer-events: none;
+}
+
+.message-preview :deep(img) {
+    max-width: 100%;
+    height: auto;
+}
+
+.message-preview :deep(p) { margin: 4px 0; }
+
+.message-preview :deep(ul),
+.message-preview :deep(ol) {
+    padding-left: 22px;
+    margin: 6px 0;
+}
+
+.message-preview :deep(strong) { font-weight: 700; }
+.message-preview :deep(em) { font-style: italic; }
+.message-preview :deep(u) { text-decoration: underline; }
+
+.message-preview :deep(h1),
+.message-preview :deep(.heading-h1) { font-size: 20px; font-weight: 700; margin: 6px 0; }
+
+.message-preview :deep(h2),
+.message-preview :deep(.heading-h2) { font-size: 17px; font-weight: 600; margin: 6px 0; }
+
+.message-preview :deep(.black-text) { color: #000 !important; }
+.message-preview :deep(.red-text) { color: #FF0000 !important; }
+.message-preview :deep(.green-text) { color: #079D1D !important; }
+.message-preview :deep(.blue-text) { color: #4F5BDF !important; }
+
+.message-preview :deep(.font-size-10) { font-size: 10px !important; }
+.message-preview :deep(.font-size-12) { font-size: 12px !important; }
+.message-preview :deep(.font-size-14) { font-size: 14px !important; }
+.message-preview :deep(.font-size-16) { font-size: 16px !important; }
+.message-preview :deep(.font-size-18) { font-size: 18px !important; }
+.message-preview :deep(.font-size-20) { font-size: 20px !important; }
+
+.message-preview :deep(.font-weight-300) { font-weight: 300 !important; }
+.message-preview :deep(.font-weight-400) { font-weight: 400 !important; }
+.message-preview :deep(.font-weight-500) { font-weight: 500 !important; }
+.message-preview :deep(.font-weight-600) { font-weight: 600 !important; }
+.message-preview :deep(.font-weight-900) { font-weight: 900 !important; }
+
+.message-preview :deep(.text-align-left) { text-align: left !important; }
+.message-preview :deep(.text-align-center) { text-align: center !important; }
+.message-preview :deep(.text-align-right) { text-align: right !important; }
 
 .basic-info-section {
     background: white;
