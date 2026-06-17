@@ -333,7 +333,8 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 		Where("ch.action_type IN ?", []string{"entry", "exit"}).
 		Select("ch.action_type AS action_type, ch.created_at AS created_at, " +
 			"c.car_number AS subject, " +
-			"COALESCE(c.mark_name, '') AS mark, " +
+			// mark_name - актуальное поле, car_brand - устаревший fallback (как в trash/blacklist).
+			"COALESCE(NULLIF(c.mark_name, ''), c.car_brand, '') AS mark, " +
 			"COALESCE(org.name, comp.name, '') AS organization, " +
 			"COALESCE(st.display_name, '') AS place").
 		Order("ch.created_at DESC").
