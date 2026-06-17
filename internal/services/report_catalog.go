@@ -23,14 +23,23 @@ const (
 
 // metricDef — агрегатная метрика. baseTable/aggExpr/baseFilter — безопасные
 // константы для сборки запроса движком B2; dimensions ограничивает разрезы.
+// group — тематическая группа карточек метрик в гиде (шаг "Что считаем").
 type metricDef struct {
 	label      string
 	unit       string
+	group      string
 	baseTable  string
 	aggExpr    string
 	baseFilter string
 	dimensions []string
 }
+
+// Тематические группы метрик (шаг 1 гида). Значения совпадают с подписями карточек.
+const (
+	metricGroupApplications = "Заявки"
+	metricGroupCars         = "Машины"
+	metricGroupPeople       = "Люди"
+)
 
 // dimensionDef — разрез группировки. Конкретное GROUP BY-выражение и join-путь
 // зависят от метрики и резолвятся движком B2; здесь — только подпись для UI.
@@ -72,6 +81,7 @@ var reportMetricRegistry = map[string]metricDef{
 	"applications_count": {
 		label:      "Количество заявок",
 		unit:       "шт",
+		group:      metricGroupApplications,
 		baseTable:  "applications",
 		aggExpr:    "COUNT(*)",
 		dimensions: []string{"status", "organization", "company", "attachment_type", "period"},
@@ -79,6 +89,7 @@ var reportMetricRegistry = map[string]metricDef{
 	"car_entries_count": {
 		label:      "Въезды машин",
 		unit:       "шт",
+		group:      metricGroupCars,
 		baseTable:  "cars_history",
 		aggExpr:    "COUNT(*)",
 		baseFilter: "action_type = 'entry'",
@@ -87,6 +98,7 @@ var reportMetricRegistry = map[string]metricDef{
 	"people_entries_count": {
 		label:      "Входы людей",
 		unit:       "шт",
+		group:      metricGroupPeople,
 		baseTable:  "employees_history",
 		aggExpr:    "COUNT(*)",
 		baseFilter: "action_type = 'entry'",
@@ -95,13 +107,21 @@ var reportMetricRegistry = map[string]metricDef{
 	"items_sum": {
 		label:      "Количество товаров",
 		unit:       "шт",
+		group:      metricGroupApplications,
 		baseTable:  "items",
 		aggExpr:    "COALESCE(SUM(items.count), 0)",
 		dimensions: []string{"organization", "company", "period"},
 	},
 }
 
+// dimNone — универсальный разрез "без разреза": один итоговый ряд без GROUP BY.
+// Применим к любой метрике, поэтому намеренно НЕ входит в metricDef.dimensions
+// (движок валидирует его отдельной веткой). В каталог добавлен как самостоятельный
+// разрез, чтобы гид показал его опцией; UI задействует его в срезе GR2/GR3.
+const dimNone = "none"
+
 var reportDimensionOrder = []string{
+	dimNone,
 	"status",
 	"organization",
 	"company",
@@ -112,6 +132,7 @@ var reportDimensionOrder = []string{
 }
 
 var reportDimensionRegistry = map[string]dimensionDef{
+	dimNone:           {label: "Без разреза"},
 	"status":          {label: "Статус заявки"},
 	"organization":    {label: "Организация"},
 	"company":         {label: "Компания"},
@@ -272,6 +293,7 @@ func buildReportCatalog(dyn dynamicReportOptions) models.ReportCatalog {
 			Key:        key,
 			Label:      def.label,
 			Unit:       def.unit,
+			Group:      def.group,
 			Dimensions: def.dimensions,
 		})
 	}

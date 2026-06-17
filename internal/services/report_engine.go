@@ -3,6 +3,8 @@ package services
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -207,9 +209,10 @@ func buildAggregatePlan(req models.ReportRequest) (*aggPlan, error) {
 	if req.Dimension == "" {
 		return nil, errInvalidReport("dimension")
 	}
-	// Разрез должен быть заявлен в каталоге B1 для этой метрики — единый источник
-	// правды для UI и движка.
-	if !contains(reportMetricRegistry[req.Metric].dimensions, req.Dimension) {
+	// "none" (без разреза) универсален для любой метрики — не входит в каталожный
+	// список разрезов метрики, проверяется отдельно. Остальные разрезы должны быть
+	// заявлены в каталоге B1 для этой метрики (единый источник правды для UI и движка).
+	if req.Dimension != dimNone && !contains(reportMetricRegistry[req.Metric].dimensions, req.Dimension) {
 		return nil, errInvalidReport("dimension")
 	}
 
@@ -250,7 +253,10 @@ func buildAggregatePlan(req models.ReportRequest) (*aggPlan, error) {
 		plan.joins = append(plan.joins, schema.attachJoin...)
 	}
 
-	plan.orderStr = resolveAggOrder(req.Sort, req.Dimension, groupExpr, schema.aggExpr)
+	// Без разреза — один итоговый ряд, сортировка не нужна (groupExpr пуст).
+	if groupExpr != "" {
+		plan.orderStr = resolveAggOrder(req.Sort, req.Dimension, groupExpr, schema.aggExpr)
+	}
 	plan.limit = clampLimit(req.Limit)
 	return plan, nil
 }
@@ -268,6 +274,9 @@ func addJoinNeed(jk joinKind, needChain, needAttach *bool) {
 // join. period/hour_of_day строятся по tsColumn метрики; остальные — из карты dims.
 func resolveAggDimension(s aggMetricSchema, dim, granularity string) (group, label string, jk joinKind, err error) {
 	switch dim {
+	case dimNone:
+		// Без GROUP BY: единственный ряд с константной подписью.
+		return "", "'Итого'", jNone, nil
 	case "period":
 		unit := "day"
 		if granularity != "" {
@@ -387,4 +396,121 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// resolveReportMetrics нормализует список метрик запроса: Metrics приоритетнее
+// одиночного Metric (обратная совместимость), пустые и дубликаты убираются с
+// сохранением порядка. Пустой результат -> ErrInvalidReportRequest. Существование
+// каждой метрики проверяет buildAggregatePlan при сборке её плана.
+func resolveReportMetrics(req models.ReportRequest) ([]string, error) {
+	raw := req.Metrics
+	if len(raw) == 0 && req.Metric != "" {
+		raw = []string{req.Metric}
+	}
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, m := range raw {
+		m = strings.TrimSpace(m)
+		if m == "" || seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, m)
+	}
+	if len(out) == 0 {
+		return nil, errInvalidReport("metric")
+	}
+	return out, nil
+}
+
+// mergeMetricRows сливает построчные результаты метрик в мультиметричные строки
+// (подпись разреза -> значение каждой метрики, отсутствующая метрика -> 0),
+// упорядочивает их и применяет лимит. Итоги (totals) считаются по уже усечённым
+// строкам — как сумма видимых значений каждой метрики. Чистая функция.
+func mergeMetricRows(metrics []string, perMetric map[string][]models.ReportAggregateRow, dim, sortKey string, limit int) ([]models.ReportMetricRow, map[string]int64) {
+	order := make([]string, 0)
+	bucket := make(map[string]map[string]int64)
+	for _, m := range metrics {
+		for _, r := range perMetric[m] {
+			vals, ok := bucket[r.Label]
+			if !ok {
+				vals = make(map[string]int64, len(metrics))
+				bucket[r.Label] = vals
+				order = append(order, r.Label)
+			}
+			vals[m] = r.Value
+		}
+	}
+
+	rows := make([]models.ReportMetricRow, 0, len(order))
+	for _, label := range order {
+		vals := make(map[string]int64, len(metrics))
+		for _, m := range metrics {
+			vals[m] = bucket[label][m] // отсутствие -> 0
+		}
+		rows = append(rows, models.ReportMetricRow{Label: label, Values: vals})
+	}
+
+	orderMetricRows(rows, dim, sortKey, metrics)
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+
+	totals := make(map[string]int64, len(metrics))
+	for _, r := range rows {
+		for _, m := range metrics {
+			totals[m] += r.Values[m]
+		}
+	}
+	return rows, totals
+}
+
+// orderMetricRows упорядочивает мультиметричные строки in-place. Явный sort имеет
+// приоритет: value_* сортирует по СУММЕ метрик строки (единый порядок для всех
+// колонок; сортировать по одной метрике при мультивыборе неоднозначно — какой),
+// label_* — по подписи разреза. Без явного sort: период — хронологически (ISO-даты),
+// час суток — численно, прочие категориальные — по убыванию суммы метрик. Для
+// одиночной метрики сумма = её значение, т.е. порядок совпадает с SQL-сортировкой.
+// Разрез "none" даёт один ряд (порядок не важен).
+func orderMetricRows(rows []models.ReportMetricRow, dim, sortKey string, metrics []string) {
+	rowTotal := func(r models.ReportMetricRow) int64 {
+		var t int64
+		for _, m := range metrics {
+			t += r.Values[m]
+		}
+		return t
+	}
+	switch sortKey {
+	case sortLabelAsc:
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].Label < rows[j].Label })
+		return
+	case sortLabelDesc:
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].Label > rows[j].Label })
+		return
+	case sortValueAsc:
+		sort.SliceStable(rows, func(i, j int) bool { return rowTotal(rows[i]) < rowTotal(rows[j]) })
+		return
+	case sortValueDesc:
+		sort.SliceStable(rows, func(i, j int) bool { return rowTotal(rows[i]) > rowTotal(rows[j]) })
+		return
+	}
+	switch dim {
+	case "period":
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].Label < rows[j].Label })
+	case "hour_of_day":
+		sort.SliceStable(rows, func(i, j int) bool { return hourLabel(rows[i].Label) < hourLabel(rows[j].Label) })
+	case dimNone:
+		// один итоговый ряд — сортировка не нужна
+	default:
+		sort.SliceStable(rows, func(i, j int) bool { return rowTotal(rows[i]) > rowTotal(rows[j]) })
+	}
+}
+
+// hourLabel парсит подпись часа суток ("0".."23") в число для численной сортировки.
+func hourLabel(label string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(label))
+	if err != nil {
+		return 0
+	}
+	return n
 }

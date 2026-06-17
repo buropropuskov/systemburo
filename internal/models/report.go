@@ -10,11 +10,15 @@ type ReportFilterValue struct {
 }
 
 // ReportRequest — запрос конструктора отчётов (POST /statistics/report).
-// Mode=aggregate: Metric+Dimension обязательны (агрегатный разрез).
-// Mode=list: выгрузка строк сущности (Entity) — добавляется отдельным срезом.
+// Mode=aggregate: разрез (Dimension) + одна метрика (Metric) ИЛИ несколько (Metrics).
+// Metrics имеет приоритет; если он пуст — берётся Metric (обратная совместимость с
+// одиночным конструктором). Каждая метрика становится колонкой результата.
+// Dimension="none" — без разреза (один итоговый ряд).
+// Mode=list: выгрузка строк сущности (Entity).
 type ReportRequest struct {
 	Mode        string              `json:"mode"`
 	Metric      string              `json:"metric"`
+	Metrics     []string            `json:"metrics,omitempty"`
 	Dimension   string              `json:"dimension"`
 	Granularity string              `json:"granularity"`
 	Entity      string              `json:"entity"`
@@ -29,7 +33,25 @@ type ReportAggregateRow struct {
 	Value int64  `json:"value"`
 }
 
-// ReportResponse — результат агрегатного отчёта: строки по разрезу и итог (сумма значений).
+// ReportMetricColumn — колонка-метрика мультиметричного отчёта (ключ, подпись, единица).
+type ReportMetricColumn struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Unit  string `json:"unit,omitempty"`
+}
+
+// ReportMetricRow — строка мультиметрик: подпись разреза + значение каждой метрики
+// (по её ключу). Метрики без значения в этом бакете -> 0.
+type ReportMetricRow struct {
+	Label  string           `json:"label"`
+	Values map[string]int64 `json:"values"`
+}
+
+// ReportResponse — результат агрегатного отчёта.
+// Legacy-поля (Metric/Unit/Rows/Total) — для одиночной метрики (текущий FE).
+// Мультиметрики (GR0): Columns — колонки-метрики, MetricRows — строки разреза со
+// значением каждой метрики, Totals — итог по каждой метрике. Эти три заполняются
+// всегда (в т.ч. при одной метрике) — единый формат для гида.
 type ReportResponse struct {
 	Mode      string               `json:"mode"`
 	Metric    string               `json:"metric,omitempty"`
@@ -37,6 +59,10 @@ type ReportResponse struct {
 	Unit      string               `json:"unit,omitempty"`
 	Rows      []ReportAggregateRow `json:"rows"`
 	Total     int64                `json:"total"`
+
+	Columns    []ReportMetricColumn `json:"columns,omitempty"`
+	MetricRows []ReportMetricRow    `json:"metric_rows,omitempty"`
+	Totals     map[string]int64     `json:"totals,omitempty"`
 }
 
 // ReportListResponse — результат list-отчёта (mode=list): выгрузка строк сущности.
