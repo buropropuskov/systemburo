@@ -199,7 +199,10 @@ export default {
         return;
       }
       const top = el.getBoundingClientRect().top;
-      const height = Math.max(0, Math.round(window.innerHeight - top));
+      // 15px - отступ снизу чтобы блок заявок не прилипал к краю экрана.
+      // Padding 15px сверху уже входит в el, поэтому вычитаем только снизу.
+      const BOTTOM_GAP = 15;
+      const height = Math.max(0, Math.round(window.innerHeight - top - BOTTOM_GAP));
       // Защита от ResizeObserver-петли: пишем стиль только при реальном изменении.
       if (height === this.lastDashboardHeight) return;
       this.lastDashboardHeight = height;
@@ -261,10 +264,13 @@ export default {
   padding: 15px;
   position: relative;
   /* Высоту на desktop задаёт applyDashboardHeight под доступный вьюпорт;
-     flex-колонка тянет блок заявок на остаток высоты. На <=1200px высота
-     сбрасывается и блок снова в естественном потоке (страница скроллится). */
+     flex-колонка тянет блок заявок на остаток высоты. overflow:hidden
+     обязателен - без него flex-дети могут расти за пределы установленной
+     высоты. На <=1200px высота сбрасывается и блок снова в естественном
+     потоке (страница скроллится). */
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* Стили для строк */
@@ -294,6 +300,7 @@ export default {
   padding: 15px 0;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

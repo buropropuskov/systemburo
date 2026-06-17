@@ -1078,7 +1078,7 @@ export default {
 
 .applications-list-content {
   flex: 1;
-  overflow-y: auto;
+  /* Скролл только на .applications-body - не создаём вложенный скролл здесь */
   position: relative;
 }
 
