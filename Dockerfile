@@ -29,7 +29,7 @@ RUN go mod tidy && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o seed ./cmd/seed
 
 FROM alpine:3.23 AS production
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates && apk upgrade --no-cache
 RUN addgroup -S -g 1001 appgroup && \
     adduser -S -u 1001 -G appgroup appuser
 WORKDIR /app
