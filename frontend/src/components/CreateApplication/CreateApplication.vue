@@ -67,95 +67,98 @@
             <TextConstructor
               v-model="message"
               class="form__message-tc"
-              :rows="2"
+              :rows="3"
               placeholder="Введите сопроводительное письмо / сообщение"
-            />
-            <div class="header__right">
-              <div class="consent-section">
-                <div class="consent-checkbox">
-                  <input
-                    id="consent"
-                    v-model="consentGiven"
-                    type="checkbox"
-                    data-testid="create-app-consent-checkbox"
-                    required
-                  >
-                  <label for="consent">
-                    Даю <span class="blue">согласие</span> на обработку, хранение, передачу
-                    персональных данных, изложенных в заявке
-                  </label>
-                </div>
-                <div
-                  class="submit-button-container"
-                  :data-testid="'create-app-submit-wrapper'"
-                  @mouseenter="tooltipMouseEnter"
-                  @mouseleave="tooltipMouseLeave"
-                >
-                  <button
-                    class="send-all-btn"
-                    data-testid="create-app-button-submit"
-                    :disabled="!canSubmit"
-                    @click="submitApplication"
-                  >
-                    Отправить заявку
-                  </button>
-                  <div
-                    v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
-                    class="submit-tooltip"
-                    @mouseenter="tooltipMouseEnter"
-                    @mouseleave="tooltipMouseLeave"
-                    @click="handleTooltipClick"
-                  >
-                    <div class="tooltip-content">
-                      <div
-                        v-for="(section, idx) in tooltipSections"
-                        :key="idx"
-                        class="tooltip-section"
+            >
+              <template #header-actions>
+                <div class="header__right">
+                  <div class="consent-section">
+                    <div class="consent-checkbox">
+                      <input
+                        id="consent"
+                        v-model="consentGiven"
+                        type="checkbox"
+                        data-testid="create-app-consent-checkbox"
+                        required
                       >
-                        <div
-                          v-if="section.type === 'global'"
-                          class="tooltip-global"
-                        >
-                          <div class="tooltip-section-title">
-                            Необходимо заполнить:
+                      <label for="consent">
+                        Даю <span class="blue">согласие</span> на обработку, хранение, передачу
+                        персональных данных, изложенных в заявке
+                      </label>
+                    </div>
+                    <div
+                      class="submit-button-container"
+                      :data-testid="'create-app-submit-wrapper'"
+                      @mouseenter="tooltipMouseEnter"
+                      @mouseleave="tooltipMouseLeave"
+                    >
+                      <button
+                        class="send-all-btn"
+                        data-testid="create-app-button-submit"
+                        :disabled="!canSubmit"
+                        @click="submitApplication"
+                      >
+                        Отправить заявку
+                      </button>
+                      <div
+                        v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
+                        class="submit-tooltip"
+                        @mouseenter="tooltipMouseEnter"
+                        @mouseleave="tooltipMouseLeave"
+                        @click="handleTooltipClick"
+                      >
+                        <div class="tooltip-content">
+                          <div
+                            v-for="(section, idx) in tooltipSections"
+                            :key="idx"
+                            class="tooltip-section"
+                          >
+                            <div
+                              v-if="section.type === 'global'"
+                              class="tooltip-global"
+                            >
+                              <div class="tooltip-section-title">
+                                Необходимо заполнить:
+                              </div>
+                              <ul>
+                                <li
+                                  v-for="(msg, i) in section.messages"
+                                  :key="i"
+                                >
+                                  {{ msg }}
+                                </li>
+                              </ul>
+                            </div>
+                            <div
+                              v-else-if="section.type === 'attachment'"
+                              class="tooltip-attachment"
+                            >
+                              <div class="tooltip-attachment-title">
+                                <span
+                                  class="attachment-clickable"
+                                  :data-attachment-key="section.attachmentKey"
+                                  @click="handleTooltipAttachmentClick(section)"
+                                >
+                                  Вложение "{{ section.attachmentName }}"
+                                </span>
+                              </div>
+                              <ul>
+                                <li
+                                  v-for="(msg, i) in section.messages"
+                                  :key="i"
+                                >
+                                  {{ msg }}
+                                </li>
+                              </ul>
+                            </div>
                           </div>
-                          <ul>
-                            <li
-                              v-for="(msg, i) in section.messages"
-                              :key="i"
-                            >
-                              {{ msg }}
-                            </li>
-                          </ul>
-                        </div>
-                        <div
-                          v-else-if="section.type === 'attachment'"
-                          class="tooltip-attachment"
-                        >
-                          <div class="tooltip-attachment-title">
-                            <span
-                              class="attachment-clickable"
-                              :data-attachment-key="section.attachmentKey"
-                              @click="handleTooltipAttachmentClick(section)"
-                            >
-                              Вложение "{{ section.attachmentName }}"
-                            </span>
-                          </div>
-                          <ul>
-                            <li
-                              v-for="(msg, i) in section.messages"
-                              :key="i"
-                            >
-                              {{ msg }}
-                            </li>
-                          </ul>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </template>
+            </TextConstructor>
           </div>
         </div>
 
@@ -2271,23 +2274,28 @@ export default {
     }
 
     .create__form .form__message-tc {
-        width: 55%;
+        width: 100%;
         margin-bottom: 0;
         border-radius: 30px;
     }
 
+    /* Инструменты редактора в форме заявки - компактнее */
+    .create__form :deep(.toolbar-btn) {
+        min-width: 28px;
+        height: 28px;
+        font-size: 13px;
+        padding: 0 6px;
+    }
+
     .header__right {
         display: flex;
-        flex-direction: column;
-        gap: 10px;
-        flex: 1;
+        align-items: center;
     }
 
     .consent-section {
         display: flex;
         align-items: center;
-        gap: 20px;
-        height: 100%;
+        gap: 16px;
     }
 
     .consent-checkbox {

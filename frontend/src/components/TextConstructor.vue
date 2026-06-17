@@ -389,6 +389,12 @@
           ⎚
         </button>
       </div>
+      <div
+        v-if="$slots['header-actions']"
+        class="tc-header-actions"
+      >
+        <slot name="header-actions" />
+      </div>
     </div>
 
     <EditorContent
@@ -687,6 +693,14 @@ defineExpose({ editor });
   gap: 8px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Слот действий справа от инструментов (напр. согласие + отправка в форме заявки). */
+.tc-header-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .toolbar-group {
