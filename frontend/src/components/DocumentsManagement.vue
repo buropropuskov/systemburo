@@ -692,7 +692,11 @@ export default {
           published_at: this.editForm.published_at || null,
           is_visible: this.editForm.is_visible,
         };
-        await updateDocument(this.selectedDoc.id, payload);
+        const result = await updateDocument(this.selectedDoc.id, payload);
+        if (result?.message) {
+          this.editError = result.message;
+          return;
+        }
         const title = this.editForm.title;
         // Обновляем в локальном массиве
         const idx = this.documents.findIndex((d) => d.id === this.selectedDoc.id);
@@ -767,11 +771,14 @@ export default {
     },
     onDragOver(idx) {
       if (this.dragDocIdx === null || this.dragDocIdx === idx) return;
-      const arr = this.filteredDocuments;
-      const moved = arr[this.dragDocIdx];
-      arr.splice(this.dragDocIdx, 1);
-      arr.splice(idx, 0, moved);
-      // Синхронизируем с основным массивом (filteredDocuments computed — только чтение по ссылке)
+      const visible = this.filteredDocuments;
+      const movedDoc = visible[this.dragDocIdx];
+      const targetDoc = visible[idx];
+      const from = this.documents.indexOf(movedDoc);
+      if (from === -1) return;
+      this.documents.splice(from, 1);
+      const to = this.documents.indexOf(targetDoc);
+      this.documents.splice(to === -1 ? this.documents.length : to, 0, movedDoc);
       this.dragDocIdx = idx;
     },
     async onDragEnd() {
@@ -783,9 +790,8 @@ export default {
       const ids = this.filteredDocuments.map((d) => d.id);
       try {
         await reorderDocuments(groupId, ids);
-      } catch (e) {
-        // Порядок не критичен — тихо логируем
-        console.warn('reorderDocuments failed:', e);
+      } catch {
+        // порядок документов не критичен для пользователя — ошибку не показываем
       }
     },
 
@@ -959,8 +965,8 @@ export default {
         this.groups = [...this.editableGroups.map((g) => ({
           id: g.id, name: g.name, doc_count: g.doc_count, sort_order: g.sort_order,
         }))];
-      } catch (e) {
-        console.warn('reorderDocumentGroups failed:', e);
+      } catch {
+        // порядок групп не критичен для пользователя — ошибку не показываем
       }
     },
 
@@ -989,7 +995,7 @@ export default {
   display: flex;
   flex-direction: column;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 35px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
 }

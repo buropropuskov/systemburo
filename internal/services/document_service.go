@@ -227,14 +227,17 @@ func (s *documentService) Delete(ctx context.Context, id int) error {
 
 	storedName := doc.StoredName
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&models.Document{}, id).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка удаления документа")
 		}
-		// Удаляем файл с диска после успешного удаления из БД
-		s.fileSvc.Delete(storedName)
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// Удаляем файл с диска только после успешного коммита транзакции
+	s.fileSvc.Delete(storedName)
+	return nil
 }
 
 func (s *documentService) Reorder(ctx context.Context, req models.ReorderDocumentsRequest) error {
@@ -357,6 +360,9 @@ func (s *documentService) getItem(ctx context.Context, id int) (*models.Document
 	var item models.DocumentListItem
 	if err := s.selectQuery(s.db.WithContext(ctx)).Where("d.id = ?", id).Scan(&item).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения документа")
+	}
+	if item.ID == 0 {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Документ не найден")
 	}
 	return &item, nil
 }
