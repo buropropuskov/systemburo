@@ -19,6 +19,118 @@
         >
           Новые: {{ unreadCount }}
         </div>
+
+        <!-- Настройки звука -->
+        <div
+          ref="soundPopoverRef"
+          class="sound-btn-wrap"
+        >
+          <button
+            type="button"
+            class="sound-icon-btn"
+            :class="{ 'sound-icon-btn--active': soundStore.enabled }"
+            :aria-label="soundStore.enabled ? 'Настройки звука (включён)' : 'Настройки звука (выключен)'"
+            :title="soundStore.enabled ? 'Настройки звука (включён)' : 'Настройки звука (выключен)'"
+            @click="toggleSoundPopover"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M11 5 6 9H2v6h4l5 4V5z" />
+              <template v-if="soundStore.enabled">
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              </template>
+              <template v-else>
+                <line
+                  x1="23"
+                  y1="9"
+                  x2="17"
+                  y2="15"
+                />
+                <line
+                  x1="17"
+                  y1="9"
+                  x2="23"
+                  y2="15"
+                />
+              </template>
+            </svg>
+          </button>
+
+          <Transition name="sound-popover">
+            <div
+              v-if="showSoundPopover"
+              class="sound-popover"
+              role="dialog"
+              aria-label="Настройки звука"
+            >
+              <div class="sound-popover__header">
+                <span class="sound-popover__title">Звук уведомлений</span>
+                <label
+                  class="sound-toggle"
+                  :aria-label="soundStore.enabled ? 'Выключить звук' : 'Включить звук'"
+                >
+                  <input
+                    type="checkbox"
+                    class="sound-toggle__input"
+                    :checked="soundStore.enabled"
+                    @change="soundStore.setEnabled($event.target.checked)"
+                  >
+                  <span class="sound-toggle__track" />
+                </label>
+              </div>
+
+              <template v-if="soundStore.enabled">
+                <div class="sound-popover__field">
+                  <label class="sound-popover__label">Пресет</label>
+                  <select
+                    class="lk-select"
+                    :value="soundStore.selectedPreset"
+                    @change="soundStore.setPreset($event.target.value)"
+                  >
+                    <option
+                      v-for="p in soundPresets"
+                      :key="p.value"
+                      :value="p.value"
+                    >
+                      {{ p.label }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="sound-popover__field">
+                  <label class="sound-popover__label">Громкость {{ Math.round(soundStore.volume * 100) }}%</label>
+                  <input
+                    type="range"
+                    class="sound-volume"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    :value="soundStore.volume"
+                    @input="soundStore.setVolume($event.target.value)"
+                  >
+                </div>
+
+                <button
+                  type="button"
+                  class="lk-button lk-button--ghost sound-popover__preview"
+                  @click="previewSound"
+                >
+                  Прослушать
+                </button>
+              </template>
+            </div>
+          </Transition>
+        </div>
       </div>
     </header>
 
@@ -450,6 +562,8 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useSoundStore } from '@/stores/sound'
+import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
@@ -478,9 +592,15 @@ export default {
         Badge,
     },
     emits: ['refresh-data'],
+    setup() {
+        const soundStore = useSoundStore()
+        return { soundStore }
+    },
     data() {
         return {
             showDownloadModal: false,
+            showSoundPopover: false,
+            soundPresets: SOUND_PRESETS,
             downloadAppId: 0,
             downloadAppInfo: null,
             searchQuery: '',
@@ -709,6 +829,21 @@ export default {
         setTimeout(() => {
             this.isInitialLoad = false;
         }, 1000);
+
+        this._soundEscapeHandler = (e) => {
+            if (e.key === 'Escape' && this.showSoundPopover) {
+                this.showSoundPopover = false;
+            }
+        };
+        this._soundClickOutsideHandler = (e) => {
+            if (!this.showSoundPopover) return;
+            const wrap = this.$refs.soundPopoverRef;
+            if (wrap && !wrap.contains(e.target)) {
+                this.showSoundPopover = false;
+            }
+        };
+        document.addEventListener('keydown', this._soundEscapeHandler);
+        document.addEventListener('mousedown', this._soundClickOutsideHandler);
     },
     beforeUnmount() {
         if (this.shakeInterval) {
@@ -717,8 +852,16 @@ export default {
         if (this.applicationsPollInterval) {
             clearInterval(this.applicationsPollInterval);
         }
+        document.removeEventListener('keydown', this._soundEscapeHandler);
+        document.removeEventListener('mousedown', this._soundClickOutsideHandler);
     },
     methods: {
+        toggleSoundPopover() {
+            this.showSoundPopover = !this.showSoundPopover;
+        },
+        previewSound() {
+            playPreset(this.soundStore.selectedPreset, this.soundStore.volume);
+        },
         async copyApplicationNumber(number) {
             if (!number) return;
             try {
@@ -2160,5 +2303,154 @@ export default {
     .center__tabs {
         gap: 6px;
     }
+}
+
+/* Кнопка звука в шапке */
+.sound-btn-wrap {
+    position: relative;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.sound-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted, #888);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sound-icon-btn:hover {
+    background: var(--color-border, #e6e6e6);
+    color: #444;
+}
+
+.sound-icon-btn--active {
+    color: var(--color-primary);
+}
+
+.sound-icon-btn--active:hover {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+/* Поповер настроек звука */
+.sound-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 500;
+    width: 230px;
+    background: #fff;
+    border: 1px solid var(--color-border, #e6e6e6);
+    border-radius: 20px;
+    padding: 14px 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sound-popover__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sound-popover__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.sound-popover__field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sound-popover__label {
+    font-size: 11px;
+    color: var(--color-text-muted, #888);
+    font-weight: 500;
+}
+
+.sound-popover__preview {
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 5px 14px;
+}
+
+/* Переиспользуем из AccountComponent */
+.sound-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.sound-toggle__input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.sound-toggle__track {
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    background: var(--color-border, #e6e6e6);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+    position: relative;
+}
+
+.sound-toggle__track::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.sound-toggle__input:checked + .sound-toggle__track {
+    background: var(--color-primary);
+}
+
+.sound-toggle__input:checked + .sound-toggle__track::after {
+    transform: translateX(16px);
+}
+
+.sound-volume {
+    width: 100%;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+    height: 4px;
+    border-radius: 4px;
+}
+
+/* Анимация появления поповера */
+.sound-popover-enter-active,
+.sound-popover-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sound-popover-enter-from,
+.sound-popover-leave-to {
+    opacity: 0;
+    transform: translateY(-6px);
 }
 </style>
