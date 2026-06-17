@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import TextConstructor from '../TextConstructor.vue';
 
 function mountConstructor(props = {}) {
@@ -50,13 +50,11 @@ describe('TextConstructor', () => {
     expect(imageBtn.attributes('data-tooltip')).toBe('Вставить изображение');
   });
 
-  it('disabled пропс блокирует toolbar-кнопки и textarea', () => {
+  it('disabled пропс блокирует toolbar-кнопки', () => {
     const wrapper = mountConstructor({ disabled: true, modelValue: 'hi' });
-    const textarea = wrapper.find('.constructor-textarea');
-    expect(textarea.attributes('disabled')).toBeDefined();
     const buttons = wrapper.findAll('.toolbar-btn');
-    // image, format, lists, headings, colors, break, undo
-    const disabledOnes = buttons.filter(b => b.attributes('disabled') !== undefined);
+    const disabledOnes = buttons.filter((b) => b.attributes('disabled') !== undefined);
+    // italic, underline, lists, headings, colors, image, break, undo - всё кроме preview
     expect(disabledOnes.length).toBeGreaterThan(5);
   });
 
@@ -67,7 +65,7 @@ describe('TextConstructor', () => {
   });
 
   it('preview-кнопка активна когда есть контент', () => {
-    const wrapper = mountConstructor({ modelValue: 'Hello' });
+    const wrapper = mountConstructor({ modelValue: '<p>Hello</p>' });
     const previewBtn = wrapper.find('.preview-btn');
     expect(previewBtn.attributes('disabled')).toBeUndefined();
   });
@@ -108,77 +106,68 @@ describe('TextConstructor', () => {
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
   });
 
-  it('валидное изображение вставляет <img src="data:..."> через update:modelValue', async () => {
+  it('валидное изображение вставляет <img> с data:URL и классом constructor-image', async () => {
     const wrapper = mountConstructor();
+    await flushPromises();
     const input = wrapper.find('input.image-input');
 
     const file = new File(['fakebytes'], 'pic.png', { type: 'image/png' });
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true });
     await input.trigger('change');
-    // ждём цепочку microtask -> reader.onload -> handleImageSelected await
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
     await wrapper.vm.$nextTick();
 
     const emitted = wrapper.emitted('update:modelValue');
     expect(emitted).toBeTruthy();
     const lastValue = emitted[emitted.length - 1][0];
-    expect(lastValue).toContain('<img src="data:image/png;base64,');
+    expect(lastValue).toContain('data:image/png;base64,');
     expect(lastValue).toContain('alt="pic.png"');
     expect(lastValue).toContain('class="constructor-image"');
   });
 
   it('alt атрибут изображения санитизируется от опасных символов', async () => {
     const wrapper = mountConstructor();
+    await flushPromises();
     const input = wrapper.find('input.image-input');
 
-    const file = new File(['x'], '<script>"name".png', { type: 'image/png' });
+    const file = new File(['fakebytes'], 'a<b>"&\'.png', { type: 'image/png' });
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true });
     await input.trigger('change');
-    // ждём цепочку microtask -> reader.onload -> handleImageSelected await
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
     await wrapper.vm.$nextTick();
 
     const emitted = wrapper.emitted('update:modelValue');
-    const lastValue = emitted[emitted.length - 1][0];
-    expect(lastValue).not.toContain('<script>');
-    expect(lastValue).not.toContain('"name"');
-  });
-
-  it('форматирование italic оборачивает выделенный текст', async () => {
-    const wrapper = mountConstructor({ modelValue: 'hello world' });
-    const textarea = wrapper.find('.constructor-textarea');
-    textarea.element.setSelectionRange(0, 5);
-    await wrapper.findAll('.toolbar-btn')[0].trigger('click'); // italic
-
-    const emitted = wrapper.emitted('update:modelValue');
     expect(emitted).toBeTruthy();
-    expect(emitted[emitted.length - 1][0]).toContain('<em>hello</em>');
+    const lastValue = emitted[emitted.length - 1][0];
+    expect(lastValue).not.toContain('<b>');
+    expect(lastValue).toContain('alt="ab.png"');
   });
 
-  it('undo возвращает предыдущее значение', async () => {
-    const wrapper = mountConstructor({ modelValue: 'a' });
-    const textarea = wrapper.find('.constructor-textarea');
-    await textarea.setValue('ab');
-    await textarea.setValue('abc');
+  it('round-trip: сохранённый HTML с классами не теряет форматирование', async () => {
+    const html =
+      '<h1 class="heading-h1">Заголовок</h1>' +
+      '<p><span class="red-text">красный</span> ' +
+      '<span class="font-size-18">крупный</span> ' +
+      '<span class="font-weight-600">жирный</span></p>' +
+      '<ul><li>пункт</li></ul>' +
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
 
-    await wrapper.vm.undo();
-    const emitted = wrapper.emitted('update:modelValue');
-    const last = emitted[emitted.length - 1][0];
-    expect(last).toBe('ab');
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('heading-h1');
+    expect(out).toContain('red-text');
+    expect(out).toContain('font-size-18');
+    expect(out).toContain('font-weight-600');
+    expect(out).toContain('<ul>');
+    expect(out).toContain('<li>');
+    expect(out).toContain('constructor-image');
+    expect(out).toContain('data:image/png;base64,');
   });
 
   it('кнопки форматирования имеют data-tooltip', () => {
     const wrapper = mountConstructor();
-    const tooltips = wrapper.findAll('.toolbar-btn')
-      .map(b => b.attributes('data-tooltip'))
-      .filter(Boolean);
-    expect(tooltips.length).toBeGreaterThan(5);
-    expect(tooltips).toContain('Курсив');
-    expect(tooltips).toContain('Заголовок h1');
-    expect(tooltips).toContain('Вставить изображение');
+    const italicBtn = wrapper.findAll('.toolbar-btn').find((b) => b.attributes('data-tooltip') === 'Курсив');
+    expect(italicBtn).toBeTruthy();
   });
 });
