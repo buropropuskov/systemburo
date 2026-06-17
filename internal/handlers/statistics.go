@@ -134,3 +134,21 @@ func (h *StatisticsHandler) GetRecentPassages(c echo.Context) error {
 	}
 	return RespondSuccess(c, passages)
 }
+
+// GetMetrics godoc
+// @Summary      Каталог конструктора отчётов
+// @Description  Whitelist метрик, разрезов, фильтров и list-сущностей со значениями динамических справочников
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} Response
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/metrics [get]
+func (h *StatisticsHandler) GetMetrics(c echo.Context) error {
+	catalog, err := h.service.GetReportCatalog(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, catalog)
+}

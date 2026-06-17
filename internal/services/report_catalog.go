@@ -1,0 +1,311 @@
+package services
+
+import "systemburo/internal/models"
+
+// Реестры конструктора отчётов — единый whitelist для каталога (B1) и движка
+// исполнения (B2). Все SQL-фрагменты здесь — статические константы кода; ввод
+// пользователя сверяется по ключам этих карт и никогда не конкатенируется в SQL.
+// Клиенту отдаётся только метаданные (ключи/подписи/значения справочников),
+// SQL-выражения наружу не выходят (неэкспортируемые поля, не сериализуются).
+
+// optionsSource указывает GetReportCatalog, откуда взять значения для dict-фильтра.
+type optionsSource string
+
+const (
+	srcNone            optionsSource = ""
+	srcStatuses        optionsSource = "statuses"
+	srcOrganizations   optionsSource = "organizations"
+	srcCompanies       optionsSource = "companies"
+	srcAttachmentTypes optionsSource = "attachment_types"
+	srcCitizenships    optionsSource = "citizenships"
+	srcUnloadPlaces    optionsSource = "unload_places"
+)
+
+// metricDef — агрегатная метрика. baseTable/aggExpr/baseFilter — безопасные
+// константы для сборки запроса движком B2; dimensions ограничивает разрезы.
+type metricDef struct {
+	label      string
+	unit       string
+	baseTable  string
+	aggExpr    string
+	baseFilter string
+	dimensions []string
+}
+
+// dimensionDef — разрез группировки. Конкретное GROUP BY-выражение и join-путь
+// зависят от метрики и резолвятся движком B2; здесь — только подпись для UI.
+type dimensionDef struct {
+	label string
+}
+
+// filterDef — поле фильтра. source задаёт справочник значений для dict-типа.
+type filterDef struct {
+	label  string
+	typ    models.ReportFieldType
+	source optionsSource
+}
+
+// listColumnDef — столбец list-режима (ключ + подпись).
+type listColumnDef struct {
+	key   string
+	label string
+}
+
+// listEntityDef — сущность list-режима: набор столбцов и применимых фильтров.
+type listEntityDef struct {
+	label   string
+	columns []listColumnDef
+	filters []string
+}
+
+// Порядок ключей фиксируется явно — карты в Go неупорядочены, а каталог должен
+// отдаваться стабильно (детерминированный ответ, удобный для тестов и кэша).
+
+var reportMetricOrder = []string{
+	"applications_count",
+	"car_entries_count",
+	"people_entries_count",
+	"items_sum",
+}
+
+var reportMetricRegistry = map[string]metricDef{
+	"applications_count": {
+		label:      "Количество заявок",
+		unit:       "шт",
+		baseTable:  "applications",
+		aggExpr:    "COUNT(*)",
+		dimensions: []string{"status", "organization", "company", "attachment_type", "period"},
+	},
+	"car_entries_count": {
+		label:      "Въезды машин",
+		unit:       "шт",
+		baseTable:  "cars_history",
+		aggExpr:    "COUNT(*)",
+		baseFilter: "action_type = 'entry'",
+		dimensions: []string{"period", "hour_of_day", "unload_place", "organization"},
+	},
+	"people_entries_count": {
+		label:      "Входы людей",
+		unit:       "шт",
+		baseTable:  "employees_history",
+		aggExpr:    "COUNT(*)",
+		baseFilter: "action_type = 'entry'",
+		dimensions: []string{"period", "hour_of_day", "organization"},
+	},
+	"items_sum": {
+		label:      "Количество товаров",
+		unit:       "шт",
+		baseTable:  "items",
+		aggExpr:    "COALESCE(SUM(items.count), 0)",
+		dimensions: []string{"organization", "company", "period"},
+	},
+}
+
+var reportDimensionOrder = []string{
+	"status",
+	"organization",
+	"company",
+	"attachment_type",
+	"unload_place",
+	"period",
+	"hour_of_day",
+}
+
+var reportDimensionRegistry = map[string]dimensionDef{
+	"status":          {label: "Статус заявки"},
+	"organization":    {label: "Организация"},
+	"company":         {label: "Компания"},
+	"attachment_type": {label: "Тип вложения"},
+	"unload_place":    {label: "Место разгрузки"},
+	"period":          {label: "Период (дата)"},
+	"hour_of_day":     {label: "Час суток"},
+}
+
+var reportFilterOrder = []string{
+	"date_range",
+	"status",
+	"organization",
+	"company",
+	"attachment_type",
+	"citizenship",
+	"unload_place",
+}
+
+var reportFilterRegistry = map[string]filterDef{
+	"date_range":      {label: "Период", typ: models.ReportFieldDate, source: srcNone},
+	"status":          {label: "Статус заявки", typ: models.ReportFieldEnum, source: srcStatuses},
+	"organization":    {label: "Организация", typ: models.ReportFieldDict, source: srcOrganizations},
+	"company":         {label: "Компания", typ: models.ReportFieldDict, source: srcCompanies},
+	"attachment_type": {label: "Тип вложения", typ: models.ReportFieldDict, source: srcAttachmentTypes},
+	"citizenship":     {label: "Гражданство", typ: models.ReportFieldDict, source: srcCitizenships},
+	"unload_place":    {label: "Место разгрузки", typ: models.ReportFieldDict, source: srcUnloadPlaces},
+}
+
+var reportListEntityOrder = []string{
+	"work_applications",
+	"applications",
+	"cars",
+	"people",
+}
+
+var reportListEntityRegistry = map[string]listEntityDef{
+	"work_applications": {
+		label: "Заявка на работы",
+		columns: []listColumnDef{
+			{key: "number", label: "Номер заявки"},
+			{key: "org_or_company", label: "Организация/Компания"},
+			{key: "work_name", label: "Наименование работ"},
+			{key: "responsible", label: "Ответственный"},
+			{key: "work_period", label: "Период работ"},
+			{key: "work_time", label: "Время работ"},
+			{key: "people_count", label: "Кол-во людей"},
+		},
+		filters: []string{"date_range", "organization", "status"},
+	},
+	"applications": {
+		label: "Заявки",
+		columns: []listColumnDef{
+			{key: "number", label: "Номер заявки"},
+			{key: "status", label: "Статус"},
+			{key: "organization", label: "Организация"},
+			{key: "company", label: "Компания"},
+			{key: "sending_datetime", label: "Дата подачи"},
+			{key: "attachments_count", label: "Вложений"},
+		},
+		filters: []string{"date_range", "status", "organization", "company"},
+	},
+	"cars": {
+		label: "Машины",
+		columns: []listColumnDef{
+			{key: "car_number", label: "Гос. номер"},
+			{key: "mark", label: "Марка"},
+			{key: "organization", label: "Организация"},
+			{key: "place", label: "Место разгрузки"},
+			{key: "territory_status", label: "На территории"},
+		},
+		filters: []string{"organization", "unload_place"},
+	},
+	"people": {
+		label: "Люди",
+		columns: []listColumnDef{
+			{key: "full_name", label: "ФИО"},
+			{key: "organization", label: "Организация"},
+			{key: "citizenship", label: "Гражданство"},
+			{key: "place", label: "Место разгрузки"},
+			{key: "territory_status", label: "На территории"},
+		},
+		filters: []string{"organization", "citizenship"},
+	},
+}
+
+// reportGranularities — допустимые гранулярности для разреза "period".
+// Совпадают с whitelist GetTimeline (resolveTimelineSource).
+var reportGranularities = []models.ReportOption{
+	{Value: "day", Label: "По дням"},
+	{Value: "week", Label: "По неделям"},
+	{Value: "month", Label: "По месяцам"},
+}
+
+// statusOptions — статичные значения enum-фильтра "status".
+func statusOptions() []models.ReportOption {
+	statuses := []string{
+		models.StatusUnread,
+		models.StatusProcessing,
+		models.StatusApproval,
+		models.StatusApproved,
+		models.StatusRejected,
+		models.StatusInWork,
+		models.StatusCompleted,
+		models.StatusRefused,
+	}
+	opts := make([]models.ReportOption, 0, len(statuses))
+	for _, s := range statuses {
+		opts = append(opts, models.ReportOption{Value: s, Label: s})
+	}
+	return opts
+}
+
+// dynamicReportOptions — значения динамических справочников, подгружаемые из БД
+// и подставляемые в dict-фильтры каталога.
+type dynamicReportOptions struct {
+	organizations   []models.ReportOption
+	companies       []models.ReportOption
+	attachmentTypes []models.ReportOption
+	citizenships    []models.ReportOption
+	unloadPlaces    []models.ReportOption
+}
+
+// optionsFor возвращает значения для фильтра по его source.
+func (d dynamicReportOptions) optionsFor(src optionsSource) []models.ReportOption {
+	switch src {
+	case srcStatuses:
+		return statusOptions()
+	case srcOrganizations:
+		return d.organizations
+	case srcCompanies:
+		return d.companies
+	case srcAttachmentTypes:
+		return d.attachmentTypes
+	case srcCitizenships:
+		return d.citizenships
+	case srcUnloadPlaces:
+		return d.unloadPlaces
+	default:
+		return nil
+	}
+}
+
+// buildReportCatalog собирает каталог из whitelist-реестров и подгруженных
+// значений справочников. Чистая функция (без БД) — тестируется напрямую.
+func buildReportCatalog(dyn dynamicReportOptions) models.ReportCatalog {
+	cat := models.ReportCatalog{
+		Metrics:       make([]models.ReportMetricInfo, 0, len(reportMetricOrder)),
+		Dimensions:    make([]models.ReportDimensionInfo, 0, len(reportDimensionOrder)),
+		Filters:       make([]models.ReportFilterInfo, 0, len(reportFilterOrder)),
+		ListEntities:  make([]models.ReportListEntityInfo, 0, len(reportListEntityOrder)),
+		Granularities: reportGranularities,
+	}
+
+	for _, key := range reportMetricOrder {
+		def := reportMetricRegistry[key]
+		cat.Metrics = append(cat.Metrics, models.ReportMetricInfo{
+			Key:        key,
+			Label:      def.label,
+			Unit:       def.unit,
+			Dimensions: def.dimensions,
+		})
+	}
+
+	for _, key := range reportDimensionOrder {
+		cat.Dimensions = append(cat.Dimensions, models.ReportDimensionInfo{
+			Key:   key,
+			Label: reportDimensionRegistry[key].label,
+		})
+	}
+
+	for _, key := range reportFilterOrder {
+		def := reportFilterRegistry[key]
+		cat.Filters = append(cat.Filters, models.ReportFilterInfo{
+			Key:     key,
+			Label:   def.label,
+			Type:    def.typ,
+			Options: dyn.optionsFor(def.source),
+		})
+	}
+
+	for _, key := range reportListEntityOrder {
+		def := reportListEntityRegistry[key]
+		cols := make([]models.ReportColumnInfo, 0, len(def.columns))
+		for _, c := range def.columns {
+			cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label})
+		}
+		cat.ListEntities = append(cat.ListEntities, models.ReportListEntityInfo{
+			Key:     key,
+			Label:   def.label,
+			Columns: cols,
+			Filters: def.filters,
+		})
+	}
+
+	return cat
+}
