@@ -197,6 +197,12 @@ const routes = [
     meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
   },
   {
+    path: '/analytics',
+    name: 'analytics',
+    component: () => import('./views/StatisticsView.vue'),
+    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.statistics' }
+  },
+  {
     path: '/500',
     name: 'Error500',
     component: () => import('./views/Error500.vue'),
