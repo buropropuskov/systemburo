@@ -6,7 +6,7 @@
       </h1>
       <button
         class="tables__instruction"
-        @click="showInstruction = true"
+        @click="openInstruction"
       >
         <img
           src="@/assets/icons/instruction.png"
@@ -20,41 +20,47 @@
         
     <!-- Модальное окно с инструкцией -->
     <Teleport to="body">
-      <div
-        v-if="showInstruction"
-        class="modal-overlay"
-        @click.self="showInstruction = false"
-      >
-        <div class="instruction-modal-large">
-          <div class="modal-header">
-            <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
-            <button
-              class="modal-close"
-              @click="showInstruction = false"
-            >
-              ×
-            </button>
-          </div>
-          <div class="instruction-content">
-            <div
-              v-if="tableInstruction"
-              class="text-constructor-content"
-              v-html="sanitizedInstruction"
-            />
-            <div
-              v-else
-              class="no-instruction"
-            >
-              <div class="no-instruction-icon">
-                📝
+      <transition name="instruction-modal">
+        <div
+          v-if="showInstruction"
+          class="modal-overlay"
+          @mousedown="onOverlayMousedown"
+          @mouseup="onOverlayMouseup"
+        >
+          <div
+            class="instruction-modal-large"
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <h3>Инструкция по использованию таблицы <span class="blue">{{ tableDisplayName }}</span></h3>
+              <button
+                class="modal-close"
+                @click="closeInstruction"
+              >
+                ×
+              </button>
+            </div>
+            <div class="instruction-content">
+              <div
+                v-if="tableInstruction"
+                class="text-constructor-content"
+                v-html="sanitizedInstruction"
+              />
+              <div
+                v-else
+                class="no-instruction"
+              >
+                <div class="no-instruction-icon">
+                  📝
+                </div>
+                <h4>Инструкция не добавлена</h4>
+                <p>Для этой таблицы пока не создана и не написана инструкция.</p>
+                <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
               </div>
-              <h4>Инструкция не добавлена</h4>
-              <p>Для этой таблицы пока не создана и не написана инструкция.</p>
-              <p>Обратитесь к Бюро пропусков для добавления инструкции.</p>
             </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <div class="tables__filters">
@@ -238,8 +244,10 @@
 </template>
 
 <script>
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { apiRequest } from '@/api/client'
 import { sanitizeHtml } from '@/utils/sanitize';
+import { useOverlayClose } from '@/composables/useOverlayClose';
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
 import DateFilter from './DateFilter.vue';
@@ -262,6 +270,28 @@ export default {
         TableExportModal,
     },
     emits: ['refresh-data'],
+    setup() {
+        const showInstruction = ref(false);
+        const openInstruction = () => { showInstruction.value = true; };
+        const closeInstruction = () => { showInstruction.value = false; };
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(closeInstruction);
+
+        const onKeydown = (e) => {
+            if (e.key === 'Escape' && showInstruction.value) closeInstruction();
+        };
+
+        watch(showInstruction, (open) => {
+            document.body.style.overflow = open ? 'hidden' : '';
+        });
+
+        onMounted(() => document.addEventListener('keydown', onKeydown));
+        onBeforeUnmount(() => {
+            document.removeEventListener('keydown', onKeydown);
+            document.body.style.overflow = '';
+        });
+
+        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup };
+    },
     data() {
         return {
             tableData: null,
@@ -277,7 +307,6 @@ export default {
             organizations: [],
             companies: [],
 
-            showInstruction: false,
             selectedDate: null,
             dateRangeStart: null,
             dateRangeEnd: null,
@@ -938,7 +967,7 @@ export default {
 
 .instruction-modal-large {
     background: #fff;
-    border-radius: 16px;
+    border-radius: 30px;
     padding: 0;
     max-width: 700px;
     width: 100%;
@@ -946,6 +975,27 @@ export default {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
+}
+
+.instruction-modal-enter-active,
+.instruction-modal-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.instruction-modal-enter-active .instruction-modal-large,
+.instruction-modal-leave-active .instruction-modal-large {
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+.instruction-modal-enter-from,
+.instruction-modal-leave-to {
+    opacity: 0;
+}
+
+.instruction-modal-enter-from .instruction-modal-large,
+.instruction-modal-leave-to .instruction-modal-large {
+    transform: translateY(20px);
+    opacity: 0;
 }
 
 .modal-header {
