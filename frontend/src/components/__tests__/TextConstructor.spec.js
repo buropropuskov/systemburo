@@ -165,6 +165,47 @@ describe('TextConstructor', () => {
     expect(out).toContain('data:image/png;base64,');
   });
 
+  it('round-trip: ширина картинки сохраняется в атрибуте width', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" width="240">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('width="240"');
+    expect(out).toContain('constructor-image');
+  });
+
+  it('ширину из inline-style парсит и сериализует в атрибут width', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" style="width: 180px">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('width="180"');
+  });
+
+  it('картинка без размера не получает атрибут width', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).not.toContain('width=');
+  });
+
+  it('нулевая ширина не сериализуется (невалидный размер)', async () => {
+    const html =
+      '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="pic" width="0">';
+    const wrapper = mountConstructor({ modelValue: html });
+    await flushPromises();
+
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).not.toContain('width=');
+  });
+
   it('кнопки форматирования имеют data-tooltip', () => {
     const wrapper = mountConstructor();
     const italicBtn = wrapper.findAll('.toolbar-btn').find((b) => b.attributes('data-tooltip') === 'Курсив');
