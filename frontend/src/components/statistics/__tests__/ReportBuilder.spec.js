@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
@@ -113,5 +113,50 @@ describe('ReportBuilder', () => {
     await clickBuild(wrapper);
 
     expect(lastRun(wrapper).dimension).toBe('status');
+  });
+
+  it('применяет aggregate-пресет и сразу строит отчёт', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({
+      preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' },
+    });
+    await flushPromises();
+
+    const req = lastRun(wrapper);
+    expect(req.mode).toBe('aggregate');
+    expect(req.metric).toBe('applications_count');
+    expect(req.dimension).toBe('status');
+    expect(req.filters).toContainEqual({ key: 'date_range', from: '2026-06-01', to: '2026-06-07' });
+  });
+
+  it('применяет list-пресет и сразу строит отчёт', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({ preset: { mode: 'list', entity: 'cars' } });
+    await flushPromises();
+
+    const req = lastRun(wrapper);
+    expect(req.mode).toBe('list');
+    expect(req.entity).toBe('cars');
+    // У машин нет date_range -> период не попадает в запрос.
+    expect(req.filters.find((f) => f.key === 'date_range')).toBeUndefined();
+  });
+
+  it('повторное применение пресета новым объектом (тот же контент) строит заново', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
+    await flushPromises();
+    const firstCount = wrapper.emitted('run').length;
+
+    // ReportsTab отдаёт { ...preset.form } на каждый клик — новый объект с тем же
+    // содержимым должен повторно дёрнуть watch и построить отчёт заново.
+    await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
+    await flushPromises();
+    expect(wrapper.emitted('run').length).toBe(firstCount + 1);
   });
 });
