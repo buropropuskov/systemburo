@@ -76,29 +76,15 @@
           />
         </div>
 
-        <!-- Отчёты (заглушка) -->
+        <!-- Отчёты -->
         <div
           v-else
-          class="statistics__panel statistics__placeholder"
+          class="statistics__panel"
         >
-          <div class="statistics__placeholder-inner">
-            <svg
-              width="48"
-              height="48"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M3 3v18h18" />
-              <path d="M7 14l3-4 3 3 4-6" />
-            </svg>
-            <p>Раздел в разработке</p>
-            <span>Готовые отчёты и конструктор выборок появятся здесь в ближайших обновлениях.</span>
-          </div>
+          <ReportsTab
+            :from="fromStr"
+            :to="toStr"
+          />
         </div>
       </div>
     </div>
@@ -117,6 +103,7 @@ import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatisticsDashboard from '@/components/statistics/StatisticsDashboard.vue';
+import ReportsTab from '@/components/statistics/ReportsTab.vue';
 import AnalyticsInstructionModal from '@/components/statistics/AnalyticsInstructionModal.vue';
 
 // ---- вкладки ----
@@ -286,40 +273,6 @@ function onRefresh() {
 
 .statistics__panel {
   padding: 26px 28px 40px;
-}
-
-/* Заглушка отчётов */
-.statistics__placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
-}
-
-.statistics__placeholder-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-  color: var(--color-text-muted);
-}
-
-.statistics__placeholder-inner svg {
-  opacity: 0.35;
-}
-
-.statistics__placeholder-inner p {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--color-text);
-  margin: 0;
-}
-
-.statistics__placeholder-inner span {
-  font-size: 13px;
-  line-height: 1.5;
-  max-width: 340px;
 }
 
 /* management-header / management-title подхватываются из AdminPageShell :deep */

@@ -64,3 +64,40 @@ export async function getRecentPassages(limit = 15) {
   const res = await apiRequest(`/statistics/recent-passages?limit=${limit}`);
   return res.json();
 }
+
+/**
+ * Получить каталог конструктора отчётов: whitelist метрик, разрезов, фильтров
+ * и list-сущностей с подставленными значениями динамических справочников.
+ * @returns {Promise<{
+ *   metrics: Array<{key: string, label: string, unit?: string, dimensions: string[]}>,
+ *   dimensions: Array<{key: string, label: string}>,
+ *   filters: Array<{key: string, label: string, type: 'date'|'enum'|'dict', options?: Array<{value: string, label: string}>}>,
+ *   list_entities: Array<{key: string, label: string, columns: Array<{key: string, label: string}>, filters: string[]}>,
+ *   granularities: Array<{value: string, label: string}>,
+ * }>}
+ */
+export async function getReportCatalog() {
+  const res = await apiRequest('/statistics/metrics');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Не удалось загрузить каталог отчётов');
+  return data;
+}
+
+/**
+ * Исполнить отчёт конструктора.
+ * @param {{
+ *   mode: 'aggregate'|'list', metric?: string, dimension?: string, granularity?: string,
+ *   entity?: string, filters?: Array<{key: string, values?: string[], from?: string, to?: string}>,
+ *   sort?: string, limit?: number
+ * }} request
+ * @returns {Promise<object>} ReportResponse (aggregate) или ReportListResponse (list)
+ */
+export async function runReport(request) {
+  const res = await apiRequest('/statistics/report', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Не удалось построить отчёт');
+  return data;
+}
