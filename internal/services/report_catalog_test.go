@@ -84,6 +84,55 @@ func TestReportRegistries_Consistency(t *testing.T) {
 	}
 }
 
+// TestMetricApplicableFilters проверяет, что каталог отдаёт per-metric фильтры,
+// каждый из них исполним движком (date_range или есть в aggMetricRegistry.filters),
+// date_range присутствует у всех метрик, а порядок совпадает с reportFilterOrder.
+func TestMetricApplicableFilters(t *testing.T) {
+	cat := buildReportCatalog(dynamicReportOptions{})
+	for _, m := range cat.Metrics {
+		if len(m.Filters) == 0 {
+			t.Errorf("метрика %q без применимых фильтров", m.Key)
+			continue
+		}
+		var hasDateRange bool
+		schema := aggMetricRegistry[m.Key]
+		prev := -1
+		for _, f := range m.Filters {
+			if f == "date_range" {
+				hasDateRange = true
+			} else {
+				if _, ok := schema.filters[f]; !ok {
+					t.Errorf("метрика %q публикует фильтр %q, не исполнимый движком", m.Key, f)
+				}
+				if _, ok := reportFilterRegistry[f]; !ok {
+					t.Errorf("метрика %q публикует фильтр %q без записи в каталоге фильтров", m.Key, f)
+				}
+			}
+			// порядок — подпоследовательность reportFilterOrder.
+			idx := indexOf(reportFilterOrder, f)
+			if idx < 0 {
+				t.Errorf("фильтр %q вне reportFilterOrder", f)
+			} else if idx <= prev {
+				t.Errorf("метрика %q: фильтры не в порядке reportFilterOrder (%v)", m.Key, m.Filters)
+			} else {
+				prev = idx
+			}
+		}
+		if !hasDateRange {
+			t.Errorf("метрика %q: date_range должен быть применим (период по tsColumn)", m.Key)
+		}
+	}
+}
+
+func indexOf(list []string, v string) int {
+	for i, s := range list {
+		if s == v {
+			return i
+		}
+	}
+	return -1
+}
+
 // TestBuildReportCatalog_DynamicOptions проверяет подстановку значений
 // динамических справочников в соответствующие dict-фильтры.
 func TestBuildReportCatalog_DynamicOptions(t *testing.T) {
