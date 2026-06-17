@@ -104,8 +104,9 @@ function startResize(event, handle) {
 
     width = Math.max(MIN_SIZE, Math.min(Math.round(width), limit));
     height = Math.max(MIN_SIZE, Math.round(height));
-    // У границы редактора ширина упёрлась в лимит - пересчитываем высоту, чтобы Shift-пропорция не ломалась.
-    if (e.shiftKey && handle.sx !== 0) {
+    // При Shift держим пропорцию даже у границы редактора: высоту всегда пересчитываем из
+    // финальной (возможно урезанной лимитом) ширины - симметрично для угловых и боковых маркеров.
+    if (e.shiftKey) {
       height = Math.max(MIN_SIZE, Math.round(width / ratio));
     }
 
