@@ -1,61 +1,9 @@
 <template>
   <div
     class="text-constructor"
-    :class="{ 'is-disabled': disabled, 'has-collapsible-toolbar': collapsibleToolbar }"
+    :class="{ 'is-disabled': disabled }"
   >
-    <button
-      v-if="collapsibleToolbar"
-      type="button"
-      class="toolbar-toggle"
-      :class="{ 'is-open': toolbarExpanded }"
-      :disabled="disabled"
-      :aria-expanded="toolbarExpanded ? 'true' : 'false'"
-      @click="toolbarExpanded = !toolbarExpanded"
-    >
-      <svg
-        class="toolbar-toggle-icon"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <polyline points="4 7 4 4 20 4 20 7" />
-        <line
-          x1="9"
-          y1="20"
-          x2="15"
-          y2="20"
-        />
-        <line
-          x1="12"
-          y1="4"
-          x2="12"
-          y2="20"
-        />
-      </svg>
-      <span>Форматирование</span>
-      <svg
-        class="toolbar-toggle-chevron"
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <polyline points="6 9 12 15 18 9" />
-      </svg>
-    </button>
-    <div
-      v-show="showToolbar"
-      class="editor-toolbar"
-    >
+    <div class="editor-toolbar">
       <div class="toolbar-group">
         <button
           type="button"
@@ -502,13 +450,9 @@ const props = defineProps({
   rows: { type: Number, default: 4 },
   disabled: { type: Boolean, default: false },
   maxImageBytes: { type: Number, default: 5 * 1024 * 1024 },
-  collapsibleToolbar: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue']);
-
-const toolbarExpanded = ref(false);
-const showToolbar = computed(() => !props.collapsibleToolbar || toolbarExpanded.value);
 
 const fontSizes = ['10px', '12px', '14px', '16px', '18px', '20px'];
 const fontWeights = [
@@ -724,56 +668,6 @@ defineExpose({ editor });
   border-bottom: 1px solid var(--color-border);
 }
 
-.toolbar-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 10px;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: #fff;
-  color: #1a1a1a;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.toolbar-toggle:hover:not(:disabled) {
-  background: #f4f5ff;
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.toolbar-toggle.is-open {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
-}
-
-.toolbar-toggle:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.toolbar-toggle-chevron {
-  transition: transform 0.2s ease;
-}
-
-.toolbar-toggle.is-open .toolbar-toggle-chevron {
-  transform: rotate(180deg);
-}
-
-.has-collapsible-toolbar .editor-toolbar {
-  animation: tc-toolbar-in 0.2s ease;
-}
-
-@keyframes tc-toolbar-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .toolbar-group {
   display: flex;
   align-items: center;
@@ -954,6 +848,16 @@ defineExpose({ editor });
   padding: 6px 14px 10px;
   color: #d92d20;
   font-size: 12px;
+}
+
+.preview-modal-content {
+  padding: 24px 28px;
+  max-height: 70vh;
+  overflow-y: auto;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  word-break: break-word;
 }
 
 /* Рендер форматирования внутри редактора и в модалке предпросмотра (round-trip с потребителями) */

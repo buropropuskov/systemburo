@@ -67,7 +67,6 @@
             <TextConstructor
               v-model="message"
               class="form__message-tc"
-              :collapsible-toolbar="true"
               :rows="2"
               placeholder="Введите сопроводительное письмо / сообщение"
             />
@@ -2271,9 +2270,10 @@ export default {
         align-items: flex-start;
     }
 
-    .form__message-tc {
+    .create__form .form__message-tc {
         width: 55%;
         margin-bottom: 0;
+        border-radius: 30px;
     }
 
     .header__right {
