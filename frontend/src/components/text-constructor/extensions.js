@@ -1,6 +1,8 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
+import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import Heading from '@tiptap/extension-heading';
 import Image from '@tiptap/extension-image';
+import ResizableImage from './ResizableImage.vue';
 
 /**
  * Класс-ориентированные марки TextConstructor.
@@ -115,7 +117,12 @@ export const ClassHeading = Heading.extend({
 
 /**
  * Image с классом `constructor-image` и поддержкой data:URL (картинки вставляются в base64).
- * Размер картинки настраивается в отдельном срезе (image-resize); здесь - паритет со старым редактором.
+ *
+ * Размер настраивается перетаскиванием маркера (NodeView `ResizableImage.vue`): ширина хранится
+ * в HTML-атрибуте `width` (число px) и round-trip'ит через него. Атрибут `width` проходит санитайзер
+ * DOMPurify по умолчанию (см. utils/sanitize.js + sanitize.spec.js), поэтому размер переживает
+ * сохранение/перезагрузку. Без заданной ширины картинка рендерится в натуральном размере и
+ * ограничена `max-width:100%` у потребителей (не растягивается на максимум).
  */
 export const ConstructorImage = Image.extend({
   addOptions() {
@@ -125,5 +132,26 @@ export const ConstructorImage = Image.extend({
       allowBase64: true,
       HTMLAttributes: { class: 'constructor-image' },
     };
+  },
+
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element) => {
+          const attr = element.getAttribute('width');
+          if (attr && /^\d+(?:\.\d+)?$/.test(attr)) return Math.round(parseFloat(attr));
+          const styleWidth = element.style?.width || '';
+          const match = styleWidth.match(/^(\d+(?:\.\d+)?)px$/);
+          return match ? Math.round(parseFloat(match[1])) : null;
+        },
+        renderHTML: (attributes) => (attributes.width ? { width: attributes.width } : {}),
+      },
+    };
+  },
+
+  addNodeView() {
+    return VueNodeViewRenderer(ResizableImage);
   },
 });

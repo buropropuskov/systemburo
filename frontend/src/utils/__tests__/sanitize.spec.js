@@ -1,0 +1,34 @@
+import { describe, it, expect } from 'vitest';
+import { sanitizeHtml } from '../sanitize';
+
+describe('sanitizeHtml', () => {
+  it('пустой/falsy вход даёт пустую строку', () => {
+    expect(sanitizeHtml('')).toBe('');
+    expect(sanitizeHtml(null)).toBe('');
+    expect(sanitizeHtml(undefined)).toBe('');
+  });
+
+  it('сохраняет атрибут width у картинки (механизм ресайза round-trip)', () => {
+    const html = '<img class="constructor-image" src="data:image/png;base64,ZmFrZQ==" alt="x" width="320">';
+    const out = sanitizeHtml(html);
+    expect(out).toContain('width="320"');
+    expect(out).toContain('class="constructor-image"');
+    expect(out).toContain('data:image/png;base64,');
+  });
+
+  it('сохраняет классы форматирования (цвета, размер, жирность)', () => {
+    const html =
+      '<span class="red-text">a</span>' +
+      '<span class="font-size-18">b</span>' +
+      '<span class="font-weight-600">c</span>';
+    const out = sanitizeHtml(html);
+    expect(out).toContain('red-text');
+    expect(out).toContain('font-size-18');
+    expect(out).toContain('font-weight-600');
+  });
+
+  it('вырезает скрипты и обработчики событий', () => {
+    expect(sanitizeHtml('<script>alert(1)</script><p>ok</p>')).not.toContain('<script');
+    expect(sanitizeHtml('<img src="x" onerror="alert(1)">')).not.toContain('onerror');
+  });
+});
