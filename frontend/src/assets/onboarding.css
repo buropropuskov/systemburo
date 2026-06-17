@@ -1,0 +1,146 @@
+/*
+ * Брендирование driver.js-поповера онбординг-тура. Класс ob-popover навешивается
+ * на .driver-popover через popoverClass. Все анимации - только transform/opacity.
+ */
+
+.driver-popover.ob-popover {
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  padding: 20px 22px 16px;
+  max-width: 360px;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.driver-popover.ob-popover .driver-popover-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.driver-popover.ob-popover .driver-popover-description {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.driver-popover.ob-popover .driver-popover-arrow {
+  color: #fff;
+}
+
+/* --- Кнопки навигации (pill-стиль под бренд) --- */
+.driver-popover.ob-popover .driver-popover-navigation-btns {
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.driver-popover.ob-popover .driver-popover-prev-btn,
+.driver-popover.ob-popover .driver-popover-next-btn {
+  text-shadow: none;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  padding: 7px 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.driver-popover.ob-popover .driver-popover-next-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.driver-popover.ob-popover .driver-popover-next-btn:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.driver-popover.ob-popover .driver-popover-prev-btn {
+  background: #fff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.driver-popover.ob-popover .driver-popover-prev-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.driver-popover.ob-popover .driver-popover-prev-btn.driver-popover-btn-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.driver-popover.ob-popover .driver-popover-close-btn {
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+
+.driver-popover.ob-popover .driver-popover-close-btn:hover {
+  color: var(--color-primary);
+}
+
+/* --- Кастомный прогресс-блок (рисуем сами, штатный showProgress выключен) --- */
+.ob-popover__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.ob-popover__step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.ob-popover__bar {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.ob-popover__bar-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-pill);
+  transform-origin: left center;
+  transition: transform 0.2s ease;
+}
+
+.ob-popover__next-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.ob-popover__skip {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.ob-popover__skip:hover {
+  color: var(--color-primary);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-popover__bar-fill {
+    transition: none;
+  }
+}

@@ -1,5 +1,8 @@
 <template>
-  <div class="docs-block">
+  <div
+    class="docs-block"
+    data-testid="ob-documents"
+  >
     <div class="docs-block__head">
       <span class="docs-block__title">Документы</span>
     </div>

@@ -38,6 +38,7 @@
     <ConfirmDialog />
     <DirtyConfirmModal />
     <DeleteNotifications />
+    <OnboardingTour v-if="isAuthenticated" />
   </div>
 </template>
 
@@ -52,6 +53,7 @@ import ToastContainer from './components/ToastContainer.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
+import OnboardingTour from './components/onboarding/OnboardingTour.vue';
 
 export default {
   name: "App",
@@ -63,6 +65,7 @@ export default {
     ConfirmDialog,
     DirtyConfirmModal,
     DeleteNotifications,
+    OnboardingTour,
   },
   computed: {
     isAuthenticated() {
