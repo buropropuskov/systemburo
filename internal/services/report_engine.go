@@ -1,0 +1,390 @@
+package services
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"systemburo/internal/models"
+)
+
+// Движок исполнения агрегатных отчётов (B2). Метрики, разрезы и поля фильтров —
+// строго whitelist (схемы ниже): все SQL-фрагменты статические константы кода,
+// а пользовательский ввод сверяется по ключам карт и передаётся только через
+// плейсхолдеры (?). Конкатенации ввода в SQL нет. Допустимые разрезы метрики
+// дублируют каталог B1 (reportMetricRegistry.dimensions) — тест ловит расхождение.
+
+// ErrInvalidReportRequest — запрос отчёта не прошёл валидацию (неизвестная
+// метрика/разрез/фильтр и т.п.). Handler маппит в 400 без эха ввода.
+var ErrInvalidReportRequest = errors.New("invalid report request")
+
+func errInvalidReport(field string) error {
+	return fmt.Errorf("%w: %s", ErrInvalidReportRequest, field)
+}
+
+// joinKind — какой блок join'ов требуется разрезу/фильтру.
+type joinKind int
+
+const (
+	jNone   joinKind = iota // достаточно базовой таблицы
+	jChain                  // основной 1:1 join-блок метрики (org/company/...)
+	jAttach                 // отдельный join к вложениям (fan-out; только applications_count)
+)
+
+const (
+	sortValueDesc = "value_desc"
+	sortValueAsc  = "value_asc"
+	sortLabelAsc  = "label_asc"
+	sortLabelDesc = "label_desc"
+)
+
+const (
+	defaultReportLimit = 100
+	maxReportLimit     = 1000
+)
+
+// aggColumn — SQL-выражение разреза/фильтра и блок join'ов, нужный для доступа к нему.
+type aggColumn struct {
+	expr string
+	join joinKind
+}
+
+// aggMetricSchema — план сборки агрегатного запроса для одной метрики.
+// joinBlock — 1:1 LEFT JOIN'ы (не размножают строки, добавляются по требованию);
+// attachJoin — fan-out join к вложениям, поэтому applications_count считает
+// COUNT(DISTINCT app.id). period/hour_of_day строятся в коде по tsColumn.
+type aggMetricSchema struct {
+	base       string
+	aggExpr    string
+	baseWhere  string
+	tsColumn   string
+	tsJoin     joinKind
+	unit       string
+	joinBlock  []string
+	attachJoin []string
+	dims       map[string]aggColumn
+	filters    map[string]aggColumn
+}
+
+var aggMetricRegistry = map[string]aggMetricSchema{
+	"applications_count": {
+		base:     "applications app",
+		aggExpr:  "COUNT(DISTINCT app.id)",
+		tsColumn: "app.sending_datetime",
+		tsJoin:   jNone,
+		unit:     "шт",
+		joinBlock: []string{
+			"LEFT JOIN organizations org ON org.id = app.organization_id",
+			"LEFT JOIN companies comp ON comp.id = app.company_id",
+		},
+		attachJoin: []string{
+			"JOIN attachments att ON att.application_id = app.id",
+			"LEFT JOIN unique_attachments ua ON ua.id = att.unique_attachment_id",
+		},
+		dims: map[string]aggColumn{
+			"status":          {expr: "app.status", join: jNone},
+			"organization":    {expr: "COALESCE(org.name, '(без организации)')", join: jChain},
+			"company":         {expr: "COALESCE(comp.name, '(без компании)')", join: jChain},
+			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jAttach},
+		},
+		filters: map[string]aggColumn{
+			"status":          {expr: "app.status", join: jNone},
+			"organization":    {expr: "org.name", join: jChain},
+			"company":         {expr: "comp.name", join: jChain},
+			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jAttach},
+		},
+	},
+	"car_entries_count": {
+		base:      "cars_history ch",
+		aggExpr:   "COUNT(*)",
+		baseWhere: "ch.action_type = 'entry'",
+		tsColumn:  "ch.created_at",
+		tsJoin:    jNone,
+		unit:      "шт",
+		joinBlock: []string{
+			"JOIN cars c ON c.id = ch.car_id",
+			"LEFT JOIN attachments att ON att.id = c.attachment_id",
+			"LEFT JOIN applications app ON app.id = att.application_id",
+			"LEFT JOIN organizations org ON org.id = app.organization_id",
+			"LEFT JOIN companies comp ON comp.id = app.company_id",
+			"LEFT JOIN unique_attachments ua ON ua.id = att.unique_attachment_id",
+		},
+		dims: map[string]aggColumn{
+			"unload_place": {expr: "COALESCE(c.unload_place, '(не указано)')", join: jChain},
+			"organization": {expr: "COALESCE(org.name, comp.name, '(без организации)')", join: jChain},
+		},
+		filters: map[string]aggColumn{
+			"organization":    {expr: "org.name", join: jChain},
+			"company":         {expr: "comp.name", join: jChain},
+			"status":          {expr: "app.status", join: jChain},
+			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jChain},
+			"unload_place":    {expr: "c.unload_place", join: jChain},
+		},
+	},
+	"people_entries_count": {
+		base:      "employees_history eh",
+		aggExpr:   "COUNT(*)",
+		baseWhere: "eh.action_type = 'entry'",
+		tsColumn:  "eh.created_at",
+		tsJoin:    jNone,
+		unit:      "шт",
+		joinBlock: []string{
+			"JOIN employees e ON e.id = eh.employee_id",
+			"LEFT JOIN citizenships cz ON cz.id = e.citizenship_id",
+			"LEFT JOIN attachments att ON att.id = e.attachment_id",
+			"LEFT JOIN applications app ON app.id = att.application_id",
+			"LEFT JOIN organizations org ON org.id = app.organization_id",
+			"LEFT JOIN companies comp ON comp.id = app.company_id",
+			"LEFT JOIN unique_attachments ua ON ua.id = att.unique_attachment_id",
+		},
+		dims: map[string]aggColumn{
+			"organization": {expr: "COALESCE(org.name, comp.name, '(без организации)')", join: jChain},
+		},
+		filters: map[string]aggColumn{
+			"organization":    {expr: "org.name", join: jChain},
+			"company":         {expr: "comp.name", join: jChain},
+			"status":          {expr: "app.status", join: jChain},
+			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jChain},
+			"citizenship":     {expr: "cz.name", join: jChain},
+		},
+	},
+	"items_sum": {
+		base:     "items",
+		aggExpr:  "COALESCE(SUM(items.count), 0)",
+		tsColumn: "app.sending_datetime",
+		tsJoin:   jChain,
+		unit:     "шт",
+		joinBlock: []string{
+			"JOIN attachments att ON att.id = items.attachment_id",
+			"LEFT JOIN applications app ON app.id = att.application_id",
+			"LEFT JOIN organizations org ON org.id = app.organization_id",
+			"LEFT JOIN companies comp ON comp.id = app.company_id",
+		},
+		dims: map[string]aggColumn{
+			"organization": {expr: "COALESCE(org.name, '(без организации)')", join: jChain},
+			"company":      {expr: "COALESCE(comp.name, '(без компании)')", join: jChain},
+		},
+		filters: map[string]aggColumn{
+			"organization": {expr: "org.name", join: jChain},
+			"company":      {expr: "comp.name", join: jChain},
+		},
+	},
+}
+
+var aggGranularity = map[string]string{
+	"day":   "day",
+	"week":  "week",
+	"month": "month",
+}
+
+// whereClause — WHERE-фрагмент плана: выражение с плейсхолдерами и его аргументы.
+type whereClause struct {
+	expr string
+	args []any
+}
+
+// aggPlan — резолвленный план агрегатного запроса (только whitelist-выражения).
+type aggPlan struct {
+	table     string
+	selectStr string
+	joins     []string
+	wheres    []whereClause
+	groupExpr string
+	orderStr  string
+	limit     int
+	unit      string
+}
+
+// buildAggregatePlan собирает план агрегатного отчёта из whitelist-схем.
+// Чистая функция (без БД) — тестируется напрямую. Любой неизвестный/недоступный
+// для метрики разрез или фильтр -> ErrInvalidReportRequest.
+func buildAggregatePlan(req models.ReportRequest) (*aggPlan, error) {
+	schema, ok := aggMetricRegistry[req.Metric]
+	if !ok {
+		return nil, errInvalidReport("metric")
+	}
+	if req.Dimension == "" {
+		return nil, errInvalidReport("dimension")
+	}
+	// Разрез должен быть заявлен в каталоге B1 для этой метрики — единый источник
+	// правды для UI и движка.
+	if !contains(reportMetricRegistry[req.Metric].dimensions, req.Dimension) {
+		return nil, errInvalidReport("dimension")
+	}
+
+	groupExpr, labelExpr, dimJoin, err := resolveAggDimension(schema, req.Dimension, req.Granularity)
+	if err != nil {
+		return nil, err
+	}
+
+	var needChain, needAttach bool
+	addJoinNeed(dimJoin, &needChain, &needAttach)
+
+	plan := &aggPlan{
+		table:     schema.base,
+		selectStr: labelExpr + " AS label, " + schema.aggExpr + " AS value",
+		groupExpr: groupExpr,
+		unit:      schema.unit,
+	}
+	if schema.baseWhere != "" {
+		plan.wheres = append(plan.wheres, whereClause{expr: schema.baseWhere})
+	}
+
+	for _, f := range req.Filters {
+		wc, fjoin, ferr := resolveAggFilter(schema, f)
+		if ferr != nil {
+			return nil, ferr
+		}
+		if wc == nil { // пустой фильтр (нет значений/границ) — пропускаем
+			continue
+		}
+		plan.wheres = append(plan.wheres, *wc)
+		addJoinNeed(fjoin, &needChain, &needAttach)
+	}
+
+	if needChain {
+		plan.joins = append(plan.joins, schema.joinBlock...)
+	}
+	if needAttach {
+		plan.joins = append(plan.joins, schema.attachJoin...)
+	}
+
+	plan.orderStr = resolveAggOrder(req.Sort, req.Dimension, groupExpr, schema.aggExpr)
+	plan.limit = clampLimit(req.Limit)
+	return plan, nil
+}
+
+func addJoinNeed(jk joinKind, needChain, needAttach *bool) {
+	switch jk {
+	case jChain:
+		*needChain = true
+	case jAttach:
+		*needAttach = true
+	}
+}
+
+// resolveAggDimension возвращает GROUP BY-выражение, выражение подписи и нужный
+// join. period/hour_of_day строятся по tsColumn метрики; остальные — из карты dims.
+func resolveAggDimension(s aggMetricSchema, dim, granularity string) (group, label string, jk joinKind, err error) {
+	switch dim {
+	case "period":
+		unit := "day"
+		if granularity != "" {
+			u, ok := aggGranularity[granularity]
+			if !ok {
+				return "", "", jNone, errInvalidReport("granularity")
+			}
+			unit = u
+		}
+		group = fmt.Sprintf("date_trunc('%s', %s)", unit, s.tsColumn)
+		label = fmt.Sprintf("to_char(%s, 'YYYY-MM-DD')", group)
+		return group, label, s.tsJoin, nil
+	case "hour_of_day":
+		group = fmt.Sprintf("(EXTRACT(HOUR FROM %s))::int", s.tsColumn)
+		label = group + "::text"
+		return group, label, s.tsJoin, nil
+	default:
+		col, ok := s.dims[dim]
+		if !ok {
+			return "", "", jNone, errInvalidReport("dimension")
+		}
+		return col.expr, col.expr, col.join, nil
+	}
+}
+
+// resolveAggFilter превращает поле фильтра в WHERE-фрагмент. Возвращает nil без
+// ошибки, если фильтр пустой (нет значений/границ) — такой фильтр не применяется.
+func resolveAggFilter(s aggMetricSchema, f models.ReportFilterValue) (*whereClause, joinKind, error) {
+	if f.Key == "date_range" {
+		var parts []string
+		var args []any
+		if t, ok := parseReportDate(f.From, false); ok {
+			parts = append(parts, s.tsColumn+" >= ?")
+			args = append(args, t)
+		}
+		if t, ok := parseReportDate(f.To, true); ok {
+			parts = append(parts, s.tsColumn+" <= ?")
+			args = append(args, t)
+		}
+		if len(parts) == 0 {
+			return nil, jNone, nil
+		}
+		return &whereClause{expr: strings.Join(parts, " AND "), args: args}, s.tsJoin, nil
+	}
+
+	col, ok := s.filters[f.Key]
+	if !ok {
+		return nil, jNone, errInvalidReport("filter")
+	}
+	vals := nonEmpty(f.Values)
+	if len(vals) == 0 {
+		return nil, jNone, nil
+	}
+	return &whereClause{expr: col.expr + " IN ?", args: []any{vals}}, col.join, nil
+}
+
+// resolveAggOrder выбирает ORDER BY из whitelist. По умолчанию временные разрезы
+// (period/hour_of_day) сортируются хронологически, категориальные — по убыванию
+// значения. Неизвестный sort трактуется как дефолт (значения только из констант,
+// ввод не подставляется).
+func resolveAggOrder(sort, dim, groupExpr, aggExpr string) string {
+	switch sort {
+	case sortValueDesc:
+		return aggExpr + " DESC"
+	case sortValueAsc:
+		return aggExpr + " ASC"
+	case sortLabelAsc:
+		return groupExpr + " ASC"
+	case sortLabelDesc:
+		return groupExpr + " DESC"
+	}
+	if dim == "period" || dim == "hour_of_day" {
+		return groupExpr + " ASC"
+	}
+	return aggExpr + " DESC"
+}
+
+func clampLimit(limit int) int {
+	if limit <= 0 {
+		return defaultReportLimit
+	}
+	if limit > maxReportLimit {
+		return maxReportLimit
+	}
+	return limit
+}
+
+// parseReportDate парсит YYYY-MM-DD в UTC. endOfDay=true -> 23:59:59 (для верхней границы).
+func parseReportDate(s string, endOfDay bool) (time.Time, bool) {
+	if s == "" {
+		return time.Time{}, false
+	}
+	t, err := time.ParseInLocation("2006-01-02", s, time.UTC)
+	if err != nil {
+		return time.Time{}, false
+	}
+	if endOfDay {
+		return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.UTC), true
+	}
+	return t, true
+}
+
+func nonEmpty(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func contains(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}

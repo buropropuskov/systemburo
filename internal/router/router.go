@@ -589,5 +589,6 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup.GET("/timeline", statistics.GetTimeline, requireStats)
 		statsGroup.GET("/recent-passages", statistics.GetRecentPassages, requireStats)
 		statsGroup.GET("/metrics", statistics.GetMetrics, requireStats)
+		statsGroup.POST("/report", statistics.RunReport, requireStats)
 	}
 }
