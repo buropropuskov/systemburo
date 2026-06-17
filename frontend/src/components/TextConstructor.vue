@@ -216,26 +216,39 @@
             @click="toggleFontSizeDropdown"
           >
             <span class="select-value">{{ selectedFontSize }}</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <svg
               class="select-arrow"
               :class="{ rotated: fontSizeDropdownOpen }"
+              viewBox="0 0 10 6"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
             >
+              <path
+                d="M1 1L5 5L9 1"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </div>
-          <div
-            v-if="fontSizeDropdownOpen"
-            class="select-dropdown"
-          >
+          <transition name="select-fade">
             <div
-              v-for="size in fontSizes"
-              :key="size"
-              class="select-option"
-              :class="{ active: selectedFontSize === size }"
-              @click="selectFontSize(size)"
+              v-if="fontSizeDropdownOpen"
+              class="select-dropdown"
             >
-              {{ size }}
+              <div
+                v-for="size in fontSizes"
+                :key="size"
+                class="select-option"
+                :class="{ active: selectedFontSize === size }"
+                @click="selectFontSize(size)"
+              >
+                {{ size }}
+              </div>
             </div>
-          </div>
+          </transition>
         </div>
       </div>
 
@@ -249,27 +262,40 @@
             @click="toggleFontWeightDropdown"
           >
             <span class="select-value">{{ selectedFontWeight.label }}</span>
-            <img
-              src="@/assets/icons/arrow.png"
+            <svg
               class="select-arrow"
               :class="{ rotated: fontWeightDropdownOpen }"
+              viewBox="0 0 10 6"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
             >
+              <path
+                d="M1 1L5 5L9 1"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </div>
-          <div
-            v-if="fontWeightDropdownOpen"
-            class="select-dropdown"
-          >
+          <transition name="select-fade">
             <div
-              v-for="weight in fontWeights"
-              :key="weight.value"
-              class="select-option"
-              :class="{ active: selectedFontWeight.value === weight.value }"
-              :style="{ fontWeight: weight.value }"
-              @click="selectFontWeight(weight)"
+              v-if="fontWeightDropdownOpen"
+              class="select-dropdown"
             >
-              {{ weight.label }}
+              <div
+                v-for="weight in fontWeights"
+                :key="weight.value"
+                class="select-option"
+                :class="{ active: selectedFontWeight.value === weight.value }"
+                :style="{ fontWeight: weight.value }"
+                @click="selectFontWeight(weight)"
+              >
+                {{ weight.label }}
+              </div>
             </div>
-          </div>
+          </transition>
         </div>
       </div>
 
@@ -617,16 +643,16 @@ defineExpose({ editor });
 
 <style scoped>
 .text-constructor {
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   margin-bottom: 10px;
   background: #fff;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .text-constructor:focus-within {
-  border-color: #4f5bdf;
-  box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .text-constructor.is-disabled {
@@ -639,7 +665,7 @@ defineExpose({ editor });
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .toolbar-group {
@@ -653,23 +679,23 @@ defineExpose({ editor });
   min-width: 32px;
   height: 32px;
   padding: 0 8px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   background: #fff;
   color: #1a1a1a;
   font-size: 14px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
 .toolbar-btn:hover:not(:disabled) {
   background: #f4f5ff;
-  border-color: #4f5bdf;
+  border-color: var(--color-primary);
 }
 
 .toolbar-btn.active {
-  background: #4f5bdf;
-  border-color: #4f5bdf;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fff;
 }
 
@@ -734,21 +760,24 @@ defineExpose({ editor });
   min-width: 64px;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   background: #fff;
   cursor: pointer;
   font-size: 13px;
+  transition: border-color 0.15s ease;
 }
 
 .select-header:hover {
-  border-color: #4f5bdf;
+  border-color: var(--color-primary);
 }
 
 .select-arrow {
   width: 10px;
   height: 10px;
-  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  color: #666;
+  transition: transform 0.2s ease;
 }
 
 .select-arrow.rotated {
@@ -764,21 +793,36 @@ defineExpose({ editor });
   max-height: 220px;
   overflow-y: auto;
   background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.select-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.select-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.select-fade-enter-from,
+.select-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .select-option {
   padding: 6px 10px;
   font-size: 13px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .select-option:hover,
 .select-option.active {
   background: #f4f5ff;
-  color: #4f5bdf;
+  color: var(--color-primary);
 }
 
 .editor-content {
