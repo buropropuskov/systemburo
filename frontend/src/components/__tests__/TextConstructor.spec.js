@@ -290,4 +290,33 @@ describe('TextConstructor', () => {
     expect(out).toContain('text-align-center');
     expect(out).not.toContain('style=');
   });
+
+  it('round-trip: выравнивание картинки сохраняется в классе img-align-*', async () => {
+    const wrapper = mountConstructor({
+      modelValue: '<img src="data:image/png;base64,ZmFrZQ==" class="constructor-image img-align-right">',
+    });
+    await flushPromises();
+    expect(wrapper.vm.editor.getHTML()).toContain('img-align-right');
+  });
+
+  it('setImageAlign выставляет класс выравнивания на выделенную картинку', async () => {
+    const wrapper = mountConstructor({
+      modelValue: '<img src="data:image/png;base64,ZmFrZQ==" class="constructor-image">',
+    });
+    await flushPromises();
+    wrapper.vm.editor.commands.setNodeSelection(0);
+    wrapper.vm.editor.commands.setImageAlign('center');
+    expect(wrapper.vm.editor.getHTML()).toContain('img-align-center');
+  });
+
+  it('round-trip: выравнивание и ширина картинки сохраняются вместе', async () => {
+    const wrapper = mountConstructor({
+      modelValue:
+        '<img src="data:image/png;base64,ZmFrZQ==" class="constructor-image img-align-left" width="240">',
+    });
+    await flushPromises();
+    const out = wrapper.vm.editor.getHTML();
+    expect(out).toContain('img-align-left');
+    expect(out).toContain('width="240"');
+  });
 });

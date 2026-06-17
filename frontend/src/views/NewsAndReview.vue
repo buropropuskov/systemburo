@@ -1670,6 +1670,10 @@ export default {
 .news-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
 .news-body-html :deep(img) { max-width: 100%; border-radius: 8px; }
 .news-body-html :deep(img:not([height])) { height: auto; }
+.news-body-html :deep(.constructor-image.img-align-left) { float: left; margin: 0 14px 10px 0; }
+.news-body-html :deep(.constructor-image.img-align-right) { float: right; margin: 0 0 10px 14px; }
+.news-body-html :deep(.constructor-image.img-align-center) { display: block; margin: 10px auto; float: none; }
+.news-body-html::after { content: ''; display: block; clear: both; }
 .news-body-html :deep(.text-align-left) { text-align: left; }
 .news-body-html :deep(.text-align-center) { text-align: center; }
 .news-body-html :deep(.text-align-right) { text-align: right; }

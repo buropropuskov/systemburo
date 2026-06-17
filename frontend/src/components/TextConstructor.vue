@@ -87,10 +87,10 @@
         <button
           type="button"
           class="toolbar-btn align-btn"
-          :class="{ active: editor && editor.isActive({ textAlign: 'left' }) }"
+          :class="{ active: isAlignActive('left') }"
           data-tooltip="По левому краю"
           :disabled="disabled"
-          @click="runCommand((c) => c.setTextAlignClass('left'))"
+          @click="applyAlign('left')"
         >
           <svg
             width="16"
@@ -127,10 +127,10 @@
         <button
           type="button"
           class="toolbar-btn align-btn"
-          :class="{ active: editor && editor.isActive({ textAlign: 'center' }) }"
+          :class="{ active: isAlignActive('center') }"
           data-tooltip="По центру"
           :disabled="disabled"
-          @click="runCommand((c) => c.setTextAlignClass('center'))"
+          @click="applyAlign('center')"
         >
           <svg
             width="16"
@@ -167,10 +167,10 @@
         <button
           type="button"
           class="toolbar-btn align-btn"
-          :class="{ active: editor && editor.isActive({ textAlign: 'right' }) }"
+          :class="{ active: isAlignActive('right') }"
           data-tooltip="По правому краю"
           :disabled="disabled"
-          @click="runCommand((c) => c.setTextAlignClass('right'))"
+          @click="applyAlign('right')"
         >
           <svg
             width="16"
@@ -549,6 +549,27 @@ function applyColor(colorClass) {
   runCommand((c) => c.setColorClass(colorClass));
 }
 
+/**
+ * Выравнивание: если выделена картинка - выравниваем её (float left/right или center),
+ * иначе выравниваем текущий абзац/заголовок. Кнопки тулбара общие для текста и картинки.
+ */
+function applyAlign(alignment) {
+  if (props.disabled || !editor.value) return;
+  if (editor.value.isActive('image')) {
+    runCommand((c) => c.setImageAlign(alignment));
+  } else {
+    runCommand((c) => c.setTextAlignClass(alignment));
+  }
+}
+
+function isAlignActive(alignment) {
+  if (!editor.value) return false;
+  return (
+    editor.value.isActive('image', { align: alignment }) ||
+    editor.value.isActive({ textAlign: alignment })
+  );
+}
+
 function toggleFontSizeDropdown() {
   if (props.disabled) return;
   fontSizeDropdownOpen.value = !fontSizeDropdownOpen.value;
@@ -836,6 +857,13 @@ defineExpose({ editor });
   word-break: break-word;
 }
 
+/* Чтобы плавающие (float) картинки не вылезали за пределы редактора. */
+.editor-content :deep(.ProseMirror)::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
 .editor-content :deep(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   float: left;
@@ -925,5 +953,28 @@ defineExpose({ editor });
 .editor-content :deep(img:not([height])),
 .preview-modal-content :deep(img:not([height])) {
   height: auto;
+}
+
+/* Выравнивание картинок (float-обтекание) в предпросмотре */
+.preview-modal-content :deep(.constructor-image.img-align-left) {
+  float: left;
+  margin: 0 14px 10px 0;
+}
+
+.preview-modal-content :deep(.constructor-image.img-align-right) {
+  float: right;
+  margin: 0 0 10px 14px;
+}
+
+.preview-modal-content :deep(.constructor-image.img-align-center) {
+  display: block;
+  float: none;
+  margin: 10px auto;
+}
+
+.preview-modal-content::after {
+  content: '';
+  display: block;
+  clear: both;
 }
 </style>
