@@ -272,11 +272,12 @@ export default {
 .announcement-body-html {
   line-height: 1.6;
 }
+.announcement-body-html :deep(*) { overflow-wrap: break-word; }
 .announcement-body-html :deep(h1),
 .announcement-body-html :deep(h2),
 .announcement-body-html :deep(h3) { font-weight: 600; margin: 0.75em 0 0.4em; }
 .announcement-body-html :deep(p) { margin: 0.5em 0; }
 .announcement-body-html :deep(ul),
 .announcement-body-html :deep(ol) { padding-left: 1.5em; margin: 0.5em 0; }
-.announcement-body-html :deep(img) { max-width: 100%; border-radius: 8px; }
+.announcement-body-html :deep(img) { max-width: 100%; height: auto; border-radius: 8px; }
 </style>

@@ -815,6 +815,13 @@ export default {
 /* Text Constructor Content Styles */
 .text-constructor-content :deep(*) {
     line-height: 150%;
+    overflow-wrap: break-word;
+}
+
+.text-constructor-content :deep(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
 }
 
 .text-constructor-content :deep(strong) {
