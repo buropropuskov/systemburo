@@ -38,3 +38,15 @@ type ReportResponse struct {
 	Rows      []ReportAggregateRow `json:"rows"`
 	Total     int64                `json:"total"`
 }
+
+// ReportListResponse — результат list-отчёта (mode=list): выгрузка строк сущности.
+// Columns задаёт порядок и подписи столбцов (из каталога B1), Rows — значения
+// строк парами ключ->значение (ключи совпадают с Columns[].Key). Total — число
+// возвращённых строк (с учётом лимита).
+type ReportListResponse struct {
+	Mode    string             `json:"mode"`
+	Entity  string             `json:"entity"`
+	Columns []ReportColumnInfo `json:"columns"`
+	Rows    []map[string]any   `json:"rows"`
+	Total   int                `json:"total"`
+}

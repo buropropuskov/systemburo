@@ -157,7 +157,7 @@ func (h *StatisticsHandler) GetMetrics(c echo.Context) error {
 
 // RunReport godoc
 // @Summary      Исполнение отчёта конструктора
-// @Description  Агрегатный отчёт: метрика x разрез x фильтры x период (mode=aggregate)
+// @Description  mode=aggregate: метрика x разрез x фильтры x период. mode=list: выгрузка строк сущности.
 // @Tags         statistics
 // @Accept       json
 // @Produce      json
@@ -177,21 +177,36 @@ func (h *StatisticsHandler) RunReport(c echo.Context) error {
 	if req.Mode == "" {
 		req.Mode = "aggregate"
 	}
-	if req.Mode != "aggregate" {
-		// list-режим (выгрузка строк) добавляется отдельным срезом.
+
+	switch req.Mode {
+	case "aggregate":
+		if req.Metric == "" || req.Dimension == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "metric and dimension are required")
+		}
+		res, err := h.service.RunReport(c.Request().Context(), req)
+		if err != nil {
+			return mapReportError(err)
+		}
+		return RespondSuccess(c, res)
+	case "list":
+		if req.Entity == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "entity is required")
+		}
+		res, err := h.service.RunReportList(c.Request().Context(), req)
+		if err != nil {
+			return mapReportError(err)
+		}
+		return RespondSuccess(c, res)
+	default:
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported report mode")
 	}
-	if req.Metric == "" || req.Dimension == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "metric and dimension are required")
-	}
+}
 
-	res, err := h.service.RunReport(c.Request().Context(), req)
-	if err != nil {
-		if errors.Is(err, services.ErrInvalidReportRequest) {
-			// Не эхаем ввод: неизвестная метрика/разрез/фильтр -> generic 400.
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid report request")
-		}
-		return err
+// mapReportError маппит ошибку движка отчётов в HTTP. Невалидный запрос (неизвестная
+// метрика/разрез/сущность/фильтр) -> generic 400 без эха пользовательского ввода.
+func mapReportError(err error) error {
+	if errors.Is(err, services.ErrInvalidReportRequest) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid report request")
 	}
-	return RespondSuccess(c, res)
+	return err
 }

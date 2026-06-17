@@ -17,6 +17,7 @@ type StatisticsService interface {
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
 	RunReport(ctx context.Context, req models.ReportRequest) (*models.ReportResponse, error)
+	RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error)
 }
 
 type statisticsService struct {
@@ -443,5 +444,41 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 		Unit:      plan.unit,
 		Rows:      rows,
 		Total:     total,
+	}, nil
+}
+
+// RunReportList исполняет list-отчёт конструктора (mode=list): выгрузка строк
+// сущности с whitelist-столбцами и фильтрами. План собирается чистой buildListPlan
+// из whitelist-схем (report_list_engine.go) — ввод сверяется по ключам и
+// подставляется только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest
+// (400 в handler). Строки сканируются в []map по алиасам столбцов плана.
+func (s *statisticsService) RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error) {
+	plan, err := buildListPlan(req)
+	if err != nil {
+		return nil, err
+	}
+
+	tx := s.db.WithContext(ctx).Table(plan.table).Select(plan.selectStr, plan.selectArgs...)
+	for _, j := range plan.joins {
+		tx = tx.Joins(j)
+	}
+	for _, w := range plan.wheres {
+		tx = tx.Where(w.expr, w.args...)
+	}
+
+	rows := make([]map[string]any, 0)
+	if err := tx.
+		Order(plan.orderStr).
+		Limit(plan.limit).
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("statistics: run report list: %w", err)
+	}
+
+	return &models.ReportListResponse{
+		Mode:    "list",
+		Entity:  req.Entity,
+		Columns: plan.columns,
+		Rows:    rows,
+		Total:   len(rows),
 	}, nil
 }
