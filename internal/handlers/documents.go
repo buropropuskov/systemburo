@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -228,8 +229,9 @@ func (h *DocumentHandler) Download(c echo.Context) error {
 	}
 
 	filePath := filepath.Join(h.fileSvc.UploadDir(), doc.StoredName)
+	safeName := strings.ReplaceAll(doc.FileName, `"`, `\"`)
 	c.Response().Header().Set("Content-Disposition",
-		fmt.Sprintf(`attachment; filename="%s"`, doc.FileName))
+		fmt.Sprintf(`attachment; filename="%s"`, safeName))
 	c.Response().Header().Set("Content-Type", doc.MimeType)
 	return c.File(filePath)
 }
