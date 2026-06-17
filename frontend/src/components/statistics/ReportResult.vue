@@ -42,7 +42,57 @@
 
     <!-- Агрегатный отчёт -->
     <template v-else-if="result.mode === 'aggregate'">
-      <div class="rr__table-wrap">
+      <div class="rr__toolbar">
+        <div class="rr__seg">
+          <button
+            type="button"
+            class="rr__seg-btn"
+            :class="{ 'rr__seg-btn--active': view === 'table' }"
+            data-testid="rr-view-table"
+            @click="view = 'table'"
+          >
+            Таблица
+          </button>
+          <button
+            type="button"
+            class="rr__seg-btn"
+            :class="{ 'rr__seg-btn--active': view === 'chart' }"
+            :disabled="!hasRows"
+            data-testid="rr-view-chart"
+            @click="view = 'chart'"
+          >
+            График
+          </button>
+        </div>
+        <div
+          v-if="view === 'chart' && hasRows"
+          class="rr__seg"
+        >
+          <button
+            v-for="opt in chartTypeOptions"
+            :key="opt.value"
+            type="button"
+            class="rr__seg-btn"
+            :class="{ 'rr__seg-btn--active': chartType === opt.value }"
+            :data-testid="`rr-chart-${opt.value}`"
+            @click="chartType = opt.value"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
+      <ReportChart
+        v-if="view === 'chart' && hasRows"
+        :rows="result.rows"
+        :type="chartType"
+        :unit="result.unit || ''"
+      />
+
+      <div
+        v-else
+        class="rr__table-wrap"
+      >
         <table class="rr__table">
           <thead>
             <tr>
@@ -125,13 +175,38 @@
 </template>
 
 <script setup>
+import { ref, computed, watch } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import ReportChart from './ReportChart.vue';
 
-defineProps({
+const props = defineProps({
   result: { type: Object, default: null },
   loading: { type: Boolean, default: false },
   error: { type: String, default: '' },
 });
+
+const view = ref('table'); // 'table' | 'chart'
+const chartType = ref('bar'); // 'bar' | 'pie' | 'line'
+
+const hasRows = computed(() => (props.result?.rows?.length || 0) > 0);
+
+// Временной разрез рисуем линией, остальные — столбцы/круговая.
+const chartTypeOptions = computed(() => (
+  props.result?.dimension === 'period'
+    ? [{ value: 'line', label: 'Линия' }, { value: 'bar', label: 'Столбцы' }]
+    : [{ value: 'bar', label: 'Столбцы' }, { value: 'pie', label: 'Круговая' }]
+));
+
+// Новый результат: list/пусто — только таблица; aggregate — сбрасываем тип
+// графика на дефолт по разрезу (period -> линия, иначе столбцы), вид оставляем
+// как выбрал пользователь, чтобы повторный отчёт не сбрасывал его на таблицу.
+watch(() => props.result, (r) => {
+  if (r?.mode !== 'aggregate') {
+    view.value = 'table';
+    return;
+  }
+  chartType.value = r.dimension === 'period' ? 'line' : 'bar';
+}, { immediate: true });
 
 function formatNumber(value) {
   const n = Number(value);
@@ -180,6 +255,49 @@ function formatCell(value) {
 .rr__empty span {
   font-size: 13px;
   max-width: 320px;
+}
+
+.rr__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rr__seg {
+  display: inline-flex;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+}
+
+.rr__seg-btn {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.rr__seg-btn:hover:not(:disabled) {
+  color: var(--color-primary);
+}
+
+.rr__seg-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.rr__seg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .rr__table-wrap {
