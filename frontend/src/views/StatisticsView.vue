@@ -1,0 +1,332 @@
+<template>
+  <AdminPageShell>
+    <div class="statistics dashboard-card">
+
+      <!-- ===== ШАПКА ===== -->
+      <div class="management-header statistics__header">
+        <div class="statistics__header-left">
+          <h1 class="management-title">Аналитика</h1>
+        </div>
+        <div class="statistics__header-right">
+          <button
+            class="lk-button lk-button--ghost"
+            @click="showInstruction = true"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" />
+            </svg>
+            Инструкция
+          </button>
+          <DateFilter
+            mode="range"
+            :date-range-start="rangeStart"
+            :date-range-end="rangeEnd"
+            @update:date-range-start="rangeStart = $event"
+            @update:date-range-end="rangeEnd = $event"
+            @apply="onPeriodApply"
+          />
+          <RefreshButton
+            :loading="false"
+            @refresh="onRefresh"
+          />
+        </div>
+      </div>
+
+      <!-- ===== ВКЛАДКИ ===== -->
+      <div class="statistics__tabs">
+        <button
+          class="statistics__tab"
+          :class="{ 'statistics__tab--active': activeTab === 'dashboard' }"
+          @click="activeTab = 'dashboard'"
+        >
+          Дашборд
+        </button>
+        <button
+          class="statistics__tab"
+          :class="{ 'statistics__tab--active': activeTab === 'reports' }"
+          @click="activeTab = 'reports'"
+        >
+          Отчёты
+        </button>
+      </div>
+
+      <!-- ===== ТЕЛО ===== -->
+      <div class="statistics__body">
+
+        <!-- Дашборд -->
+        <div
+          v-if="activeTab === 'dashboard'"
+          class="statistics__panel"
+        >
+          <StatisticsDashboard
+            ref="dashboardRef"
+            :from="fromStr"
+            :to="toStr"
+          />
+        </div>
+
+        <!-- Отчёты (заглушка) -->
+        <div
+          v-else
+          class="statistics__panel statistics__placeholder"
+        >
+          <div class="statistics__placeholder-inner">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 3v18h18" />
+              <path d="M7 14l3-4 3 3 4-6" />
+            </svg>
+            <p>Раздел в разработке</p>
+            <span>Готовые отчёты и конструктор выборок появятся здесь в ближайших обновлениях.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модалка инструкции -->
+    <AnalyticsInstructionModal
+      :show="showInstruction"
+      @close="showInstruction = false"
+    />
+  </AdminPageShell>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue';
+import AdminPageShell from '@/views/admin/AdminPageShell.vue';
+import DateFilter from '@/components/DateFilter.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
+import StatisticsDashboard from '@/components/statistics/StatisticsDashboard.vue';
+import AnalyticsInstructionModal from '@/components/statistics/AnalyticsInstructionModal.vue';
+
+// ---- вкладки ----
+const activeTab = ref('dashboard');
+
+// ---- модалка инструкции ----
+const showInstruction = ref(false);
+
+// ---- период: дефолт — текущая неделя (пн — сегодня) ----
+function weekStart() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() - day + 1);
+  return d;
+}
+
+const rangeStart = ref(weekStart());
+const rangeEnd = ref((() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d; })());
+
+function padTwo(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toDateStr(d) {
+  if (!d) return '';
+  return `${d.getFullYear()}-${padTwo(d.getMonth() + 1)}-${padTwo(d.getDate())}`;
+}
+
+const fromStr = computed(() => toDateStr(rangeStart.value));
+const toStr = computed(() => toDateStr(rangeEnd.value));
+
+// ---- ссылка на дашборд для вызова refresh ----
+const dashboardRef = ref(null);
+
+function onPeriodApply() {
+  // fromStr/toStr уже обновились через v-model, дашборд реагирует через watch
+}
+
+function onRefresh() {
+  if (dashboardRef.value) {
+    dashboardRef.value.refresh();
+  }
+}
+</script>
+
+<style scoped>
+.statistics {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  border-radius: 35px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.statistics__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.statistics__header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.statistics__header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Кнопка «Инструкция» в стиле проекта */
+.lk-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.lk-button--ghost {
+  background: transparent;
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+.lk-button--ghost:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ===== ВКЛАДКИ ===== */
+.statistics__tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.statistics__tab {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 14px 18px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.18s ease;
+}
+
+.statistics__tab:hover {
+  color: var(--color-text);
+}
+
+.statistics__tab--active {
+  color: var(--color-primary);
+}
+
+.statistics__tab--active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-primary);
+}
+
+/* ===== ТЕЛО ===== */
+.statistics__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.statistics__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.statistics__body::-webkit-scrollbar-thumb {
+  background: #e1e3f0;
+  border-radius: var(--radius-pill);
+  border: 2px solid #fff;
+}
+
+.statistics__panel {
+  padding: 26px 28px 40px;
+}
+
+/* Заглушка отчётов */
+.statistics__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.statistics__placeholder-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.statistics__placeholder-inner svg {
+  opacity: 0.35;
+}
+
+.statistics__placeholder-inner p {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.statistics__placeholder-inner span {
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 340px;
+}
+
+/* management-header / management-title подхватываются из AdminPageShell :deep */
+.management-title {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #000;
+  margin: 0;
+}
+</style>

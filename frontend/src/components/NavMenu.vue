@@ -270,7 +270,7 @@
             </div>
           </div>
 
-          <!-- АНАЛИТИКА (пока заглушки - роутов нет) -->
+          <!-- АНАЛИТИКА -->
           <div
             v-show="sectionVisible.analytics"
             class="nav-section"
@@ -279,23 +279,11 @@
               АНАЛИТИКА
             </div>
             <div
-              v-show="matches('Статистика')"
-              class="nav-item disabled"
-              title="Скоро"
-              aria-disabled="true"
-            >
-              <NavIcon
-                name="statistics"
-                :size="18"
-                class="nav-icon"
-              />
-              <span class="nav-text">Статистика</span>
-            </div>
-            <div
               v-show="matches('Аналитика')"
-              class="nav-item disabled"
-              title="Скоро"
-              aria-disabled="true"
+              class="nav-item"
+              :class="{ active: isActive('/analytics') }"
+              data-testid="nav-link-analytics"
+              @click="$router.push('/analytics')"
             >
               <NavIcon
                 name="analytics"
