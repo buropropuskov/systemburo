@@ -92,7 +92,7 @@ export function useOnboarding() {
     return sanitizeHtml(html);
   }
 
-  function buildProgressBlock(globalIndex, total, nextTitle, onSkip) {
+  function buildProgressBlock(globalIndex, total, nextTitle) {
     const block = document.createElement('div');
     block.className = 'ob-popover__progress';
 
@@ -118,14 +118,37 @@ export function useOnboarding() {
       block.appendChild(hint);
     }
 
+    return block;
+  }
+
+  function buildSkipButton(onSkip) {
     const skip = document.createElement('button');
     skip.type = 'button';
     skip.className = 'ob-popover__skip';
     skip.textContent = 'Пропустить';
     skip.addEventListener('click', onSkip);
-    block.appendChild(skip);
+    return skip;
+  }
 
-    return block;
+  /** Сдержанное празднование финала: галочка в круге (scale-in через CSS). */
+  function buildCelebrate() {
+    const wrap = document.createElement('div');
+    wrap.className = 'ob-popover__celebrate';
+    const circle = document.createElement('div');
+    circle.className = 'ob-popover__check';
+    // Статичная иконка-константа, пользовательских данных нет - innerHTML безопасен.
+    circle.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    wrap.appendChild(circle);
+    return wrap;
+  }
+
+  function buildCtaButton(text, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ob-popover__cta';
+    btn.textContent = text;
+    btn.addEventListener('click', onClick);
+    return btn;
   }
 
   /**
@@ -136,7 +159,7 @@ export function useOnboarding() {
    * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onCtaClick } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
@@ -146,7 +169,7 @@ export function useOnboarding() {
       allowClose: true,
       overlayOpacity: 0.7,
       stagePadding: 6,
-      stageRadius: 12,
+      stageRadius: 20,
       popoverClass: 'ob-popover',
       nextBtnText: 'Далее',
       prevBtnText: 'Назад',
@@ -179,15 +202,34 @@ export function useOnboarding() {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         const globalIndex = startIndex + localIndex + 1;
         const total = store.totalSteps;
+        const step = stepsForSegment[localIndex];
         // Подсказка "Далее" сквозная - берём следующий шаг по глобальному
         // индексу, чтобы на границе сегмента показать имя шага со след. страницы.
         const nextStep = store.steps[globalIndex];
         const nextTitle = nextStep ? nextStep.title : '';
 
-        const block = buildProgressBlock(globalIndex, total, nextTitle, () => {
-          driverObj.destroy();
-        });
-        popover.footer.insertBefore(block, popover.footer.firstChild);
+        // Финал: галочка перед заголовком + CTA после описания.
+        if (step?.celebrate) {
+          popover.wrapper.insertBefore(buildCelebrate(), popover.title);
+        }
+        if (step?.cta) {
+          const cta = buildCtaButton(step.cta, () => onCtaClick?.());
+          popover.description.insertAdjacentElement('afterend', cta);
+        }
+
+        // Прогресс сверху футера.
+        popover.footer.insertBefore(
+          buildProgressBlock(globalIndex, total, nextTitle),
+          popover.footer.firstChild,
+        );
+        // "Пропустить" - первым в ряду кнопок (CSS прижимает Назад/Далее вправо).
+        // На финале не показываем: там уже есть "Готово" и CTA.
+        if (!step?.celebrate) {
+          popover.footerButtons.insertBefore(
+            buildSkipButton(() => driverObj.destroy()),
+            popover.footerButtons.firstChild,
+          );
+        }
       },
       onHighlighted() {
         const localIndex = driverObj.getActiveIndex() ?? 0;

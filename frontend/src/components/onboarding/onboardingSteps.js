@@ -16,11 +16,13 @@ export const ONBOARDING_VERSION = 1;
  * - `element`    CSS-селектор цели или `null` (центр-модал без подсветки);
  * - `title`      заголовок поповера;
  * - `description` HTML-тело поповера (прогоняется через sanitizeHtml);
- * - `demo`       необязательный ключ скриншота (используется будущими срезами);
+ * - `demo`       необязательный ключ скриншота (мапа в onboardingDemo.js);
  * - `expandRail` если true - хост разворачивает свёрнутый рельс навигации на
- *                время шага и возвращает прежнее состояние при выходе.
+ *                время шага и возвращает прежнее состояние при выходе;
+ * - `celebrate`  если true - в поповере рисуется галочка-празднование (финал);
+ * - `cta`        текст финальной кнопки-CTA (ведёт на оформление заявки).
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string }>}
  */
 export const onboardingSteps = [
   {
@@ -59,7 +61,7 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-header-broadcast"]',
     title: 'Объявления',
-    description: 'Здесь появляется кнопка важного объявления, когда администрация публикует что-то срочное. Нажмите, чтобы прочитать.',
+    description: 'На этой странице может появиться объявление или важное объявление от администрации. Когда оно опубликовано - вы увидите его здесь и сможете открыть, чтобы не пропустить важное.',
   },
   {
     id: 'header-time',
@@ -102,7 +104,7 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-nav-group-data"]',
     title: 'Управление данными',
-    description: 'Раздел «Управление данными»: таблицы системы, ваши сотрудники и автомобили. Отсюда вы ведёте справочники, по которым оформляются пропуска.',
+    description: 'Раздел «Управление данными»: ваши сотрудники и автомобили. Здесь вы ведёте справочники, по которым оформляются пропуска.',
     expandRail: true,
   },
   {
@@ -185,6 +187,15 @@ export const onboardingSteps = [
     title: 'Заполнение и отправка',
     description: 'После выбора бланка откроется форма: сопроводительное письмо, поля сотрудника и автомобиля, согласие на обработку данных и кнопка отправки. Вот как она выглядит заполненной.',
     demo: 'createForm',
+  },
+  {
+    id: 'finish',
+    route: '/news',
+    element: '[data-testid="ob-start-button"]',
+    title: 'Готово, вы освоились!',
+    description: 'Это всё основное. Запустить обучение заново можно в любой момент - кнопкой «Обучение» вот здесь. Удачной работы!',
+    celebrate: true,
+    cta: 'Подать первую заявку',
   },
 ];
 

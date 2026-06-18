@@ -6,25 +6,44 @@
 .driver-popover.ob-popover {
   border-radius: 20px;
   box-shadow: var(--shadow-md);
-  padding: 20px 22px 16px;
-  max-width: 360px;
+  padding: 22px 24px 18px;
+  max-width: 410px;
+  min-width: 300px;
   font-family: 'Montserrat', sans-serif;
 }
 
 .driver-popover.ob-popover .driver-popover-title {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   color: #1a1a1a;
+  padding-right: 18px;
 }
 
 .driver-popover.ob-popover .driver-popover-description {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--color-text);
 }
 
 .driver-popover.ob-popover .driver-popover-arrow {
   color: #fff;
+}
+
+/* Крестик закрытия: фикс позиции и центровки символа */
+.driver-popover.ob-popover .driver-popover-close-btn {
+  top: 14px;
+  right: 15px;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 22px;
+  text-align: center;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+
+.driver-popover.ob-popover .driver-popover-close-btn:hover {
+  color: var(--color-primary);
 }
 
 /* --- Демо-скриншот в теле поповера (шаги с пустыми у новичка блоками) --- */
@@ -48,38 +67,101 @@
   text-align: center;
 }
 
-/* --- Кнопки навигации (pill-стиль под бренд) --- */
-.driver-popover.ob-popover .driver-popover-navigation-btns {
-  gap: 8px;
-  margin-top: 4px;
+/* --- Финал: галочка-празднование + CTA --- */
+.driver-popover.ob-popover .ob-popover__celebrate {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 12px;
 }
 
+.driver-popover.ob-popover .ob-popover__check {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(0);
+  opacity: 0;
+  animation: ob-check-pop 0.4s cubic-bezier(0.34, 1.4, 0.5, 1) forwards;
+}
+
+@keyframes ob-check-pop {
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.driver-popover.ob-popover .ob-popover__cta {
+  display: block;
+  width: 100%;
+  margin: 14px 0 4px;
+  padding: 11px 16px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.driver-popover.ob-popover .ob-popover__cta:hover {
+  background: var(--color-primary-hover);
+}
+
+.driver-popover.ob-popover .ob-popover__cta:active {
+  transform: scale(0.98);
+}
+
+/* --- Футер: прогресс сверху, затем ряд "Пропустить ... Назад Далее" --- */
+.driver-popover.ob-popover .driver-popover-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.driver-popover.ob-popover .driver-popover-progress-text {
+  display: none;
+}
+
+.driver-popover.ob-popover .driver-popover-navigation-btns {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Кнопки навигации pill-стиль под бренд, выровнены по центру */
 .driver-popover.ob-popover .driver-popover-prev-btn,
 .driver-popover.ob-popover .driver-popover-next-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
   text-shadow: none;
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
-  padding: 7px 18px;
+  padding: 0 20px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  line-height: 1.2;
+  line-height: 1;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.driver-popover.ob-popover .driver-popover-next-btn {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
-}
-
-.driver-popover.ob-popover .driver-popover-next-btn:hover {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-
+/* Назад: прижимает себя и Далее вправо, "Пропустить" остаётся слева */
 .driver-popover.ob-popover .driver-popover-prev-btn {
+  margin-left: auto;
   background: #fff;
   color: var(--color-primary);
   border-color: var(--color-primary);
@@ -95,22 +177,43 @@
   cursor: not-allowed;
 }
 
-.driver-popover.ob-popover .driver-popover-close-btn {
+.driver-popover.ob-popover .driver-popover-next-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.driver-popover.ob-popover .driver-popover-next-btn:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+/* "Пропустить" - подчёркнуто-вторичная, слева, по центру высоты кнопок */
+.driver-popover.ob-popover .ob-popover__skip {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--color-text-muted);
+  cursor: pointer;
   transition: color 0.15s ease;
 }
 
-.driver-popover.ob-popover .driver-popover-close-btn:hover {
+.driver-popover.ob-popover .ob-popover__skip:hover {
   color: var(--color-primary);
 }
 
-/* --- Кастомный прогресс-блок (рисуем сами, штатный showProgress выключен) --- */
+/* --- Сквозной прогресс "шаг X из N" + полоска --- */
 .ob-popover__progress {
   display: flex;
   flex-direction: column;
   gap: 7px;
   width: 100%;
-  margin-bottom: 12px;
 }
 
 .ob-popover__step-label {
@@ -142,26 +245,16 @@
   color: var(--color-text-muted);
 }
 
-.ob-popover__skip {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease, opacity 0.15s ease;
-}
-
-.ob-popover__skip:hover {
-  color: var(--color-primary);
-  opacity: 0.85;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .ob-popover__bar-fill {
+  .ob-popover__bar-fill,
+  .ob-popover__check,
+  .ob-popover__cta {
     transition: none;
+    animation: none;
+  }
+
+  .driver-popover.ob-popover .ob-popover__check {
+    transform: scale(1);
+    opacity: 1;
   }
 }
