@@ -405,16 +405,75 @@ func (s *statisticsService) loadDynamicReportOptions(ctx context.Context) (dynam
 	return dyn, nil
 }
 
-// RunReport исполняет агрегатный отчёт конструктора (mode=aggregate): метрика x
-// разрез x фильтры x период x sort/limit. План собирается чистой buildAggregatePlan
-// из whitelist-схем (report_engine.go) — ввод сверяется по ключам и подставляется
-// только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest (400 в handler).
+// RunReport исполняет агрегатный отчёт конструктора (mode=aggregate): одна или
+// несколько метрик (Metrics) x разрез x фильтры x период x sort/limit. Каждая
+// метрика исполняется отдельным агрегатным запросом (у метрик разные базовые
+// таблицы — общий GROUP BY невозможен) и сливается по подписи разреза в Go
+// (report_engine.go, чистая логика). Планы собираются buildAggregatePlan из
+// whitelist-схем: ввод сверяется по ключам и подставляется только через
+// плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest (400 в handler).
 func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequest) (*models.ReportResponse, error) {
-	plan, err := buildAggregatePlan(req)
+	metrics, err := resolveReportMetrics(req)
 	if err != nil {
 		return nil, err
 	}
+	multi := len(metrics) > 1
 
+	perMetric := make(map[string][]models.ReportAggregateRow, len(metrics))
+	columns := make([]models.ReportMetricColumn, 0, len(metrics))
+	for _, m := range metrics {
+		mreq := req
+		mreq.Metric = m
+		plan, perr := buildAggregatePlan(mreq)
+		if perr != nil {
+			return nil, perr
+		}
+		// При мультиметриках итоговый лимит применяется после слияния (top-N по
+		// сумме метрик), поэтому каждую метрику грузим широко.
+		if multi {
+			plan.limit = maxReportLimit
+		}
+		rows, rerr := s.execAggregatePlan(ctx, plan)
+		if rerr != nil {
+			return nil, rerr
+		}
+		perMetric[m] = rows
+		columns = append(columns, models.ReportMetricColumn{
+			Key:   m,
+			Label: reportMetricRegistry[m].label,
+			Unit:  plan.unit,
+		})
+	}
+
+	metricRows, totals := mergeMetricRows(metrics, perMetric, req.Dimension, req.Sort, clampLimit(req.Limit))
+
+	// Legacy-поля одиночной метрики (текущий FE читает Rows/Total/Unit): первая
+	// метрика как label/value по уже упорядоченным строкам. Unit берём из той же
+	// колонки (единый источник — план метрики), чтобы columns[].unit и legacy unit
+	// не разъезжались.
+	first := metrics[0]
+	legacyRows := make([]models.ReportAggregateRow, 0, len(metricRows))
+	for _, r := range metricRows {
+		legacyRows = append(legacyRows, models.ReportAggregateRow{Label: r.Label, Value: r.Values[first]})
+	}
+
+	return &models.ReportResponse{
+		Mode:       "aggregate",
+		Metric:     first,
+		Dimension:  req.Dimension,
+		Unit:       columns[0].Unit,
+		Rows:       legacyRows,
+		Total:      totals[first],
+		Columns:    columns,
+		MetricRows: metricRows,
+		Totals:     totals,
+	}, nil
+}
+
+// execAggregatePlan исполняет один резолвленный план агрегата и возвращает строки
+// (подпись разреза + значение метрики). GROUP BY/ORDER применяются только если
+// заданы (разрез "none" даёт один итоговый ряд без них).
+func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan) ([]models.ReportAggregateRow, error) {
 	tx := s.db.WithContext(ctx).Table(plan.table).Select(plan.selectStr)
 	for _, j := range plan.joins {
 		tx = tx.Joins(j)
@@ -422,29 +481,18 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 	for _, w := range plan.wheres {
 		tx = tx.Where(w.expr, w.args...)
 	}
+	if plan.groupExpr != "" {
+		tx = tx.Group(plan.groupExpr)
+	}
+	if plan.orderStr != "" {
+		tx = tx.Order(plan.orderStr)
+	}
 
 	rows := make([]models.ReportAggregateRow, 0)
-	if err := tx.
-		Group(plan.groupExpr).
-		Order(plan.orderStr).
-		Limit(plan.limit).
-		Scan(&rows).Error; err != nil {
+	if err := tx.Limit(plan.limit).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("statistics: run report: %w", err)
 	}
-
-	var total int64
-	for _, r := range rows {
-		total += r.Value
-	}
-
-	return &models.ReportResponse{
-		Mode:      "aggregate",
-		Metric:    req.Metric,
-		Dimension: req.Dimension,
-		Unit:      plan.unit,
-		Rows:      rows,
-		Total:     total,
-	}, nil
+	return rows, nil
 }
 
 // RunReportList исполняет list-отчёт конструктора (mode=list): выгрузка строк

@@ -157,7 +157,7 @@ func (h *StatisticsHandler) GetMetrics(c echo.Context) error {
 
 // RunReport godoc
 // @Summary      Исполнение отчёта конструктора
-// @Description  mode=aggregate: метрика x разрез x фильтры x период. mode=list: выгрузка строк сущности.
+// @Description  mode=aggregate: одна/несколько метрик (metrics[]) x разрез (или none) x фильтры x период. mode=list: выгрузка строк сущности.
 // @Tags         statistics
 // @Accept       json
 // @Produce      json
@@ -180,7 +180,7 @@ func (h *StatisticsHandler) RunReport(c echo.Context) error {
 
 	switch req.Mode {
 	case "aggregate":
-		if req.Metric == "" || req.Dimension == "" {
+		if (req.Metric == "" && len(req.Metrics) == 0) || req.Dimension == "" {
 			return echo.NewHTTPError(http.StatusBadRequest, "metric and dimension are required")
 		}
 		res, err := h.service.RunReport(c.Request().Context(), req)

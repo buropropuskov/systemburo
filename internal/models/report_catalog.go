@@ -16,11 +16,13 @@ type ReportOption struct {
 }
 
 // ReportMetricInfo — метрика агрегатного отчёта (что измеряем).
+// Group — тематическая группа карточек метрик в гиде (Заявки/Машины/Люди/...).
 // Dimensions перечисляет ключи разрезов, по которым эту метрику можно группировать.
 type ReportMetricInfo struct {
 	Key        string   `json:"key"`
 	Label      string   `json:"label"`
 	Unit       string   `json:"unit,omitempty"`
+	Group      string   `json:"group,omitempty"`
 	Dimensions []string `json:"dimensions"`
 }
 
