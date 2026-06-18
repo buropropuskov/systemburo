@@ -17,43 +17,49 @@
     </div>
 
     <template v-else-if="catalog">
-      <section class="reports__block">
-        <h2 class="reports__heading">
-          Готовые отчёты
-        </h2>
-        <ReportGallery
-          :catalog="catalog"
-          :active-id="activePresetId"
-          @apply="onApplyPreset"
-        />
-      </section>
+      <div class="reports-layout">
+        <!-- Сайдбар: готовые наборы + мои шаблоны -->
+        <aside class="presets-col">
+          <h3 class="col-heading">
+            Готовые наборы
+          </h3>
+          <ReportGallery
+            :catalog="catalog"
+            :active-id="activePresetId"
+            compact
+            @apply="onApplyPreset"
+          />
 
-      <section class="reports__block">
-        <h2 class="reports__heading">
-          Сформировать отчёт
-        </h2>
-        <p class="reports__lead">
-          Выберите показатель и разрез или выгрузку строк — результат появится ниже. Период берётся из фильтра вверху.
-        </p>
-        <ReportBuilder
-          :catalog="catalog"
-          :period="period"
-          :loading="running"
-          :preset="presetPayload"
-          @run="onRun"
-        />
-      </section>
+          <h3 class="col-heading col-heading--mt">
+            Мои шаблоны
+          </h3>
+          <div class="template-placeholder">
+            Сохранённые наборы появятся здесь. Соберите отчёт в мастере и сохраните его как шаблон.
+          </div>
+        </aside>
 
-      <section class="reports__block reports__block--result">
-        <h2 class="reports__heading">
-          Результат
-        </h2>
-        <ReportResult
-          :result="result"
-          :loading="running"
-          :error="runError"
-        />
-      </section>
+        <!-- Мастер -->
+        <section class="wizard">
+          <ReportStepper :steps="steps" />
+          <div class="wizard-body">
+            <ReportBuilder
+              :catalog="catalog"
+              :period="period"
+              :loading="running"
+              :preset="presetPayload"
+              @run="onRun"
+              @change="onBuilderChange"
+            />
+          </div>
+        </section>
+      </div>
+
+      <!-- Результат (полная ширина под мастером) -->
+      <ReportResult
+        :result="result"
+        :loading="running"
+        :error="runError"
+      />
     </template>
   </div>
 </template>
@@ -63,6 +69,7 @@ import { ref, computed, onMounted } from 'vue';
 import ReportBuilder from './ReportBuilder.vue';
 import ReportResult from './ReportResult.vue';
 import ReportGallery from './ReportGallery.vue';
+import ReportStepper from './ReportStepper.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { getReportCatalog, runReport } from '@/api/statistics';
 
@@ -85,6 +92,34 @@ const runError = ref('');
 // чтобы watch в ReportBuilder сработал повторно и перезаполнил конструктор.
 const presetPayload = ref(null);
 const activePresetId = ref('');
+
+// Снимок состояния мастера для индикатора шагов.
+const builderState = ref({ mode: 'aggregate', metric: '', dimension: '', entity: '', filterCount: 0 });
+
+const STEP_LABELS = ['1 · Что считаем', '2 · По чему разбиваем', '3 · Фильтры', '4 · Период'];
+
+// Состояние шагов по заполненности формы: done — данные есть, current — первый
+// незаполненный, upcoming — дальше. В list-режиме разрез не применим -> шаг 2
+// считается выполненным по выбранной сущности.
+const steps = computed(() => {
+  const s = builderState.value;
+  const isList = s.mode === 'list';
+  const done = [
+    isList ? Boolean(s.entity) : Boolean(s.metric),
+    isList ? Boolean(s.entity) : Boolean(s.dimension),
+    s.filterCount > 0,
+    Boolean(period.value.from && period.value.to),
+  ];
+  const currentIdx = done.indexOf(false);
+  return STEP_LABELS.map((label, i) => ({
+    label,
+    state: done[i] ? 'done' : i === currentIdx ? 'current' : 'upcoming',
+  }));
+});
+
+function onBuilderChange(snapshot) {
+  builderState.value = snapshot;
+}
 
 function onApplyPreset(preset) {
   activePresetId.value = preset.id;
@@ -127,7 +162,7 @@ async function onRun(request) {
 .reports {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
 }
 
 .reports__state {
@@ -144,27 +179,64 @@ async function onRun(request) {
   color: #c0392b;
 }
 
-.reports__block {
+.reports-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.presets-col {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.reports__block--result {
-  border-top: 1px solid var(--color-border);
-  padding-top: 24px;
-}
-
-.reports__heading {
-  margin: 0;
-  font-size: 16px;
+.col-heading {
+  margin: 4px 2px 8px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
 }
 
-.reports__lead {
-  margin: 0 0 12px;
-  font-size: 13px;
+.col-heading--mt {
+  margin-top: 18px;
+}
+
+.template-placeholder {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
   color: var(--color-text-muted);
+}
+
+.wizard {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.wizard-body {
+  padding: 24px;
+}
+
+@media (max-width: 1180px) {
+  .reports-layout {
+    grid-template-columns: 240px 1fr;
+  }
+}
+
+@media (max-width: 880px) {
+  .reports-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

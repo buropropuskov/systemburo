@@ -1,6 +1,12 @@
 <template>
-  <div class="gallery">
-    <p class="gallery__lead">
+  <div
+    class="gallery"
+    :class="{ 'gallery--compact': compact }"
+  >
+    <p
+      v-if="!compact"
+      class="gallery__lead"
+    >
       Готовые отчёты — нажмите карточку, чтобы заполнить конструктор и сразу увидеть результат.
       Период берётся из фильтра вверху, а любой отчёт можно доработать в конструкторе ниже.
     </p>
@@ -28,6 +34,9 @@ import { REPORT_PRESETS, presetAvailable } from './reportPresets';
 const props = defineProps({
   catalog: { type: Object, default: null },
   activeId: { type: String, default: '' },
+  // compact — вариант для сайдбара мастера: без вводного текста, карточки в один
+  // столбец и плотнее (resultHint скрыт, чтобы влезть в узкую колонку).
+  compact: { type: Boolean, default: false },
 });
 
 defineEmits(['apply']);
@@ -99,5 +108,32 @@ const availablePresets = computed(() =>
   font-size: 12px;
   font-weight: 600;
   color: var(--color-primary);
+}
+
+/* Компактный сайдбар-вариант: один столбец, плотные карточки, без resultHint. */
+.gallery--compact {
+  gap: 8px;
+}
+
+.gallery--compact .gallery__grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.gallery--compact .gallery__card {
+  gap: 4px;
+  padding: 13px 14px;
+}
+
+.gallery--compact .gallery__card-title {
+  font-size: 13px;
+}
+
+.gallery--compact .gallery__card-desc {
+  font-size: 11px;
+}
+
+.gallery--compact .gallery__card-result {
+  display: none;
 }
 </style>
