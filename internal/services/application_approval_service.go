@@ -117,6 +117,36 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}
 
+	// Пер-вложенный пересыл (#680): фиксируем, какие вложения видит каждый получатель.
+	// Список общий на действие, разворачиваем построчно (получатель x вложение). Пустой
+	// список не пишет строк -> получатели видят все вложения (обратная совместимость).
+	// Семантика аддитивная: повторная пересылка с другим набором ДОБАВЛЯет строки
+	// (ON CONFLICT DO NOTHING), а не заменяет; сужение видимости здесь не предусмотрено.
+	if len(req.AttachmentIDs) > 0 {
+		recipients := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
+		for _, resp := range addedResponsibleUsers {
+			recipients = append(recipients, resp.UserID)
+		}
+		recipients = append(recipients, addedViewers...)
+
+		if len(recipients) > 0 {
+			// Только вложения самой заявки - чужие ID отбрасываем, чтобы строка не ссылалась
+			// на чужое вложение и фильтр чтения не прятал всё подряд.
+			var validAttIDs []int
+			tx.Raw("SELECT id FROM attachments WHERE application_id = ? AND id IN ?", applicationID, req.AttachmentIDs).Scan(&validAttIDs)
+
+			for _, recipientID := range recipients {
+				for _, attID := range validAttIDs {
+					tx.Exec(`
+						INSERT INTO forward_attachments (application_id, recipient_user_id, attachment_id, created_at, created_by)
+						VALUES (?, ?, ?, ?, ?)
+						ON CONFLICT (application_id, recipient_user_id, attachment_id) DO NOTHING
+					`, applicationID, recipientID, attID, baseTime, user.ID)
+				}
+			}
+		}
+	}
+
 	// Записываем историю назначений ответственных
 	for _, resp := range addedResponsibleUsers {
 		historyTime = historyTime.Add(time.Millisecond)

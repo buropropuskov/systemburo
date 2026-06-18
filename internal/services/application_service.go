@@ -227,8 +227,12 @@ type ApplicationUpdateRequest struct {
 }
 
 // ForwardApplicationRequest тело запроса на пересылку заявки.
+// AttachmentIDs - общий для всех получателей список вложений (#680): пустой -> получатели
+// видят все вложения заявки; непустой -> в forward_attachments пишется строка на каждого
+// получателя x каждое вложение, и при чтении получатель видит только перечисленные.
 type ForwardApplicationRequest struct {
-	Users []ForwardUser `json:"users"`
+	Users         []ForwardUser `json:"users"`
+	AttachmentIDs []int         `json:"attachment_ids"`
 }
 
 // ForwardUser пользователь для пересылки. required_approval и can_view не могут быть оба true.
