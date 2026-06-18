@@ -429,8 +429,9 @@ const resultHint = computed(() => {
     : 'Результат: таблица строк.';
 });
 
-// Применить пресет из галереи и сразу построить отчёт. Разрез сверяется watch'ем
-// availableDimensions (пресеты используют валидные ключи каталога).
+// Применить пресет/шаблон и сразу построить отчёт. Галерея-пресеты несут только
+// метрику/разрез; шаблоны (G2) дополнительно несут filters/period/period_preset.
+// Разрез сверяется watch'ем availableDimensions (ключи каталога валидны).
 watch(() => props.preset, (p) => {
   if (!p) return;
   form.mode = p.mode || 'aggregate';
@@ -441,9 +442,23 @@ watch(() => props.preset, (p) => {
     form.dimension = p.dimension || '';
     form.granularity = p.granularity || 'day';
   }
-  // Пресеты не несут значений фильтров; watch entity их и так обнулит.
-  form.filters = {};
-  nextTick(run);
+  // Период — синхронно (watch'и его не сбрасывают). Именованный пресет (неделя/
+  // месяц/год/весь) пересчитываем на текущую дату; «custom»/произвольный — берём
+  // явные даты шаблона, иначе computePeriod стёр бы их.
+  const namedPreset = ['week', 'month', 'year', 'all'].includes(p.period_preset);
+  if (namedPreset) {
+    applyPeriodPreset(p.period_preset);
+  } else if (p.period) {
+    form.period.from = p.period.from || '';
+    form.period.to = p.period.to || '';
+    activePeriodPreset.value = 'custom';
+  }
+  // Фильтры применяем в nextTick: watch entity/metrics успевает синхронно сбросить
+  // form.filters, иначе он затёр бы значения шаблона. Затем строим отчёт.
+  nextTick(() => {
+    form.filters = p.filters ? { ...p.filters } : {};
+    nextTick(run);
+  });
 });
 
 function isMetricOn(key) {
@@ -502,6 +517,21 @@ function applyPeriodPreset(kind) {
 const filterCount = computed(
   () => Object.values(form.filters).reduce((n, vals) => n + (vals?.length || 0), 0),
 );
+
+// Полный снимок состояния гида для сохранения в шаблон. Тот же формат принимает
+// preset-watch при применении шаблона. period_preset сохраняем, чтобы при
+// восстановлении подсветить ту же кнопку периода. Бэк хранит config как непрозрачный.
+const reportConfig = computed(() => ({
+  mode: form.mode,
+  metrics: [...form.metrics],
+  dimension: form.dimension,
+  granularity: form.granularity,
+  entity: form.entity,
+  filters: { ...form.filters },
+  period: { from: form.period.from, to: form.period.to },
+  period_preset: activePeriodPreset.value,
+}));
+
 watch(
   () => ({
     mode: form.mode,
@@ -511,6 +541,7 @@ watch(
     filterCount: filterCount.value,
     periodApplicable: periodApplicable.value,
     periodFilled: Boolean(form.period.from && form.period.to),
+    config: reportConfig.value,
   }),
   (snapshot) => emit('change', snapshot),
   { immediate: true, deep: true },

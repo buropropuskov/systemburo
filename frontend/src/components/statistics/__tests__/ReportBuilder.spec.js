@@ -177,6 +177,26 @@ describe('ReportBuilder', () => {
     expect(req.filters).toContainEqual({ key: 'date_range', from: '2026-06-01', to: '2026-06-07' });
   });
 
+  it('применяет шаблон с фильтрами и собственным периодом', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({
+      preset: {
+        mode: 'aggregate', metrics: ['applications_count'], dimension: 'status',
+        filters: { organization: ['ООО А'] }, period: { from: '2026-01-01', to: '2026-03-31' },
+      },
+    });
+    await flushPromises();
+
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count']);
+    expect(req.dimension).toBe('status');
+    // Фильтры и период из шаблона, а не из шапки.
+    expect(req.filters).toContainEqual({ key: 'organization', values: ['ООО А'] });
+    expect(req.filters).toContainEqual({ key: 'date_range', from: '2026-01-01', to: '2026-03-31' });
+  });
+
   it('применяет list-пресет и сразу строит отчёт', async () => {
     const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
     await nextTick();
