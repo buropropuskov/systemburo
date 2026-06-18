@@ -125,7 +125,7 @@ export function useOnboarding() {
     const skip = document.createElement('button');
     skip.type = 'button';
     skip.className = 'ob-popover__skip';
-    skip.textContent = 'Пропустить';
+    skip.textContent = 'Пропустить обучение';
     skip.addEventListener('click', onSkip);
     return skip;
   }
@@ -205,22 +205,44 @@ export function useOnboarding() {
           // Передаём РЕАЛЬНЫЙ глобальный индекс driver'а - store.currentIndex может
           // отставать (onHighlighted последнего шага мог не успеть его обновить).
           onBoundaryNext(startIndex + localIndex);
-        } else {
-          // Шаг может требовать подготовки DOM перед переходом (напр. добавить
-          // демо-вложение, чтобы форма отрисовалась) - даём хосту шанс довести
-          // цель до готовности ДО moveNext, иначе driver подсветит пустоту.
-          if (onBeforeStep) await onBeforeStep(startIndex + localIndex + 1);
-          driverObj.moveNext();
+          return;
         }
+        // Готовим целевой шаг ДО перехода: onBeforeStep ставит демо-вложение и
+        // ДОЖИДАЕТСЯ появления элемента (иначе driver подсветит пустоту, если
+        // данные ещё грузятся). Опциональный шаг без элемента (напр. доп.поля
+        // "при наличии") пропускаем к следующему.
+        let target = localIndex + 1;
+        while (target <= lastLocal) {
+          const ready = onBeforeStep ? await onBeforeStep(startIndex + target) : true;
+          if (ready !== false) break;
+          target += 1;
+        }
+        if (target > lastLocal) {
+          // Все оставшиеся шаги опциональны и отсутствуют - это граница сегмента.
+          if (onBoundaryNext) onBoundaryNext(startIndex + lastLocal);
+          return;
+        }
+        if (target === localIndex + 1) driverObj.moveNext();
+        else driverObj.moveTo(target);
       },
       onPopoverRender(popover) {
         const localIndex = driverObj.getActiveIndex() ?? 0;
-        const globalIndex = startIndex + localIndex + 1;
-        const total = store.totalSteps;
+        const currentGlobal = startIndex + localIndex;
         const step = stepsForSegment[localIndex];
-        // Подсказка "Далее" сквозная - берём следующий шаг по глобальному
-        // индексу, чтобы на границе сегмента показать имя шага со след. страницы.
-        const nextStep = store.steps[globalIndex];
+        // Нумерация без опциональных шагов: доп.поля «при наличии» появляются не
+        // всегда, поэтому в счёт «Шаг N из M» их не берём - иначе при пропуске
+        // получается дырка в номерах (22 -> 24).
+        const total = store.steps.filter((s) => !s.optional).length;
+        const globalIndex = store.steps.slice(0, currentGlobal + 1).filter((s) => !s.optional).length;
+        // Подсказка "Далее" сквозная (вкл. шаг со след. страницы). Пропускаем
+        // опциональные шаги, элемента которых сейчас нет в DOM (будут скипнуты) -
+        // иначе хинт обещает шаг, на который тур не перейдёт.
+        let nextIdx = currentGlobal + 1;
+        let nextStep = store.steps[nextIdx];
+        while (nextStep && nextStep.optional && nextStep.element && !document.querySelector(nextStep.element)) {
+          nextIdx += 1;
+          nextStep = store.steps[nextIdx];
+        }
         const nextTitle = nextStep ? nextStep.title : '';
 
         // Финал: галочка перед заголовком + CTA после описания.

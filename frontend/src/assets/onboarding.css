@@ -12,6 +12,16 @@
   font-family: 'Montserrat', sans-serif;
 }
 
+/*
+ * driver.css задаёт font-family прямо на потомках (.driver-popover * и
+ * font-shorthand на title/description/buttons -> sans-serif), что перебивает
+ * Montserrat, унаследованный с контейнера. Форсируем Montserrat на всех
+ * потомках с большей специфичностью (две классные селекции + универсальный).
+ */
+.driver-popover.ob-popover * {
+  font-family: 'Montserrat', sans-serif;
+}
+
 /* Шаги с демо-скриншотом таблицы - шире, чтобы реальный компонент читался. */
 .driver-popover.ob-popover.ob-popover--wide {
   max-width: 600px;

@@ -172,16 +172,31 @@ describe('cross-page конфигурация (создание заявки)', 
     expect(first).toBeGreaterThan(0);
     expect(onboardingSteps[first - 1].route).not.toBe('/new-application');
     expect(collectSegment(onboardingSteps, first, '/new-application').map((s) => s.id))
-      .toEqual(['createapp-selector', 'createapp-car', 'createapp-people']);
+      .toEqual([
+        'createapp-selector',
+        'createapp-orginfo',
+        'createapp-custom',
+        'createapp-dates',
+        'createapp-car-form',
+        'createapp-people-form',
+      ]);
   });
 
-  it('шаги бланков несут демо-вложение и демо-скриншот формы', () => {
-    const car = onboardingSteps.find((s) => s.id === 'createapp-car');
-    const people = onboardingSteps.find((s) => s.id === 'createapp-people');
-    expect(car.demoAttachment).toBe('cars');
-    expect(car.demo).toBe('carForm');
-    expect(people.demoAttachment).toBe('people');
-    expect(people.demo).toBe('peopleForm');
+  it('гранулярные шаги формы держат демо-вложение и не несут скриншотов', () => {
+    const formSteps = ['createapp-orginfo', 'createapp-custom', 'createapp-dates', 'createapp-car-form']
+      .map((id) => onboardingSteps.find((s) => s.id === id));
+    // секции org/доп.поля/даты/форма ТС держат бланк «Автомобили» отрисованным
+    formSteps.forEach((s) => expect(s.demoAttachment).toBe('cars'));
+    // шаг формы сотрудника переключает бланк
+    expect(onboardingSteps.find((s) => s.id === 'createapp-people-form').demoAttachment).toBe('people');
+    // скриншотов в шагах формы больше нет - выделяем реальные секции
+    onboardingSteps
+      .filter((s) => s.route === '/new-application')
+      .forEach((s) => expect(s.demo).toBeUndefined());
+  });
+
+  it('шаг доп.полей опционален (может отсутствовать в форме)', () => {
+    expect(onboardingSteps.find((s) => s.id === 'createapp-custom').optional).toBe(true);
   });
 
   it('идёт после сотрудников', () => {

@@ -165,7 +165,8 @@
         </div>
 
         <!-- 2 ряд: Организация, Компания, Ответственное лицо -->
-        <UserInfoRow 
+        <UserInfoRow
+          data-testid="ob-app-orginfo"
           :organization="organization"
           :company="company"
           :responsible-person="responsiblePerson"
@@ -182,13 +183,17 @@
 
         <CustomFieldsSection
           v-if="currentCustomFields.length"
+          data-testid="ob-app-custom"
           :fields="currentCustomFields"
           :model-value="currentCustomFieldValues"
           @update:model-value="updateCustomFieldValues($event)"
         />
 
         <!-- 3 ряд: Заголовок, Дата действия, Время пребывания (теперь индивидуально для вложения) -->
-        <div class="form__info-row">
+        <div
+          class="form__info-row"
+          data-testid="ob-app-dates"
+        >
           <DateRangeSection
             :is-one-day="currentAttachmentData.isOneDay"
             :start-date="currentAttachmentData.startDate"
@@ -215,7 +220,10 @@
         </div>
 
         <!-- 4 ряд: Динамические формы в зависимости от типа вложения -->
-        <div class="form__data">
+        <div
+          class="form__data"
+          data-testid="ob-app-formdata"
+        >
           <!-- Для автомобилей -->
           <template v-if="selectedAttachment && selectedAttachment.attachment_type === 'cars'">
             <VehicleForm

@@ -66,16 +66,28 @@ function applyDemoAttachment(globalIndex) {
 }
 
 /**
- * Перед переходом на шаг готовим DOM: ставим демо-вложение и (если шаг на него
- * завязан) дожидаемся, пока форма вложения появится - тогда driver подсветит
- * уже отрисованный ob-app-form, а не пустоту.
+ * Перед переходом на шаг готовим DOM: ставим демо-вложение и дожидаемся
+ * появления целевого элемента - иначе driver подсветит пустоту, если данные
+ * ещё грузятся (баг: шаг всплывал раньше, чем элемент попадал в DOM).
+ *
+ * Опциональный шаг (`optional`, напр. доп.поля «при наличии»): если элемента
+ * нет за короткий таймаут - возвращаем false, и onNextClick пропускает шаг.
+ *
+ * @param {number} globalIndex
+ * @returns {Promise<boolean>} false = пропустить опциональный шаг (элемента нет)
  */
 async function prepareStep(globalIndex) {
   const step = store.steps[globalIndex];
   applyDemoAttachment(globalIndex);
-  if (step?.demoAttachment && step.element) {
-    await waitForElement(step.element, FIRST_TARGET_TIMEOUT);
-  }
+  if (!step?.element) return true;
+  // Опциональный шаг ждём коротко: к этому моменту форма и field-config уже
+  // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
+  // определяется быстро - не держим пользователя на «Далее». Обязательный шаг
+  // ждём дольше (данным/демо-форме нужно время появиться).
+  const timeout = step.optional ? 700 : FIRST_TARGET_TIMEOUT;
+  const el = await waitForElement(step.element, timeout);
+  if (!el && step.optional) return false;
+  return true;
 }
 
 async function startSegment() {
