@@ -102,16 +102,23 @@ func seedE2EUsers(db *gorm.DB, orgID, compID, buroTypeID int) {
 	const e2ePassword = "testpass123"
 	hash := hashPassword(e2ePassword)
 
+	// onboardingDoneVersion — заведомо выше любой реальной ONBOARDING_VERSION:
+	// E2E-юзерам тур не нужен, а его автозапуск перекрывает UI оверлеем и валит
+	// клики чужих тестов (shard 3/4 notifications). Берём с запасом, чтобы не
+	// ломаться при росте версии тура.
+	const onboardingDoneVersion = 1000
+
 	// e2e_admin — тот же type_id что buropropuskov (админ).
 	adminResult := db.Exec(`
-		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name)
-		VALUES ('e2e_admin', ?, ?, ?, ?, 'E2E', 'Admin')
+		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name, onboarding_completed_version)
+		VALUES ('e2e_admin', ?, ?, ?, ?, 'E2E', 'Admin', ?)
 		ON CONFLICT (username) DO UPDATE SET
 			password = EXCLUDED.password,
 			organization_id = EXCLUDED.organization_id,
 			company_id = EXCLUDED.company_id,
-			type_id = EXCLUDED.type_id
-	`, hash, orgID, compID, buroTypeID)
+			type_id = EXCLUDED.type_id,
+			onboarding_completed_version = EXCLUDED.onboarding_completed_version
+	`, hash, orgID, compID, buroTypeID, onboardingDoneVersion)
 	if adminResult.Error != nil {
 		log.Fatalf("Failed to seed e2e_admin: %v", adminResult.Error)
 	}
@@ -123,16 +130,27 @@ func seedE2EUsers(db *gorm.DB, orgID, compID, buroTypeID int) {
 		userTypeID = 1
 	}
 	userResult := db.Exec(`
-		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name)
-		VALUES ('e2e_user', ?, ?, ?, ?, 'E2E', 'User')
+		INSERT INTO users (username, password, organization_id, company_id, type_id, last_name, first_name, onboarding_completed_version)
+		VALUES ('e2e_user', ?, ?, ?, ?, 'E2E', 'User', ?)
 		ON CONFLICT (username) DO UPDATE SET
 			password = EXCLUDED.password,
 			organization_id = EXCLUDED.organization_id,
 			company_id = EXCLUDED.company_id,
-			type_id = EXCLUDED.type_id
-	`, hash, orgID, compID, userTypeID)
+			type_id = EXCLUDED.type_id,
+			onboarding_completed_version = EXCLUDED.onboarding_completed_version
+	`, hash, orgID, compID, userTypeID, onboardingDoneVersion)
 	if userResult.Error != nil {
 		log.Fatalf("Failed to seed e2e_user: %v", userResult.Error)
+	}
+
+	// buropropuskov логинится в большинстве E2E-сценариев — ему автозапуск тура
+	// тоже мешает. Помечаем пройденным ТОЛЬКО в E2E (эта ветка по SEED_E2E_USERS),
+	// на staging/prod реальный админ тур увидит.
+	if res := db.Exec(
+		`UPDATE users SET onboarding_completed_version = ? WHERE username = 'buropropuskov'`,
+		onboardingDoneVersion,
+	); res.Error != nil {
+		log.Fatalf("Failed to mark buropropuskov onboarding done: %v", res.Error)
 	}
 
 	fmt.Printf("E2E users seeded: e2e_admin (type_id=%d), e2e_user (type_id=%d), password=%s\n", buroTypeID, userTypeID, e2ePassword)
