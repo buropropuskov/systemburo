@@ -360,6 +360,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useUiStore } from '@/stores/ui'
 
 export default {
     name: 'ApplicationActionBar',
@@ -611,7 +612,14 @@ export default {
         },
 
         async revokeOwnApproval() {
-            if (!confirm('Вы уверены, что хотите отозвать своё решение?')) return;
+            const ok = await useUiStore().confirm({
+                title: 'Отозвать решение?',
+                message: 'Ваше решение по согласованию этой заявки будет отозвано.',
+                confirmText: 'Отозвать',
+                cancelText: 'Отмена',
+                danger: true
+            });
+            if (!ok) return;
 
             this.$emit('processing-change', true);
             try {
