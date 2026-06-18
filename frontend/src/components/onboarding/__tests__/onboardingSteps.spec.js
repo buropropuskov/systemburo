@@ -88,9 +88,14 @@ describe('collectSegment', () => {
     expect(collectSegment(steps, 4, '/carsview').map((s) => s.id)).toEqual(['e']);
   });
 
-  it('реальная конфигурация: весь сегмент news собирается с нулевого индекса', () => {
+  it('реальная конфигурация: первый сегмент news = contiguous блок с нулевого индекса', () => {
     const seg = collectSegment(onboardingSteps, 0, '/news');
-    expect(seg.length).toBe(onboardingSteps.filter((s) => s.route === '/news').length);
+    // финальный шаг тоже /news, но он в конце (отдельный сегмент) - сегмент с 0
+    // обрывается на первом не-/news шаге, а не собирает все /news скопом.
+    const firstNonNews = onboardingSteps.findIndex((s) => s.route !== '/news');
+    expect(seg.length).toBe(firstNonNews);
+    expect(seg[0].id).toBe('start');
+    expect(seg[seg.length - 1].id).toBe('nav-group-data');
   });
 });
 
@@ -148,14 +153,12 @@ describe('cross-page конфигурация (cars / employees)', () => {
 });
 
 describe('cross-page конфигурация (создание заявки)', () => {
-  it('сегмент /new-application идёт последним и отделён границей', () => {
+  it('сегмент /new-application отделён границей и идёт после сотрудников', () => {
     const first = onboardingSteps.findIndex((s) => s.route === '/new-application');
     expect(first).toBeGreaterThan(0);
     expect(onboardingSteps[first - 1].route).not.toBe('/new-application');
     expect(collectSegment(onboardingSteps, first, '/new-application').map((s) => s.id))
       .toEqual(['createapp-selector', 'createapp-form']);
-    // это финальный сегмент тура
-    expect(first + 2).toBe(onboardingSteps.length);
   });
 
   it('шаг формы несёт демо createForm', () => {
@@ -165,5 +168,35 @@ describe('cross-page конфигурация (создание заявки)', 
   it('идёт после сотрудников', () => {
     const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
     expect(idx('employees-table')).toBeLessThan(idx('createapp-selector'));
+  });
+});
+
+describe('финальный шаг', () => {
+  const finish = onboardingSteps[onboardingSteps.length - 1];
+
+  it('финал - последний шаг, на Обзоре, подсвечивает кнопку Обучение', () => {
+    expect(finish.id).toBe('finish');
+    expect(finish.route).toBe('/news');
+    expect(finish.element).toBe('[data-testid="ob-start-button"]');
+  });
+
+  it('несёт празднование и CTA на оформление заявки', () => {
+    expect(finish.celebrate).toBe(true);
+    expect(typeof finish.cta).toBe('string');
+    expect(finish.cta.length).toBeGreaterThan(0);
+  });
+
+  it('возвращает тур на /news (граница сегмента после createApp)', () => {
+    const prev = onboardingSteps[onboardingSteps.length - 2];
+    expect(prev.route).toBe('/new-application');
+    expect(finish.route).not.toBe(prev.route);
+  });
+
+  it('celebrate/cta есть только у финального шага', () => {
+    const withCelebrate = onboardingSteps.filter((s) => s.celebrate);
+    const withCta = onboardingSteps.filter((s) => s.cta);
+    expect(withCelebrate).toHaveLength(1);
+    expect(withCta).toHaveLength(1);
+    expect(withCelebrate[0].id).toBe('finish');
   });
 });

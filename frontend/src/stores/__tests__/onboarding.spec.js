@@ -184,4 +184,18 @@ describe('onboarding store', () => {
       expect(store.currentIndex).toBe(0);
     });
   });
+
+  describe('isManual (авто vs ручной запуск)', () => {
+    it('start() без аргумента - авто (isManual=false)', () => {
+      const store = useOnboardingStore();
+      store.start();
+      expect(store.isManual).toBe(false);
+    });
+
+    it('start({ manual: true }) - ручной (флаг для записи completed не ставится)', () => {
+      const store = useOnboardingStore();
+      store.start({ manual: true });
+      expect(store.isManual).toBe(true);
+    });
+  });
 });

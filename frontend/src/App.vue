@@ -46,6 +46,7 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useOnboardingStore } from '@/stores/onboarding'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
@@ -117,6 +118,9 @@ export default {
         authStore.clearTokens()
         const permissionsStore = usePermissionsStore()
         permissionsStore.clearPermissions()
+        // Снять онбординг-тур, если он был активен - иначе overlay driver.js
+        // останется висеть поверх страницы логина.
+        useOnboardingStore().reset()
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }

@@ -1,5 +1,5 @@
 <script setup>
-import { watch, onBeforeUnmount } from 'vue';
+import { watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
@@ -23,36 +23,48 @@ let waitController = null;
 let driverGen = 0;
 // Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
 let railSaved = null;
+let railRefreshTimer = null;
 
-/**
- * Рельс нужен развёрнутым на nav-шаге И на шаге прямо перед ним: разворачиваем
- * заранее, чтобы к моменту подсветки рельс уже доехал до полной ширины и driver
- * померил рамку спотлайта корректно (иначе ловим элемент в середине анимации).
- */
-function railNeeded(globalIndex) {
-  const cur = store.steps[globalIndex];
-  const next = store.steps[globalIndex + 1];
-  return Boolean(cur?.expandRail || next?.expandRail);
+function clearRailTimer() {
+  if (railRefreshTimer) {
+    clearTimeout(railRefreshTimer);
+    railRefreshTimer = null;
+  }
 }
 
 /**
- * Развернуть/вернуть рельс под текущую позицию. Разворот - ОВЕРЛЕЙНЫЙ
- * (tourForceExpand), без сдвига контента: reflow от пина дёргал бы спотлайт
- * соседних шагов. sidebarHidden снимаем, иначе скрытый рельс не покажется.
+ * Развернуть/вернуть рельс под текущий шаг. Разворот включается ИМЕННО на nav-шаге
+ * (overlay через tourForceExpand, без сдвига контента). Рельс анимированно
+ * доезжает до полной ширины ~0.25s - после анимации просим driver пересчитать
+ * рамку спотлайта (refresh). Overlay не двигает контент, поэтому refresh
+ * ре-стейджит тот же элемент чисто, без скачка спотлайта на соседний.
  */
 function applyRail(globalIndex) {
-  if (railNeeded(globalIndex)) {
+  const cur = store.steps[globalIndex];
+  if (cur?.expandRail) {
     if (!railSaved) {
       railSaved = { force: ui.tourForceExpand, hidden: ui.sidebarHidden };
     }
     ui.tourForceExpand = true;
     ui.sidebarHidden = false;
+    clearRailTimer();
+    const captured = driverObj;
+    railRefreshTimer = setTimeout(() => {
+      railRefreshTimer = null;
+      // moveTo ре-хайлайтит текущий шаг по селектору (свежий querySelector) -
+      // в отличие от refresh() он заново ставит класс .driver-active-element на
+      // развёрнутый рельс. refresh() ре-стейджит и оставляет подсветку пустой.
+      if (captured && captured === driverObj && store.isActive) {
+        captured.moveTo(captured.getActiveIndex());
+      }
+    }, 300);
   } else {
     restoreRail();
   }
 }
 
 function restoreRail() {
+  clearRailTimer();
   if (railSaved) {
     ui.tourForceExpand = railSaved.force;
     ui.sidebarHidden = railSaved.hidden;
@@ -89,9 +101,16 @@ async function startSegment() {
       applyRail(globalIndex);
     },
     onBoundaryNext: handleBoundaryNext,
+    onCtaClick: finishAndCreateApp,
     onDestroyed: () => handleDestroyed(myGen),
   });
   driverObj.drive(0);
+}
+
+/** CTA финала: завершаем тур и ведём на оформление первой заявки. */
+function finishAndCreateApp() {
+  finishTour();
+  router.push('/new-application').catch(() => {});
 }
 
 /**
@@ -130,13 +149,22 @@ function advanceToSegment(targetRoute) {
 
 function finishTour() {
   // destroy() синхронно зовёт onDestroyed -> handleDestroyed (pendingSegment=false)
-  // -> restoreRail + store.stop. Без инстанса завершаем напрямую.
+  // -> markCompleted (если авто) + stop. Без инстанса завершаем напрямую.
   if (driverObj) {
     driverObj.destroy();
   } else {
     restoreRail();
+    markIfAuto();
     store.stop();
   }
+}
+
+/**
+ * Авто-тур (первый вход) помечаем пройденным даже при выходе/пропуске, чтобы
+ * он не запускался снова. Ручной запуск (кнопка «Обучение») флаг не трогает.
+ */
+function markIfAuto() {
+  if (!store.isManual) store.markCompleted();
 }
 
 function handleDestroyed(gen) {
@@ -146,10 +174,15 @@ function handleDestroyed(gen) {
   // Переход между страницами: тур продолжается, не останавливаем и рельс не трогаем.
   if (store.pendingSegment) return;
   restoreRail();
+  markIfAuto();
   store.stop();
 }
 
 function teardown() {
+  // Тур ещё жив (logout/unmount во время прохождения) - авто-тур помечаем
+  // пройденным здесь: ниже driverGen++ обезвредит отложенный onDestroyed, и тот
+  // до markIfAuto уже не дойдёт. Так автозапуск действительно "один раз".
+  if (driverObj) markIfAuto();
   driverGen += 1;
   if (waitController) {
     waitController.abort();
@@ -186,6 +219,23 @@ const removeAfterEach = router.afterEach((to) => {
     store.stop();
   }
 });
+
+/**
+ * Автозапуск один раз для любого первого входа: на «Обзоре», если юзер
+ * авторизован и тур ещё не пройден (localStorage-флаг). Повторно не сработает -
+ * флаг ставится при любом завершении авто-тура (см. markIfAuto).
+ */
+function maybeAutostart() {
+  if (store.isActive) return;
+  if (route.path !== '/news') return;
+  if (!store.canShowTour) return;
+  if (store.hasCompleted()) return;
+  store.start({ manual: false });
+}
+
+watch(() => route.path, maybeAutostart);
+
+onMounted(maybeAutostart);
 
 onBeforeUnmount(() => {
   removeAfterEach();
