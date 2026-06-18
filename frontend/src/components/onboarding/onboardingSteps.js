@@ -105,6 +105,28 @@ export const onboardingSteps = [
     description: 'Раздел «Управление данными»: таблицы системы, ваши сотрудники и автомобили. Отсюда вы ведёте справочники, по которым оформляются пропуска.',
     expandRail: true,
   },
+  {
+    id: 'cabinet-profile',
+    route: '/personal-cabinet',
+    element: '[data-testid="ob-profile"]',
+    title: 'Ваш профиль',
+    description: 'Личный кабинет. Здесь ваши данные: организация, должность, контакты. Они подставляются в заявки автоматически.',
+  },
+  {
+    id: 'cabinet-notifications',
+    route: '/personal-cabinet',
+    element: '[data-testid="cabinet-notifications"]',
+    title: 'Ваши уведомления',
+    description: 'Лента событий по вашим заявкам: согласование, одобрение, отказ. Так вы всегда в курсе, что происходит.',
+  },
+  {
+    id: 'cabinet-applications',
+    route: '/personal-cabinet',
+    element: '[data-testid="ob-applications"]',
+    title: 'Ваши заявки',
+    description: 'Все поданные заявки и их статусы собраны здесь. Можно отслеживать ход согласования и историю.',
+    demo: 'applications',
+  },
 ];
 
 /**

@@ -93,3 +93,30 @@ describe('collectSegment', () => {
     expect(seg.length).toBe(onboardingSteps.filter((s) => s.route === '/news').length);
   });
 });
+
+describe('cross-page конфигурация (cabinet)', () => {
+  it('есть шаги личного кабинета на /personal-cabinet', () => {
+    const ids = onboardingSteps.map((s) => s.id);
+    for (const id of ['cabinet-profile', 'cabinet-notifications', 'cabinet-applications']) {
+      expect(ids).toContain(id);
+    }
+    for (const s of onboardingSteps.filter((x) => x.id.startsWith('cabinet-'))) {
+      expect(s.route).toBe('/personal-cabinet');
+      expect(typeof s.element).toBe('string');
+    }
+  });
+
+  it('сегмент cabinet отделён от news границей route (есть >1 сегмента)', () => {
+    const firstCabinet = onboardingSteps.findIndex((s) => s.route === '/personal-cabinet');
+    expect(firstCabinet).toBeGreaterThan(0);
+    // предыдущий шаг - другой страницы (настоящая граница сегмента)
+    expect(onboardingSteps[firstCabinet - 1].route).not.toBe('/personal-cabinet');
+    const cabinetSeg = collectSegment(onboardingSteps, firstCabinet, '/personal-cabinet');
+    expect(cabinetSeg.map((s) => s.id)).toEqual(['cabinet-profile', 'cabinet-notifications', 'cabinet-applications']);
+  });
+
+  it('шаг заявок несёт демо-скриншот applications', () => {
+    const apps = onboardingSteps.find((s) => s.id === 'cabinet-applications');
+    expect(apps.demo).toBe('applications');
+  });
+});
