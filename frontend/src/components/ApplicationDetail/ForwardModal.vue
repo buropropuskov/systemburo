@@ -380,8 +380,7 @@ export default {
     background: #fff;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    max-height: 382px;
-    overflow-y: auto;
+    overflow: hidden;
     z-index: 1000;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     margin-top: 5px;
@@ -644,9 +643,15 @@ export default {
 </style>
 
 <!-- не scoped: контент BaseModal телепортится в body и несёт data-v самого BaseModal,
-     поэтому радиус задаём глобально двойным классом (бьёт scoped .base-modal BaseModal). -->
+     поэтому радиус и overflow задаём глобально двойным классом (бьёт scoped .base-modal BaseModal).
+     overflow: visible нужен, чтобы выпадающий список поиска не обрезался скроллом модалки. -->
 <style>
 .base-modal.forward-modal {
     border-radius: 30px;
+    overflow: visible;
+}
+
+.base-modal.forward-modal .base-modal__body {
+    overflow: visible;
 }
 </style>
