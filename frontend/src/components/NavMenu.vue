@@ -13,6 +13,7 @@
       class="nav-menu"
       role="navigation"
       aria-label="Основная навигация"
+      data-testid="ob-nav-rail"
       :class="{
         expanded: railExpanded,
         'nav-menu--pinned': uiStore.sidebarExpanded,
@@ -172,6 +173,7 @@
           <div
             v-show="sectionVisible.data"
             class="nav-section"
+            data-testid="ob-nav-group-data"
           >
             <div class="section-title">
               УПРАВЛЕНИЕ ДАННЫМИ
@@ -629,7 +631,9 @@ export default {
     railExpanded() {
       if (this.uiStore.sidebarHidden) return false;
       if (this.adminOpen) return false;
-      return this.uiStore.sidebarExpanded || this.isExpanded;
+      // tourForceExpand - оверлейный разворот для онбординг-тура: расширяет рельс
+      // как hover-превью, БЕЗ сдвига контента (--nav-ml зависит только от пина).
+      return this.uiStore.sidebarExpanded || this.isExpanded || this.uiStore.tourForceExpand;
     },
     // Множество путей Админки - по нему route-watcher решает, закрывать ли колонку
     // (переход на «РАБОТА»/кабинет закрывает, переключение между разделами - нет).

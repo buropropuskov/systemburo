@@ -41,6 +41,26 @@ describe('onboardingSteps', () => {
     const hasCenterModal = onboardingSteps.some((s) => s.element === null);
     expect(hasCenterModal).toBe(true);
   });
+
+  it('expandRail только у nav-шагов и только true', () => {
+    const railSteps = onboardingSteps.filter((s) => s.expandRail);
+    expect(railSteps.length).toBeGreaterThan(0);
+    for (const s of railSteps) {
+      expect(s.expandRail).toBe(true);
+      expect(s.id.startsWith('nav-')).toBe(true);
+    }
+  });
+
+  it('есть шаги шапки и навигации с целевыми селекторами', () => {
+    const ids = onboardingSteps.map((s) => s.id);
+    for (const id of ['header-broadcast', 'header-time', 'header-notifications', 'header-feedback', 'header-submit', 'nav-rail', 'nav-group-data']) {
+      expect(ids).toContain(id);
+    }
+    // у каждого шага шапки/навигации - строковый селектор цели (не центр-модал)
+    for (const s of onboardingSteps.filter((x) => x.id.startsWith('header-') || x.id.startsWith('nav-'))) {
+      expect(typeof s.element).toBe('string');
+    }
+  });
 });
 
 describe('collectSegment', () => {

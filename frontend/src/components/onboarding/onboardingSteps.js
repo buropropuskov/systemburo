@@ -16,9 +16,11 @@ export const ONBOARDING_VERSION = 1;
  * - `element`    CSS-селектор цели или `null` (центр-модал без подсветки);
  * - `title`      заголовок поповера;
  * - `description` HTML-тело поповера (прогоняется через sanitizeHtml);
- * - `demo`       необязательный ключ скриншота (используется будущими срезами).
+ * - `demo`       необязательный ключ скриншота (используется будущими срезами);
+ * - `expandRail` если true - хост разворачивает свёрнутый рельс навигации на
+ *                время шага и возвращает прежнее состояние при выходе.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean }>}
  */
 export const onboardingSteps = [
   {
@@ -51,6 +53,57 @@ export const onboardingSteps = [
     element: '[data-testid="ob-documents"]',
     title: 'Документы',
     description: 'Полезные документы и шаблоны, доступные для скачивания.',
+  },
+  {
+    id: 'header-broadcast',
+    route: '/news',
+    element: '[data-testid="ob-header-broadcast"]',
+    title: 'Объявления',
+    description: 'Здесь появляется кнопка важного объявления, когда администрация публикует что-то срочное. Нажмите, чтобы прочитать.',
+  },
+  {
+    id: 'header-time',
+    route: '/news',
+    element: '[data-testid="ob-header-time"]',
+    title: 'Дата и время',
+    description: 'Текущие дата и время системы - удобно сверяться при оформлении заявок.',
+  },
+  {
+    id: 'header-notifications',
+    route: '/news',
+    element: '[data-testid="ob-header-notifications"]',
+    title: 'Уведомления',
+    description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Нажмите, чтобы открыть список.',
+  },
+  {
+    id: 'header-feedback',
+    route: '/news',
+    element: '[data-testid="header-button-feedback"]',
+    title: 'Сообщить о проблеме',
+    description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
+  },
+  {
+    id: 'header-submit',
+    route: '/news',
+    element: '[data-testid="header-button-submit-app"]',
+    title: 'Подать заявку',
+    description: 'Быстрый переход к оформлению новой заявки на пропуск - кнопка доступна из любого раздела.',
+  },
+  {
+    id: 'nav-rail',
+    route: '/news',
+    element: '[data-testid="ob-nav-rail"]',
+    title: 'Навигация',
+    description: 'Боковое меню - главный способ перемещаться по системе. Наведите курсор, чтобы развернуть его с подписями разделов.',
+    expandRail: true,
+  },
+  {
+    id: 'nav-group-data',
+    route: '/news',
+    element: '[data-testid="ob-nav-group-data"]',
+    title: 'Управление данными',
+    description: 'Раздел «Управление данными»: таблицы системы, ваши сотрудники и автомобили. Отсюда вы ведёте справочники, по которым оформляются пропуска.',
+    expandRail: true,
   },
 ];
 

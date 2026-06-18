@@ -48,16 +48,21 @@
         v-if="activeAnnouncement"
         class="broadcast"
         :class="{ 'broadcast--important': activeAnnouncement.is_important }"
+        data-testid="ob-header-broadcast"
         @click="showAnnouncement = true"
       >
         {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
       </button>
-      <p class="time">
+      <p
+        class="time"
+        data-testid="ob-header-time"
+      >
         {{ currentDateTime }}
       </p>
       <div
         class="user__notifications"
         :class="{ 'user__notifications--active': showNotifications }"
+        data-testid="ob-header-notifications"
         @click.stop="showNotifications = !showNotifications"
       >
         <img
