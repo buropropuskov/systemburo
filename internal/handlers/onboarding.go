@@ -66,3 +66,25 @@ func (h *OnboardingHandler) MarkComplete(c echo.Context) error {
 	}
 	return RespondMessage(c, "Onboarding marked as completed")
 }
+
+// ResetForUser godoc
+// @Summary      Сбросить онбординг-тур пользователю (админ)
+// @Description  Обнуляет статус прохождения тура у пользователя по username - при
+// @Description  следующем входе у него снова сработает автозапуск. Только для админов.
+// @Tags         onboarding
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Логин пользователя"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /users/{username}/onboarding/reset [post]
+func (h *OnboardingHandler) ResetForUser(c echo.Context) error {
+	username := c.Param("username")
+	if err := h.service.ResetByUsername(c.Request().Context(), username); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Onboarding reset for user")
+}

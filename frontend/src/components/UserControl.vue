@@ -210,6 +210,13 @@
                   Права доступа
                 </button>
                 <button
+                  class="lk-button lk-button--secondary"
+                  data-testid="user-reset-onboarding"
+                  @click="resetOnboarding(selectedUser)"
+                >
+                  Сбросить обучение
+                </button>
+                <button
                   class="delete-icon-btn"
                   @click="confirmDeleteUser(selectedUser)"
                 >
@@ -662,6 +669,8 @@ import ToggleSwitch from './ui/ToggleSwitch.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
 import UserAccessModal from './admin/UserAccessModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
+import { resetOnboardingForUser } from '@/api/onboarding';
 
 export default {
   components: {
@@ -883,6 +892,23 @@ export default {
       } catch (error) {
         console.error('Ошибка сети при восстановлении пользователя:', error);
         useDeletionsStore().notify({ prefix: 'Не удалось восстановить: ', bold: 'нет связи с сервером', type: 'error' });
+      }
+    },
+
+    async resetOnboarding(user) {
+      const ok = await useUiStore().confirm({
+        title: 'Сбросить обучение?',
+        message: `Пользователь «${user.username}» снова увидит автозапуск обучающего тура при следующем входе.`,
+        confirmText: 'Сбросить',
+        cancelText: 'Отмена',
+        danger: false,
+      });
+      if (!ok) return;
+      try {
+        await resetOnboardingForUser(user.username);
+        useDeletionsStore().notify({ prefix: 'Обучение сброшено для ', bold: user.username, suffix: ' — тур запустится снова при входе' });
+      } catch (error) {
+        useDeletionsStore().notify({ prefix: 'Не удалось сбросить обучение: ', bold: error?.message || 'ошибка', type: 'error' });
       }
     },
 

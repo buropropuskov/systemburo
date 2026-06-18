@@ -105,3 +105,55 @@ func TestOnboarding_Unauthorized(t *testing.T) {
 	rec = testutil.POST(t, e, "/onboarding/complete", `{"version":1}`, nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+func TestOnboarding_AdminReset_ClearsOtherUserStatus(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	// Отдельный пользователь B, который прошёл тур со своего токена.
+	userToken := testutil.RegisterAndLogin(t, e, "tour_user", "Password123!", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, "/onboarding/complete", `{"version":1}`, testutil.AuthHeader(userToken))
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+
+	var before models.User
+	require.NoError(t, db.Where("username = ?", "tour_user").First(&before).Error)
+	require.NotNil(t, before.OnboardingCompletedVersion)
+
+	// Админ сбрасывает обучение ДРУГОМУ юзеру по username.
+	recReset := testutil.POST(t, e, "/users/tour_user/onboarding/reset", ``, testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, recReset.Code, "body: %s", recReset.Body.String())
+	assert.Equal(t, "Onboarding reset for user", testutil.ParseMessage(t, recReset))
+
+	// Колонка пользователя B снова NULL.
+	var after models.User
+	require.NoError(t, db.Where("username = ?", "tour_user").First(&after).Error)
+	assert.Nil(t, after.OnboardingCompletedVersion, "reset must null the target user's column")
+}
+
+func TestOnboarding_AdminReset_UnknownUser_Returns404(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/users/nosuchuser/onboarding/reset", ``, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "reset of unknown user must be 404")
+}
+
+func TestOnboarding_AdminReset_NonAdmin_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Обычный пользователь без прав page.admin.
+	userToken := testutil.RegisterAndLogin(t, e, "regular_user", "Password123!", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/users/regular_user/onboarding/reset", ``, testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code, "non-admin must not reset onboarding")
+}
