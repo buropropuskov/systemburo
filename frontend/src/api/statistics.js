@@ -66,6 +66,33 @@ export async function getRecentPassages(limit = 15) {
 }
 
 /**
+ * Получить готовые инсайты за период: пик нагрузки по часам, сравнение с
+ * предыдущим периодом равной длины, топ мест и организаций, тренды по дням.
+ * @param {string} from - дата начала в формате YYYY-MM-DD
+ * @param {string} to   - дата конца в формате YYYY-MM-DD
+ * @returns {Promise<{
+ *   peak_hours: Array<{metric: string, label: string, unit?: string, peak_hour: number, peak_value: number, hourly: Array<{hour: number, value: number}>}>,
+ *   comparisons: Array<{metric: string, label: string, unit?: string, current: number, previous: number, delta_pct: number, direction: 'up'|'down'|'flat'}>,
+ *   top_places: Array<{metric: string, label: string, value: number}>,
+ *   top_orgs: Array<{metric: string, label: string, value: number}>,
+ *   trends: Array<{metric: string, label: string, direction: 'up'|'down'|'flat', series: number[]}>,
+ * }>}
+ */
+export async function getInsights(from, to) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const res = await apiRequest(`/statistics/insights?${params}`);
+  if (!res.ok) {
+    // На 5xx baseRequest уже редиректит на /500 и не отдаёт JSON-тело —
+    // парсим защищённо, чтобы не словить SyntaxError на HTML-странице ошибки.
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось загрузить инсайты');
+  }
+  return res.json();
+}
+
+/**
  * Получить каталог конструктора отчётов: whitelist метрик, разрезов, фильтров
  * и list-сущностей с подставленными значениями динамических справочников.
  * @returns {Promise<{
