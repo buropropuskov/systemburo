@@ -23,6 +23,8 @@ const props = defineProps({
   type: { type: String, default: 'bar' },
   // Единица измерения метрики (для подписи набора данных).
   unit: { type: String, default: '' },
+  // Подпись серии (имя метрики); по умолчанию — «Количество».
+  label: { type: String, default: '' },
 });
 
 const canvasEl = ref(null);
@@ -67,7 +69,8 @@ function lineBarOptions() {
 function buildConfig() {
   const labels = props.rows.map((r) => r.label);
   const data = props.rows.map((r) => Number(r.value) || 0);
-  const datasetLabel = `Количество${props.unit ? `, ${props.unit}` : ''}`;
+  const base = props.label || 'Количество';
+  const datasetLabel = `${base}${props.unit ? `, ${props.unit}` : ''}`;
 
   if (props.type === 'pie') {
     return {
@@ -135,7 +138,7 @@ async function render() {
 onMounted(render);
 // rows/unit приходят из API новой ссылкой при каждом отчёте, type меняется кликом —
 // глубокое наблюдение не нужно, перерисовываем по смене любой из ссылок.
-watch(() => [props.rows, props.type, props.unit], render);
+watch(() => [props.rows, props.type, props.unit, props.label], render);
 onBeforeUnmount(() => {
   if (chart) { chart.destroy(); chart = null; }
 });

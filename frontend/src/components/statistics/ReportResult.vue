@@ -80,13 +80,31 @@
             {{ opt.label }}
           </button>
         </div>
+        <!-- Выбор метрики для графика, если их несколько (график рисует одну серию) -->
+        <div
+          v-if="view === 'chart' && hasRows && aggColumns.length > 1"
+          class="rr__seg rr__seg--metrics"
+        >
+          <button
+            v-for="col in aggColumns"
+            :key="col.key"
+            type="button"
+            class="rr__seg-btn"
+            :class="{ 'rr__seg-btn--active': chartMetric === col.key }"
+            :data-testid="`rr-metric-${col.key}`"
+            @click="chartMetric = col.key"
+          >
+            {{ col.label }}
+          </button>
+        </div>
       </div>
 
       <ReportChart
         v-if="view === 'chart' && hasRows"
-        :rows="result.rows"
+        :rows="chartRows"
         :type="chartType"
-        :unit="result.unit || ''"
+        :unit="chartUnit"
+        :label="chartLabel"
       />
 
       <div
@@ -96,36 +114,55 @@
         <table class="rr__table">
           <thead>
             <tr>
-              <th>Значение разреза</th>
-              <th class="rr__num">
-                Количество{{ result.unit ? `, ${result.unit}` : '' }}
+              <th>{{ dimensionHeader }}</th>
+              <th
+                v-for="col in aggColumns"
+                :key="col.key"
+                class="rr__num"
+              >
+                {{ col.label }}{{ col.unit ? `, ${col.unit}` : '' }}
               </th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="(row, i) in result.rows"
+              v-for="(row, i) in aggRows"
               :key="i"
             >
               <td>{{ row.label }}</td>
-              <td class="rr__num">
-                {{ formatNumber(row.value) }}
+              <td
+                v-for="col in aggColumns"
+                :key="col.key"
+                class="rr__num"
+              >
+                {{ formatNumber(cellValue(row, col.key)) }}
               </td>
             </tr>
-            <tr v-if="!result.rows.length">
+            <tr v-if="!aggRows.length">
               <td
-                colspan="2"
+                :colspan="aggColumns.length + 1"
                 class="rr__norows"
               >
                 Нет данных за выбранный период
               </td>
             </tr>
           </tbody>
+          <tfoot v-if="aggRows.length && showTotals">
+            <tr>
+              <td>Итого</td>
+              <td
+                v-for="col in aggColumns"
+                :key="col.key"
+                class="rr__num"
+              >
+                <b>{{ formatNumber(aggTotals[col.key] ?? 0) }}</b>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       <div class="rr__footer">
-        Итого: <b>{{ formatNumber(result.total) }}</b>{{ result.unit ? ` ${result.unit}` : '' }}
-        <span class="rr__footer-sep">·</span> строк: {{ result.rows.length }}
+        строк: {{ aggRows.length }}
       </div>
     </template>
 
@@ -187,8 +224,48 @@ const props = defineProps({
 
 const view = ref('table'); // 'table' | 'chart'
 const chartType = ref('bar'); // 'bar' | 'pie' | 'line'
+const chartMetric = ref(''); // ключ колонки-метрики, отображаемой на графике
 
-const hasRows = computed(() => (props.result?.rows?.length || 0) > 0);
+// Мультиметрика и одиночная сводка приведены к единому виду: колонки-метрики +
+// строки {label, values:{колонка->число}} + итоги по колонкам. Legacy-форма
+// (rows[{label,value}]/total/unit) синтезируется в одну колонку «value», поэтому
+// таблица и график не зависят от того, в каком формате пришёл ответ.
+const aggColumns = computed(() => {
+  const r = props.result;
+  // mode-guard: у list-результата свои columns — они не метрики, сюда не берём.
+  if (r?.mode === 'aggregate' && r?.columns?.length) return r.columns;
+  return [{ key: 'value', label: 'Количество', unit: r?.unit || '' }];
+});
+
+const aggRows = computed(() => {
+  const r = props.result;
+  if (r?.metric_rows) return r.metric_rows;
+  return (r?.rows || []).map((row) => ({ label: row.label, values: { value: row.value } }));
+});
+
+const aggTotals = computed(() => {
+  const r = props.result;
+  if (r?.totals) return r.totals;
+  return { value: r?.total ?? 0 };
+});
+
+const hasRows = computed(() => aggRows.value.length > 0);
+
+// «Без разреза» -> единственная строка уже итоговая, отдельный футер итогов лишний.
+const showTotals = computed(() => props.result?.dimension !== 'none');
+
+const dimensionHeader = computed(() => (props.result?.dimension === 'none' ? 'Итог' : 'Значение разреза'));
+
+// График рисует одну серию — берём выбранную метрику-колонку.
+const chartColumn = computed(
+  () => aggColumns.value.find((c) => c.key === chartMetric.value) || aggColumns.value[0] || null,
+);
+const chartRows = computed(() => {
+  const key = chartColumn.value?.key;
+  return aggRows.value.map((row) => ({ label: row.label, value: cellValue(row, key) }));
+});
+const chartUnit = computed(() => chartColumn.value?.unit || '');
+const chartLabel = computed(() => (aggColumns.value.length > 1 ? chartColumn.value?.label || '' : ''));
 
 // Временной разрез рисуем линией, остальные — столбцы/круговая.
 const chartTypeOptions = computed(() => (
@@ -198,15 +275,21 @@ const chartTypeOptions = computed(() => (
 ));
 
 // Новый результат: list/пусто — только таблица; aggregate — сбрасываем тип
-// графика на дефолт по разрезу (period -> линия, иначе столбцы), вид оставляем
-// как выбрал пользователь, чтобы повторный отчёт не сбрасывал его на таблицу.
+// графика на дефолт по разрезу (period -> линия, иначе столбцы) и метрику графика
+// на первую колонку. Вид оставляем как выбрал пользователь, чтобы повторный отчёт
+// не сбрасывал его на таблицу.
 watch(() => props.result, (r) => {
   if (r?.mode !== 'aggregate') {
     view.value = 'table';
     return;
   }
   chartType.value = r.dimension === 'period' ? 'line' : 'bar';
+  chartMetric.value = aggColumns.value[0]?.key || '';
 }, { immediate: true });
+
+function cellValue(row, key) {
+  return row?.values?.[key] ?? 0;
+}
 
 function formatNumber(value) {
   const n = Number(value);
@@ -271,6 +354,13 @@ function formatCell(value) {
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 2px;
+}
+
+/* Метрик может быть много -> перенос на несколько строк; pill-радиус на
+   многострочном блоке смотрится криво, поэтому скругление поменьше. */
+.rr__seg--metrics {
+  flex-wrap: wrap;
+  border-radius: var(--radius-md);
 }
 
 .rr__seg-btn {
@@ -338,6 +428,14 @@ function formatCell(value) {
 
 .rr__table tbody tr:hover td {
   background: var(--color-bg);
+}
+
+.rr__table tfoot td {
+  padding: 11px 14px;
+  color: var(--color-text);
+  border-top: 2px solid var(--color-border);
+  background: var(--color-bg);
+  white-space: nowrap;
 }
 
 .rr__num {

@@ -7,7 +7,7 @@ import ReportResult from '../ReportResult.vue';
 // он не нужен, подменяем стабом и читаем переданные ему props.
 const chartStub = {
   name: 'ReportChart',
-  props: ['rows', 'type', 'unit'],
+  props: ['rows', 'type', 'unit', 'label'],
   template: '<div class="chart-stub" />',
 };
 
@@ -21,6 +21,28 @@ function mountResult(result) {
 const aggPeriod = { mode: 'aggregate', dimension: 'period', unit: 'шт', rows: [{ label: 'Пн', value: 2 }], total: 2 };
 const aggStatus = { mode: 'aggregate', dimension: 'status', unit: 'шт', rows: [{ label: 'Завершено', value: 5 }], total: 5 };
 const listRes = { mode: 'list', columns: [{ key: 'a', label: 'A' }], rows: [{ a: 'x' }], total: 1 };
+
+// Мультиметрика (формат движка GR0): columns + metric_rows{label,values} + totals.
+const aggMulti = {
+  mode: 'aggregate',
+  dimension: 'organization',
+  columns: [
+    { key: 'applications_count', label: 'Количество заявок', unit: 'шт' },
+    { key: 'items_sum', label: 'Количество товаров', unit: 'шт' },
+  ],
+  metric_rows: [
+    { label: 'ООО А', values: { applications_count: 10, items_sum: 120 } },
+    { label: 'ООО Б', values: { applications_count: 4, items_sum: 30 } },
+  ],
+  totals: { applications_count: 14, items_sum: 150 },
+};
+const aggNone = {
+  mode: 'aggregate',
+  dimension: 'none',
+  columns: [{ key: 'applications_count', label: 'Количество заявок', unit: 'шт' }],
+  metric_rows: [{ label: 'Итого', values: { applications_count: 14 } }],
+  totals: { applications_count: 14 },
+};
 
 describe('ReportResult — переключатель Таблица/График', () => {
   it('list-режим: переключателя нет, только таблица', () => {
@@ -72,6 +94,75 @@ describe('ReportResult — переключатель Таблица/Графи�
     expect(w.findComponent(chartStub).exists()).toBe(false);
     expect(w.find('.rr__table').exists()).toBe(true);
     expect(w.find('[data-testid="rr-view-chart"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('мультиметрика: колонка на метрику, значения по строкам и итоговая строка', () => {
+    const w = mountResult(aggMulti);
+    const headers = w.findAll('.rr__table thead th').map((th) => th.text());
+    expect(headers[0]).toBe('Значение разреза');
+    expect(headers[1]).toContain('Количество заявок');
+    expect(headers[2]).toContain('Количество товаров');
+
+    const firstRow = w.findAll('.rr__table tbody tr')[0].findAll('td').map((td) => td.text());
+    expect(firstRow).toEqual(['ООО А', '10', '120']);
+
+    const footRow = w.findAll('.rr__table tfoot td').map((td) => td.text());
+    expect(footRow).toEqual(['Итого', '14', '150']);
+  });
+
+  it('мультиметрика: график показывает селектор метрик и рисует выбранную', async () => {
+    const w = mountResult(aggMulti);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+
+    // По умолчанию первая метрика.
+    expect(w.findComponent(chartStub).props('rows')).toEqual([
+      { label: 'ООО А', value: 10 }, { label: 'ООО Б', value: 4 },
+    ]);
+    expect(w.findComponent(chartStub).props('label')).toBe('Количество заявок');
+
+    // Переключаем на вторую метрику.
+    await w.find('[data-testid="rr-metric-items_sum"]').trigger('click');
+    await nextTick();
+    expect(w.findComponent(chartStub).props('rows')).toEqual([
+      { label: 'ООО А', value: 120 }, { label: 'ООО Б', value: 30 },
+    ]);
+    expect(w.findComponent(chartStub).props('label')).toBe('Количество товаров');
+  });
+
+  it('разрез «без разреза»: заголовок «Итог», без отдельной строки итогов', () => {
+    const w = mountResult(aggNone);
+    expect(w.findAll('.rr__table thead th')[0].text()).toBe('Итог');
+    expect(w.find('.rr__table tfoot').exists()).toBe(false);
+    const row = w.findAll('.rr__table tbody tr')[0].findAll('td').map((td) => td.text());
+    expect(row).toEqual(['Итого', '14']);
+  });
+
+  it('одиночная метрика (legacy rows): селектора метрик нет', async () => {
+    const w = mountResult(aggStatus);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    expect(w.find('[data-testid="rr-metric-value"]').exists()).toBe(false);
+    expect(w.findComponent(chartStub).props('rows')).toEqual([{ label: 'Завершено', value: 5 }]);
+  });
+
+  it('после сброса в null и нового мультиметрик-отчёта график берёт первую метрику', async () => {
+    const w = mountResult(aggMulti);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await w.find('[data-testid="rr-metric-items_sum"]').trigger('click');
+    await nextTick();
+    expect(w.findComponent(chartStub).props('label')).toBe('Количество товаров');
+
+    // Новый запуск: result -> null (пустой экран, вид сбрасывается на таблицу) ->
+    // снова мультиметрика -> открываем график: метрика снова первая.
+    await w.setProps({ result: null });
+    await nextTick();
+    await w.setProps({ result: aggMulti });
+    await nextTick();
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+
+    expect(w.findComponent(chartStub).props('label')).toBe('Количество заявок');
   });
 
   it('смена разреза period->status сбрасывает тип графика на столбцы', async () => {
