@@ -2059,8 +2059,9 @@ export default {
 
                     // attachments - источник истины для UI. Без них vehiclesByAttachment
                     // остаётся сиротским (ключи без самих attachment-записей) - BlankSelector
-                    // не может отрендерить вложения.
-                    attachments: this.attachments,
+                    // не может отрендерить вложения. Демо-вложение онбординга НЕ
+                    // персистим (иначе "прилипнет" при закрытии браузера посреди тура).
+                    attachments: this.attachments.filter(a => !a.__onboardingDemo),
 
                     vehiclesByAttachment: hasAttachments ? this.vehiclesByAttachment : {},
                     employeesByAttachment: hasAttachments ? this.employeesByAttachment : {},

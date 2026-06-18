@@ -159,7 +159,7 @@ export function useOnboarding() {
    * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onCtaClick?: () => void, onCloseRequest?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onCtaClick, onCloseRequest } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onCtaClick, onCloseRequest, onBeforeStep } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
@@ -199,13 +199,17 @@ export function useOnboarding() {
       // Перехватываем "Далее" (кнопка И стрелка вправо идут сюда): на границе
       // сегмента отдаём решение хосту (перейти на след. страницу / завершить),
       // иначе обычный moveNext.
-      onNextClick() {
+      async onNextClick() {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         if (localIndex >= lastLocal && onBoundaryNext) {
           // Передаём РЕАЛЬНЫЙ глобальный индекс driver'а - store.currentIndex может
           // отставать (onHighlighted последнего шага мог не успеть его обновить).
           onBoundaryNext(startIndex + localIndex);
         } else {
+          // Шаг может требовать подготовки DOM перед переходом (напр. добавить
+          // демо-вложение, чтобы форма отрисовалась) - даём хосту шанс довести
+          // цель до готовности ДО moveNext, иначе driver подсветит пустоту.
+          if (onBeforeStep) await onBeforeStep(startIndex + localIndex + 1);
           driverObj.moveNext();
         }
       },

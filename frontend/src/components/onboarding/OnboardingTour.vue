@@ -56,6 +56,28 @@ function restoreRail() {
   }
 }
 
+/**
+ * Демо-вложение оформления заявки: шаги «Бланк Автомобили/Сотрудники» просят
+ * BlankSelector добавить вложение нужного типа, чтобы справа отрисовалась
+ * реальная форма. Шаги без demoAttachment - убираем демо (null).
+ */
+function applyDemoAttachment(globalIndex) {
+  store.setDemoAttachment(store.steps[globalIndex]?.demoAttachment || null);
+}
+
+/**
+ * Перед переходом на шаг готовим DOM: ставим демо-вложение и (если шаг на него
+ * завязан) дожидаемся, пока форма вложения появится - тогда driver подсветит
+ * уже отрисованный ob-app-form, а не пустоту.
+ */
+async function prepareStep(globalIndex) {
+  const step = store.steps[globalIndex];
+  applyDemoAttachment(globalIndex);
+  if (step?.demoAttachment && step.element) {
+    await waitForElement(step.element, FIRST_TARGET_TIMEOUT);
+  }
+}
+
 async function startSegment() {
   const myGen = ++driverGen;
   const segmentSteps = collectSegment(store.steps, store.currentIndex, route.path);
@@ -83,7 +105,11 @@ async function startSegment() {
     onIndexChange: (globalIndex) => {
       store.setIndex(globalIndex);
       applyRail(globalIndex);
+      // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
+      // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
+      applyDemoAttachment(globalIndex);
     },
+    onBeforeStep: prepareStep,
     onBoundaryNext: handleBoundaryNext,
     onCtaClick: finishAndCreateApp,
     // Esc/оверлей/крестик/Пропустить -> просто останавливаем тур. teardown
@@ -187,6 +213,8 @@ function teardown() {
   }
   store.clearPending();
   restoreRail();
+  // Тур окончен/прерван - снять демо-вложение (BlankSelector уберёт его из формы).
+  store.setDemoAttachment(null);
 }
 
 watch(
