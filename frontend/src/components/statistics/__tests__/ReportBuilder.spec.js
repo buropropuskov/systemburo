@@ -7,10 +7,11 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 
 const CATALOG = {
   metrics: [
-    { key: 'car_entries_count', label: 'Въезды машин', unit: 'шт', dimensions: ['unload_place', 'period'] },
-    { key: 'applications_count', label: 'Количество заявок', unit: 'шт', dimensions: ['status', 'period'] },
+    { key: 'car_entries_count', label: 'Въезды машин', unit: 'шт', group: 'Машины', dimensions: ['unload_place', 'period'] },
+    { key: 'applications_count', label: 'Количество заявок', unit: 'шт', group: 'Заявки', dimensions: ['status', 'period'] },
   ],
   dimensions: [
+    { key: 'none', label: 'Без разреза' },
     { key: 'unload_place', label: 'Место разгрузки' },
     { key: 'status', label: 'Статус заявки' },
     { key: 'period', label: 'Период (дата)' },
@@ -47,17 +48,76 @@ function lastRun(wrapper) {
   return runs[runs.length - 1][0];
 }
 
+/** Чекбоксы метрик в порядке каталога (по группам — порядок появления групп). */
+function metricInputs(wrapper) {
+  return wrapper.findAll('.rb__metric-input');
+}
+
+/** Радио-разрез по его подписи. */
+function dimRadioByLabel(wrapper, label) {
+  return wrapper.findAll('.rb__dim').find((d) => d.text().includes(label)).find('.rb__dim-input');
+}
+
 describe('ReportBuilder', () => {
-  it('по умолчанию строит aggregate первой метрики с её первым разрезом и периодом', async () => {
+  it('по умолчанию выбрана первая метрика, разрез — её первый реальный, строит metrics[]', async () => {
     const wrapper = mountBuilder();
     await nextTick();
     await clickBuild(wrapper);
 
     const req = lastRun(wrapper);
     expect(req.mode).toBe('aggregate');
-    expect(req.metric).toBe('car_entries_count');
-    expect(req.dimension).toBe('unload_place'); // первый разрез метрики
+    expect(req.metrics).toEqual(['car_entries_count']);
+    expect(req.metric).toBeUndefined();
+    expect(req.dimension).toBe('unload_place'); // первый реальный разрез, не «без разреза»
     expect(req.filters).toContainEqual({ key: 'date_range', from: '2026-06-01', to: '2026-06-07' });
+  });
+
+  it('мультивыбор метрик сужает разрезы до общих и шлёт обе метрики', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    // Добавляем вторую метрику. Общий разрез car∩apps = только period (+ «без разреза»).
+    await metricInputs(wrapper)[1].trigger('change');
+    await nextTick();
+
+    // unload_place больше не общий -> разрез автоматически переехал на period.
+    const dims = wrapper.findAll('.rb__dim').map((d) => d.text());
+    expect(dims).toContain('Без разреза');
+    expect(dims).toContain('Период (дата)');
+    expect(dims).not.toContain('Место разгрузки');
+
+    await clickBuild(wrapper);
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['car_entries_count', 'applications_count']);
+    expect(req.dimension).toBe('period');
+    expect(req.granularity).toBe('day');
+  });
+
+  it('«без разреза» выбирается кликом и уходит в запрос как none', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await dimRadioByLabel(wrapper, 'Без разреза').setValue();
+    await clickBuild(wrapper);
+
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['car_entries_count']);
+    expect(req.dimension).toBe('none');
+  });
+
+  it('снятие добавленной метрики возвращает её собственные разрезы', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    // Добавили applications_count -> общий разрез только period, unload_place пропал.
+    await metricInputs(wrapper)[1].trigger('change');
+    await nextTick();
+    expect(wrapper.findAll('.rb__dim').map((d) => d.text())).not.toContain('Место разгрузки');
+
+    // Сняли её обратно -> разрезы car_entries_count снова доступны.
+    await metricInputs(wrapper)[1].trigger('change');
+    await nextTick();
+    expect(wrapper.findAll('.rb__dim').map((d) => d.text())).toContain('Место разгрузки');
+
+    await clickBuild(wrapper);
+    expect(lastRun(wrapper).metrics).toEqual(['car_entries_count']);
   });
 
   it('в режиме list строит запрос сущности с выбранным фильтром', async () => {
@@ -65,11 +125,9 @@ describe('ReportBuilder', () => {
     wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
     await nextTick();
 
-    // Фильтры сущности отрисованы (организация + статус, date_range = период из шапки)
     const pills = wrapper.findAll('.rb__pill');
-    expect(pills.length).toBe(2);
+    expect(pills.length).toBe(2); // организация + статус, date_range = период из шапки
 
-    // Выбираем организацию
     const orgPill = pills.find((p) => p.text() === 'ООО А');
     await orgPill.trigger('click');
     await clickBuild(wrapper);
@@ -86,11 +144,9 @@ describe('ReportBuilder', () => {
     wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
     await nextTick();
 
-    // Выбрали организацию у work_applications
     const orgPill = wrapper.findAll('.rb__pill').find((p) => p.text() === 'ООО А');
     await orgPill.trigger('click');
 
-    // Переключились на машины (у них набор фильтров другой) и обратно
     const entityDropdown = wrapper.findAllComponents(BaseDropdown)[0];
     entityDropdown.vm.$emit('update:modelValue', 'cars');
     await nextTick();
@@ -98,24 +154,10 @@ describe('ReportBuilder', () => {
     await nextTick();
     await clickBuild(wrapper);
 
-    // Фильтр организации не должен переехать через смену сущности
     expect(lastRun(wrapper).filters.find((f) => f.key === 'organization')).toBeUndefined();
   });
 
-  it('сбрасывает разрез на валидный при смене метрики', async () => {
-    const wrapper = mountBuilder();
-    await nextTick();
-    // applications_count не поддерживает unload_place -> разрез должен переключиться на status.
-    // Меняем метрику через emit первого BaseDropdown (script setup не экспонирует form).
-    const metricDropdown = wrapper.findAllComponents(BaseDropdown)[0];
-    metricDropdown.vm.$emit('update:modelValue', 'applications_count');
-    await nextTick();
-    await clickBuild(wrapper);
-
-    expect(lastRun(wrapper).dimension).toBe('status');
-  });
-
-  it('применяет aggregate-пресет и сразу строит отчёт', async () => {
+  it('применяет aggregate-пресет (одиночная метрика) и сразу строит metrics[]', async () => {
     const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
     await nextTick();
 
@@ -126,7 +168,7 @@ describe('ReportBuilder', () => {
 
     const req = lastRun(wrapper);
     expect(req.mode).toBe('aggregate');
-    expect(req.metric).toBe('applications_count');
+    expect(req.metrics).toEqual(['applications_count']);
     expect(req.dimension).toBe('status');
     expect(req.filters).toContainEqual({ key: 'date_range', from: '2026-06-01', to: '2026-06-07' });
   });
@@ -141,7 +183,6 @@ describe('ReportBuilder', () => {
     const req = lastRun(wrapper);
     expect(req.mode).toBe('list');
     expect(req.entity).toBe('cars');
-    // У машин нет date_range -> период не попадает в запрос.
     expect(req.filters.find((f) => f.key === 'date_range')).toBeUndefined();
   });
 
@@ -153,8 +194,6 @@ describe('ReportBuilder', () => {
     await flushPromises();
     const firstCount = wrapper.emitted('run').length;
 
-    // ReportsTab отдаёт { ...preset.form } на каждый клик — новый объект с тем же
-    // содержимым должен повторно дёрнуть watch и построить отчёт заново.
     await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
     await flushPromises();
     expect(wrapper.emitted('run').length).toBe(firstCount + 1);

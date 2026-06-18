@@ -31,6 +31,34 @@ describe('buildReportRequest', () => {
       expect(status.granularity).toBeUndefined();
     });
 
+    it('шлёт metrics[] при мультивыборе и опускает одиночный metric', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count', 'items_sum'], dimension: 'organization' },
+        PERIOD, ['date_range'],
+      );
+      expect(req.metrics).toEqual(['applications_count', 'items_sum']);
+      expect(req.metric).toBeUndefined();
+      expect(req.dimension).toBe('organization');
+    });
+
+    it('отбрасывает пустые ключи метрик и при пустом metrics откатывается на metric', () => {
+      const empty = buildReportRequest(
+        { mode: 'aggregate', metrics: ['  ', ''], metric: 'applications_count', dimension: 'status' },
+        PERIOD, ['date_range'],
+      );
+      expect(empty.metrics).toBeUndefined();
+      expect(empty.metric).toBe('applications_count');
+    });
+
+    it('включает granularity для разреза period и при мультивыборе метрик', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count', 'people_entries_count'], dimension: 'period', granularity: 'week' },
+        PERIOD, ['date_range'],
+      );
+      expect(req.metrics).toEqual(['applications_count', 'people_entries_count']);
+      expect(req.granularity).toBe('week');
+    });
+
     it('не шлёт date_range, если период пустой', () => {
       const req = buildReportRequest(
         { mode: 'aggregate', metric: 'applications_count', dimension: 'status' },
