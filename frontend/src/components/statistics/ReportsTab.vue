@@ -94,13 +94,14 @@ const presetPayload = ref(null);
 const activePresetId = ref('');
 
 // Снимок состояния мастера для индикатора шагов.
-const builderState = ref({ mode: 'aggregate', metric: '', dimension: '', entity: '', filterCount: 0 });
+const builderState = ref({ mode: 'aggregate', metric: '', dimension: '', entity: '', filterCount: 0, periodApplicable: true, periodFilled: false });
 
 const STEP_LABELS = ['1 · Что считаем', '2 · По чему разбиваем', '3 · Фильтры', '4 · Период'];
 
 // Состояние шагов по заполненности формы: done — данные есть, current — первый
 // незаполненный, upcoming — дальше. В list-режиме разрез не применим -> шаг 2
-// считается выполненным по выбранной сущности.
+// считается выполненным по выбранной сущности. Период, неприменимый к срезу
+// (машины/люди без date_range), считается пройденным — заполнять нечего.
 const steps = computed(() => {
   const s = builderState.value;
   const isList = s.mode === 'list';
@@ -108,7 +109,7 @@ const steps = computed(() => {
     isList ? Boolean(s.entity) : Boolean(s.metric),
     isList ? Boolean(s.entity) : Boolean(s.dimension),
     s.filterCount > 0,
-    Boolean(period.value.from && period.value.to),
+    s.periodApplicable === false ? true : Boolean(s.periodFilled),
   ];
   const currentIdx = done.indexOf(false);
   return STEP_LABELS.map((label, i) => ({

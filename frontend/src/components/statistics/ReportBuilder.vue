@@ -114,32 +114,90 @@
       </label>
     </div>
 
-    <!-- list-фильтры из каталога (date_range = период из шапки, не дублируем) -->
+    <!-- Шаг 3: фильтры (чипсы, применимые к выбранным метрикам/сущности) -->
     <div
-      v-if="listFilterFields.length"
-      class="rb__filters"
+      v-if="filterFields.length"
+      class="rb__step"
     >
-      <div
-        v-for="f in listFilterFields"
-        :key="f.key"
-        class="rb__filter"
-      >
-        <span class="rb__field-label">{{ f.label }}</span>
-        <div class="rb__pills">
+      <div class="rb__step-head">
+        <span
+          v-if="form.mode === 'aggregate'"
+          class="rb__step-num"
+        >3</span>
+        <span class="rb__step-name">Фильтры</span>
+        <span class="rb__step-opt">необязательно</span>
+      </div>
+      <div class="rb__filters">
+        <div
+          v-for="f in filterFields"
+          :key="f.key"
+          class="rb__filter"
+        >
+          <span class="rb__field-label">{{ f.label }}</span>
+          <div class="rb__pills">
+            <button
+              v-for="opt in f.options"
+              :key="opt.value"
+              type="button"
+              class="rb__pill"
+              :class="{ 'rb__pill--on': isSelected(f.key, opt.value) }"
+              @click="toggleFilter(f.key, opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+            <span
+              v-if="!f.options.length"
+              class="rb__pills-empty"
+            >нет значений в справочнике</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Шаг 4: период (пресеты + произвольный диапазон, локальный для отчёта) -->
+    <div
+      v-if="periodApplicable"
+      class="rb__step"
+    >
+      <div class="rb__step-head">
+        <span
+          v-if="form.mode === 'aggregate'"
+          class="rb__step-num"
+        >4</span>
+        <span class="rb__step-name">Период</span>
+      </div>
+      <div class="rb__period">
+        <div class="rb__period-presets">
           <button
-            v-for="opt in f.options"
-            :key="opt.value"
+            v-for="p in periodPresets"
+            :key="p.key"
             type="button"
             class="rb__pill"
-            :class="{ 'rb__pill--on': isSelected(f.key, opt.value) }"
-            @click="toggleFilter(f.key, opt.value)"
+            :class="{ 'rb__pill--on': activePeriodPreset === p.key }"
+            @click="applyPeriodPreset(p.key)"
           >
-            {{ opt.label }}
+            {{ p.label }}
           </button>
-          <span
-            v-if="!f.options.length"
-            class="rb__pills-empty"
-          >нет значений в справочнике</span>
+        </div>
+        <div class="rb__period-dates">
+          <label class="rb__date">
+            <span class="rb__field-label">С</span>
+            <input
+              v-model="form.period.from"
+              type="date"
+              class="lk-input"
+              @change="activePeriodPreset = 'custom'"
+            >
+          </label>
+          <label class="rb__date">
+            <span class="rb__field-label">По</span>
+            <input
+              v-model="form.period.to"
+              type="date"
+              class="lk-input"
+              @change="activePeriodPreset = 'custom'"
+            >
+          </label>
         </div>
       </div>
     </div>
@@ -181,13 +239,15 @@
 </template>
 
 <script setup>
-import { reactive, computed, watch, nextTick } from 'vue';
+import { reactive, ref, computed, watch, nextTick } from 'vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { buildReportRequest } from '@/composables/useReportRequest';
 
 const props = defineProps({
   catalog: { type: Object, required: true },
+  // Начальный период (из шапки фильтров). Дальше отчёт ведёт период локально в
+  // шаге 4 — дашборд и отчёт могут смотреть на разные диапазоны.
   period: { type: Object, default: () => ({ from: '', to: '' }) },
   loading: { type: Boolean, default: false },
   // Пресет из галереи: { mode, metric?/metrics?, dimension?, granularity?, entity? }.
@@ -209,8 +269,17 @@ const form = reactive({
   granularity: 'day',
   entity: props.catalog.list_entities?.[0]?.key || '',
   filters: {},
+  period: { from: props.period?.from || '', to: props.period?.to || '' },
   limit: '',
 });
+
+const periodPresets = [
+  { key: 'week', label: 'Эта неделя' },
+  { key: 'month', label: 'Этот месяц' },
+  { key: 'year', label: 'Этот год' },
+  { key: 'all', label: 'Весь период' },
+];
+const activePeriodPreset = ref('');
 
 const filterByKey = computed(() => {
   const map = {};
@@ -264,24 +333,30 @@ const selectedEntity = computed(
   () => (props.catalog.list_entities || []).find((e) => e.key === form.entity) || null,
 );
 
-const listFilterFields = computed(() => {
-  if (form.mode !== 'list') return [];
-  const keys = selectedEntity.value?.filters || [];
-  return keys
+// Применимые фильтры текущего среза: list — фильтры сущности, aggregate —
+// объединение per-metric фильтров выбранных метрик (каталог B3d, движок применяет
+// каждый к тем метрикам, что его поддерживают). Включает date_range.
+const applicableFilters = computed(() => {
+  if (form.mode === 'list') return selectedEntity.value?.filters || [];
+  const set = new Set();
+  for (const m of selectedMetrics.value) (m.filters || []).forEach((k) => set.add(k));
+  // Порядок — по каталогу фильтров, чтобы чипсы шли стабильно.
+  return (props.catalog.filters || []).map((f) => f.key).filter((k) => set.has(k));
+});
+
+// Поля-чипсы шага 3: применимые фильтры без date_range (период — отдельный шаг).
+const filterFields = computed(() =>
+  applicableFilters.value
     .filter((k) => k !== 'date_range')
     .map((k) => filterByKey.value[k])
     .filter(Boolean)
-    .map((f) => ({ ...f, options: f.options || [] }));
-});
+    .map((f) => ({ ...f, options: f.options || [] })));
+
+const periodApplicable = computed(() => applicableFilters.value.includes('date_range'));
 
 const granularityTabs = computed(
   () => (props.catalog.granularities || []).map((g) => ({ key: g.value, label: g.label })),
 );
-
-// Aggregate per-metric фильтры пока не рендерятся в гиде (шаг GR3) -> отдаём только
-// период. list — применимые фильтры выбранной сущности.
-const applicableFilters = computed(() =>
-  form.mode === 'list' ? selectedEntity.value?.filters || [] : ['date_range']);
 
 // Разрез должен оставаться валидным для текущего набора метрик. При невалидном
 // дефолтим на первый реальный разрез (полезнее «без разреза»), иначе на none.
@@ -297,13 +372,26 @@ watch(() => form.entity, () => {
   form.filters = {};
 });
 
+// При смене метрик (aggregate) убираем значения фильтров, ставших неприменимыми,
+// чтобы не слать в движок фильтр по метрике, которая его не поддерживает.
+watch(applicableFilters, (keys) => {
+  const allowed = new Set(keys);
+  const next = {};
+  let changed = false;
+  for (const [k, v] of Object.entries(form.filters)) {
+    if (allowed.has(k)) next[k] = v;
+    else changed = true;
+  }
+  if (changed) form.filters = next;
+});
+
 const canRun = computed(() =>
   form.mode === 'aggregate'
     ? form.metrics.length > 0 && Boolean(form.dimension)
     : Boolean(form.entity));
 
 const periodLabel = computed(() => {
-  const { from, to } = props.period || {};
+  const { from, to } = form.period;
   if (from && to) return `${from} — ${to}`;
   if (from) return `с ${from}`;
   if (to) return `по ${to}`;
@@ -311,14 +399,13 @@ const periodLabel = computed(() => {
 });
 
 const summary = computed(() => {
+  // Период упоминаем только когда срез его поддерживает (есть date_range в applicable).
+  const periodPart = periodApplicable.value ? `, период: ${periodLabel.value}` : '';
   if (form.mode === 'aggregate') {
     const names = selectedMetrics.value.map((m) => m.label).join(', ') || '—';
     const dim = availableDimensions.value.find((d) => d.key === form.dimension)?.label || '—';
-    return `Считаем: ${names}; разрез «${dim}», период: ${periodLabel.value}.`;
+    return `Считаем: ${names}; разрез «${dim}»${periodPart}.`;
   }
-  // Период упоминаем только если сущность его поддерживает (машины/люди — нет).
-  const supportsPeriod = (selectedEntity.value?.filters || []).includes('date_range');
-  const periodPart = supportsPeriod ? `, период: ${periodLabel.value}` : '';
   return `Выгрузка строк: «${selectedEntity.value?.label || '—'}»${periodPart}.`;
 });
 
@@ -381,9 +468,37 @@ function toggleFilter(key, value) {
   form.filters = { ...form.filters, [key]: current };
 }
 
+/**
+ * Диапазон дат для пресета периода. «all» -> пустой диапазон (весь период).
+ * @param {'week'|'month'|'year'|'all'} kind
+ * @returns {{from: string, to: string}}
+ */
+function computePeriod(kind) {
+  if (kind === 'all') return { from: '', to: '' };
+  const now = new Date();
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  const to = fmt(now);
+  if (kind === 'week') {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Пн = начало недели
+    return { from: fmt(monday), to };
+  }
+  if (kind === 'month') return { from: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), to };
+  if (kind === 'year') return { from: fmt(new Date(now.getFullYear(), 0, 1)), to };
+  return { from: '', to: '' };
+}
+
+function applyPeriodPreset(kind) {
+  const range = computePeriod(kind);
+  form.period.from = range.from;
+  form.period.to = range.to;
+  activePeriodPreset.value = kind;
+}
+
 // Снимок состояния формы для индикатора шагов мастера (родитель считает по нему
 // прогресс). metric — ключ первой выбранной метрики: шаг «что считаем» закрыт,
-// когда выбрана хотя бы одна. immediate — чтобы степпер был корректен сразу.
+// когда выбрана хотя бы одна. periodFilled — задан ли диапазон. immediate —
+// чтобы степпер был корректен сразу.
 const filterCount = computed(
   () => Object.values(form.filters).reduce((n, vals) => n + (vals?.length || 0), 0),
 );
@@ -394,6 +509,8 @@ watch(
     dimension: form.dimension,
     entity: form.entity,
     filterCount: filterCount.value,
+    periodApplicable: periodApplicable.value,
+    periodFilled: Boolean(form.period.from && form.period.to),
   }),
   (snapshot) => emit('change', snapshot),
   { immediate: true, deep: true },
@@ -403,7 +520,7 @@ function run() {
   // Защита инварианта: run() зовётся не только кнопкой (ещё из watch пресета),
   // поэтому проверяем canRun здесь, а не полагаемся на :disabled кнопки.
   if (!canRun.value) return;
-  emit('run', buildReportRequest(form, props.period, applicableFilters.value));
+  emit('run', buildReportRequest(form, form.period, applicableFilters.value));
 }
 </script>
 
@@ -464,6 +581,12 @@ function run() {
   font-size: 15px;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.rb__step-opt {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 .rb__group-title {
@@ -645,6 +768,7 @@ function run() {
   flex-direction: column;
   gap: 16px;
   padding-top: 4px;
+  margin-left: 36px;
 }
 
 .rb__filter {
@@ -685,6 +809,32 @@ function run() {
   font-size: 13px;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+/* Период */
+.rb__period {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-left: 36px;
+}
+
+.rb__period-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rb__period-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.rb__date {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .rb__preview {
@@ -759,7 +909,9 @@ function run() {
   }
 
   .rb__group-title,
-  .rb__gran {
+  .rb__gran,
+  .rb__filters,
+  .rb__period {
     margin-left: 0;
   }
 }

@@ -23,6 +23,7 @@ vi.mock('@/api/statistics', () => ({
 import ReportsTab from '../ReportsTab.vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import ReportResult from '../ReportResult.vue';
+import ReportStepper from '../ReportStepper.vue';
 
 describe('ReportsTab', () => {
   it('при двух параллельных запусках показывает результат последнего, медленный предыдущий игнорирует', async () => {
@@ -45,5 +46,33 @@ describe('ReportsTab', () => {
     await flushPromises();
 
     expect(wrapper.findComponent(ReportResult).props('result').total).toBe(7);
+  });
+
+  it('снимок мастера с заполненным периодом закрывает шаг «Период» степпера', async () => {
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    builder.vm.$emit('change', {
+      mode: 'aggregate', metric: 'applications_count', dimension: 'status', entity: '', filterCount: 0, periodFilled: true,
+    });
+    await nextTick();
+
+    const periodStep = wrapper.findComponent(ReportStepper).props('steps')[3];
+    expect(periodStep.label).toContain('Период');
+    expect(periodStep.state).toBe('done');
+  });
+
+  it('в list-режиме без периода шаг «Период» считается пройденным', async () => {
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    builder.vm.$emit('change', {
+      mode: 'list', metric: '', dimension: '', entity: 'cars', filterCount: 0, periodApplicable: false, periodFilled: false,
+    });
+    await nextTick();
+
+    expect(wrapper.findComponent(ReportStepper).props('steps')[3].state).toBe('done');
   });
 });
