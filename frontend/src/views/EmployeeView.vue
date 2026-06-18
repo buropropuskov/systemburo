@@ -13,11 +13,11 @@
       </p>
     </header>
 
-    <div
-      class="employeesview__filters"
-      data-testid="ob-employees-filters"
-    >
-      <div class="filters-container">
+    <div class="employeesview__filters">
+      <div
+        class="filters-container"
+        data-testid="ob-employees-filters"
+      >
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск сотрудников...'"

@@ -13,11 +13,11 @@
       </p>
     </header>
 
-    <div
-      class="carsview__filters"
-      data-testid="ob-cars-filters"
-    >
-      <div class="filters-container">
+    <div class="carsview__filters">
+      <div
+        class="filters-container"
+        data-testid="ob-cars-filters"
+      >
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск машин...'"
