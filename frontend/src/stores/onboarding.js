@@ -108,6 +108,17 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     pendingSegment.value = true;
   }
 
+  /**
+   * Вернуться к шагу на предыдущей странице (cross-page «Назад»): ставим
+   * глобальный индекс на конкретный шаг и поднимаем флаг ожидания навигации.
+   *
+   * @param {number} index глобальный индекс шага, на который возвращаемся
+   */
+  function retreatSegment(index) {
+    currentIndex.value = index;
+    pendingSegment.value = true;
+  }
+
   function clearPending() {
     pendingSegment.value = false;
   }
@@ -158,6 +169,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     stop,
     setIndex,
     advanceSegment,
+    retreatSegment,
     clearPending,
     markCompleted,
     reset,
