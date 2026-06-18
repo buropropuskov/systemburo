@@ -1,6 +1,7 @@
 import demoApplications from '@/assets/onboarding/demo-applications.png';
 import demoCars from '@/assets/onboarding/demo-cars.png';
 import demoEmployees from '@/assets/onboarding/demo-employees.png';
+import demoCreateForm from '@/assets/onboarding/demo-create-form.png';
 
 /**
  * Демо-скриншоты для шагов, где у нового пользователя элемент пустой (заявки,
@@ -24,6 +25,11 @@ const DEMO = {
     src: demoEmployees,
     alt: 'Пример списка сотрудников с должностями',
     caption: 'Пример: так выглядит список сотрудников',
+  },
+  createForm: {
+    src: demoCreateForm,
+    alt: 'Пример заполненной формы заявки',
+    caption: 'Пример: так выглядит заполненная заявка',
   },
 };
 

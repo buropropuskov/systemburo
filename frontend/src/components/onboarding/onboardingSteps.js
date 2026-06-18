@@ -171,6 +171,21 @@ export const onboardingSteps = [
     description: 'Все ваши сотрудники собраны в этой таблице. У новичка она пуста - так она выглядит с данными.',
     demo: 'employees',
   },
+  {
+    id: 'createapp-selector',
+    route: '/new-application',
+    element: '[data-testid="ob-app-selector"]',
+    title: 'Оформление заявки',
+    description: 'Главное действие - подача заявки на пропуск. Сначала выберите тип пропуска (бланк): от него зависит, какие поля появятся в форме.',
+  },
+  {
+    id: 'createapp-form',
+    route: '/new-application',
+    element: '[data-testid="ob-app-form"]',
+    title: 'Заполнение и отправка',
+    description: 'После выбора бланка откроется форма: сопроводительное письмо, поля сотрудника и автомобиля, согласие на обработку данных и кнопка отправки. Вот как она выглядит заполненной.',
+    demo: 'createForm',
+  },
 ];
 
 /**
