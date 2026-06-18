@@ -351,19 +351,29 @@ function formatTime(iso) {
 }
 
 // ---- загрузка данных ----
+// Токены последовательности: быстрое переключение периода/метрики/гранулярности
+// пускает несколько запросов параллельно; результат пишет только последний, иначе
+// медленный ответ предыдущего выбора затирает актуальный (last-resolve-wins).
+let summarySeq = 0;
+let timelineSeq = 0;
+
 async function loadSummary() {
+  const seq = ++summarySeq;
   summaryLoading.value = true;
   try {
     const data = await getSummary(props.from, props.to);
+    if (seq !== summarySeq) return;
     summary.value = data || {};
   } catch {
+    if (seq !== summarySeq) return;
     summary.value = {};
   } finally {
-    summaryLoading.value = false;
+    if (seq === summarySeq) summaryLoading.value = false;
   }
 }
 
 async function loadTimeline() {
+  const seq = ++timelineSeq;
   timelineLoading.value = true;
   try {
     const data = await getTimeline({
@@ -372,11 +382,13 @@ async function loadTimeline() {
       metric: activeMetric.value,
       granularity: activeGranularity.value,
     });
+    if (seq !== timelineSeq) return;
     timeline.value = Array.isArray(data) ? data : [];
   } catch {
+    if (seq !== timelineSeq) return;
     timeline.value = [];
   } finally {
-    timelineLoading.value = false;
+    if (seq === timelineSeq) timelineLoading.value = false;
   }
 }
 
