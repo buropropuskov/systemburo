@@ -167,9 +167,12 @@ export function useOnboarding() {
       showProgress: false,
       animate: !prefersReducedMotion(),
       allowClose: true,
-      overlayOpacity: 0.7,
-      stagePadding: 6,
-      stageRadius: 20,
+      // Чётче выделение: затемнение фона плотнее, спотлайт плотно по элементу,
+      // скругление 30px. popoverOffset больше - карточка не наезжает на элемент.
+      overlayOpacity: 0.78,
+      stagePadding: 5,
+      stageRadius: 30,
+      popoverOffset: 16,
       popoverClass: 'ob-popover',
       nextBtnText: 'Далее',
       prevBtnText: 'Назад',
@@ -179,6 +182,12 @@ export function useOnboarding() {
           title: s.title,
           description: buildPopoverHtml(s),
         };
+        // Сторона/выравнивание поповера от шага - чтобы карточка не наезжала на
+        // выделенный элемент (напр. элементы шапки вверху -> поповер вниз).
+        if (s.side) popover.side = s.side;
+        if (s.align) popover.align = s.align;
+        // Шаги с демо-скриншотом шире - чтобы реальная таблица читалась.
+        if (s.demo) popover.popoverClass = 'ob-popover ob-popover--wide';
         // Последний шаг сегмента, но впереди есть шаги на другой странице -
         // ТОЛЬКО подпись кнопки: "Далее" вместо "Готово", чтобы юзер видел, что
         // тур продолжится. Само поведение перехода диктует onNextClick ниже.
@@ -193,7 +202,9 @@ export function useOnboarding() {
       onNextClick() {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         if (localIndex >= lastLocal && onBoundaryNext) {
-          onBoundaryNext();
+          // Передаём РЕАЛЬНЫЙ глобальный индекс driver'а - store.currentIndex может
+          // отставать (onHighlighted последнего шага мог не успеть его обновить).
+          onBoundaryNext(startIndex + localIndex);
         } else {
           driverObj.moveNext();
         }

@@ -8,7 +8,7 @@ export const ONBOARDING_VERSION = 1;
 /**
  * Плоский упорядоченный массив шагов тура. Движок группирует ПОДРЯД идущие
  * шаги с одинаковым `route` в «сегмент» драйвера; смена `route` = граница
- * сегмента (cross-page переход достраивается отдельным срезом).
+ * сегмента (cross-page переход).
  *
  * Поля шага:
  * - `id`         уникальный строковый ключ;
@@ -17,12 +17,15 @@ export const ONBOARDING_VERSION = 1;
  * - `title`      заголовок поповера;
  * - `description` HTML-тело поповера (прогоняется через sanitizeHtml);
  * - `demo`       необязательный ключ скриншота (мапа в onboardingDemo.js);
- * - `expandRail` если true - хост разворачивает свёрнутый рельс навигации на
- *                время шага и возвращает прежнее состояние при выходе;
+ * - `expandRail` если true - хост держит рельс навигации развёрнутым на время
+ *                шага (и шага перед ним), возвращает прежнее состояние при выходе;
  * - `celebrate`  если true - в поповере рисуется галочка-празднование (финал);
- * - `cta`        текст финальной кнопки-CTA (ведёт на оформление заявки).
+ * - `cta`        текст финальной кнопки-CTA (ведёт на оформление заявки);
+ * - `side`       сторона поповера от элемента (top/bottom/left/right) - чтобы
+ *                карточка не наезжала на выделенный элемент;
+ * - `align`      выравнивание поповера вдоль стороны (start/center/end).
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string, side?: string, align?: string }>}
  */
 export const onboardingSteps = [
   {
@@ -39,7 +42,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-news"]',
     title: 'Новости системы',
     description:
-      'Здесь публикуются новости системы и важные объявления. Заглядывайте сюда, чтобы быть в курсе изменений.',
+      'Здесь публикуются новости системы. Заглядывайте сюда, чтобы быть в курсе изменений и обновлений.',
   },
   {
     id: 'guide',
@@ -50,6 +53,15 @@ export const onboardingSteps = [
       'Пошаговая инструкция по работе с системой: как подать заявку и пользоваться разделами. Откройте, если что-то непонятно.',
   },
   {
+    id: 'announcement',
+    side: 'left',
+    route: '/news',
+    element: '[data-testid="ob-announcement"]',
+    title: 'Объявления',
+    description:
+      'Объявления администрации. Здесь появляются обычные и важные объявления - так вы не пропустите срочную информацию. Нажмите, чтобы прочитать целиком.',
+  },
+  {
     id: 'documents',
     route: '/news',
     element: '[data-testid="ob-documents"]',
@@ -57,14 +69,16 @@ export const onboardingSteps = [
     description: 'Полезные документы и шаблоны, доступные для скачивания.',
   },
   {
-    id: 'header-broadcast',
+    id: 'header-feedback',
+    side: 'bottom',
     route: '/news',
-    element: '[data-testid="ob-header-broadcast"]',
-    title: 'Объявления',
-    description: 'На этой странице может появиться объявление или важное объявление от администрации. Когда оно опубликовано - вы увидите его здесь и сможете открыть, чтобы не пропустить важное.',
+    element: '[data-testid="header-button-feedback"]',
+    title: 'Сообщить о проблеме',
+    description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
   },
   {
     id: 'header-time',
+    side: 'bottom',
     route: '/news',
     element: '[data-testid="ob-header-time"]',
     title: 'Дата и время',
@@ -72,20 +86,15 @@ export const onboardingSteps = [
   },
   {
     id: 'header-notifications',
+    side: 'bottom',
     route: '/news',
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
     description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Нажмите, чтобы открыть список.',
   },
   {
-    id: 'header-feedback',
-    route: '/news',
-    element: '[data-testid="header-button-feedback"]',
-    title: 'Сообщить о проблеме',
-    description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
-  },
-  {
     id: 'header-submit',
+    side: 'bottom',
     route: '/news',
     element: '[data-testid="header-button-submit-app"]',
     title: 'Подать заявку',
@@ -96,7 +105,7 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-nav-rail"]',
     title: 'Навигация',
-    description: 'Боковое меню - главный способ перемещаться по системе. Наведите курсор, чтобы развернуть его с подписями разделов.',
+    description: 'Боковое меню - главный способ перемещаться по системе. Отсюда вы попадаете в любой раздел, в свой Личный кабинет, а внизу - кнопка «Выйти».',
     expandRail: true,
   },
   {
@@ -111,8 +120,8 @@ export const onboardingSteps = [
     id: 'cabinet-profile',
     route: '/personal-cabinet',
     element: '[data-testid="ob-profile"]',
-    title: 'Ваш профиль',
-    description: 'Личный кабинет. Здесь ваши данные: организация, должность, контакты. Они подставляются в заявки автоматически.',
+    title: 'Личный кабинет',
+    description: 'Мы перешли в ваш Личный кабинет. Вверху - ваши данные: организация, должность, контакты. Они автоматически подставляются в заявки.',
   },
   {
     id: 'cabinet-notifications',
@@ -126,15 +135,15 @@ export const onboardingSteps = [
     route: '/personal-cabinet',
     element: '[data-testid="ob-applications"]',
     title: 'Ваши заявки',
-    description: 'Все поданные заявки и их статусы собраны здесь. Можно отслеживать ход согласования и историю.',
+    description: 'Все поданные заявки и их статусы собраны здесь. Можно отслеживать ход согласования и историю. Вот как этот список выглядит с данными.',
     demo: 'applications',
   },
   {
     id: 'cars-filters',
     route: '/carsview',
     element: '[data-testid="ob-cars-filters"]',
-    title: 'Автомобили',
-    description: 'Раздел автомобилей. Фильтры переключают список: ваши машины, машины организации или компании.',
+    title: 'Раздел «Автомобили»',
+    description: 'Теперь мы в разделе «Автомобили». Фильтры сверху переключают список: ваши машины, машины организации или компании.',
   },
   {
     id: 'cars-add',
@@ -148,15 +157,15 @@ export const onboardingSteps = [
     route: '/carsview',
     element: '[data-testid="ob-cars-table"]',
     title: 'Список автомобилей',
-    description: 'Здесь все ваши автомобили с номерами и статусами. У нового пользователя список пуст - так он выглядит с данными.',
+    description: 'Здесь все ваши автомобили с номерами и статусами. Вот как таблица выглядит с данными.',
     demo: 'cars',
   },
   {
     id: 'employees-filters',
     route: '/employeesview',
     element: '[data-testid="ob-employees-filters"]',
-    title: 'Сотрудники',
-    description: 'Раздел сотрудников. Фильтры так же переключают список по вашей организации или компании.',
+    title: 'Раздел «Сотрудники»',
+    description: 'Дальше - раздел «Сотрудники». Фильтры так же переключают список по вашей организации или компании.',
   },
   {
     id: 'employees-add',
@@ -170,7 +179,7 @@ export const onboardingSteps = [
     route: '/employeesview',
     element: '[data-testid="ob-employees-table"]',
     title: 'Список сотрудников',
-    description: 'Все ваши сотрудники собраны в этой таблице. У новичка она пуста - так она выглядит с данными.',
+    description: 'Все ваши сотрудники собраны в этой таблице. Вот как она выглядит с данными.',
     demo: 'employees',
   },
   {
@@ -178,7 +187,7 @@ export const onboardingSteps = [
     route: '/new-application',
     element: '[data-testid="ob-app-selector"]',
     title: 'Оформление заявки',
-    description: 'Главное действие - подача заявки на пропуск. Сначала выберите тип пропуска (бланк): от него зависит, какие поля появятся в форме.',
+    description: 'Открываем «Оформление и подачу заявки» - главное действие в системе. Слева выбираете тип пропуска (бланк): от него зависит, какие поля появятся в форме.',
   },
   {
     id: 'createapp-form',
@@ -193,7 +202,7 @@ export const onboardingSteps = [
     route: '/news',
     element: '[data-testid="ob-start-button"]',
     title: 'Готово, вы освоились!',
-    description: 'Это всё основное. Запустить обучение заново можно в любой момент - кнопкой «Обучение» вот здесь. Удачной работы!',
+    description: 'Возвращаемся на «Обзор». Это всё основное. Запустить обучение заново можно в любой момент - кнопкой «Обучение» вот здесь. Удачной работы!',
     celebrate: true,
     cta: 'Подать первую заявку',
   },

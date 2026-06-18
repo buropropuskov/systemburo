@@ -173,7 +173,6 @@
           <div
             v-show="sectionVisible.data"
             class="nav-section"
-            data-testid="ob-nav-group-data"
           >
             <div class="section-title">
               УПРАВЛЕНИЕ ДАННЫМИ
@@ -241,34 +240,38 @@
               </div>
             </div>
 
-            <div
-              v-show="matches('Сотрудники')"
-              class="nav-item"
-              :class="{ active: isActive('/employeesview') }"
-              data-testid="nav-link-employees"
-              @click="navigateToEmployeesView"
-            >
-              <NavIcon
-                name="employees"
-                :size="18"
-                class="nav-icon"
-              />
-              <span class="nav-text">Сотрудники</span>
-            </div>
+            <!-- Онбординг подсвечивает группу «Сотрудники + Автомобили» (без
+                 «Таблиц» - их нет у большинства ролей). -->
+            <div data-testid="ob-nav-group-data">
+              <div
+                v-show="matches('Сотрудники')"
+                class="nav-item"
+                :class="{ active: isActive('/employeesview') }"
+                data-testid="nav-link-employees"
+                @click="navigateToEmployeesView"
+              >
+                <NavIcon
+                  name="employees"
+                  :size="18"
+                  class="nav-icon"
+                />
+                <span class="nav-text">Сотрудники</span>
+              </div>
 
-            <div
-              v-show="matches('Автомобили')"
-              class="nav-item"
-              :class="{ active: isActive('/carsview') }"
-              data-testid="nav-link-cars"
-              @click="navigateToCarsView"
-            >
-              <NavIcon
-                name="cars"
-                :size="18"
-                class="nav-icon"
-              />
-              <span class="nav-text">Автомобили</span>
+              <div
+                v-show="matches('Автомобили')"
+                class="nav-item"
+                :class="{ active: isActive('/carsview') }"
+                data-testid="nav-link-cars"
+                @click="navigateToCarsView"
+              >
+                <NavIcon
+                  name="cars"
+                  :size="18"
+                  class="nav-icon"
+                />
+                <span class="nav-text">Автомобили</span>
+              </div>
             </div>
           </div>
 

@@ -132,6 +132,7 @@
           class="news-card announcement-card"
           :class="{ 'important-announcement': activeAnnouncement.is_important }"
           :style="{ animationDelay: '0.1s' }"
+          data-testid="ob-announcement"
           @click="openAnnouncementModal(activeAnnouncement)"
         >
           <div class="card-header">

@@ -53,13 +53,27 @@ describe('onboardingSteps', () => {
 
   it('есть шаги шапки и навигации с целевыми селекторами', () => {
     const ids = onboardingSteps.map((s) => s.id);
-    for (const id of ['header-broadcast', 'header-time', 'header-notifications', 'header-feedback', 'header-submit', 'nav-rail', 'nav-group-data']) {
+    for (const id of ['header-feedback', 'header-time', 'header-notifications', 'header-submit', 'nav-rail', 'nav-group-data']) {
       expect(ids).toContain(id);
     }
     // у каждого шага шапки/навигации - строковый селектор цели (не центр-модал)
     for (const s of onboardingSteps.filter((x) => x.id.startsWith('header-') || x.id.startsWith('nav-'))) {
       expect(typeof s.element).toBe('string');
     }
+  });
+
+  it('announcement идёт ПЕРЕД documents в сегменте news', () => {
+    const ids = onboardingSteps.map((s) => s.id);
+    expect(ids).toContain('announcement');
+    expect(ids.indexOf('announcement')).toBeLessThan(ids.indexOf('documents'));
+    expect(ids).not.toContain('header-broadcast');
+  });
+
+  it('шаги шапки идут слева направо: feedback -> time -> notifications -> submit', () => {
+    const ids = onboardingSteps.map((s) => s.id);
+    const order = ['header-feedback', 'header-time', 'header-notifications', 'header-submit'].map((id) => ids.indexOf(id));
+    const sorted = [...order].sort((a, b) => a - b);
+    expect(order).toEqual(sorted);
   });
 });
 
