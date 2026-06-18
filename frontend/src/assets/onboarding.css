@@ -12,6 +12,11 @@
   font-family: 'Montserrat', sans-serif;
 }
 
+/* Шаги с демо-скриншотом таблицы - шире, чтобы реальный компонент читался. */
+.driver-popover.ob-popover.ob-popover--wide {
+  max-width: 600px;
+}
+
 .driver-popover.ob-popover .driver-popover-title {
   font-size: 17px;
   font-weight: 700;

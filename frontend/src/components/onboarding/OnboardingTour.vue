@@ -23,48 +23,32 @@ let waitController = null;
 let driverGen = 0;
 // Прежнее состояние рельса до того как тур его развернул - чтобы вернуть как было.
 let railSaved = null;
-let railRefreshTimer = null;
-
-function clearRailTimer() {
-  if (railRefreshTimer) {
-    clearTimeout(railRefreshTimer);
-    railRefreshTimer = null;
-  }
-}
 
 /**
- * Развернуть/вернуть рельс под текущий шаг. Разворот включается ИМЕННО на nav-шаге
- * (overlay через tourForceExpand, без сдвига контента). Рельс анимированно
- * доезжает до полной ширины ~0.25s - после анимации просим driver пересчитать
- * рамку спотлайта (refresh). Overlay не двигает контент, поэтому refresh
- * ре-стейджит тот же элемент чисто, без скачка спотлайта на соседний.
+ * Рельс держим развёрнутым на nav-шаге И на шаге ПЕРЕД ним: разворачиваем
+ * заранее (overlay через tourForceExpand, без сдвига контента), чтобы к моменту
+ * подсветки рельс уже доехал до полной ширины и driver померил рамку сразу
+ * верно - без ре-замера и без моргания спотлайта.
  */
-function applyRail(globalIndex) {
+function railNeeded(globalIndex) {
   const cur = store.steps[globalIndex];
-  if (cur?.expandRail) {
+  const next = store.steps[globalIndex + 1];
+  return Boolean(cur?.expandRail || next?.expandRail);
+}
+
+function applyRail(globalIndex) {
+  if (railNeeded(globalIndex)) {
     if (!railSaved) {
       railSaved = { force: ui.tourForceExpand, hidden: ui.sidebarHidden };
     }
     ui.tourForceExpand = true;
     ui.sidebarHidden = false;
-    clearRailTimer();
-    const captured = driverObj;
-    railRefreshTimer = setTimeout(() => {
-      railRefreshTimer = null;
-      // moveTo ре-хайлайтит текущий шаг по селектору (свежий querySelector) -
-      // в отличие от refresh() он заново ставит класс .driver-active-element на
-      // развёрнутый рельс. refresh() ре-стейджит и оставляет подсветку пустой.
-      if (captured && captured === driverObj && store.isActive) {
-        captured.moveTo(captured.getActiveIndex());
-      }
-    }, 300);
   } else {
     restoreRail();
   }
 }
 
 function restoreRail() {
-  clearRailTimer();
   if (railSaved) {
     ui.tourForceExpand = railSaved.force;
     ui.sidebarHidden = railSaved.hidden;
@@ -123,8 +107,12 @@ function finishAndCreateApp() {
  * на другой странице, переходим туда (тур продолжится); если шагов больше нет,
  * завершаем тур.
  */
-function handleBoundaryNext() {
-  const next = store.steps[store.currentIndex + 1];
+function handleBoundaryNext(activeGlobalIndex) {
+  // Берём индекс от driver'а (точная позиция); store.currentIndex может отставать,
+  // если onHighlighted последнего шага сегмента ещё не обновил его.
+  const idx = typeof activeGlobalIndex === 'number' ? activeGlobalIndex : store.currentIndex;
+  if (idx !== store.currentIndex) store.setIndex(idx);
+  const next = store.steps[idx + 1];
   if (!next) {
     finishTour();
   } else if (next.route !== route.path) {
