@@ -3,12 +3,16 @@
     <div class="content-wrapper">
       <!-- Левая колонка - Новости -->
       <div class="left-column">
-        <div class="news-container">
+        <div
+          class="news-container"
+          data-testid="ob-news"
+        >
           <div class="news-header">
             <h2 class="news-title">
               Последние новости
             </h2>
             <div class="header-actions">
+              <OnboardingButton />
               <button
                 class="manage-btn"
                 @click="openManageModal"
@@ -70,6 +74,7 @@
       <div class="right-column">
         <div
           class="guide-card"
+          data-testid="ob-guide"
           :style="{ animationDelay: '0.2s' }"
           @click="openGuide"
         >
@@ -572,6 +577,7 @@ import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
 import { useAuthStore } from '@/stores/auth'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
+import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
 
 export default {
   name: 'LatestNews',
@@ -582,6 +588,7 @@ export default {
     UserGuideModal,
     TextConstructor,
     DocumentsBlock,
+    OnboardingButton,
   },
   data() {
     return {

@@ -10,6 +10,7 @@ import { useMaintenanceStore } from '@/stores/maintenance'
 import { installBeforeUnloadGuard } from '@/utils/dirtyTracker'
 import './assets/tokens.css'
 import './assets/forms.css'
+import './assets/onboarding.css'
 
 const app = createApp(App)
 app.config.globalProperties.$bus = bus
