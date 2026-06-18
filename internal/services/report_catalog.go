@@ -276,6 +276,24 @@ func (d dynamicReportOptions) optionsFor(src optionsSource) []models.ReportOptio
 	}
 }
 
+// metricApplicableFilters выводит список применимых к метрике фильтров ИЗ схемы
+// движка (aggMetricRegistry) — единый источник, исключающий рассинхрон каталога и
+// исполнителя. date_range применим ко всем метрикам (по tsColumn); остальные —
+// только те, что движок умеет резолвить для этой метрики. Порядок — reportFilterOrder.
+func metricApplicableFilters(metric string) []string {
+	schema, ok := aggMetricRegistry[metric]
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(reportFilterOrder))
+	for _, f := range reportFilterOrder {
+		if _, resolvable := schema.filters[f]; f == "date_range" || resolvable {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // buildReportCatalog собирает каталог из whitelist-реестров и подгруженных
 // значений справочников. Чистая функция (без БД) — тестируется напрямую.
 func buildReportCatalog(dyn dynamicReportOptions) models.ReportCatalog {
@@ -295,6 +313,7 @@ func buildReportCatalog(dyn dynamicReportOptions) models.ReportCatalog {
 			Unit:       def.unit,
 			Group:      def.group,
 			Dimensions: def.dimensions,
+			Filters:    metricApplicableFilters(key),
 		})
 	}
 
