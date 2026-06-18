@@ -600,6 +600,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup.GET("/timeline", statistics.GetTimeline, requireStats)
 		statsGroup.GET("/recent-passages", statistics.GetRecentPassages, requireStats)
 		statsGroup.GET("/metrics", statistics.GetMetrics, requireStats)
+		statsGroup.GET("/insights", statistics.GetInsights, requireStats)
 		statsGroup.POST("/report", statistics.RunReport, requireStats)
 		statsGroup.GET("/templates", statistics.ListTemplates, requireStats)
 		statsGroup.POST("/templates", statistics.CreateTemplate, requireStats)
