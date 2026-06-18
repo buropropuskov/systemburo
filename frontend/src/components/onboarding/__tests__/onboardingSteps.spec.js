@@ -172,11 +172,16 @@ describe('cross-page конфигурация (создание заявки)', 
     expect(first).toBeGreaterThan(0);
     expect(onboardingSteps[first - 1].route).not.toBe('/new-application');
     expect(collectSegment(onboardingSteps, first, '/new-application').map((s) => s.id))
-      .toEqual(['createapp-selector', 'createapp-form']);
+      .toEqual(['createapp-selector', 'createapp-car', 'createapp-people']);
   });
 
-  it('шаг формы несёт демо createForm', () => {
-    expect(onboardingSteps.find((s) => s.id === 'createapp-form').demo).toBe('createForm');
+  it('шаги бланков несут демо-вложение и демо-скриншот формы', () => {
+    const car = onboardingSteps.find((s) => s.id === 'createapp-car');
+    const people = onboardingSteps.find((s) => s.id === 'createapp-people');
+    expect(car.demoAttachment).toBe('cars');
+    expect(car.demo).toBe('carForm');
+    expect(people.demoAttachment).toBe('people');
+    expect(people.demo).toBe('peopleForm');
   });
 
   it('идёт после сотрудников', () => {

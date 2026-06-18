@@ -23,6 +23,14 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   // следующий сегмент после навигации (router.afterEach).
   const pendingSegment = ref(false);
 
+  // Демо-вложение для онбординга оформления заявки: тур просит BlankSelector
+  // добавить вложение нужного типа ('cars'/'people'), чтобы показать реальную
+  // форму; null = убрать демо-вложение (очистка после сегмента/тура).
+  const demoAttachmentType = ref(null);
+  function setDemoAttachment(type) {
+    demoAttachmentType.value = type || null;
+  }
+
   // Per-user статус с бэкенда: версия пройденного тура и флаг загрузки.
   const completedVersion = ref(null);
   const statusLoaded = ref(false);
@@ -125,12 +133,15 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     isActive.value = false;
     currentIndex.value = 0;
     pendingSegment.value = false;
+    demoAttachmentType.value = null;
     // Сброс статуса при logout - следующий юзер на этом устройстве подтянет свой.
     completedVersion.value = null;
     statusLoaded.value = false;
   }
 
   return {
+    demoAttachmentType,
+    setDemoAttachment,
     isActive,
     currentIndex,
     steps,

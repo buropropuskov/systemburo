@@ -96,6 +96,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useOnboardingStore } from '@/stores/onboarding';
 import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
@@ -114,6 +115,11 @@ export default {
         }
     },
     emits: ['attachment-added', 'attachment-removed', 'attachment-selected'],
+    setup() {
+        // Онбординг-тур просит показать реальную форму, добавляя демо-вложение
+        // нужного типа (см. watch onboardingStore.demoAttachmentType ниже).
+        return { onboardingStore: useOnboardingStore() };
+    },
     data() {
         return {
             allTemplates: [],
@@ -125,7 +131,9 @@ export default {
             tooltipText: '',
             tooltipStyle: {},
             tooltipTimeout: null,
-            selectedAttachments: []
+            selectedAttachments: [],
+            // Демо-вложение, добавленное онбордингом (чтобы убрать его потом).
+            demoAttachment: null
         }
     },
     computed: {
@@ -168,10 +176,19 @@ export default {
             },
             deep: true,
             immediate: true
+        },
+        // Онбординг просит показать форму вложения нужного типа: добавляем
+        // демо-вложение, при смене типа/сбросе - убираем прежнее.
+        'onboardingStore.demoAttachmentType'(type) {
+            this.applyDemoAttachment(type);
         }
     },
     mounted() {
         this.fetchTemplates();
+    },
+    beforeUnmount() {
+        // Уходя со страницы посреди тура - не оставить демо-вложение висеть.
+        this.removeDemoAttachment();
     },
     methods: {
         getAttachmentKey(attachment) {
@@ -223,10 +240,58 @@ export default {
                 if (response.ok) {
                     const data = await response.json();
                     this.allTemplates = data;
+                    // Тур мог попросить демо-вложение раньше, чем подгрузились
+                    // шаблоны (watch отработал вхолостую) - применяем сейчас.
+                    if (this.onboardingStore.demoAttachmentType) {
+                        this.applyDemoAttachment(this.onboardingStore.demoAttachmentType);
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching attachment templates:", error);
             }
+        },
+
+        /**
+         * Онбординг: добавить демо-вложение типа type ('cars'/'people'/'items'),
+         * чтобы тур показал реальную форму. Прежнее демо снимается. Демо помечено
+         * __onboardingDemo - CreateApplication не персистит его в localStorage.
+         *
+         * @param {string|null} type
+         */
+        applyDemoAttachment(type) {
+            this.removeDemoAttachment();
+            if (!type) return;
+
+            const template = this.allTemplates.find(t => t.attachment_type === type);
+            // Шаблоны ещё не загрузились - fetchTemplates применит демо после загрузки.
+            if (!template) return;
+
+            const attachment = {
+                id: template.id,
+                local_id: `onboarding-demo-${type}`,
+                template_id: template.id,
+                title: template.title,
+                name: `${template.name}_demo`,
+                display_name: template.display_name,
+                attachment_type: template.attachment_type,
+                instruction: template.instruction,
+                created_at: new Date().toISOString(),
+                is_active: true,
+                __onboardingDemo: true
+            };
+
+            this.demoAttachment = attachment;
+            this.$emit('attachment-added', attachment);
+        },
+
+        /**
+         * Убрать ранее добавленное демо-вложение онбординга, если оно есть.
+         */
+        removeDemoAttachment() {
+            if (!this.demoAttachment) return;
+            const attachment = this.demoAttachment;
+            this.demoAttachment = null;
+            this.$emit('attachment-removed', attachment);
         },
 
         addAttachment(category) {
