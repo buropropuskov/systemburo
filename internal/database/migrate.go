@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -151,6 +152,9 @@ func AllModels() []interface{} {
 		// Documents (#39)
 		&models.DocumentGroup{},
 		&models.Document{},
+
+		// Report templates (#632): сохранённые наборы конструктора отчётов
+		&models.ReportTemplate{},
 	}
 }
 
@@ -175,7 +179,62 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := backfillSuperAdmin(db); err != nil {
 		return err
 	}
+	if err := SeedReportTemplates(db); err != nil {
+		return err
+	}
 	slog.Info("AutoMigrate completed")
+	return nil
+}
+
+// SeedReportTemplates идемпотентно создаёт системные пресеты конструктора отчётов
+// (#632). Config зеркалит состояние гида и непрозрачен для бэка — его применяет
+// фронт. Создаём только отсутствующие по (name, is_system), существующие не трогаем.
+// Идемпотентность через Count, а не уникальный индекс: личные шаблоны разных
+// пользователей могут совпадать по имени, поэтому DB-level unique на name не ставим.
+func SeedReportTemplates(db *gorm.DB) error {
+	presets := []models.ReportTemplate{
+		{
+			Name:        "Сводка за неделю",
+			Description: "Поданные заявки по дням за последнюю неделю.",
+			Config:      json.RawMessage(`{"mode":"aggregate","metrics":["applications_count"],"dimension":"period","granularity":"day","period_preset":"week"}`),
+		},
+		{
+			Name:        "Проведение работ",
+			Description: "Заявки на работы с деталями: организация, наименование, ответственный, период.",
+			Config:      json.RawMessage(`{"mode":"list","entity":"work_applications"}`),
+		},
+		{
+			Name:        "Машины по местам",
+			Description: "Список машин с организацией, маркой и местом разгрузки.",
+			Config:      json.RawMessage(`{"mode":"list","entity":"cars"}`),
+		},
+		{
+			Name:        "Самые популярные места",
+			Description: "Места разгрузки по числу въездов машин - самые загруженные сверху.",
+			Config:      json.RawMessage(`{"mode":"aggregate","metrics":["car_entries_count"],"dimension":"unload_place"}`),
+		},
+		{
+			Name:        "Проходы людей",
+			Description: "Входы людей по дням за последнюю неделю.",
+			Config:      json.RawMessage(`{"mode":"aggregate","metrics":["people_entries_count"],"dimension":"period","granularity":"day","period_preset":"week"}`),
+		},
+	}
+
+	for i := range presets {
+		presets[i].IsSystem = true
+		var count int64
+		if err := db.Model(&models.ReportTemplate{}).
+			Where("name = ? AND is_system = ?", presets[i].Name, true).
+			Count(&count).Error; err != nil {
+			return fmt.Errorf("check system report template %q: %w", presets[i].Name, err)
+		}
+		if count > 0 {
+			continue
+		}
+		if err := db.Create(&presets[i]).Error; err != nil {
+			return fmt.Errorf("seed system report template %q: %w", presets[i].Name, err)
+		}
+	}
 	return nil
 }
 

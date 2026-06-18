@@ -597,5 +597,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup.GET("/recent-passages", statistics.GetRecentPassages, requireStats)
 		statsGroup.GET("/metrics", statistics.GetMetrics, requireStats)
 		statsGroup.POST("/report", statistics.RunReport, requireStats)
+		statsGroup.GET("/templates", statistics.ListTemplates, requireStats)
+		statsGroup.POST("/templates", statistics.CreateTemplate, requireStats)
+		statsGroup.PUT("/templates/:id", statistics.UpdateTemplate, requireStats)
+		statsGroup.DELETE("/templates/:id", statistics.DeleteTemplate, requireStats)
 	}
 }
