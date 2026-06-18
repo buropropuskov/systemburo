@@ -146,3 +146,24 @@ describe('cross-page конфигурация (cars / employees)', () => {
     expect(idx('cars-table')).toBeLessThan(idx('employees-filters'));
   });
 });
+
+describe('cross-page конфигурация (создание заявки)', () => {
+  it('сегмент /new-application идёт последним и отделён границей', () => {
+    const first = onboardingSteps.findIndex((s) => s.route === '/new-application');
+    expect(first).toBeGreaterThan(0);
+    expect(onboardingSteps[first - 1].route).not.toBe('/new-application');
+    expect(collectSegment(onboardingSteps, first, '/new-application').map((s) => s.id))
+      .toEqual(['createapp-selector', 'createapp-form']);
+    // это финальный сегмент тура
+    expect(first + 2).toBe(onboardingSteps.length);
+  });
+
+  it('шаг формы несёт демо createForm', () => {
+    expect(onboardingSteps.find((s) => s.id === 'createapp-form').demo).toBe('createForm');
+  });
+
+  it('идёт после сотрудников', () => {
+    const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
+    expect(idx('employees-table')).toBeLessThan(idx('createapp-selector'));
+  });
+});

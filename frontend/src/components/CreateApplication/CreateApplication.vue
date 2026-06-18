@@ -50,16 +50,18 @@
     <div class="create__container">
       <BlankSelector
         ref="blankSelector"
+        data-testid="ob-app-selector"
         :attachments="attachments"
         :current-application-data="currentApplicationData"
         @attachment-selected="handleAttachmentSelected"
         @attachment-added="handleAttachmentAdded"
         @attachment-removed="handleAttachmentRemoved"
       />
-            
+
       <div
         v-if="selectedAttachment"
         class="create__form"
+        data-testid="ob-app-form"
       >
         <!-- 1 ряд: Письмо сопроводительное, Согласие, Отправка -->
         <div class="form__header">

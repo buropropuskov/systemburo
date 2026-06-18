@@ -118,7 +118,14 @@ function advanceToSegment(targetRoute) {
     driverObj.destroy();
     driverObj = null;
   }
-  router.push(targetRoute);
+  // Навигация может быть отменена глобальным beforeEach (dirty-confirm и т.п.).
+  // Тогда afterEach не сработает - не оставляем тур висеть в pendingSegment.
+  router.push(targetRoute).catch(() => {
+    if (store.pendingSegment) {
+      store.clearPending();
+      store.stop();
+    }
+  });
 }
 
 function finishTour() {
