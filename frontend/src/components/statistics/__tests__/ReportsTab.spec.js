@@ -5,7 +5,7 @@ import { nextTick } from 'vue';
 // Каталог и управляемые промисы runReport вынесены в hoisted — vi.mock поднимается
 // над импортами, его фабрика не видит обычные переменные модуля.
 const { state, CATALOG } = vi.hoisted(() => ({
-  state: { deferred: [] },
+  state: { deferred: [], templates: [], saved: [], deleted: [] },
   CATALOG: {
     metrics: [{ key: 'applications_count', label: 'Заявки', unit: 'шт', dimensions: ['status'] }],
     dimensions: [{ key: 'status', label: 'Статус заявки' }],
@@ -18,11 +18,15 @@ const { state, CATALOG } = vi.hoisted(() => ({
 vi.mock('@/api/statistics', () => ({
   getReportCatalog: () => Promise.resolve(CATALOG),
   runReport: () => new Promise((resolve) => { state.deferred.push(resolve); }),
+  getReportTemplates: () => Promise.resolve(state.templates),
+  saveReportTemplate: (payload) => { state.saved.push(payload); return Promise.resolve({ id: 99, ...payload, is_system: false }); },
+  deleteReportTemplate: (id) => { state.deleted.push(id); return Promise.resolve(); },
 }));
 
 // Стор уведомлений мокаем: ошибку экспорта показывают тостом, а не подменой :error.
-const { notifySpy } = vi.hoisted(() => ({ notifySpy: vi.fn() }));
+const { notifySpy, confirmSpy } = vi.hoisted(() => ({ notifySpy: vi.fn(), confirmSpy: vi.fn(() => Promise.resolve(true)) }));
 vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: notifySpy }) }));
+vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmSpy }) }));
 
 import ReportsTab from '../ReportsTab.vue';
 import ReportBuilder from '../ReportBuilder.vue';
@@ -101,5 +105,82 @@ describe('ReportsTab', () => {
     // Результат на месте, :error не выставлен.
     expect(wrapper.findComponent(ReportResult).props('result')).not.toBeNull();
     expect(wrapper.findComponent(ReportResult).props('error')).toBe('');
+  });
+
+  it('грузит личные шаблоны, системные пресеты в «Мои шаблоны» не попадают', async () => {
+    state.templates = [
+      { id: 1, name: 'Личный набор', config: { mode: 'list', entity: 'cars' }, is_system: false },
+      { id: 2, name: 'Системный', config: {}, is_system: true },
+    ];
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    const items = wrapper.findAll('.tpl-item');
+    expect(items).toHaveLength(1);
+    expect(items[0].text()).toContain('Личный набор');
+  });
+
+  it('применение шаблона прокидывает его config в ReportBuilder', async () => {
+    state.templates = [{ id: 5, name: 'Мой', config: { mode: 'list', entity: 'cars' }, is_system: false }];
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    await wrapper.find('.tpl-apply').trigger('click');
+    await nextTick();
+    expect(wrapper.findComponent(ReportBuilder).props('preset')).toMatchObject({ mode: 'list', entity: 'cars' });
+  });
+
+  it('сохранение шаблона шлёт имя и текущий config мастера', async () => {
+    state.templates = [];
+    state.saved.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    // Снимок мастера с полным config.
+    wrapper.findComponent(ReportBuilder).vm.$emit('change', {
+      mode: 'aggregate', metric: 'applications_count', dimension: 'status', entity: '',
+      filterCount: 0, periodApplicable: true, periodFilled: false,
+      config: { mode: 'aggregate', metrics: ['applications_count'], dimension: 'status', granularity: 'day', entity: '', filters: {}, period: { from: '', to: '' } },
+    });
+    await nextTick();
+
+    await wrapper.find('.tpl-save-btn').trigger('click');
+    await nextTick();
+    await wrapper.find('.tpl-save-form input').setValue('Новый набор');
+    await wrapper.find('.tpl-save-actions .lk-button--primary').trigger('click');
+    await flushPromises();
+
+    expect(state.saved).toHaveLength(1);
+    expect(state.saved[0]).toMatchObject({
+      name: 'Новый набор',
+      config: { mode: 'aggregate', metrics: ['applications_count'], dimension: 'status' },
+    });
+  });
+
+  it('удаление шаблона требует подтверждения и дёргает API по id', async () => {
+    state.templates = [{ id: 7, name: 'Удалить меня', config: { mode: 'list', entity: 'cars' }, is_system: false }];
+    state.deleted.length = 0;
+    confirmSpy.mockClear();
+    confirmSpy.mockResolvedValueOnce(true);
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    await wrapper.find('.tpl-del').trigger('click');
+    await flushPromises();
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(state.deleted).toContain(7);
+  });
+
+  it('отмена подтверждения не удаляет шаблон', async () => {
+    state.templates = [{ id: 8, name: 'Оставить', config: { mode: 'list', entity: 'cars' }, is_system: false }];
+    state.deleted.length = 0;
+    confirmSpy.mockClear();
+    confirmSpy.mockResolvedValueOnce(false);
+    const wrapper = mount(ReportsTab, { props: { from: '', to: '' } });
+    await flushPromises();
+
+    await wrapper.find('.tpl-del').trigger('click');
+    await flushPromises();
+    expect(state.deleted).toHaveLength(0);
   });
 });

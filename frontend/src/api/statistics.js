@@ -101,3 +101,53 @@ export async function runReport(request) {
   if (!res.ok) throw new Error(data?.message || 'Не удалось построить отчёт');
   return data;
 }
+
+/**
+ * @typedef {object} ReportTemplate
+ * @property {number} id
+ * @property {string} name
+ * @property {string} [description]
+ * @property {object} config   снимок состояния конструктора
+ * @property {boolean} is_system
+ * @property {boolean} is_shared
+ * @property {number} [owner_user_id]
+ */
+
+/**
+ * Список доступных шаблонов отчётов: системные пресеты + личные + расшаренные.
+ * @returns {Promise<ReportTemplate[]>}
+ */
+export async function getReportTemplates() {
+  const res = await apiRequest('/statistics/templates');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Не удалось загрузить шаблоны');
+  return data;
+}
+
+/**
+ * Сохранить личный шаблон отчёта.
+ * @param {{ name: string, description?: string, config: object, is_shared?: boolean }} payload
+ * @returns {Promise<ReportTemplate>}
+ */
+export async function saveReportTemplate(payload) {
+  const res = await apiRequest('/statistics/templates', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Не удалось сохранить шаблон');
+  return data;
+}
+
+/**
+ * Удалить личный шаблон отчёта.
+ * @param {number} id
+ * @returns {Promise<void>}
+ */
+export async function deleteReportTemplate(id) {
+  const res = await apiRequest(`/statistics/templates/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось удалить шаблон');
+  }
+}
