@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ReportBuilder from '../ReportBuilder.vue';
@@ -7,8 +7,8 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 
 const CATALOG = {
   metrics: [
-    { key: 'car_entries_count', label: 'Въезды машин', unit: 'шт', group: 'Машины', dimensions: ['unload_place', 'period'] },
-    { key: 'applications_count', label: 'Количество заявок', unit: 'шт', group: 'Заявки', dimensions: ['status', 'period'] },
+    { key: 'car_entries_count', label: 'Въезды машин', unit: 'шт', group: 'Машины', dimensions: ['unload_place', 'period'], filters: ['date_range', 'organization'] },
+    { key: 'applications_count', label: 'Количество заявок', unit: 'шт', group: 'Заявки', dimensions: ['status', 'period'], filters: ['date_range', 'status', 'organization'] },
   ],
   dimensions: [
     { key: 'none', label: 'Без разреза' },
@@ -59,6 +59,10 @@ function dimRadioByLabel(wrapper, label) {
 }
 
 describe('ReportBuilder', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('по умолчанию выбрана первая метрика, разрез — её первый реальный, строит metrics[]', async () => {
     const wrapper = mountBuilder();
     await nextTick();
@@ -125,8 +129,8 @@ describe('ReportBuilder', () => {
     wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
     await nextTick();
 
-    const pills = wrapper.findAll('.rb__pill');
-    expect(pills.length).toBe(2); // организация + статус, date_range = период из шапки
+    const pills = wrapper.find('.rb__filters').findAll('.rb__pill');
+    expect(pills.length).toBe(2); // организация + статус, date_range = период (шаг 4)
 
     const orgPill = pills.find((p) => p.text() === 'ООО А');
     await orgPill.trigger('click');
@@ -144,7 +148,7 @@ describe('ReportBuilder', () => {
     wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'list');
     await nextTick();
 
-    const orgPill = wrapper.findAll('.rb__pill').find((p) => p.text() === 'ООО А');
+    const orgPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А');
     await orgPill.trigger('click');
 
     const entityDropdown = wrapper.findAllComponents(BaseDropdown)[0];
@@ -184,6 +188,63 @@ describe('ReportBuilder', () => {
     expect(req.mode).toBe('list');
     expect(req.entity).toBe('cars');
     expect(req.filters.find((f) => f.key === 'date_range')).toBeUndefined();
+  });
+
+  it('шаг «Фильтры» в aggregate показывает применимые к метрике чипсы и шлёт выбранный', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    // car_entries_count -> применимый фильтр organization (date_range вынесен в период).
+    const filterPills = wrapper.find('.rb__filters').findAll('.rb__pill');
+    const orgPill = filterPills.find((p) => p.text() === 'ООО А');
+    expect(orgPill).toBeTruthy();
+    await orgPill.trigger('click');
+    await clickBuild(wrapper);
+
+    expect(lastRun(wrapper).filters).toContainEqual({ key: 'organization', values: ['ООО А'] });
+  });
+
+  it('снятие метрики чистит фильтр, который поддерживала только она', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    // Добавили applications_count — единственную метрику, поддерживающую status.
+    await metricInputs(wrapper)[1].trigger('change'); // metrics = [car, apps]
+    await nextTick();
+    const statusPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'Завершено');
+    await statusPill.trigger('click');
+    // Сняли applications_count -> status больше не применим -> значение чистится.
+    await metricInputs(wrapper)[1].trigger('change'); // metrics = [car]
+    await nextTick();
+    await clickBuild(wrapper);
+
+    expect(lastRun(wrapper).filters.find((f) => f.key === 'status')).toBeUndefined();
+  });
+
+  it('фильтр, применимый ко всему набору метрик, переживает смену метрик', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    // organization поддерживают обе метрики.
+    const orgPill = wrapper.find('.rb__filters').findAll('.rb__pill').find((p) => p.text() === 'ООО А');
+    await orgPill.trigger('click');
+    await metricInputs(wrapper)[1].trigger('change'); // добавили applications_count
+    await nextTick();
+    await clickBuild(wrapper);
+
+    expect(lastRun(wrapper).filters).toContainEqual({ key: 'organization', values: ['ООО А'] });
+  });
+
+  it('пресет периода «Этот год» задаёт диапазон с начала года', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 18)); // 18 июня 2026, локальное время
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    const yearBtn = wrapper.find('.rb__period-presets').findAll('.rb__pill').find((b) => b.text() === 'Этот год');
+    await yearBtn.trigger('click');
+    await clickBuild(wrapper);
+
+    const dr = lastRun(wrapper).filters.find((f) => f.key === 'date_range');
+    expect(dr.from).toBe('2026-01-01');
+    expect(dr.to).toBe('2026-06-18');
   });
 
   it('повторное применение пресета новым объектом (тот же контент) строит заново', async () => {
