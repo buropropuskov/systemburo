@@ -6,7 +6,7 @@
   >
     <!-- Модальное окно пересылки -->
     <ForwardModal
-      v-if="showForwardModal"
+      :show="showForwardModal"
       :all-users="allUsers"
       :responsible-users="responsibleUsers"
       :existing-approvers="approvers"  
