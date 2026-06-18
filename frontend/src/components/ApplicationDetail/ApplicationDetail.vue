@@ -30,7 +30,7 @@
             </div>
             <!-- Кнопка пересылки (рядом с датой) -->
             <button
-              v-if="mode === 'center'"
+              v-if="mode === 'center' && canForwardApplication"
               class="forward-btn"
               data-testid="app-detail-button-forward"
               :disabled="updatingConfirmation || processingApplication"
@@ -472,6 +472,13 @@ export default {
         // зеркалит право DELETE /blacklist-overrides на бэке (шире, чем создание override).
         canManageBlacklistOverride() {
             return this.isResponsibleUser || this.isApprover;
+        },
+
+        // Зеркалит BE-проверку canForward (sender OR responsible). Согласующего не включаем
+        // сознательно: isApprover - глобальная роль, видит все заявки, и на чужой forward
+        // вернул бы 403. Отправителя тоже нет - в режиме "Центр" у него нет UI-пути к кнопке.
+        canForwardApplication() {
+            return this.isResponsibleUser;
         },
 
         hasUserVoted() {
