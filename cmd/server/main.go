@@ -146,6 +146,7 @@ func main() {
 	companyService := services.NewCompanyService(db)
 	notificationServiceEarly := services.NewNotificationService(db)
 	userService := services.NewUserService(db, notificationServiceEarly)
+	onboardingService := services.NewOnboardingService(db)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
@@ -199,6 +200,7 @@ func main() {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
+	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
@@ -289,6 +291,7 @@ func main() {
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,
 		Statistics:          statisticsHandler,
+		Onboarding:          onboardingHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,

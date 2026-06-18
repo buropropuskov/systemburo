@@ -29,6 +29,10 @@ type User struct {
 	LastLoginAt      *time.Time   `json:"last_login_at,omitempty"`
 	FailedLoginCount int          `gorm:"default:0" json:"-"`
 	LockedUntil      *time.Time   `json:"-"`
+	// OnboardingCompletedVersion - версия онбординг-тура, которую прошёл юзер.
+	// null = не проходил. Хранится per-user (а не per-browser), чтобы тур не
+	// сбрасывался при смене устройства; при подъёме версии шагов тур показывается заново.
+	OnboardingCompletedVersion *int `json:"onboarding_completed_version,omitempty"`
 }
 
 type Organization struct {

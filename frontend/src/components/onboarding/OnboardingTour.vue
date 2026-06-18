@@ -102,6 +102,11 @@ async function startSegment() {
     },
     onBoundaryNext: handleBoundaryNext,
     onCtaClick: finishAndCreateApp,
+    // Esc/оверлей/крестик/Пропустить -> просто останавливаем тур. teardown
+    // (через watch isActive) снимет overlay и пометит авто-тур пройденным -
+    // надёжно, даже если шаг закрыли во время entry-анимации (когда driver
+    // не зовёт onDestroyed).
+    onCloseRequest: () => store.stop(),
     onDestroyed: () => handleDestroyed(myGen),
   });
   driverObj.drive(0);
@@ -222,13 +227,18 @@ const removeAfterEach = router.afterEach((to) => {
 
 /**
  * Автозапуск один раз для любого первого входа: на «Обзоре», если юзер
- * авторизован и тур ещё не пройден (localStorage-флаг). Повторно не сработает -
- * флаг ставится при любом завершении авто-тура (см. markIfAuto).
+ * авторизован и тур ещё не пройден. Статус per-user тянется с бэкенда
+ * (loadStatus) - на ошибке сети не автозапускаем (statusLoaded остаётся false).
+ * Повторно не сработает: completedVersion ставится при любом завершении
+ * авто-тура (см. markIfAuto), а на бэкенде - per-user, сброс только админом.
  */
-function maybeAutostart() {
+async function maybeAutostart() {
   if (store.isActive) return;
   if (route.path !== '/news') return;
   if (!store.canShowTour) return;
+  if (!store.statusLoaded) await store.loadStatus();
+  // Перепроверяем после await: статус мог не загрузиться, юзер мог уйти/стартовать.
+  if (!store.statusLoaded || store.isActive || route.path !== '/news') return;
   if (store.hasCompleted()) return;
   store.start({ manual: false });
 }

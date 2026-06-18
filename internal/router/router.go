@@ -23,6 +23,7 @@ type Dependencies struct {
 	Organization        *handlers.OrganizationHandler
 	Company             *handlers.CompanyHandler
 	Users               *handlers.UsersHandler
+	Onboarding          *handlers.OnboardingHandler
 	UnloadPlace         *handlers.UnloadPlaceHandler
 	Cars                *handlers.CarHandler
 	Employees           *handlers.EmployeeHandler
@@ -78,6 +79,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	org := d.Organization
 	comp := d.Company
 	users := d.Users
+	onboarding := d.Onboarding
 	up := d.UnloadPlace
 	cars := d.Cars
 	employees := d.Employees
@@ -156,6 +158,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/user-data", auth.GetUserData)
 	protected.GET("/users/me", auth.GetCurrentUser)
 	protected.GET("/users/current", auth.GetCurrentUser)
+
+	// Онбординг-тур (#657) - self-service статус: любой авторизованный читает и
+	// помечает прохождение ДЛЯ СЕБЯ (userID из JWT). Не admin-only.
+	protected.GET("/onboarding", onboarding.GetStatus)
+	protected.POST("/onboarding/complete", onboarding.MarkComplete)
 
 	// Шаблоны вложений (unique_attachments)
 	att := protected.Group("/attachments")

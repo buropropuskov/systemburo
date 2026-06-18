@@ -156,10 +156,10 @@ export function useOnboarding() {
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void }} [options]
+   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onCtaClick?: () => void, onCloseRequest?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onCtaClick } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onCtaClick, onCloseRequest } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
@@ -226,10 +226,18 @@ export function useOnboarding() {
         // На финале не показываем: там уже есть "Готово" и CTA.
         if (!step?.celebrate) {
           popover.footerButtons.insertBefore(
-            buildSkipButton(() => driverObj.destroy()),
+            buildSkipButton(() => (onCloseRequest ? onCloseRequest() : driverObj.destroy())),
             popover.footerButtons.firstChild,
           );
         }
+      },
+      // Esc / клик по оверлею / крестик идут сюда (g(true)) ДО гейта на
+      // __activeStep - в отличие от onDestroyed это надёжно срабатывает, даже
+      // если шаг закрыт во время entry-анимации. Отдаём закрытие хосту; он
+      // остановит тур (-> teardown снимет overlay и пометит авто-тур).
+      onDestroyStarted() {
+        if (onCloseRequest) onCloseRequest();
+        else driverObj.destroy();
       },
       onHighlighted() {
         const localIndex = driverObj.getActiveIndex() ?? 0;
