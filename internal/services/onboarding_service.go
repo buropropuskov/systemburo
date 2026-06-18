@@ -3,9 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"systemburo/internal/models"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -46,6 +48,24 @@ func (s *OnboardingService) SetCompleted(ctx context.Context, userID int, versio
 	}
 	if res.RowsAffected == 0 {
 		return fmt.Errorf("failed to set onboarding version: user %d not found: %w", userID, gorm.ErrRecordNotFound)
+	}
+	return nil
+}
+
+// ResetByUsername сбрасывает статус прохождения тура (NULL) для пользователя по
+// username. Админ-действие: после сброса у юзера снова сработает автозапуск.
+func (s *OnboardingService) ResetByUsername(ctx context.Context, username string) error {
+	res := s.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("username = ?", username).
+		Update("onboarding_completed_version", gorm.Expr("NULL"))
+	if res.Error != nil {
+		return fmt.Errorf("failed to reset onboarding for user %q: %w", username, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		// echo.HTTPError, чтобы error-handler отдал 404 (а не 500): username
+		// приходит из path, несуществующий юзер - валидный клиентский кейс.
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("пользователь %q не найден", username))
 	}
 	return nil
 }

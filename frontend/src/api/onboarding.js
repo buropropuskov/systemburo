@@ -34,3 +34,17 @@ export async function markOnboardingComplete(version) {
   });
   return unwrap(res, 'Не удалось сохранить статус обучения');
 }
+
+/**
+ * Сброс прохождения тура пользователю (админ): после сброса у него снова
+ * сработает автозапуск при входе.
+ *
+ * @param {string} username
+ * @returns {Promise<{ message: string }>}
+ */
+export async function resetOnboardingForUser(username) {
+  const res = await apiRequest(`/users/${encodeURIComponent(username)}/onboarding/reset`, {
+    method: 'POST',
+  });
+  return unwrap(res, 'Не удалось сбросить обучение');
+}

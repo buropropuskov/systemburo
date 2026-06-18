@@ -567,6 +567,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Документы (#39). Admin-операции под page.admin; скачивание и публичный список -- под auth.
 	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
+
+	// Сброс онбординг-тура пользователю - админ-действие (после сброса у юзера
+	// снова автозапуск). Под page.admin, в отличие от self-эндпоинтов /onboarding.
+	protected.POST("/users/:username/onboarding/reset", onboarding.ResetForUser, requireAdmin)
 	if docGroups != nil {
 		dgGroup := protected.Group("/document-groups")
 		dgGroup.GET("", docGroups.List, requireAdmin)
