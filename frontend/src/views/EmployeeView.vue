@@ -13,7 +13,10 @@
       </p>
     </header>
 
-    <div class="employeesview__filters">
+    <div
+      class="employeesview__filters"
+      data-testid="ob-employees-filters"
+    >
       <div class="filters-container">
         <SearchComponent
           v-model="searchQuery"
@@ -67,7 +70,10 @@
 
     <div class="employeesview__container">
       <!-- Таблица сотрудников -->
-      <div class="employees-card">
+      <div
+        class="employees-card"
+        data-testid="ob-employees-table"
+      >
         <div class="card-header">
           <div class="card-header__title">
             <h3 class="card-title">
@@ -93,6 +99,7 @@
             <button
               v-if="currentFilter !== 'all_system'"
               class="add-button"
+              data-testid="ob-employees-add-button"
               @click="showAddEmployeeModal"
             >
               Добавить

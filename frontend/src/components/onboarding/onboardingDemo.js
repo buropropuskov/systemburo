@@ -1,4 +1,6 @@
 import demoApplications from '@/assets/onboarding/demo-applications.png';
+import demoCars from '@/assets/onboarding/demo-cars.png';
+import demoEmployees from '@/assets/onboarding/demo-employees.png';
 
 /**
  * Демо-скриншоты для шагов, где у нового пользователя элемент пустой (заявки,
@@ -12,6 +14,16 @@ const DEMO = {
     src: demoApplications,
     alt: 'Пример списка заявок со статусами',
     caption: 'Пример: так выглядят ваши заявки и их статусы',
+  },
+  cars: {
+    src: demoCars,
+    alt: 'Пример списка автомобилей с номерами и статусами',
+    caption: 'Пример: так выглядит список автомобилей',
+  },
+  employees: {
+    src: demoEmployees,
+    alt: 'Пример списка сотрудников с должностями',
+    caption: 'Пример: так выглядит список сотрудников',
   },
 };
 

@@ -127,6 +127,50 @@ export const onboardingSteps = [
     description: 'Все поданные заявки и их статусы собраны здесь. Можно отслеживать ход согласования и историю.',
     demo: 'applications',
   },
+  {
+    id: 'cars-filters',
+    route: '/carsview',
+    element: '[data-testid="ob-cars-filters"]',
+    title: 'Автомобили',
+    description: 'Раздел автомобилей. Фильтры переключают список: ваши машины, машины организации или компании.',
+  },
+  {
+    id: 'cars-add',
+    route: '/carsview',
+    element: '[data-testid="cars-view-add-button"]',
+    title: 'Добавить автомобиль',
+    description: 'Кнопка добавления нового автомобиля - укажите номер и марку, и его можно будет вписывать в заявки.',
+  },
+  {
+    id: 'cars-table',
+    route: '/carsview',
+    element: '[data-testid="ob-cars-table"]',
+    title: 'Список автомобилей',
+    description: 'Здесь все ваши автомобили с номерами и статусами. У нового пользователя список пуст - так он выглядит с данными.',
+    demo: 'cars',
+  },
+  {
+    id: 'employees-filters',
+    route: '/employeesview',
+    element: '[data-testid="ob-employees-filters"]',
+    title: 'Сотрудники',
+    description: 'Раздел сотрудников. Фильтры так же переключают список по вашей организации или компании.',
+  },
+  {
+    id: 'employees-add',
+    route: '/employeesview',
+    element: '[data-testid="ob-employees-add-button"]',
+    title: 'Добавить сотрудника',
+    description: 'Добавьте сотрудника - ФИО и должность, чтобы оформлять на него пропуска.',
+  },
+  {
+    id: 'employees-table',
+    route: '/employeesview',
+    element: '[data-testid="ob-employees-table"]',
+    title: 'Список сотрудников',
+    description: 'Все ваши сотрудники собраны в этой таблице. У новичка она пуста - так она выглядит с данными.',
+    demo: 'employees',
+  },
 ];
 
 /**
