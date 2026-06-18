@@ -18,6 +18,11 @@ type StatisticsService interface {
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
 	RunReport(ctx context.Context, req models.ReportRequest) (*models.ReportResponse, error)
 	RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error)
+
+	ListReportTemplates(ctx context.Context, userID int) ([]models.ReportTemplate, error)
+	CreateReportTemplate(ctx context.Context, userID int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error)
+	UpdateReportTemplate(ctx context.Context, userID, id int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error)
+	DeleteReportTemplate(ctx context.Context, userID, id int) error
 }
 
 type statisticsService struct {
