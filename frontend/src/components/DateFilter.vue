@@ -406,6 +406,7 @@ export default {
         showCalendar(open) {
             if (open) {
                 this.$nextTick(() => {
+                    if (!this.showCalendar) return; // успели закрыть до тика - не вешаем слушатели
                     this.updatePosition();
                     window.addEventListener('scroll', this.updatePosition, true);
                     window.addEventListener('resize', this.updatePosition);
@@ -894,11 +895,11 @@ export default {
 }
 
 .calendar-modal {
-    position: absolute;
-    top: calc(100% + 5px);
-    left: 0;
-    z-index: 1001;
-    width: 500px; /* Увеличили ширину для горизонтального расположения */
+    /* Телепортирован в body: top/left задаёт inline-стиль из updatePosition.
+       width нужен здесь, чтобы offsetHeight измерялся до применения inline-стиля. */
+    position: fixed;
+    z-index: 9999;
+    width: 500px;
 }
 
 .calendar-container {
@@ -1281,7 +1282,7 @@ export default {
         transform: translate(-50%, -50%);
         width: 90vw;
         max-width: 320px;
-        z-index: 1002;
+        z-index: 9999;
     }
     
     .calendar-body {
