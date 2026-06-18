@@ -1,6 +1,7 @@
 :root {
   --color-primary: #4F5BDF;
   --color-primary-hover: #3d49c7;
+  --color-primary-tint: rgba(79, 91, 223, 0.08);
   --color-success: #28a745;
   --color-danger: #dc3545;
   --color-warning: #ffc107;

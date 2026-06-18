@@ -10,7 +10,7 @@
  *
  * @param {{
  *   mode: 'aggregate'|'list',
- *   metric?: string, dimension?: string, granularity?: string,
+ *   metric?: string, metrics?: string[], dimension?: string, granularity?: string,
  *   entity?: string, sort?: string, limit?: number|string|null,
  *   filters?: Record<string, string[]>
  * }} state
@@ -40,13 +40,20 @@ export function buildReportRequest(state, period = {}, applicableFilters = []) {
     return { mode: 'list', entity: state.entity || '', filters, limit };
   }
 
+  // Мультивыбор метрик: каждая метрика -> своя колонка результата (движок отдаёт
+  // metrics-приоритет над metric). Одиночный metric оставлен для пресетов и
+  // обратной совместимости — шлётся, только когда metrics пуст.
+  const metrics = (Array.isArray(state.metrics) ? state.metrics : [])
+    .filter((m) => m != null && String(m).trim() !== '');
+
   const req = {
     mode: 'aggregate',
-    metric: state.metric || '',
     dimension: state.dimension || '',
     filters,
     limit,
   };
+  if (metrics.length) req.metrics = metrics;
+  else req.metric = state.metric || '';
   // Гранулярность осмысленна только для временного разреза.
   if (state.dimension === 'period' && state.granularity) {
     req.granularity = state.granularity;

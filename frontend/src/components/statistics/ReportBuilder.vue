@@ -8,49 +8,102 @@
         :tabs="modeTabs"
       />
       <span class="rb__hint">{{ form.mode === 'aggregate'
-        ? 'Посчитать показатель в выбранном разрезе.'
+        ? 'Посчитать один или несколько показателей в выбранном разрезе.'
         : 'Выгрузить строки сущности столбцами.' }}</span>
     </div>
 
-    <!-- Параметры -->
-    <div class="rb__grid">
-      <template v-if="form.mode === 'aggregate'">
-        <label class="rb__field">
-          <span class="rb__field-label">Что считаем</span>
-          <BaseDropdown
-            v-model="form.metric"
-            :options="catalog.metrics"
-            label-key="label"
-            value-key="key"
-          />
-        </label>
-        <label class="rb__field">
-          <span class="rb__field-label">Разрез</span>
-          <BaseDropdown
-            v-model="form.dimension"
-            :options="dimensionOptions"
-            label-key="label"
-            value-key="key"
-          />
-        </label>
-        <label
-          v-if="form.dimension === 'period'"
-          class="rb__field"
+    <template v-if="form.mode === 'aggregate'">
+      <!-- Шаг 1: что считаем (мультивыбор метрик карточками, сгруппированы) -->
+      <div class="rb__step">
+        <div class="rb__step-head">
+          <span class="rb__step-num">1</span>
+          <span class="rb__step-name">Что считаем</span>
+        </div>
+        <template
+          v-for="grp in metricGroups"
+          :key="grp.group"
         >
-          <span class="rb__field-label">Шаг</span>
-          <BaseDropdown
-            v-model="form.granularity"
-            :options="catalog.granularities"
-            label-key="label"
-            value-key="value"
-          />
-        </label>
-      </template>
+          <div class="rb__group-title">
+            {{ grp.group }}
+          </div>
+          <div class="rb__metrics">
+            <label
+              v-for="m in grp.metrics"
+              :key="m.key"
+              class="rb__metric"
+              :class="{ 'rb__metric--on': isMetricOn(m.key) }"
+            >
+              <input
+                type="checkbox"
+                class="rb__metric-input"
+                :checked="isMetricOn(m.key)"
+                @change="toggleMetric(m.key)"
+              >
+              <span class="rb__metric-box">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ><path d="M20 6 9 17l-5-5" /></svg>
+              </span>
+              <span class="rb__metric-text">
+                <span class="rb__metric-name">{{ m.label }}</span>
+                <span
+                  v-if="m.unit"
+                  class="rb__metric-unit"
+                >{{ m.unit }}</span>
+              </span>
+            </label>
+          </div>
+        </template>
+      </div>
 
-      <label
-        v-else
-        class="rb__field"
-      >
+      <!-- Шаг 2: по чему разбиваем (радио-сетка, «без разреза» всегда доступен) -->
+      <div class="rb__step">
+        <div class="rb__step-head">
+          <span class="rb__step-num">2</span>
+          <span class="rb__step-name">По чему разбиваем</span>
+        </div>
+        <div class="rb__dims">
+          <label
+            v-for="d in availableDimensions"
+            :key="d.key"
+            class="rb__dim"
+            :class="{ 'rb__dim--on': form.dimension === d.key }"
+          >
+            <input
+              v-model="form.dimension"
+              type="radio"
+              name="rb-dimension"
+              class="rb__dim-input"
+              :value="d.key"
+            >
+            <span class="rb__dim-dot" />
+            {{ d.label }}
+          </label>
+        </div>
+        <div
+          v-if="form.dimension === 'period'"
+          class="rb__gran"
+        >
+          <span class="rb__field-label">Шаг по времени</span>
+          <FilterTabs
+            v-model="form.granularity"
+            :tabs="granularityTabs"
+          />
+        </div>
+      </div>
+    </template>
+
+    <!-- list-режим: что выгружаем -->
+    <div
+      v-else
+      class="rb__grid"
+    >
+      <label class="rb__field">
         <span class="rb__field-label">Что выгружаем</span>
         <BaseDropdown
           v-model="form.entity"
@@ -91,9 +144,7 @@
       </div>
     </div>
 
-    <!-- Превью «что построим»: держит дропдауны параметров отдельно от кнопки -
-         открытое меню метрики/разреза раскрывается над этой панелью, а не над
-         кнопкой, поэтому клик по «Построить» проходит с первого раза. -->
+    <!-- Превью «что построим» -->
     <div class="rb__preview">
       <span class="rb__preview-label">Что построим</span>
       <p class="rb__summary">
@@ -139,7 +190,7 @@ const props = defineProps({
   catalog: { type: Object, required: true },
   period: { type: Object, default: () => ({ from: '', to: '' }) },
   loading: { type: Boolean, default: false },
-  // Пресет из галереи: { mode, metric?, dimension?, granularity?, entity? }.
+  // Пресет из галереи: { mode, metric?/metrics?, dimension?, granularity?, entity? }.
   // Заполняет конструктор и сразу строит отчёт. null — пресет не выбран.
   preset: { type: Object, default: null },
 });
@@ -153,7 +204,7 @@ const modeTabs = [
 
 const form = reactive({
   mode: 'aggregate',
-  metric: props.catalog.metrics?.[0]?.key || '',
+  metrics: props.catalog.metrics?.[0]?.key ? [props.catalog.metrics[0].key] : [],
   dimension: '',
   granularity: 'day',
   entity: props.catalog.list_entities?.[0]?.key || '',
@@ -167,13 +218,46 @@ const filterByKey = computed(() => {
   return map;
 });
 
-const selectedMetric = computed(
-  () => (props.catalog.metrics || []).find((m) => m.key === form.metric) || null,
+// Метрики, разложенные по группам каталога (group), порядок групп — по первому
+// появлению. Карточки шага «Что считаем» строятся отсюда, не из мокапа.
+const metricGroups = computed(() => {
+  const order = [];
+  const byGroup = {};
+  for (const m of props.catalog.metrics || []) {
+    const g = m.group || 'Прочее';
+    if (!byGroup[g]) {
+      byGroup[g] = [];
+      order.push(g);
+    }
+    byGroup[g].push(m);
+  }
+  return order.map((g) => ({ group: g, metrics: byGroup[g] }));
+});
+
+const selectedMetrics = computed(
+  () => (props.catalog.metrics || []).filter((m) => form.metrics.includes(m.key)),
 );
 
-const dimensionOptions = computed(() => {
-  const dims = selectedMetric.value?.dimensions || [];
-  return (props.catalog.dimensions || []).filter((d) => dims.includes(d.key));
+// «Без разреза» применим к любой метрике (движок валидирует его отдельной веткой),
+// поэтому всегда доступен; берётся из каталога, с фолбэком на случай отсутствия.
+const dimNoneOption = computed(
+  () => (props.catalog.dimensions || []).find((d) => d.key === 'none') || { key: 'none', label: 'Без разреза' },
+);
+
+// Доступные разрезы: «без разреза» + пересечение dimensions всех выбранных метрик
+// (общий разрез корректен для каждой), в порядке каталога.
+const availableDimensions = computed(() => {
+  const sel = selectedMetrics.value;
+  if (!sel.length) return [dimNoneOption.value];
+  let common = null;
+  for (const m of sel) {
+    const set = new Set(m.dimensions || []);
+    common = common === null ? set : new Set([...common].filter((k) => set.has(k)));
+  }
+  const realDims = (props.catalog.dimensions || []).filter(
+    (d) => d.key !== 'none' && common.has(d.key),
+  );
+  return [dimNoneOption.value, ...realDims];
 });
 
 const selectedEntity = computed(
@@ -190,20 +274,21 @@ const listFilterFields = computed(() => {
     .map((f) => ({ ...f, options: f.options || [] }));
 });
 
-// Aggregate per-metric фильтры пока не в каталоге -> отдаём только период (срез B3d).
-const applicableFilters = computed(() =>
-  form.mode === 'list' ? selectedEntity.value?.filters || [] : ['date_range'],
+const granularityTabs = computed(
+  () => (props.catalog.granularities || []).map((g) => ({ key: g.value, label: g.label })),
 );
 
-// Разрез должен принадлежать выбранной метрике — иначе движок отклонит запрос.
-watch(selectedMetric, (m) => {
-  if (!m) {
-    form.dimension = '';
-    return;
-  }
-  if (!m.dimensions.includes(form.dimension)) {
-    form.dimension = m.dimensions[0] || '';
-  }
+// Aggregate per-metric фильтры пока не рендерятся в гиде (шаг GR3) -> отдаём только
+// период. list — применимые фильтры выбранной сущности.
+const applicableFilters = computed(() =>
+  form.mode === 'list' ? selectedEntity.value?.filters || [] : ['date_range']);
+
+// Разрез должен оставаться валидным для текущего набора метрик. При невалидном
+// дефолтим на первый реальный разрез (полезнее «без разреза»), иначе на none.
+watch(availableDimensions, (dims) => {
+  if (dims.some((d) => d.key === form.dimension)) return;
+  const firstReal = dims.find((d) => d.key !== 'none');
+  form.dimension = (firstReal || dims[0]).key;
 }, { immediate: true });
 
 // Смена выгружаемой сущности обнуляет выбранные фильтры — у разных сущностей
@@ -214,9 +299,8 @@ watch(() => form.entity, () => {
 
 const canRun = computed(() =>
   form.mode === 'aggregate'
-    ? Boolean(form.metric && form.dimension)
-    : Boolean(form.entity),
-);
+    ? form.metrics.length > 0 && Boolean(form.dimension)
+    : Boolean(form.entity));
 
 const periodLabel = computed(() => {
   const { from, to } = props.period || {};
@@ -228,9 +312,9 @@ const periodLabel = computed(() => {
 
 const summary = computed(() => {
   if (form.mode === 'aggregate') {
-    const metric = selectedMetric.value?.label || '—';
-    const dim = dimensionOptions.value.find((d) => d.key === form.dimension)?.label || '—';
-    return `Считаем «${metric}» в разрезе «${dim}», период: ${periodLabel.value}.`;
+    const names = selectedMetrics.value.map((m) => m.label).join(', ') || '—';
+    const dim = availableDimensions.value.find((d) => d.key === form.dimension)?.label || '—';
+    return `Считаем: ${names}; разрез «${dim}», период: ${periodLabel.value}.`;
   }
   // Период упоминаем только если сущность его поддерживает (машины/люди — нет).
   const supportsPeriod = (selectedEntity.value?.filters || []).includes('date_range');
@@ -240,7 +324,17 @@ const summary = computed(() => {
 
 const resultHint = computed(() => {
   if (form.mode === 'aggregate') {
-    return 'Результат: таблица «значение разреза + количество» с итоговой суммой.';
+    const n = selectedMetrics.value.length;
+    // «Без разреза» -> один итоговый ряд без столбца разреза, поэтому формулировка
+    // отличается от разбивки по реальному разрезу.
+    if (form.dimension === 'none') {
+      return n > 1
+        ? `Результат: итоговая строка с ${n} столбцами-метриками.`
+        : 'Результат: одно итоговое значение.';
+    }
+    return n > 1
+      ? `Результат: таблица «разрез + ${n} столбца-метрики» с итогами.`
+      : 'Результат: таблица «разрез + значение» с итогом.';
   }
   const cols = (selectedEntity.value?.columns || []).length;
   return cols
@@ -248,15 +342,15 @@ const resultHint = computed(() => {
     : 'Результат: таблица строк.';
 });
 
-// Применить пресет из галереи и сразу построить отчёт. Разрез/гранулярность
-// сверяются watch'ем selectedMetric (пресеты используют валидные ключи каталога).
+// Применить пресет из галереи и сразу построить отчёт. Разрез сверяется watch'ем
+// availableDimensions (пресеты используют валидные ключи каталога).
 watch(() => props.preset, (p) => {
   if (!p) return;
   form.mode = p.mode || 'aggregate';
   if (p.mode === 'list') {
     form.entity = p.entity || form.entity;
   } else {
-    form.metric = p.metric || form.metric;
+    form.metrics = p.metrics ? [...p.metrics] : (p.metric ? [p.metric] : []);
     form.dimension = p.dimension || '';
     form.granularity = p.granularity || 'day';
   }
@@ -264,6 +358,16 @@ watch(() => props.preset, (p) => {
   form.filters = {};
   nextTick(run);
 });
+
+function isMetricOn(key) {
+  return form.metrics.includes(key);
+}
+
+function toggleMetric(key) {
+  const idx = form.metrics.indexOf(key);
+  if (idx >= 0) form.metrics.splice(idx, 1);
+  else form.metrics.push(key);
+}
 
 function isSelected(key, value) {
   return (form.filters[key] || []).includes(value);
@@ -278,14 +382,15 @@ function toggleFilter(key, value) {
 }
 
 // Снимок состояния формы для индикатора шагов мастера (родитель считает по нему
-// прогресс). immediate — чтобы степпер был корректен сразу после монтирования.
+// прогресс). metric — ключ первой выбранной метрики: шаг «что считаем» закрыт,
+// когда выбрана хотя бы одна. immediate — чтобы степпер был корректен сразу.
 const filterCount = computed(
   () => Object.values(form.filters).reduce((n, vals) => n + (vals?.length || 0), 0),
 );
 watch(
   () => ({
     mode: form.mode,
-    metric: form.metric,
+    metric: form.metrics[0] || '',
     dimension: form.dimension,
     entity: form.entity,
     filterCount: filterCount.value,
@@ -295,6 +400,9 @@ watch(
 );
 
 function run() {
+  // Защита инварианта: run() зовётся не только кнопкой (ещё из watch пресета),
+  // поэтому проверяем canRun здесь, а не полагаемся на :disabled кнопки.
+  if (!canRun.value) return;
   emit('run', buildReportRequest(form, props.period, applicableFilters.value));
 }
 </script>
@@ -303,7 +411,7 @@ function run() {
 .rb {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 22px;
 }
 
 .rb__section-label,
@@ -324,6 +432,200 @@ function run() {
 .rb__hint {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+/* Шаги мастера */
+.rb__step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rb__step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.rb__step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.rb__step-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.rb__group-title {
+  margin: 14px 0 9px 36px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.rb__group-title:first-of-type {
+  margin-top: 2px;
+}
+
+.rb__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-left: 36px;
+}
+
+.rb__metric {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.rb__metric:hover {
+  border-color: #c9cdf0;
+  background: #fcfcff;
+}
+
+.rb__metric--on {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+}
+
+.rb__metric-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rb__metric-box {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border: 2px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.rb__metric-box svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.rb__metric--on .rb__metric-box {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.rb__metric--on .rb__metric-box svg {
+  opacity: 1;
+}
+
+.rb__metric-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rb__metric-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rb__metric-unit {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* Разрезы */
+.rb__dims {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+  margin-left: 36px;
+}
+
+.rb__dim {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.rb__dim:hover {
+  border-color: #c9cdf0;
+}
+
+.rb__dim--on {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+}
+
+.rb__dim-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rb__dim-dot {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.rb__dim--on .rb__dim-dot {
+  border-color: var(--color-primary);
+}
+
+.rb__dim--on .rb__dim-dot::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.rb__gran {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0 36px;
 }
 
 .rb__grid {
@@ -385,13 +687,10 @@ function run() {
   font-style: italic;
 }
 
-/* Превью-панель резервирует место под открытое меню дропдаунов параметров
-   (метрика/разрез ~до 5 пунктов): меню раскрывается над ней, а не над кнопкой. */
 .rb__preview {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 130px;
   padding: 14px 16px;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -418,12 +717,7 @@ function run() {
   color: var(--color-text-muted);
 }
 
-/* z-index выше меню дропдауна (1000): даже если высокое меню разреза дотянется
-   до футера поверх превью-панели, кнопка остаётся кликабельной с первого раза. */
 .rb__footer {
-  position: relative;
-  z-index: 1001;
-  background: var(--color-surface, #fff);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -441,5 +735,32 @@ function run() {
 
 .rb__limit-input {
   width: 84px;
+}
+
+@media (max-width: 980px) {
+  .rb__metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rb__dims {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .rb__metrics {
+    grid-template-columns: 1fr;
+    margin-left: 0;
+  }
+
+  .rb__dims {
+    grid-template-columns: repeat(2, 1fr);
+    margin-left: 0;
+  }
+
+  .rb__group-title,
+  .rb__gran {
+    margin-left: 0;
+  }
 }
 </style>
