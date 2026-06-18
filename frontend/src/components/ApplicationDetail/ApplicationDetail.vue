@@ -4,15 +4,6 @@
     class="application-detail-overlay"
     @click.self="closeApplicationDetail"
   >
-    <!-- Уведомление -->
-    <div
-      v-if="notification.show"
-      class="notification"
-      :class="notification.type"
-    >
-      {{ notification.message }}
-    </div>
-
     <!-- Модальное окно пересылки -->
     <ForwardModal
       v-if="showForwardModal"
@@ -436,11 +427,6 @@ export default {
             loadingAttachmentDetails: false,
             actionsReady: false,
             isLeftColumnCollapsed: false,
-            notification: {
-                show: false,
-                message: '',
-                type: 'success'
-            },
             showForwardModal: false,
             isForwarding: false,
             allUsers: [],
@@ -567,7 +553,11 @@ export default {
         },
 
         handleActionCompleted({ success, message, type }) {
-            this.showNotification(message, type || (success ? 'success' : 'error'));
+            const resolvedType = type || (success ? 'success' : 'error');
+            // ActionBar шлёт ошибку как "Ошибка: ...", а карточка тоста уже даёт заголовок
+            // "Ошибка" - снимаем префикс, чтобы не дублировать.
+            const text = resolvedType === 'error' ? String(message ?? '').replace(/^Ошибка:\s*/, '') : message;
+            useDeletionsStore().notify({ bold: text, type: resolvedType });
             if (success) {
                 this.loadApplicationDetails(this.applicationData);
                 if (this.$refs.historyComponent) {
@@ -788,7 +778,7 @@ export default {
                 });
 
                 if (response.ok) {
-                    this.showNotification("Заявка успешно переслана", "success");
+                    useDeletionsStore().notify({ bold: 'Заявка переслана', type: 'success' });
                     this.closeForwardModal();
                     
                     await this.loadApplicationDetails(this.applicationData);
@@ -801,11 +791,11 @@ export default {
                     
                 } else {
                     const errorText = await response.text();
-                    this.showNotification(`Ошибка: ${errorText}`, 'error');
+                    useDeletionsStore().notify({ prefix: 'Не удалось переслать: ', bold: errorText || 'ошибка', type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при пересылке заявки:", error);
-                this.showNotification("Ошибка сети", 'error');
+                useDeletionsStore().notify({ prefix: 'Не удалось переслать: ', bold: 'ошибка сети', type: 'error' });
             } finally {
                 this.isForwarding = false;
             }
@@ -915,24 +905,8 @@ export default {
                 this.$emit('duplicate');
             } catch (error) {
                 console.error('Ошибка при дублировании заявки:', error);
-                this.showNotification('Ошибка при дублировании заявки', 'error');
+                useDeletionsStore().notify({ prefix: 'Не удалось продублировать заявку: ', bold: 'ошибка', type: 'error' });
             }
-        },
-
-        showNotification(message, type = 'success') {
-            this.notification = {
-                show: true,
-                message,
-                type
-            };
-            
-            setTimeout(() => {
-                this.hideNotification();
-            }, 6000);
-        },
-
-        hideNotification() {
-            this.notification.show = false;
         },
 
         formatDateTime(dateTimeString) {
@@ -1342,60 +1316,6 @@ export default {
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
-}
-
-.notification {
-    position: fixed;
-    top: 40px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 8px 8px;
-    border-radius: 50px;
-    z-index: 29000;
-    min-width: 180px;
-    width: 180px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    animation: slideInDown 0.2s ease-out, slideOutUp 0.2s ease-out 5.8s forwards;
-}
-
-.notification.success {
-    background: #4CAF50;
-    color: white;
-    border: 1px solid #45a049;
-}
-
-.notification.error {
-    background: #f44336;
-    color: white;
-    border: 1px solid #d32f2f;
-}
-
-@keyframes slideInDown {
-    from {
-        transform: translate(-50%, -100%);
-        opacity: 0;
-    }
-    to {
-        transform: translate(-50%, 0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOutUp {
-    from {
-        transform: translate(-50%, 0);
-        opacity: 1;
-    }
-    to {
-        transform: translate(-50%, -100%);
-        opacity: 0;
-    }
 }
 
 .application-detail {
