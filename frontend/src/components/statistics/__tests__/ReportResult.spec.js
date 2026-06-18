@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ReportResult from '../ReportResult.vue';
+
+// Экспорт в Excel тянет ExcelJS и пишет файл — в юнит-тесте подменяем composable
+// и проверяем, что клик «Excel» зовёт exportReport с результатом и meta.
+const { exportSpy } = vi.hoisted(() => ({ exportSpy: vi.fn() }));
+vi.mock('@/composables/useReportExport', async () => {
+  const { ref } = await import('vue');
+  return { useReportExport: () => ({ exporting: ref(false), exportReport: exportSpy }) };
+});
 
 // ReportChart лениво тянет chart.js + canvas — в юнит-тесте логики переключателя
 // он не нужен, подменяем стабом и читаем переданные ему props.
@@ -163,6 +171,38 @@ describe('ReportResult — переключатель Таблица/Графи�
     await nextTick();
 
     expect(w.findComponent(chartStub).props('label')).toBe('Количество заявок');
+  });
+
+  it('кнопка «Excel» зовёт экспорт с текущим результатом и meta', async () => {
+    exportSpy.mockClear();
+    const meta = { period: { from: '2026-06-01', to: '2026-06-07' } };
+    const w = mount(ReportResult, {
+      props: { result: aggMulti, meta },
+      global: { stubs: { ReportChart: chartStub } },
+    });
+    await w.find('[data-testid="rr-export"]').trigger('click');
+    expect(exportSpy).toHaveBeenCalledWith(aggMulti, meta);
+  });
+
+  it('кнопка «Excel» недоступна на пустом результате', () => {
+    const w = mountResult({ ...aggStatus, rows: [], total: 0 });
+    expect(w.find('[data-testid="rr-export"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('list-режим тоже отдаёт кнопку выгрузки', () => {
+    const w = mountResult(listRes);
+    expect(w.find('[data-testid="rr-export"]').exists()).toBe(true);
+  });
+
+  it('падение экспорта эмитит export-error с сообщением', async () => {
+    exportSpy.mockRejectedValueOnce(new Error('диск переполнен'));
+    const w = mount(ReportResult, {
+      props: { result: aggMulti },
+      global: { stubs: { ReportChart: chartStub } },
+    });
+    await w.find('[data-testid="rr-export"]').trigger('click');
+    await nextTick();
+    expect(w.emitted('export-error')[0]).toEqual(['диск переполнен']);
   });
 
   it('смена разреза period->status сбрасывает тип графика на столбцы', async () => {

@@ -20,6 +20,10 @@ vi.mock('@/api/statistics', () => ({
   runReport: () => new Promise((resolve) => { state.deferred.push(resolve); }),
 }));
 
+// Стор уведомлений мокаем: ошибку экспорта показывают тостом, а не подменой :error.
+const { notifySpy } = vi.hoisted(() => ({ notifySpy: vi.fn() }));
+vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: notifySpy }) }));
+
 import ReportsTab from '../ReportsTab.vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import ReportResult from '../ReportResult.vue';
@@ -74,5 +78,28 @@ describe('ReportsTab', () => {
     await nextTick();
 
     expect(wrapper.findComponent(ReportStepper).props('steps')[3].state).toBe('done');
+  });
+
+  it('ошибку экспорта показывает тостом и не подменяет результат отчёта', async () => {
+    notifySpy.mockClear();
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '2026-06-01', to: '2026-06-07' } });
+    await flushPromises();
+
+    // Построили отчёт.
+    wrapper.findComponent(ReportBuilder).vm.$emit('run', { mode: 'list', entity: 'cars' });
+    await nextTick();
+    state.deferred[0]({ mode: 'list', columns: [], rows: [{}], total: 1 });
+    await flushPromises();
+
+    // Экспорт упал.
+    wrapper.findComponent(ReportResult).vm.$emit('export-error', 'диск переполнен');
+    await nextTick();
+
+    expect(notifySpy).toHaveBeenCalledTimes(1);
+    expect(notifySpy.mock.calls[0][0]).toMatchObject({ type: 'error' });
+    // Результат на месте, :error не выставлен.
+    expect(wrapper.findComponent(ReportResult).props('result')).not.toBeNull();
+    expect(wrapper.findComponent(ReportResult).props('error')).toBe('');
   });
 });

@@ -97,6 +97,15 @@
             {{ col.label }}
           </button>
         </div>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost rr__export"
+          :disabled="!canExport || exporting"
+          data-testid="rr-export"
+          @click="onExport"
+        >
+          {{ exporting ? 'Готовим…' : 'Excel' }}
+        </button>
       </div>
 
       <ReportChart
@@ -168,6 +177,17 @@
 
     <!-- Выгрузка строк (list) -->
     <template v-else>
+      <div class="rr__toolbar rr__toolbar--end">
+        <button
+          type="button"
+          class="lk-button lk-button--ghost rr__export"
+          :disabled="!canExport || exporting"
+          data-testid="rr-export"
+          @click="onExport"
+        >
+          {{ exporting ? 'Готовим…' : 'Excel' }}
+        </button>
+      </div>
       <div class="rr__table-wrap">
         <table class="rr__table">
           <thead>
@@ -215,12 +235,17 @@
 import { ref, computed, watch } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ReportChart from './ReportChart.vue';
+import { useReportExport } from '@/composables/useReportExport';
 
 const props = defineProps({
   result: { type: Object, default: null },
   loading: { type: Boolean, default: false },
   error: { type: String, default: '' },
+  // Подпись выгрузки в Excel: { title, period:{from,to}, author }.
+  meta: { type: Object, default: () => ({}) },
 });
+
+const emit = defineEmits(['export-error']);
 
 const view = ref('table'); // 'table' | 'chart'
 const chartType = ref('bar'); // 'bar' | 'pie' | 'line'
@@ -287,6 +312,23 @@ watch(() => props.result, (r) => {
   chartMetric.value = aggColumns.value[0]?.key || '';
 }, { immediate: true });
 
+const { exporting, exportReport } = useReportExport();
+
+// list считаем по его собственным строкам, aggregate — по нормализованным.
+const canExport = computed(() => {
+  const r = props.result;
+  if (!r) return false;
+  return r.mode === 'list' ? (r.rows?.length || 0) > 0 : hasRows.value;
+});
+
+async function onExport() {
+  try {
+    await exportReport(props.result, props.meta);
+  } catch (e) {
+    emit('export-error', e?.message || 'Не удалось выгрузить отчёт');
+  }
+}
+
 function cellValue(row, key) {
   return row?.values?.[key] ?? 0;
 }
@@ -345,6 +387,19 @@ function formatCell(value) {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.rr__toolbar--end {
+  justify-content: flex-end;
+}
+
+/* Кнопка выгрузки (стиль из lk-button--ghost) прижата вправо в панели инструментов. */
+.rr__export {
+  margin-left: auto;
+}
+
+.rr__toolbar--end .rr__export {
+  margin-left: 0;
 }
 
 .rr__seg {

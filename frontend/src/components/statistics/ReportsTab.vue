@@ -59,6 +59,8 @@
         :result="result"
         :loading="running"
         :error="runError"
+        :meta="exportMeta"
+        @export-error="onExportError"
       />
     </template>
   </div>
@@ -72,6 +74,7 @@ import ReportGallery from './ReportGallery.vue';
 import ReportStepper from './ReportStepper.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { getReportCatalog, runReport } from '@/api/statistics';
+import { useDeletionsStore } from '@/stores/deletions';
 
 const props = defineProps({
   from: { type: String, default: '' },
@@ -87,6 +90,8 @@ const catalogError = ref('');
 const result = ref(null);
 const running = ref(false);
 const runError = ref('');
+// Подпись для выгрузки в Excel: период берём из последнего построенного запроса.
+const exportMeta = ref({});
 
 // Пресет из галереи: новый объект на каждый клик (даже по той же карточке),
 // чтобы watch в ReportBuilder сработал повторно и перезаполнил конструктор.
@@ -122,6 +127,12 @@ function onBuilderChange(snapshot) {
   builderState.value = snapshot;
 }
 
+// Ошибку выгрузки показываем тостом, не подменяя :error результата (иначе таблица
+// отчёта скрылась бы за текстом ошибки).
+function onExportError(message) {
+  useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'выгрузить отчёт в Excel', suffix: message ? `: ${message}` : '', type: 'error' });
+}
+
 function onApplyPreset(preset) {
   activePresetId.value = preset.id;
   presetPayload.value = { ...preset.form };
@@ -149,6 +160,9 @@ async function onRun(request) {
     const r = await runReport(request);
     if (seq !== runSeq) return;
     result.value = r;
+    const dr = (request.filters || []).find((f) => f.key === 'date_range');
+    const { from = '', to = '' } = dr || {};
+    exportMeta.value = dr ? { period: { from, to } } : {};
   } catch (e) {
     if (seq !== runSeq) return;
     result.value = null;
