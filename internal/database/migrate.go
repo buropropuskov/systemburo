@@ -182,7 +182,29 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := SeedReportTemplates(db); err != nil {
 		return err
 	}
+	if err := createStatisticsIndexes(db); err != nil {
+		return err
+	}
 	slog.Info("AutoMigrate completed")
+	return nil
+}
+
+// createStatisticsIndexes добавляет индексы под реальные запросы аналитики (#632):
+// фильтр по дате подачи заявок, движок въездов/входов (action_type='entry' + период
+// по created_at), список машин по статусу на территории. Все CREATE INDEX IF NOT
+// EXISTS — идемпотентны и аддитивны, существующие данные/схему не трогают.
+func createStatisticsIndexes(db *gorm.DB) error {
+	stmts := []string{
+		`CREATE INDEX IF NOT EXISTS idx_applications_sending_datetime ON applications (sending_datetime)`,
+		`CREATE INDEX IF NOT EXISTS idx_cars_history_action_created ON cars_history (action_type, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_employees_history_action_created ON employees_history (action_type, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_cars_territory_status ON cars (territory_status)`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("create statistics index: %w", err)
+		}
+	}
 	return nil
 }
 
