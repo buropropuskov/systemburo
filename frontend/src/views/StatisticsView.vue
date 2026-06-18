@@ -8,6 +8,18 @@
           <h1 class="management-title">Аналитика</h1>
         </div>
         <div class="statistics__header-right">
+          <div class="period-presets">
+            <button
+              v-for="p in periodPresets"
+              :key="p.key"
+              type="button"
+              class="period-preset"
+              :class="{ 'period-preset--active': activePreset === p.key }"
+              @click="applyPeriodPreset(p.key)"
+            >
+              {{ p.label }}
+            </button>
+          </div>
           <button
             class="lk-button lk-button--ghost"
             @click="showInstruction = true"
@@ -124,6 +136,35 @@ function weekStart() {
 const rangeStart = ref(weekStart());
 const rangeEnd = ref((() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d; })());
 
+// Быстрые кнопки периода в шапке — частые диапазоны без открытия календаря.
+const periodPresets = [
+  { key: 'today', label: 'Сегодня' },
+  { key: 'week', label: 'Неделя' },
+  { key: 'month', label: 'Месяц' },
+  { key: 'year', label: 'Год' },
+];
+const activePreset = ref('week');
+
+function applyPeriodPreset(key) {
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  let start;
+  if (key === 'today') {
+    start = new Date(now);
+  } else if (key === 'week') {
+    start = weekStart();
+  } else if (key === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else {
+    start = new Date(now.getFullYear(), 0, 1);
+  }
+  start.setHours(0, 0, 0, 0);
+  rangeStart.value = start;
+  rangeEnd.value = end;
+  activePreset.value = key;
+}
+
 function padTwo(n) {
   return String(n).padStart(2, '0');
 }
@@ -140,7 +181,8 @@ const toStr = computed(() => toDateStr(rangeEnd.value));
 const dashboardRef = ref(null);
 
 function onPeriodApply() {
-  // fromStr/toStr уже обновились через v-model, дашборд реагирует через watch
+  // Ручной выбор из календаря — период больше не соответствует кнопке-пресету.
+  activePreset.value = null;
 }
 
 function onRefresh() {
@@ -183,6 +225,39 @@ function onRefresh() {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Быстрые кнопки периода */
+.period-presets {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+
+.period-preset {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+}
+
+.period-preset:hover {
+  color: var(--color-primary);
+}
+
+.period-preset--active {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 /* Кнопка «Инструкция» в стиле проекта */
