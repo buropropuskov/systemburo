@@ -144,7 +144,7 @@ const props = defineProps({
   preset: { type: Object, default: null },
 });
 
-const emit = defineEmits(['run']);
+const emit = defineEmits(['run', 'change']);
 
 const modeTabs = [
   { key: 'aggregate', label: 'Сводка по разрезу' },
@@ -276,6 +276,23 @@ function toggleFilter(key, value) {
   else current.push(value);
   form.filters = { ...form.filters, [key]: current };
 }
+
+// Снимок состояния формы для индикатора шагов мастера (родитель считает по нему
+// прогресс). immediate — чтобы степпер был корректен сразу после монтирования.
+const filterCount = computed(
+  () => Object.values(form.filters).reduce((n, vals) => n + (vals?.length || 0), 0),
+);
+watch(
+  () => ({
+    mode: form.mode,
+    metric: form.metric,
+    dimension: form.dimension,
+    entity: form.entity,
+    filterCount: filterCount.value,
+  }),
+  (snapshot) => emit('change', snapshot),
+  { immediate: true, deep: true },
+);
 
 function run() {
   emit('run', buildReportRequest(form, props.period, applicableFilters.value));
