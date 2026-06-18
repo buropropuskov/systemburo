@@ -156,4 +156,32 @@ describe('onboarding store', () => {
       expect(store.canShowTour).toBe(false);
     });
   });
+
+  describe('cross-page переходы', () => {
+    it('advanceSegment сдвигает индекс на 1 и поднимает pendingSegment', () => {
+      const store = useOnboardingStore();
+      store.start();
+      store.setIndex(4);
+      store.advanceSegment();
+      expect(store.currentIndex).toBe(5);
+      expect(store.pendingSegment).toBe(true);
+    });
+
+    it('clearPending сбрасывает флаг ожидания навигации', () => {
+      const store = useOnboardingStore();
+      store.advanceSegment();
+      expect(store.pendingSegment).toBe(true);
+      store.clearPending();
+      expect(store.pendingSegment).toBe(false);
+    });
+
+    it('reset чистит pendingSegment вместе с состоянием', () => {
+      const store = useOnboardingStore();
+      store.advanceSegment();
+      store.reset();
+      expect(store.pendingSegment).toBe(false);
+      expect(store.isActive).toBe(false);
+      expect(store.currentIndex).toBe(0);
+    });
+  });
 });

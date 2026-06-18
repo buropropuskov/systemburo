@@ -27,6 +27,27 @@
   color: #fff;
 }
 
+/* --- Демо-скриншот в теле поповера (шаги с пустыми у новичка блоками) --- */
+.driver-popover.ob-popover .ob-popover__demo {
+  margin: 12px 0 2px;
+}
+
+.driver-popover.ob-popover .ob-popover__demo-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.driver-popover.ob-popover .ob-popover__demo-caption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 /* --- Кнопки навигации (pill-стиль под бренд) --- */
 .driver-popover.ob-popover .driver-popover-navigation-btns {
   gap: 8px;

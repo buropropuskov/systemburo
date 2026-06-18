@@ -15,6 +15,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const currentIndex = ref(0);
   // Авто-запуск (срез 6) ставит флаг завершения даже при пропуске, ручной — нет.
   const isManual = ref(false);
+  // Тур переходит между страницами: на границе сегмента driver уничтожается,
+  // выполняется router.push, и pendingSegment сигналит хосту подхватить
+  // следующий сегмент после навигации (router.afterEach).
+  const pendingSegment = ref(false);
 
   const steps = computed(() => onboardingSteps);
   const totalSteps = computed(() => steps.value.length);
@@ -64,6 +68,19 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     currentIndex.value = i;
   }
 
+  /**
+   * Перейти к следующему сегменту (на другой странице): сдвинуть глобальный
+   * индекс на первый шаг следующего сегмента и поднять флаг ожидания навигации.
+   */
+  function advanceSegment() {
+    currentIndex.value += 1;
+    pendingSegment.value = true;
+  }
+
+  function clearPending() {
+    pendingSegment.value = false;
+  }
+
   function markCompleted() {
     try {
       localStorage.setItem(
@@ -79,6 +96,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   function reset() {
     isActive.value = false;
     currentIndex.value = 0;
+    pendingSegment.value = false;
   }
 
   return {
@@ -89,10 +107,13 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     currentStep,
     canShowTour,
     isManual,
+    pendingSegment,
     hasCompleted,
     start,
     stop,
     setIndex,
+    advanceSegment,
+    clearPending,
     markCompleted,
     reset,
   };

@@ -33,15 +33,19 @@
           :user-type="user_type"
           :type-id="type_id"
           class="dashboard-card-animated"
+          data-testid="ob-profile"
         />
 
         <UserNotificationsInline class="dashboard-card-animated notifications" />
       </SkeletonTransition>
     </div>
-    
+
     <div class="dashboard-row">
       <!-- Блок заявок -->
-      <div class="applications-wrapper">
+      <div
+        class="applications-wrapper"
+        data-testid="ob-applications"
+      >
         <UserApplications
           :user-organization-id="userOrganizationId"
           :user-company-id="userCompanyId"
@@ -51,7 +55,6 @@
           class="dashboard-card-animated"
         />
       </div>
-
     </div>
   </div>
 </template>

@@ -2,6 +2,7 @@ import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
 import { useOnboardingStore } from '@/stores/onboarding';
+import { getDemo } from '@/components/onboarding/onboardingDemo';
 
 /**
  * Тонкая обёртка над driver.js: ожидание целевого элемента, сборка тела
@@ -72,14 +73,23 @@ export function useOnboarding() {
   }
 
   /**
-   * Тело поповера. Сейчас - только санитизированный текст шага; будущие срезы
-   * добавят `<img>` для `step.demo`.
+   * Тело поповера: текст шага + опциональный демо-скриншот (`step.demo`).
+   * Весь HTML прогоняется через sanitizeHtml (src/alt/caption - наши статичные
+   * значения, санитайз страхует от случайной разметки в тексте).
    *
-   * @param {{ description: string }} step
+   * @param {{ description: string, demo?: string }} step
    * @returns {string}
    */
   function buildPopoverHtml(step) {
-    return sanitizeHtml(step.description);
+    let html = step.description || '';
+    const demo = step.demo ? getDemo(step.demo) : null;
+    if (demo) {
+      const caption = demo.caption
+        ? `<figcaption class="ob-popover__demo-caption">${demo.caption}</figcaption>`
+        : '';
+      html += `<figure class="ob-popover__demo"><img class="ob-popover__demo-img" src="${demo.src}" alt="${demo.alt}" />${caption}</figure>`;
+    }
+    return sanitizeHtml(html);
   }
 
   function buildProgressBlock(globalIndex, total, nextTitle, onSkip) {
@@ -123,10 +133,13 @@ export function useOnboarding() {
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void }} [options]
+   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext } = {}) {
+    const store = useOnboardingStore();
+    const lastLocal = stepsForSegment.length - 1;
+
     const driverObj = driver({
       showProgress: false,
       animate: !prefersReducedMotion(),
@@ -138,18 +151,37 @@ export function useOnboarding() {
       nextBtnText: 'Далее',
       prevBtnText: 'Назад',
       doneBtnText: 'Готово',
-      steps: stepsForSegment.map((s) => ({
-        element: s.element || undefined,
-        popover: {
+      steps: stepsForSegment.map((s, li) => {
+        const popover = {
           title: s.title,
           description: buildPopoverHtml(s),
-        },
-      })),
+        };
+        // Последний шаг сегмента, но впереди есть шаги на другой странице -
+        // ТОЛЬКО подпись кнопки: "Далее" вместо "Готово", чтобы юзер видел, что
+        // тур продолжится. Само поведение перехода диктует onNextClick ниже.
+        if (li === lastLocal && store.steps[startIndex + li + 1]) {
+          popover.nextBtnText = 'Далее';
+        }
+        return { element: s.element || undefined, popover };
+      }),
+      // Перехватываем "Далее" (кнопка И стрелка вправо идут сюда): на границе
+      // сегмента отдаём решение хосту (перейти на след. страницу / завершить),
+      // иначе обычный moveNext.
+      onNextClick() {
+        const localIndex = driverObj.getActiveIndex() ?? 0;
+        if (localIndex >= lastLocal && onBoundaryNext) {
+          onBoundaryNext();
+        } else {
+          driverObj.moveNext();
+        }
+      },
       onPopoverRender(popover) {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         const globalIndex = startIndex + localIndex + 1;
-        const total = useOnboardingStore().totalSteps;
-        const nextStep = stepsForSegment[localIndex + 1];
+        const total = store.totalSteps;
+        // Подсказка "Далее" сквозная - берём следующий шаг по глобальному
+        // индексу, чтобы на границе сегмента показать имя шага со след. страницы.
+        const nextStep = store.steps[globalIndex];
         const nextTitle = nextStep ? nextStep.title : '';
 
         const block = buildProgressBlock(globalIndex, total, nextTitle, () => {
