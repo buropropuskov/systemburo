@@ -2,23 +2,33 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
-
-const STORAGE_KEY = 'onboarding-tour';
+import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
 
 /**
  * Стор онбординг-тура. Держит ГЛОБАЛЬНЫЙ индекс активного шага по всему
  * массиву onboardingSteps; хост-компонент режет массив на сегменты по route
  * и водит driver.js внутри текущего сегмента.
+ *
+ * Статус «пройден» хранится per-user на бэкенде (а не в localStorage), чтобы
+ * переживал смену браузера/устройства и сбрасывался админом. completedVersion -
+ * версия тура, которую прошёл юзер (null = не проходил).
  */
 export const useOnboardingStore = defineStore('onboarding', () => {
   const isActive = ref(false);
   const currentIndex = ref(0);
-  // Авто-запуск (срез 6) ставит флаг завершения даже при пропуске, ручной — нет.
+  // Авто-запуск ставит флаг завершения даже при пропуске, ручной — нет.
   const isManual = ref(false);
   // Тур переходит между страницами: на границе сегмента driver уничтожается,
   // выполняется router.push, и pendingSegment сигналит хосту подхватить
   // следующий сегмент после навигации (router.afterEach).
   const pendingSegment = ref(false);
+
+  // Per-user статус с бэкенда: версия пройденного тура и флаг загрузки.
+  const completedVersion = ref(null);
+  const statusLoaded = ref(false);
+  // In-flight промис загрузки статуса - чтобы конкурентные maybeAutostart
+  // (onMounted + watch route) не слали два GET (урок про гонки авто-fetch).
+  let loadStatusPromise = null;
 
   const steps = computed(() => onboardingSteps);
   const totalSteps = computed(() => steps.value.length);
@@ -30,21 +40,34 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   });
 
   /**
-   * Тур пройден только если сохранённый флаг помечен completed И его версия
-   * совпадает с текущей. Чтение в try/catch: приватный режим / отключённый
-   * storage кидают при доступе.
+   * Подтянуть per-user статус с бэкенда (один раз за сессию). На ошибке сети
+   * statusLoaded остаётся false - хост тогда не автозапускает тур (fail-safe),
+   * кнопка «Обучение» по-прежнему работает.
+   */
+  async function loadStatus() {
+    if (loadStatusPromise) return loadStatusPromise;
+    loadStatusPromise = (async () => {
+      try {
+        const data = await getOnboardingStatus();
+        completedVersion.value = data?.completed_version ?? null;
+        statusLoaded.value = true;
+      } catch {
+        statusLoaded.value = false;
+      } finally {
+        loadStatusPromise = null;
+      }
+    })();
+    return loadStatusPromise;
+  }
+
+  /**
+   * Тур пройден, если юзер прошёл версию не ниже текущей. Подъём
+   * ONBOARDING_VERSION делает тур «непройденным» и показывает заново.
    *
    * @returns {boolean}
    */
   function hasCompleted() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
-      const parsed = JSON.parse(raw);
-      return parsed.completed === true && parsed.version === ONBOARDING_VERSION;
-    } catch {
-      return false;
-    }
+    return completedVersion.value !== null && completedVersion.value >= ONBOARDING_VERSION;
   }
 
   /**
@@ -81,22 +104,30 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     pendingSegment.value = false;
   }
 
+  /**
+   * Пометить тур пройденным для текущего юзера. Локально обновляем
+   * completedVersion сразу (чтобы автозапуск не сработал повторно в этой
+   * сессии), запись на бэкенд - fire-and-forget: сбой сети не должен ломать
+   * завершение тура (в худшем случае переиграется при следующем входе).
+   */
   function markCompleted() {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ completed: true, version: ONBOARDING_VERSION }),
-      );
-    } catch {
-      // storage недоступен (приватный режим / квота) - тур всё равно отработал,
-      // просто переиграется при следующем авто-запуске. Не критично.
-    }
+    // Идемпотентно: разные пути закрытия (Esc/Готово/CTA) могут позвать дважды -
+    // версию ставим и POST шлём только если ещё не помечено.
+    if (completedVersion.value !== null && completedVersion.value >= ONBOARDING_VERSION) return;
+    completedVersion.value = ONBOARDING_VERSION;
+    statusLoaded.value = true;
+    markOnboardingComplete(ONBOARDING_VERSION).catch(() => {
+      // best-effort: статус локально уже стоит, бэкенд догонит при следующем разе
+    });
   }
 
   function reset() {
     isActive.value = false;
     currentIndex.value = 0;
     pendingSegment.value = false;
+    // Сброс статуса при logout - следующий юзер на этом устройстве подтянет свой.
+    completedVersion.value = null;
+    statusLoaded.value = false;
   }
 
   return {
@@ -108,6 +139,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     canShowTour,
     isManual,
     pendingSegment,
+    completedVersion,
+    statusLoaded,
+    loadStatus,
     hasCompleted,
     start,
     stop,

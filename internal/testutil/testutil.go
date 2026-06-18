@@ -106,6 +106,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	companyService := services.NewCompanyService(db)
 	notificationServiceEarly := services.NewNotificationService(db)
 	userService := services.NewUserService(db, notificationServiceEarly)
+	onboardingService := services.NewOnboardingService(db)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	carService := services.NewCarService(db)
 	employeeService := services.NewEmployeeService(db)
@@ -158,6 +159,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
+	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, "./uploads")
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
@@ -208,6 +210,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Organization:        organizationHandler,
 		Company:             companyHandler,
 		Users:               usersHandler,
+		Onboarding:          onboardingHandler,
 		UnloadPlace:         unloadPlaceHandler,
 		Cars:                carHandler,
 		Employees:           employeeHandler,

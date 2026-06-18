@@ -3,8 +3,12 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useOnboardingStore } from '../onboarding';
 import { useAuthStore } from '../auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
+import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
 
-const STORAGE_KEY = 'onboarding-tour';
+vi.mock('@/api/onboarding', () => ({
+  getOnboardingStatus: vi.fn(),
+  markOnboardingComplete: vi.fn(),
+}));
 
 function createMockJWT(payload, expiresInSeconds = 3600) {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
@@ -18,7 +22,9 @@ function createMockJWT(payload, expiresInSeconds = 3600) {
 describe('onboarding store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    localStorage.clear();
+    getOnboardingStatus.mockReset();
+    markOnboardingComplete.mockReset();
+    markOnboardingComplete.mockResolvedValue({ message: 'ok' });
   });
 
   afterEach(() => {
@@ -73,14 +79,17 @@ describe('onboarding store', () => {
       expect(store.currentStep).toBe(onboardingSteps[2]);
     });
 
-    it('reset сбрасывает активность и индекс', () => {
+    it('reset сбрасывает активность, индекс и per-user статус', () => {
       const store = useOnboardingStore();
       store.start();
       store.setIndex(2);
+      store.markCompleted();
       store.reset();
 
       expect(store.isActive).toBe(false);
       expect(store.currentIndex).toBe(0);
+      expect(store.completedVersion).toBe(null);
+      expect(store.statusLoaded).toBe(false);
     });
   });
 
@@ -91,45 +100,76 @@ describe('onboarding store', () => {
     });
   });
 
-  describe('markCompleted / hasCompleted', () => {
-    it('markCompleted пишет корректный JSON-флаг в localStorage', () => {
+  describe('loadStatus / hasCompleted (per-user через API)', () => {
+    it('loadStatus тянет статус и ставит completedVersion + statusLoaded', async () => {
+      getOnboardingStatus.mockResolvedValue({ completed_version: ONBOARDING_VERSION });
       const store = useOnboardingStore();
-      store.markCompleted();
+      await store.loadStatus();
 
-      const raw = localStorage.getItem(STORAGE_KEY);
-      expect(JSON.parse(raw)).toEqual({ completed: true, version: ONBOARDING_VERSION });
+      expect(getOnboardingStatus).toHaveBeenCalledOnce();
+      expect(store.completedVersion).toBe(ONBOARDING_VERSION);
+      expect(store.statusLoaded).toBe(true);
     });
 
-    it('hasCompleted true после markCompleted', () => {
+    it('конкурентные loadStatus шлют один GET (guard от гонки)', async () => {
+      let resolve;
+      getOnboardingStatus.mockReturnValue(new Promise((r) => { resolve = r; }));
       const store = useOnboardingStore();
-      store.markCompleted();
+      const p1 = store.loadStatus();
+      const p2 = store.loadStatus();
+      resolve({ completed_version: null });
+      await Promise.all([p1, p2]);
+
+      expect(getOnboardingStatus).toHaveBeenCalledOnce();
+    });
+
+    it('loadStatus с completed_version=null -> не пройден', async () => {
+      getOnboardingStatus.mockResolvedValue({ completed_version: null });
+      const store = useOnboardingStore();
+      await store.loadStatus();
+
+      expect(store.statusLoaded).toBe(true);
+      expect(store.hasCompleted()).toBe(false);
+    });
+
+    it('loadStatus при ошибке сети оставляет statusLoaded=false (fail-safe)', async () => {
+      getOnboardingStatus.mockRejectedValue(new Error('network'));
+      const store = useOnboardingStore();
+      await store.loadStatus();
+
+      expect(store.statusLoaded).toBe(false);
+      expect(store.hasCompleted()).toBe(false);
+    });
+
+    it('hasCompleted true когда пройдена версия >= текущей', async () => {
+      getOnboardingStatus.mockResolvedValue({ completed_version: ONBOARDING_VERSION });
+      const store = useOnboardingStore();
+      await store.loadStatus();
       expect(store.hasCompleted()).toBe(true);
     });
 
-    it('hasCompleted false когда флага нет', () => {
+    it('hasCompleted false когда пройдена старая версия (тур обновился)', async () => {
+      getOnboardingStatus.mockResolvedValue({ completed_version: ONBOARDING_VERSION - 1 });
       const store = useOnboardingStore();
+      await store.loadStatus();
       expect(store.hasCompleted()).toBe(false);
     });
 
-    it('hasCompleted false при чужой версии флага', () => {
+    it('markCompleted ставит версию локально сразу и шлёт на бэкенд', () => {
       const store = useOnboardingStore();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ completed: true, version: 0 }));
-      expect(store.hasCompleted()).toBe(false);
+      store.markCompleted();
+
+      expect(store.completedVersion).toBe(ONBOARDING_VERSION);
+      expect(store.hasCompleted()).toBe(true);
+      expect(markOnboardingComplete).toHaveBeenCalledWith(ONBOARDING_VERSION);
     });
 
-    it('hasCompleted false при битом JSON', () => {
+    it('markCompleted не падает при ошибке записи на бэкенд (fire-and-forget)', () => {
+      markOnboardingComplete.mockRejectedValue(new Error('network'));
       const store = useOnboardingStore();
-      localStorage.setItem(STORAGE_KEY, 'not-json');
-      expect(store.hasCompleted()).toBe(false);
-    });
-
-    it('markCompleted не падает когда localStorage.setItem кидает', () => {
-      const store = useOnboardingStore();
-      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-        throw new Error('storage disabled');
-      });
-
       expect(() => store.markCompleted()).not.toThrow();
+      // локально статус всё равно проставлен
+      expect(store.hasCompleted()).toBe(true);
     });
   });
 
