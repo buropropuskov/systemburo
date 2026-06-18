@@ -19,6 +19,9 @@ export const useUiStore = defineStore('ui', () => {
   const navPrefs = loadNavPrefs()
   const sidebarExpanded = ref(navPrefs.pinned ?? false)
   const sidebarHidden = ref(navPrefs.hidden ?? false)
+  // Временный оверлейный разворот рельса (онбординг-тур). Не персистится и не
+  // влияет на --nav-ml: рельс расширяется поверх контента, без reflow.
+  const tourForceExpand = ref(false)
 
   watch([sidebarExpanded, sidebarHidden], ([pinned, hidden]) => {
     try {
@@ -87,6 +90,7 @@ export const useUiStore = defineStore('ui', () => {
     toasts,
     sidebarExpanded,
     sidebarHidden,
+    tourForceExpand,
     toggleSidebarPinned,
     hideSidebar,
     showSidebar,
