@@ -33,21 +33,26 @@ export function useOnboarding() {
    */
   function waitForElement(selector, timeout = 2500, signal) {
     return new Promise((resolve) => {
-      const isReady = (el) =>
+      const isVisible = (el) =>
         el && (el.offsetParent !== null || el.getBoundingClientRect().width > 0);
+      // Готовность по СТАБИЛЬНОЙ высоте: элемент часто появляется пустым (скелетон/
+      // ещё не пришли данные) и дорастает. Если резолвить по факту появления,
+      // driver подсветит пустую рамку, а данные приедут уже под оверлеем. Поэтому
+      // ждём, пока высота перестанет меняться между опросами.
+      const measure = (el) => {
+        if (!isVisible(el)) return null;
+        const h = el.getBoundingClientRect().height;
+        return h > 0 ? h : null;
+      };
 
       if (signal?.aborted) {
         resolve(null);
         return;
       }
 
-      const immediate = document.querySelector(selector);
-      if (isReady(immediate)) {
-        resolve(immediate);
-        return;
-      }
-
       const start = Date.now();
+      let prevEl = null;
+      let prevHeight = null;
       const cleanup = () => {
         clearInterval(intervalId);
         signal?.removeEventListener('abort', onAbort);
@@ -56,19 +61,26 @@ export function useOnboarding() {
         cleanup();
         resolve(null);
       };
-      const intervalId = setInterval(() => {
+      const tick = () => {
         const el = document.querySelector(selector);
-        if (isReady(el)) {
+        const h = measure(el);
+        if (h !== null && el === prevEl && h === prevHeight) {
           cleanup();
           resolve(el);
           return;
         }
+        prevEl = el;
+        prevHeight = h;
         if (Date.now() - start >= timeout) {
           cleanup();
-          resolve(null);
+          // По таймауту отдаём элемент, если он хотя бы виден (пусть driver
+          // подсветит как есть), иначе null - цель так и не появилась.
+          resolve(isVisible(el) ? el : null);
         }
-      }, 100);
+      };
+      const intervalId = setInterval(tick, 120);
       signal?.addEventListener('abort', onAbort);
+      tick();
     });
   }
 
@@ -156,10 +168,10 @@ export function useOnboarding() {
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onCtaClick?: () => void, onCloseRequest?: () => void }} [options]
+   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: () => void, onCloseRequest?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
-  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onCtaClick, onCloseRequest, onBeforeStep } = {}) {
+  function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCtaClick, onCloseRequest, onBeforeStep } = {}) {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
@@ -225,6 +237,17 @@ export function useOnboarding() {
         if (target === localIndex + 1) driverObj.moveNext();
         else driverObj.moveTo(target);
       },
+      // "Назад": внутри сегмента - обычный movePrevious; на ПЕРВОМ шаге сегмента
+      // (есть предыдущий шаг на другой странице) отдаём хосту, чтобы он вернулся
+      // на ту страницу и показал последний шаг предыдущего сегмента.
+      onPrevClick() {
+        const localIndex = driverObj.getActiveIndex() ?? 0;
+        if (localIndex <= 0 && startIndex > 0 && onBoundaryPrev) {
+          onBoundaryPrev(startIndex);
+        } else {
+          driverObj.movePrevious();
+        }
+      },
       onPopoverRender(popover) {
         const localIndex = driverObj.getActiveIndex() ?? 0;
         const currentGlobal = startIndex + localIndex;
@@ -244,6 +267,14 @@ export function useOnboarding() {
           nextStep = store.steps[nextIdx];
         }
         const nextTitle = nextStep ? nextStep.title : '';
+
+        // На первом шаге сегмента driver дизейблит "Назад"; но если впереди (вернее
+        // позади) есть шаг на другой странице - раскрываем кнопку, чтобы вернуться
+        // по границе (cross-page back). Само поведение - в onPrevClick.
+        if (localIndex === 0 && startIndex > 0 && popover.previousButton) {
+          popover.previousButton.disabled = false;
+          popover.previousButton.classList.remove('driver-popover-btn-disabled');
+        }
 
         // Финал: галочка перед заголовком + CTA после описания.
         if (step?.celebrate) {

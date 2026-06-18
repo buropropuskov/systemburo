@@ -92,24 +92,37 @@ async function prepareStep(globalIndex) {
 
 async function startSegment() {
   const myGen = ++driverGen;
-  const segmentSteps = collectSegment(store.steps, store.currentIndex, route.path);
+  // Берём сегмент, СОДЕРЖАЩИЙ текущий шаг, а не обязательно начинающийся с него:
+  // при cross-page «Назад» мы попадаем на ПОСЛЕДНИЙ шаг предыдущей страницы, и
+  // нужно поднять весь её сегмент, чтобы внутри него работала навигация туда-сюда.
+  let segmentStartIndex = store.currentIndex;
+  while (segmentStartIndex > 0 && store.steps[segmentStartIndex - 1].route === route.path) {
+    segmentStartIndex -= 1;
+  }
+  const segmentSteps = collectSegment(store.steps, segmentStartIndex, route.path);
   if (!segmentSteps.length) {
     store.stop();
     return;
   }
+  const localTarget = store.currentIndex - segmentStartIndex;
 
-  const segmentStartIndex = store.currentIndex;
-  // Первый шаг с целью: дожидаемся её появления, иначе деградируем в центр-модал,
-  // чтобы driver не падал на отсутствующем элементе.
-  const firstStep = segmentSteps[0];
-  if (firstStep.element) {
+  // Демо-вложение и рельс целевого шага ставим ДО ожидания элемента: форма
+  // заявки рисуется только при добавленном вложении, а рельс-шаг должен мерить
+  // уже раскрытый рельс (актуально при «Назад» прямо на такой шаг).
+  applyDemoAttachment(store.currentIndex);
+  applyRail(store.currentIndex);
+
+  // Целевой шаг: дожидаемся его элемента (устойчивого по размеру), иначе
+  // деградируем в центр-модал, чтобы driver не падал на отсутствующей цели.
+  const targetStep = segmentSteps[localTarget];
+  if (targetStep.element) {
     waitController = new AbortController();
-    const el = await waitForElement(firstStep.element, FIRST_TARGET_TIMEOUT, waitController.signal);
+    const el = await waitForElement(targetStep.element, FIRST_TARGET_TIMEOUT, waitController.signal);
     waitController = null;
     // Тур могли остановить или перезапустить (Esc/logout/новый сегмент) пока
     // ждали элемент - не поднимаем driver-зомби поверх неактивного/чужого тура.
     if (!store.isActive || myGen !== driverGen) return;
-    if (!el) segmentSteps[0] = { ...firstStep, element: null };
+    if (!el) segmentSteps[localTarget] = { ...targetStep, element: null };
   }
 
   driverObj = createDriver(segmentSteps, {
@@ -123,6 +136,7 @@ async function startSegment() {
     },
     onBeforeStep: prepareStep,
     onBoundaryNext: handleBoundaryNext,
+    onBoundaryPrev: handleBoundaryPrev,
     onCtaClick: finishAndCreateApp,
     // Esc/оверлей/крестик/Пропустить -> просто останавливаем тур. teardown
     // (через watch isActive) снимет overlay и пометит авто-тур пройденным -
@@ -131,7 +145,7 @@ async function startSegment() {
     onCloseRequest: () => store.stop(),
     onDestroyed: () => handleDestroyed(myGen),
   });
-  driverObj.drive(0);
+  driverObj.drive(localTarget);
 }
 
 /** CTA финала: завершаем тур и ведём на оформление первой заявки. */
@@ -170,6 +184,39 @@ function advanceToSegment(targetRoute) {
   }
   // Навигация может быть отменена глобальным beforeEach (dirty-confirm и т.п.).
   // Тогда afterEach не сработает - не оставляем тур висеть в pendingSegment.
+  router.push(targetRoute).catch(() => {
+    if (store.pendingSegment) {
+      store.clearPending();
+      store.stop();
+    }
+  });
+}
+
+/**
+ * Пользователь нажал "Назад" на ПЕРВОМ шаге сегмента: предыдущий шаг - на другой
+ * странице, возвращаемся туда и показываем последний шаг того сегмента.
+ *
+ * @param {number} segmentStartGlobal глобальный индекс первого шага текущего сегмента
+ */
+function handleBoundaryPrev(segmentStartGlobal) {
+  const prevIdx = segmentStartGlobal - 1;
+  const prevStep = store.steps[prevIdx];
+  if (!prevStep) return;
+  if (prevStep.route !== route.path) {
+    retreatToSegment(prevIdx, prevStep.route);
+  } else if (driverObj) {
+    driverObj.movePrevious();
+  }
+}
+
+function retreatToSegment(targetIndex, targetRoute) {
+  store.retreatSegment(targetIndex);
+  restoreRail();
+  // Старый driver уничтожаем; его отложенный onDestroyed обезврежен driverGen.
+  if (driverObj) {
+    driverObj.destroy();
+    driverObj = null;
+  }
   router.push(targetRoute).catch(() => {
     if (store.pendingSegment) {
       store.clearPending();
