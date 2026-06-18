@@ -120,3 +120,29 @@ describe('cross-page конфигурация (cabinet)', () => {
     expect(apps.demo).toBe('applications');
   });
 });
+
+describe('cross-page конфигурация (cars / employees)', () => {
+  const segs = [
+    { route: '/carsview', ids: ['cars-filters', 'cars-add', 'cars-table'], demoStep: 'cars-table', demoKey: 'cars' },
+    { route: '/employeesview', ids: ['employees-filters', 'employees-add', 'employees-table'], demoStep: 'employees-table', demoKey: 'employees' },
+  ];
+
+  for (const seg of segs) {
+    it(`сегмент ${seg.route} собирается из своих шагов и отделён границей`, () => {
+      const first = onboardingSteps.findIndex((s) => s.route === seg.route);
+      expect(first).toBeGreaterThan(0);
+      expect(onboardingSteps[first - 1].route).not.toBe(seg.route);
+      expect(collectSegment(onboardingSteps, first, seg.route).map((s) => s.id)).toEqual(seg.ids);
+    });
+
+    it(`шаг ${seg.demoStep} несёт демо-скриншот ${seg.demoKey}`, () => {
+      expect(onboardingSteps.find((s) => s.id === seg.demoStep).demo).toBe(seg.demoKey);
+    });
+  }
+
+  it('сегменты идут в порядке cabinet -> cars -> employees', () => {
+    const idx = (id) => onboardingSteps.findIndex((s) => s.id === id);
+    expect(idx('cabinet-applications')).toBeLessThan(idx('cars-filters'));
+    expect(idx('cars-table')).toBeLessThan(idx('employees-filters'));
+  });
+});

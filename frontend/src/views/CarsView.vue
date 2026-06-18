@@ -13,7 +13,10 @@
       </p>
     </header>
 
-    <div class="carsview__filters">
+    <div
+      class="carsview__filters"
+      data-testid="ob-cars-filters"
+    >
       <div class="filters-container">
         <SearchComponent
           v-model="searchQuery"
@@ -67,7 +70,10 @@
 
     <div class="carsview__container">
       <!-- Таблица автомобилей -->
-      <div class="cars-card">
+      <div
+        class="cars-card"
+        data-testid="ob-cars-table"
+      >
         <div class="card-header">
           <div class="card-header__title">
             <h3 class="card-title">
