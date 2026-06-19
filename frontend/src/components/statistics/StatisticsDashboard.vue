@@ -221,6 +221,7 @@
                 </div>
               </div>
               <div class="dashboard__feed-right">
+                <div class="dashboard__feed-date">{{ formatDate(row.created_at) }}</div>
                 <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
                 <span
                   class="dashboard__dir-badge"
@@ -274,6 +275,7 @@
                 </div>
               </div>
               <div class="dashboard__feed-right">
+                <div class="dashboard__feed-date">{{ formatDate(row.created_at) }}</div>
                 <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
                 <span
                   class="dashboard__dir-badge"
@@ -378,7 +380,15 @@ function formatTime(iso) {
   const d = new Date(iso);
   // Смещение UTC+3
   const utc3 = new Date(d.getTime() + 3 * 60 * 60 * 1000);
-  return utc3.toISOString().substring(11, 19);
+  return utc3.toISOString().substring(11, 16);
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  // Смещение UTC+3: дату ленты считаем по МСК, иначе у ночных отметок съезжает день.
+  const s = new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString();
+  return `${s.substring(8, 10)}.${s.substring(5, 7)}.${s.substring(0, 4)}`;
 }
 
 // ---- загрузка данных ----
@@ -790,6 +800,12 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+.dashboard__feed-date {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .dashboard__feed-time {
   font-size: 11px;
   color: var(--color-text-muted);
@@ -812,9 +828,8 @@ onUnmounted(() => {
 }
 
 .dashboard__dir-badge--out {
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
+  background: rgba(220, 53, 69, 0.12);
+  color: var(--color-danger);
 }
 
 /* Номерной знак машины */
