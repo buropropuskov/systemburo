@@ -177,6 +177,7 @@
         :height="300"
         color="#4F5BDF"
         interval-label="ед."
+        :unit-forms="chartUnit"
       />
     </div>
 
@@ -340,6 +341,14 @@ const chartTitles = {
 };
 
 const chartTitle = computed(() => chartTitles[activeMetric.value] ?? '');
+
+// Формы склонения единицы тултипа по метрике [одна, две-четыре, пять+].
+const chartUnitForms = {
+  applications: ['заявка', 'заявки', 'заявок'],
+  people_entries: ['проход', 'прохода', 'проходов'],
+  car_entries: ['проезд', 'проезда', 'проездов'],
+};
+const chartUnit = computed(() => chartUnitForms[activeMetric.value] ?? ['ед.', 'ед.', 'ед.']);
 const chartSubtitle = computed(() => {
   const labels = { day: 'по дням', week: 'по неделям', month: 'по месяцам' };
   const period = [props.from, props.to].filter(Boolean).join(' — ');

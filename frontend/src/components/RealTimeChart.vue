@@ -55,6 +55,13 @@ export default {
     intervalLabel: {
       type: String,
       default: 'мин'
+    },
+    // Три формы склонения единицы для тултипа [одна, две-четыре, пять+].
+    // Дефолт — «запрос» (лента запросов в RequestsView); дашборд аналитики
+    // передаёт форму по метрике (заявки/проходы/проезды).
+    unitForms: {
+      type: Array,
+      default: () => ['запрос', 'запроса', 'запросов']
     }
   },
   data() {
@@ -86,11 +93,12 @@ export default {
   },
   methods: {
     pluralize(n) {
+      const [one, few, many] = this.unitForms;
       const mod10 = n % 10;
       const mod100 = n % 100;
-      if (mod10 === 1 && mod100 !== 11) return 'запрос';
-      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'запроса';
-      return 'запросов';
+      if (mod10 === 1 && mod100 !== 11) return one;
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+      return many;
     },
 
     draw() {
