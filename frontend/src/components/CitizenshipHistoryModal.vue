@@ -956,12 +956,11 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #a2a2a2;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #4F5BDF;
   padding: 8px 0 4px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e6f0ff;
+  letter-spacing: 0.02em;
 }
 
 .history-item {
