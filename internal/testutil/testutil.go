@@ -36,6 +36,7 @@ const (
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
 	"system_settings",
+	"user_online_peaks",
 	"report_templates",
 	"pd_audit_logs", "pd_consents",
 	"access_denials", "access_denial_archives",

@@ -64,6 +64,7 @@ type Dependencies struct {
 	MaintenanceBlock echo.MiddlewareFunc
 	BanCheck         echo.MiddlewareFunc
 	LoginLimiter     echo.MiddlewareFunc
+	LastSeen         echo.MiddlewareFunc
 
 	// Misc
 	JWTSecret []byte
@@ -116,6 +117,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	loginLimiter := d.LoginLimiter
+	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
 	// Health check — вне /api, для мониторинга и readiness-проб.
 	e.GET("/health", func(c echo.Context) error {
@@ -151,6 +153,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Ban/Unban из UserBanService. nil в тестах чтобы не требовать service.
 	if banCheck != nil {
 		protected.Use(banCheck)
+	}
+	// LastSeen - после JWTAuth (нужен user_id). Обновляет users.last_seen для
+	// учёта онлайна (#632), с in-memory троттлингом и асинхронной записью.
+	// nil в тестах, где БД-запись не нужна.
+	if lastSeen != nil {
+		protected.Use(lastSeen)
 	}
 
 	protected.POST("/logout", auth.Logout)

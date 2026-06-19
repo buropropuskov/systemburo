@@ -249,6 +249,7 @@ func main() {
 	loginLimiter := mw.LoginRateLimit(cfg.LoginRateLimitMax, time.Duration(cfg.LoginRateLimitWindowSec)*time.Second)
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
+	lastSeen := mw.LastSeen(db)
 
 	// Routes
 	router.Setup(e, router.Dependencies{
@@ -297,6 +298,7 @@ func main() {
 		MaintenanceBlock:    maintenanceBlock,
 		BanCheck:            banCheck,
 		LoginLimiter:        loginLimiter,
+		LastSeen:            lastSeen,
 		JWTSecret:           []byte(cfg.JWTSecret),
 	})
 
@@ -320,6 +322,10 @@ func main() {
 	}
 	resetService := services.NewTerritoryResetService(db)
 	go startDailyStatusReset(ctxSig, resetService, resetLoc)
+
+	// Снимок дневного пика онлайна (#632): раз в минуту фиксирует текущий онлайн
+	// как пик за сегодня (peak_count = MAX(...)). Останавливается по ctxSig.
+	go startOnlinePeakSnapshotter(ctxSig, statisticsService, time.Minute)
 
 	// Graceful shutdown
 	go func() {
@@ -413,6 +419,28 @@ func startDailyStatusReset(ctx context.Context, svc services.TerritoryResetServi
 			} else {
 				slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
 			}
+		}
+	}
+}
+
+// startOnlinePeakSnapshotter раз в interval фиксирует текущий онлайн как дневной
+// пик (#632). Останавливается по отмене ctx (graceful shutdown), горутина не течёт.
+func startOnlinePeakSnapshotter(ctx context.Context, svc services.StatisticsService, interval time.Duration) {
+	snapshot := func() {
+		if err := svc.SnapshotOnlinePeak(ctx); err != nil {
+			slog.Error("online peak snapshot failed", "error", err)
+		}
+	}
+	snapshot()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("online peak snapshotter stopped")
+			return
+		case <-ticker.C:
+			snapshot()
 		}
 	}
 }

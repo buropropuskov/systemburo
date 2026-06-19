@@ -158,6 +158,8 @@ func AllModels() []interface{} {
 
 		// Report templates (#632): сохранённые наборы конструктора отчётов
 		&models.ReportTemplate{},
+		// Дневные пики онлайна пользователей (#632): снимок фонового тикера
+		&models.UserOnlinePeak{},
 	}
 }
 
