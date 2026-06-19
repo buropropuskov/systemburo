@@ -80,6 +80,31 @@ func (h *StatisticsHandler) GetSummary(c echo.Context) error {
 	return RespondSuccess(c, summary)
 }
 
+// GetOnlinePeaks godoc
+// @Summary      Дневные пики онлайна пользователей
+// @Description  Серия дневных пиков одновременного онлайна за период для графика динамики пользователей
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        from query string false "Начало периода (YYYY-MM-DD)"
+// @Param        to   query string false "Конец периода (YYYY-MM-DD)"
+// @Success      200 {array} models.OnlinePeakPoint
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/online-peaks [get]
+func (h *StatisticsHandler) GetOnlinePeaks(c echo.Context) error {
+	from, to := parseDateRange(c)
+	if from.After(to) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
+	}
+	points, err := h.service.GetOnlinePeaks(c.Request().Context(), from, to)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, points)
+}
+
 // GetTimeline godoc
 // @Summary      Данные для графика по метрике
 // @Tags         statistics

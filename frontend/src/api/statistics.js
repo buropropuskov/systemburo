@@ -53,6 +53,20 @@ export async function getTimeline({ from, to, metric, granularity }) {
 }
 
 /**
+ * Получить серию дневных пиков онлайна пользователей за период.
+ * @param {string} from - дата начала в формате YYYY-MM-DD
+ * @param {string} to   - дата конца в формате YYYY-MM-DD
+ * @returns {Promise<Array<{date: string, peak: number}>>} по возрастанию даты
+ */
+export async function getOnlinePeaks(from, to) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const res = await apiRequest(`/statistics/online-peaks?${params}`);
+  return res.json();
+}
+
+/**
  * Получить последние проходы/проезды.
  * @param {number} [limit=15] - максимальное количество записей на тип
  * @returns {Promise<{

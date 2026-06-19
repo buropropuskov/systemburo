@@ -171,12 +171,12 @@
         v-if="timelineLoading"
         class="dashboard__chart-skeleton"
       />
-      <RealTimeChart
+      <AnalyticsAreaChart
         v-else
         :data="chartData"
         :height="300"
         color="#4F5BDF"
-        interval-label="ед."
+        :series-name="chartTitle"
         :unit-forms="chartUnit"
       />
     </div>
@@ -292,7 +292,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import RealTimeChart from '@/components/RealTimeChart.vue';
+import AnalyticsAreaChart from '@/components/statistics/AnalyticsAreaChart.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { getSummary, getTimeline, getRecentPassages } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
@@ -355,7 +355,7 @@ const chartSubtitle = computed(() => {
   return [period, labels[activeGranularity.value]].filter(Boolean).join(' · ');
 });
 
-// RealTimeChart ожидает [{timestamp, count}], бэк отдаёт [{date, count}]
+// AnalyticsAreaChart ожидает [{timestamp, count}], бэк отдаёт [{date, count}]
 const chartData = computed(() =>
   (timeline.value || []).map((d) => ({ timestamp: d.date, count: d.count }))
 );
