@@ -10,7 +10,28 @@ const store = useOnboardingStore();
 const ui = useUiStore();
 const route = useRoute();
 const router = useRouter();
-const { waitForElement, createDriver } = useOnboarding();
+const { waitForElement, createDriver, prefersReducedMotion } = useOnboarding();
+
+/**
+ * Плавное закрытие тура: driver.js делает только fade-IN, а на destroy убирает
+ * overlay и поповер мгновенно (рывок). Навешиваем класс затухания на оба
+ * элемента и удаляем DOM уже после анимации. Только для ЗАВЕРШЕНИЯ тура
+ * (финал/Esc/крестик/пропуск) - не для переходов между страницами.
+ *
+ * @param {import('driver.js').Driver} driverInstance
+ */
+function fadeAndDestroy(driverInstance) {
+  const els = [
+    document.querySelector('.driver-overlay'),
+    document.querySelector('.driver-popover'),
+  ].filter(Boolean);
+  if (!els.length || prefersReducedMotion()) {
+    driverInstance.destroy();
+    return;
+  }
+  els.forEach((el) => el.classList.add('ob-fade-out'));
+  setTimeout(() => driverInstance.destroy(), 240);
+}
 
 // Первую цель сегмента ждём дольше при cross-page: после router.push страница
 // монтируется и грузит данные (скелетоны), цель появляется не сразу.
@@ -226,10 +247,13 @@ function retreatToSegment(targetIndex, targetRoute) {
 }
 
 function finishTour() {
-  // destroy() синхронно зовёт onDestroyed -> handleDestroyed (pendingSegment=false)
-  // -> markCompleted (если авто) + stop. Без инстанса завершаем напрямую.
+  // Затухаем, затем destroy(): он синхронно зовёт onDestroyed -> handleDestroyed
+  // (pendingSegment=false) -> markCompleted (если авто) + stop. driverObj обнуляем
+  // сразу, чтобы teardown по stop не дёрнул второй destroy. Без инстанса - напрямую.
   if (driverObj) {
-    driverObj.destroy();
+    const d = driverObj;
+    driverObj = null;
+    fadeAndDestroy(d);
   } else {
     restoreRail();
     markIfAuto();
@@ -267,8 +291,11 @@ function teardown() {
     waitController = null;
   }
   if (driverObj) {
-    driverObj.destroy();
+    // Затухаем перед удалением DOM; driverGen уже увеличен - отложенный
+    // onDestroyed обезврежен (gen-гард в handleDestroyed).
+    const d = driverObj;
     driverObj = null;
+    fadeAndDestroy(d);
   }
   store.clearPending();
   restoreRail();
