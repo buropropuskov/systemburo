@@ -13,6 +13,17 @@
 }
 
 /*
+ * Плавное закрытие тура: driver.js делает только fade-in, на destroy убирает
+ * overlay и поповер мгновенно. Перед удалением DOM хост вешает .ob-fade-out на
+ * .driver-overlay (SVG-затемнение) и .driver-popover - оба плавно затухают.
+ */
+.driver-overlay.ob-fade-out,
+.driver-popover.ob-fade-out {
+  opacity: 0 !important;
+  transition: opacity 0.24s ease !important;
+}
+
+/*
  * driver.css задаёт font-family прямо на потомках (.driver-popover * и
  * font-shorthand на title/description/buttons -> sans-serif), что перебивает
  * Montserrat, унаследованный с контейнера. Форсируем Montserrat на всех
