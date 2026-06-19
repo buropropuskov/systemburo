@@ -3,32 +3,36 @@ package models
 import "time"
 
 type User struct {
-	ID               int          `json:"id"`
-	Username         string       `gorm:"uniqueIndex;size:100" json:"username"`
-	Password         string       `gorm:"size:255" json:"-"`
-	OrganizationID   *int         `json:"organization_id"`
-	Organization     Organization `json:"organization,omitempty"`
-	CompanyID        *int         `json:"company_id"`
-	Company          Company      `json:"company,omitempty"`
-	TypeID           int          `gorm:"default:1" json:"type_id"`
-	UserType         UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
-	RoleID           *int         `json:"role_id"`
-	Role             *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
-	IsSuperAdmin     bool         `gorm:"default:false;index" json:"is_super_admin"`
-	IsActive         bool         `gorm:"default:true;index" json:"is_active"`
-	IsBanned         bool         `gorm:"default:false;index" json:"is_banned"`
-	IsImportant      bool         `gorm:"default:false" json:"is_important"`
-	BannedAt         *time.Time   `json:"banned_at,omitempty"`
-	BannedBy         *int         `json:"banned_by,omitempty"`
-	LastName         *string      `gorm:"size:100" json:"last_name"`
-	FirstName        *string      `gorm:"size:100" json:"first_name"`
-	MiddleName       *string      `gorm:"size:100" json:"middle_name"`
-	Position         *string      `gorm:"size:100;column:position" json:"position"`
-	Email            *string      `gorm:"size:100" json:"email"`
-	Phone            *string      `gorm:"size:20" json:"phone"`
-	LastLoginAt      *time.Time   `json:"last_login_at,omitempty"`
-	FailedLoginCount int          `gorm:"default:0" json:"-"`
-	LockedUntil      *time.Time   `json:"-"`
+	ID             int          `json:"id"`
+	Username       string       `gorm:"uniqueIndex;size:100" json:"username"`
+	Password       string       `gorm:"size:255" json:"-"`
+	OrganizationID *int         `json:"organization_id"`
+	Organization   Organization `json:"organization,omitempty"`
+	CompanyID      *int         `json:"company_id"`
+	Company        Company      `json:"company,omitempty"`
+	TypeID         int          `gorm:"default:1" json:"type_id"`
+	UserType       UserType     `gorm:"foreignKey:TypeID" json:"user_type,omitempty"`
+	RoleID         *int         `json:"role_id"`
+	Role           *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	IsSuperAdmin   bool         `gorm:"default:false;index" json:"is_super_admin"`
+	IsActive       bool         `gorm:"default:true;index" json:"is_active"`
+	IsBanned       bool         `gorm:"default:false;index" json:"is_banned"`
+	IsImportant    bool         `gorm:"default:false" json:"is_important"`
+	BannedAt       *time.Time   `json:"banned_at,omitempty"`
+	BannedBy       *int         `json:"banned_by,omitempty"`
+	LastName       *string      `gorm:"size:100" json:"last_name"`
+	FirstName      *string      `gorm:"size:100" json:"first_name"`
+	MiddleName     *string      `gorm:"size:100" json:"middle_name"`
+	Position       *string      `gorm:"size:100;column:position" json:"position"`
+	Email          *string      `gorm:"size:100" json:"email"`
+	Phone          *string      `gorm:"size:20" json:"phone"`
+	LastLoginAt    *time.Time   `json:"last_login_at,omitempty"`
+	// LastSeen - момент последней активности (любой authenticated-запрос),
+	// обновляется middleware с троттлингом. В отличие от LastLoginAt отражает
+	// присутствие "онлайн" между логинами; по нему считается users_online (#632).
+	LastSeen         *time.Time `gorm:"index" json:"last_seen,omitempty"`
+	FailedLoginCount int        `gorm:"default:0" json:"-"`
+	LockedUntil      *time.Time `json:"-"`
 	// OnboardingCompletedVersion - версия онбординг-тура, которую прошёл юзер.
 	// null = не проходил. Хранится per-user (а не per-browser), чтобы тур не
 	// сбрасывался при смене устройства; при подъёме версии шагов тур показывается заново.

@@ -10,9 +10,20 @@ import (
 	"gorm.io/gorm"
 )
 
+// onlineWindowMinutes — окно "онлайн": пользователь считается онлайн, если его
+// last_seen обновлялся за последние N минут. Должно быть >= троттл-окна записи
+// last_seen в middleware (60с), с запасом на простой между запросами.
+const onlineWindowMinutes = 15
+
 // StatisticsService — интерфейс бизнес-логики статистики дашборда.
 type StatisticsService interface {
 	GetSummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error)
+	// SnapshotOnlinePeak фиксирует текущий онлайн как дневной пик за сегодня
+	// (upsert по date, peak_count = MAX(старый, текущий)). Зовётся фоновым тикером.
+	SnapshotOnlinePeak(ctx context.Context) error
+	// GetOnlinePeaks возвращает серию дневных пиков онлайна за период [from, to]
+	// для карточки динамики пользователей. Дни без снимков опускаются.
+	GetOnlinePeaks(ctx context.Context, from, to time.Time) ([]models.OnlinePeakPoint, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
@@ -155,13 +166,20 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 		return nil, fmt.Errorf("statistics: people_on_territory: %w", err)
 	}
 
-	// users_online: онлайн = вход за последние 15 минут, прокси без сессий.
-	onlineThreshold := time.Now().UTC().Add(-15 * time.Minute)
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Where("last_login_at >= ?", onlineThreshold).
-		Count(&summary.UsersOnline).Error; err != nil {
+	// users_online: онлайн = активность (last_seen) за последние onlineWindowMinutes.
+	online, err := s.countOnline(ctx, time.Now().UTC())
+	if err != nil {
 		return nil, fmt.Errorf("statistics: users_online: %w", err)
+	}
+	summary.UsersOnline = online
+
+	// users_online_peak_today: пик одновременного онлайна за сегодня из снимков тикера.
+	if err := s.db.WithContext(ctx).
+		Table("user_online_peaks").
+		Where("date = ?", time.Now().UTC().Format("2006-01-02")).
+		Select("COALESCE(MAX(peak_count), 0)").
+		Scan(&summary.UsersOnlinePeakToday).Error; err != nil {
+		return nil, fmt.Errorf("statistics: users_online_peak_today: %w", err)
 	}
 
 	// active_users
@@ -227,6 +245,64 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 	}
 
 	return &summary, nil
+}
+
+// countOnline считает пользователей, чей last_seen свежее окна онлайна на момент now.
+func (s *statisticsService) countOnline(ctx context.Context, now time.Time) (int64, error) {
+	threshold := now.Add(-onlineWindowMinutes * time.Minute)
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Table("users").
+		Where("last_seen >= ?", threshold).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("statistics: count online: %w", err)
+	}
+	return count, nil
+}
+
+// SnapshotOnlinePeak обновляет дневной пик онлайна за сегодня.
+// Upsert по date: при конфликте берём MAX(существующий peak_count, текущий онлайн),
+// поэтому повторные вызовы за день не плодят строки и пик только растёт.
+func (s *statisticsService) SnapshotOnlinePeak(ctx context.Context) error {
+	now := time.Now().UTC()
+	current, err := s.countOnline(ctx, now)
+	if err != nil {
+		return err
+	}
+	today := now.Format("2006-01-02")
+	// ON CONFLICT (date) гарантирует одну строку на дату; peak_count монотонно
+	// не убывает за день. GREATEST на стороне БД исключает гонку чтение-запись.
+	if err := s.db.WithContext(ctx).Exec(`
+		INSERT INTO user_online_peaks (date, peak_count, created_at, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (date) DO UPDATE
+		SET peak_count = GREATEST(user_online_peaks.peak_count, EXCLUDED.peak_count),
+		    updated_at = EXCLUDED.updated_at`,
+		today, current, now, now).Error; err != nil {
+		return fmt.Errorf("statistics: snapshot online peak: %w", err)
+	}
+	return nil
+}
+
+// GetOnlinePeaks возвращает дневные пики онлайна за период [from, to], по возрастанию даты.
+func (s *statisticsService) GetOnlinePeaks(ctx context.Context, from, to time.Time) ([]models.OnlinePeakPoint, error) {
+	points := make([]models.OnlinePeakPoint, 0)
+	rows := []struct {
+		Date string
+		Peak int
+	}{}
+	if err := s.db.WithContext(ctx).
+		Table("user_online_peaks").
+		Where("date BETWEEN ? AND ?", from.Format("2006-01-02"), to.Format("2006-01-02")).
+		Select("to_char(date, 'YYYY-MM-DD') AS date, peak_count AS peak").
+		Order("date ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("statistics: online peaks: %w", err)
+	}
+	for _, r := range rows {
+		points = append(points, models.OnlinePeakPoint{Date: r.Date, Peak: r.Peak})
+	}
+	return points, nil
 }
 
 // timelineSource описывает источник данных для GetTimeline.
