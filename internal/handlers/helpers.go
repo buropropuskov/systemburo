@@ -59,3 +59,13 @@ func IsSuperAdmin(c echo.Context) bool {
 	v, _ := c.Get("is_super_admin").(bool)
 	return v
 }
+
+// viewerUserID возвращает id просматривающего для фильтра пер-вложенного пересыла (#680):
+// реальный user_id, либо 0 для супер-админа (без фильтра - видит все вложения).
+func viewerUserID(c echo.Context) int {
+	if IsSuperAdmin(c) {
+		return 0
+	}
+	id, _ := c.Get("user_id").(int)
+	return id
+}

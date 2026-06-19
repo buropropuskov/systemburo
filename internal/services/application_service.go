@@ -26,6 +26,57 @@ var allowedConfirmations = map[string]bool{
 	"Согласование": true, "Согласовано": true, "Не согласовано": true,
 }
 
+// forwardAttachmentVisible ограничивает агрегаты-теги заявки вложениями, видимыми
+// просматривающему с учётом пер-вложенного пересыла (#680): отправитель и пользователь
+// без строк forward_attachments видят все вложения, получатель со строками - только
+// перечисленные. Три плейсхолдера связываются с id просматривающего; ссылается на att.id
+// (вложение тег-подзапроса) и a (заявка внешнего запроса).
+const forwardAttachmentVisible = `(
+		a.sender_user_id = ?
+		OR NOT EXISTS (SELECT 1 FROM forward_attachments fa WHERE fa.application_id = a.id AND fa.recipient_user_id = ?)
+		OR EXISTS (SELECT 1 FROM forward_attachments fav WHERE fav.application_id = a.id AND fav.recipient_user_id = ? AND fav.attachment_id = att.id)
+	)`
+
+// applicationsListSelect - общий список столбцов для листингов заявок (Центр, пагинация,
+// заявки пользователя). Теги has_roof_access/has_free_parking учитывают видимость пересыла
+// (forwardAttachmentVisible). Плейсхолдеры (?) связываются через applicationsListSelectArgs.
+const applicationsListSelect = `
+		a.*,
+		COALESCE(o.name, c.name) as organization_name,
+		c.name as company_name,
+		format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
+		format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
+		u.is_important as sender_is_important,
+		format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
+		format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
+		EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
+		EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
+		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true AND ` + forwardAttachmentVisible + `) as has_roof_access,
+		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true AND ` + forwardAttachmentVisible + `) as has_free_parking,
+		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count
+	`
+
+// applicationsListSelectArgs связывает плейсхолдеры applicationsListSelect: is_read (1)
+// всегда по реальному id просматривающего; теги видимости (по три на каждый из двух) -
+// по forwardViewerID, который равен 0 для супер-админа (bypass фильтра пересыла, видит
+// все теги - симметрично resolveForwardFilter в detail-пути).
+func applicationsListSelectArgs(readUserID, forwardViewerID int) []interface{} {
+	return []interface{}{
+		readUserID,
+		forwardViewerID, forwardViewerID, forwardViewerID,
+		forwardViewerID, forwardViewerID, forwardViewerID,
+	}
+}
+
+// forwardViewerID возвращает id для фильтра видимости тегов: 0 (bypass) для супер-админа,
+// иначе реальный id - супер-админ видит все теги независимо от пересыла.
+func forwardViewerID(user *models.User) int {
+	if user.IsSuperAdmin {
+		return 0
+	}
+	return user.ID
+}
+
 // ApplicationService определяет интерфейс бизнес-логики для работы с заявками.
 type ApplicationService interface {
 	// GetApplications возвращает список заявок для Центра заявок с фильтрацией.
@@ -92,8 +143,12 @@ type ApplicationService interface {
 	// GetApplicationViewers возвращает просматривающих заявки.
 	GetApplicationViewers(ctx context.Context, applicationID int) ([]ViewerWithUser, error)
 
-	// GetApplicationAttachments возвращает вложения заявки.
-	GetApplicationAttachments(ctx context.Context, applicationID int) ([]AttachmentInfo, error)
+	// GetApplicationAttachments возвращает вложения заявки, видимые получателю пересылки
+	// (viewerUserID; 0 - супер-админ, без фильтра).
+	GetApplicationAttachments(ctx context.Context, applicationID, viewerUserID int) ([]AttachmentInfo, error)
+
+	// CanViewAttachment сообщает, доступно ли вложение просматривающему с учётом пересыла.
+	CanViewAttachment(ctx context.Context, applicationID, attachmentID, viewerUserID int) (bool, error)
 
 	// GetAttachmentCars возвращает автомобили вложения.
 	GetAttachmentCars(ctx context.Context, attachmentID int) ([]CarWithPlaces, error)
@@ -532,21 +587,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	}
 
 	query := s.db.WithContext(ctx).Table("applications a").
-		Select(`
-			a.*,
-			COALESCE(o.name, c.name) as organization_name,
-			c.name as company_name,
-			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
-			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
-			u.is_important as sender_is_important,
-			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
-			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
-			EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
-			EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true) as has_roof_access,
-			EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true) as has_free_parking,
-			(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count
-		`, user.ID).
+		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
@@ -600,21 +641,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 	offset := (page - 1) * perPage
 	dataQuery := s.buildApplicationsBaseQuery(ctx, user.ID, isApprover, filter)
 	dataQuery = dataQuery.
-		Select(`
-			a.*,
-			COALESCE(o.name, c.name) as organization_name,
-			c.name as company_name,
-			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
-			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
-			u.is_important as sender_is_important,
-			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
-			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
-			EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
-			EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true) as has_roof_access,
-			EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true) as has_free_parking,
-			(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count
-		`, user.ID).
+		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
 		Order("a.sending_datetime DESC").
 		Offset(offset).
 		Limit(perPage)
@@ -636,21 +663,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 	}
 
 	query := s.db.WithContext(ctx).Table("applications a").
-		Select(`
-			a.*,
-			COALESCE(o.name, c.name) as organization_name,
-			c.name as company_name,
-			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
-			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
-			u.is_important as sender_is_important,
-			format_full_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_full_name,
-			format_short_name(ru.last_name, ru.first_name, ru.middle_name) as responsible_name,
-			EXISTS (SELECT 1 FROM attachments att JOIN attachment_templates at2 ON at2.unique_attachment_id = att.unique_attachment_id AND at2.is_active = true WHERE att.application_id = a.id) as has_blank_template,
-			EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
-			EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true) as has_roof_access,
-			EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true) as has_free_parking,
-			(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count
-		`, user.ID).
+		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
 		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
 		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").

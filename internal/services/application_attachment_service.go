@@ -38,8 +38,66 @@ func (s *applicationService) GetApplicationViewers(ctx context.Context, applicat
 	return viewers, nil
 }
 
+// resolveForwardFilter определяет, ограничен ли просматривающий пер-вложенным пересылом
+// (#680), и какие вложения ему доступны. restricted=false означает «видит все вложения
+// заявки»: супер-админ (viewerUserID==0), отправитель заявки или пользователь без строк
+// forward_attachments для этой заявки (обратная совместимость). restricted=true -> allowed
+// содержит только перечисленные при пересылке вложения.
+func (s *applicationService) resolveForwardFilter(ctx context.Context, applicationID, viewerUserID int) (allowed map[int]bool, restricted bool, err error) {
+	if viewerUserID == 0 {
+		return nil, false, nil
+	}
+
+	var ids []int
+	if e := s.db.WithContext(ctx).Raw(
+		"SELECT attachment_id FROM forward_attachments WHERE application_id = ? AND recipient_user_id = ?",
+		applicationID, viewerUserID,
+	).Scan(&ids).Error; e != nil {
+		slog.Error("Ошибка чтения forward_attachments", "application_id", applicationID, "user_id", viewerUserID, "error", e)
+		return nil, false, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	if len(ids) == 0 {
+		return nil, false, nil
+	}
+
+	// Отправитель видит все вложения независимо от строк (напр. пересылка ему же).
+	var isSender bool
+	if e := s.db.WithContext(ctx).Raw(
+		"SELECT EXISTS(SELECT 1 FROM applications WHERE id = ? AND sender_user_id = ?)",
+		applicationID, viewerUserID,
+	).Scan(&isSender).Error; e != nil {
+		slog.Error("Ошибка проверки отправителя", "application_id", applicationID, "user_id", viewerUserID, "error", e)
+		return nil, false, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	if isSender {
+		return nil, false, nil
+	}
+
+	allowed = make(map[int]bool, len(ids))
+	for _, id := range ids {
+		allowed[id] = true
+	}
+	return allowed, true, nil
+}
+
+// CanViewAttachment сообщает, доступно ли конкретное вложение просматривающему с учётом
+// пер-вложенного пересыла (#680). viewerUserID==0 (супер-админ) и отправитель видят любое
+// вложение заявки; получатель с ограничением - только перечисленные.
+func (s *applicationService) CanViewAttachment(ctx context.Context, applicationID, attachmentID, viewerUserID int) (bool, error) {
+	allowed, restricted, err := s.resolveForwardFilter(ctx, applicationID, viewerUserID)
+	if err != nil {
+		return false, err
+	}
+	if !restricted {
+		return true, nil
+	}
+	return allowed[attachmentID], nil
+}
+
 // GetApplicationAttachments возвращает вложения заявки с информацией о шаблонах.
-func (s *applicationService) GetApplicationAttachments(ctx context.Context, applicationID int) ([]AttachmentInfo, error) {
+// viewerUserID ограничивает выдачу вложениями, доступными получателю пересылки (#680);
+// 0 - супер-админ, фильтр не применяется.
+func (s *applicationService) GetApplicationAttachments(ctx context.Context, applicationID, viewerUserID int) ([]AttachmentInfo, error) {
 	attachments := make([]AttachmentInfo, 0)
 	err := s.db.WithContext(ctx).Raw(`
 		SELECT
@@ -67,6 +125,20 @@ func (s *applicationService) GetApplicationAttachments(ctx context.Context, appl
 	if err != nil {
 		slog.Error("Ошибка получения вложений", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachments")
+	}
+
+	allowed, restricted, err := s.resolveForwardFilter(ctx, applicationID, viewerUserID)
+	if err != nil {
+		return nil, err
+	}
+	if restricted {
+		visible := make([]AttachmentInfo, 0, len(allowed))
+		for _, a := range attachments {
+			if allowed[a.ID] {
+				visible = append(visible, a)
+			}
+		}
+		attachments = visible
 	}
 
 	if len(attachments) > 0 {

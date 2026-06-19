@@ -151,7 +151,7 @@ func (h *ApplicationHandler) GetApplicationAttachments(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	attachments, err := h.service.GetApplicationAttachments(c.Request().Context(), id)
+	attachments, err := h.service.GetApplicationAttachments(c.Request().Context(), id, viewerUserID(c))
 	if err != nil {
 		return err
 	}
@@ -181,6 +181,14 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	canView, err := h.service.CanViewAttachment(c.Request().Context(), appID, id, viewerUserID(c))
+	if err != nil {
+		return err
+	}
+	if !canView {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
@@ -217,6 +225,14 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
+	canView, err := h.service.CanViewAttachment(c.Request().Context(), appID, id, viewerUserID(c))
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
 	employees, err := h.service.GetAttachmentEmployees(c.Request().Context(), id)
 	if err != nil {
 		return err
@@ -247,6 +263,14 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	canView, err := h.service.CanViewAttachment(c.Request().Context(), appID, id, viewerUserID(c))
+	if err != nil {
+		return err
+	}
+	if !canView {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
