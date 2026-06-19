@@ -346,12 +346,14 @@ func (s *statisticsService) GetTimeline(ctx context.Context, from, to time.Time,
 	}
 
 	// table, tsColumn и unit берутся только из whitelist-карт — безопасно подставлять в SQL.
-	// from, to и значения filter передаются через ? плейсхолдеры.
+	// from, to и значения filter передаются через ? плейсхолдеры. Бакетинг — в МСК
+	// (tzColumn), иначе сутки режутся по UTC-полуночи и точки «съезжают» на 3 часа.
+	tsBucket := tzColumn(src.tsColumn)
 	selectExpr := fmt.Sprintf(
 		"to_char(date_trunc('%s', %s), 'YYYY-MM-DD') AS date, COUNT(*) AS count",
-		unit, src.tsColumn,
+		unit, tsBucket,
 	)
-	groupExpr := fmt.Sprintf("date_trunc('%s', %s)", unit, src.tsColumn)
+	groupExpr := fmt.Sprintf("date_trunc('%s', %s)", unit, tsBucket)
 
 	tx := s.db.WithContext(ctx).
 		Table(src.table).

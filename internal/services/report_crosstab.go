@@ -196,7 +196,7 @@ var avgMetrics = map[string]bool{
 }
 
 // reportDateBounds извлекает границы периода [from, to] из date_range-фильтра запроса
-// (UTC, без МСК-логики — как везде в движке). Нужны для деления крайних неполных
+// (в МСК, как и бакетинг — parseReportDate). Нужны для деления крайних неполных
 // бинов на фактическое число дней пересечения с периодом.
 func reportDateBounds(filters []models.ReportFilterValue) (from, to time.Time, hasFrom, hasTo bool) {
 	for _, f := range filters {
@@ -226,8 +226,9 @@ func binDays(binStart time.Time, unit string, from, to time.Time, hasFrom, hasTo
 	}
 	hi := binEnd
 	if hasTo {
-		// to — конец дня (23:59:59); эксклюзивная граница окна = начало след. суток.
-		toExcl := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
+		// to — конец дня (23:59:59) МСК; эксклюзивная граница окна = начало след. суток
+		// в той же зоне (иначе смешение с MSK-бинами даёт дробные дни).
+		toExcl := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, analyticsLocation).AddDate(0, 0, 1)
 		if toExcl.Before(hi) {
 			hi = toExcl
 		}
@@ -299,8 +300,8 @@ func windowDays(from, to time.Time, hasFrom, hasTo bool) float64 {
 	if !hasFrom || !hasTo {
 		return 1
 	}
-	fromDay := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC)
-	toDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC)
+	fromDay := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, analyticsLocation)
+	toDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, analyticsLocation)
 	days := int(toDay.Sub(fromDay).Hours()/24) + 1
 	if days < 1 {
 		days = 1

@@ -313,11 +313,11 @@ func resolveAggDimension(s aggMetricSchema, dim, granularity string) (group, lab
 			}
 			unit = u
 		}
-		group = fmt.Sprintf("date_trunc('%s', %s)", unit, s.tsColumn)
+		group = fmt.Sprintf("date_trunc('%s', %s)", unit, tzColumn(s.tsColumn))
 		label = fmt.Sprintf("to_char(%s, 'YYYY-MM-DD')", group)
 		return group, label, s.tsJoin, nil
 	case "hour_of_day":
-		group = fmt.Sprintf("(EXTRACT(HOUR FROM %s))::int", s.tsColumn)
+		group = fmt.Sprintf("(EXTRACT(HOUR FROM %s))::int", tzColumn(s.tsColumn))
 		label = group + "::text"
 		return group, label, s.tsJoin, nil
 	default:
@@ -391,17 +391,19 @@ func clampLimit(limit int) int {
 	return limit
 }
 
-// parseReportDate парсит YYYY-MM-DD в UTC. endOfDay=true -> 23:59:59 (для верхней границы).
+// parseReportDate парсит YYYY-MM-DD как границу московских суток (бакетинг тоже в
+// МСК). endOfDay=true -> 23:59:59 МСК (для верхней границы). Инстант сравнивается
+// с timestamptz-колонками корректно вне зависимости от их хранения в UTC.
 func parseReportDate(s string, endOfDay bool) (time.Time, bool) {
 	if s == "" {
 		return time.Time{}, false
 	}
-	t, err := time.ParseInLocation("2006-01-02", s, time.UTC)
+	t, err := time.ParseInLocation("2006-01-02", s, analyticsLocation)
 	if err != nil {
 		return time.Time{}, false
 	}
 	if endOfDay {
-		return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.UTC), true
+		return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, analyticsLocation), true
 	}
 	return t, true
 }

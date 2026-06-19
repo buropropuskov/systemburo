@@ -23,11 +23,15 @@ func NewStatisticsHandler(service services.StatisticsService) *StatisticsHandler
 }
 
 // parseDateRange парсит from/to из query-параметров (формат YYYY-MM-DD).
-// По умолчанию — последние 7 дней. from -> начало дня, to -> конец дня (23:59:59).
+// По умолчанию — последние 7 дней. Границы считаются в московских сутках (как и
+// бакетинг аналитики), иначе "сегодня"/"неделя" съезжают на 3 часа: from -> начало
+// дня 00:00 МСК, to -> конец дня 23:59:59 МСК. Инстанты сравниваются с timestamptz
+// корректно вне зависимости от хранения в UTC.
 func parseDateRange(c echo.Context) (from, to time.Time) {
-	now := time.Now().UTC()
-	toDefault := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
-	fromDefault := toDefault.AddDate(0, 0, -6).Truncate(24 * time.Hour)
+	loc := services.AnalyticsLocation()
+	now := time.Now().In(loc)
+	toDefault := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, loc)
+	fromDefault := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -6)
 
 	fromStr := c.QueryParam("from")
 	toStr := c.QueryParam("to")
@@ -40,13 +44,13 @@ func parseDateRange(c echo.Context) (from, to time.Time) {
 	to = toDefault
 
 	if fromStr != "" {
-		if t, err := time.ParseInLocation("2006-01-02", fromStr, time.UTC); err == nil {
-			from = t // уже начало дня (00:00:00) в UTC
+		if t, err := time.ParseInLocation("2006-01-02", fromStr, loc); err == nil {
+			from = t // начало дня (00:00:00) в МСК
 		}
 	}
 	if toStr != "" {
-		if t, err := time.ParseInLocation("2006-01-02", toStr, time.UTC); err == nil {
-			to = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.UTC)
+		if t, err := time.ParseInLocation("2006-01-02", toStr, loc); err == nil {
+			to = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, loc)
 		}
 	}
 
