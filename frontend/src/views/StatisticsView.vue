@@ -284,6 +284,11 @@ function onRefresh() {
   color: #fff;
 }
 
+/* На активной кнопке hover не должен перекрашивать текст в синий — он сливается с фоном. */
+.period-preset--active:hover {
+  color: #fff;
+}
+
 /* Кнопка «Инструкция» в стиле проекта */
 .lk-button {
   display: inline-flex;

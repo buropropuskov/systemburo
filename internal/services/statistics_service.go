@@ -48,16 +48,19 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 		return nil, fmt.Errorf("statistics: count applications: %w", err)
 	}
 
-	// by_attachment_type
+	// by_attachment_type: все активные типы из справочника (включая нулевые за
+	// период) — раздел дашборда показывает блок на каждый тип системы, поэтому
+	// идём от unique_attachments, а не от фактических вложений.
 	summary.ByAttachmentType = make([]models.AttachmentTypeCount, 0)
+	attachmentName := "COALESCE(ua.display_name, ua.name, ua.title, ua.attachment_type)"
 	if err := s.db.WithContext(ctx).
-		Table("attachments a").
-		Joins("JOIN applications app ON app.id = a.application_id").
-		Joins("LEFT JOIN unique_attachments ua ON ua.id = a.unique_attachment_id").
-		Where("app.sending_datetime BETWEEN ? AND ?", from, to).
-		Select("COALESCE(ua.display_name, a.attachment_display_name, a.attachment_type) AS name, COUNT(*) AS count").
-		Group("COALESCE(ua.display_name, a.attachment_display_name, a.attachment_type)").
-		Order("count DESC").
+		Table("unique_attachments ua").
+		Joins("LEFT JOIN attachments a ON a.unique_attachment_id = ua.id").
+		Joins("LEFT JOIN applications app ON app.id = a.application_id AND app.sending_datetime BETWEEN ? AND ?", from, to).
+		Where("ua.is_active = true").
+		Select(attachmentName + " AS name, COUNT(app.id) AS count").
+		Group(attachmentName).
+		Order("count DESC, name ASC").
 		Scan(&summary.ByAttachmentType).Error; err != nil {
 		return nil, fmt.Errorf("statistics: by_attachment_type: %w", err)
 	}
