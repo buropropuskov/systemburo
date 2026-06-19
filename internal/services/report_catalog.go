@@ -74,6 +74,7 @@ var reportMetricOrder = []string{
 	"applications_count",
 	"car_entries_count",
 	"people_entries_count",
+	"avg_cars_per_day",
 	"items_sum",
 }
 
@@ -103,6 +104,17 @@ var reportMetricRegistry = map[string]metricDef{
 		aggExpr:    "COUNT(*)",
 		baseFilter: "action_type = 'entry'",
 		dimensions: []string{"period", "hour_of_day", "organization"},
+	},
+	"avg_cars_per_day": {
+		label:      "Среднее машин в день",
+		unit:       "шт/день",
+		group:      metricGroupCars,
+		baseTable:  "cars_history",
+		aggExpr:    "COUNT(*)",
+		baseFilter: "action_type = 'entry'",
+		// Только period (среднее в день имеет смысл только по времени) и none
+		// (общее среднее за весь период) — последний валидируется универсально.
+		dimensions: []string{"period"},
 	},
 	"items_sum": {
 		label:      "Количество товаров",
@@ -140,6 +152,15 @@ var reportDimensionRegistry = map[string]dimensionDef{
 	"unload_place":    {label: "Место разгрузки"},
 	"period":          {label: "Период (дата)"},
 	"hour_of_day":     {label: "Час суток"},
+}
+
+// pivotAttachmentType — ключ cross-tab оси "тип вложения" (значения -> колонки).
+const pivotAttachmentType = "attachment_type"
+
+// reportPivotRegistry — whitelist осей cross-tab. Каждая ось знает, для каких
+// метрик она применима (движок разворачивает её в колонки счётчиков заявок).
+var reportPivotRegistry = []models.ReportPivotInfo{
+	{Key: pivotAttachmentType, Label: "Тип вложения", Metrics: []string{"applications_count"}},
 }
 
 var reportFilterOrder = []string{
@@ -303,6 +324,7 @@ func buildReportCatalog(dyn dynamicReportOptions) models.ReportCatalog {
 		Filters:       make([]models.ReportFilterInfo, 0, len(reportFilterOrder)),
 		ListEntities:  make([]models.ReportListEntityInfo, 0, len(reportListEntityOrder)),
 		Granularities: reportGranularities,
+		Pivots:        reportPivotRegistry,
 	}
 
 	for _, key := range reportMetricOrder {

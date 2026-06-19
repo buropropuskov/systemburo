@@ -35,6 +35,15 @@ type ReportDimensionInfo struct {
 	Label string `json:"label"`
 }
 
+// ReportPivotInfo — ось cross-tab: значения этой оси разворачиваются в колонки при
+// Dimension="period". Metrics — метрики, для которых pivot применим (фронт прячет
+// опцию для прочих). Пока единственная ось — тип вложения для applications_count.
+type ReportPivotInfo struct {
+	Key     string   `json:"key"`
+	Label   string   `json:"label"`
+	Metrics []string `json:"metrics"`
+}
+
 // ReportFilterInfo — поле фильтра. Для enum/dict Options заполнены значениями.
 type ReportFilterInfo struct {
 	Key     string          `json:"key"`
@@ -66,4 +75,5 @@ type ReportCatalog struct {
 	Filters       []ReportFilterInfo     `json:"filters"`
 	ListEntities  []ReportListEntityInfo `json:"list_entities"`
 	Granularities []ReportOption         `json:"granularities"`
+	Pivots        []ReportPivotInfo      `json:"pivots,omitempty"`
 }

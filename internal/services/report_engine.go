@@ -151,6 +151,33 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 			"citizenship":     {expr: "cz.name", join: jChain},
 		},
 	},
+	// avg_cars_per_day считает COUNT(entry) по бинам так же, как car_entries_count;
+	// деление на число календарных дней бина выполняет RunReport (postprocess),
+	// поэтому aggExpr тут — счётчик, а не среднее. Доступные разрезы: period/none.
+	"avg_cars_per_day": {
+		base:      "cars_history ch",
+		aggExpr:   "COUNT(*)",
+		baseWhere: "ch.action_type = 'entry'",
+		tsColumn:  "ch.created_at",
+		tsJoin:    jNone,
+		unit:      "шт/день",
+		joinBlock: []string{
+			"JOIN cars c ON c.id = ch.car_id",
+			"LEFT JOIN attachments att ON att.id = c.attachment_id",
+			"LEFT JOIN applications app ON app.id = att.application_id",
+			"LEFT JOIN organizations org ON org.id = app.organization_id",
+			"LEFT JOIN companies comp ON comp.id = app.company_id",
+			"LEFT JOIN unique_attachments ua ON ua.id = att.unique_attachment_id",
+		},
+		dims: map[string]aggColumn{},
+		filters: map[string]aggColumn{
+			"organization":    {expr: "org.name", join: jChain},
+			"company":         {expr: "comp.name", join: jChain},
+			"status":          {expr: "app.status", join: jChain},
+			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jChain},
+			"unload_place":    {expr: "c.unload_place", join: jChain},
+		},
+	},
 	"items_sum": {
 		base:     "items",
 		aggExpr:  "COALESCE(SUM(items.count), 0)",
