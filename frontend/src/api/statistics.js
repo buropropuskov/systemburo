@@ -54,6 +54,8 @@ export async function getTimeline({ from, to, metric, granularity }) {
 
 /**
  * Получить серию дневных пиков онлайна пользователей за период.
+ * Потребитель — карточка динамики онлайна на дашборде (срез G3b); там форма
+ * {date, peak} мапится в {timestamp, count} под AnalyticsAreaChart, как chartData.
  * @param {string} from - дата начала в формате YYYY-MM-DD
  * @param {string} to   - дата конца в формате YYYY-MM-DD
  * @returns {Promise<Array<{date: string, peak: number}>>} по возрастанию даты

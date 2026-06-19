@@ -115,7 +115,7 @@ const options = computed(() => ({
   markers: { size: 0, strokeWidth: 2, hover: { size: 5 } },
   xaxis: {
     categories: categories.value,
-    tickAmount: Math.min(8, Math.max(1, categories.value.length - 1)),
+    tickAmount: Math.min(8, categories.value.length),
     labels: {
       rotate: 0,
       hideOverlappingLabels: true,
