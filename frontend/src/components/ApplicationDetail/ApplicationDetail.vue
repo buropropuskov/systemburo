@@ -9,8 +9,9 @@
       :show="showForwardModal"
       :all-users="allUsers"
       :responsible-users="responsibleUsers"
-      :existing-approvers="approvers"  
-      :existing-viewers="viewers"       
+      :existing-approvers="approvers"
+      :existing-viewers="viewers"
+      :attachments="attachments"
       :is-sending="isForwarding"
       @close="closeForwardModal"
       @send="sendForwardRequest"
@@ -766,21 +767,22 @@ export default {
             this.showForwardModal = false;
         },
 
-        async sendForwardRequest(selectedUsers) {
-            if (selectedUsers.length === 0) return;
-            
+        async sendForwardRequest({ users = [], attachment_ids = [] } = {}) {
+            if (users.length === 0) return;
+
             this.isForwarding = true;
             try {
-                const usersToSend = selectedUsers.map(user => ({
+                const usersToSend = users.map(user => ({
                     user_id: user.user_id,
                     required_approval: user.required_approval || false,
                     can_view: user.can_view !== undefined ? user.can_view : !user.required_approval
                 }));
-                
+
                 const response = await apiRequest(`/applications/${this.applicationData.id}/forward`, {
                     method: "POST",
                     body: JSON.stringify({
-                        users: usersToSend
+                        users: usersToSend,
+                        attachment_ids
                     })
                 });
 

@@ -141,6 +141,57 @@
       >
         <p>Выберите пользователей для пересылки заявки</p>
       </div>
+
+      <div
+        v-if="attachments.length > 0"
+        class="forward-attachments"
+        data-testid="forward-modal-attachments"
+      >
+        <div class="forward-attachments-header">
+          <h4>Вложения для пересылки ({{ selectedAttachmentIds.length }}/{{ attachments.length }})</h4>
+          <label class="forward-attachments-all">
+            <input
+              ref="selectAllCheckbox"
+              type="checkbox"
+              class="forward-attachment-checkbox"
+              :checked="allAttachmentsSelected"
+              data-testid="forward-modal-attachments-all"
+              @change="toggleAllAttachments($event.target.checked)"
+            >
+            <span>Выбрать все</span>
+          </label>
+        </div>
+        <div class="forward-attachments-list">
+          <label
+            v-for="attachment in attachments"
+            :key="attachment.id"
+            class="forward-attachment-item"
+            data-testid="forward-modal-attachment"
+          >
+            <input
+              v-model="selectedAttachmentIds"
+              type="checkbox"
+              class="forward-attachment-checkbox"
+              :value="attachment.id"
+            >
+            <span class="forward-attachment-info">
+              <span class="forward-attachment-name">
+                {{ attachment.attachment_display_name || attachment.attachment_name }}
+              </span>
+              <span
+                v-if="attachment.unique_attachment_title"
+                class="forward-attachment-group"
+              >{{ attachment.unique_attachment_title }}</span>
+            </span>
+          </label>
+        </div>
+        <p
+          v-if="selectedAttachmentIds.length === 0"
+          class="forward-attachments-hint"
+        >
+          Выберите хотя бы одно вложение для пересылки
+        </p>
+      </div>
     </div>
 
     <template #actions>
@@ -156,7 +207,7 @@
         type="button"
         class="lk-button lk-button--primary"
         data-testid="forward-modal-button-send"
-        :disabled="selectedUsers.length === 0 || isSending"
+        :disabled="!canSend"
         @click="send"
       >
         {{ isSending ? 'Отправка...' : 'Отправить' }}
@@ -193,6 +244,11 @@ export default {
             type: Array,
             default: () => []
         },
+        // Вложения заявки для выбора, какие переслать получателям (#680).
+        attachments: {
+            type: Array,
+            default: () => []
+        },
         isSending: {
             type: Boolean,
             default: false
@@ -204,7 +260,8 @@ export default {
             searchQuery: '',
             searchResults: [],
             showDropdown: false,
-            selectedUsers: [] // Каждый пользователь будет иметь поля: requires_approval, required_approval
+            selectedUsers: [], // Каждый пользователь будет иметь поля: requires_approval, required_approval
+            selectedAttachmentIds: [] // ID вложений для пересылки; по умолчанию выбраны все
         }
     },
     computed: {
@@ -263,6 +320,30 @@ export default {
             }
 
             return availableUsers.slice(0, 15);
+        },
+
+        // Все вложения отмечены (для мастер-чекбокса "Выбрать все")
+        allAttachmentsSelected() {
+            return this.attachments.length > 0 &&
+                this.selectedAttachmentIds.length === this.attachments.length;
+        },
+
+        // Выбрана часть вложений - мастер-чекбокс уходит в indeterminate.
+        someAttachmentsSelected() {
+            return this.selectedAttachmentIds.length > 0 && !this.allAttachmentsSelected;
+        },
+
+        // Отправка возможна: есть получатели и (нет вложений или выбрано хотя бы одно).
+        // Пустой список вложений на бэке означает "видны все" - запрещаем такую отправку,
+        // чтобы снятие всех галочек не оборачивалось показом всех вложений получателю.
+        canSend() {
+            if (this.isSending || this.selectedUsers.length === 0) {
+                return false;
+            }
+            if (this.attachments.length > 0 && this.selectedAttachmentIds.length === 0) {
+                return false;
+            }
+            return true;
         }
     },
     watch: {
@@ -273,8 +354,17 @@ export default {
                 this.reset();
                 this.$nextTick(() => {
                     this.$refs.searchInput?.focus();
+                    this.syncSelectAllIndeterminate();
                 });
             }
+        },
+        // indeterminate - DOM-свойство, его нельзя выставить через :checked,
+        // поэтому синхронизируем вручную после обновления выбора (flush: post - DOM уже готов).
+        selectedAttachmentIds: {
+            handler() {
+                this.syncSelectAllIndeterminate();
+            },
+            flush: 'post'
         }
     },
     methods: {
@@ -325,6 +415,17 @@ export default {
             }, 200);
         },
 
+        toggleAllAttachments(checked) {
+            this.selectedAttachmentIds = checked ? this.attachments.map(a => a.id) : [];
+        },
+
+        syncSelectAllIndeterminate() {
+            const el = this.$refs.selectAllCheckbox;
+            if (el) {
+                el.indeterminate = this.someAttachmentsSelected;
+            }
+        },
+
         close() {
             this.$emit('close');
         },
@@ -350,13 +451,18 @@ export default {
                 }
             });
 
-            this.$emit('send', usersToSend);
+            this.$emit('send', {
+                users: usersToSend,
+                attachment_ids: [...this.selectedAttachmentIds]
+            });
         },
 
         reset() {
             this.selectedUsers = [];
             this.searchQuery = '';
             this.showDropdown = false;
+            // По умолчанию пересылаем все вложения (старое поведение), пользователь сужает.
+            this.selectedAttachmentIds = this.attachments.map(a => a.id);
         }
     }
 }
@@ -619,25 +725,122 @@ export default {
     background: #fafafa;
 }
 
+.forward-attachments {
+    display: flex;
+    flex-direction: column;
+    margin-top: 20px;
+}
+
+.forward-attachments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.forward-attachments-header h4 {
+    font-size: 16px;
+    color: var(--color-text);
+    font-weight: 600;
+    margin: 0;
+}
+
+.forward-attachments-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #6b7280;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.forward-attachments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.forward-attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.forward-attachment-item:hover {
+    border-color: var(--color-primary);
+    background: var(--color-bg);
+}
+
+.forward-attachment-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.forward-attachment-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.forward-attachment-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.forward-attachment-group {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.forward-attachments-hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--color-danger);
+}
+
 .forward-user-dropdown-content::-webkit-scrollbar,
-.forward-users-list-container::-webkit-scrollbar {
+.forward-users-list-container::-webkit-scrollbar,
+.forward-attachments-list::-webkit-scrollbar {
     width: 6px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-track,
-.forward-users-list-container::-webkit-scrollbar-track {
+.forward-users-list-container::-webkit-scrollbar-track,
+.forward-attachments-list::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 10px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-thumb,
-.forward-users-list-container::-webkit-scrollbar-thumb {
+.forward-users-list-container::-webkit-scrollbar-thumb,
+.forward-attachments-list::-webkit-scrollbar-thumb {
     background: #c1c1c1;
     border-radius: 10px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-thumb:hover,
-.forward-users-list-container::-webkit-scrollbar-thumb:hover {
+.forward-users-list-container::-webkit-scrollbar-thumb:hover,
+.forward-attachments-list::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
 </style>
