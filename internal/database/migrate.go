@@ -84,6 +84,9 @@ func AllModels() []interface{} {
 		// Attachments (depends on Application, UniqueAttachment)
 		&models.Attachment{},
 
+		// Forward attachments (#680: пер-вложенный пересыл; depends on Application, User, Attachment)
+		&models.ForwardAttachment{},
+
 		// Attachment templates (#183: Excel-бланки)
 		&models.AttachmentTemplate{},
 		&models.AttachmentTemplateMapping{},
