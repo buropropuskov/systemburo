@@ -151,14 +151,14 @@
           <h4>Вложения для пересылки ({{ selectedAttachmentIds.length }}/{{ attachments.length }})</h4>
           <label class="forward-attachments-all">
             <input
-              ref="selectAllCheckbox"
               type="checkbox"
-              class="forward-attachment-checkbox"
+              class="setting-checkbox"
               :checked="allAttachmentsSelected"
               data-testid="forward-modal-attachments-all"
               @change="toggleAllAttachments($event.target.checked)"
             >
-            <span>Выбрать все</span>
+            <span class="toggle-slider" />
+            <span class="forward-attachments-all-text">Выбрать все</span>
           </label>
         </div>
         <div class="forward-attachments-list">
@@ -171,9 +171,10 @@
             <input
               v-model="selectedAttachmentIds"
               type="checkbox"
-              class="forward-attachment-checkbox"
+              class="setting-checkbox"
               :value="attachment.id"
             >
+            <span class="toggle-slider" />
             <span class="forward-attachment-info">
               <span class="forward-attachment-name">
                 {{ attachment.attachment_display_name || attachment.attachment_name }}
@@ -322,15 +323,10 @@ export default {
             return availableUsers.slice(0, 15);
         },
 
-        // Все вложения отмечены (для мастер-чекбокса "Выбрать все")
+        // Все вложения отмечены (мастер-тумблер "Выбрать все" в положении вкл).
         allAttachmentsSelected() {
             return this.attachments.length > 0 &&
                 this.selectedAttachmentIds.length === this.attachments.length;
-        },
-
-        // Выбрана часть вложений - мастер-чекбокс уходит в indeterminate.
-        someAttachmentsSelected() {
-            return this.selectedAttachmentIds.length > 0 && !this.allAttachmentsSelected;
         },
 
         // Отправка возможна: есть получатели и (нет вложений или выбрано хотя бы одно).
@@ -354,17 +350,8 @@ export default {
                 this.reset();
                 this.$nextTick(() => {
                     this.$refs.searchInput?.focus();
-                    this.syncSelectAllIndeterminate();
                 });
             }
-        },
-        // indeterminate - DOM-свойство, его нельзя выставить через :checked,
-        // поэтому синхронизируем вручную после обновления выбора (flush: post - DOM уже готов).
-        selectedAttachmentIds: {
-            handler() {
-                this.syncSelectAllIndeterminate();
-            },
-            flush: 'post'
         }
     },
     methods: {
@@ -417,13 +404,6 @@ export default {
 
         toggleAllAttachments(checked) {
             this.selectedAttachmentIds = checked ? this.attachments.map(a => a.id) : [];
-        },
-
-        syncSelectAllIndeterminate() {
-            const el = this.$refs.selectAllCheckbox;
-            if (el) {
-                el.indeterminate = this.someAttachmentsSelected;
-            }
         },
 
         close() {
@@ -749,9 +729,9 @@ export default {
 .forward-attachments-all {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 13px;
-    color: #6b7280;
+    color: var(--color-text);
     cursor: pointer;
     user-select: none;
     flex-shrink: 0;
@@ -769,26 +749,15 @@ export default {
 .forward-attachment-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
+    gap: 12px;
+    padding: 9px 8px;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    transition: background-color 0.2s ease;
 }
 
 .forward-attachment-item:hover {
-    border-color: var(--color-primary);
-    background: var(--color-bg);
-}
-
-.forward-attachment-checkbox {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-primary);
-    cursor: pointer;
-    flex-shrink: 0;
+    background: #f5f7ff;
 }
 
 .forward-attachment-info {
@@ -808,8 +777,13 @@ export default {
 }
 
 .forward-attachment-group {
-    font-size: 12px;
-    color: #6b7280;
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-primary);
+    background: #eef1ff;
+    padding: 1px 8px;
+    border-radius: 8px;
 }
 
 .forward-attachments-hint {

@@ -49,24 +49,20 @@ describe('ForwardModal — выбор вложений (#680, срез fe-select
     expect(wrapper.vm.selectedAttachmentIds).toEqual([1, 2, 3]);
   });
 
-  it('частичный выбор переводит мастер-чекбокс в indeterminate', async () => {
+  it('мастер-тумблер вкл при всех выбранных и выкл при частичном выборе', async () => {
     const wrapper = await mountOpened();
     const all = wrapper.find('[data-testid="forward-modal-attachments-all"]');
     await wrapper.vm.$nextTick();
     expect(all.element.checked).toBe(true);
-    expect(all.element.indeterminate).toBe(false);
 
     await attachmentBoxes(wrapper)[1].setValue(false);
     await wrapper.vm.$nextTick();
     expect(all.element.checked).toBe(false);
-    expect(all.element.indeterminate).toBe(true);
 
-    // Снимаем оставшиеся - выбор пуст, indeterminate гаснет.
-    await attachmentBoxes(wrapper)[0].setValue(false);
-    await attachmentBoxes(wrapper)[2].setValue(false);
+    // Возврат всех - мастер-тумблер снова вкл.
+    await attachmentBoxes(wrapper)[1].setValue(true);
     await wrapper.vm.$nextTick();
-    expect(wrapper.vm.selectedAttachmentIds).toEqual([]);
-    expect(all.element.indeterminate).toBe(false);
+    expect(all.element.checked).toBe(true);
   });
 
   it('снятие галочки с вложения исключает его id из выбора', async () => {
