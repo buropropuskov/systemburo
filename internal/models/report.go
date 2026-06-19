@@ -14,13 +14,16 @@ type ReportFilterValue struct {
 // Metrics имеет приоритет; если он пуст — берётся Metric (обратная совместимость с
 // одиночным конструктором). Каждая метрика становится колонкой результата.
 // Dimension="none" — без разреза (один итоговый ряд).
-// Mode=list: выгрузка строк сущности (Entity).
+// Pivot (опц.) — cross-tab: при Dimension="period" каждое значение оси Pivot
+// (например "attachment_type") разворачивается в отдельную колонку-счётчик рядом с
+// метриками. Пустой Pivot -> обычный отчёт. Mode=list: выгрузка строк сущности (Entity).
 type ReportRequest struct {
 	Mode        string              `json:"mode"`
 	Metric      string              `json:"metric"`
 	Metrics     []string            `json:"metrics,omitempty"`
 	Dimension   string              `json:"dimension"`
 	Granularity string              `json:"granularity"`
+	Pivot       string              `json:"pivot,omitempty"`
 	Entity      string              `json:"entity"`
 	Filters     []ReportFilterValue `json:"filters"`
 	Sort        string              `json:"sort"`
@@ -33,18 +36,35 @@ type ReportAggregateRow struct {
 	Value int64  `json:"value"`
 }
 
-// ReportMetricColumn — колонка-метрика мультиметричного отчёта (ключ, подпись, единица).
+// ReportColumnKind различает тип колонки результата: обычная метрика или
+// pivot-колонка cross-tab (значение оси Pivot, развёрнутое в столбец).
+type ReportColumnKind string
+
+const (
+	ReportColumnMetric ReportColumnKind = "metric" // обычная метрика (Values)
+	ReportColumnPivot  ReportColumnKind = "pivot"  // cross-tab колонка (Values)
+)
+
+// ReportMetricColumn — колонка мультиметричного/cross-tab отчёта (ключ, подпись, единица).
+// Kind пуст для обычных метрик (обратная совместимость) либо "pivot" для cross-tab
+// колонок. Float=true -> значение колонки лежит в ReportMetricRow.FloatValues
+// (дробные метрики вроде среднего), иначе — в Values (целые счётчики).
 type ReportMetricColumn struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Unit  string `json:"unit,omitempty"`
+	Key   string           `json:"key"`
+	Label string           `json:"label"`
+	Unit  string           `json:"unit,omitempty"`
+	Kind  ReportColumnKind `json:"kind,omitempty"`
+	Float bool             `json:"float,omitempty"`
 }
 
-// ReportMetricRow — строка мультиметрик: подпись разреза + значение каждой метрики
-// (по её ключу). Метрики без значения в этом бакете -> 0.
+// ReportMetricRow — строка мультиметрик: подпись разреза + значение каждой колонки
+// (по её ключу). Целочисленные колонки (счётчики, суммы, pivot) -> Values; дробные
+// (средние) -> FloatValues. Колонки без значения в этом бакете -> 0. FloatValues
+// заполняется только при наличии дробных метрик (omitempty -> старый ответ не меняется).
 type ReportMetricRow struct {
-	Label  string           `json:"label"`
-	Values map[string]int64 `json:"values"`
+	Label       string             `json:"label"`
+	Values      map[string]int64   `json:"values"`
+	FloatValues map[string]float64 `json:"float_values,omitempty"`
 }
 
 // ReportResponse — результат агрегатного отчёта.
@@ -60,9 +80,10 @@ type ReportResponse struct {
 	Rows      []ReportAggregateRow `json:"rows"`
 	Total     int64                `json:"total"`
 
-	Columns    []ReportMetricColumn `json:"columns,omitempty"`
-	MetricRows []ReportMetricRow    `json:"metric_rows,omitempty"`
-	Totals     map[string]int64     `json:"totals,omitempty"`
+	Columns     []ReportMetricColumn `json:"columns,omitempty"`
+	MetricRows  []ReportMetricRow    `json:"metric_rows,omitempty"`
+	Totals      map[string]int64     `json:"totals,omitempty"`
+	FloatTotals map[string]float64   `json:"float_totals,omitempty"`
 }
 
 // ReportListResponse — результат list-отчёта (mode=list): выгрузка строк сущности.

@@ -454,6 +454,37 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 
 	metricRows, totals := mergeMetricRows(metrics, perMetric, req.Dimension, req.Sort, clampLimit(req.Limit))
 
+	// Cross-tab (G4): при заданном req.Pivot и разрезе period — развернуть значения
+	// оси pivot в добавочные колонки-счётчики (отдельной веткой движка). Невалидный
+	// pivot (неизвестная ось / неприменима к метрикам / не period) -> 400.
+	axis, pivotOn, perr := resolvePivot(req.Pivot, req.Dimension, metrics)
+	if perr != nil {
+		return nil, perr
+	}
+	if pivotOn {
+		pivotCols, cerr := s.collectPivotColumns(ctx, metrics, axis, req, metricRows)
+		if cerr != nil {
+			return nil, cerr
+		}
+		columns = append(columns, pivotCols...)
+	}
+
+	// Метрики-средние (avg_*): целые счётчики бинов делятся на число дней бина в Go
+	// (постпроцесс), значения переходят в FloatValues. Колонка помечается Float.
+	var floatTotals map[string]float64
+	for i, m := range metrics {
+		if !avgMetrics[m] {
+			continue
+		}
+		total := applyAvgPerDay(metricRows, m, req.Dimension, req.Granularity, req.Filters)
+		columns[i].Float = true
+		if floatTotals == nil {
+			floatTotals = map[string]float64{}
+		}
+		floatTotals[m] = total
+		delete(totals, m)
+	}
+
 	// Legacy-поля одиночной метрики (текущий FE читает Rows/Total/Unit): первая
 	// метрика как label/value по уже упорядоченным строкам. Unit берём из той же
 	// колонки (единый источник — план метрики), чтобы columns[].unit и legacy unit
@@ -465,16 +496,59 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 	}
 
 	return &models.ReportResponse{
-		Mode:       "aggregate",
-		Metric:     first,
-		Dimension:  req.Dimension,
-		Unit:       columns[0].Unit,
-		Rows:       legacyRows,
-		Total:      totals[first],
-		Columns:    columns,
-		MetricRows: metricRows,
-		Totals:     totals,
+		Mode:        "aggregate",
+		Metric:      first,
+		Dimension:   req.Dimension,
+		Unit:        columns[0].Unit,
+		Rows:        legacyRows,
+		Total:       totals[first],
+		Columns:     columns,
+		MetricRows:  metricRows,
+		Totals:      totals,
+		FloatTotals: floatTotals,
 	}, nil
+}
+
+// collectPivotColumns исполняет cross-tab запрос по каждой метрике оси и вписывает
+// ячейки в уже упорядоченные строки, возвращая добавочные pivot-колонки. Несколько
+// метрик с одной осью дают один общий набор pivot-колонок (счётчики складываются —
+// все метрики оси считают заявки по тому же выражению).
+func (s *statisticsService) collectPivotColumns(ctx context.Context, metrics []string, axis models.ReportPivotInfo, req models.ReportRequest, metricRows []models.ReportMetricRow) ([]models.ReportMetricColumn, error) {
+	var cells []pivotCell
+	for _, m := range metrics {
+		plan, perr := buildPivotPlan(m, axis.Key, req.Granularity, req.Filters)
+		if perr != nil {
+			return nil, perr
+		}
+		mcells, eerr := s.execPivotPlan(ctx, plan)
+		if eerr != nil {
+			return nil, eerr
+		}
+		cells = append(cells, mcells...)
+	}
+	return applyPivotCells(metricRows, cells, axis.Label), nil
+}
+
+// execPivotPlan исполняет cross-tab запрос: GROUP BY (период-бин, ось pivot) ->
+// счётчик. period-подпись совпадает с label обычных period-строк (для слияния).
+func (s *statisticsService) execPivotPlan(ctx context.Context, plan *pivotPlan) ([]pivotCell, error) {
+	selectStr := fmt.Sprintf("%s AS period, %s AS pivot, %s AS count",
+		plan.labelExpr, plan.pivotExpr, plan.aggExpr)
+	tx := s.db.WithContext(ctx).Table(plan.table).Select(selectStr)
+	for _, j := range plan.joins {
+		tx = tx.Joins(j)
+	}
+	for _, w := range plan.wheres {
+		tx = tx.Where(w.expr, w.args...)
+	}
+
+	cells := make([]pivotCell, 0)
+	if err := tx.
+		Group(plan.periodExpr + ", " + plan.pivotExpr).
+		Scan(&cells).Error; err != nil {
+		return nil, fmt.Errorf("statistics: run report pivot: %w", err)
+	}
+	return cells, nil
 }
 
 // execAggregatePlan исполняет один резолвленный план агрегата и возвращает строки
