@@ -14,7 +14,7 @@
         class="dashboard__tiles"
       >
         <div
-          v-for="n in 9"
+          v-for="n in 6"
           :key="n"
           class="dashboard__tile dashboard__tile--skeleton"
         />
@@ -25,30 +25,12 @@
         class="dashboard__tiles"
       >
         <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Всего заявок</div>
+          <div class="dashboard__tile-label">Получено заявок</div>
           <div class="dashboard__tile-val">{{ fmt(summary.total_applications) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Вложения (всего)</div>
-          <div class="dashboard__tile-val">{{ fmt(attachmentsTotal) }}</div>
-          <div
-            v-if="attachmentBreakdown.length"
-            class="dashboard__tile-breakdown"
-          >
-            <span
-              v-for="item in attachmentBreakdown"
-              :key="item.label"
-              class="dashboard__breakdown-item"
-            >{{ item.label }}: {{ item.count }}</span>
-          </div>
         </div>
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Обработано</div>
           <div class="dashboard__tile-val">{{ fmt(summary.processed) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">В работе</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.in_work) }}</div>
         </div>
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Машин заехало</div>
@@ -59,16 +41,53 @@
           <div class="dashboard__tile-val">{{ fmt(summary.people_entered) }}</div>
         </div>
         <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Сумма товаров</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.items_sum) }}</div>
-        </div>
-        <div class="dashboard__tile">
           <div class="dashboard__tile-label">Машин на территории</div>
           <div class="dashboard__tile-val">{{ fmt(summary.cars_on_territory) }}</div>
         </div>
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Людей на территории</div>
           <div class="dashboard__tile-val">{{ fmt(summary.people_on_territory) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ГРУППА: ВЛОЖЕНИЯ ===== -->
+    <div class="dashboard__group">
+      <div class="dashboard__group-head">
+        <h2 class="dashboard__group-title">Вложения</h2>
+        <span class="dashboard__group-chip">по типам за период</span>
+        <span class="dashboard__group-rule" />
+      </div>
+
+      <div
+        v-if="summaryLoading"
+        class="dashboard__tiles"
+      >
+        <div
+          v-for="n in 6"
+          :key="n"
+          class="dashboard__tile dashboard__tile--skeleton"
+        />
+      </div>
+
+      <div
+        v-else-if="attachmentBreakdown.length === 0"
+        class="dashboard__feed-empty"
+      >
+        В системе нет настроенных типов вложений
+      </div>
+
+      <div
+        v-else
+        class="dashboard__tiles"
+      >
+        <div
+          v-for="item in attachmentBreakdown"
+          :key="item.label"
+          class="dashboard__tile"
+        >
+          <div class="dashboard__tile-label">{{ item.label }}</div>
+          <div class="dashboard__tile-val">{{ fmt(item.count) }}</div>
         </div>
       </div>
     </div>
@@ -101,7 +120,7 @@
           <div class="dashboard__tile-val">{{ fmt(summary.users_online) }}</div>
         </div>
         <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Активных пользователей</div>
+          <div class="dashboard__tile-label">Пользователи</div>
           <div class="dashboard__tile-val">{{ fmt(summary.active_users) }}</div>
         </div>
         <div class="dashboard__tile">
@@ -171,7 +190,10 @@
             <span class="dashboard__live-dot" />
             Проход людей
           </h3>
-          <span class="dashboard__feed-meta">обновление каждые 10 сек · UTC+3</span>
+          <RefreshButton
+            :loading="feedRefreshing"
+            @refresh="refreshFeeds"
+          />
         </div>
 
         <div class="dashboard__feed-list">
@@ -187,8 +209,8 @@
           </template>
           <template v-else>
             <div
-              v-for="(row, idx) in peopleFeed"
-              :key="idx"
+              v-for="row in peopleFeed"
+              :key="feedRowKey(row)"
               class="dashboard__feed-row"
             >
               <div class="dashboard__feed-main">
@@ -218,7 +240,10 @@
             <span class="dashboard__live-dot" />
             Проезд машин
           </h3>
-          <span class="dashboard__feed-meta">обновление каждые 10 сек · UTC+3</span>
+          <RefreshButton
+            :loading="feedRefreshing"
+            @refresh="refreshFeeds"
+          />
         </div>
 
         <div class="dashboard__feed-list">
@@ -234,8 +259,8 @@
           </template>
           <template v-else>
             <div
-              v-for="(row, idx) in carsFeed"
-              :key="idx"
+              v-for="row in carsFeed"
+              :key="feedRowKey(row)"
               class="dashboard__feed-row"
             >
               <div class="dashboard__plate">{{ row.subject }}</div>
@@ -267,7 +292,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import RealTimeChart from '@/components/RealTimeChart.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import { getSummary, getTimeline, getRecentPassages } from '@/api/statistics.js';
+import { mergeFeed, feedRowKey } from './feedMerge.js';
 
 const props = defineProps({
   from: {
@@ -290,6 +317,7 @@ const timelineLoading = ref(false);
 const peopleFeed = ref([]);
 const carsFeed = ref([]);
 const feedLoading = ref(false);
+const feedRefreshing = ref(false);
 
 // ---- переключатели графика ----
 const metricOptions = [
@@ -324,12 +352,6 @@ const chartData = computed(() =>
 );
 
 // ---- вычисляемые из summary ----
-const attachmentsTotal = computed(() => {
-  const list = summary.value.by_attachment_type;
-  if (!Array.isArray(list)) return 0;
-  return list.reduce((s, item) => s + (item?.count || 0), 0);
-});
-
 const attachmentBreakdown = computed(() => {
   const list = summary.value.by_attachment_type;
   if (!Array.isArray(list)) return [];
@@ -392,17 +414,36 @@ async function loadTimeline() {
   }
 }
 
-async function loadFeed() {
-  feedLoading.value = true;
+// showSkeleton: только первичная загрузка показывает скелетоны. Фоновые тики и
+// ручное обновление доливают новые записи сверху через mergeFeed — без мигания
+// всего блока и без перерисовки уже показанных строк.
+async function loadFeed({ showSkeleton = false } = {}) {
+  if (showSkeleton) feedLoading.value = true;
   try {
     const data = await getRecentPassages(15);
-    peopleFeed.value = Array.isArray(data?.people) ? data.people : [];
-    carsFeed.value = Array.isArray(data?.cars) ? data.cars : [];
+    const people = Array.isArray(data?.people) ? data.people : [];
+    const cars = Array.isArray(data?.cars) ? data.cars : [];
+    peopleFeed.value = mergeFeed(peopleFeed.value, people);
+    carsFeed.value = mergeFeed(carsFeed.value, cars);
   } catch {
-    peopleFeed.value = [];
-    carsFeed.value = [];
+    // Фоновый сбой не должен очищать уже показанные ленты — чистим только при
+    // первичной загрузке, где показать пустоту корректнее, чем скелетон навсегда.
+    if (showSkeleton) {
+      peopleFeed.value = [];
+      carsFeed.value = [];
+    }
   } finally {
-    feedLoading.value = false;
+    if (showSkeleton) feedLoading.value = false;
+  }
+}
+
+// Ручное обновление лент — крутит RefreshButton, не показывает скелетон.
+async function refreshFeeds() {
+  feedRefreshing.value = true;
+  try {
+    await loadFeed();
+  } finally {
+    feedRefreshing.value = false;
   }
 }
 
@@ -430,8 +471,8 @@ let feedInterval = null;
 onMounted(() => {
   loadSummary();
   loadTimeline();
-  loadFeed();
-  feedInterval = setInterval(loadFeed, 10000);
+  loadFeed({ showSkeleton: true });
+  feedInterval = setInterval(() => loadFeed(), 10000);
 });
 
 onUnmounted(() => {
@@ -540,22 +581,6 @@ onUnmounted(() => {
   line-height: 1;
 }
 
-.dashboard__tile-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.dashboard__breakdown-item {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  background: var(--color-bg);
-  border-radius: var(--radius-pill);
-  padding: 2px 7px;
-  border: 1px solid var(--color-border);
-}
-
 /* ===== ГРАФИК ===== */
 .dashboard__chart-card {
   border: 1px solid var(--color-border);
@@ -623,6 +648,11 @@ onUnmounted(() => {
   color: #fff;
 }
 
+/* На активной сегмент-кнопке hover не должен перекрашивать текст в синий. */
+.dashboard__seg-btn--active:hover {
+  color: #fff;
+}
+
 .dashboard__chart-skeleton {
   height: 300px;
   background: var(--color-skeleton);
@@ -686,12 +716,6 @@ onUnmounted(() => {
   0%   { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.55); }
   70%  { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
   100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-}
-
-.dashboard__feed-meta {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
 .dashboard__feed-list {
