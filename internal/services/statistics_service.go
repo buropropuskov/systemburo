@@ -24,6 +24,9 @@ type StatisticsService interface {
 	// GetOnlinePeaks возвращает серию дневных пиков онлайна за период [from, to]
 	// для карточки динамики пользователей. Дни без снимков опускаются.
 	GetOnlinePeaks(ctx context.Context, from, to time.Time) ([]models.OnlinePeakPoint, error)
+	// GetOnlineUsers возвращает список пользователей онлайн (last_seen в окне) по
+	// убыванию свежести активности — для модалки «кто онлайн» на дашборде.
+	GetOnlineUsers(ctx context.Context) ([]models.OnlineUser, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
@@ -247,17 +250,58 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 	return &summary, nil
 }
 
-// countOnline считает пользователей, чей last_seen свежее окна онлайна на момент now.
+// onlineThreshold — граница окна онлайна на момент now: пользователь онлайн, если
+// last_seen >= этой границы.
+func onlineThreshold(now time.Time) time.Time {
+	return now.Add(-onlineWindowMinutes * time.Minute)
+}
+
+// onlineUserScope — единый предикат «пользователь онлайн»: активный, не забанен и с
+// last_seen в окне на момент now. Колонки не квалифицируем — is_active/is_banned/last_seen
+// есть только в users, поэтому предикат работает и при джойнах. Общий для countOnline
+// (число на плитке) и GetOnlineUsers (список в модалке), чтобы счётчик и длина списка
+// всегда совпадали. Забаненного/архивного отсекаем: BanCheck не даёт ему обновлять
+// last_seen, но свежий last_seen до бана держал бы его «онлайн» ещё до окна.
+func onlineUserScope(now time.Time) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("is_active = true AND is_banned = false").
+			Where("last_seen >= ?", onlineThreshold(now))
+	}
+}
+
+// countOnline считает пользователей онлайн на момент now.
 func (s *statisticsService) countOnline(ctx context.Context, now time.Time) (int64, error) {
-	threshold := now.Add(-onlineWindowMinutes * time.Minute)
 	var count int64
 	if err := s.db.WithContext(ctx).
 		Table("users").
-		Where("last_seen >= ?", threshold).
+		Scopes(onlineUserScope(now)).
 		Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("statistics: count online: %w", err)
 	}
 	return count, nil
+}
+
+// GetOnlineUsers возвращает пользователей онлайн по убыванию last_seen. Тот же предикат
+// onlineUserScope, что и в countOnline, поэтому длина списка совпадает с users_online.
+// ФИО собирается из частей, роль/тип — имена справочников.
+func (s *statisticsService) GetOnlineUsers(ctx context.Context) ([]models.OnlineUser, error) {
+	users := make([]models.OnlineUser, 0)
+	fullName := "TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name))"
+	if err := s.db.WithContext(ctx).
+		Table("users u").
+		Joins("LEFT JOIN roles r ON r.id = u.role_id").
+		Joins("LEFT JOIN user_types ut ON ut.id = u.type_id").
+		Scopes(onlineUserScope(time.Now().UTC())).
+		Select("u.id AS id, u.username AS login, " +
+			fullName + " AS full_name, " +
+			"COALESCE(r.name, '') AS role, " +
+			"COALESCE(ut.name, '') AS user_type, " +
+			"u.last_seen AS last_seen").
+		Order("u.last_seen DESC").
+		Scan(&users).Error; err != nil {
+		return nil, fmt.Errorf("statistics: online users: %w", err)
+	}
+	return users, nil
 }
 
 // SnapshotOnlinePeak обновляет дневной пик онлайна за сегодня.

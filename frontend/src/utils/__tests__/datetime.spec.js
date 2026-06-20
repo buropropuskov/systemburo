@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { formatDateRu } from '../datetime';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { formatDateRu, formatTimeAgo } from '../datetime';
 
 describe('formatDateRu', () => {
   it('YYYY-MM-DD -> дд.мм.гггг', () => {
@@ -21,5 +21,43 @@ describe('formatDateRu', () => {
     expect(formatDateRu('')).toBe('');
     expect(formatDateRu(null)).toBe('');
     expect(formatDateRu(undefined)).toBe('');
+  });
+});
+
+describe('formatTimeAgo', () => {
+  const NOW = new Date('2026-06-20T12:00:00Z');
+  const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
+  const MIN = 60_000;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+
+  afterEach(() => vi.useRealTimers());
+
+  it('меньше минуты (и будущее) -> "только что"', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    expect(formatTimeAgo(ago(10_000))).toBe('только что');
+    expect(formatTimeAgo(ago(-5_000))).toBe('только что');
+  });
+
+  it('минуты и часы', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    expect(formatTimeAgo(ago(3 * MIN))).toBe('3 мин назад');
+    expect(formatTimeAgo(ago(59 * MIN))).toBe('59 мин назад');
+    expect(formatTimeAgo(ago(2 * HOUR))).toBe('2 ч назад');
+  });
+
+  it('сутки и больше', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    expect(formatTimeAgo(ago(DAY))).toBe('вчера');
+    expect(formatTimeAgo(ago(3 * DAY))).toBe('3 дн назад');
+  });
+
+  it('пустое/невалидное -> пустая строка', () => {
+    expect(formatTimeAgo('')).toBe('');
+    expect(formatTimeAgo(null)).toBe('');
+    expect(formatTimeAgo('не дата')).toBe('');
   });
 });

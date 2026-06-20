@@ -105,6 +105,24 @@ func (h *StatisticsHandler) GetOnlinePeaks(c echo.Context) error {
 	return RespondSuccess(c, points)
 }
 
+// GetOnlineUsers godoc
+// @Summary      Список пользователей онлайн
+// @Description  Пользователи с активностью (last_seen) за окно онлайна, по убыванию свежести. Для модалки «кто онлайн» на дашборде.
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} Response
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/online-users [get]
+func (h *StatisticsHandler) GetOnlineUsers(c echo.Context) error {
+	users, err := h.service.GetOnlineUsers(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, users)
+}
+
 // GetTimeline godoc
 // @Summary      Данные для графика по метрике
 // @Tags         statistics

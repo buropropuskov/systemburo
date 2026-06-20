@@ -5,7 +5,7 @@ import { nextTick } from 'vue';
 // Управляемое состояние моков: фабрика vi.mock поднимается над импортами,
 // поэтому summary/deferred выносим в hoisted.
 const { state } = vi.hoisted(() => ({
-  state: { deferred: [], summary: {}, insights: {}, onlinePeaks: [], insightsHang: false },
+  state: { deferred: [], onlineDeferred: [], summary: {}, insights: {}, onlinePeaks: [], insightsHang: false },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
@@ -15,16 +15,19 @@ vi.mock('@/api/statistics.js', () => ({
   // insightsHang оставляет промис вечно pending — для проверки состояния загрузки.
   getInsights: () => (state.insightsHang ? new Promise(() => {}) : Promise.resolve(state.insights)),
   getOnlinePeaks: () => Promise.resolve(state.onlinePeaks),
+  // deferred: резолвим вручную в тестах, чтобы проверить гонку seq-токена.
+  getOnlineUsers: () => new Promise((resolve) => { state.onlineDeferred.push(resolve); }),
 }));
 
 import StatisticsDashboard from '../StatisticsDashboard.vue';
 import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
 import AnalyticsBarChart from '../AnalyticsBarChart.vue';
 import TrendSparkline from '../TrendSparkline.vue';
+import OnlineUsersModal from '../OnlineUsersModal.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, RefreshButton: true } },
+  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, RefreshButton: true, OnlineUsersModal: true } },
 });
 
 const tileByText = (wrapper, label) =>
@@ -32,6 +35,7 @@ const tileByText = (wrapper, label) =>
 
 beforeEach(() => {
   state.deferred.length = 0;
+  state.onlineDeferred.length = 0;
   state.summary = {};
   state.insights = {};
   state.onlinePeaks = [];
@@ -238,6 +242,63 @@ describe('StatisticsDashboard — топы за период', () => {
 
     expect(wrapper.findAll('.dashboard__top-skeleton')).toHaveLength(2);
     expect(wrapper.find('.top').exists()).toBe(false);
+  });
+});
+
+describe('StatisticsDashboard — плитка онлайна', () => {
+  it('плитка "Пользователей онлайн" кликабельна и доступна с клавиатуры', async () => {
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const tile = tileByText(wrapper, 'Пользователей онлайн');
+    expect(tile.classes()).toContain('dashboard__tile--clickable');
+    expect(tile.attributes('role')).toBe('button');
+    expect(tile.attributes('tabindex')).toBe('0');
+    expect(tile.attributes('aria-haspopup')).toBe('dialog');
+  });
+
+  it('клик по плитке открывает модалку и прокидывает список из API', async () => {
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const modal = wrapper.findComponent(OnlineUsersModal);
+    expect(modal.props('show')).toBe(false);
+
+    await tileByText(wrapper, 'Пользователей онлайн').trigger('click');
+    await nextTick();
+    // Пока запрос в полёте — модалка открыта в состоянии загрузки.
+    expect(modal.props('show')).toBe(true);
+    expect(modal.props('loading')).toBe(true);
+
+    state.onlineDeferred[0]([
+      { id: 1, login: 'ivanov', full_name: 'Иванов И.', role: 'Руководитель', user_type: 'Арендатор', last_seen: '2026-06-20T12:00:00Z' },
+    ]);
+    await flushPromises();
+
+    expect(modal.props('users')).toHaveLength(1);
+    expect(modal.props('users')[0].login).toBe('ivanov');
+    expect(modal.props('loading')).toBe(false);
+  });
+
+  it('повторное открытие: показывает список последнего запроса, устаревший игнорирует', async () => {
+    const wrapper = mountDashboard();
+    await flushPromises();
+    const tile = tileByText(wrapper, 'Пользователей онлайн');
+
+    await tile.trigger('click'); // seq 1
+    await tile.trigger('click'); // seq 2
+    await nextTick();
+    expect(state.onlineDeferred).toHaveLength(2);
+
+    // Последний запрос (seq 2) резолвится ПЕРВЫМ, устаревший seq 1 — позже.
+    state.onlineDeferred[1]([{ id: 2, login: 'fresh', full_name: '', role: '', user_type: '', last_seen: '2026-06-20T12:00:00Z' }]);
+    await flushPromises();
+    state.onlineDeferred[0]([{ id: 1, login: 'stale', full_name: '', role: '', user_type: '', last_seen: '2026-06-20T11:00:00Z' }]);
+    await flushPromises();
+
+    const modal = wrapper.findComponent(OnlineUsersModal);
+    expect(modal.props('users')).toHaveLength(1);
+    expect(modal.props('users')[0].login).toBe('fresh'); // не stale от устаревшего ответа
   });
 });
 
