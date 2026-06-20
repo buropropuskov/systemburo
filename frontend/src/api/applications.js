@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, apiRequestRaw } from './client';
 
 export async function getApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
@@ -93,4 +93,40 @@ export async function getApplicationDetails(id) {
 export async function getApplicationAttachments(id) {
   const res = await apiRequest(`/applications/${id}/attachments`);
   return res.json();
+}
+
+/**
+ * Список вложений, доступных охраннику/админу во вкладке "Доступные мне" (#706).
+ * Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только data
+ * и meta теряется - поэтому читаем сырой ответ через apiRequestRaw.
+ * @param {{page?: number, per_page?: number}} params
+ * @returns {Promise<{items: object[], meta: {total: number, page: number, per_page: number}}>}
+ */
+export async function getAccessibleAttachments(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiRequestRaw(`/applications/available-attachments${query ? '?' + query : ''}`);
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить доступные вложения');
+  }
+  return {
+    items: body.data || [],
+    meta: body.meta || { total: 0, page: 1, per_page: 20 },
+  };
+}
+
+/**
+ * Деталь доступного вложения (#706): заголовок с инфо заявки + типизированное
+ * содержимое (cars/employees/items). Читаем через apiRequestRaw, чтобы 403 на
+ * чужое вложение пробросился ошибкой, а не отдал полу-распакованный объект.
+ * @param {number} id ID вложения
+ * @returns {Promise<{attachment: object, cars?: object[], employees?: object[], items?: object[]}>}
+ */
+export async function getAccessibleAttachmentDetail(id) {
+  const res = await apiRequestRaw(`/applications/available-attachments/${id}`);
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить вложение');
+  }
+  return body.data;
 }
