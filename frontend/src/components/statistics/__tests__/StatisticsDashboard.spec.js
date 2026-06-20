@@ -4,16 +4,18 @@ import { nextTick } from 'vue';
 
 // Управляемое состояние моков: фабрика vi.mock поднимается над импортами,
 // поэтому summary/deferred выносим в hoisted.
-const { state } = vi.hoisted(() => ({ state: { deferred: [], summary: {} } }));
+const { state } = vi.hoisted(() => ({ state: { deferred: [], summary: {}, insights: {} } }));
 
 vi.mock('@/api/statistics.js', () => ({
   getSummary: () => Promise.resolve(state.summary),
   getRecentPassages: () => Promise.resolve({ people: [], cars: [] }),
   getTimeline: () => new Promise((resolve) => { state.deferred.push(resolve); }),
+  getInsights: () => Promise.resolve(state.insights),
 }));
 
 import StatisticsDashboard from '../StatisticsDashboard.vue';
 import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
+import TrendSparkline from '../TrendSparkline.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
@@ -23,6 +25,7 @@ const mountDashboard = () => mount(StatisticsDashboard, {
 beforeEach(() => {
   state.deferred.length = 0;
   state.summary = {};
+  state.insights = {};
 });
 
 describe('StatisticsDashboard — гонка таймлайна', () => {
@@ -78,5 +81,36 @@ describe('StatisticsDashboard — плитки', () => {
     expect(text).toContain('Вложения');
     expect(text).toContain('Паспорт');
     expect(text).toContain('Виза');
+  });
+});
+
+describe('StatisticsDashboard — инсайты карточек', () => {
+  it('карточка с метрикой инсайта рендерит спарклайн и бейдж дельты; карточки без инсайта — нет', async () => {
+    state.summary = { total_applications: 10, processed: 4, cars_entered: 8 };
+    state.insights = {
+      comparisons: [
+        { metric: 'applications_count', current: 10, previous: 8, delta_pct: 25, direction: 'up' },
+      ],
+      trends: [
+        { metric: 'applications_count', direction: 'up', series: [1, 2, 3, 4] },
+      ],
+    };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    // Только applications_count покрыт инсайтом -> ровно один футер с дельтой и спарклайном.
+    expect(wrapper.text()).toContain('+25%');
+    expect(wrapper.find('.dashboard__delta--up').exists()).toBe(true);
+    expect(wrapper.findComponent(TrendSparkline).exists()).toBe(true);
+    expect(wrapper.findAll('.dashboard__tile-insight')).toHaveLength(1);
+  });
+
+  it('без инсайтов карточки рендерятся без футера', async () => {
+    state.summary = { total_applications: 10, cars_entered: 8 };
+    state.insights = {};
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.findAll('.dashboard__tile-insight')).toHaveLength(0);
   });
 });
