@@ -138,7 +138,7 @@
               type="text"
               class="field__input search"
               data-testid="center-input-search"
-              @input="applyFilters"
+              @input="onSearchInput"
             >
             <img
               src="@/assets/icons/search.png"
@@ -517,7 +517,7 @@
             v-else
             class="no-data-message"
           >
-            {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
+            {{ searchQuery.trim() ? 'Ничего не найдено' : hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
           </p>
         </SkeletonTransition>
       </div>
@@ -600,6 +600,7 @@ export default {
             downloadAppId: 0,
             downloadAppInfo: null,
             searchQuery: '',
+            searchDebounceTimer: null,
             selectedOrganizationId: null,
             selectedOrganizationName: '',
             selectedConfirmations: [],
@@ -659,25 +660,7 @@ export default {
         filteredApplications() {
             let filtered = this.applications;
 
-            // Фильтр по поиску
-            if (this.searchQuery.trim()) {
-                const query = this.normalizeSearch(this.searchQuery.trim());
-                filtered = filtered.filter(app => {
-                    const searchFields = [
-                        app.application_number,
-                        this.getOrganizationName(app),
-                        app.sender_name,
-                        app.status,
-                        app.confirmation
-                    ];
-                    
-                    return searchFields.some(field => {
-                        const normalizedField = this.normalizeSearch(field);
-                        const searchWords = query.split(' ').filter(word => word.length > 0);
-                        return searchWords.every(word => normalizedField.includes(word));
-                    });
-                });
-            }
+            // Поиск по тексту выполняется на бэке через search_query — здесь не дублируем.
 
             // Фильтр по организации
             if (this.selectedOrganizationId) {
@@ -859,6 +842,9 @@ export default {
         if (this.applicationsPollInterval) {
             clearInterval(this.applicationsPollInterval);
         }
+        if (this.searchDebounceTimer) {
+            clearTimeout(this.searchDebounceTimer);
+        }
         document.removeEventListener('keydown', this._soundEscapeHandler);
         document.removeEventListener('mousedown', this._soundClickOutsideHandler);
     },
@@ -938,6 +924,14 @@ export default {
             return normalized;
         },
         
+        onSearchInput() {
+            this.isInitialLoad = false;
+            clearTimeout(this.searchDebounceTimer);
+            this.searchDebounceTimer = setTimeout(() => {
+                this.fetchApplications();
+            }, 300);
+        },
+
         // Фильтры
         toggleConfirmation(status) {
             const index = this.selectedConfirmations.indexOf(status);
@@ -967,6 +961,7 @@ export default {
         
         resetFilters() {
             this.searchQuery = '';
+            clearTimeout(this.searchDebounceTimer);
             this.selectedOrganizationId = null;
             this.selectedOrganizationName = '';
             this.selectedConfirmations = [];
