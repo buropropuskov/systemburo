@@ -91,11 +91,12 @@ export default {
   },
   created() {
     // tryRestoreSession вызывается в main.js ДО mount - auth уже hydrated.
-    // Здесь остаётся только загрузить permissions если юзер залогинен.
+    // Здесь остаётся только загрузить permissions и userTypeCode если юзер залогинен.
     const authStore = useAuthStore()
     if (authStore.token) {
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
+      authStore.loadUserTypeCode()
     }
   },
   methods: {
@@ -104,6 +105,7 @@ export default {
       authStore.setTokens(tokenData.token)
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
+      authStore.loadUserTypeCode()
     },
 
     async logout() {
