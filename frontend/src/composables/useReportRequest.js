@@ -11,7 +11,7 @@
  * @param {{
  *   mode: 'aggregate'|'list',
  *   metric?: string, metrics?: string[], dimension?: string, granularity?: string,
- *   entity?: string, sort?: string, limit?: number|string|null,
+ *   pivot?: string, entity?: string, sort?: string, limit?: number|string|null,
  *   filters?: Record<string, string[]>
  * }} state
  * @param {{from?: string, to?: string}} [period]
@@ -54,9 +54,11 @@ export function buildReportRequest(state, period = {}, applicableFilters = []) {
   };
   if (metrics.length) req.metrics = metrics;
   else req.metric = state.metric || '';
-  // Гранулярность осмысленна только для временного разреза.
-  if (state.dimension === 'period' && state.granularity) {
-    req.granularity = state.granularity;
+  // Гранулярность и cross-tab-ось осмысленны только для временного разреза. Pivot
+  // разворачивает значения оси в колонки; бэк валидирует ось против метрик.
+  if (state.dimension === 'period') {
+    if (state.granularity) req.granularity = state.granularity;
+    if (state.pivot) req.pivot = state.pivot;
   }
   if (state.sort) req.sort = state.sort;
   return req;

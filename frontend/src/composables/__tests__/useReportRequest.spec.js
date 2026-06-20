@@ -66,6 +66,29 @@ describe('buildReportRequest', () => {
       );
       expect(req.filters).toEqual([]);
     });
+
+    it('шлёт pivot (cross-tab ось) только при разрезе period', () => {
+      const period = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'period', granularity: 'week', pivot: 'attachment_type' },
+        PERIOD, ['date_range'],
+      );
+      expect(period.pivot).toBe('attachment_type');
+
+      // Вне period ось не имеет смысла -> бэк её не примет, фронт не шлёт.
+      const status = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'status', pivot: 'attachment_type' },
+        PERIOD, ['date_range'],
+      );
+      expect(status.pivot).toBeUndefined();
+    });
+
+    it('опускает pivot, когда ось не выбрана', () => {
+      const req = buildReportRequest(
+        { mode: 'aggregate', metrics: ['applications_count'], dimension: 'period', granularity: 'day' },
+        PERIOD, ['date_range'],
+      );
+      expect(req.pivot).toBeUndefined();
+    });
   });
 
   describe('list', () => {

@@ -31,6 +31,9 @@ const CATALOG = {
     { key: 'cars', label: 'Машины', columns: [{ key: 'car_number', label: 'Номер' }], filters: ['organization'] },
   ],
   granularities: [{ value: 'day', label: 'По дням' }, { value: 'week', label: 'По неделям' }],
+  pivots: [
+    { key: 'attachment_type', label: 'Тип вложения', metrics: ['applications_count'] },
+  ],
 };
 
 const PERIOD = { from: '2026-06-01', to: '2026-06-07' };
@@ -56,6 +59,21 @@ function metricInputs(wrapper) {
 /** Радио-разрез по его подписи. */
 function dimRadioByLabel(wrapper, label) {
   return wrapper.findAll('.rb__dim').find((d) => d.text().includes(label)).find('.rb__dim-input');
+}
+
+/** Кнопки оси разворота (cross-tab) внутри блока периода. [] если блока нет. */
+function pivotPills(wrapper) {
+  const gran = wrapper.find('.rb__gran');
+  return gran.exists() ? gran.findAll('.rb__pill') : [];
+}
+
+/** Выбрать только метрику «Количество заявок» и разрез «Период (дата)». */
+async function setupAppsPeriod(wrapper) {
+  await metricInputs(wrapper)[1].trigger('change'); // + applications_count
+  await metricInputs(wrapper)[0].trigger('change'); // - car_entries_count
+  await nextTick();
+  await dimRadioByLabel(wrapper, 'Период (дата)').setValue();
+  await nextTick();
 }
 
 describe('ReportBuilder', () => {
@@ -278,5 +296,95 @@ describe('ReportBuilder', () => {
     await wrapper.setProps({ preset: { mode: 'aggregate', metric: 'applications_count', dimension: 'status' } });
     await flushPromises();
     expect(wrapper.emitted('run').length).toBe(firstCount + 1);
+  });
+
+  it('ось разворота доступна при период+метрике из каталога и уходит в запрос как pivot', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+
+    const pills = pivotPills(wrapper);
+    expect(pills.map((p) => p.text())).toEqual(['Без разворота', 'Тип вложения']);
+
+    await pills.find((p) => p.text() === 'Тип вложения').trigger('click');
+    await clickBuild(wrapper);
+
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count']);
+    expect(req.dimension).toBe('period');
+    expect(req.pivot).toBe('attachment_type');
+  });
+
+  it('смена разреза с period сбрасывает ось разворота (не уходит в запрос)', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+    await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
+
+    // Уходим с period -> ось неприменима, блок исчезает, pivot сбрасывается.
+    await dimRadioByLabel(wrapper, 'Статус заявки').setValue();
+    await nextTick();
+    expect(pivotPills(wrapper)).toEqual([]);
+
+    await clickBuild(wrapper);
+    expect(lastRun(wrapper).pivot).toBeUndefined();
+  });
+
+  it('добавление метрики, не поддерживающей ось, сбрасывает разворот', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+    await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
+
+    // Возвращаем car_entries_count: ось attachment_type его не поддерживает.
+    await metricInputs(wrapper)[0].trigger('change');
+    await nextTick();
+    expect(pivotPills(wrapper)).toEqual([]);
+
+    await clickBuild(wrapper);
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count', 'car_entries_count']);
+    expect(req.pivot).toBeUndefined();
+  });
+
+  it('скелет «Что построим» отражает разрез, метрику и колонку разворота', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    await setupAppsPeriod(wrapper);
+    await pivotPills(wrapper).find((p) => p.text() === 'Тип вложения').trigger('click');
+    await nextTick();
+
+    const cols = wrapper.findAll('.rb__skel-col');
+    expect(cols.length).toBe(3); // разрез + метрика + ось разворота
+    expect(wrapper.find('.rb__skel-col--metric').text()).toContain('Количество заявок');
+    const pivotCol = wrapper.find('.rb__skel-col--pivot');
+    expect(pivotCol.exists()).toBe(true);
+    expect(pivotCol.text()).toContain('Тип вложения');
+  });
+
+  it('применяет шаблон с осью разворота и шлёт pivot', async () => {
+    const wrapper = mount(ReportBuilder, { props: { catalog: CATALOG, period: PERIOD, preset: null } });
+    await nextTick();
+
+    await wrapper.setProps({
+      preset: {
+        mode: 'aggregate', metrics: ['applications_count'], dimension: 'period',
+        granularity: 'week', pivot: 'attachment_type',
+      },
+    });
+    await flushPromises();
+
+    const req = lastRun(wrapper);
+    expect(req.metrics).toEqual(['applications_count']);
+    expect(req.dimension).toBe('period');
+    expect(req.pivot).toBe('attachment_type');
+  });
+
+  it('период в описании показан как дд.мм.гггг', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+    const summary = wrapper.find('.rb__summary').text();
+    expect(summary).toContain('01.06.2026 — 07.06.2026');
+    expect(summary).not.toContain('2026-06-01');
   });
 });
