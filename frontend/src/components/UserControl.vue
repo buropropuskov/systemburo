@@ -210,6 +210,14 @@
                   Права доступа
                 </button>
                 <button
+                  v-if="selectedUserIsSecurity"
+                  class="lk-button lk-button--secondary"
+                  data-testid="user-access-places"
+                  @click="openAccessPlaces(selectedUser)"
+                >
+                  Места доступа
+                </button>
+                <button
                   class="lk-button lk-button--secondary"
                   data-testid="user-reset-onboarding"
                   @click="resetOnboarding(selectedUser)"
@@ -649,6 +657,12 @@
       @close="accessUser = null"
       @updated="onAccessUpdated"
     />
+
+    <UserAccessPlacesModal
+      v-if="accessPlacesUser"
+      :user="accessPlacesUser"
+      @close="accessPlacesUser = null"
+    />
   </div>
 </template>
 
@@ -668,6 +682,7 @@ import BaseDropdown from './ui/BaseDropdown.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
 import UserAccessModal from './admin/UserAccessModal.vue';
+import UserAccessPlacesModal from './admin/UserAccessPlacesModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
@@ -681,7 +696,8 @@ export default {
     BaseDropdown,
     ToggleSwitch,
     UserHistoryModal,
-    UserAccessModal
+    UserAccessModal,
+    UserAccessPlacesModal
   },
   props: {
     allUsers: {
@@ -701,6 +717,7 @@ export default {
       selectedUser: null,
       historyForUser: null,
       accessUser: null,
+      accessPlacesUser: null,
       currentUserName: '',
       deleteConfirmUser: null,
       showArchive: false,
@@ -738,6 +755,13 @@ export default {
     },
     companyOptionsWithNone() {
       return [{ id: null, name: 'Не выбрано' }, ...this.companies];
+    },
+    // Места доступа настраиваются только охранникам ЧОП — резолвим по стабильному
+    // user_types.code, не по числовому type_id (нестабилен между средами).
+    selectedUserIsSecurity() {
+      if (!this.selectedUser) return false;
+      const type = this.userTypes.find(t => t.id === this.selectedUser.type_id);
+      return type?.code === 'security';
     },
     filteredUsers() {
       const searchTerm = this.userSearch.toLowerCase();
@@ -918,6 +942,10 @@ export default {
 
     openAccess(user) {
       this.accessUser = user;
+    },
+
+    openAccessPlaces(user) {
+      this.accessPlacesUser = user;
     },
 
     onAccessUpdated() {
