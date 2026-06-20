@@ -224,7 +224,11 @@ export default {
       const response = await apiRequest('/system-tables');
       if (!response.ok) return [];
       const data = await response.json();
-      return (data || []).filter(t => t.table_type !== 'cars');
+      // /system-tables оборачивает каждый элемент в { table: {...} }; разворачиваем,
+      // чтобы дальше читать плоско (как NavMenu) и совпасть с id из /users/:u/tables.
+      return (data || [])
+        .map(t => t.table || t)
+        .filter(t => t.table_type !== 'cars');
     },
 
     toggleUnloadPlace(id) {
