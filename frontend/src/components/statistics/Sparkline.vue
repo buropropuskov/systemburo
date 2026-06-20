@@ -37,6 +37,8 @@ const props = defineProps({
 const W = 120;
 const H = 32;
 const PAD = 3;
+// SVG-атрибут stroke не принимает var(), поэтому цвета захардкожены под токены
+// --color-success / --color-danger (значения совпадают). При смене темы — синхронить.
 const colorByDir = { up: '#28a745', down: '#dc3545', flat: '#8a90a6' };
 
 const strokeColor = computed(() => colorByDir[props.direction] || colorByDir.flat);
