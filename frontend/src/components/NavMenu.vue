@@ -167,6 +167,20 @@
               />
               <span class="nav-text">Новая заявка</span>
             </div>
+            <div
+              v-show="authStore.canViewAccessibleAttachments && matches('Доступные мне')"
+              class="nav-item"
+              :class="{ active: isActive('/accessible-attachments') }"
+              data-testid="nav-link-accessible-attachments"
+              @click="navigateToAccessibleAttachments"
+            >
+              <NavIcon
+                name="attachment-types"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Доступные мне</span>
+            </div>
           </div>
 
           <!-- УПРАВЛЕНИЕ ДАННЫМИ -->
@@ -696,7 +710,8 @@ export default {
     sectionVisible() {
       const on = this.searchActive;
       return {
-        requests: !on || this.matches('Центр заявок') || this.matches('Новая заявка'),
+        requests: !on || this.matches('Центр заявок') || this.matches('Новая заявка')
+          || (this.authStore.canViewAccessibleAttachments && this.matches('Доступные мне')),
         data: !on || this.tablesItemVisible || this.matches('Сотрудники') || this.matches('Автомобили'),
         analytics: !on || this.matches('Статистика') || this.matches('Аналитика'),
         admin: !on || this.matches('Администрирование'),
@@ -903,6 +918,10 @@ export default {
 
     navigateToCenter() {
       this.$router.push('/center');
+    },
+    navigateToAccessibleAttachments() {
+      this.$router.push('/accessible-attachments');
+      this.closeMobile();
     },
     navigateToNewApplication() {
       this.$router.push('/new-application');
