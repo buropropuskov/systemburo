@@ -220,6 +220,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 
@@ -627,7 +628,7 @@ export default {
                 
             } catch (error) {
                 console.error('Error exporting to Excel:', error);
-                alert('Ошибка при экспорте в Excel');
+                useDeletionsStore().notify({ prefix: 'Ошибка при экспорте в Excel', type: 'error' });
             } finally {
                 this.isExporting = false;
             }

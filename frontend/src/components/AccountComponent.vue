@@ -62,6 +62,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotificationsInline from './UserNotificationsInline.vue';
@@ -148,7 +149,7 @@ export default {
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
-          alert("Пользователь не авторизован.");
+          useDeletionsStore().notify({ prefix: 'Пользователь не авторизован', type: 'error' });
           return;
         }
 
@@ -160,7 +161,7 @@ export default {
           const userData = await response.json();
           this.updateUserData(userData);
         } else {
-          alert("Ошибка при загрузке данных пользователя.");
+          useDeletionsStore().notify({ prefix: 'Ошибка при загрузке данных пользователя', type: 'error' });
         }
       } catch (error) {
         console.error("Ошибка сети при загрузке данных пользователя:", error);
