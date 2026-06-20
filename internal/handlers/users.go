@@ -264,3 +264,99 @@ func (h *UsersHandler) GetHistory(c echo.Context) error {
 	}
 	return RespondSuccess(c, items)
 }
+
+// GetUserUnloadPlaces godoc
+// @Summary      Получение мест разгрузки охранника
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Имя пользователя"
+// @Success      200 {array} models.UnloadPlace
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /users/{username}/unload-places [get]
+func (h *UsersHandler) GetUserUnloadPlaces(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	username := c.Param("username")
+	places, err := h.service.GetUserUnloadPlaces(c.Request().Context(), typeID, username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, places)
+}
+
+// SetUserUnloadPlaces godoc
+// @Summary      Замена мест разгрузки охранника
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Имя пользователя"
+// @Param        request body models.SetUserUnloadPlacesRequest true "Список ID мест разгрузки"
+// @Success      200 {string} string "Unload places updated successfully"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /users/{username}/unload-places [put]
+func (h *UsersHandler) SetUserUnloadPlaces(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	username := c.Param("username")
+	var req models.SetUserUnloadPlacesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.SetUserUnloadPlaces(c.Request().Context(), typeID, username, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Unload places updated successfully")
+}
+
+// GetUserTables godoc
+// @Summary      Получение мест прохода охранника
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Имя пользователя"
+// @Success      200 {array} models.SystemTable
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /users/{username}/tables [get]
+func (h *UsersHandler) GetUserTables(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	username := c.Param("username")
+	tables, err := h.service.GetUserTables(c.Request().Context(), typeID, username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, tables)
+}
+
+// SetUserTables godoc
+// @Summary      Замена мест прохода охранника
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Имя пользователя"
+// @Param        request body models.SetUserTablesRequest true "Список ID мест прохода"
+// @Success      200 {string} string "Tables updated successfully"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /users/{username}/tables [put]
+func (h *UsersHandler) SetUserTables(c echo.Context) error {
+	typeID := c.Get("type_id").(int)
+	username := c.Param("username")
+	var req models.SetUserTablesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.SetUserTables(c.Request().Context(), typeID, username, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Tables updated successfully")
+}

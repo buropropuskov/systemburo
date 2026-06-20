@@ -331,6 +331,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.DELETE("/users/:username", users.Delete)
 	protected.POST("/users/:username/restore", users.Restore)
 	protected.GET("/users/:username/history", users.GetHistory)
+	// Привязка мест доступа к охраннику (#706)
+	protected.GET("/users/:username/unload-places", users.GetUserUnloadPlaces)
+	protected.PUT("/users/:username/unload-places", users.SetUserUnloadPlaces)
+	protected.GET("/users/:username/tables", users.GetUserTables)
+	protected.PUT("/users/:username/tables", users.SetUserTables)
 
 	// Машины (в заявках)
 	carsGroup := protected.Group("/cars")
@@ -433,8 +438,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/unread-count", app.GetUnreadCount)
-	apg.GET("/available-attachments", app.GetAvailableAttachments)           // #706 - "Доступные мне" для охранников
-	apg.GET("/available-attachments/:id", app.GetAvailableAttachmentDetail)  // #706 - деталь вложения
+	apg.GET("/available-attachments", app.GetAvailableAttachments)          // #706 - "Доступные мне" для охранников
+	apg.GET("/available-attachments/:id", app.GetAvailableAttachmentDetail) // #706 - деталь вложения
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)

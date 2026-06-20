@@ -121,6 +121,18 @@ type UpdateUserCompanyRequest struct {
 	CompanyID int `json:"company_id" validate:"gte=1"`
 }
 
+// SetUserUnloadPlacesRequest — запрос на замену привязки мест разгрузки охранника (#706).
+// Пустой slice снимает все привязки.
+type SetUserUnloadPlacesRequest struct {
+	UnloadPlaceIDs []int `json:"unload_place_ids"`
+}
+
+// SetUserTablesRequest — запрос на замену привязки мест прохода охранника (#706).
+// Пустой slice снимает все привязки.
+type SetUserTablesRequest struct {
+	TableIDs []int `json:"table_ids"`
+}
+
 // Junction tables
 
 type OrganizationUser struct {
