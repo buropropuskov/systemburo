@@ -615,7 +615,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 
 	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
-	query = applyApplicationFilters(query, filter, false)
+	query = applyApplicationFilters(query, filter, true)
 	query = query.Order("a.sending_datetime DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
@@ -637,7 +637,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 
 	query = applyApplicationAccessFilter(query, userID, isApprover)
 
-	return applyApplicationFilters(query, filter, false)
+	return applyApplicationFilters(query, filter, true)
 }
 
 // GetApplicationsPaginated возвращает страницу заявок с общим количеством.

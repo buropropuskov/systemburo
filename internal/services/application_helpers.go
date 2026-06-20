@@ -249,6 +249,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			"a.message",
 			"a.status",
 			"a.confirmation",
+			"a.responsible_comment",
 		}
 		baseCond, baseArgs := ilikePatternsArgs(baseCols, variants)
 
@@ -264,8 +265,15 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 
 		// --- вложения: машины ---
 		// Госномер ищем по всем вариантам (включая normalize.Plate для омоглифов/нулей);
-		// марку - по тексту. Подзапрос IN чтобы не размножать строки заявки.
+		// марку - по тексту. EXISTS чтобы не размножать строки заявки.
 		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name"}, variants)
+		// Слитно/раздельно: сравниваем номер без пробелов с нормализованным запросом,
+		// чтобы "А 777 АА" находился по "А777АА" и наоборот (только если в запросе есть цифры).
+		platePattern := ""
+		if strings.ContainsAny(raw, "0123456789") {
+			carNumCond += " OR REPLACE(c2.car_number, ' ', '') ILIKE ?"
+			platePattern = "%" + normalize.Plate(raw) + "%"
+		}
 		carSubquery := `EXISTS(
 			SELECT 1 FROM attachments att2
 			JOIN cars c2 ON c2.attachment_id = att2.id
@@ -280,7 +288,6 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			[]string{"e.last_name", "e.first_name", "e.middle_name", "e.position"},
 			variants,
 		)
-		// pg_trgm similarity по исходному запросу на нормализованном ФИО-конкате.
 		empSubquery := `EXISTS(
 			SELECT 1 FROM attachments att3
 			JOIN employees e ON e.attachment_id = att3.id
@@ -299,13 +306,33 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			WHERE att4.application_id = a.id AND (` + upCond + `)
 		)`
 
-		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery + " OR " + upSubquery
+		// --- согласующие: ФИО + комментарий согласующего ---
+		// word_similarity для опечаток в фамилии согласующего (диктовка охранником).
+		apprIlikeCond, apprIlikeArgs := ilikePatternsArgs(
+			[]string{"au.last_name", "au.first_name", "au.middle_name", "aru.approval_comment"},
+			variants,
+		)
+		apprSubquery := `EXISTS(
+			SELECT 1 FROM application_responsible_users aru
+			JOIN users au ON au.id = aru.user_id
+			WHERE aru.application_id = a.id AND (
+				` + apprIlikeCond + `
+				OR word_similarity(?, concat_ws(' ', au.last_name, au.first_name, au.middle_name)) > 0.3
+			)
+		)`
+
+		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery + " OR " + upSubquery + " OR " + apprSubquery
 
 		allArgs := baseArgs
 		allArgs = append(allArgs, carNumArgs...)
+		if platePattern != "" {
+			allArgs = append(allArgs, platePattern)
+		}
 		allArgs = append(allArgs, empIlikeArgs...)
-		allArgs = append(allArgs, raw) // для word_similarity
+		allArgs = append(allArgs, raw) // для word_similarity сотрудников
 		allArgs = append(allArgs, upArgs...)
+		allArgs = append(allArgs, apprIlikeArgs...)
+		allArgs = append(allArgs, raw) // для word_similarity согласующих
 
 		query = query.Where(fullCond, allArgs...)
 	}
