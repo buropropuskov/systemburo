@@ -266,7 +266,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		// --- вложения: машины ---
 		// Госномер ищем по всем вариантам (включая normalize.Plate для омоглифов/нулей);
 		// марку - по тексту. EXISTS чтобы не размножать строки заявки.
-		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name"}, variants)
+		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
 		// Слитно/раздельно: сравниваем номер без пробелов с нормализованным запросом,
 		// чтобы "А 777 АА" находился по "А777АА" и наоборот (только если в запросе есть цифры).
 		platePattern := ""
@@ -299,9 +299,12 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 
 		// --- вложения: места разгрузки ---
 		upCond, upArgs := ilikePatternsArgs([]string{"up.name"}, variants)
+		// car_unload_places связывает МАШИНУ (car_id) с местом, а не вложение напрямую:
+		// attachments -> cars -> car_unload_places -> unload_places.
 		upSubquery := `EXISTS(
 			SELECT 1 FROM attachments att4
-			JOIN car_unload_places cup ON cup.attachment_id = att4.id
+			JOIN cars c4 ON c4.attachment_id = att4.id
+			JOIN car_unload_places cup ON cup.car_id = c4.id
 			JOIN unload_places up ON up.id = cup.unload_place_id
 			WHERE att4.application_id = a.id AND (` + upCond + `)
 		)`
