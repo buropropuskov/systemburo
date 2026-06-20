@@ -64,8 +64,9 @@ export const useAuthStore = defineStore('auth', {
     },
     async loadUserTypeCode() {
       try {
-        const res = await getMe();
-        const data = await res.json();
+        // getMe() уже снимает envelope и возвращает данные (как getMyPermissions);
+        // повторный .json() здесь дал бы TypeError и userTypeCode остался бы null.
+        const data = await getMe();
         this.userTypeCode = data?.user_type_code ?? null;
       } catch {
         // сеть упала или токен протух - оставляем null, не блокируем рендер

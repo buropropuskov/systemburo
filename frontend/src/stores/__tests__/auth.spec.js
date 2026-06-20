@@ -159,9 +159,9 @@ describe('auth store', () => {
   describe('loadUserTypeCode', () => {
     it('загружает и сохраняет user_type_code из getMe', async () => {
       const { getMe } = await import('@/api/auth');
-      getMe.mockResolvedValue({
-        json: async () => ({ user_type_code: 'security' }),
-      });
+      // getMe уже возвращает распарсенные данные (envelope снят в client.js),
+      // мок отдаёт plain-объект, а не Response-like - иначе тест зелёный на сломанном коде.
+      getMe.mockResolvedValue({ user_type_code: 'security' });
 
       const store = useAuthStore();
       await store.loadUserTypeCode();
