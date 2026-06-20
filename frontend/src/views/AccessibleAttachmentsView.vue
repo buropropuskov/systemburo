@@ -13,6 +13,59 @@
         </div>
       </div>
 
+      <div
+        class="filters"
+        data-testid="aa-filters"
+      >
+        <div class="filters__search">
+          <img
+            class="filters__search-icon"
+            src="@/assets/icons/search.png"
+            alt=""
+          >
+          <input
+            v-model="search"
+            type="text"
+            class="lk-input filters__search-input"
+            placeholder="Поиск по заявке, вложению, отправителю"
+            data-testid="aa-search"
+            @input="onSearchInput"
+          >
+        </div>
+        <BaseDropdown
+          :model-value="typeFilter"
+          :options="typeOptions"
+          class="filters__dropdown"
+          data-testid="aa-filter-type"
+          @update:model-value="setType"
+        />
+        <BaseDropdown
+          :model-value="orgFilter"
+          :options="orgOptions"
+          searchable
+          class="filters__dropdown"
+          data-testid="aa-filter-org"
+          @update:model-value="setOrg"
+        />
+        <BaseDropdown
+          :model-value="companyFilter"
+          :options="companyOptions"
+          searchable
+          class="filters__dropdown"
+          data-testid="aa-filter-company"
+          @update:model-value="setCompany"
+        />
+        <button
+          v-if="hasActiveFilters"
+          type="button"
+          class="lk-button lk-button--secondary filters__reset"
+          data-testid="aa-filter-reset"
+          @click="resetFilters"
+        >
+          Сбросить
+        </button>
+      </div>
+
       <div class="content-container">
         <!-- Список вложений -->
         <div
@@ -110,10 +163,21 @@
             class="empty-state"
             data-testid="aa-empty"
           >
-            <p>Доступных вложений нет</p>
+            <p>{{ hasActiveFilters ? 'Ничего не найдено' : 'Доступных вложений нет' }}</p>
             <span class="empty-state__hint">
-              Здесь появятся вложения подтверждённых заявок по вашим местам доступа.
+              {{ hasActiveFilters
+                ? 'Измените условия поиска или сбросьте фильтры.'
+                : 'Здесь появятся вложения подтверждённых заявок по вашим местам доступа.' }}
             </span>
+            <button
+              v-if="hasActiveFilters"
+              type="button"
+              class="lk-button lk-button--secondary"
+              data-testid="aa-empty-reset"
+              @click="resetFilters"
+            >
+              Сбросить фильтры
+            </button>
           </div>
 
           <div class="list-footer">
@@ -202,20 +266,52 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import Badge from '@/components/ui/Badge.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import SkeletonCard from '@/components/ui/SkeletonCard.vue';
 import ApplicationAttachmentDetail from '@/components/ApplicationDetail/ApplicationAttachmentDetail.vue';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
+import { getOrganizations, getCompanies } from '@/api/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
 
 const PER_PAGE = 30;
+const SEARCH_DEBOUNCE_MS = 300;
+const VALID_TYPES = ['cars', 'people', 'items'];
 
 const deletions = useDeletionsStore();
+const route = useRoute();
+const router = useRouter();
+
+// Фильтры инициализируем из query синхронно (до onMounted), чтобы перезагрузка и
+// диплинк восстановили состояние одним стартовым запросом, без лишнего рефетча.
+// Сентинелы "все": '' для типа, 0 для организации/компании - у BaseDropdown нет
+// очистки (null всегда показывает placeholder), поэтому "все" - явный пункт.
+const search = ref(typeof route.query.search === 'string' ? route.query.search : '');
+const typeFilter = ref(VALID_TYPES.includes(route.query.type) ? route.query.type : '');
+const orgFilter = ref(Number(route.query.organization) || 0);
+const companyFilter = ref(Number(route.query.company) || 0);
+
+const typeOptions = [
+  { id: '', name: 'Все типы' },
+  { id: 'cars', name: 'Автомобили' },
+  { id: 'people', name: 'Сотрудники' },
+  { id: 'items', name: 'ТМЦ' },
+];
+const orgOptions = ref([{ id: 0, name: 'Все организации' }]);
+const companyOptions = ref([{ id: 0, name: 'Все компании' }]);
+
+const hasActiveFilters = computed(
+  () => !!search.value.trim()
+    || !!typeFilter.value
+    || orgFilter.value !== 0
+    || companyFilter.value !== 0,
+);
 
 const items = ref([]);
 const total = ref(0);
@@ -228,6 +324,9 @@ const detail = ref(null);
 // запросы детали в общий ref, и медленный ответ предыдущего вложения мог бы
 // затереть актуальный (#632). Применяем только ответ последнего запроса.
 let detailSeq = 0;
+// Тот же приём для списка: смена фильтра/поиска быстро пускает несколько запросов
+// в общий items/total, медленный предыдущий мог бы затереть актуальный (#632).
+let listSeq = 0;
 
 const TYPE_LABELS = { cars: 'Автомобили', people: 'Сотрудники', items: 'ТМЦ' };
 const TYPE_VARIANTS = { cars: 'primary', people: 'info', items: 'warning' };
@@ -261,25 +360,86 @@ function dateRange(a) {
   return '';
 }
 
+function buildParams() {
+  const params = { page: page.value, per_page: PER_PAGE };
+  const s = search.value.trim();
+  if (s) params.search = s;
+  if (typeFilter.value) params.attachment_type = typeFilter.value;
+  if (orgFilter.value) params.organization_id = orgFilter.value;
+  if (companyFilter.value) params.company_id = companyFilter.value;
+  return params;
+}
+
+function syncUrl() {
+  const query = {};
+  const s = search.value.trim();
+  if (s) query.search = s;
+  if (typeFilter.value) query.type = typeFilter.value;
+  if (orgFilter.value) query.organization = String(orgFilter.value);
+  if (companyFilter.value) query.company = String(companyFilter.value);
+  // catch гасит navigation-cancel при быстрой смене фильтров: vue-router отклоняет
+  // отменённую replace - это не ошибка приложения, а нормальная гонка ввода.
+  router.replace({ query }).catch(() => {});
+}
+
 async function fetchList({ reset = true } = {}) {
+  if (reset) page.value = 1;
   listLoading.value = true;
+  const seq = ++listSeq;
   try {
-    if (reset) page.value = 1;
-    const { items: data, meta } = await getAccessibleAttachments({
-      page: page.value,
-      per_page: PER_PAGE,
-    });
+    const { items: data, meta } = await getAccessibleAttachments(buildParams());
+    if (seq !== listSeq) return;
     items.value = reset ? data : [...items.value, ...data];
     total.value = meta.total || 0;
   } catch {
+    if (seq !== listSeq) return;
     deletions.notify({
       type: 'error',
       bold: 'Не удалось загрузить',
       suffix: 'список доступных вложений',
     });
   } finally {
-    listLoading.value = false;
+    if (seq === listSeq) listLoading.value = false;
   }
+}
+
+// Аккумулирующую страницу load-more в URL не кладём: с "Показать ещё" её число
+// не диплинкается осмысленно. Фильтры и поиск - кладём (syncUrl).
+function applyFilters() {
+  selectedId.value = null;
+  detail.value = null;
+  syncUrl();
+  fetchList({ reset: true });
+}
+
+let searchTimer = null;
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(applyFilters, SEARCH_DEBOUNCE_MS);
+}
+
+function setType(value) {
+  typeFilter.value = value;
+  applyFilters();
+}
+
+function setOrg(value) {
+  orgFilter.value = value;
+  applyFilters();
+}
+
+function setCompany(value) {
+  companyFilter.value = value;
+  applyFilters();
+}
+
+function resetFilters() {
+  clearTimeout(searchTimer);
+  search.value = '';
+  typeFilter.value = '';
+  orgFilter.value = 0;
+  companyFilter.value = 0;
+  applyFilters();
 }
 
 function refresh() {
@@ -292,6 +452,26 @@ function loadMore() {
   if (listLoading.value) return;
   page.value += 1;
   fetchList({ reset: false });
+}
+
+// Пикеры орг/компаний - вспомогательные: без них поиск и фильтр по типу всё равно
+// работают, дропдауны просто остаются с одним пунктом "Все". Список не блокируем.
+async function loadFilterOptions() {
+  try {
+    const [orgs, companies] = await Promise.all([getOrganizations(), getCompanies()]);
+    if (Array.isArray(orgs)) {
+      orgOptions.value = [{ id: 0, name: 'Все организации' }, ...orgs];
+    }
+    if (Array.isArray(companies)) {
+      companyOptions.value = [{ id: 0, name: 'Все компании' }, ...companies];
+    }
+  } catch {
+    deletions.notify({
+      type: 'error',
+      bold: 'Не удалось загрузить',
+      suffix: 'списки для фильтров',
+    });
+  }
 }
 
 async function selectAttachment(id) {
@@ -313,7 +493,12 @@ async function selectAttachment(id) {
   }
 }
 
-onMounted(() => fetchList({ reset: true }));
+onMounted(() => {
+  loadFilterOptions();
+  fetchList({ reset: true });
+});
+
+onBeforeUnmount(() => clearTimeout(searchTimer));
 </script>
 
 <style scoped>
@@ -343,6 +528,47 @@ onMounted(() => fetchList({ reset: true }));
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e6e6e6;
+}
+
+.filters__search {
+  position: relative;
+  /* Поиск занимает свою строку целиком, дропдауны выстраиваются рядом ниже -
+     иначе растущий инпут отталкивает первый дропдаун к правому краю. */
+  flex: 1 1 100%;
+  min-width: 200px;
+}
+
+.filters__search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.filters__search-input {
+  padding-left: 38px;
+}
+
+.filters__dropdown {
+  flex: 1 1 160px;
+  min-width: 160px;
+}
+
+.filters__reset {
+  flex-shrink: 0;
 }
 
 .content-container {
