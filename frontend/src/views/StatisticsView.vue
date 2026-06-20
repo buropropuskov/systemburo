@@ -71,13 +71,6 @@
         >
           Отчёты
         </button>
-        <button
-          class="statistics__tab"
-          :class="{ 'statistics__tab--active': activeTab === 'insights' }"
-          @click="activeTab = 'insights'"
-        >
-          Инсайты
-        </button>
       </div>
 
       <!-- ===== ТЕЛО ===== -->
@@ -97,22 +90,10 @@
 
         <!-- Отчёты -->
         <div
-          v-else-if="activeTab === 'reports'"
-          class="statistics__panel"
-        >
-          <ReportsTab
-            :from="fromStr"
-            :to="toStr"
-          />
-        </div>
-
-        <!-- Инсайты -->
-        <div
           v-else
           class="statistics__panel"
         >
-          <InsightsTab
-            ref="insightsRef"
+          <ReportsTab
             :from="fromStr"
             :to="toStr"
           />
@@ -135,7 +116,6 @@ import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatisticsDashboard from '@/components/statistics/StatisticsDashboard.vue';
 import ReportsTab from '@/components/statistics/ReportsTab.vue';
-import InsightsTab from '@/components/statistics/InsightsTab.vue';
 import AnalyticsInstructionModal from '@/components/statistics/AnalyticsInstructionModal.vue';
 
 // ---- вкладки ----
@@ -197,9 +177,8 @@ function toDateStr(d) {
 const fromStr = computed(() => toDateStr(rangeStart.value));
 const toStr = computed(() => toDateStr(rangeEnd.value));
 
-// ---- ссылки на вкладки для вызова refresh ----
+// ---- ссылка на дашборд для вызова refresh ----
 const dashboardRef = ref(null);
-const insightsRef = ref(null);
 
 function onPeriodApply() {
   // Ручной выбор из календаря — период больше не соответствует кнопке-пресету.
@@ -208,10 +187,9 @@ function onPeriodApply() {
 
 function onRefresh() {
   // Обновляем активную вкладку: неактивные размонтированы через v-if.
+  // Отчёты строятся по кнопке, фонового обновления не требуют.
   if (activeTab.value === 'dashboard') {
     dashboardRef.value?.refresh();
-  } else if (activeTab.value === 'insights') {
-    insightsRef.value?.refresh();
   }
 }
 </script>

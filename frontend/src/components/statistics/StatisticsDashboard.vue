@@ -275,6 +275,42 @@
       />
     </div>
 
+    <!-- ===== ТОП ЗА ПЕРИОД ===== -->
+    <div class="dashboard__group">
+      <div class="dashboard__group-head">
+        <h2 class="dashboard__group-title">Топ за период</h2>
+        <span class="dashboard__group-chip">лидеры по нагрузке</span>
+        <span class="dashboard__group-rule" />
+      </div>
+
+      <div
+        v-if="insightsLoading"
+        class="dashboard__tops"
+      >
+        <div
+          v-for="n in 2"
+          :key="n"
+          class="dashboard__tile dashboard__tile--skeleton dashboard__top-skeleton"
+        />
+      </div>
+
+      <div
+        v-else
+        class="dashboard__tops"
+      >
+        <TopList
+          title="Места разгрузки"
+          subtitle="по въездам машин"
+          :items="insights.top_places"
+        />
+        <TopList
+          title="Организации"
+          subtitle="по числу заявок"
+          :items="insights.top_orgs"
+        />
+      </div>
+    </div>
+
     <!-- ===== ЖИВЫЕ ЛЕНТЫ ===== -->
     <div class="dashboard__feeds">
 
@@ -392,6 +428,7 @@ import AnalyticsAreaChart from '@/components/statistics/AnalyticsAreaChart.vue';
 import AnalyticsBarChart from '@/components/statistics/AnalyticsBarChart.vue';
 import DirIcon from '@/components/statistics/DirIcon.vue';
 import TrendSparkline from '@/components/statistics/TrendSparkline.vue';
+import TopList from '@/components/statistics/TopList.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
@@ -415,7 +452,9 @@ const summaryLoading = ref(false);
 // (дельта/направление), тренд по дням (спарклайн) и профиль пика по часам.
 // Метрики инсайтов покрывают заявки/проезды/проходы — остальные карточки без
 // инсайтов. peak_hours есть только у проездов/проходов (у заявок его нет).
-const insights = reactive({ comparisons: [], trends: [], peak_hours: [] });
+// top_places/top_orgs питают секцию «Топ за период» (лидерборды).
+const insights = reactive({ comparisons: [], trends: [], peak_hours: [], top_places: [], top_orgs: [] });
+const insightsLoading = ref(false);
 
 // Метрика развёрнутой карточки (ключ инсайта) либо null — раскрывает детальные
 // графики под сеткой «Данные». Клик по той же карточке сворачивает.
@@ -606,18 +645,26 @@ async function loadSummary() {
 
 async function loadInsights() {
   const seq = ++insightsSeq;
+  insightsLoading.value = true;
   try {
     const data = await getInsights(props.from, props.to);
     if (seq !== insightsSeq) return;
     insights.comparisons = Array.isArray(data?.comparisons) ? data.comparisons : [];
     insights.trends = Array.isArray(data?.trends) ? data.trends : [];
     insights.peak_hours = Array.isArray(data?.peak_hours) ? data.peak_hours : [];
+    insights.top_places = Array.isArray(data?.top_places) ? data.top_places : [];
+    insights.top_orgs = Array.isArray(data?.top_orgs) ? data.top_orgs : [];
   } catch {
-    // Сбой инсайтов не должен ронять дашборд — карточки остаются без футера.
+    // Сбой инсайтов не должен ронять дашборд — карточки остаются без футера,
+    // топы показывают пустое состояние.
     if (seq !== insightsSeq) return;
     insights.comparisons = [];
     insights.trends = [];
     insights.peak_hours = [];
+    insights.top_places = [];
+    insights.top_orgs = [];
+  } finally {
+    if (seq === insightsSeq) insightsLoading.value = false;
   }
 }
 
@@ -773,6 +820,23 @@ onUnmounted(() => {
   flex: 1;
   height: 1px;
   background: var(--color-border);
+}
+
+/* ===== ТОП ЗА ПЕРИОД ===== */
+.dashboard__tops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .dashboard__tops {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard__top-skeleton {
+  min-height: 200px;
 }
 
 /* ===== ПЛИТКИ ===== */

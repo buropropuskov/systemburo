@@ -203,6 +203,33 @@ describe('StatisticsDashboard — разворот карточки', () => {
   });
 });
 
+describe('StatisticsDashboard — топы за период', () => {
+  it('рендерит лидерборды мест и организаций из инсайтов', async () => {
+    state.insights = {
+      top_places: [{ metric: 'car_entries_count', label: 'Дебаркадер №1', value: 9 }],
+      top_orgs: [{ metric: 'applications_count', label: 'ООО Ромашка', value: 20 }],
+    };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Топ за период');
+    expect(wrapper.text()).toContain('Места разгрузки');
+    expect(wrapper.text()).toContain('Дебаркадер №1');
+    expect(wrapper.text()).toContain('Организации');
+    expect(wrapper.text()).toContain('ООО Ромашка');
+  });
+
+  it('без данных топов лидерборды показывают пустое состояние', async () => {
+    state.insights = {};
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Топ за период');
+    // Оба TopList без items -> два плейсхолдера «Нет данных».
+    expect(wrapper.findAll('.top__empty')).toHaveLength(2);
+  });
+});
+
 describe('StatisticsDashboard — динамика онлайна', () => {
   it('рендерит area-график пиков онлайна за период', async () => {
     state.onlinePeaks = [
