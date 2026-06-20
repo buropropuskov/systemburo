@@ -204,7 +204,7 @@ func main() {
 	documentFileService := services.NewDocumentFileService(cfg.UploadPath)
 	documentGroupService := services.NewDocumentGroupService(db)
 	documentService := services.NewDocumentService(db, documentFileService, settingsService)
-	statisticsService := services.NewStatisticsService(db)
+	statisticsService := services.NewStatisticsService(db, time.Duration(cfg.AnalyticsCacheRefreshSec)*time.Second)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, cfg.CookieSecure, cfg.JWTRefreshTTL)
@@ -341,6 +341,11 @@ func main() {
 	// Снимок дневного пика онлайна (#632): раз в минуту фиксирует текущий онлайн
 	// как пик за сегодня (peak_count = MAX(...)). Останавливается по ctxSig.
 	go startOnlinePeakSnapshotter(ctxSig, statisticsService, time.Minute)
+
+	// Тёплый кэш аналитики: прогрев из БД при старте + фоновое обновление, чтобы
+	// дашборд/insights не считались с нуля после рестарта или деплоя.
+	statisticsService.WarmCache(ctxSig)
+	go statisticsService.StartCacheRefresh(ctxSig)
 
 	// Graceful shutdown
 	go func() {

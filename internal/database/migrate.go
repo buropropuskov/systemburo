@@ -166,6 +166,8 @@ func AllModels() []interface{} {
 		&models.ReportTemplate{},
 		// Дневные пики онлайна пользователей (#632): снимок фонового тикера
 		&models.UserOnlinePeak{},
+		// Снимок тёплого кэша аналитики дашборда/insights (прогрев после рестарта)
+		&models.AnalyticsCache{},
 	}
 }
 

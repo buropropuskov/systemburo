@@ -63,6 +63,10 @@ type Config struct {
 	// ResetTimezone задаёт часовой пояс для ежедневного сброса территориальных статусов.
 	// Используется для расчёта 06:00 локального времени. По умолчанию Europe/Moscow.
 	ResetTimezone string `env:"RESET_TIMEZONE" envDefault:"Europe/Moscow"`
+
+	// AnalyticsCacheRefreshSec - интервал обновления тёплого кэша аналитики дашборда
+	// (in-memory + снимок в БД для прогрева после рестарта). 0 отключает кэш.
+	AnalyticsCacheRefreshSec int `env:"ANALYTICS_CACHE_REFRESH_SEC" envDefault:"60"`
 }
 
 func Load() (*Config, error) {

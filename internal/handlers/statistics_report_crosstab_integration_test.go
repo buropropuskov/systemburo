@@ -50,7 +50,7 @@ func TestRunReport_CrossTabAttachmentType(t *testing.T) {
 	mk("CT/3", week1, "Люди")
 	mk("CT/4", week2, "Машины")
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"applications_count"},
@@ -117,7 +117,7 @@ func TestRunReport_NoPivotUnchanged(t *testing.T) {
 	dn := "Машины"
 	require.NoError(t, db.Create(&models.Attachment{ApplicationID: app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}).Error)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"applications_count"},
@@ -177,7 +177,7 @@ func TestRunReport_AvgCarsPerDayWeekly(t *testing.T) {
 		}
 	}
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"avg_cars_per_day"},
@@ -238,7 +238,7 @@ func TestRunReport_AvgCarsPartialBin(t *testing.T) {
 		}
 	}
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
 		Metrics:     []string{"avg_cars_per_day"},

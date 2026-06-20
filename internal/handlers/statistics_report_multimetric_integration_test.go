@@ -39,7 +39,7 @@ func TestRunReport_MultiMetric(t *testing.T) {
 	cnt := 4
 	require.NoError(t, db.Create(&models.Item{AttachmentID: att.ID, Count: &cnt}).Error)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:      "aggregate",
 		Metrics:   []string{"applications_count", "items_sum"},
@@ -89,7 +89,7 @@ func TestRunReport_DimensionNone(t *testing.T) {
 		require.NoError(t, db.Create(&app).Error)
 	}
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:      "aggregate",
 		Metrics:   []string{"applications_count"},
