@@ -199,6 +199,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := createStatisticsIndexes(db); err != nil {
 		return err
 	}
+	if err := createSearchIndexes(db); err != nil {
+		return err
+	}
 	slog.Info("AutoMigrate completed")
 	return nil
 }
@@ -217,6 +220,37 @@ func createStatisticsIndexes(db *gorm.DB) error {
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {
 			return fmt.Errorf("create statistics index: %w", err)
+		}
+	}
+	return nil
+}
+
+// createSearchIndexes добавляет GIN trgm-индексы под мега-поиск заявок (#46): ILIKE
+// '%...%' и pg_trgm similarity по полям заявки и вложений ускоряются gin_trgm_ops.
+// Все CREATE INDEX IF NOT EXISTS - идемпотентны и аддитивны. Индексы по отдельным
+// колонкам (не по concat-выражению: concat_ws не IMMUTABLE, expression-индекс не создать).
+func createSearchIndexes(db *gorm.DB) error {
+	stmts := []string{
+		`CREATE INDEX IF NOT EXISTS idx_applications_number_trgm ON applications USING gin (application_number gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_applications_message_trgm ON applications USING gin (message gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_applications_resp_comment_trgm ON applications USING gin (responsible_comment gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_organizations_name_trgm ON organizations USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_last_name_trgm ON users USING gin (last_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_first_name_trgm ON users USING gin (first_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_middle_name_trgm ON users USING gin (middle_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_cars_number_trgm ON cars USING gin (car_number gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_cars_mark_name_trgm ON cars USING gin (mark_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_employees_last_name_trgm ON employees USING gin (last_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_employees_first_name_trgm ON employees USING gin (first_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_employees_middle_name_trgm ON employees USING gin (middle_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_employees_position_trgm ON employees USING gin (position gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_app_resp_users_comment_trgm ON application_responsible_users USING gin (approval_comment gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unload_places_name_trgm ON unload_places USING gin (name gin_trgm_ops)`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("create search index: %w", err)
 		}
 	}
 	return nil
