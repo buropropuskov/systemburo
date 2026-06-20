@@ -1,9 +1,19 @@
 import { ref } from 'vue';
+import { formatDateRu } from '@/utils/datetime';
+
+// Значение колонки строки/итогов: дробные метрики (float) лежат в float_values/
+// float_totals, целочисленные (счётчики, суммы, pivot cross-tab) — в values/totals.
+function colValue(bucket, floatBucket, col) {
+  return col.float ? Number(floatBucket?.[col.key] ?? 0) : Number(bucket?.[col.key] ?? 0);
+}
 
 /**
  * Приводит результат отчёта (aggregate или list) к плоской таблице для выгрузки.
  * Поддерживает обе формы aggregate-ответа движка: мультиметрик (columns +
  * metric_rows + totals) и одиночную метрику (rows[{label,value}] + total + unit).
+ * Cross-tab pivot-колонки уже лежат в columns/values, дробные метрики — в
+ * float_values/float_totals. Период-разрез (день/неделя/месяц) выводит подписи
+ * строк в дд.мм.гггг.
  *
  * @param {object} result результат POST /statistics/report
  * @returns {{ sheetName: string, header: string[], rows: Array<Array<string|number>>,
@@ -28,14 +38,19 @@ export function reportToTable(result) {
   const metricRows = result.metric_rows
     || (result.rows || []).map((row) => ({ label: row.label, values: { value: row.value } }));
   const totals = result.totals || { value: result.total ?? 0 };
+  const floatTotals = result.float_totals || {};
+  const isPeriod = result.dimension === 'period';
 
   const dimHeader = result.dimension === 'none' ? 'Итог' : 'Значение разреза';
   const header = [dimHeader, ...columns.map((c) => (c.unit ? `${c.label}, ${c.unit}` : c.label))];
-  const rows = metricRows.map((r) => [r.label, ...columns.map((c) => Number(r.values?.[c.key] ?? 0))]);
+  const rows = metricRows.map((r) => [
+    isPeriod ? formatDateRu(r.label) : r.label,
+    ...columns.map((c) => colValue(r.values, r.float_values, c)),
+  ]);
   // «Без разреза» — единственная строка уже итоговая, отдельная строка итогов лишняя.
   const totalsRow = result.dimension === 'none'
     ? null
-    : ['Итого', ...columns.map((c) => Number(totals[c.key] ?? 0))];
+    : ['Итого', ...columns.map((c) => colValue(totals, floatTotals, c))];
 
   return { sheetName: 'Сводка', header, rows, totalsRow };
 }
@@ -110,7 +125,7 @@ export function useReportExport() {
 
       worksheet.addRow([]);
       const period = opts.period?.from || opts.period?.to
-        ? `${opts.period.from || '...'} - ${opts.period.to || '...'}`
+        ? `${formatDateRu(opts.period.from) || '...'} - ${formatDateRu(opts.period.to) || '...'}`
         : 'весь период';
       const infoRows = [
         worksheet.addRow(['Отчёт:', opts.title || 'Отчёт по аналитике']),

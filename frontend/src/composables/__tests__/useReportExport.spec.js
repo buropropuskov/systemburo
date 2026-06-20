@@ -41,6 +41,30 @@ describe('reportToTable', () => {
     expect(t.totalsRow).toEqual(['Итого', 3]);
   });
 
+  it('cross-tab pivot + float: pivot в values, дробная метрика в float_values/float_totals, период -> дд.мм.гггг', () => {
+    const t = reportToTable({
+      mode: 'aggregate',
+      dimension: 'period',
+      columns: [
+        { key: 'car_entries_count', label: 'Машины', unit: 'шт' },
+        { key: 'avg_cars_per_day', label: 'Среднее/день', unit: 'шт/день', float: true },
+        { key: 'att_propusk', label: 'Пропуск', kind: 'pivot' },
+      ],
+      metric_rows: [
+        {
+          label: '2026-06-01',
+          values: { car_entries_count: 10, att_propusk: 6 },
+          float_values: { avg_cars_per_day: 2.5 },
+        },
+      ],
+      totals: { car_entries_count: 10, att_propusk: 6 },
+      float_totals: { avg_cars_per_day: 2.5 },
+    });
+    expect(t.header).toEqual(['Значение разреза', 'Машины, шт', 'Среднее/день, шт/день', 'Пропуск']);
+    expect(t.rows).toEqual([['01.06.2026', 10, 2.5, 6]]);
+    expect(t.totalsRow).toEqual(['Итого', 10, 2.5, 6]);
+  });
+
   it('list: заголовки и строки по колонкам сущности, без итогов', () => {
     const t = reportToTable({
       mode: 'list',
