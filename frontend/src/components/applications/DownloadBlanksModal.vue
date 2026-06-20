@@ -102,7 +102,7 @@
 <script>
 import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
-import { useUiStore } from '@/stores/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
 
 const TYPE_LABELS = {
@@ -158,7 +158,7 @@ export default {
         const { blob, filename } = await downloadBlank(this.applicationId, att.id);
         saveBlobAs(blob, filename);
       } catch (err) {
-        useUiStore().error(err.message || 'Не удалось скачать');
+        useDeletionsStore().notify({ prefix: 'Не удалось скачать: ', bold: err.message || 'ошибка сервера', type: 'error' });
       } finally {
         this.downloadingId = null;
       }
@@ -183,7 +183,7 @@ export default {
           const { blob, filename } = await downloadBlank(this.applicationId, id);
           zip.file(filename, blob);
         } catch (err) {
-          useUiStore().error(err.message || 'Не удалось скачать файл');
+          useDeletionsStore().notify({ prefix: 'Не удалось скачать файл: ', bold: err.message || 'ошибка сервера', type: 'error' });
         }
       }
       const content = await zip.generateAsync({ type: 'blob' });
@@ -193,7 +193,7 @@ export default {
       const org = info?.organization_name || '';
       const parts = [num, date, org].filter(Boolean).join('_').replace(/[/\\:*?"<>|]/g, '_');
       saveBlobAs(content, `${parts}.zip`);
-      useUiStore().success(`Скачано: ${ids.length} файлов в ZIP`);
+      useDeletionsStore().notify({ prefix: 'Скачано: ', bold: `${ids.length} файлов в ZIP` });
     },
     async downloadAll() {
       this.selectedIds = this.eligibleAttachments.map(a => a.id);
