@@ -1,184 +1,189 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="visible"
-      class="modal-overlay"
-      @click="$emit('close')"
-    >
+    <transition name="modal-fade">
       <div
-        class="modal-content"
-        @click.stop
+        v-if="visible"
+        class="modal-overlay"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
-        <!-- Заголовок модалки -->
-        <div class="modal-header">
-          <h3>Выбор существующих автомобилей</h3>
-          <div class="header-right">
-            <SearchComponent
-              v-model="searchQuery"
-              title="Поиск автомобилей..."
-              @update:model-value="handleSearch"
-            />
-          </div>
-          <button
-            class="modal-close"
-            @click="$emit('close')"
-          >
-            ×
-          </button>
-        </div>
-
-        <!-- Фильтры -->
-        <div class="filter-section">
-          <div class="filter-tabs">
-            <button
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'all' }"
-              @click="switchFilter('all')"
-            >
-              Все машины
-            </button>
-            <button
-              v-if="userOrganizationId"
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-              @click="switchFilter('organization')"
-            >
-              Организация
-            </button>
-            <button
-              v-if="userCompanyId"
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'company' }"
-              @click="switchFilter('company')"
-            >
-              Компания
-            </button>
-            <button
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'user' }"
-              @click="switchFilter('user')"
-            >
-              Мои
-            </button>
-          </div>
-          <div
-            v-if="tempSelectedCars.length > 0"
-            class="selected-counter"
-          >
-            Выбрано: <span class="selected-count">{{ tempSelectedCars.length }}</span>
-          </div>
-        </div>
-
-        <!-- Список машин -->
-        <div class="cars-table-container">
-          <div class="cars-table">
-            <!-- Заголовки таблицы -->
-            <div class="table-header">
-              <div class="header-cell select-cell" />
-              <div class="header-cell number-cell">
-                №
-              </div>
-              <div class="header-cell plate-cell">
-                Номер
-              </div>
-              <div class="header-cell mark-cell">
-                Марка
-              </div>
-              <div class="header-cell status-cell">
-                Статус
-              </div>
+        <div
+          class="modal-content"
+          @mousedown.stop
+          @click.stop
+        >
+          <!-- Заголовок модалки -->
+          <div class="modal-header">
+            <h3>Выбор существующих автомобилей</h3>
+            <div class="header-right">
+              <SearchComponent
+                v-model="searchQuery"
+                title="Поиск автомобилей..."
+                @update:model-value="handleSearch"
+              />
             </div>
+            <button
+              class="modal-close"
+              aria-label="Закрыть"
+              @click="$emit('close')"
+            >
+              ×
+            </button>
+          </div>
 
-            <!-- Тело таблицы -->
-            <div class="table-body">
-              <div
-                v-for="car in displayedCars"
-                :key="car.id"
-                class="table-row"
-                :class="{
-                  'table-row--disabled': isCarDisabled(car),
-                  'table-row--blacklisted': isCarBlacklisted(car),
-                  'table-row--selected': isCarSelected(car)
-                }"
-                :title="carRowTitle(car)"
-                @click="handleRowClick(car)"
+          <!-- Фильтры -->
+          <div class="filter-section">
+            <div class="filter-tabs">
+              <button
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'all' }"
+                @click="switchFilter('all')"
               >
+                Все машины
+              </button>
+              <button
+                v-if="userOrganizationId"
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                @click="switchFilter('organization')"
+              >
+                Организация
+              </button>
+              <button
+                v-if="userCompanyId"
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'company' }"
+                @click="switchFilter('company')"
+              >
+                Компания
+              </button>
+              <button
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                @click="switchFilter('user')"
+              >
+                Мои
+              </button>
+            </div>
+            <div
+              v-if="tempSelectedCars.length > 0"
+              class="selected-counter"
+            >
+              Выбрано: <span class="selected-count">{{ tempSelectedCars.length }}</span>
+            </div>
+          </div>
+
+          <!-- Список машин -->
+          <div class="cars-table-container">
+            <div class="cars-table">
+              <!-- Заголовки таблицы -->
+              <div class="table-header">
+                <div class="header-cell select-cell" />
+                <div class="header-cell number-cell">
+                  №
+                </div>
+                <div class="header-cell plate-cell">
+                  Номер
+                </div>
+                <div class="header-cell mark-cell">
+                  Марка
+                </div>
+                <div class="header-cell status-cell">
+                  Статус
+                </div>
+              </div>
+
+              <!-- Тело таблицы -->
+              <div class="table-body">
                 <div
-                  class="table-cell select-cell"
-                  @click.stop
+                  v-for="car in displayedCars"
+                  :key="car.id"
+                  class="table-row"
+                  :class="{
+                    'table-row--disabled': isCarDisabled(car),
+                    'table-row--blacklisted': isCarBlacklisted(car),
+                    'table-row--selected': isCarSelected(car)
+                  }"
+                  :title="carRowTitle(car)"
+                  @click="handleRowClick(car)"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="isCarSelected(car)"
-                    :disabled="isCarDisabled(car)"
-                    @change="toggleCarSelection(car)"
+                  <div
+                    class="table-cell select-cell"
+                    @click.stop
                   >
+                    <input
+                      type="checkbox"
+                      :checked="isCarSelected(car)"
+                      :disabled="isCarDisabled(car)"
+                      @change="toggleCarSelection(car)"
+                    >
+                  </div>
+                  <div class="table-cell number-cell">
+                    {{ car.id }}
+                  </div>
+                  <div class="table-cell plate-cell">
+                    {{ car.number }}
+                  </div>
+                  <div class="table-cell mark-cell">
+                    {{ car.mark }}
+                  </div>
+                  <div class="table-cell status-cell">
+                    <span
+                      v-if="isCarBlacklisted(car)"
+                      class="status-badge status-blacklisted"
+                      title="В чёрном списке"
+                    >
+                      В ЧС
+                    </span>
+                    <span
+                      v-else
+                      class="status-badge"
+                      :class="{
+                        'status-active': car.status,
+                        'status-inactive': !car.status
+                      }"
+                    >
+                      {{ car.status ? 'Активна' : 'Неактивна' }}
+                    </span>
+                  </div>
                 </div>
-                <div class="table-cell number-cell">
-                  {{ car.id }}
-                </div>
-                <div class="table-cell plate-cell">
-                  {{ car.number }}
-                </div>
-                <div class="table-cell mark-cell">
-                  {{ car.mark }}
-                </div>
-                <div class="table-cell status-cell">
-                  <span
-                    v-if="isCarBlacklisted(car)"
-                    class="status-badge status-blacklisted"
-                    title="В чёрном списке"
-                  >
-                    В ЧС
-                  </span>
-                  <span
-                    v-else
-                    class="status-badge"
-                    :class="{
-                      'status-active': car.status,
-                      'status-inactive': !car.status
-                    }"
-                  >
-                    {{ car.status ? 'Активна' : 'Неактивна' }}
-                  </span>
-                </div>
-              </div>
 
-              <!-- Состояния загрузки/пусто -->
-              <div
-                v-if="loadingCars"
-                class="loading-state"
-              >
-                <LoaderSpinner label="Загрузка машин…" />
-              </div>
-              <div
-                v-else-if="displayedCars.length === 0"
-                class="empty-state"
-              >
-                {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
+                <!-- Состояния загрузки/пусто -->
+                <div
+                  v-if="loadingCars"
+                  class="loading-state"
+                >
+                  <LoaderSpinner label="Загрузка машин…" />
+                </div>
+                <div
+                  v-else-if="displayedCars.length === 0"
+                  class="empty-state"
+                >
+                  {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных автомобилей' }}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Кнопки действий -->
-        <div class="modal-actions">
-          <button
-            class="btn btn-secondary"
-            @click="$emit('close')"
-          >
-            Отмена
-          </button>
-          <button
-            class="btn btn-primary"
-            :disabled="tempSelectedCars.length === 0"
-            @click="confirmSelection"
-          >
-            {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
-          </button>
+          <!-- Кнопки действий -->
+          <div class="modal-actions">
+            <button
+              class="lk-button lk-button--ghost"
+              @click="$emit('close')"
+            >
+              Отмена
+            </button>
+            <button
+              class="lk-button lk-button--primary"
+              :disabled="tempSelectedCars.length === 0"
+              @click="confirmSelection"
+            >
+              {{ tempSelectedCars.length > 0 ? `Выбрать (${tempSelectedCars.length})` : 'Выбрать' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -187,6 +192,7 @@ import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { listVehicleBlacklist } from '@/api/blacklist'
+import { useOverlayClose } from '@/composables/useOverlayClose'
 
 export default {
     name: 'ExistingCarsModal',
@@ -217,6 +223,10 @@ export default {
         }
     },
     emits: ['cars-selected', 'close'],
+    setup(props, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'))
+        return { onOverlayMousedown, onOverlayMouseup }
+    },
     data() {
         return {
             filteredCars: [],
@@ -229,22 +239,35 @@ export default {
         }
     },
     watch: {
-        async visible(newVal) {
+        visible(newVal) {
             if (newVal) {
+                document.body.style.overflow = 'hidden'
                 this.tempSelectedCars = [...this.initialSelectedCars]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
                 // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС"
                 // (иначе строка на миг отрисуется выбираемой, пока blacklistKeys пуст).
-                await this.loadBlacklist()
-                this.loadCarsByFilter('all')
+                this.loadBlacklist().then(() => this.loadCarsByFilter('all'))
             } else {
+                document.body.style.overflow = ''
                 this.tempSelectedCars = []
                 this.searchQuery = ''
             }
         }
     },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown)
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown)
+        document.body.style.overflow = ''
+    },
     methods: {
+        handleKeydown(e) {
+            if (!this.visible) return
+            if (e.key === 'Escape') this.$emit('close')
+        },
+
         async loadCarsByFilter(filterType) {
             this.loadingCars = true
             this.filteredCars = []
@@ -414,7 +437,7 @@ export default {
 
 .modal-content {
     background: white;
-    border-radius: 12px;
+    border-radius: 30px;
     width: 100%;
     max-width: 700px;
     max-height: 85vh;
@@ -711,20 +734,6 @@ export default {
     gap: 12px;
 }
 
-.spinner {
-    width: 24px;
-    height: 24px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #4F5BDF;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 .empty-state {
     font-style: italic;
     color: #a2a2a2;
@@ -740,46 +749,48 @@ export default {
     flex-shrink: 0;
 }
 
-.btn {
-    padding: 8px 20px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    outline: none;
-    min-height: 36px;
-    min-width: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active {
+    transition: opacity 0.2s ease-out;
 }
 
-.btn-secondary {
-    background: white;
-    color: #333;
-    border: 1px solid #e6e6e6;
+.modal-fade-leave-active {
+    transition: opacity 0.2s ease;
 }
 
-.btn-secondary:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #d9d9d9;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
 }
 
-.btn-primary {
-    background: #4F5BDF;
-    color: white;
+.modal-fade-enter-active .modal-content {
+    animation: modal-slide-up 0.2s ease-out;
 }
 
-.btn-primary:hover:not(:disabled) {
-    background: #3a45c0;
+.modal-fade-leave-active .modal-content {
+    animation: modal-slide-down 0.2s ease;
 }
 
-.btn-primary:disabled {
-    background: #a2a2a2;
-    cursor: not-allowed;
-    opacity: 0.6;
+@keyframes modal-slide-up {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes modal-slide-down {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(20px);
+        opacity: 0;
+    }
 }
 
 .table-body::-webkit-scrollbar {
@@ -800,9 +811,15 @@ export default {
 }
 
 @media (max-width: 768px) {
+    .modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
     .modal-content {
         max-height: 90vh;
-        max-width: 95vw;
+        max-width: 100vw;
+        border-radius: 16px 16px 0 0;
     }
 
     .modal-header {
@@ -834,11 +851,6 @@ export default {
 
     .modal-actions {
         padding: 12px 16px;
-    }
-
-    .btn {
-        min-width: 80px;
-        padding: 8px 16px;
     }
 }
 </style>
