@@ -47,6 +47,11 @@ const props = defineProps({
     type: Array,
     default: () => ['значение', 'значения', 'значений'],
   },
+  /** Дробная метрика (среднее и т.п.): ось Y и тултип не округляют до целых. */
+  isFloat: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const hasData = computed(() => props.data.length > 0);
@@ -102,7 +107,7 @@ const options = computed(() => ({
     forceNiceScale: true,
     labels: {
       style: { colors: '#a2a2a2', fontSize: '11px' },
-      formatter: (v) => Math.round(v).toLocaleString('ru-RU'),
+      formatter: (v) => formatAxis(v),
     },
   },
   legend: { show: false },
@@ -110,13 +115,23 @@ const options = computed(() => ({
     theme: 'dark',
     y: {
       formatter: (v) => {
-        const n = Math.round(Number(v) || 0);
-        return `${n.toLocaleString('ru-RU')} ${pluralize(n)}`;
+        const num = Number(v) || 0;
+        const shown = props.isFloat
+          ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+          : Math.round(num).toLocaleString('ru-RU');
+        return `${shown} ${pluralize(Math.round(num))}`;
       },
       title: { formatter: () => '' },
     },
   },
 }));
+
+function formatAxis(v) {
+  const num = Number(v) || 0;
+  return props.isFloat
+    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+    : Math.round(num).toLocaleString('ru-RU');
+}
 </script>
 
 <style scoped>

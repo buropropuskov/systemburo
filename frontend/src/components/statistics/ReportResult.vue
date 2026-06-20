@@ -23,8 +23,8 @@
       class="rr__state rr__empty"
     >
       <svg
-        width="44"
-        height="44"
+        width="40"
+        height="40"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -64,23 +64,7 @@
             График
           </button>
         </div>
-        <div
-          v-if="view === 'chart' && hasRows"
-          class="rr__seg"
-        >
-          <button
-            v-for="opt in chartTypeOptions"
-            :key="opt.value"
-            type="button"
-            class="rr__seg-btn"
-            :class="{ 'rr__seg-btn--active': chartType === opt.value }"
-            :data-testid="`rr-chart-${opt.value}`"
-            @click="chartType = opt.value"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
-        <!-- Выбор метрики для графика, если их несколько (график рисует одну серию) -->
+        <!-- Выбор метрики для графика, если их несколько (график рисует одну серию). -->
         <div
           v-if="view === 'chart' && hasRows && aggColumns.length > 1"
           class="rr__seg rr__seg--metrics"
@@ -108,12 +92,25 @@
         </button>
       </div>
 
-      <ReportChart
-        v-if="view === 'chart' && hasRows"
-        :rows="chartRows"
-        :type="chartType"
-        :unit="chartUnit"
-        :label="chartLabel"
+      <!-- Период рисуем area-графиком (динамика во времени), прочие разрезы —
+           столбцами. Apex (AnalyticsAreaChart/AnalyticsBarChart), без Chart.js. -->
+      <AnalyticsAreaChart
+        v-if="view === 'chart' && hasRows && isPeriod"
+        :data="chartAreaData"
+        :height="chartHeight"
+        :series-name="chartSeriesName"
+        :unit-forms="chartUnitForms"
+        :is-float="chartIsFloat"
+        data-testid="rr-chart-area"
+      />
+      <AnalyticsBarChart
+        v-else-if="view === 'chart' && hasRows"
+        :data="chartBarData"
+        :height="chartHeight"
+        :series-name="chartSeriesName"
+        :unit-forms="chartUnitForms"
+        :is-float="chartIsFloat"
+        data-testid="rr-chart-bar"
       />
 
       <div
@@ -138,13 +135,13 @@
               v-for="(row, i) in aggRows"
               :key="i"
             >
-              <td>{{ row.label }}</td>
+              <td>{{ rowLabel(row.label) }}</td>
               <td
                 v-for="col in aggColumns"
                 :key="col.key"
                 class="rr__num"
               >
-                {{ formatNumber(cellValue(row, col.key)) }}
+                {{ formatNumber(cellValue(row, col), col.float) }}
               </td>
             </tr>
             <tr v-if="!aggRows.length">
@@ -164,7 +161,7 @@
                 :key="col.key"
                 class="rr__num"
               >
-                <b>{{ formatNumber(aggTotals[col.key] ?? 0) }}</b>
+                <b>{{ formatNumber(totalValue(col), col.float) }}</b>
               </td>
             </tr>
           </tfoot>
@@ -234,8 +231,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
-import ReportChart from './ReportChart.vue';
+import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
+import AnalyticsBarChart from './AnalyticsBarChart.vue';
 import { useReportExport } from '@/composables/useReportExport';
+import { formatDateRu } from '@/utils/datetime';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -248,13 +247,14 @@ const props = defineProps({
 const emit = defineEmits(['export-error']);
 
 const view = ref('table'); // 'table' | 'chart'
-const chartType = ref('bar'); // 'bar' | 'pie' | 'line'
 const chartMetric = ref(''); // ключ колонки-метрики, отображаемой на графике
 
 // Мультиметрика и одиночная сводка приведены к единому виду: колонки-метрики +
-// строки {label, values:{колонка->число}} + итоги по колонкам. Legacy-форма
+// строки {label, values, float_values} + итоги (totals/float_totals). Legacy-форма
 // (rows[{label,value}]/total/unit) синтезируется в одну колонку «value», поэтому
-// таблица и график не зависят от того, в каком формате пришёл ответ.
+// таблица и график не зависят от того, в каком формате пришёл ответ. Колонки могут
+// быть обычными метриками, дробными (float -> float_values) и cross-tab pivot
+// (kind='pivot', значение в values).
 const aggColumns = computed(() => {
   const r = props.result;
   // mode-guard: у list-результата свои columns — они не метрики, сюда не берём.
@@ -274,10 +274,14 @@ const aggTotals = computed(() => {
   return { value: r?.total ?? 0 };
 });
 
+const aggFloatTotals = computed(() => props.result?.float_totals || {});
+
 const hasRows = computed(() => aggRows.value.length > 0);
 
 // «Без разреза» -> единственная строка уже итоговая, отдельный футер итогов лишний.
 const showTotals = computed(() => props.result?.dimension !== 'none');
+
+const isPeriod = computed(() => props.result?.dimension === 'period');
 
 const dimensionHeader = computed(() => (props.result?.dimension === 'none' ? 'Итог' : 'Значение разреза'));
 
@@ -285,30 +289,38 @@ const dimensionHeader = computed(() => (props.result?.dimension === 'none' ? 'И
 const chartColumn = computed(
   () => aggColumns.value.find((c) => c.key === chartMetric.value) || aggColumns.value[0] || null,
 );
-const chartRows = computed(() => {
-  const key = chartColumn.value?.key;
-  return aggRows.value.map((row) => ({ label: row.label, value: cellValue(row, key) }));
+const chartSeriesName = computed(() => chartColumn.value?.label || 'Количество');
+// Дробная метрика (среднее/день) -> график не округляет до целых, как и таблица.
+const chartIsFloat = computed(() => chartColumn.value?.float === true);
+// Единица метрики ("шт", "шт/день") инвариантна по числу -> одна форма на все.
+const chartUnitForms = computed(() => {
+  const u = chartColumn.value?.unit;
+  return u ? [u, u, u] : undefined;
 });
-const chartUnit = computed(() => chartColumn.value?.unit || '');
-const chartLabel = computed(() => (aggColumns.value.length > 1 ? chartColumn.value?.label || '' : ''));
 
-// Временной разрез рисуем линией, остальные — столбцы/круговая.
-const chartTypeOptions = computed(() => (
-  props.result?.dimension === 'period'
-    ? [{ value: 'line', label: 'Линия' }, { value: 'bar', label: 'Столбцы' }]
-    : [{ value: 'bar', label: 'Столбцы' }, { value: 'pie', label: 'Круговая' }]
-));
+// area: period-подпись остаётся ISO (timestamp) — компонент сам форматит дд.мм; bar:
+// подпись разреза (статус/организация) — как есть.
+const chartAreaData = computed(() =>
+  aggRows.value.map((row) => ({ timestamp: row.label, count: cellValue(row, chartColumn.value) })),
+);
+const chartBarData = computed(() =>
+  aggRows.value.map((row) => ({ label: row.label, value: cellValue(row, chartColumn.value) })),
+);
 
-// Новый результат: list/пусто — только таблица; aggregate — сбрасываем тип
-// графика на дефолт по разрезу (period -> линия, иначе столбцы) и метрику графика
-// на первую колонку. Вид оставляем как выбрал пользователь, чтобы повторный отчёт
-// не сбрасывал его на таблицу.
+// Период -> ровная высота; категориальный bar растёт с числом разрезов, но в рамках.
+const chartHeight = computed(() => {
+  if (isPeriod.value) return 300;
+  return Math.min(380, Math.max(220, aggRows.value.length * 40));
+});
+
+// Новый результат: list/пусто — только таблица; aggregate — метрику графика на первую
+// колонку. Вид оставляем как выбрал пользователь, чтобы повторный отчёт не сбрасывал
+// его на таблицу.
 watch(() => props.result, (r) => {
   if (r?.mode !== 'aggregate') {
     view.value = 'table';
     return;
   }
-  chartType.value = r.dimension === 'period' ? 'line' : 'bar';
   chartMetric.value = aggColumns.value[0]?.key || '';
 }, { immediate: true });
 
@@ -329,13 +341,29 @@ async function onExport() {
   }
 }
 
-function cellValue(row, key) {
-  return row?.values?.[key] ?? 0;
+// Дробные колонки (среднее) держат значение в float_values, остальные (счётчики,
+// суммы, pivot) — в values; итоги симметрично в float_totals/totals.
+function cellValue(row, col) {
+  if (!col) return 0;
+  return col.float ? (row?.float_values?.[col.key] ?? 0) : (row?.values?.[col.key] ?? 0);
 }
 
-function formatNumber(value) {
+function totalValue(col) {
+  if (!col) return 0;
+  return col.float ? (aggFloatTotals.value[col.key] ?? 0) : (aggTotals.value[col.key] ?? 0);
+}
+
+// Период-разрез отдаёт подписи строк как YYYY-MM-DD -> человекочитаемое дд.мм.гггг.
+function rowLabel(label) {
+  return isPeriod.value ? formatDateRu(label) : label;
+}
+
+function formatNumber(value, float) {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toLocaleString('ru-RU') : value;
+  if (!Number.isFinite(n)) return value;
+  return float
+    ? n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    : n.toLocaleString('ru-RU');
 }
 
 function formatCell(value) {
@@ -348,7 +376,7 @@ function formatCell(value) {
 .rr {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .rr__state {
@@ -357,7 +385,7 @@ function formatCell(value) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 220px;
+  min-height: 180px;
   text-align: center;
   color: var(--color-text-muted);
 }
@@ -372,7 +400,7 @@ function formatCell(value) {
 
 .rr__empty p {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-text);
 }
@@ -411,8 +439,8 @@ function formatCell(value) {
   gap: 2px;
 }
 
-/* Метрик может быть много -> перенос на несколько строк; pill-радиус на
-   многострочном блоке смотрится криво, поэтому скругление поменьше. */
+/* Метрик может быть много (cross-tab pivot) -> перенос на несколько строк;
+   pill-радиус на многострочном блоке смотрится криво, поэтому скругление поменьше. */
 .rr__seg--metrics {
   flex-wrap: wrap;
   border-radius: var(--radius-md);
@@ -447,6 +475,9 @@ function formatCell(value) {
 
 .rr__table-wrap {
   overflow-x: auto;
+  /* Таблица не растёт бесконечно — длинный разрез скроллится внутри панели. */
+  max-height: 460px;
+  overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
@@ -460,18 +491,19 @@ function formatCell(value) {
 .rr__table thead th {
   position: sticky;
   top: 0;
+  z-index: 1;
   background: var(--color-bg);
   text-align: left;
   font-size: 12px;
   font-weight: 600;
   color: var(--color-text-muted);
-  padding: 11px 14px;
+  padding: 10px 14px;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
 }
 
 .rr__table tbody td {
-  padding: 10px 14px;
+  padding: 9px 14px;
   color: var(--color-text);
   border-bottom: 1px solid var(--color-border);
   vertical-align: top;
@@ -486,7 +518,9 @@ function formatCell(value) {
 }
 
 .rr__table tfoot td {
-  padding: 11px 14px;
+  position: sticky;
+  bottom: 0;
+  padding: 10px 14px;
   color: var(--color-text);
   border-top: 2px solid var(--color-border);
   background: var(--color-bg);
@@ -505,7 +539,7 @@ function formatCell(value) {
 }
 
 .rr__footer {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-text);
 }
 
