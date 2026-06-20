@@ -433,6 +433,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/submit-complete-application", app.SubmitCompleteApplication)
 	apg.GET("/user", app.GetUserApplications)
 	apg.GET("/unread-count", app.GetUnreadCount)
+	apg.GET("/available-attachments", app.GetAvailableAttachments)           // #706 - "Доступные мне" для охранников
+	apg.GET("/available-attachments/:id", app.GetAvailableAttachmentDetail)  // #706 - деталь вложения
 	apg.GET("/:id", app.GetApplicationByID)
 	apg.PUT("/:id", app.UpdateApplication)
 	apg.GET("/:id/responsible-users", app.GetApplicationResponsibleUsers)
