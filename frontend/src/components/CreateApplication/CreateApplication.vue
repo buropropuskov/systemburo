@@ -234,10 +234,12 @@
               :user-company="company"
               :user-company-id="companyId"
               :existing-vehicles="vehicles"
+              :application-unload-places="applicationUnloadPlaces"
               @vehicle-added="handleVehicleAdded"
               @vehicles-added="handleVehiclesAdded"
               @vehicle-updated="handleVehicleUpdated"
               @edit-cancelled="handleVehicleEditCancelled"
+              @update:unload-places="onApplicationUnloadPlacesChange"
             />
             <VehiclesList 
               :vehicles="sortedVehicles"
@@ -283,10 +285,14 @@
               :key="itemsFormKey"
               ref="itemsForm"
               :field-config="currentFieldConfig"              :existing-items="items"
+              :show-unload-places="showItemsUnloadPlaces"
+              :all-unloading-places="allUnloadingPlaces"
+              :selected-unload-places="applicationUnloadPlaces"
               @item-added="handleItemAdded"
               @items-added="handleItemsAdded"
               @item-updated="handleItemUpdated"
               @edit-cancelled="handleItemEditCancelled"
+              @update:unload-places="onApplicationUnloadPlacesChange"
             />
             <ItemsList
               :items="sortedItems"
@@ -384,6 +390,11 @@ export default {
 
             allUnloadingPlaces: [],
 
+            // Места разгрузки на уровне заявки (#706): единый выбор, синхронизируется
+            // во все cars-вложения и уходит в items-вложения. Для items-без-машин это
+            // единственный источник; для cars - дубль дедуп-union мест всех машин.
+            applicationUnloadPlaces: [],
+
             organizationId: null,
             companyId: null,
             
@@ -469,6 +480,25 @@ export default {
             return this.itemsByAttachment[this.attachmentKey(this.selectedAttachment)] || [];
         },
 
+        hasCars() {
+            return this.attachments.some(a => a.attachment_type === 'cars');
+        },
+
+        hasItems() {
+            return this.attachments.some(a => a.attachment_type === 'items');
+        },
+
+        // Выбор мест разгрузки в форме ТМЦ показываем только когда машин нет:
+        // при наличии машин единый выбор живёт в форме авто (#706).
+        showItemsUnloadPlaces() {
+            return !this.hasCars && this.hasItems;
+        },
+
+        // Для ТМЦ-без-машин место разгрузки обязательно: без него охранник не увидит вложение.
+        itemsUnloadRequired() {
+            return this.showItemsUnloadPlaces;
+        },
+
         currentCustomFields() {
             if (!this.selectedAttachment) return [];
             const uaId = this.selectedAttachment.template_id || this.selectedAttachment.id;
@@ -533,6 +563,9 @@ export default {
                     case 'items':
                         hasAttachmentData = (this.itemsByAttachment[key] || []).length > 0;
                         if (!hasAttachmentData) reasons.push(`"${label}": добавьте хотя бы одну позицию`);
+                        if (this.itemsUnloadRequired && this.applicationUnloadPlaces.length === 0) {
+                            reasons.push(`"${label}": выберите место разгрузки`);
+                        }
                         break;
                 }
 
@@ -590,6 +623,10 @@ export default {
                 if (type === 'cars' && items.length === 0) errors.push('Не добавлено ни одного автомобиля');
                 else if (type === 'people' && items.length === 0) errors.push('Не добавлено ни одного сотрудника');
                 else if (type === 'items' && items.length === 0) errors.push('Не добавлено ни одной позиции');
+
+                if (type === 'items' && this.itemsUnloadRequired && this.applicationUnloadPlaces.length === 0) {
+                    errors.push('Не выбрано место разгрузки');
+                }
 
                 const dateData = this.attachmentDatesByAttachment[key];
                 if (dateData) {
@@ -831,6 +868,41 @@ export default {
             } catch (error) {
                 console.error("Ошибка при загрузке мест разгрузки:", error);
             }
+        },
+
+        // Единый обработчик изменения мест разгрузки заявки (#706): источник -
+        // форма авто или форма ТМЦ. Пишем app-level выбор и раскатываем его во все
+        // машины cars-вложений, чтобы дедуп-union на бэке совпал с выбором.
+        onApplicationUnloadPlacesChange(placeIds) {
+            this.applicationUnloadPlaces = Array.isArray(placeIds) ? [...placeIds] : [];
+            this.syncUnloadPlacesToCars();
+            this.saveToLocalStorage();
+        },
+
+        syncUnloadPlacesToCars() {
+            const ids = this.applicationUnloadPlaces;
+            const formatted = this.formatUnloadPlacesDisplay(ids);
+            this.attachments.forEach(attachment => {
+                if (attachment.attachment_type !== 'cars') return;
+                const vehicles = this.vehiclesByAttachment[this.attachmentKey(attachment)];
+                if (!vehicles) return;
+                vehicles.forEach(vehicle => {
+                    vehicle.unloadPlaces = [...ids];
+                    vehicle.unloadingPlace = formatted;
+                });
+            });
+        },
+
+        formatUnloadPlacesDisplay(ids) {
+            if (!ids || ids.length === 0) return '';
+            const names = ids
+                .map(id => {
+                    const place = this.allUnloadingPlaces.find(p => p.id === id);
+                    return place ? place.name : '';
+                })
+                .filter(Boolean);
+            if (names.length === 0) return '';
+            return names.length > 1 ? `${names[0]} и др.` : names[0];
         },
         
         getDefaultDateData() {
@@ -1797,6 +1869,9 @@ export default {
                     entry_time_to: dateData.endTime + ":00",
                     roof_access: dateData.roofAccess,
                     free_parking: dateData.freeParking,
+                    // Место разгрузки на уровне вложения (#706): для items - единственный
+                    // источник; для cars бэк берёт дедуп-union мест машин, поле дублирует.
+                    unload_places: [...this.applicationUnloadPlaces],
                     data: {}
                 };
 
@@ -2075,6 +2150,8 @@ export default {
                     employeesByAttachment: hasAttachments ? this.employeesByAttachment : {},
                     itemsByAttachment: hasAttachments ? this.itemsByAttachment : {},
 
+                    applicationUnloadPlaces: hasAttachments ? this.applicationUnloadPlaces : [],
+
                     attachmentDatesByAttachment: hasAttachments ? this.attachmentDatesByAttachment : {},
                     customFieldsByAttachment: hasAttachments ? this.customFieldsByAttachment : {},
 
@@ -2110,6 +2187,8 @@ export default {
                     this.vehiclesByAttachment = parsedData.vehiclesByAttachment || {};
                     this.employeesByAttachment = parsedData.employeesByAttachment || {};
                     this.itemsByAttachment = parsedData.itemsByAttachment || {};
+
+                    this.applicationUnloadPlaces = parsedData.applicationUnloadPlaces || [];
 
                     this.attachmentDatesByAttachment = parsedData.attachmentDatesByAttachment || {};
                     this.customFieldsByAttachment = parsedData.customFieldsByAttachment || {};
