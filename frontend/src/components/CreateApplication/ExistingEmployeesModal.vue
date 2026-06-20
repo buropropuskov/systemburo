@@ -1,175 +1,180 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="visible"
-      class="modal-overlay"
-      @click="$emit('close')"
-    >
+    <transition name="modal-fade">
       <div
-        class="modal-content"
-        @click.stop
+        v-if="visible"
+        class="modal-overlay"
+        @mousedown="onOverlayMousedown"
+        @mouseup="onOverlayMouseup"
       >
-        <div class="modal-header">
-          <h3>Выбор существующих сотрудников</h3>
-          <div class="header-right">
-            <SearchComponent
-              v-model="searchQuery"
-              title="Поиск сотрудников..."
-              @update:model-value="handleSearch"
-            />
-          </div>
-          <button
-            class="modal-close"
-            @click="$emit('close')"
-          >
-            ×
-          </button>
-        </div>
-
-        <div class="filter-section">
-          <div class="filter-tabs">
-            <button
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'all' }"
-              @click="switchFilter('all')"
-            >
-              Все сотрудники
-            </button>
-            <button
-              v-if="userOrganizationId"
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-              @click="switchFilter('organization')"
-            >
-              Организация
-            </button>
-            <button
-              class="filter-tab"
-              :class="{ 'filter-tab--active': currentFilter === 'user' }"
-              @click="switchFilter('user')"
-            >
-              Мои
-            </button>
-          </div>
-          <div
-            v-if="tempSelectedEmployees.length > 0"
-            class="selected-counter"
-          >
-            Выбрано: <span class="selected-count">{{ tempSelectedEmployees.length }}</span>
-          </div>
-        </div>
-
-        <div class="employees-table-container">
-          <div class="employees-table">
-            <div class="table-header">
-              <div class="header-cell select-cell" />
-              <div class="header-cell number-cell">
-                №
-              </div>
-              <div class="header-cell name-col">
-                ФИО
-              </div>
-              <div class="header-cell position-col">
-                Должность
-              </div>
-              <div class="header-cell citizenship-col">
-                Гражданство
-              </div>
-              <div class="header-cell status-cell">
-                Статус
-              </div>
+        <div
+          class="modal-content"
+          @mousedown.stop
+          @click.stop
+        >
+          <div class="modal-header">
+            <h3>Выбор существующих сотрудников</h3>
+            <div class="header-right">
+              <SearchComponent
+                v-model="searchQuery"
+                title="Поиск сотрудников..."
+                @update:model-value="handleSearch"
+              />
             </div>
+            <button
+              class="modal-close"
+              aria-label="Закрыть"
+              @click="$emit('close')"
+            >
+              ×
+            </button>
+          </div>
 
-            <div class="table-body">
-              <div
-                v-for="employee in displayedEmployees"
-                :key="employee.id"
-                class="table-row"
-                :class="{
-                  'table-row--disabled': isEmployeeDisabled(employee),
-                  'table-row--blacklisted': isEmployeeBlacklisted(employee),
-                  'table-row--selected': isEmployeeSelected(employee)
-                }"
-                :title="employeeRowTitle(employee)"
-                @click="handleRowClick(employee)"
+          <div class="filter-section">
+            <div class="filter-tabs">
+              <button
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'all' }"
+                @click="switchFilter('all')"
               >
+                Все сотрудники
+              </button>
+              <button
+                v-if="userOrganizationId"
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+                @click="switchFilter('organization')"
+              >
+                Организация
+              </button>
+              <button
+                class="filter-tab"
+                :class="{ 'filter-tab--active': currentFilter === 'user' }"
+                @click="switchFilter('user')"
+              >
+                Мои
+              </button>
+            </div>
+            <div
+              v-if="tempSelectedEmployees.length > 0"
+              class="selected-counter"
+            >
+              Выбрано: <span class="selected-count">{{ tempSelectedEmployees.length }}</span>
+            </div>
+          </div>
+
+          <div class="employees-table-container">
+            <div class="employees-table">
+              <div class="table-header">
+                <div class="header-cell select-cell" />
+                <div class="header-cell number-cell">
+                  №
+                </div>
+                <div class="header-cell name-col">
+                  ФИО
+                </div>
+                <div class="header-cell position-col">
+                  Должность
+                </div>
+                <div class="header-cell citizenship-col">
+                  Гражданство
+                </div>
+                <div class="header-cell status-cell">
+                  Статус
+                </div>
+              </div>
+
+              <div class="table-body">
                 <div
-                  class="table-cell select-cell"
-                  @click.stop
+                  v-for="employee in displayedEmployees"
+                  :key="employee.id"
+                  class="table-row"
+                  :class="{
+                    'table-row--disabled': isEmployeeDisabled(employee),
+                    'table-row--blacklisted': isEmployeeBlacklisted(employee),
+                    'table-row--selected': isEmployeeSelected(employee)
+                  }"
+                  :title="employeeRowTitle(employee)"
+                  @click="handleRowClick(employee)"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="isEmployeeSelected(employee)"
-                    :disabled="isEmployeeDisabled(employee)"
-                    @change="toggleEmployeeSelection(employee)"
+                  <div
+                    class="table-cell select-cell"
+                    @click.stop
                   >
+                    <input
+                      type="checkbox"
+                      :checked="isEmployeeSelected(employee)"
+                      :disabled="isEmployeeDisabled(employee)"
+                      @change="toggleEmployeeSelection(employee)"
+                    >
+                  </div>
+                  <div class="table-cell number-cell">
+                    {{ employee.id }}
+                  </div>
+                  <div class="table-cell name-col">
+                    {{ formatFullName(employee) }}
+                  </div>
+                  <div class="table-cell position-col">
+                    {{ employee.position || 'Не указана' }}
+                  </div>
+                  <div class="table-cell citizenship-col">
+                    {{ employee.citizenship_name || 'Не указано' }}
+                  </div>
+                  <div class="table-cell status-cell">
+                    <span
+                      v-if="isEmployeeBlacklisted(employee)"
+                      class="status-badge status-blacklisted"
+                      title="В чёрном списке"
+                    >
+                      В ЧС
+                    </span>
+                    <span
+                      v-else
+                      class="status-badge"
+                      :class="{
+                        'status-active': employee.status,
+                        'status-inactive': !employee.status
+                      }"
+                    >
+                      {{ employee.status ? 'Активен' : 'Неактивен' }}
+                    </span>
+                  </div>
                 </div>
-                <div class="table-cell number-cell">
-                  {{ employee.id }}
-                </div>
-                <div class="table-cell name-col">
-                  {{ formatFullName(employee) }}
-                </div>
-                <div class="table-cell position-col">
-                  {{ employee.position || 'Не указана' }}
-                </div>
-                <div class="table-cell citizenship-col">
-                  {{ employee.citizenship_name || 'Не указано' }}
-                </div>
-                <div class="table-cell status-cell">
-                  <span
-                    v-if="isEmployeeBlacklisted(employee)"
-                    class="status-badge status-blacklisted"
-                    title="В чёрном списке"
-                  >
-                    В ЧС
-                  </span>
-                  <span
-                    v-else
-                    class="status-badge"
-                    :class="{
-                      'status-active': employee.status,
-                      'status-inactive': !employee.status
-                    }"
-                  >
-                    {{ employee.status ? 'Активен' : 'Неактивен' }}
-                  </span>
-                </div>
-              </div>
 
-              <div
-                v-if="loadingEmployees"
-                class="loading-state"
-              >
-                <LoaderSpinner label="Загрузка сотрудников…" />
-              </div>
-              <div
-                v-else-if="displayedEmployees.length === 0"
-                class="empty-state"
-              >
-                {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных сотрудников' }}
+                <div
+                  v-if="loadingEmployees"
+                  class="loading-state"
+                >
+                  <LoaderSpinner label="Загрузка сотрудников…" />
+                </div>
+                <div
+                  v-else-if="displayedEmployees.length === 0"
+                  class="empty-state"
+                >
+                  {{ searchQuery ? 'Ничего не найдено' : 'Нет доступных сотрудников' }}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="modal-actions">
-          <button
-            class="btn btn-secondary"
-            @click="$emit('close')"
-          >
-            Отмена
-          </button>
-          <button
-            class="btn btn-primary"
-            :disabled="tempSelectedEmployees.length === 0"
-            @click="confirmSelection"
-          >
-            {{ tempSelectedEmployees.length > 0 ? `Добавить (${tempSelectedEmployees.length})` : 'Добавить' }}
-          </button>
+          <div class="modal-actions">
+            <button
+              class="lk-button lk-button--ghost"
+              @click="$emit('close')"
+            >
+              Отмена
+            </button>
+            <button
+              class="lk-button lk-button--primary"
+              :disabled="tempSelectedEmployees.length === 0"
+              @click="confirmSelection"
+            >
+              {{ tempSelectedEmployees.length > 0 ? `Добавить (${tempSelectedEmployees.length})` : 'Добавить' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -178,6 +183,7 @@ import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { listPersonBlacklist } from '@/api/blacklist'
+import { useOverlayClose } from '@/composables/useOverlayClose'
 
 export default {
     name: 'ExistingEmployeesModal',
@@ -204,6 +210,10 @@ export default {
         }
     },
     emits: ['employees-selected', 'close'],
+    setup(props, { emit }) {
+        const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'))
+        return { onOverlayMousedown, onOverlayMouseup }
+    },
     data() {
         return {
             filteredEmployees: [],
@@ -216,21 +226,34 @@ export default {
         }
     },
     watch: {
-        async visible(newVal) {
+        visible(newVal) {
             if (newVal) {
+                document.body.style.overflow = 'hidden'
                 this.tempSelectedEmployees = [...this.initialSelectedEmployees]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
                 // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС".
-                await this.loadBlacklist()
-                this.loadEmployeesByFilter('all')
+                this.loadBlacklist().then(() => this.loadEmployeesByFilter('all'))
             } else {
+                document.body.style.overflow = ''
                 this.tempSelectedEmployees = []
                 this.searchQuery = ''
             }
         }
     },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown)
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown)
+        document.body.style.overflow = ''
+    },
     methods: {
+        handleKeydown(e) {
+            if (!this.visible) return
+            if (e.key === 'Escape') this.$emit('close')
+        },
+
         async loadEmployeesByFilter(filterType) {
             this.loadingEmployees = true
             this.filteredEmployees = []
@@ -676,20 +699,6 @@ export default {
     gap: 12px;
 }
 
-.spinner {
-    width: 24px;
-    height: 24px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #4F5BDF;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 .empty-state {
     font-style: italic;
     color: #a2a2a2;
@@ -705,46 +714,48 @@ export default {
     flex-shrink: 0;
 }
 
-.btn {
-    padding: 8px 20px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    outline: none;
-    min-height: 36px;
-    min-width: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Анимация открытия/закрытия */
+.modal-fade-enter-active {
+    transition: opacity 0.2s ease-out;
 }
 
-.btn-secondary {
-    background: white;
-    color: #333;
-    border: 1px solid #e6e6e6;
+.modal-fade-leave-active {
+    transition: opacity 0.2s ease;
 }
 
-.btn-secondary:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #d9d9d9;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+    opacity: 0;
 }
 
-.btn-primary {
-    background: #4F5BDF;
-    color: white;
+.modal-fade-enter-active .modal-content {
+    animation: modal-slide-up 0.2s ease-out;
 }
 
-.btn-primary:hover:not(:disabled) {
-    background: #3a45c0;
+.modal-fade-leave-active .modal-content {
+    animation: modal-slide-down 0.2s ease;
 }
 
-.btn-primary:disabled {
-    background: #a2a2a2;
-    cursor: not-allowed;
-    opacity: 0.6;
+@keyframes modal-slide-up {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes modal-slide-down {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(20px);
+        opacity: 0;
+    }
 }
 
 .table-body::-webkit-scrollbar {
@@ -765,9 +776,15 @@ export default {
 }
 
 @media (max-width: 768px) {
+    .modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
     .modal-content {
         max-height: 90vh;
-        max-width: 95vw;
+        max-width: 100vw;
+        border-radius: 16px 16px 0 0;
     }
 
     .modal-header {
@@ -799,11 +816,6 @@ export default {
 
     .modal-actions {
         padding: 12px 16px;
-    }
-
-    .btn {
-        min-width: 80px;
-        padding: 8px 16px;
     }
 }
 </style>
