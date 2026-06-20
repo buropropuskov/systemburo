@@ -611,6 +611,10 @@ export default {
             shakeInterval: null,
             applicationsPollInterval: null,
             isInitialLoad: true,
+            // Инкрементальный polling: после первого полного fetch прибавляем только новые
+            // заявки в начало списка без перерисовки всего. pollPrimed=false пока не
+            // завершился первый fetchApplications — чтобы не играть звук при открытии страницы.
+            pollPrimed: false,
             
             // Дата - теперь поддерживаем и одиночную дату, и диапазон
             selectedDate: null,
@@ -813,12 +817,19 @@ export default {
         this.fetchApplications();
         this.getCurrentUser();
 
-        // Динамическое обновление списка заявок - статусы/confirmations
-        // могут меняться из других сессий (согласование, взятие в работу, завершение).
-        // Polling 30s достаточен для UX без overkill.
+        // Polling 30s: инкрементально добавляет новые заявки в начало и
+        // играет звук при появлении; для обновления статусов существующих
+        // раз в 5 минут делается полный reload.
+        let _fullReloadCounter = 0;
         this.applicationsPollInterval = setInterval(() => {
             if (!this.isInitialLoad) {
-                this.fetchApplications();
+                _fullReloadCounter++;
+                if (_fullReloadCounter >= 10) {
+                    _fullReloadCounter = 0;
+                    this.fetchApplications();
+                } else {
+                    this._pollApplicationsIncremental();
+                }
             }
         }, 30000);
 
@@ -1091,6 +1102,76 @@ export default {
         },
 
         // API методы
+
+        /**
+         * Инкрементальный polling: запрашивает список без активных фильтров (только архив),
+         * находит заявки, чей id отсутствует в текущем массиве, и prepend'ит их.
+         * Звук играет в момент добавления, а не при росте unread-счётчика NavMenu —
+         * так пользователь слышит звук именно когда новая строка появляется в таблице.
+         * Не запускается если активны фильтры: новая заявка может просто не попасть
+         * под фильтр, и prepend без полного reload будет некорректен.
+         */
+        async _pollApplicationsIncremental() {
+            // При активных фильтрах инкрементальный prepend некорректен — делаем полный reload.
+            const hasFilters = !!(
+                this.searchQuery ||
+                this.selectedOrganizationId ||
+                this.selectedConfirmations.length ||
+                this.selectedApplicationStatuses.length ||
+                this.selectedDate ||
+                (this.dateRangeStart && this.dateRangeEnd) ||
+                this.activeToday
+            );
+            if (hasFilters) {
+                await this.fetchApplications();
+                return;
+            }
+
+            try {
+                const authStore = useAuthStore();
+                if (!authStore.token) return;
+
+                const params = new URLSearchParams();
+                params.append('archive', this.archiveMode === 'archive' ? 'true' : 'false');
+                const response = await apiRequest(`/applications?${params}`, { method: 'GET' });
+                if (!response.ok) return;
+
+                const fresh = await response.json();
+                if (!Array.isArray(fresh)) return;
+
+                const knownIds = new Set(this.applications.map(a => a.id));
+                const newApps = fresh.filter(a => !knownIds.has(a.id));
+
+                if (newApps.length > 0) {
+                    // Prepend: новые заявки в начало (у них id больше — они свежее)
+                    this.applications = [...newApps, ...this.applications];
+
+                    if (this.pollPrimed && this.soundStore.enabled) {
+                        playPreset(this.soundStore.selectedPreset, this.soundStore.volume);
+                    }
+                }
+
+                // Синхронизируем обновлённые поля существующих (статус/confirmation/is_read),
+                // чтобы не ждать полного reload раз в 5 минут.
+                const freshById = Object.fromEntries(fresh.map(a => [a.id, a]));
+                this.applications = this.applications.map(a => {
+                    const updated = freshById[a.id];
+                    if (!updated) return a;
+                    // Только изменяемые серверные поля, не трогаем локальные (selected и т.п.)
+                    if (
+                        updated.status !== a.status ||
+                        updated.confirmation !== a.confirmation ||
+                        updated.is_read !== a.is_read
+                    ) {
+                        return { ...a, ...updated };
+                    }
+                    return a;
+                });
+            } catch {
+                // сетевой сбой — не критично, следующий poll сам восстановится
+            }
+        },
+
         async fetchApplications() {
             this.refreshing = true;
             try {
@@ -1144,6 +1225,8 @@ export default {
                 if (response.ok) {
                     const data = await response.json();
                     this.applications = data;
+                    // После первого полного fetch включаем инкрементальный polling со звуком.
+                    this.pollPrimed = true;
                 } else {
                     console.error("Ошибка при загрузке заявок:", await response.text());
                 }
