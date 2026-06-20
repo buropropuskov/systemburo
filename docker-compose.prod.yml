@@ -39,6 +39,10 @@ services:
       # Soft-лимит GC: сглаживает пики выделения после снятия mem_limit, не давая
       # процессу разрастаться неконтролируемо.
       GOMEMLIMIT: "6GiB"
+      # Логи приложения (slog + Echo) пишутся в stdout И в ротируемый файл (месяц).
+      LOG_FILE_PATH: /app/logs/app.log
+    volumes:
+      - logs:/app/logs
 
   frontend:
     mem_limit: !reset null
@@ -55,3 +59,6 @@ services:
       - backend
       - frontend
     restart: always
+
+volumes:
+  logs:

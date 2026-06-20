@@ -21,6 +21,15 @@ type Config struct {
 	LogLevel         string        `env:"LOG_LEVEL" envDefault:"info"`
 	SwaggerEnabled   bool          `env:"SWAGGER_ENABLED" envDefault:"false"`
 
+	// Файловое логирование с ротацией (lumberjack). LogFilePath пустой - пишем только
+	// в stdout (как раньше). При заданном пути логи идут и в stdout (docker logs),
+	// и в ротируемый файл. LogMaxAgeDays=30 - месячная ротация по времени.
+	LogFilePath   string `env:"LOG_FILE_PATH" envDefault:""`
+	LogMaxSizeMB  int    `env:"LOG_MAX_SIZE_MB" envDefault:"100"`
+	LogMaxAgeDays int    `env:"LOG_MAX_AGE_DAYS" envDefault:"30"`
+	LogMaxBackups int    `env:"LOG_MAX_BACKUPS" envDefault:"14"`
+	LogCompress   bool   `env:"LOG_COMPRESS" envDefault:"true"`
+
 	CORSAllowedOrigins      []string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:8081" envSeparator:","`
 	UploadMaxFileSize       int64    `env:"UPLOAD_MAX_FILE_SIZE" envDefault:"10485760"`
 	UploadAllowedImageTypes []string `env:"UPLOAD_ALLOWED_IMAGE_TYPES" envDefault:"image/jpeg,image/png,image/webp" envSeparator:","`

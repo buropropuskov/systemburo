@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"github.com/labstack/echo/v4"
 	echomw "github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -58,7 +60,20 @@ func main() {
 	default:
 		logLevel = slog.LevelInfo
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	// Writer для логов: stdout всегда (для docker logs), плюс ротируемый файл,
+	// если задан LOG_FILE_PATH. lumberjack ротирует по размеру и удаляет файлы
+	// старше MaxAge дней (по умолчанию 30 - месячная ротация).
+	var logOut io.Writer = os.Stdout
+	if cfg.LogFilePath != "" {
+		logOut = io.MultiWriter(os.Stdout, &lumberjack.Logger{
+			Filename:   cfg.LogFilePath,
+			MaxSize:    cfg.LogMaxSizeMB,
+			MaxAge:     cfg.LogMaxAgeDays,
+			MaxBackups: cfg.LogMaxBackups,
+			Compress:   cfg.LogCompress,
+		})
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: logLevel})))
 
 	encKey, err := crypto.ParseHexKey(cfg.DataEncryptionKey)
 	if err != nil {
@@ -113,7 +128,7 @@ func main() {
 
 	// Global middleware
 	e.Use(mw.RequestID())
-	e.Use(echomw.Logger())
+	e.Use(echomw.LoggerWithConfig(echomw.LoggerConfig{Output: logOut}))
 	e.Use(echomw.Recover())
 	// Security headers: HSTS, CSP, X-Frame-Options и т.д. HSTS включается только
 	// в режиме CookieSecure (prod/staging) - на http://localhost HSTS бесполезен
