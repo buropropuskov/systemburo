@@ -645,6 +645,7 @@ export default {
                 'restore_to_work': 'dot-info',
                 'assigned_responsible': 'dot-assign',
                 'assigned_viewer': 'dot-view',
+                'forwarded': 'dot-assign',
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system',
                 'blacklist_override': 'dot-success',
@@ -665,10 +666,19 @@ export default {
             
             // Новый тип для просматривающих
             if (item.action_type === 'assigned_viewer') {
-                
+
                 return `Получил(-а) доступ к просмотру заявки`;
             }
-            
+
+            // Сводка пересылки: вся заявка или конкретные вложения (#680)
+            if (item.action_type === 'forwarded') {
+                const names = item.metadata?.attachments;
+                if (item.metadata?.whole || !Array.isArray(names) || !names.length) {
+                    return 'Переслал(-а) всю заявку';
+                }
+                return `Переслал(-а) вложения: ${names.join(', ')}`;
+            }
+
             const texts = {
                 'create': 'Создал(-а) заявку',
                 'read': 'Прочитал(-а) заявку',
