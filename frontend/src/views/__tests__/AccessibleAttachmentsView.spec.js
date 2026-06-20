@@ -223,21 +223,27 @@ describe('AccessibleAttachmentsView (FE-S6) фильтры', () => {
   });
 
   it('поиск применяется после debounce и шлёт search', async () => {
-    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
-    wrapper = mountView();
-    await flushPromises();
-    getAccessibleAttachments.mockClear();
+    vi.useFakeTimers();
+    try {
+      getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+      wrapper = mountView();
+      // advanceTimersByTimeAsync прокручивает микротаски между таймерами - так
+      // под фейковыми таймерами дорешиваются промисы onMounted-запросов.
+      await vi.advanceTimersByTimeAsync(0);
+      getAccessibleAttachments.mockClear();
 
-    await wrapper.find('[data-testid="aa-search"]').setValue('ромашка');
-    // До истечения debounce запроса нет.
-    expect(getAccessibleAttachments).not.toHaveBeenCalled();
+      await wrapper.find('[data-testid="aa-search"]').setValue('ромашка');
+      // До истечения debounce (300мс) запроса нет.
+      expect(getAccessibleAttachments).not.toHaveBeenCalled();
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    await flushPromises();
+      await vi.advanceTimersByTimeAsync(300);
 
-    expect(getAccessibleAttachments).toHaveBeenCalledWith(
-      expect.objectContaining({ search: 'ромашка', page: 1 }),
-    );
+      expect(getAccessibleAttachments).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'ромашка', page: 1 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('сброс фильтров очищает query-параметры и URL', async () => {

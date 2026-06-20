@@ -403,10 +403,8 @@ async function fetchList({ reset = true } = {}) {
   }
 }
 
-// Смена любого фильтра сбрасывает пагинацию (reset: true -> page=1), снимает
-// открытую деталь и переписывает URL, чтобы состояние было шарящимся и переживало
-// перезагрузку (web.md: URL как state). Аккумулирующую страницу load-more в URL не
-// кладём - с "Показать ещё" её число не диплинкается осмысленно.
+// Аккумулирующую страницу load-more в URL не кладём: с "Показать ещё" её число
+// не диплинкается осмысленно. Фильтры и поиск - кладём (syncUrl).
 function applyFilters() {
   selectedId.value = null;
   detail.value = null;
@@ -543,7 +541,9 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 
 .filters__search {
   position: relative;
-  flex: 1 1 240px;
+  /* Поиск занимает свою строку целиком, дропдауны выстраиваются рядом ниже -
+     иначе растущий инпут отталкивает первый дропдаун к правому краю. */
+  flex: 1 1 100%;
   min-width: 200px;
 }
 
@@ -563,7 +563,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 }
 
 .filters__dropdown {
-  flex: 0 1 200px;
+  flex: 1 1 160px;
   min-width: 160px;
 }
 
