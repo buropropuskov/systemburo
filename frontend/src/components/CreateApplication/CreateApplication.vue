@@ -1830,11 +1830,11 @@ export default {
             };
             
             if (this.$refs.blankSelector) {
-                this.$refs.blankSelector.clearAttachments();
+                this.$refs.blankSelector.clearSelection();
             }
             this.selectedAttachment = null;
             this.attachments = [];
-            
+
             this.clearLocalStorageAfterSubmit();
         },
 
@@ -2094,8 +2094,6 @@ export default {
         },
 
         resetForm() {
-            this.clearFormData();
-
             this.applicationNumber++;
 
             this.vehiclesByAttachment = {};
@@ -2109,21 +2107,33 @@ export default {
             this.vehicleIdCounter = 1;
             this.employeeIdCounter = 1;
             this.itemIdCounter = 1;
-            
+
             this.vehicleFormKey += 1;
             this.employeeFormKey += 1;
             this.itemsFormKey += 1;
 
             this.organizationId = null;
             this.companyId = null;
-            
+
+            this.message = '';
+            this.consentGiven = false;
+            this.applicationUnloadPlaces = [];
+
+            this.errors = {
+                organization: '',
+                company: '',
+                responsiblePerson: '',
+                phone: ''
+            };
+
             this.loadUserData();
-            
+
             if (this.$refs.blankSelector) {
-                this.$refs.blankSelector.clearAttachments();
+                this.$refs.blankSelector.clearSelection();
             }
             this.selectedAttachment = null;
-            
+            this.attachments = [];
+
             this.clearLocalStorageAfterSubmit();
         },
 
